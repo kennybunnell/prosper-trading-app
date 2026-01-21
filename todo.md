@@ -88,3 +88,14 @@
 - [ ] Create position recommendations (🟢 CLOSE, 🟡 WATCH, 🔴 HOLD)
 - [ ] Build stock basis and returns analysis
 - [ ] Implement future performance projections
+
+
+## CSP Dashboard UI/UX Improvements
+- [x] Make sidebar persistent across all pages (not just dashboard routes)
+- [x] Check Streamlit app sidebar for additional widgets to include
+- [x] Add account selector dropdown in sidebar
+- [x] Add Quick Stats panel to sidebar (Open Positions, Working Orders, Weekly/Monthly Premium, Win Rate)
+- [x] Add sortable table headers (click to sort ascending/descending)
+- [x] Add color-coded score badges (Red < 50, Yellow 50-69, Green 70+)
+- [x] Add dry run checkbox option before order submission
+- [ ] Test complete CSP workflow end-to-end

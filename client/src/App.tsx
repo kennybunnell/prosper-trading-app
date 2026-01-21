@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
@@ -10,13 +10,9 @@ import CSPDashboard from "./pages/CSPDashboard";
 import { Sidebar } from "./components/Sidebar";
 
 function Router() {
-  // Dashboard routes with sidebar
-  const dashboardRoutes = ['/csp', '/cc', '/pmcc', '/performance'];
-  const isDashboardRoute = dashboardRoutes.some(route => window.location.pathname.startsWith(route));
-
   return (
     <div className="flex h-screen">
-      {isDashboardRoute && <Sidebar />}
+      <Sidebar />
       <div className="flex-1 overflow-auto">
         <Switch>
           <Route path={"/"} component={Home} />

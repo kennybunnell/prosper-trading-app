@@ -28,6 +28,7 @@ import {
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
+import { cn } from "@/lib/utils";
 
 type ScoredOpportunity = {
   symbol: string;
@@ -66,6 +67,9 @@ export default function CSPDashboard() {
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [minDte, setMinDte] = useState<number>(7);
   const [maxDte, setMaxDte] = useState<number>(45);
+  const [sortColumn, setSortColumn] = useState<string>('score');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [dryRun, setDryRun] = useState<boolean>(false);
 
   const utils = trpc.useUtils();
 
@@ -171,8 +175,20 @@ export default function CSPDashboard() {
       );
     }
 
+    // Sort opportunities
+    filtered.sort((a, b) => {
+      const aVal = (a as any)[sortColumn];
+      const bVal = (b as any)[sortColumn];
+      
+      if (aVal === null || aVal === undefined) return 1;
+      if (bVal === null || bVal === undefined) return -1;
+      
+      const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
     return filtered;
-  }, [opportunities, presetFilter, minScore, showSelectedOnly, selectedOpportunities]);
+  }, [opportunities, presetFilter, minScore, showSelectedOnly, selectedOpportunities, sortColumn, sortDirection]);
 
   // Calculate summary metrics
   const selectedOppsList = opportunities.filter(opp => 
@@ -252,7 +268,7 @@ export default function CSPDashboard() {
     submitOrders.mutate({
       orders,
       accountId: credentials.defaultTastytradeAccountId,
-      dryRun: false,
+      dryRun: dryRun,
     });
   };
 
@@ -505,22 +521,44 @@ export default function CSPDashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12"></TableHead>
-                  <TableHead>Symbol</TableHead>
-                  <TableHead>Strike</TableHead>
-                  <TableHead>Bid</TableHead>
-                  <TableHead>Ask</TableHead>
-                  <TableHead>Spread %</TableHead>
-                  <TableHead>Delta</TableHead>
-                  <TableHead>DTE</TableHead>
-                  <TableHead>Premium</TableHead>
-                  <TableHead>Weekly %</TableHead>
-                  <TableHead>Collateral</TableHead>
-                  <TableHead>ROC %</TableHead>
-                  <TableHead>OI</TableHead>
-                  <TableHead>Vol</TableHead>
-                  <TableHead>RSI</TableHead>
-                  <TableHead>BB %B</TableHead>
-                  <TableHead>Score</TableHead>
+                  {[
+                    { key: 'symbol', label: 'Symbol' },
+                    { key: 'strike', label: 'Strike' },
+                    { key: 'bid', label: 'Bid' },
+                    { key: 'ask', label: 'Ask' },
+                    { key: 'spreadPct', label: 'Spread %' },
+                    { key: 'delta', label: 'Delta' },
+                    { key: 'dte', label: 'DTE' },
+                    { key: 'premium', label: 'Premium' },
+                    { key: 'weeklyPct', label: 'Weekly %' },
+                    { key: 'collateral', label: 'Collateral' },
+                    { key: 'roc', label: 'ROC %' },
+                    { key: 'openInterest', label: 'OI' },
+                    { key: 'volume', label: 'Vol' },
+                    { key: 'rsi', label: 'RSI' },
+                    { key: 'bbPctB', label: 'BB %B' },
+                    { key: 'score', label: 'Score' },
+                  ].map(({ key, label }) => (
+                    <TableHead 
+                      key={key}
+                      className="cursor-pointer hover:bg-accent/50 transition-colors"
+                      onClick={() => {
+                        if (sortColumn === key) {
+                          setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortColumn(key);
+                          setSortDirection('desc');
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-1">
+                        {label}
+                        {sortColumn === key && (
+                          <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -558,7 +596,14 @@ export default function CSPDashboard() {
                         <TableCell>{opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}</TableCell>
                         <TableCell>{opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}</TableCell>
                         <TableCell>
-                          <Badge variant={opp.score >= 70 ? 'default' : opp.score >= 50 ? 'secondary' : 'outline'}>
+                          <Badge 
+                            className={cn(
+                              "font-bold",
+                              opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
+                              opp.score >= 50 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
+                              opp.score < 50 && "bg-red-500/20 text-red-500 border-red-500/50"
+                            )}
+                          >
                             {opp.score}
                           </Badge>
                         </TableCell>
@@ -572,21 +617,33 @@ export default function CSPDashboard() {
 
           {/* Submit Orders Button */}
           {selectedOppsList.length > 0 && (
-            <div className="mt-4 flex justify-end">
-              <Button
-                onClick={handleSubmitOrders}
-                disabled={submitOrders.isPending}
-                size="lg"
-              >
-                {submitOrders.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Submitting Orders...
-                  </>
-                ) : (
-                  `Submit ${selectedOppsList.length} Order(s)`
-                )}
-              </Button>
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="dry-run"
+                  checked={dryRun}
+                  onCheckedChange={(checked) => setDryRun(checked as boolean)}
+                />
+                <Label htmlFor="dry-run" className="cursor-pointer text-sm">
+                  Dry Run (test without submitting real orders)
+                </Label>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleSubmitOrders}
+                  disabled={submitOrders.isPending}
+                  size="lg"
+                >
+                  {submitOrders.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      {dryRun ? 'Testing...' : 'Submitting Orders...'}
+                    </>
+                  ) : (
+                    `${dryRun ? 'Test' : 'Submit'} ${selectedOppsList.length} Order(s)`
+                  )}
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
