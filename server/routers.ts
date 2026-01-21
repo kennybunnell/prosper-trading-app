@@ -126,13 +126,18 @@ export const appRouter = router({
       .input(
         z.object({
           symbols: z.array(z.string()).optional(),
-          expiration: z.string().optional(),
+          minDelta: z.number().optional(),
+          maxDelta: z.number().optional(),
+          minDte: z.number().optional(),
+          maxDte: z.number().optional(),
+          minVolume: z.number().optional(),
+          minOI: z.number().optional(),
         })
       )
       .query(async ({ ctx, input }) => {
         const { getApiCredentials } = await import('./db');
         const { createTradierAPI } = await import('./tradier');
-        const { calculateScore } = await import('./scoring');
+        const { scoreOpportunities } = await import('./scoring');
 
         const credentials = await getApiCredentials(ctx.user.id);
         if (!credentials?.tradierApiKey) {
@@ -146,59 +151,21 @@ export const appRouter = router({
           return [];
         }
 
-        const opportunities: any[] = [];
+        // Fetch CSP opportunities with filters
+        const opportunities = await api.fetchCSPOpportunities(
+          symbols,
+          input.minDelta || 0.15,
+          input.maxDelta || 0.35,
+          input.minDte || 7,
+          input.maxDte || 45,
+          input.minVolume || 5,
+          input.minOI || 50
+        );
 
-        for (const symbol of symbols) {
-          try {
-            // Get option chain
-            const chain = await api.getOptionChain(symbol, input.expiration || '');
-            
-            // Get technical indicators for secondary scoring
-            const technicals = await api.getTechnicalIndicators(symbol);
-            
-            // Filter for puts only
-            const puts = chain.filter((opt: any) => opt.option_type === 'put');
-            
-            // Calculate scores for each put
-            for (const put of puts) {
-              // Calculate DTE from expiration date
-              const expirationDate = new Date(put.expiration_date);
-              const today = new Date();
-              const dte = Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        // Score all opportunities
+        const scored = scoreOpportunities(opportunities);
 
-              const scores = calculateScore(
-                put,
-                technicals,
-                'csp',
-                dte
-              );
-
-              opportunities.push({
-                symbol: symbol,
-                strike: put.strike,
-                expiration: put.expiration_date,
-                dte: dte,
-                premium: put.bid || 0,
-                delta: put.greeks?.delta || 0,
-                gamma: put.greeks?.gamma || 0,
-                theta: put.greeks?.theta || 0,
-                vega: put.greeks?.vega || 0,
-                iv: put.greeks?.mid_iv || 0,
-                openInterest: put.open_interest || 0,
-                volume: put.volume || 0,
-                optionSymbol: put.symbol,
-                primaryScore: scores.primaryScore,
-                secondaryScore: scores.secondaryScore,
-                totalScore: scores.totalScore,
-              });
-            }
-          } catch (error: any) {
-            console.error(`Failed to fetch opportunities for ${symbol}:`, error.message);
-          }
-        }
-
-        // Sort by total score descending
-        return opportunities.sort((a, b) => b.totalScore - a.totalScore);
+        return scored;
       }),
     submitOrders: protectedProcedure
       .input(

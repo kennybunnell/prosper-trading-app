@@ -123,6 +123,32 @@ export interface TechnicalIndicators {
     current: number;
     percentInRange: number;
   } | null;
+  ivRank: number | null;
+}
+
+export interface CSPOpportunity {
+  symbol: string;
+  strike: number;
+  currentPrice: number;
+  expiration: string;
+  dte: number;
+  premium: number;
+  bid: number;
+  ask: number;
+  premiumPct: number;
+  weeklyPct: number;
+  monthlyPct: number;
+  annualPct: number;
+  delta: number;
+  theta: number;
+  volume: number;
+  openInterest: number;
+  rsi: number | null;
+  ivRank: number | null;
+  bbPctB: number | null;
+  spreadPct: number;
+  collateral: number;
+  roc: number;
 }
 
 export class TradierAPI {
@@ -335,6 +361,7 @@ export class TradierAPI {
           bollingerBands: null,
           movingAverage: null,
           week52Range: null,
+          ivRank: null,
         };
       }
 
@@ -374,6 +401,7 @@ export class TradierAPI {
           current: currentPrice,
           percentInRange,
         },
+        ivRank: null, // TODO: Implement IV Rank calculation
       };
     } catch (error: any) {
       console.error(`Failed to calculate technical indicators for ${symbol}:`, error.message);
@@ -382,6 +410,7 @@ export class TradierAPI {
         bollingerBands: null,
         movingAverage: null,
         week52Range: null,
+        ivRank: null,
       };
     }
   }
@@ -401,6 +430,124 @@ export class TradierAPI {
     } catch (error: any) {
       throw new Error(`Failed to fetch market status: ${error.response?.data?.fault?.faultstring || error.message}`);
     }
+  }
+
+  /**
+   * Fetch CSP opportunities for multiple symbols
+   * This is the main method used by the CSP Dashboard
+   */
+  async fetchCSPOpportunities(
+    symbols: string[],
+    minDelta: number = 0.15,
+    maxDelta: number = 0.35,
+    minDte: number = 7,
+    maxDte: number = 45,
+    minVolume: number = 5,
+    minOI: number = 50
+  ): Promise<CSPOpportunity[]> {
+    const opportunities: CSPOpportunity[] = [];
+
+    for (const symbol of symbols) {
+      try {
+        // Get all expirations for this symbol
+        const expirations = await this.getExpirations(symbol);
+        
+        // Filter expirations by DTE range
+        const today = new Date();
+        const filteredExpirations = expirations.filter((exp) => {
+          const expDate = new Date(exp);
+          const dte = Math.floor((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          return dte >= minDte && dte <= maxDte;
+        });
+
+        if (filteredExpirations.length === 0) continue;
+
+        // Get current stock price
+        const quote = await this.getQuote(symbol);
+        const underlyingPrice = quote.last;
+
+        // Get technical indicators
+        const indicators = await this.getTechnicalIndicators(symbol);
+
+        // Fetch option chains for each expiration
+        for (const expiration of filteredExpirations) {
+          const options = await this.getOptionChain(symbol, expiration, true);
+
+          // Filter for put options
+          const puts = options.filter((opt) => opt.option_type === 'put');
+
+          for (const put of puts) {
+            const delta = Math.abs(put.greeks?.delta || 0);
+            const volume = put.volume || 0;
+            const oi = put.open_interest || 0;
+            let bid = put.bid || 0;
+            const ask = put.ask || 0;
+            const strike = put.strike || 0;
+            const theta = put.greeks?.theta || 0;
+
+            // Apply delta filter
+            if (delta < minDelta || delta > maxDelta) continue;
+
+            // Apply volume and OI filters
+            if (volume < minVolume) continue;
+            if (oi < minOI) continue;
+
+            // Handle bid = 0 (use mid-price)
+            if (bid <= 0 && ask > 0) {
+              bid = ask / 2;
+            }
+
+            // Validate data
+            if (bid <= 0 || strike <= 0) continue;
+
+            // Calculate DTE
+            const expDate = new Date(put.expiration_date);
+            const dte = Math.floor((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            if (dte <= 0) continue;
+
+            // Calculate metrics
+            const mid = (bid + ask) / 2;
+            const spreadPct = mid > 0 ? ((ask - bid) / mid) * 100 : 999;
+            const premiumPct = (bid / strike) * 100;
+            const weeklyPct = (premiumPct / dte) * 7;
+            const monthlyPct = (premiumPct / dte) * 30;
+            const annualPct = (premiumPct / dte) * 365;
+            const collateral = strike * 100; // Per contract
+            const roc = (bid * 100 / collateral) * 100; // Return on collateral %
+
+            opportunities.push({
+              symbol,
+              strike,
+              currentPrice: underlyingPrice,
+              expiration: put.expiration_date,
+              dte,
+              premium: Math.round(mid * 100) / 100,
+              bid,
+              ask,
+              premiumPct: Math.round(premiumPct * 100) / 100,
+              weeklyPct: Math.round(weeklyPct * 100) / 100,
+              monthlyPct: Math.round(monthlyPct * 100) / 100,
+              annualPct: Math.round(annualPct * 10) / 10,
+              delta: Math.round(delta * 100) / 100,
+              theta: Math.round(theta * 1000) / 1000,
+              volume,
+              openInterest: oi,
+              rsi: indicators.rsi ? Math.round(indicators.rsi * 10) / 10 : null,
+              ivRank: indicators.ivRank,
+              bbPctB: indicators.bollingerBands ? Math.round(indicators.bollingerBands.percentB * 100) / 100 : null,
+              spreadPct: Math.round(spreadPct * 10) / 10,
+              collateral,
+              roc: Math.round(roc * 100) / 100,
+            });
+          }
+        }
+      } catch (error: any) {
+        console.error(`Error processing ${symbol}:`, error.message);
+        continue;
+      }
+    }
+
+    return opportunities;
   }
 }
 

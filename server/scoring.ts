@@ -1,303 +1,258 @@
 /**
- * Scoring System for Options Opportunities
- * Implements dual scoring (primary + secondary) for ranking opportunities
+ * Scoring System for CSP Opportunities
+ * Implements the exact composite scoring algorithm from the Streamlit app
  */
 
-import { OptionContract, TechnicalIndicators } from './tradier';
+import { CSPOpportunity } from './tradier';
 
-export interface ScoringWeights {
-  premium: number;
-  delta: number;
-  dte: number;
-  iv: number;
-  openInterest: number;
-  volume: number;
-  rsi: number;
-  bollingerBands: number;
-  movingAverage: number;
-  week52Range: number;
+export interface ScoredOpportunity extends CSPOpportunity {
+  score: number;
 }
 
-export const DEFAULT_PRIMARY_WEIGHTS: ScoringWeights = {
-  premium: 0.35,
-  delta: 0.25,
-  dte: 0.20,
-  iv: 0.20,
-  openInterest: 0,
-  volume: 0,
-  rsi: 0,
-  bollingerBands: 0,
-  movingAverage: 0,
-  week52Range: 0,
+/**
+ * Calculate CSP Composite Score (0-100)
+ * Based on Streamlit app scoring:
+ * - Weekly Return % (25%): Higher = Better
+ * - Delta (20%): Closer to 0.25-0.35 = Best (sweet spot)
+ * - RSI (20%): Lower = Better (oversold stocks bounce)
+ * - BB %B (15%): Lower = Better (near lower band)
+ * - IV Rank (10%): Higher = Better (elevated premium) - NOT IMPLEMENTED YET
+ * - Spread % (10%): Lower = Better (tighter spreads)
+ */
+export function calculateCSPScore(opp: CSPOpportunity): number {
+  let score = 0;
+
+  // 1. Weekly Return % (25 points) - Scale 0.5% to 2.5%
+  const weekly = opp.weeklyPct || 0;
+  if (weekly >= 2.5) {
+    score += 25;
+  } else if (weekly >= 0.5) {
+    score += 25 * ((weekly - 0.5) / 2.0);
+  }
+
+  // 2. Delta (20 points) - Sweet spot around 0.25-0.35
+  const delta = Math.abs(opp.delta || 0);
+  if (delta >= 0.25 && delta <= 0.35) {
+    score += 20; // Perfect range
+  } else if (delta >= 0.15 && delta <= 0.45) {
+    score += 15; // Good range
+  } else if (delta >= 0.10 && delta <= 0.50) {
+    score += 10; // Acceptable
+  } else {
+    score += 5; // Outside ideal range
+  }
+
+  // 3. RSI (20 points) - Lower is better for CSP (oversold)
+  const rsi = opp.rsi;
+  if (rsi !== null && rsi !== undefined) {
+    if (rsi < 30) {
+      score += 20; // Oversold - excellent
+    } else if (rsi < 40) {
+      score += 16;
+    } else if (rsi < 50) {
+      score += 12;
+    } else if (rsi < 60) {
+      score += 8;
+    } else if (rsi < 70) {
+      score += 4;
+    }
+    // > 70 = 0 points (overbought)
+  } else {
+    score += 10; // Neutral if no data
+  }
+
+  // 4. BB %B (15 points) - Lower is better for CSP
+  const bb = opp.bbPctB;
+  if (bb !== null && bb !== undefined) {
+    if (bb < 0.2) {
+      score += 15; // Near lower band - excellent
+    } else if (bb < 0.3) {
+      score += 12;
+    } else if (bb < 0.5) {
+      score += 9;
+    } else if (bb < 0.7) {
+      score += 6;
+    } else if (bb < 0.8) {
+      score += 3;
+    }
+    // > 0.8 = 0 points (near upper band)
+  } else {
+    score += 7; // Neutral if no data
+  }
+
+  // 5. IV Rank (10 points) - Higher is better
+  // TODO: Implement IV Rank calculation in Tradier API
+  const iv = opp.ivRank;
+  if (iv !== null && iv !== undefined) {
+    if (iv > 75) {
+      score += 10;
+    } else if (iv > 50) {
+      score += 8;
+    } else if (iv > 30) {
+      score += 5;
+    } else {
+      score += 2;
+    }
+  } else {
+    score += 5; // Neutral if no data
+  }
+
+  // 6. Spread % (10 points) - Lower is better
+  const spread = opp.spreadPct;
+  if (spread !== null && spread !== undefined) {
+    if (spread <= 1) {
+      score += 10;
+    } else if (spread <= 3) {
+      score += 8;
+    } else if (spread <= 5) {
+      score += 5;
+    } else if (spread <= 10) {
+      score += 2;
+    }
+    // > 10% = 0 points
+  } else {
+    score += 5; // Neutral if no data
+  }
+
+  return Math.round(score);
+}
+
+/**
+ * Score all opportunities and sort by score descending
+ */
+export function scoreOpportunities(opportunities: CSPOpportunity[]): ScoredOpportunity[] {
+  const scored = opportunities.map((opp) => ({
+    ...opp,
+    score: calculateCSPScore(opp),
+  }));
+
+  // Sort by score descending
+  scored.sort((a, b) => b.score - a.score);
+
+  return scored;
+}
+
+/**
+ * Filter opportunities by preset criteria
+ */
+export interface PresetFilter {
+  deltaMin: number;
+  deltaMax: number;
+  dteMin: number;
+  dteMax: number;
+  oiMin: number;
+  rsiMax?: number;
+  ivRankMin?: number;
+  bbMax?: number;
+  minScore?: number;
+}
+
+export const PRESET_FILTERS = {
+  conservative: {
+    deltaMin: 0.10,
+    deltaMax: 0.20,
+    dteMin: 7,
+    dteMax: 30,
+    oiMin: 50,
+    rsiMax: 70,
+    ivRankMin: 0,
+    bbMax: 1.0,
+    minScore: 50,
+  },
+  medium: {
+    deltaMin: 0.15,
+    deltaMax: 0.30,
+    dteMin: 7,
+    dteMax: 30,
+    oiMin: 50,
+    rsiMax: 80,
+    ivRankMin: 0,
+    bbMax: 1.0,
+    minScore: 40,
+  },
+  aggressive: {
+    deltaMin: 0.20,
+    deltaMax: 0.40,
+    dteMin: 7,
+    dteMax: 21,
+    oiMin: 25,
+    rsiMax: 100,
+    ivRankMin: 0,
+    bbMax: 1.0,
+    minScore: 30,
+  },
 };
 
-export const DEFAULT_SECONDARY_WEIGHTS: ScoringWeights = {
-  premium: 0,
-  delta: 0,
-  dte: 0,
-  iv: 0,
-  openInterest: 0.25,
-  volume: 0.25,
-  rsi: 0.20,
-  bollingerBands: 0.15,
-  movingAverage: 0.10,
-  week52Range: 0.05,
-};
+export function applyPresetFilter(
+  opportunities: ScoredOpportunity[],
+  preset: PresetFilter
+): ScoredOpportunity[] {
+  return opportunities.filter((opp) => {
+    // Delta filter
+    const delta = Math.abs(opp.delta);
+    if (delta < preset.deltaMin || delta > preset.deltaMax) return false;
 
-export interface OpportunityScore {
-  primaryScore: number;
-  secondaryScore: number;
-  totalScore: number;
-  breakdown: {
-    premium: number;
-    delta: number;
-    dte: number;
-    iv: number;
-    openInterest: number;
-    volume: number;
-    rsi: number;
-    bollingerBands: number;
-    movingAverage: number;
-    week52Range: number;
-  };
+    // DTE filter
+    if (opp.dte < preset.dteMin || opp.dte > preset.dteMax) return false;
+
+    // OI filter
+    if (opp.openInterest < preset.oiMin) return false;
+
+    // RSI filter (if specified)
+    if (preset.rsiMax !== undefined && preset.rsiMax < 100) {
+      if (opp.rsi !== null && opp.rsi !== undefined && opp.rsi > preset.rsiMax) {
+        return false;
+      }
+    }
+
+    // IV Rank filter (if specified)
+    if (preset.ivRankMin !== undefined && preset.ivRankMin > 0) {
+      if (opp.ivRank !== null && opp.ivRank !== undefined && opp.ivRank < preset.ivRankMin) {
+        return false;
+      }
+    }
+
+    // BB %B filter (if specified)
+    if (preset.bbMax !== undefined && preset.bbMax < 1.0) {
+      if (opp.bbPctB !== null && opp.bbPctB !== undefined && opp.bbPctB > preset.bbMax) {
+        return false;
+      }
+    }
+
+    // Score filter (if specified)
+    if (preset.minScore !== undefined && opp.score < preset.minScore) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 /**
- * Normalize a value to 0-100 scale
+ * Select best opportunity per ticker based on score
  */
-function normalize(value: number, min: number, max: number): number {
-  if (max === min) return 50;
-  const normalized = ((value - min) / (max - min)) * 100;
-  return Math.max(0, Math.min(100, normalized));
-}
+export function selectBestPerTicker(
+  opportunities: ScoredOpportunity[],
+  preset?: PresetFilter
+): ScoredOpportunity[] {
+  // Apply preset filter if provided
+  let filtered = preset ? applyPresetFilter(opportunities, preset) : opportunities;
 
-/**
- * Score premium amount (higher is better)
- */
-function scorePremium(premium: number, minPremium: number = 0.10, maxPremium: number = 5.0): number {
-  return normalize(premium, minPremium, maxPremium);
-}
+  // Group by symbol
+  const bySymbol = new Map<string, ScoredOpportunity[]>();
+  filtered.forEach((opp) => {
+    if (!bySymbol.has(opp.symbol)) {
+      bySymbol.set(opp.symbol, []);
+    }
+    bySymbol.get(opp.symbol)!.push(opp);
+  });
 
-/**
- * Score delta (optimal range: 0.20-0.40 for CSP, higher for CC)
- */
-function scoreDelta(delta: number, strategy: 'csp' | 'cc' | 'pmcc'): number {
-  const absDelta = Math.abs(delta);
-  
-  if (strategy === 'csp') {
-    // For CSP, prefer delta between 0.20-0.40
-    if (absDelta >= 0.20 && absDelta <= 0.40) return 100;
-    if (absDelta < 0.20) return normalize(absDelta, 0.10, 0.20);
-    return 100 - normalize(absDelta, 0.40, 0.70);
-  } else if (strategy === 'cc') {
-    // For CC, prefer delta between 0.20-0.50
-    if (absDelta >= 0.20 && absDelta <= 0.50) return 100;
-    if (absDelta < 0.20) return normalize(absDelta, 0.10, 0.20);
-    return 100 - normalize(absDelta, 0.50, 0.80);
-  } else {
-    // PMCC similar to CC
-    if (absDelta >= 0.20 && absDelta <= 0.50) return 100;
-    if (absDelta < 0.20) return normalize(absDelta, 0.10, 0.20);
-    return 100 - normalize(absDelta, 0.50, 0.80);
-  }
-}
+  // Select best (highest score) per symbol
+  const best: ScoredOpportunity[] = [];
+  bySymbol.forEach((opps) => {
+    const sorted = opps.sort((a, b) => b.score - a.score);
+    best.push(sorted[0]);
+  });
 
-/**
- * Score days to expiration (optimal: 30-45 days)
- */
-function scoreDTE(dte: number, optimalMin: number = 30, optimalMax: number = 45): number {
-  if (dte >= optimalMin && dte <= optimalMax) return 100;
-  if (dte < optimalMin) return normalize(dte, 7, optimalMin);
-  return 100 - normalize(dte, optimalMax, 90);
-}
-
-/**
- * Score implied volatility (higher is better for premium sellers)
- */
-function scoreIV(iv: number, minIV: number = 0.20, maxIV: number = 1.0): number {
-  return normalize(iv, minIV, maxIV);
-}
-
-/**
- * Score open interest (higher is better for liquidity)
- */
-function scoreOpenInterest(oi: number, minOI: number = 100, maxOI: number = 10000): number {
-  if (oi < minOI) return 0;
-  return normalize(oi, minOI, maxOI);
-}
-
-/**
- * Score volume (higher is better for liquidity)
- */
-function scoreVolume(volume: number, minVolume: number = 50, maxVolume: number = 5000): number {
-  if (volume < minVolume) return 0;
-  return normalize(volume, minVolume, maxVolume);
-}
-
-/**
- * Score RSI (optimal: 30-40 for CSP - oversold)
- */
-function scoreRSI(rsi: number | null, strategy: 'csp' | 'cc' | 'pmcc'): number {
-  if (rsi === null) return 50;
-  
-  if (strategy === 'csp') {
-    // For CSP, prefer oversold conditions (RSI < 40)
-    if (rsi <= 30) return 100;
-    if (rsi <= 40) return 90;
-    if (rsi <= 50) return 70;
-    if (rsi <= 60) return 50;
-    return 30;
-  } else {
-    // For CC/PMCC, prefer neutral to slightly overbought
-    if (rsi >= 50 && rsi <= 60) return 100;
-    if (rsi >= 40 && rsi < 50) return 80;
-    if (rsi >= 60 && rsi <= 70) return 80;
-    return 50;
-  }
-}
-
-/**
- * Score Bollinger Bands %B (optimal: <0.3 for CSP - near lower band)
- */
-function scoreBollingerBands(percentB: number | null, strategy: 'csp' | 'cc' | 'pmcc'): number {
-  if (percentB === null) return 50;
-  
-  if (strategy === 'csp') {
-    // For CSP, prefer near lower band (oversold)
-    if (percentB <= 0.2) return 100;
-    if (percentB <= 0.3) return 90;
-    if (percentB <= 0.5) return 70;
-    if (percentB <= 0.7) return 50;
-    return 30;
-  } else {
-    // For CC/PMCC, prefer middle to upper range
-    if (percentB >= 0.5 && percentB <= 0.7) return 100;
-    if (percentB >= 0.3 && percentB < 0.5) return 80;
-    if (percentB >= 0.7 && percentB <= 0.9) return 80;
-    return 50;
-  }
-}
-
-/**
- * Score Moving Average position (optimal: below SMA for CSP)
- */
-function scoreMovingAverage(percentFromSMA: number | null, strategy: 'csp' | 'cc' | 'pmcc'): number {
-  if (percentFromSMA === null) return 50;
-  
-  if (strategy === 'csp') {
-    // For CSP, prefer price below moving average
-    if (percentFromSMA <= -5) return 100;
-    if (percentFromSMA <= -2) return 90;
-    if (percentFromSMA <= 0) return 80;
-    if (percentFromSMA <= 2) return 60;
-    return 40;
-  } else {
-    // For CC/PMCC, prefer price above moving average
-    if (percentFromSMA >= 2) return 100;
-    if (percentFromSMA >= 0) return 90;
-    if (percentFromSMA >= -2) return 70;
-    return 50;
-  }
-}
-
-/**
- * Score 52-week range position (optimal: lower range for CSP)
- */
-function scoreWeek52Range(percentInRange: number | null, strategy: 'csp' | 'cc' | 'pmcc'): number {
-  if (percentInRange === null) return 50;
-  
-  if (strategy === 'csp') {
-    // For CSP, prefer lower in 52-week range
-    if (percentInRange <= 30) return 100;
-    if (percentInRange <= 40) return 90;
-    if (percentInRange <= 50) return 70;
-    return 50;
-  } else {
-    // For CC/PMCC, prefer middle to upper range
-    if (percentInRange >= 50 && percentInRange <= 70) return 100;
-    if (percentInRange >= 40 && percentInRange < 50) return 80;
-    if (percentInRange >= 70 && percentInRange <= 80) return 80;
-    return 60;
-  }
-}
-
-/**
- * Calculate comprehensive score for an option opportunity
- */
-export function calculateScore(
-  option: OptionContract,
-  technicals: TechnicalIndicators | null,
-  strategy: 'csp' | 'cc' | 'pmcc',
-  dte: number,
-  primaryWeights: ScoringWeights = DEFAULT_PRIMARY_WEIGHTS,
-  secondaryWeights: ScoringWeights = DEFAULT_SECONDARY_WEIGHTS
-): OpportunityScore {
-  // Calculate individual component scores
-  const premiumScore = scorePremium(option.bid);
-  const deltaScore = option.greeks ? scoreDelta(option.greeks.delta, strategy) : 50;
-  const dteScore = scoreDTE(dte);
-  const ivScore = option.greeks ? scoreIV(option.greeks.mid_iv) : 50;
-  const oiScore = scoreOpenInterest(option.open_interest);
-  const volumeScore = scoreVolume(option.volume);
-  
-  const rsiScore = technicals ? scoreRSI(technicals.rsi, strategy) : 50;
-  const bbScore = technicals?.bollingerBands ? scoreBollingerBands(technicals.bollingerBands.percentB, strategy) : 50;
-  const maScore = technicals?.movingAverage ? scoreMovingAverage(technicals.movingAverage.percentFromSMA, strategy) : 50;
-  const w52Score = technicals?.week52Range ? scoreWeek52Range(technicals.week52Range.percentInRange, strategy) : 50;
-
-  // Calculate primary score (option-specific metrics)
-  const primaryScore = 
-    premiumScore * primaryWeights.premium +
-    deltaScore * primaryWeights.delta +
-    dteScore * primaryWeights.dte +
-    ivScore * primaryWeights.iv;
-
-  // Calculate secondary score (technical indicators and liquidity)
-  const secondaryScore =
-    oiScore * secondaryWeights.openInterest +
-    volumeScore * secondaryWeights.volume +
-    rsiScore * secondaryWeights.rsi +
-    bbScore * secondaryWeights.bollingerBands +
-    maScore * secondaryWeights.movingAverage +
-    w52Score * secondaryWeights.week52Range;
-
-  // Total score (average of primary and secondary)
-  const totalScore = (primaryScore + secondaryScore) / 2;
-
-  return {
-    primaryScore: Math.round(primaryScore),
-    secondaryScore: Math.round(secondaryScore),
-    totalScore: Math.round(totalScore),
-    breakdown: {
-      premium: Math.round(premiumScore),
-      delta: Math.round(deltaScore),
-      dte: Math.round(dteScore),
-      iv: Math.round(ivScore),
-      openInterest: Math.round(oiScore),
-      volume: Math.round(volumeScore),
-      rsi: Math.round(rsiScore),
-      bollingerBands: Math.round(bbScore),
-      movingAverage: Math.round(maScore),
-      week52Range: Math.round(w52Score),
-    },
-  };
-}
-
-/**
- * Filter opportunities by minimum score threshold
- */
-export function filterByScore(
-  opportunities: Array<{ score: OpportunityScore }>,
-  minScore: number
-): Array<{ score: OpportunityScore }> {
-  return opportunities.filter(opp => opp.score.totalScore >= minScore);
-}
-
-/**
- * Sort opportunities by score (descending)
- */
-export function sortByScore<T extends { score: OpportunityScore }>(
-  opportunities: T[]
-): T[] {
-  return [...opportunities].sort((a, b) => b.score.totalScore - a.score.totalScore);
+  return best;
 }

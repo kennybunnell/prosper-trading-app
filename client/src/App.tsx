@@ -7,18 +7,27 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Settings from "./pages/Settings";
 import CSPDashboard from "./pages/CSPDashboard";
+import { Sidebar } from "./components/Sidebar";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
+  // Dashboard routes with sidebar
+  const dashboardRoutes = ['/csp', '/cc', '/pmcc', '/performance'];
+  const isDashboardRoute = dashboardRoutes.some(route => window.location.pathname.startsWith(route));
+
   return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/settings"} component={Settings} />
-      <Route path={"/csp"} component={CSPDashboard} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
+    <div className="flex h-screen">
+      {isDashboardRoute && <Sidebar />}
+      <div className="flex-1 overflow-auto">
+        <Switch>
+          <Route path={"/"} component={Home} />
+          <Route path={"/settings"} component={Settings} />
+          <Route path={"/csp"} component={CSPDashboard} />
+          <Route path={"/404"} component={NotFound} />
+          {/* Final fallback route */}
+          <Route component={NotFound} />
+        </Switch>
+      </div>
+    </div>
   );
 }
 

@@ -1,41 +1,65 @@
 # Prosper Trading App - TODO
 
-## Phase 1: Database Schema & API Foundation
-- [x] Design and implement database schema for watchlists
-- [x] Design and implement database schema for trades
-- [x] Design and implement database schema for positions
-- [x] Design and implement database schema for premium tracking
-- [x] Design and implement database schema for stock positions
-- [x] Create Tastytrade API integration module
-- [x] Create Tradier API integration module
-- [x] Implement session token management for Tastytrade
-- [x] Create scoring system utilities (primary and secondary scores)
+## ✅ Completed Foundation
+- [x] Database schema design and migration (watchlists, trades, positions, premium tracking, stock positions)
+- [x] Tastytrade API integration module
+- [x] Tradier API integration module  
+- [x] Settings page with credential management
+- [x] Premium dark theme with Damascus steel background
+- [x] Theme toggle (light/dark)
+- [x] Glassmorphism effects
+- [x] Home page with dashboard navigation
+- [x] Tradier Account ID and default account selection
+- [x] Comma-delimited ticker input for watchlist
 
-## Phase 2: Authentication & Settings
-- [x] Build settings page for API credentials management
-- [x] Implement secure credential storage (Tastytrade username/password)
-- [x] Implement secure credential storage (Tradier API key)
-- [x] Create multi-account selection interface
-- [x] Build account switching functionality
-- [x] Add connection testing for Tastytrade API
-- [x] Add connection testing for Tradier API
-- [x] Implement premium dark theme with Damascus steel background
-- [x] Add theme toggle (light/dark)
-- [x] Add glassmorphism effects to cards
+## 🚧 Current Focus: Complete CSP Dashboard (Phase 1-4)
 
-## Phase 3: CSP Dashboard
-- [x] Create CSP dashboard layout and navigation
-- [x] Implement watchlist management UI
-- [x] Build option chain fetching from Tradier API
-- [x] Implement dual scoring system (primary + secondary)
-- [x] Create interactive filters and sorting
-- [x] Build real-time summary card (premium/collateral/buying power)
-- [x] Implement score-based selection buttons (100% to 40% in 5% increments)
-- [x] Create order preview modal with confirmation
-- [x] Implement one-click order submission to Tastytrade
-- [x] Add success celebration with visual feedback
+### Phase 1: Sidebar Navigation & Layout
+- [x] Create sidebar component with account selection dropdown
+- [x] Add navigation menu (CSP Dashboard, CC Dashboard, PMCC Dashboard, Performance, Settings)
+- [x] Integrate sidebar into main app layout
+- [x] Add account switching functionality
+- [x] Style sidebar to match Damascus steel theme
 
-## Phase 4: CC Dashboard
+### Phase 2: Complete Backend CSP Logic
+- [ ] Rewrite Tradier API fetchCSPOpportunities method to match Streamlit implementation
+- [ ] Implement exact Streamlit composite scoring formula (0-100 scale based on Weekly %, Delta, RSI, BB %B, IV Rank, Spread %)
+- [ ] Create tRPC procedure for fetching CSP opportunities with scoring
+- [ ] Add preset filter logic (Conservative, Medium, Aggressive with configurable parameters)
+- [ ] Implement score-based filtering (100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40)
+- [ ] Add watchlist management endpoints (add/remove/list)
+- [ ] Create order submission endpoint with Tastytrade integration
+- [ ] Test backend with real API calls
+
+### Phase 3: Complete CSP Dashboard Frontend
+- [ ] Add all required columns (Symbol, Strike, Bid, Ask, Spread %, Delta, DTE, Premium, Weekly %, Collateral, ROC, Open Int, Volume, RSI, BB %B, IV Rank, Score)
+- [ ] Implement preset filter buttons (🟢 Conservative, 🟡 Medium, 🔴 Aggressive, ✅ Select All, 🗑️ Clear All)
+- [ ] Add score selection buttons (⭐ 100, 🟢 90+, 🟢 80+, 🟢 75+, 🟡 70+, 🟡 65+, 🟠 60+, 🟠 55+, 🔴 50+, 🔴 45+, ⚫ 40+)
+- [ ] Create preset filter configuration expanders (editable delta, DTE, OI, RSI, IV Rank, BB %B, min score)
+- [ ] Add "Selected Only" toggle filter
+- [ ] Implement quantity adjustment buttons (+1, +5, +10, -1, Reset)
+- [ ] Add real-time summary cards (Total Premium, Total Collateral, Weighted ROC, Opportunity Count)
+- [ ] Create order preview modal with detailed summary
+- [ ] Implement order submission with success feedback (confetti)
+- [ ] Add loading states for all async operations
+- [ ] Format columns with proper styling (currency, percentages, emojis for RSI/BB/IV Rank)
+
+### Phase 4: Testing & Refinement
+- [ ] Test watchlist management (add/remove tickers)
+- [ ] Test option chain fetching from Tradier API with real credentials
+- [ ] Verify scoring calculations match Streamlit app exactly
+- [ ] Test preset filters (Conservative, Medium, Aggressive)
+- [ ] Test score buttons (refine selection by score threshold)
+- [ ] Test order preview and submission workflow
+- [ ] Verify all columns display correct data
+- [ ] Test "Selected Only" toggle
+- [ ] Check responsive design on different screen sizes
+- [ ] Fix any bugs or issues found during testing
+- [ ] Create checkpoint for testable CSP module
+
+## 📋 Future Phases (After CSP Complete)
+
+### CC Dashboard
 - [ ] Create CC dashboard layout
 - [ ] Fetch existing positions from Tastytrade
 - [ ] Identify stocks with 100+ shares for CC opportunities
@@ -46,7 +70,7 @@
 - [ ] Create order preview and confirmation
 - [ ] Implement CC order submission to Tastytrade
 
-## Phase 5: PMCC Dashboard
+### PMCC Dashboard
 - [ ] Create PMCC dashboard layout
 - [ ] Implement PMCC watchlist management
 - [ ] Build LEAPS option scanner (>180 DTE)
@@ -55,7 +79,7 @@
 - [ ] Implement notification system for alerts
 - [ ] Create order submission for PMCC strategies
 
-## Phase 6: Performance Dashboard
+### Performance Dashboard
 - [ ] Create performance overview with monthly premium summary
 - [ ] Display win rate and account metrics
 - [ ] Build working orders view and management
@@ -64,52 +88,3 @@
 - [ ] Create position recommendations (🟢 CLOSE, 🟡 WATCH, 🔴 HOLD)
 - [ ] Build stock basis and returns analysis
 - [ ] Implement future performance projections
-
-## Phase 7: Technical Indicators & Analytics
-- [ ] Integrate RSI calculation from Tradier
-- [ ] Integrate Bollinger Bands calculation
-- [ ] Integrate Moving Average calculation
-- [ ] Integrate 52-week range calculation
-- [ ] Display technical indicators in opportunity tables
-- [ ] Use indicators in scoring algorithms
-
-## Phase 8: Safety & UX Features
-- [ ] Implement dry run capability for orders
-- [ ] Create final confirmation dialogs before execution
-- [ ] Build order preview with detailed summary
-- [ ] Add success celebrations (visual feedback)
-- [ ] Implement error handling and user notifications
-- [ ] Add loading states for all async operations
-
-## Phase 9: Testing & Refinement
-- [ ] Test Tastytrade API integration end-to-end
-- [ ] Test Tradier API integration end-to-end
-- [ ] Test CSP workflow from watchlist to order submission
-- [ ] Test CC workflow from positions to order submission
-- [ ] Test PMCC workflow
-- [ ] Test performance dashboard data accuracy
-- [ ] Verify multi-account support
-- [ ] Test all safety features and confirmations
-- [ ] Create initial checkpoint
-
-## Phase 10: Documentation & Deployment
-- [ ] Document API credential setup process
-- [ ] Create user guide for each dashboard
-- [ ] Document scoring system methodology
-- [ ] Add inline help and tooltips
-- [ ] Prepare for deployment
-
-
-## Credential Enhancements
-- [x] Add Tradier Account ID field to database schema
-- [x] Add default Tastytrade account ID field to database schema
-- [x] Update Settings page to capture Tradier Account ID
-- [x] Update Settings page to allow default account selection
-- [ ] Update backend to use default account when submitting orders
-- [ ] Test credential storage and retrieval
-
-## CSP Dashboard Improvements
-- [x] Add comma-delimited ticker input (allow multiple tickers at once)
-- [x] Add "Fetch Opportunities" button to manually trigger option chain fetching
-- [x] Fix error when adding multiple tickers
-- [x] Add loading state for fetch operation
