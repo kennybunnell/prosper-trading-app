@@ -29,6 +29,8 @@ export const appRouter = router({
           tastytradeUsername: z.string().optional(),
           tastytradePassword: z.string().optional(),
           tradierApiKey: z.string().optional(),
+          tradierAccountId: z.string().optional(),
+          defaultTastytradeAccountId: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {

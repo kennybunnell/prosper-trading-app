@@ -98,3 +98,12 @@
 - [ ] Document scoring system methodology
 - [ ] Add inline help and tooltips
 - [ ] Prepare for deployment
+
+
+## Credential Enhancements
+- [x] Add Tradier Account ID field to database schema
+- [x] Add default Tastytrade account ID field to database schema
+- [x] Update Settings page to capture Tradier Account ID
+- [x] Update Settings page to allow default account selection
+- [ ] Update backend to use default account when submitting orders
+- [ ] Test credential storage and retrieval

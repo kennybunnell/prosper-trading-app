@@ -123,7 +123,7 @@ export async function getApiCredentials(userId: number) {
   return result.length > 0 ? result[0] : null;
 }
 
-export async function upsertApiCredentials(userId: number, credentials: { tastytradeUsername?: string; tastytradePassword?: string; tradierApiKey?: string }) {
+export async function upsertApiCredentials(userId: number, credentials: { tastytradeUsername?: string; tastytradePassword?: string; tradierApiKey?: string; tradierAccountId?: string; defaultTastytradeAccountId?: string }) {
   const db = await getDb();
   if (!db) return;
   const { apiCredentials } = await import('../drizzle/schema');

@@ -15,6 +15,13 @@
       "when": 1769027424488,
       "tag": "0001_overconfident_madame_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1769031268016,
+      "tag": "0002_colorful_eddie_brock",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -13,6 +14,8 @@ export default function Settings() {
   const [tastytradeUsername, setTastytradeUsername] = useState("");
   const [tastytradePassword, setTastytradePassword] = useState("");
   const [tradierApiKey, setTradierApiKey] = useState("");
+  const [tradierAccountId, setTradierAccountId] = useState("");
+  const [defaultTastytradeAccountId, setDefaultTastytradeAccountId] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
 
   const { data: credentials, isLoading: loadingCredentials } = trpc.settings.getCredentials.useQuery(
@@ -51,17 +54,27 @@ export default function Settings() {
   const syncAccounts = trpc.accounts.sync.useMutation({
     onSuccess: (data) => {
       toast.success(`Synced ${data.count} account(s) from Tastytrade`);
+      utils.accounts.list.invalidate();
     },
     onError: (error) => {
       toast.error(`Failed to sync accounts: ${error.message}`);
     },
   });
 
+  const { data: accounts = [] } = trpc.accounts.list.useQuery(
+    undefined,
+    { enabled: !!user }
+  );
+
+  const utils = trpc.useUtils();
+
   useEffect(() => {
     if (credentials) {
       setTastytradeUsername(credentials.tastytradeUsername || "");
       setTastytradePassword(credentials.tastytradePassword || "");
       setTradierApiKey(credentials.tradierApiKey || "");
+      setTradierAccountId(credentials.tradierAccountId || "");
+      setDefaultTastytradeAccountId(credentials.defaultTastytradeAccountId || "");
     }
   }, [credentials]);
 
@@ -70,6 +83,8 @@ export default function Settings() {
       tastytradeUsername: tastytradeUsername || undefined,
       tastytradePassword: tastytradePassword || undefined,
       tradierApiKey: tradierApiKey || undefined,
+      tradierAccountId: tradierAccountId || undefined,
+      defaultTastytradeAccountId: defaultTastytradeAccountId || undefined,
     });
   };
 
@@ -166,6 +181,32 @@ export default function Settings() {
                 Sync Accounts
               </Button>
             </div>
+            {accounts.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="default-account">Default Account</Label>
+                <Select
+                  value={defaultTastytradeAccountId}
+                  onValueChange={(value) => {
+                    setDefaultTastytradeAccountId(value);
+                    handleInputChange();
+                  }}
+                >
+                  <SelectTrigger id="default-account">
+                    <SelectValue placeholder="Select default account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.map((account: any) => (
+                      <SelectItem key={account.accountId} value={account.accountId}>
+                        {account.nickname || account.accountNumber} ({account.accountType})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  This account will be pre-selected when submitting orders
+                </p>
+              </div>
+            )}
             {hasChanges && (
               <p className="text-xs text-muted-foreground mt-2">
                 Save your credentials first before testing the connection
@@ -208,6 +249,22 @@ export default function Settings() {
                 }}
                 placeholder="your-api-key"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tradier-account-id">Account ID</Label>
+              <Input
+                id="tradier-account-id"
+                type="text"
+                value={tradierAccountId}
+                onChange={(e) => {
+                  setTradierAccountId(e.target.value);
+                  handleInputChange();
+                }}
+                placeholder="6YB60394"
+              />
+              <p className="text-xs text-muted-foreground">
+                Used to check account balance and avoid rate limits
+              </p>
             </div>
             <Button
               variant="outline"

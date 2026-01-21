@@ -110,10 +110,12 @@ export type InsertPremiumTracking = typeof premiumTracking.$inferInsert;
  */
 export const apiCredentials = mysqlTable("apiCredentials", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
-  tastytradeUsername: text("tastytradeUsername"),
-  tastytradePassword: text("tastytradePassword"),
-  tradierApiKey: text("tradierApiKey"),
+  userId: int("userId").notNull(),
+  tastytradeUsername: varchar("tastytradeUsername", { length: 255 }),
+  tastytradePassword: varchar("tastytradePassword", { length: 255 }),
+  tradierApiKey: varchar("tradierApiKey", { length: 255 }),
+  tradierAccountId: varchar("tradierAccountId", { length: 255 }),
+  defaultTastytradeAccountId: varchar("defaultTastytradeAccountId", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
