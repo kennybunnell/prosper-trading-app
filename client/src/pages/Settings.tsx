@@ -152,7 +152,7 @@ export default function Settings() {
               <Button
                 variant="outline"
                 onClick={() => testTastytrade.mutate()}
-                disabled={!tastytradeUsername || !tastytradePassword || testTastytrade.isPending}
+                disabled={!credentials?.tastytradeUsername || !credentials?.tastytradePassword || testTastytrade.isPending || hasChanges}
               >
                 {testTastytrade.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Test Connection
@@ -160,12 +160,17 @@ export default function Settings() {
               <Button
                 variant="outline"
                 onClick={() => syncAccounts.mutate()}
-                disabled={!credentials?.tastytradeUsername || !credentials?.tastytradePassword || syncAccounts.isPending}
+                disabled={!credentials?.tastytradeUsername || !credentials?.tastytradePassword || syncAccounts.isPending || hasChanges}
               >
                 {syncAccounts.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sync Accounts
               </Button>
             </div>
+            {hasChanges && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Save your credentials first before testing the connection
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -207,11 +212,16 @@ export default function Settings() {
             <Button
               variant="outline"
               onClick={() => testTradier.mutate()}
-              disabled={!tradierApiKey || testTradier.isPending}
+              disabled={!credentials?.tradierApiKey || testTradier.isPending || hasChanges}
             >
               {testTradier.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Test Connection
             </Button>
+            {hasChanges && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Save your credentials first before testing the connection
+              </p>
+            )}
           </CardContent>
         </Card>
 
