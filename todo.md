@@ -107,3 +107,9 @@
 - [x] Update Settings page to allow default account selection
 - [ ] Update backend to use default account when submitting orders
 - [ ] Test credential storage and retrieval
+
+## CSP Dashboard Improvements
+- [x] Add comma-delimited ticker input (allow multiple tickers at once)
+- [x] Add "Fetch Opportunities" button to manually trigger option chain fetching
+- [x] Fix error when adding multiple tickers
+- [x] Add loading state for fetch operation

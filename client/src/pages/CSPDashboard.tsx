@@ -243,22 +243,41 @@ export default function CSPDashboard() {
             <div className="flex gap-2">
               <div className="flex-1">
                 <Input
-                  placeholder="Enter symbol (e.g., AAPL, MSFT)"
+                  placeholder="Enter symbols (e.g., AAPL, MSFT, TSLA)"
                   value={newSymbol}
                   onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && newSymbol) {
-                      addToWatchlist.mutate({ symbol: newSymbol, strategy: 'csp' });
+                      const symbols = newSymbol.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+                      if (symbols.length === 1) {
+                        addToWatchlist.mutate({ symbol: symbols[0], strategy: 'csp' });
+                      } else if (symbols.length > 1) {
+                        symbols.forEach(symbol => {
+                          addToWatchlist.mutate({ symbol, strategy: 'csp' });
+                        });
+                        setNewSymbol("");
+                      }
                     }
                   }}
                 />
               </div>
               <Button
-                onClick={() => addToWatchlist.mutate({ symbol: newSymbol, strategy: 'csp' })}
+                onClick={() => {
+                  const symbols = newSymbol.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+                  if (symbols.length === 1) {
+                    addToWatchlist.mutate({ symbol: symbols[0], strategy: 'csp' });
+                  } else if (symbols.length > 1) {
+                    // Add multiple symbols
+                    symbols.forEach(symbol => {
+                      addToWatchlist.mutate({ symbol, strategy: 'csp' });
+                    });
+                    setNewSymbol("");
+                  }
+                }}
                 disabled={!newSymbol || addToWatchlist.isPending}
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add Symbol
+                Add Symbols
               </Button>
             </div>
 
@@ -272,24 +291,35 @@ export default function CSPDashboard() {
                 <p className="text-sm mt-1">Add symbols above to start analyzing opportunities</p>
               </div>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {watchlist.map((item: any) => (
-                  <Badge
-                    key={item.id}
-                    variant="secondary"
-                    className="px-3 py-1.5 text-sm flex items-center gap-2"
-                  >
-                    {item.symbol}
-                    <button
-                      onClick={() => removeFromWatchlist.mutate({ symbol: item.symbol, strategy: 'csp' })}
-                      className="hover:text-destructive"
-                      disabled={removeFromWatchlist.isPending}
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {watchlist.map((item: any) => (
+                    <Badge
+                      key={item.id}
+                      variant="secondary"
+                      className="px-3 py-1.5 text-sm flex items-center gap-2"
                     >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
+                      {item.symbol}
+                      <button
+                        onClick={() => removeFromWatchlist.mutate({ symbol: item.symbol, strategy: 'csp' })}
+                        className="hover:text-destructive"
+                        disabled={removeFromWatchlist.isPending}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+                <Button
+                  onClick={() => refetchOpportunities()}
+                  disabled={loadingOpportunities}
+                  className="w-full"
+                  size="lg"
+                >
+                  {loadingOpportunities && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Fetch Opportunities
+                </Button>
+              </>
             )}
           </CardContent>
         </Card>
