@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -22,21 +23,49 @@ import {
   DollarSign,
   Calendar,
   Target,
+  Filter,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
-import { Link } from "wouter";
-import { OrderPreviewDialog } from "@/components/OrderPreviewDialog";
 import confetti from "canvas-confetti";
+
+type ScoredOpportunity = {
+  symbol: string;
+  strike: number;
+  currentPrice: number;
+  expiration: string;
+  dte: number;
+  premium: number;
+  bid: number;
+  ask: number;
+  premiumPct: number;
+  weeklyPct: number;
+  monthlyPct: number;
+  annualPct: number;
+  delta: number;
+  theta: number;
+  volume: number;
+  openInterest: number;
+  rsi: number | null;
+  ivRank: number | null;
+  bbPctB: number | null;
+  spreadPct: number;
+  collateral: number;
+  roc: number;
+  score: number;
+};
+
+type PresetFilter = 'conservative' | 'medium' | 'aggressive' | null;
 
 export default function CSPDashboard() {
   const { user, loading: authLoading } = useAuth();
   const [newSymbol, setNewSymbol] = useState("");
-  const [selectedExpiration, setSelectedExpiration] = useState("");
   const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
   const [minScore, setMinScore] = useState<number | undefined>(undefined);
-  const [showOrderPreview, setShowOrderPreview] = useState(false);
-  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+  const [presetFilter, setPresetFilter] = useState<PresetFilter>(null);
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+  const [minDte, setMinDte] = useState<number>(7);
+  const [maxDte, setMaxDte] = useState<number>(45);
 
   const utils = trpc.useUtils();
 
@@ -46,18 +75,22 @@ export default function CSPDashboard() {
     { enabled: !!user }
   );
 
-  // Fetch opportunities
+  // Fetch opportunities (only when user clicks "Fetch Opportunities")
   const { data: opportunities = [], isLoading: loadingOpportunities, refetch: refetchOpportunities } = trpc.csp.opportunities.useQuery(
-    { symbols: watchlist.map((w: any) => w.symbol), expiration: selectedExpiration || undefined },
-    { enabled: !!user && watchlist.length > 0 }
+    { 
+      symbols: watchlist.map((w: any) => w.symbol),
+      minDte,
+      maxDte,
+    },
+    { enabled: false } // Disabled by default, only fetch when user clicks button
   );
 
   // Add to watchlist
   const addToWatchlist = trpc.watchlist.add.useMutation({
     onSuccess: () => {
-      toast.success(`Added ${newSymbol} to watchlist`);
       setNewSymbol("");
       utils.watchlist.list.invalidate();
+      toast.success("Symbol(s) added to watchlist");
     },
     onError: (error: any) => {
       toast.error(`Failed to add symbol: ${error.message}`);
@@ -69,23 +102,89 @@ export default function CSPDashboard() {
     onSuccess: (_: any, variables: any) => {
       toast.success(`Removed ${variables.symbol} from watchlist`);
       utils.watchlist.list.invalidate();
-      utils.csp.opportunities.invalidate();
     },
     onError: (error: any) => {
       toast.error(`Failed to remove symbol: ${error.message}`);
     },
   });
 
+  // Handle adding comma-delimited symbols
+  const handleAddSymbols = () => {
+    const symbols = newSymbol
+      .split(',')
+      .map(s => s.trim().toUpperCase())
+      .filter(s => s.length > 0);
+
+    if (symbols.length === 0) {
+      toast.error("Please enter at least one symbol");
+      return;
+    }
+
+    // Add each symbol
+    Promise.all(
+      symbols.map(symbol => 
+        addToWatchlist.mutateAsync({ symbol, strategy: 'csp' })
+      )
+    ).then(() => {
+      toast.success(`Added ${symbols.length} symbol(s) to watchlist`);
+    }).catch((error) => {
+      toast.error(`Failed to add symbols: ${error.message}`);
+    });
+  };
+
+  // Apply preset filters
+  const filteredOpportunities = useMemo(() => {
+    let filtered = [...opportunities];
+
+    // Apply preset filter
+    if (presetFilter === 'conservative') {
+      filtered = filtered.filter(opp => 
+        Math.abs(opp.delta) >= 0.10 && Math.abs(opp.delta) <= 0.20 &&
+        opp.openInterest >= 50 &&
+        (opp.rsi === null || opp.rsi <= 70) &&
+        opp.score >= 50
+      );
+    } else if (presetFilter === 'medium') {
+      filtered = filtered.filter(opp => 
+        Math.abs(opp.delta) >= 0.15 && Math.abs(opp.delta) <= 0.30 &&
+        opp.openInterest >= 50 &&
+        (opp.rsi === null || opp.rsi <= 80) &&
+        opp.score >= 40
+      );
+    } else if (presetFilter === 'aggressive') {
+      filtered = filtered.filter(opp => 
+        Math.abs(opp.delta) >= 0.20 && Math.abs(opp.delta) <= 0.40 &&
+        opp.openInterest >= 25 &&
+        opp.score >= 30
+      );
+    }
+
+    // Apply score filter
+    if (minScore !== undefined) {
+      filtered = filtered.filter(opp => opp.score >= minScore);
+    }
+
+    // Apply "Selected Only" filter
+    if (showSelectedOnly) {
+      filtered = filtered.filter(opp => 
+        selectedOpportunities.has(`${opp.symbol}-${opp.strike}-${opp.expiration}`)
+      );
+    }
+
+    return filtered;
+  }, [opportunities, presetFilter, minScore, showSelectedOnly, selectedOpportunities]);
+
   // Calculate summary metrics
   const selectedOppsList = opportunities.filter(opp => 
     selectedOpportunities.has(`${opp.symbol}-${opp.strike}-${opp.expiration}`)
   );
   const totalPremium = selectedOppsList.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-  const totalCollateral = selectedOppsList.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+  const totalCollateral = selectedOppsList.reduce((sum, opp) => sum + opp.collateral, 0);
   const roc = totalCollateral > 0 ? (totalPremium / totalCollateral) * 100 : 0;
 
   // Fetch accounts
   const { data: accounts = [] } = trpc.accounts.list.useQuery(undefined, { enabled: !!user });
+  const { data: credentials } = trpc.settings.getCredentials.useQuery(undefined, { enabled: !!user });
 
   // Submit orders mutation
   const submitOrders = trpc.csp.submitOrders.useMutation({
@@ -98,433 +197,400 @@ export default function CSPDashboard() {
           origin: { y: 0.6 },
         });
         setSelectedOpportunities(new Set());
-        setShowOrderPreview(false);
-      } else {
-        const failed = data.results.filter(r => !r.success);
-        toast.error(`${failed.length} orders failed. Check console for details.`);
-        console.error('Failed orders:', failed);
+        utils.csp.opportunities.invalidate();
       }
     },
-    onError: (error) => {
-      toast.error(`Order submission failed: ${error.message}`);
+    onError: (error: any) => {
+      toast.error(`Failed to submit orders: ${error.message}`);
     },
   });
 
-  const handleSubmitOrders = () => {
-    if (!selectedAccountId) {
-      toast.error('Please select an account first');
-      return;
+  // Handle checkbox toggle
+  const toggleOpportunity = (opp: ScoredOpportunity) => {
+    const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+    const newSelected = new Set(selectedOpportunities);
+    if (newSelected.has(key)) {
+      newSelected.delete(key);
+    } else {
+      newSelected.add(key);
     }
-    if (selectedOppsList.length === 0) {
-      toast.error('No opportunities selected');
-      return;
-    }
-    setShowOrderPreview(true);
+    setSelectedOpportunities(newSelected);
   };
 
-  const handleConfirmOrders = () => {
+  // Handle score button click
+  const handleScoreFilter = (score: number) => {
+    setMinScore(score);
+    setPresetFilter(null); // Clear preset when using score filter
+  };
+
+  // Handle preset button click
+  const handlePresetFilter = (preset: PresetFilter) => {
+    setPresetFilter(preset);
+    setMinScore(undefined); // Clear score filter when using preset
+  };
+
+  // Handle submit orders
+  const handleSubmitOrders = () => {
+    if (selectedOppsList.length === 0) {
+      toast.error("Please select at least one opportunity");
+      return;
+    }
+
+    if (!credentials?.defaultTastytradeAccountId) {
+      toast.error("Please set a default account in Settings");
+      return;
+    }
+
+    const orders = selectedOppsList.map(opp => ({
+      symbol: opp.symbol,
+      strike: opp.strike,
+      expiration: opp.expiration,
+      premium: opp.premium,
+      optionSymbol: `${opp.symbol}${opp.expiration.replace(/-/g, '')}P${(opp.strike * 1000).toString().padStart(8, '0')}`,
+    }));
+
     submitOrders.mutate({
-      orders: selectedOppsList.map(opp => ({
-        symbol: opp.symbol,
-        strike: opp.strike,
-        expiration: opp.expiration,
-        premium: opp.premium,
-        optionSymbol: opp.optionSymbol,
-      })),
-      accountId: selectedAccountId,
+      orders,
+      accountId: credentials.defaultTastytradeAccountId,
       dryRun: false,
     });
   };
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin" />
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>Please log in to access the CSP Dashboard</CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="flex items-center justify-center h-screen">
+        <p>Please log in to access the CSP Dashboard</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <header className="border-b border-border backdrop-blur-sm bg-background/80 sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" asChild>
-              <Link href="/">← Back</Link>
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                <TrendingUp className="h-6 w-6 text-green-500" />
-                Cash-Secured Puts
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Analyze and execute CSP strategies with intelligent scoring
-              </p>
-            </div>
-          </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Cash-Secured Puts Dashboard</h1>
+          <p className="text-muted-foreground">Analyze and execute CSP strategies with intelligent scoring</p>
         </div>
-      </header>
+      </div>
 
-      <main className="container mx-auto px-4 py-8 space-y-6">
-        {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card className="backdrop-blur-sm bg-card/80">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Premium
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${totalPremium.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground mt-1">From {selectedOppsList.length} selected</p>
-            </CardContent>
-          </Card>
-
-          <Card className="backdrop-blur-sm bg-card/80">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Collateral Required
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${totalCollateral.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground mt-1">Cash secured amount</p>
-            </CardContent>
-          </Card>
-
-          <Card className="backdrop-blur-sm bg-card/80">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Return on Capital
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{roc.toFixed(2)}%</div>
-              <p className="text-xs text-muted-foreground mt-1">Expected ROC</p>
-            </CardContent>
-          </Card>
-
-          <Card className="backdrop-blur-sm bg-card/80">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Opportunities
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{opportunities.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">Available trades</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Watchlist Management */}
-        <Card className="backdrop-blur-sm bg-card/80">
-          <CardHeader>
-            <CardTitle>Watchlist</CardTitle>
-            <CardDescription>
-              Add symbols to analyze CSP opportunities
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Input
-                  placeholder="Enter symbols (e.g., AAPL, MSFT, TSLA)"
-                  value={newSymbol}
-                  onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && newSymbol) {
-                      const symbols = newSymbol.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
-                      if (symbols.length === 1) {
-                        addToWatchlist.mutate({ symbol: symbols[0], strategy: 'csp' });
-                      } else if (symbols.length > 1) {
-                        symbols.forEach(symbol => {
-                          addToWatchlist.mutate({ symbol, strategy: 'csp' });
-                        });
-                        setNewSymbol("");
-                      }
-                    }
-                  }}
-                />
-              </div>
-              <Button
-                onClick={() => {
-                  const symbols = newSymbol.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
-                  if (symbols.length === 1) {
-                    addToWatchlist.mutate({ symbol: symbols[0], strategy: 'csp' });
-                  } else if (symbols.length > 1) {
-                    // Add multiple symbols
-                    symbols.forEach(symbol => {
-                      addToWatchlist.mutate({ symbol, strategy: 'csp' });
-                    });
-                    setNewSymbol("");
-                  }
-                }}
-                disabled={!newSymbol || addToWatchlist.isPending}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Symbols
-              </Button>
-            </div>
-
-            {loadingWatchlist ? (
-              <div className="text-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-              </div>
-            ) : watchlist.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No symbols in watchlist</p>
-                <p className="text-sm mt-1">Add symbols above to start analyzing opportunities</p>
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-wrap gap-2">
-                  {watchlist.map((item: any) => (
-                    <Badge
-                      key={item.id}
-                      variant="secondary"
-                      className="px-3 py-1.5 text-sm flex items-center gap-2"
-                    >
-                      {item.symbol}
-                      <button
-                        onClick={() => removeFromWatchlist.mutate({ symbol: item.symbol, strategy: 'csp' })}
-                        className="hover:text-destructive"
-                        disabled={removeFromWatchlist.isPending}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-                <Button
-                  onClick={() => refetchOpportunities()}
-                  disabled={loadingOpportunities}
-                  className="w-full"
-                  size="lg"
-                >
-                  {loadingOpportunities && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Fetch Opportunities
-                </Button>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Opportunities Table */}
-        <Card className="backdrop-blur-sm bg-card/80">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Opportunities</CardTitle>
-                <CardDescription>
-                  Ranked by total score (primary + secondary)
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => refetchOpportunities()}
-                  disabled={loadingOpportunities || watchlist.length === 0}
-                >
-                  {loadingOpportunities ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                  )}
-                  Refresh
-                </Button>
-              </div>
-            </div>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="bg-card/50 backdrop-blur border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-green-500" />
+              Total Premium
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Score Selection Buttons */}
-            <div className="mb-4 flex flex-wrap gap-2">
-              <Label className="text-sm font-medium mr-2 self-center">Select by score:</Label>
-              {[100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40].map((score) => (
-                <Button
-                  key={score}
-                  variant={minScore === score ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    // Select all opportunities with score >= threshold
-                    const selected = new Set<string>();
-                    opportunities.forEach(opp => {
-                      if (opp.totalScore >= score) {
-                        selected.add(`${opp.symbol}-${opp.strike}-${opp.expiration}`);
-                      }
-                    });
-                    setSelectedOpportunities(selected);
-                    toast.info(`Selected ${selected.size} opportunities with score ≥ ${score}%`);
-                  }}
-                >
-                  {score}%+
-                </Button>
-              ))}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSelectedOpportunities(new Set());
-                  toast.info("Cleared selection");
-                }}
-              >
-                Clear
-              </Button>
-            </div>
-
-            {loadingOpportunities ? (
-              <div className="text-center py-12">
-                <Loader2 className="h-12 w-12 animate-spin mx-auto text-muted-foreground" />
-                <p className="text-sm text-muted-foreground mt-4">Loading opportunities...</p>
-              </div>
-            ) : opportunities.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium">No opportunities available</p>
-                <p className="text-sm mt-1">
-                  Add symbols to your watchlist and refresh to see opportunities
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>
-                        <input type="checkbox" className="rounded" />
-                      </TableHead>
-                      <TableHead>Symbol</TableHead>
-                      <TableHead>Strike</TableHead>
-                      <TableHead>Expiration</TableHead>
-                      <TableHead>Premium</TableHead>
-                      <TableHead>Delta</TableHead>
-                      <TableHead>IV</TableHead>
-                      <TableHead>OI</TableHead>
-                      <TableHead>Volume</TableHead>
-                      <TableHead>Primary Score</TableHead>
-                      <TableHead>Secondary Score</TableHead>
-                      <TableHead>Total Score</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {opportunities.map((opp) => {
-                      const oppKey = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
-                      const isSelected = selectedOpportunities.has(oppKey);
-                      return (
-                        <TableRow key={oppKey} className={isSelected ? "bg-primary/10" : ""}>
-                          <TableCell>
-                            <input
-                              type="checkbox"
-                              className="rounded"
-                              checked={isSelected}
-                              onChange={(e) => {
-                                const newSelected = new Set(selectedOpportunities);
-                                if (e.target.checked) {
-                                  newSelected.add(oppKey);
-                                } else {
-                                  newSelected.delete(oppKey);
-                                }
-                                setSelectedOpportunities(newSelected);
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell className="font-medium">{opp.symbol}</TableCell>
-                          <TableCell>${opp.strike.toFixed(2)}</TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              {new Date(opp.expiration).toLocaleDateString()}
-                              <div className="text-xs text-muted-foreground">{opp.dte} DTE</div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-medium text-green-500">
-                            ${opp.premium.toFixed(2)}
-                          </TableCell>
-                          <TableCell>{opp.delta.toFixed(3)}</TableCell>
-                          <TableCell>{(opp.iv * 100).toFixed(1)}%</TableCell>
-                          <TableCell>{opp.openInterest.toLocaleString()}</TableCell>
-                          <TableCell>{opp.volume.toLocaleString()}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{opp.primaryScore}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{opp.secondaryScore}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={opp.totalScore >= 80 ? "default" : opp.totalScore >= 60 ? "secondary" : "outline"}
-                            >
-                              {opp.totalScore}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-
-            {/* Account Selection & Action Buttons */}
-            <div className="mt-6 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Label className="text-sm">Account:</Label>
-                <select
-                  className="px-3 py-2 rounded-md border bg-background text-sm"
-                  value={selectedAccountId}
-                  onChange={(e) => setSelectedAccountId(e.target.value)}
-                >
-                  <option value="">Select account...</option>
-                  {accounts.map((acc: any) => (
-                    <option key={acc.id} value={acc.accountId}>
-                      {acc.nickname || acc.accountNumber} ({acc.accountType})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  disabled={selectedOppsList.length === 0}
-                  onClick={handleSubmitOrders}
-                >
-                  Preview Orders ({selectedOppsList.length})
-                </Button>
-                <Button 
-                  disabled={selectedOppsList.length === 0 || !selectedAccountId}
-                  onClick={handleSubmitOrders}
-                >
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Submit Orders
-                </Button>
-              </div>
-            </div>
+            <div className="text-2xl font-bold">${totalPremium.toFixed(2)}</div>
           </CardContent>
         </Card>
-      </main>
 
-      {/* Order Preview Dialog */}
-      <OrderPreviewDialog
-        open={showOrderPreview}
-        onOpenChange={setShowOrderPreview}
-        opportunities={selectedOppsList}
-        onConfirm={handleConfirmOrders}
-        isSubmitting={submitOrders.isPending}
-      />
+        <Card className="bg-card/50 backdrop-blur border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Target className="w-4 h-4 text-blue-500" />
+              Total Collateral
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${totalCollateral.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/50 backdrop-blur border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-purple-500" />
+              ROC
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{roc.toFixed(2)}%</div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/50 backdrop-blur border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-orange-500" />
+              Opportunities
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{filteredOpportunities.length}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Watchlist Management */}
+      <Card className="bg-card/50 backdrop-blur border-border/50">
+        <CardHeader>
+          <CardTitle>Watchlist</CardTitle>
+          <CardDescription>Add symbols to analyze CSP opportunities</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <Input
+                placeholder="Enter symbols (comma-separated, e.g., AAPL, MSFT, TSLA)"
+                value={newSymbol}
+                onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddSymbols()}
+              />
+            </div>
+            <Button onClick={handleAddSymbols} disabled={addToWatchlist.isPending}>
+              {addToWatchlist.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Add
+            </Button>
+          </div>
+
+          {/* Watchlist Display */}
+          <div className="flex flex-wrap gap-2">
+            {watchlist.map((item: any) => (
+              <Badge key={item.id} variant="secondary" className="px-3 py-1 flex items-center gap-2">
+                {item.symbol}
+                <button
+                  onClick={() => removeFromWatchlist.mutate({ symbol: item.symbol, strategy: 'csp' })}
+                  className="hover:text-destructive"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+
+          {/* DTE Range Filter */}
+          <div className="flex items-center gap-4">
+            <Label>DTE Range:</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                placeholder="Min"
+                value={minDte}
+                onChange={(e) => setMinDte(Number(e.target.value))}
+                className="w-20"
+              />
+              <span>to</span>
+              <Input
+                type="number"
+                placeholder="Max"
+                value={maxDte}
+                onChange={(e) => setMaxDte(Number(e.target.value))}
+                className="w-20"
+              />
+            </div>
+          </div>
+
+          {/* Fetch Button */}
+          <Button 
+            onClick={() => refetchOpportunities()} 
+            disabled={loadingOpportunities || watchlist.length === 0}
+            className="w-full"
+          >
+            {loadingOpportunities ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Fetching Opportunities...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Fetch Opportunities
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Filters */}
+      <Card className="bg-card/50 backdrop-blur border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="w-5 h-5" />
+            Filters
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Preset Filters */}
+          <div>
+            <Label className="mb-2 block">Preset Filters</Label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={presetFilter === 'conservative' ? 'default' : 'outline'}
+                onClick={() => handlePresetFilter('conservative')}
+                size="sm"
+              >
+                Conservative
+              </Button>
+              <Button
+                variant={presetFilter === 'medium' ? 'default' : 'outline'}
+                onClick={() => handlePresetFilter('medium')}
+                size="sm"
+              >
+                Medium
+              </Button>
+              <Button
+                variant={presetFilter === 'aggressive' ? 'default' : 'outline'}
+                onClick={() => handlePresetFilter('aggressive')}
+                size="sm"
+              >
+                Aggressive
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setPresetFilter(null);
+                  setMinScore(undefined);
+                }}
+                size="sm"
+              >
+                Clear Filters
+              </Button>
+            </div>
+          </div>
+
+          {/* Score Filters */}
+          <div>
+            <Label className="mb-2 block">Score Filters</Label>
+            <div className="flex flex-wrap gap-2">
+              {[100, 90, 80, 75, 70, 65, 60, 55, 50, 45, 40].map(score => (
+                <Button
+                  key={score}
+                  variant={minScore === score ? 'default' : 'outline'}
+                  onClick={() => handleScoreFilter(score)}
+                  size="sm"
+                >
+                  {score}+
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Selected Only Toggle */}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="selected-only"
+              checked={showSelectedOnly}
+              onCheckedChange={(checked) => setShowSelectedOnly(checked as boolean)}
+            />
+            <Label htmlFor="selected-only" className="cursor-pointer">
+              Show Selected Only
+            </Label>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Opportunities Table */}
+      <Card className="bg-card/50 backdrop-blur border-border/50">
+        <CardHeader>
+          <CardTitle>Opportunities ({filteredOpportunities.length})</CardTitle>
+          <CardDescription>
+            {selectedOppsList.length > 0 && `${selectedOppsList.length} selected`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12"></TableHead>
+                  <TableHead>Symbol</TableHead>
+                  <TableHead>Strike</TableHead>
+                  <TableHead>Bid</TableHead>
+                  <TableHead>Ask</TableHead>
+                  <TableHead>Spread %</TableHead>
+                  <TableHead>Delta</TableHead>
+                  <TableHead>DTE</TableHead>
+                  <TableHead>Premium</TableHead>
+                  <TableHead>Weekly %</TableHead>
+                  <TableHead>Collateral</TableHead>
+                  <TableHead>ROC %</TableHead>
+                  <TableHead>OI</TableHead>
+                  <TableHead>Vol</TableHead>
+                  <TableHead>RSI</TableHead>
+                  <TableHead>BB %B</TableHead>
+                  <TableHead>Score</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredOpportunities.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={17} className="text-center text-muted-foreground py-8">
+                      {loadingOpportunities ? "Loading opportunities..." : "No opportunities found. Add symbols and click Fetch Opportunities."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredOpportunities.map((opp) => {
+                    const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+                    const isSelected = selectedOpportunities.has(key);
+                    return (
+                      <TableRow key={key} className={isSelected ? "bg-primary/10" : ""}>
+                        <TableCell>
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleOpportunity(opp)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{opp.symbol}</TableCell>
+                        <TableCell>${opp.strike.toFixed(2)}</TableCell>
+                        <TableCell>${opp.bid.toFixed(2)}</TableCell>
+                        <TableCell>${opp.ask.toFixed(2)}</TableCell>
+                        <TableCell>{opp.spreadPct.toFixed(1)}%</TableCell>
+                        <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>
+                        <TableCell>{opp.dte}</TableCell>
+                        <TableCell className="font-medium text-green-500">${opp.premium.toFixed(2)}</TableCell>
+                        <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
+                        <TableCell>${opp.collateral.toFixed(2)}</TableCell>
+                        <TableCell>{opp.roc.toFixed(2)}%</TableCell>
+                        <TableCell>{opp.openInterest}</TableCell>
+                        <TableCell>{opp.volume}</TableCell>
+                        <TableCell>{opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}</TableCell>
+                        <TableCell>{opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}</TableCell>
+                        <TableCell>
+                          <Badge variant={opp.score >= 70 ? 'default' : opp.score >= 50 ? 'secondary' : 'outline'}>
+                            {opp.score}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Submit Orders Button */}
+          {selectedOppsList.length > 0 && (
+            <div className="mt-4 flex justify-end">
+              <Button
+                onClick={handleSubmitOrders}
+                disabled={submitOrders.isPending}
+                size="lg"
+              >
+                {submitOrders.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Submitting Orders...
+                  </>
+                ) : (
+                  `Submit ${selectedOppsList.length} Order(s)`
+                )}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
