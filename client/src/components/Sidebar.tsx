@@ -166,23 +166,23 @@ export function Sidebar({ className }: SidebarProps) {
           const isActive = location === item.path;
 
           return (
-            <Link key={item.path} href={item.path}>
-              <a
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200',
-                  'hover:bg-accent/50 hover:shadow-lg hover:shadow-primary/20',
-                  isActive && 'bg-primary/20 text-primary shadow-lg shadow-primary/30 border-l-2 border-primary',
-                  !isActive && 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Icon className="h-5 w-5 flex-shrink-0" />
-                {!collapsed && (
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">{item.name}</span>
-                    <span className="text-xs text-muted-foreground">{item.description}</span>
-                  </div>
-                )}
-              </a>
+            <Link
+              key={item.path}
+              href={item.path}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200',
+                'hover:bg-accent/50 hover:shadow-lg hover:shadow-primary/20',
+                isActive && 'bg-primary/20 text-primary shadow-lg shadow-primary/30 border-l-2 border-primary',
+                !isActive && 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <item.icon className="w-5 h-5" />
+              {!collapsed && (
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">{item.name}</span>
+                  <span className="text-xs text-muted-foreground">{item.description}</span>
+                </div>
+              )}
             </Link>
           );
         })}
@@ -247,18 +247,17 @@ export function Sidebar({ className }: SidebarProps) {
         </div>
       )}
       <div className="p-2">
-        <Link href="/settings">
-          <a
-            className={cn(
-              'flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200',
-              'hover:bg-accent/50 hover:shadow-lg hover:shadow-primary/20',
-              location === '/settings' && 'bg-primary/20 text-primary shadow-lg shadow-primary/30 border-l-2 border-primary',
-              location !== '/settings' && 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            <Settings className="h-5 w-5 flex-shrink-0" />
-            {!collapsed && <span className="text-sm font-medium">Settings</span>}
-          </a>
+        <Link
+          href="/settings"
+          className={cn(
+            'flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200',
+            'hover:bg-accent/50 hover:shadow-lg hover:shadow-primary/20',
+            location === '/settings' && 'bg-primary/20 text-primary shadow-lg shadow-primary/30 border-l-2 border-primary',
+            location !== '/settings' && 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Settings className="w-5 h-5" />
+          {!collapsed && <span className="text-sm font-medium">Settings</span>}
         </Link>
       </div>
     </div>
