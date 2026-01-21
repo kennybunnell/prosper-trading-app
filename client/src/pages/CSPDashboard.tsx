@@ -41,37 +41,37 @@ export default function CSPDashboard() {
   const utils = trpc.useUtils();
 
   // Fetch watchlist
-  const { data: watchlist = [], isLoading: loadingWatchlist } = trpc.csp.watchlist.list.useQuery(
-    undefined,
+  const { data: watchlist = [], isLoading: loadingWatchlist } = trpc.watchlist.list.useQuery(
+    { strategy: 'csp' },
     { enabled: !!user }
   );
 
   // Fetch opportunities
   const { data: opportunities = [], isLoading: loadingOpportunities, refetch: refetchOpportunities } = trpc.csp.opportunities.useQuery(
-    { minScore },
+    { symbols: watchlist.map((w: any) => w.symbol), expiration: selectedExpiration || undefined },
     { enabled: !!user && watchlist.length > 0 }
   );
 
   // Add to watchlist
-  const addToWatchlist = trpc.csp.watchlist.add.useMutation({
+  const addToWatchlist = trpc.watchlist.add.useMutation({
     onSuccess: () => {
       toast.success(`Added ${newSymbol} to watchlist`);
       setNewSymbol("");
-      utils.csp.watchlist.list.invalidate();
+      utils.watchlist.list.invalidate();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(`Failed to add symbol: ${error.message}`);
     },
   });
 
   // Remove from watchlist
-  const removeFromWatchlist = trpc.csp.watchlist.remove.useMutation({
-    onSuccess: (_, variables) => {
+  const removeFromWatchlist = trpc.watchlist.remove.useMutation({
+    onSuccess: (_: any, variables: any) => {
       toast.success(`Removed ${variables.symbol} from watchlist`);
-      utils.csp.watchlist.list.invalidate();
+      utils.watchlist.list.invalidate();
       utils.csp.opportunities.invalidate();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(`Failed to remove symbol: ${error.message}`);
     },
   });
@@ -248,13 +248,13 @@ export default function CSPDashboard() {
                   onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && newSymbol) {
-                      addToWatchlist.mutate({ symbol: newSymbol });
+                      addToWatchlist.mutate({ symbol: newSymbol, strategy: 'csp' });
                     }
                   }}
                 />
               </div>
               <Button
-                onClick={() => addToWatchlist.mutate({ symbol: newSymbol })}
+                onClick={() => addToWatchlist.mutate({ symbol: newSymbol, strategy: 'csp' })}
                 disabled={!newSymbol || addToWatchlist.isPending}
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -281,7 +281,7 @@ export default function CSPDashboard() {
                   >
                     {item.symbol}
                     <button
-                      onClick={() => removeFromWatchlist.mutate({ symbol: item.symbol })}
+                      onClick={() => removeFromWatchlist.mutate({ symbol: item.symbol, strategy: 'csp' })}
                       className="hover:text-destructive"
                       disabled={removeFromWatchlist.isPending}
                     >
