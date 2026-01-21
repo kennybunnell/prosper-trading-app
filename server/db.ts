@@ -89,4 +89,121 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Watchlist queries
+export async function getWatchlist(userId: number, strategy: 'csp' | 'cc' | 'pmcc') {
+  const db = await getDb();
+  if (!db) return [];
+  const { watchlists } = await import('../drizzle/schema');
+  const { eq, and } = await import('drizzle-orm');
+  return db.select().from(watchlists).where(and(eq(watchlists.userId, userId), eq(watchlists.strategy, strategy)));
+}
+
+export async function addToWatchlist(userId: number, symbol: string, strategy: 'csp' | 'cc' | 'pmcc') {
+  const db = await getDb();
+  if (!db) return;
+  const { watchlists } = await import('../drizzle/schema');
+  await db.insert(watchlists).values({ userId, symbol, strategy });
+}
+
+export async function removeFromWatchlist(userId: number, symbol: string, strategy: 'csp' | 'cc' | 'pmcc') {
+  const db = await getDb();
+  if (!db) return;
+  const { watchlists } = await import('../drizzle/schema');
+  const { eq, and } = await import('drizzle-orm');
+  await db.delete(watchlists).where(and(eq(watchlists.userId, userId), eq(watchlists.symbol, symbol), eq(watchlists.strategy, strategy)));
+}
+
+// API Credentials queries
+export async function getApiCredentials(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const { apiCredentials } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  const result = await db.select().from(apiCredentials).where(eq(apiCredentials.userId, userId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function upsertApiCredentials(userId: number, credentials: { tastytradeUsername?: string; tastytradePassword?: string; tradierApiKey?: string }) {
+  const db = await getDb();
+  if (!db) return;
+  const { apiCredentials } = await import('../drizzle/schema');
+  await db.insert(apiCredentials).values({ userId, ...credentials }).onDuplicateKeyUpdate({ set: credentials });
+}
+
+// Tastytrade Accounts queries
+export async function getTastytradeAccounts(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const { tastytradeAccounts } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  return db.select().from(tastytradeAccounts).where(eq(tastytradeAccounts.userId, userId));
+}
+
+export async function upsertTastytradeAccount(userId: number, account: { accountId: string; accountNumber: string; accountType?: string; nickname?: string }) {
+  const db = await getDb();
+  if (!db) return;
+  const { tastytradeAccounts } = await import('../drizzle/schema');
+  await db.insert(tastytradeAccounts).values({ userId, ...account }).onDuplicateKeyUpdate({ set: account });
+}
+
+// Trades queries
+export async function saveTrade(userId: number, trade: any) {
+  const db = await getDb();
+  if (!db) return;
+  const { trades } = await import('../drizzle/schema');
+  await db.insert(trades).values({ userId, ...trade });
+}
+
+export async function getTradeHistory(userId: number, accountId?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const { trades } = await import('../drizzle/schema');
+  const { eq, and, desc } = await import('drizzle-orm');
+  
+  if (accountId) {
+    return db.select().from(trades).where(and(eq(trades.userId, userId), eq(trades.accountId, accountId))).orderBy(desc(trades.createdAt));
+  }
+  return db.select().from(trades).where(eq(trades.userId, userId)).orderBy(desc(trades.createdAt));
+}
+
+// Positions queries
+export async function getPositions(userId: number, accountId?: string, status: 'open' | 'closed' = 'open') {
+  const db = await getDb();
+  if (!db) return [];
+  const { positions } = await import('../drizzle/schema');
+  const { eq, and } = await import('drizzle-orm');
+  
+  const conditions = [eq(positions.userId, userId), eq(positions.status, status)];
+  if (accountId) conditions.push(eq(positions.accountId, accountId));
+  
+  return db.select().from(positions).where(and(...conditions));
+}
+
+export async function upsertPosition(userId: number, position: any) {
+  const db = await getDb();
+  if (!db) return;
+  const { positions } = await import('../drizzle/schema');
+  await db.insert(positions).values({ userId, ...position }).onDuplicateKeyUpdate({ set: position });
+}
+
+// Premium tracking queries
+export async function savePremiumTracking(userId: number, tracking: any) {
+  const db = await getDb();
+  if (!db) return;
+  const { premiumTracking } = await import('../drizzle/schema');
+  await db.insert(premiumTracking).values({ userId, ...tracking });
+}
+
+export async function getPremiumSummary(userId: number, accountId?: string, startDate?: Date, endDate?: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const { premiumTracking } = await import('../drizzle/schema');
+  const { eq, and, gte, lte } = await import('drizzle-orm');
+  
+  const conditions = [eq(premiumTracking.userId, userId)];
+  if (accountId) conditions.push(eq(premiumTracking.accountId, accountId));
+  if (startDate) conditions.push(gte(premiumTracking.recordedAt, startDate));
+  if (endDate) conditions.push(lte(premiumTracking.recordedAt, endDate));
+  
+  return db.select().from(premiumTracking).where(and(...conditions));
+}
