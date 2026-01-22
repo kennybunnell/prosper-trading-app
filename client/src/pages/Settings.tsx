@@ -27,6 +27,8 @@ export default function Settings() {
     onSuccess: () => {
       toast.success("Credentials saved successfully");
       setHasChanges(false);
+      // Refresh credentials from database
+      utils.settings.getCredentials.invalidate();
     },
     onError: (error) => {
       toast.error(`Failed to save credentials: ${error.message}`);
@@ -75,6 +77,8 @@ export default function Settings() {
       setTradierApiKey(credentials.tradierApiKey || "");
       setTradierAccountId(credentials.tradierAccountId || "");
       setDefaultTastytradeAccountId(credentials.defaultTastytradeAccountId || "");
+      // Reset hasChanges when credentials are loaded
+      setHasChanges(false);
     }
   }, [credentials]);
 
