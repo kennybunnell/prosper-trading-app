@@ -128,9 +128,9 @@ export async function upsertApiCredentials(userId: number, credentials: { tastyt
   if (!db) return;
   const { apiCredentials } = await import('../drizzle/schema');
   
-  // Filter out undefined values to prevent "No values to set" error
+  // Filter out undefined and empty string values to prevent "No values to set" error
   const filteredCredentials = Object.fromEntries(
-    Object.entries(credentials).filter(([_, value]) => value !== undefined)
+    Object.entries(credentials).filter(([_, value]) => value !== undefined && value !== "")
   );
   
   // If no values to update, skip the operation

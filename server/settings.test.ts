@@ -43,6 +43,38 @@ describe('Settings - API Credentials', () => {
     expect(credentials).toBeNull();
   });
 
+  it('should handle empty string credentials without throwing error', async () => {
+    // This should not throw an error - it should just return early
+    await expect(
+      upsertApiCredentials(testUserId, {
+        tastytradeUsername: "",
+        tastytradePassword: "",
+        tradierApiKey: "",
+        tradierAccountId: "",
+        defaultTastytradeAccountId: "",
+      })
+    ).resolves.not.toThrow();
+    
+    // Verify no credentials were created
+    const credentials = await getApiCredentials(testUserId);
+    expect(credentials).toBeNull();
+  });
+
+  it('should handle mixed empty strings and undefined without throwing error', async () => {
+    // This should not throw an error - it should just return early
+    await expect(
+      upsertApiCredentials(testUserId, {
+        tastytradeUsername: "",
+        tastytradePassword: undefined,
+        tradierApiKey: "",
+      })
+    ).resolves.not.toThrow();
+    
+    // Verify no credentials were created
+    const credentials = await getApiCredentials(testUserId);
+    expect(credentials).toBeNull();
+  });
+
   it('should save credentials when at least one field is provided', async () => {
     await upsertApiCredentials(testUserId, {
       tastytradeUsername: 'test_user',
