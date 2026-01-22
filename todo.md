@@ -99,3 +99,10 @@
 - [x] Add color-coded score badges (Red < 50, Yellow 50-69, Green 70+)
 - [x] Add dry run checkbox option before order submission
 - [ ] Test complete CSP workflow end-to-end
+
+## Account Selector Integration
+- [x] Create React Context for selected account state
+- [x] Connect sidebar account selector to context
+- [x] Update CSP Dashboard to use selected account from context
+- [x] Persist selected account in localStorage
+- [ ] Test account switching across pages

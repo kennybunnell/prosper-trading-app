@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
+import { useAccount } from '@/contexts/AccountContext';
 import {
   BarChart3,
   TrendingDown,
@@ -25,7 +26,7 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
-  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+  const { selectedAccountId, setSelectedAccountId } = useAccount();
 
   // Fetch Tastytrade accounts
   const { data: accounts, isLoading: accountsLoading } = trpc.accounts.list.useQuery();
@@ -36,7 +37,7 @@ export function Sidebar({ className }: SidebarProps) {
     if (credentials?.defaultTastytradeAccountId && !selectedAccountId && accounts) {
       setSelectedAccountId(credentials.defaultTastytradeAccountId);
     }
-  }, [credentials, accounts, selectedAccountId]);
+  }, [credentials, accounts, selectedAccountId, setSelectedAccountId]);
 
   // Get selected account details
   const selectedAccount = accounts?.find((acc: any) => acc.accountId === selectedAccountId);
@@ -121,7 +122,7 @@ export function Sidebar({ className }: SidebarProps) {
             <div className="text-sm text-muted-foreground">Loading accounts...</div>
           ) : accounts && accounts.length > 0 ? (
             <>
-              <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+              <Select value={selectedAccountId || undefined} onValueChange={setSelectedAccountId}>
                 <SelectTrigger className="w-full bg-background/50">
                   <SelectValue placeholder="Select account" />
                 </SelectTrigger>

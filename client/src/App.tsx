@@ -4,6 +4,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { AccountProvider } from "./contexts/AccountContext";
 import Home from "./pages/Home";
 import Settings from "./pages/Settings";
 import CSPDashboard from "./pages/CSPDashboard";
@@ -39,10 +40,12 @@ function App() {
         defaultTheme="dark"
         switchable
       >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
+        <AccountProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </AccountProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

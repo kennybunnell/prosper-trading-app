@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
+import { useAccount } from "@/contexts/AccountContext";
 import {
   Loader2,
   Plus,
@@ -60,6 +61,7 @@ type PresetFilter = 'conservative' | 'medium' | 'aggressive' | null;
 
 export default function CSPDashboard() {
   const { user, loading: authLoading } = useAuth();
+  const { selectedAccountId } = useAccount();
   const [newSymbol, setNewSymbol] = useState("");
   const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
   const [minScore, setMinScore] = useState<number | undefined>(undefined);
@@ -200,7 +202,6 @@ export default function CSPDashboard() {
 
   // Fetch accounts
   const { data: accounts = [] } = trpc.accounts.list.useQuery(undefined, { enabled: !!user });
-  const { data: credentials } = trpc.settings.getCredentials.useQuery(undefined, { enabled: !!user });
 
   // Submit orders mutation
   const submitOrders = trpc.csp.submitOrders.useMutation({
@@ -252,8 +253,8 @@ export default function CSPDashboard() {
       return;
     }
 
-    if (!credentials?.defaultTastytradeAccountId) {
-      toast.error("Please set a default account in Settings");
+    if (!selectedAccountId) {
+      toast.error("Please select an account in the sidebar");
       return;
     }
 
@@ -267,7 +268,7 @@ export default function CSPDashboard() {
 
     submitOrders.mutate({
       orders,
-      accountId: credentials.defaultTastytradeAccountId,
+      accountId: selectedAccountId,
       dryRun: dryRun,
     });
   };
