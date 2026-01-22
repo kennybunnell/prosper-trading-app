@@ -106,3 +106,6 @@
 - [x] Update CSP Dashboard to use selected account from context
 - [x] Persist selected account in localStorage
 - [ ] Test account switching across pages
+
+## Bug Fixes
+- [x] Fix "No values to set" error in Settings when saving credentials with empty fields
