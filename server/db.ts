@@ -128,17 +128,28 @@ export async function upsertApiCredentials(userId: number, credentials: { tastyt
   if (!db) return;
   const { apiCredentials } = await import('../drizzle/schema');
   
-  // Filter out undefined and empty string values to prevent "No values to set" error
+  // Filter out undefined and empty string values
   const filteredCredentials = Object.fromEntries(
     Object.entries(credentials).filter(([_, value]) => value !== undefined && value !== "")
   );
   
-  // If no values to update, skip the operation
+  // If no values to update, skip the operation entirely
   if (Object.keys(filteredCredentials).length === 0) {
     return;
   }
   
-  await db.insert(apiCredentials).values({ userId, ...filteredCredentials }).onDuplicateKeyUpdate({ set: filteredCredentials });
+  // Check if credentials already exist
+  const existing = await getApiCredentials(userId);
+  
+  if (existing) {
+    // Update existing record - only update the fields that are provided
+    await db.update(apiCredentials)
+      .set(filteredCredentials)
+      .where(eq(apiCredentials.userId, userId));
+  } else {
+    // Insert new record
+    await db.insert(apiCredentials).values({ userId, ...filteredCredentials });
+  }
 }
 
 // Tastytrade Accounts queries

@@ -108,4 +108,4 @@
 - [ ] Test account switching across pages
 
 ## Bug Fixes
-- [x] Fix "No values to set" error in Settings when saving credentials with empty fields (backend now filters both undefined and empty strings)
+- [x] Fix "No values to set" error in Settings - replaced onDuplicateKeyUpdate with separate insert/update logic
