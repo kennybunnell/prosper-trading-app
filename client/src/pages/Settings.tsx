@@ -323,7 +323,307 @@ export default function Settings() {
             or remove them at any time.
           </CardContent>
         </Card>
+
+        {/* CSP Filter Presets */}
+        <FilterPresetsSection />
       </div>
+    </div>
+  );
+}
+
+function FilterPresetsSection() {
+  const { data: presets, isLoading } = trpc.cspFilters.getPresets.useQuery();
+  const updatePreset = trpc.cspFilters.updatePreset.useMutation({
+    onSuccess: () => {
+      toast.success("Filter preset updated successfully");
+      utils.cspFilters.getPresets.invalidate();
+    },
+    onError: (error) => {
+      toast.error(`Failed to update preset: ${error.message}`);
+    },
+  });
+  const utils = trpc.useUtils();
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>CSP Filter Presets</CardTitle>
+          <CardDescription>Loading presets...</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  const conservative = presets?.find(p => p.presetName === 'conservative');
+  const medium = presets?.find(p => p.presetName === 'medium');
+  const aggressive = presets?.find(p => p.presetName === 'aggressive');
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>CSP Filter Presets</CardTitle>
+        <CardDescription>
+          Configure the filter criteria for Conservative, Medium, and Aggressive presets used in the CSP Dashboard
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {conservative && (
+          <PresetEditor
+            preset={conservative}
+            label="🟢 Conservative"
+            onSave={(updates) => updatePreset.mutate({ presetName: 'conservative', ...updates })}
+            isPending={updatePreset.isPending}
+          />
+        )}
+        {medium && (
+          <PresetEditor
+            preset={medium}
+            label="🟡 Medium"
+            onSave={(updates) => updatePreset.mutate({ presetName: 'medium', ...updates })}
+            isPending={updatePreset.isPending}
+          />
+        )}
+        {aggressive && (
+          <PresetEditor
+            preset={aggressive}
+            label="🔴 Aggressive"
+            onSave={(updates) => updatePreset.mutate({ presetName: 'aggressive', ...updates })}
+            isPending={updatePreset.isPending}
+          />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PresetEditor({
+  preset,
+  label,
+  onSave,
+  isPending,
+}: {
+  preset: any;
+  label: string;
+  onSave: (updates: any) => void;
+  isPending: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [values, setValues] = useState({
+    minDte: preset.minDte,
+    maxDte: preset.maxDte,
+    minDelta: preset.minDelta,
+    maxDelta: preset.maxDelta,
+    minOpenInterest: preset.minOpenInterest,
+    minVolume: preset.minVolume,
+    minRsi: preset.minRsi ?? 0,
+    maxRsi: preset.maxRsi ?? 100,
+    minIvRank: preset.minIvRank ?? 0,
+    maxIvRank: preset.maxIvRank ?? 100,
+    minBbPercent: preset.minBbPercent ?? "0",
+    maxBbPercent: preset.maxBbPercent ?? "1.0",
+    minScore: preset.minScore,
+    maxStrikePercent: preset.maxStrikePercent,
+  });
+
+  const handleReset = () => {
+    setValues({
+      minDte: preset.minDte,
+      maxDte: preset.maxDte,
+      minDelta: preset.minDelta,
+      maxDelta: preset.maxDelta,
+      minOpenInterest: preset.minOpenInterest,
+      minVolume: preset.minVolume,
+      minRsi: preset.minRsi ?? 0,
+      maxRsi: preset.maxRsi ?? 100,
+      minIvRank: preset.minIvRank ?? 0,
+      maxIvRank: preset.maxIvRank ?? 100,
+      minBbPercent: preset.minBbPercent ?? "0",
+      maxBbPercent: preset.maxBbPercent ?? "1.0",
+      minScore: preset.minScore,
+      maxStrikePercent: preset.maxStrikePercent,
+    });
+  };
+
+  const handleSave = () => {
+    onSave(values);
+  };
+
+  return (
+    <div className="space-y-4 border-l-4 border-l-border pl-4">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex w-full items-center justify-between text-left font-semibold hover:text-primary"
+      >
+        <span>{label}</span>
+        <span className="text-muted-foreground">{isExpanded ? '▼' : '▶'}</span>
+      </button>
+
+      {isExpanded && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor={`${preset.presetName}-minDte`}>Min DTE</Label>
+              <Input
+                id={`${preset.presetName}-minDte`}
+                type="number"
+                value={values.minDte}
+                onChange={(e) => setValues({ ...values, minDte: parseInt(e.target.value) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor={`${preset.presetName}-maxDte`}>Max DTE</Label>
+              <Input
+                id={`${preset.presetName}-maxDte`}
+                type="number"
+                value={values.maxDte}
+                onChange={(e) => setValues({ ...values, maxDte: parseInt(e.target.value) })}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor={`${preset.presetName}-minDelta`}>Min Delta</Label>
+              <Input
+                id={`${preset.presetName}-minDelta`}
+                type="text"
+                value={values.minDelta}
+                onChange={(e) => setValues({ ...values, minDelta: e.target.value })}
+                placeholder="0.10"
+              />
+            </div>
+            <div>
+              <Label htmlFor={`${preset.presetName}-maxDelta`}>Max Delta</Label>
+              <Input
+                id={`${preset.presetName}-maxDelta`}
+                type="text"
+                value={values.maxDelta}
+                onChange={(e) => setValues({ ...values, maxDelta: e.target.value })}
+                placeholder="0.20"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor={`${preset.presetName}-minOI`}>Min Open Interest</Label>
+              <Input
+                id={`${preset.presetName}-minOI`}
+                type="number"
+                value={values.minOpenInterest}
+                onChange={(e) => setValues({ ...values, minOpenInterest: parseInt(e.target.value) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor={`${preset.presetName}-minVol`}>Min Volume</Label>
+              <Input
+                id={`${preset.presetName}-minVol`}
+                type="number"
+                value={values.minVolume}
+                onChange={(e) => setValues({ ...values, minVolume: parseInt(e.target.value) })}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor={`${preset.presetName}-minRsi`}>Min RSI</Label>
+              <Input
+                id={`${preset.presetName}-minRsi`}
+                type="number"
+                value={values.minRsi}
+                onChange={(e) => setValues({ ...values, minRsi: parseInt(e.target.value) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor={`${preset.presetName}-maxRsi`}>Max RSI</Label>
+              <Input
+                id={`${preset.presetName}-maxRsi`}
+                type="number"
+                value={values.maxRsi}
+                onChange={(e) => setValues({ ...values, maxRsi: parseInt(e.target.value) })}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor={`${preset.presetName}-minIvRank`}>Min IV Rank</Label>
+              <Input
+                id={`${preset.presetName}-minIvRank`}
+                type="number"
+                value={values.minIvRank}
+                onChange={(e) => setValues({ ...values, minIvRank: parseInt(e.target.value) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor={`${preset.presetName}-maxIvRank`}>Max IV Rank</Label>
+              <Input
+                id={`${preset.presetName}-maxIvRank`}
+                type="number"
+                value={values.maxIvRank}
+                onChange={(e) => setValues({ ...values, maxIvRank: parseInt(e.target.value) })}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor={`${preset.presetName}-minBb`}>Min BB %B</Label>
+              <Input
+                id={`${preset.presetName}-minBb`}
+                type="text"
+                value={values.minBbPercent}
+                onChange={(e) => setValues({ ...values, minBbPercent: e.target.value })}
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <Label htmlFor={`${preset.presetName}-maxBb`}>Max BB %B</Label>
+              <Input
+                id={`${preset.presetName}-maxBb`}
+                type="text"
+                value={values.maxBbPercent}
+                onChange={(e) => setValues({ ...values, maxBbPercent: e.target.value })}
+                placeholder="1.0"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor={`${preset.presetName}-minScore`}>Min Score</Label>
+              <Input
+                id={`${preset.presetName}-minScore`}
+                type="number"
+                value={values.minScore}
+                onChange={(e) => setValues({ ...values, minScore: parseInt(e.target.value) })}
+              />
+            </div>
+            <div>
+              <Label htmlFor={`${preset.presetName}-maxStrike`}>Max Strike % of Stock Price</Label>
+              <Input
+                id={`${preset.presetName}-maxStrike`}
+                type="number"
+                value={values.maxStrikePercent}
+                onChange={(e) => setValues({ ...values, maxStrikePercent: parseInt(e.target.value) })}
+                placeholder="150"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button onClick={handleSave} disabled={isPending}>
+              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save
+            </Button>
+            <Button onClick={handleReset} variant="outline" disabled={isPending}>
+              Reset
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

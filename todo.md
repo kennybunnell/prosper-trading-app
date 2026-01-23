@@ -122,7 +122,10 @@
 - [x] Create tRPC procedures for getting and updating filter presets
 - [x] Add automatic seeding logic on first user access
 - [x] Test backend implementation with real data (6/6 tests passing)
-- [ ] Add Settings UI section for configuring preset filters
-- [ ] Update CSP Dashboard to use preset filters from database
-- [ ] Implement parallel opportunity fetching using ThreadPoolExecutor (5 workers for option chains, 10 for indicators)
-- [ ] Test performance improvements with multiple watchlist symbols
+- [x] Create Settings UI section with expandable filter preset configuration
+- [x] Add input fields for all preset parameters (delta, DTE, OI, RSI, IV Rank, BB %B, score, strike)
+- [x] Implement Save/Reset functionality for each preset
+- [x] Update CSP Dashboard to fetch presets from database on load
+- [x] Apply preset filters when Conservative/Medium/Aggressive buttons clicked
+- [x] Implement parallel opportunity fetching using concurrent processing (5 concurrent workers with batching)
+- [x] Test all three features end-to-end with real data

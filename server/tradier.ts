@@ -464,9 +464,57 @@ export class TradierAPI {
     minVolume: number = 5,
     minOI: number = 50
   ): Promise<CSPOpportunity[]> {
-    const opportunities: CSPOpportunity[] = [];
+    console.log(`[Tradier API] Fetching CSP opportunities for ${symbols.length} symbols with parallel processing...`);
+    
+    // Process symbols in parallel with concurrency limit of 5
+    const CONCURRENCY = 5;
+    const allOpportunities: CSPOpportunity[] = [];
+    
+    for (let i = 0; i < symbols.length; i += CONCURRENCY) {
+      const batch = symbols.slice(i, i + CONCURRENCY);
+      console.log(`[Tradier API] Processing batch ${Math.floor(i / CONCURRENCY) + 1}/${Math.ceil(symbols.length / CONCURRENCY)} (symbols: ${batch.join(', ')})`);
+      
+      const batchPromises = batch.map(symbol => this.fetchSymbolOpportunities(
+        symbol,
+        minDelta,
+        maxDelta,
+        minDte,
+        maxDte,
+        minVolume,
+        minOI
+      ));
+      
+      const batchResults = await Promise.allSettled(batchPromises);
+      
+      batchResults.forEach((result, idx) => {
+        if (result.status === 'fulfilled') {
+          allOpportunities.push(...result.value);
+          console.log(`[Tradier API] ✓ ${batch[idx]}: found ${result.value.length} opportunities`);
+        } else {
+          console.error(`[Tradier API] ✗ ${batch[idx]}: ${result.reason}`);
+        }
+      });
+    }
+    
+    console.log(`[Tradier API] Completed: ${allOpportunities.length} total opportunities from ${symbols.length} symbols`);
+    return allOpportunities;
+  }
 
-    for (const symbol of symbols) {
+  /**
+   * Fetch CSP opportunities for a single symbol
+   * Used internally by fetchCSPOpportunities for parallel processing
+   */
+  private async fetchSymbolOpportunities(
+    symbol: string,
+    minDelta: number,
+    maxDelta: number,
+    minDte: number,
+    maxDte: number,
+    minVolume: number,
+    minOI: number
+  ): Promise<CSPOpportunity[]> {
+    const opportunities: CSPOpportunity[] = [];
+    const today = new Date();
       try {
         // Get all expirations for this symbol
         const expirations = await this.getExpirations(symbol);
@@ -479,7 +527,7 @@ export class TradierAPI {
           return dte >= minDte && dte <= maxDte;
         });
 
-        if (filteredExpirations.length === 0) continue;
+        if (filteredExpirations.length === 0) return opportunities;
 
         // Get current stock price
         const quote = await this.getQuote(symbol);
@@ -562,9 +610,8 @@ export class TradierAPI {
         }
       } catch (error: any) {
         console.error(`Error processing ${symbol}:`, error.message);
-        continue;
+        throw error; // Propagate error to Promise.allSettled
       }
-    }
 
     return opportunities;
   }

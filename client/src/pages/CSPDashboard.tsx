@@ -75,6 +75,9 @@ export default function CSPDashboard() {
 
   const utils = trpc.useUtils();
 
+  // Fetch filter presets from database
+  const { data: presets } = trpc.cspFilters.getPresets.useQuery(undefined, { enabled: !!user });
+
   // Fetch watchlist
   const { data: watchlist = [], isLoading: loadingWatchlist } = trpc.watchlist.list.useQuery(
     { strategy: 'csp' },
@@ -142,27 +145,51 @@ export default function CSPDashboard() {
   const filteredOpportunities = useMemo(() => {
     let filtered = [...opportunities];
 
-    // Apply preset filter
-    if (presetFilter === 'conservative') {
-      filtered = filtered.filter(opp => 
-        Math.abs(opp.delta) >= 0.10 && Math.abs(opp.delta) <= 0.20 &&
-        opp.openInterest >= 50 &&
-        (opp.rsi === null || opp.rsi <= 70) &&
-        opp.score >= 50
-      );
-    } else if (presetFilter === 'medium') {
-      filtered = filtered.filter(opp => 
-        Math.abs(opp.delta) >= 0.15 && Math.abs(opp.delta) <= 0.30 &&
-        opp.openInterest >= 50 &&
-        (opp.rsi === null || opp.rsi <= 80) &&
-        opp.score >= 40
-      );
-    } else if (presetFilter === 'aggressive') {
-      filtered = filtered.filter(opp => 
-        Math.abs(opp.delta) >= 0.20 && Math.abs(opp.delta) <= 0.40 &&
-        opp.openInterest >= 25 &&
-        opp.score >= 30
-      );
+    // Apply preset filter from database
+    if (presetFilter && presets) {
+      const preset = presets.find(p => p.presetName === presetFilter);
+      if (preset) {
+        filtered = filtered.filter(opp => {
+          const delta = Math.abs(opp.delta);
+          const minDelta = parseFloat(preset.minDelta);
+          const maxDelta = parseFloat(preset.maxDelta);
+          
+          // Delta filter
+          if (delta < minDelta || delta > maxDelta) return false;
+          
+          // Open Interest filter
+          if (opp.openInterest < preset.minOpenInterest) return false;
+          
+          // Volume filter
+          if (opp.volume < preset.minVolume) return false;
+          
+          // Score filter
+          if (opp.score < preset.minScore) return false;
+          
+          // RSI filter (if available)
+          if (opp.rsi !== null && preset.minRsi !== null && preset.maxRsi !== null) {
+            if (opp.rsi < preset.minRsi || opp.rsi > preset.maxRsi) return false;
+          }
+          
+          // IV Rank filter (if available)
+          if (opp.ivRank !== null && preset.minIvRank !== null && preset.maxIvRank !== null) {
+            if (opp.ivRank < preset.minIvRank || opp.ivRank > preset.maxIvRank) return false;
+          }
+          
+          // BB %B filter (if available)
+          if (opp.bbPctB !== null && preset.minBbPercent !== null && preset.maxBbPercent !== null) {
+            const minBb = parseFloat(preset.minBbPercent);
+            const maxBb = parseFloat(preset.maxBbPercent);
+            if (opp.bbPctB < minBb || opp.bbPctB > maxBb) return false;
+          }
+          
+          // Strike price filter (max % of stock price)
+          const strikePct = (opp.strike / opp.currentPrice) * 100;
+          if (strikePct > preset.maxStrikePercent) return false;
+          
+          return true;
+        });
+      }
     }
 
     // Apply score filter
@@ -190,7 +217,7 @@ export default function CSPDashboard() {
     });
 
     return filtered;
-  }, [opportunities, presetFilter, minScore, showSelectedOnly, selectedOpportunities, sortColumn, sortDirection]);
+  }, [opportunities, presetFilter, presets, minScore, showSelectedOnly, sortColumn, sortDirection]);
 
   // Calculate summary metrics
   const selectedOppsList = opportunities.filter(opp => 
