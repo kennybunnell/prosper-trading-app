@@ -114,3 +114,13 @@
 - [x] Add detailed Tradier API logging to diagnose 401 authentication errors
 - [x] Fix "No values to set" error when syncing Tastytrade accounts - properly filter optional fields while preserving required accountId/accountNumber
 - [x] Fix account sync field mapping - Tastytrade API uses nested structure with kebab-case field names
+
+## CSP Dashboard Enhancements
+- [x] Clone and analyze options-trading repository for filter configuration patterns
+- [x] Add cspFilterPresets database table schema
+- [ ] Seed default preset filter values for conservative/medium/aggressive
+- [ ] Add backend procedures to get/update preset filters
+- [ ] Add Settings UI section for configuring preset filters
+- [ ] Update CSP Dashboard to use preset filters from database
+- [ ] Implement parallel opportunity fetching using ThreadPoolExecutor (5 workers for option chains, 10 for indicators)
+- [ ] Test performance improvements with multiple watchlist symbols

@@ -140,3 +140,50 @@ export const tastytradeAccounts = mysqlTable("tastytradeAccounts", {
 
 export type TastytradeAccount = typeof tastytradeAccounts.$inferSelect;
 export type InsertTastytradeAccount = typeof tastytradeAccounts.$inferInsert;
+
+/**
+ * CSP filter preset configurations (conservative, medium, aggressive)
+ */
+export const cspFilterPresets = mysqlTable("cspFilterPresets", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  presetName: mysqlEnum("presetName", ["conservative", "medium", "aggressive"]).notNull(),
+  
+  // DTE (Days to Expiration) range
+  minDte: int("minDte").notNull().default(7),
+  maxDte: int("maxDte").notNull().default(45),
+  
+  // Delta range for put options
+  minDelta: varchar("minDelta", { length: 10 }).notNull().default("0.15"),
+  maxDelta: varchar("maxDelta", { length: 10 }).notNull().default("0.35"),
+  
+  // Open Interest minimum
+  minOpenInterest: int("minOpenInterest").notNull().default(100),
+  
+  // Volume minimum
+  minVolume: int("minVolume").notNull().default(50),
+  
+  // RSI (Relative Strength Index) range
+  minRsi: int("minRsi").default(0),
+  maxRsi: int("maxRsi").default(100),
+  
+  // IV Rank (Implied Volatility Rank) range
+  minIvRank: int("minIvRank").default(0),
+  maxIvRank: int("maxIvRank").default(100),
+  
+  // Bollinger Band %B range
+  minBbPercent: varchar("minBbPercent", { length: 10 }).default("0"),
+  maxBbPercent: varchar("maxBbPercent", { length: 10 }).default("1"),
+  
+  // Minimum combined score
+  minScore: int("minScore").notNull().default(50),
+  
+  // Maximum strike price as percentage of stock price
+  maxStrikePercent: int("maxStrikePercent").notNull().default(100),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CspFilterPreset = typeof cspFilterPresets.$inferSelect;
+export type InsertCspFilterPreset = typeof cspFilterPresets.$inferInsert;
