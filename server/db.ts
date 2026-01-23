@@ -165,7 +165,35 @@ export async function upsertTastytradeAccount(userId: number, account: { account
   const db = await getDb();
   if (!db) return;
   const { tastytradeAccounts } = await import('../drizzle/schema');
-  await db.insert(tastytradeAccounts).values({ userId, ...account }).onDuplicateKeyUpdate({ set: account });
+  const { eq } = await import('drizzle-orm');
+  
+  // Filter out undefined and empty string values from optional fields only
+  const filteredAccount: any = {
+    accountId: account.accountId,
+    accountNumber: account.accountNumber,
+  };
+  
+  if (account.accountType !== undefined && account.accountType !== "") {
+    filteredAccount.accountType = account.accountType;
+  }
+  if (account.nickname !== undefined && account.nickname !== "") {
+    filteredAccount.nickname = account.nickname;
+  }
+  
+  // Check if account already exists
+  const existing = await db.select().from(tastytradeAccounts)
+    .where(eq(tastytradeAccounts.accountId, account.accountId))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    // Update existing record
+    await db.update(tastytradeAccounts)
+      .set(filteredAccount)
+      .where(eq(tastytradeAccounts.accountId, account.accountId));
+  } else {
+    // Insert new record
+    await db.insert(tastytradeAccounts).values({ userId, ...filteredAccount });
+  }
 }
 
 // Trades queries
