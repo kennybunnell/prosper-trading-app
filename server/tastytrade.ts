@@ -18,18 +18,21 @@ export interface TastytradeSession {
 }
 
 export interface TastytradeAccount {
-  accountNumber: string;
-  externalId: string;
-  openedAt: string;
-  nickname: string;
-  accountTypeName: string;
-  isFirmError: boolean;
-  isFirmProprietary: boolean;
-  isFuturesApproved: boolean;
-  isCryptocurrencyApproved: boolean;
-  isClosingOnly: boolean;
-  dayTraderStatus: boolean;
-  isDayTrader: boolean;
+  account: {
+    'account-number': string;
+    'external-id': string;
+    'opened-at': string;
+    'nickname': string;
+    'account-type-name': string;
+    'is-firm-error': boolean;
+    'is-firm-proprietary': boolean;
+    'is-futures-approved': boolean;
+    'is-closed': boolean;
+    'day-trader-status': boolean;
+    'margin-or-cash': string;
+    'suitable-options-level': string;
+    [key: string]: any;
+  };
 }
 
 export interface TastytradePosition {

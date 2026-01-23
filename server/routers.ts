@@ -96,12 +96,29 @@ export const appRouter = router({
       await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
       const accounts = await api.getAccounts();
 
-      for (const account of accounts) {
+      console.log('[Account Sync] Retrieved accounts from Tastytrade:', JSON.stringify(accounts, null, 2));
+
+      for (const item of accounts) {
+        console.log('[Account Sync] Processing account:', JSON.stringify(item, null, 2));
+        
+        // Tastytrade API returns nested structure with kebab-case field names
+        const account = item.account;
+        const accountNumber = account['account-number'];
+        const accountType = account['account-type-name'];
+        const nickname = account['nickname'];
+        
+        console.log('[Account Sync] Mapped data:', {
+          accountId: accountNumber,
+          accountNumber: accountNumber,
+          accountType: accountType,
+          nickname: nickname,
+        });
+        
         await upsertTastytradeAccount(ctx.user.id, {
-          accountId: account.accountNumber,
-          accountNumber: account.accountNumber,
-          accountType: account.accountTypeName,
-          nickname: account.nickname || undefined,
+          accountId: accountNumber,
+          accountNumber: accountNumber,
+          accountType: accountType,
+          nickname: nickname || undefined,
         });
       }
 

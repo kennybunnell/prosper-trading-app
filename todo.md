@@ -113,3 +113,4 @@
 - [x] Add console logging to debug hasChanges state when modifying Tradier API key
 - [x] Add detailed Tradier API logging to diagnose 401 authentication errors
 - [x] Fix "No values to set" error when syncing Tastytrade accounts - properly filter optional fields while preserving required accountId/accountNumber
+- [x] Fix account sync field mapping - Tastytrade API uses nested structure with kebab-case field names
