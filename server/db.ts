@@ -257,3 +257,169 @@ export async function getPremiumSummary(userId: number, accountId?: string, star
   
   return db.select().from(premiumTracking).where(and(...conditions));
 }
+
+/**
+ * Seed default CSP filter presets for a user if they don't exist
+ */
+export async function seedCspFilterPresets(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot seed filter presets: database not available");
+    return;
+  }
+
+  const { cspFilterPresets } = await import("../drizzle/schema");
+  const { eq, and } = await import("drizzle-orm");
+
+  try {
+    // Check if presets already exist for this user
+    const existing = await db
+      .select()
+      .from(cspFilterPresets)
+      .where(eq(cspFilterPresets.userId, userId))
+      .limit(1);
+
+    if (existing.length > 0) {
+      console.log(`[Database] Filter presets already exist for user ${userId}`);
+      return;
+    }
+
+    // Default values based on Streamlit app analysis
+    const defaults = [
+      {
+        userId,
+        presetName: "conservative" as const,
+        minDte: 7,
+        maxDte: 30,
+        minDelta: "0.10",
+        maxDelta: "0.20",
+        minOpenInterest: 50,
+        minVolume: 50,
+        minRsi: 0,
+        maxRsi: 70,
+        minIvRank: 0,
+        maxIvRank: 100,
+        minBbPercent: "0",
+        maxBbPercent: "1.0",
+        minScore: 50,
+        maxStrikePercent: 150,
+      },
+      {
+        userId,
+        presetName: "medium" as const,
+        minDte: 7,
+        maxDte: 30,
+        minDelta: "0.15",
+        maxDelta: "0.30",
+        minOpenInterest: 50,
+        minVolume: 50,
+        minRsi: 0,
+        maxRsi: 80,
+        minIvRank: 0,
+        maxIvRank: 100,
+        minBbPercent: "0",
+        maxBbPercent: "1.0",
+        minScore: 40,
+        maxStrikePercent: 250,
+      },
+      {
+        userId,
+        presetName: "aggressive" as const,
+        minDte: 7,
+        maxDte: 21,
+        minDelta: "0.20",
+        maxDelta: "0.40",
+        minOpenInterest: 25,
+        minVolume: 25,
+        minRsi: 0,
+        maxRsi: 100,
+        minIvRank: 0,
+        maxIvRank: 100,
+        minBbPercent: "0",
+        maxBbPercent: "1.0",
+        minScore: 30,
+        maxStrikePercent: 500,
+      },
+    ];
+
+    await db.insert(cspFilterPresets).values(defaults);
+    console.log(`[Database] Seeded ${defaults.length} filter presets for user ${userId}`);
+  } catch (error) {
+    console.error("[Database] Failed to seed filter presets:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get all CSP filter presets for a user
+ */
+export async function getCspFilterPresets(userId: number) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  const { cspFilterPresets } = await import("../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+
+  const presets = await db
+    .select()
+    .from(cspFilterPresets)
+    .where(eq(cspFilterPresets.userId, userId));
+
+  return presets;
+}
+
+/**
+ * Update a specific CSP filter preset
+ */
+export async function updateCspFilterPreset(
+  userId: number,
+  presetName: "conservative" | "medium" | "aggressive",
+  updates: Partial<{
+    minDte: number;
+    maxDte: number;
+    minDelta: string;
+    maxDelta: string;
+    minOpenInterest: number;
+    minVolume: number;
+    minRsi: number | null;
+    maxRsi: number | null;
+    minIvRank: number | null;
+    maxIvRank: number | null;
+    minBbPercent: string | null;
+    maxBbPercent: string | null;
+    minScore: number;
+    maxStrikePercent: number;
+  }>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+
+  const { cspFilterPresets } = await import("../drizzle/schema");
+  const { eq, and } = await import("drizzle-orm");
+
+  // Filter out undefined values
+  const filteredUpdates = Object.fromEntries(
+    Object.entries(updates).filter(([_, v]) => v !== undefined)
+  );
+
+  if (Object.keys(filteredUpdates).length === 0) {
+    console.log("[Database] No values to update for filter preset");
+    return;
+  }
+
+  await db
+    .update(cspFilterPresets)
+    .set(filteredUpdates)
+    .where(
+      and(
+        eq(cspFilterPresets.userId, userId),
+        eq(cspFilterPresets.presetName, presetName)
+      )
+    );
+
+  console.log(`[Database] Updated ${presetName} filter preset for user ${userId}`);
+}

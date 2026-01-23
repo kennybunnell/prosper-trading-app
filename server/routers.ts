@@ -265,6 +265,43 @@ export const appRouter = router({
         };
       }),
   }),
+
+  cspFilters: router({
+    getPresets: protectedProcedure.query(async ({ ctx }) => {
+      const { getCspFilterPresets, seedCspFilterPresets } = await import('./db');
+      
+      // Ensure presets exist for this user
+      await seedCspFilterPresets(ctx.user.id);
+      
+      return getCspFilterPresets(ctx.user.id);
+    }),
+    updatePreset: protectedProcedure
+      .input(
+        z.object({
+          presetName: z.enum(['conservative', 'medium', 'aggressive']),
+          minDte: z.number().optional(),
+          maxDte: z.number().optional(),
+          minDelta: z.string().optional(),
+          maxDelta: z.string().optional(),
+          minOpenInterest: z.number().optional(),
+          minVolume: z.number().optional(),
+          minRsi: z.number().nullable().optional(),
+          maxRsi: z.number().nullable().optional(),
+          minIvRank: z.number().nullable().optional(),
+          maxIvRank: z.number().nullable().optional(),
+          minBbPercent: z.string().nullable().optional(),
+          maxBbPercent: z.string().nullable().optional(),
+          minScore: z.number().optional(),
+          maxStrikePercent: z.number().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { updateCspFilterPreset } = await import('./db');
+        const { presetName, ...updates } = input;
+        await updateCspFilterPreset(ctx.user.id, presetName, updates);
+        return { success: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

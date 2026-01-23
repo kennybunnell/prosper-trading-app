@@ -118,8 +118,10 @@
 ## CSP Dashboard Enhancements
 - [x] Clone and analyze options-trading repository for filter configuration patterns
 - [x] Add cspFilterPresets database table schema
-- [ ] Seed default preset filter values for conservative/medium/aggressive
-- [ ] Add backend procedures to get/update preset filters
+- [x] Add database helper functions for seeding and managing filter presets
+- [x] Create tRPC procedures for getting and updating filter presets
+- [x] Add automatic seeding logic on first user access
+- [x] Test backend implementation with real data (6/6 tests passing)
 - [ ] Add Settings UI section for configuring preset filters
 - [ ] Update CSP Dashboard to use preset filters from database
 - [ ] Implement parallel opportunity fetching using ThreadPoolExecutor (5 workers for option chains, 10 for indicators)
