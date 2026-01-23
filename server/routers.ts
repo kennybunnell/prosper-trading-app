@@ -55,15 +55,26 @@ export const appRouter = router({
       const { getApiCredentials } = await import('./db');
       const { createTradierAPI } = await import('./tradier');
       
+      console.log('[Settings] Testing Tradier connection for user:', ctx.user.id);
+      
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials?.tradierApiKey) {
+        console.error('[Settings] No Tradier API key found for user:', ctx.user.id);
         throw new Error('Tradier API key not configured');
       }
 
+      console.log('[Settings] Tradier API key found, testing connection...');
       const api = createTradierAPI(credentials.tradierApiKey);
-      // Test with a simple quote request
-      await api.getQuote('SPY');
-      return { success: true, message: 'Connection successful' };
+      
+      try {
+        // Test with a simple quote request
+        await api.getQuote('SPY');
+        console.log('[Settings] Tradier connection test successful');
+        return { success: true, message: 'Connection successful' };
+      } catch (error: any) {
+        console.error('[Settings] Tradier connection test failed:', error.message);
+        throw error;
+      }
     }),
   }),
 

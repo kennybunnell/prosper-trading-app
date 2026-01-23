@@ -211,9 +211,16 @@ export class TradierAPI {
    */
   async getQuote(symbol: string): Promise<Quote> {
     try {
+      console.log('[Tradier API] Fetching quote for symbol:', symbol);
+      console.log('[Tradier API] API Key (first 10 chars):', this.apiKey.substring(0, 10) + '...');
+      console.log('[Tradier API] Base URL:', this.client.defaults.baseURL);
+      
       const response = await this.client.get('/markets/quotes', {
         params: { symbols: symbol },
       });
+
+      console.log('[Tradier API] Response status:', response.status);
+      console.log('[Tradier API] Response data:', JSON.stringify(response.data));
 
       const quote = response.data.quotes?.quote;
       if (!quote) {
@@ -222,6 +229,18 @@ export class TradierAPI {
 
       return Array.isArray(quote) ? quote[0] : quote;
     } catch (error: any) {
+      console.error('[Tradier API] Error details:');
+      console.error('  - Status:', error.response?.status);
+      console.error('  - Status Text:', error.response?.statusText);
+      console.error('  - Headers:', JSON.stringify(error.response?.headers));
+      console.error('  - Data:', JSON.stringify(error.response?.data));
+      console.error('  - Message:', error.message);
+      
+      // Provide more specific error messages based on status code
+      if (error.response?.status === 401) {
+        throw new Error(`Authentication failed: Invalid or expired API key. Please verify your Tradier API key at developer.tradier.com`);
+      }
+      
       throw new Error(`Failed to fetch quote: ${error.response?.data?.fault?.faultstring || error.message}`);
     }
   }

@@ -110,3 +110,5 @@
 ## Bug Fixes
 - [x] Fix "No values to set" error in Settings - replaced onDuplicateKeyUpdate with separate insert/update logic
 - [x] Fix Settings page input change detection - Save button doesn't enable when modifying Tradier API key
+- [x] Add console logging to debug hasChanges state when modifying Tradier API key
+- [x] Add detailed Tradier API logging to diagnose 401 authentication errors

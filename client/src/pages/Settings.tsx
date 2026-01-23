@@ -17,6 +17,11 @@ export default function Settings() {
   const [tradierAccountId, setTradierAccountId] = useState("");
   const [defaultTastytradeAccountId, setDefaultTastytradeAccountId] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
+  
+  // Debug: Log hasChanges whenever it changes
+  useEffect(() => {
+    console.log('[Settings] hasChanges state updated to:', hasChanges);
+  }, [hasChanges]);
 
   const { data: credentials, isLoading: loadingCredentials } = trpc.settings.getCredentials.useQuery(
     undefined,
@@ -72,12 +77,14 @@ export default function Settings() {
 
   useEffect(() => {
     if (credentials) {
+      console.log('[Settings] Loading credentials from database:', credentials);
       setTastytradeUsername(credentials.tastytradeUsername || "");
       setTastytradePassword(credentials.tastytradePassword || "");
       setTradierApiKey(credentials.tradierApiKey || "");
       setTradierAccountId(credentials.tradierAccountId || "");
       setDefaultTastytradeAccountId(credentials.defaultTastytradeAccountId || "");
       // Reset hasChanges when credentials are loaded
+      console.log('[Settings] Resetting hasChanges to false');
       setHasChanges(false);
     }
   }, [credentials]);
@@ -93,6 +100,7 @@ export default function Settings() {
   };
 
   const handleInputChange = () => {
+    console.log('[Settings] Input changed, setting hasChanges to true');
     setHasChanges(true);
   };
 
