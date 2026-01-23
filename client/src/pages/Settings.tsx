@@ -73,6 +73,21 @@ export default function Settings() {
     { enabled: !!user }
   );
 
+  const { data: userPreferences } = trpc.userPreferences.get.useQuery(
+    undefined,
+    { enabled: !!user }
+  );
+
+  const saveDefaultAccount = trpc.userPreferences.setDefaultAccount.useMutation({
+    onSuccess: () => {
+      toast.success("Default account saved successfully");
+      utils.userPreferences.get.invalidate();
+    },
+    onError: (error) => {
+      toast.error(`Failed to save default account: ${error.message}`);
+    },
+  });
+
   const utils = trpc.useUtils();
 
   useEffect(() => {
@@ -82,7 +97,12 @@ export default function Settings() {
       setTastytradePassword(credentials.tastytradePassword || "");
       setTradierApiKey(credentials.tradierApiKey || "");
       setTradierAccountId(credentials.tradierAccountId || "");
-      setDefaultTastytradeAccountId(credentials.defaultTastytradeAccountId || "");
+    }
+  }, [credentials]);
+
+  useEffect(() => {
+    if (userPreferences) {
+      setDefaultTastytradeAccountId(userPreferences.defaultTastytradeAccountId || "");
       // Reset hasChanges when credentials are loaded
       console.log('[Settings] Resetting hasChanges to false');
       setHasChanges(false);
@@ -311,6 +331,44 @@ export default function Settings() {
             Save Credentials
           </Button>
         </div>
+
+        {/* Default Trading Account */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Default Trading Account</CardTitle>
+            <CardDescription>
+              Select your default Tastytrade account for trading operations
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="defaultAccount">Default Account</Label>
+                <Select
+                  value={defaultTastytradeAccountId}
+                  onValueChange={(value) => {
+                    setDefaultTastytradeAccountId(value);
+                    saveDefaultAccount.mutate({ accountId: value });
+                  }}
+                >
+                  <SelectTrigger id="defaultAccount">
+                    <SelectValue placeholder="Select default account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.map((account: any) => (
+                      <SelectItem key={account.accountId} value={account.accountId}>
+                        {account.nickname || account.accountNumber} ({account.accountType})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  This account will be automatically selected when you open the CSP Dashboard
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Info Card */}
         <Card className="border-blue-500/50 bg-blue-500/5">

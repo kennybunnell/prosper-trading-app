@@ -423,3 +423,61 @@ export async function updateCspFilterPreset(
 
   console.log(`[Database] Updated ${presetName} filter preset for user ${userId}`);
 }
+
+
+/**
+ * Get user preferences
+ */
+export async function getUserPreferences(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const { userPreferences } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  
+  const [prefs] = await db
+    .select()
+    .from(userPreferences)
+    .where(eq(userPreferences.userId, userId))
+    .limit(1);
+  
+  return prefs || null;
+}
+
+/**
+ * Upsert user preferences
+ */
+export async function upsertUserPreferences(
+  userId: number,
+  preferences: { defaultTastytradeAccountId?: string }
+) {
+  const db = await getDb();
+  if (!db) return null;
+  const { userPreferences } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  
+  // Check if preferences exist
+  const existing = await getUserPreferences(userId);
+  
+  if (existing) {
+    // Update existing preferences
+    const updates: any = {};
+    if (preferences.defaultTastytradeAccountId !== undefined) {
+      updates.defaultTastytradeAccountId = preferences.defaultTastytradeAccountId;
+    }
+    
+    if (Object.keys(updates).length > 0) {
+      await db
+        .update(userPreferences)
+        .set(updates)
+        .where(eq(userPreferences.userId, userId));
+    }
+  } else {
+    // Insert new preferences
+    await db.insert(userPreferences).values({
+      userId,
+      defaultTastytradeAccountId: preferences.defaultTastytradeAccountId || null,
+    });
+  }
+  
+  return getUserPreferences(userId);
+}

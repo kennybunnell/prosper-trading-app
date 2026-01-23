@@ -266,6 +266,42 @@ export const appRouter = router({
       }),
   }),
 
+  userPreferences: router({
+    get: protectedProcedure.query(async ({ ctx }) => {
+      const { getUserPreferences } = await import('./db');
+      return getUserPreferences(ctx.user.id);
+    }),
+    setDefaultAccount: protectedProcedure
+      .input(z.object({ accountId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { upsertUserPreferences } = await import('./db');
+        await upsertUserPreferences(ctx.user.id, {
+          defaultTastytradeAccountId: input.accountId,
+        });
+        return { success: true };
+      }),
+  }),
+
+  account: router({
+    getBalances: protectedProcedure
+      .input(z.object({ accountNumber: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const { getApiCredentials } = await import('./db');
+        const { getTastytradeAPI } = await import('./tastytrade');
+
+        const credentials = await getApiCredentials(ctx.user.id);
+        if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+          throw new Error('Tastytrade credentials not configured');
+        }
+
+        const api = getTastytradeAPI();
+        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+        
+        const balances = await api.getBalances(input.accountNumber);
+        return balances;
+      }),
+  }),
+
   cspFilters: router({
     getPresets: protectedProcedure.query(async ({ ctx }) => {
       const { getCspFilterPresets, seedCspFilterPresets } = await import('./db');

@@ -129,3 +129,15 @@
 - [x] Apply preset filters when Conservative/Medium/Aggressive buttons clicked
 - [x] Implement parallel opportunity fetching using concurrent processing (5 concurrent workers with batching)
 - [x] Test all three features end-to-end with real data
+
+## Buying Power & Default Account Features
+- [x] Add user preferences table for default account selection
+- [x] Add backend procedures for getting/setting default account
+- [x] Implement Tastytrade API integration for fetching account balances and buying power
+- [x] Add buying power card to CSP Dashboard with color-coded indicators (green <80%, yellow 80-90%, red >90%)
+- [x] Show "Over Limit: $X,XXX" when total collateral exceeds buying power
+- [x] Implement real-time buying power updates as opportunities are selected/deselected
+- [x] Add default account selection dropdown in Settings page
+- [x] Auto-select default account when opening CSP Dashboard
+- [x] Implement hard block on order submission when exceeding buying power
+- [x] Test complete workflow with real Tastytrade account data

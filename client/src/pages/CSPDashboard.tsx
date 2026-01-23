@@ -26,7 +26,7 @@ import {
   Target,
   Filter,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { cn } from "@/lib/utils";
@@ -61,7 +61,7 @@ type PresetFilter = 'conservative' | 'medium' | 'aggressive' | null;
 
 export default function CSPDashboard() {
   const { user, loading: authLoading } = useAuth();
-  const { selectedAccountId } = useAccount();
+  const { selectedAccountId, setSelectedAccountId } = useAccount();
   const [newSymbol, setNewSymbol] = useState("");
   const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
   const [minScore, setMinScore] = useState<number | undefined>(undefined);
@@ -77,6 +77,28 @@ export default function CSPDashboard() {
 
   // Fetch filter presets from database
   const { data: presets } = trpc.cspFilters.getPresets.useQuery(undefined, { enabled: !!user });
+
+  // Fetch accounts
+  const { data: accounts = [] } = trpc.accounts.list.useQuery(undefined, { enabled: !!user });
+
+  // Fetch user preferences for default account
+  const { data: userPreferences } = trpc.userPreferences.get.useQuery(undefined, { enabled: !!user });
+
+  // Auto-select default account if no account is selected
+  useEffect(() => {
+    if (userPreferences?.defaultTastytradeAccountId && !selectedAccountId && accounts.length > 0) {
+      setSelectedAccountId(userPreferences.defaultTastytradeAccountId);
+    }
+  }, [userPreferences, selectedAccountId, accounts, setSelectedAccountId]);
+
+  // Get selected account details
+  const selectedAccount = accounts.find((acc: any) => acc.accountId === selectedAccountId);
+
+  // Fetch account balances for buying power
+  const { data: balances } = trpc.account.getBalances.useQuery(
+    { accountNumber: selectedAccount?.accountNumber || '' },
+    { enabled: !!selectedAccount?.accountNumber }
+  );
 
   // Fetch watchlist
   const { data: watchlist = [], isLoading: loadingWatchlist } = trpc.watchlist.list.useQuery(
@@ -227,8 +249,12 @@ export default function CSPDashboard() {
   const totalCollateral = selectedOppsList.reduce((sum, opp) => sum + opp.collateral, 0);
   const roc = totalCollateral > 0 ? (totalPremium / totalCollateral) * 100 : 0;
 
-  // Fetch accounts
-  const { data: accounts = [] } = trpc.accounts.list.useQuery(undefined, { enabled: !!user });
+  // Calculate buying power metrics
+  const availableBuyingPower = balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0;
+  const buyingPowerUsedPct = availableBuyingPower > 0 ? (totalCollateral / availableBuyingPower) * 100 : 0;
+  const overLimit = totalCollateral > availableBuyingPower ? totalCollateral - availableBuyingPower : 0;
+  const buyingPowerColor = buyingPowerUsedPct < 80 ? 'text-green-500' : buyingPowerUsedPct < 90 ? 'text-yellow-500' : 'text-red-500';
+  const buyingPowerBgColor = buyingPowerUsedPct < 80 ? 'bg-green-500/10' : buyingPowerUsedPct < 90 ? 'bg-yellow-500/10' : 'bg-red-500/10';
 
   // Submit orders mutation
   const submitOrders = trpc.csp.submitOrders.useMutation({
@@ -327,7 +353,7 @@ export default function CSPDashboard() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className="bg-card/50 backdrop-blur border-border/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -373,6 +399,28 @@ export default function CSPDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{filteredOpportunities.length}</div>
+          </CardContent>
+        </Card>
+
+        <Card className={cn("bg-card/50 backdrop-blur border-border/50", buyingPowerBgColor)}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <TrendingUp className={cn("w-4 h-4", buyingPowerColor)} />
+              Buying Power
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={cn("text-2xl font-bold", buyingPowerColor)}>
+              {buyingPowerUsedPct.toFixed(1)}%
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              ${availableBuyingPower.toFixed(0)} available
+            </div>
+            {overLimit > 0 && (
+              <div className="text-xs text-red-500 font-semibold mt-1">
+                Over Limit: ${overLimit.toFixed(2)}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -656,10 +704,15 @@ export default function CSPDashboard() {
                   Dry Run (test without submitting real orders)
                 </Label>
               </div>
-              <div className="flex justify-end">
+              <div className="flex flex-col items-end gap-2">
+                {overLimit > 0 && (
+                  <p className="text-sm text-red-500 font-semibold">
+                    Cannot submit orders: Total collateral exceeds buying power by ${overLimit.toFixed(2)}
+                  </p>
+                )}
                 <Button
                   onClick={handleSubmitOrders}
-                  disabled={submitOrders.isPending}
+                  disabled={submitOrders.isPending || overLimit > 0}
                   size="lg"
                 >
                   {submitOrders.isPending ? (

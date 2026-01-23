@@ -187,3 +187,19 @@ export const cspFilterPresets = mysqlTable("cspFilterPresets", {
 
 export type CspFilterPreset = typeof cspFilterPresets.$inferSelect;
 export type InsertCspFilterPreset = typeof cspFilterPresets.$inferInsert;
+/**
+ * User preferences for trading settings
+ */
+export const userPreferences = mysqlTable("userPreferences", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  
+  // Default Tastytrade account for trading
+  defaultTastytradeAccountId: varchar("defaultTastytradeAccountId", { length: 64 }),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserPreference = typeof userPreferences.$inferSelect;
+export type InsertUserPreference = typeof userPreferences.$inferInsert;
