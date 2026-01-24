@@ -400,6 +400,7 @@ function FilterPresetsSection() {
 
 function StrategyFilterPresetsSection({ strategy, title }: { strategy: 'csp' | 'cc', title: string }) {
   const { data: presets, isLoading } = trpc.filterPresets.getByStrategy.useQuery({ strategy });
+  const [isLoadingAll, setIsLoadingAll] = useState(false);
   const updatePreset = trpc.filterPresets.update.useMutation({
     onSuccess: () => {
       toast.success("Filter preset updated successfully");
@@ -410,6 +411,34 @@ function StrategyFilterPresetsSection({ strategy, title }: { strategy: 'csp' | '
     },
   });
   const utils = trpc.useUtils();
+
+  const handleLoadAllRecommended = async () => {
+    setIsLoadingAll(true);
+    try {
+      const presetNames: Array<'conservative' | 'medium' | 'aggressive'> = ['conservative', 'medium', 'aggressive'];
+      
+      // Load recommended values for all three presets
+      for (const presetName of presetNames) {
+        const recommended = await utils.client.filterPresets.getRecommendedValues.query({
+          strategy,
+          presetName,
+        });
+        
+        // Update each preset with recommended values
+        await updatePreset.mutateAsync({
+          strategy,
+          presetName,
+          ...recommended,
+        });
+      }
+      
+      toast.success(`Loaded recommended values for all ${strategy.toUpperCase()} presets`);
+    } catch (error: any) {
+      toast.error(`Failed to load recommended values: ${error.message}`);
+    } finally {
+      setIsLoadingAll(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -429,10 +458,23 @@ function StrategyFilterPresetsSection({ strategy, title }: { strategy: 'csp' | '
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>
-          Configure the filter criteria for Conservative, Medium, and Aggressive presets. Each strategy has different recommended values based on optimal technical indicators.
-        </CardDescription>
+        <div className="flex items-start justify-between">
+          <div className="space-y-1.5">
+            <CardTitle>{title}</CardTitle>
+            <CardDescription>
+              Configure the filter criteria for Conservative, Medium, and Aggressive presets. Each strategy has different recommended values based on optimal technical indicators.
+            </CardDescription>
+          </div>
+          <Button
+            onClick={handleLoadAllRecommended}
+            disabled={isLoadingAll || updatePreset.isPending}
+            variant="outline"
+            className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/50 shrink-0"
+          >
+            {isLoadingAll && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Load All Recommended Values
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {conservative && (

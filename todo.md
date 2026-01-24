@@ -273,3 +273,8 @@
 - [x] Add proper error handling for missing Tastytrade account
 - [x] Display user-friendly message with link to Settings
 - [x] Test CSP Dashboard without configured account
+
+## UX Improvement: Bulk Load Recommended Values
+- [x] Add "Load All Recommended Values" button at strategy section level
+- [x] Apply recommended values to all three presets (conservative, medium, aggressive) at once
+- [x] Test bulk load functionality for both CSP and CC sections
