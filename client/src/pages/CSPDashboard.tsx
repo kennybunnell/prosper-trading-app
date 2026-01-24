@@ -275,7 +275,7 @@ export default function CSPDashboard() {
   const roc = totalCollateral > 0 ? (totalPremium / totalCollateral) * 100 : 0;
 
   // Calculate buying power metrics
-  const availableBuyingPower = balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0;
+  const availableBuyingPower = Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
   const buyingPowerUsedPct = availableBuyingPower > 0 ? (totalCollateral / availableBuyingPower) * 100 : 0;
   const overLimit = totalCollateral > availableBuyingPower ? totalCollateral - availableBuyingPower : 0;
   const buyingPowerColor = buyingPowerUsedPct < 80 ? 'text-green-500' : buyingPowerUsedPct < 90 ? 'text-yellow-500' : 'text-red-500';
