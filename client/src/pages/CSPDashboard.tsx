@@ -268,12 +268,47 @@ export default function CSPDashboard() {
       setShowPreviewDialog(true);
     },
     onError: (error) => {
-      toast.error(`Validation failed: ${error.message}`);
+      if (error.message.includes('Account not found')) {
+        toast.error('No Tastytrade account found. Please configure your account in Settings.', {
+          action: {
+            label: 'Go to Settings',
+            onClick: () => window.location.href = '/settings',
+          },
+        });
+      } else if (error.message.includes('credentials not configured')) {
+        toast.error('Tastytrade credentials not configured. Please add your API credentials in Settings.', {
+          action: {
+            label: 'Go to Settings',
+            onClick: () => window.location.href = '/settings',
+          },
+        });
+      } else {
+        toast.error(`Validation failed: ${error.message}`);
+      }
     },
   });
 
   // Submit orders mutation
   const submitOrders = trpc.csp.submitOrders.useMutation({
+    onError: (error) => {
+      if (error.message.includes('Account not found')) {
+        toast.error('No Tastytrade account found. Please configure your account in Settings.', {
+          action: {
+            label: 'Go to Settings',
+            onClick: () => window.location.href = '/settings',
+          },
+        });
+      } else if (error.message.includes('credentials not configured')) {
+        toast.error('Tastytrade credentials not configured. Please add your API credentials in Settings.', {
+          action: {
+            label: 'Go to Settings',
+            onClick: () => window.location.href = '/settings',
+          },
+        });
+      } else {
+        toast.error(`Order submission failed: ${error.message}`);
+      }
+    },
     onSuccess: (data) => {
       setShowProgressDialog(false);
       if (data.success) {
@@ -305,10 +340,7 @@ export default function CSPDashboard() {
         const failedCount = data.results.filter(r => !r.success).length;
         toast.error(`${failedCount} order(s) failed to submit`);
       }
-    },
-    onError: (error) => {
       setShowProgressDialog(false);
-      toast.error(`Failed to submit orders: ${error.message}`);
     },
   });
 

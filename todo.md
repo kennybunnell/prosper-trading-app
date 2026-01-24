@@ -267,3 +267,9 @@
 - [x] Write unit tests for recommended values functionality (14/14 passing)
 - [x] CSP Dashboard already uses strategy-specific filters (via cspFilters router)
 - [x] Test complete workflow with recommended values
+
+## Bug Fix: CSP Dashboard Account Not Found Error
+- [x] Investigate which API call is throwing "Account not found" error
+- [x] Add proper error handling for missing Tastytrade account
+- [x] Display user-friendly message with link to Settings
+- [x] Test CSP Dashboard without configured account
