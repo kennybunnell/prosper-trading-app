@@ -282,3 +282,10 @@
 ## UI Improvement: Make Bulk Load Button More Prominent
 - [x] Change button styling to solid primary color for better visibility
 - [x] Ensure button stands out as the main action in the section
+
+## UX Improvements: Progress Indicator and Current Price Column
+- [x] Replace fake progress bar with spinner and simple text showing "Processing X symbols..."
+- [x] Add large spinner icon to progress dialog
+- [x] Simplify progress dialog to show completion status clearly
+- [x] Add Current Price column to opportunities table (after Strike column)
+- [x] Test progress dialog and current price column display

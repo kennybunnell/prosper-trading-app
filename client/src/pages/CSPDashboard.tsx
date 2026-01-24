@@ -866,6 +866,7 @@ export default function CSPDashboard() {
                   {[
                     { key: 'symbol', label: 'Symbol' },
                     { key: 'strike', label: 'Strike' },
+                    { key: 'currentPrice', label: 'Current' },
                     { key: 'bid', label: 'Bid' },
                     { key: 'ask', label: 'Ask' },
                     { key: 'spreadPct', label: 'Spread %' },
@@ -906,7 +907,7 @@ export default function CSPDashboard() {
               <TableBody>
                 {filteredOpportunities.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={17} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={18} className="text-center text-muted-foreground py-8">
                       {loadingOpportunities ? "Loading opportunities..." : "No opportunities found. Add symbols and click Fetch Opportunities."}
                     </TableCell>
                   </TableRow>
@@ -924,6 +925,7 @@ export default function CSPDashboard() {
                         </TableCell>
                         <TableCell className="font-medium">{opp.symbol}</TableCell>
                         <TableCell>${opp.strike.toFixed(2)}</TableCell>
+                        <TableCell>${opp.currentPrice.toFixed(2)}</TableCell>
                         <TableCell>${opp.bid.toFixed(2)}</TableCell>
                         <TableCell>${opp.ask.toFixed(2)}</TableCell>
                         <TableCell>{opp.spreadPct.toFixed(1)}%</TableCell>
@@ -1010,24 +1012,21 @@ export default function CSPDashboard() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Progress</span>
-                <span>
-                  {loadingOpportunities 
-                    ? `Processing ${fetchProgress.total} symbols...` 
-                    : `Found ${opportunities.length} opportunities`}
-                </span>
-              </div>
-              <Progress 
-                value={loadingOpportunities ? 50 : 100} 
-                className="h-2"
-              />
-            </div>
-            {!loadingOpportunities && (
-              <div className="text-center">
+            {loadingOpportunities ? (
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <Loader2 className="w-12 h-12 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">
-                  ✓ Completed scanning {fetchProgress.total} symbols
+                  Processing {fetchProgress.total} symbols...
+                </p>
+              </div>
+            ) : (
+              <div className="text-center space-y-4">
+                <div className="text-4xl">✓</div>
+                <p className="text-sm text-muted-foreground">
+                  Completed scanning {fetchProgress.total} symbols
+                </p>
+                <p className="text-lg font-semibold">
+                  Found {opportunities.length} opportunities
                 </p>
                 <Button 
                   onClick={() => setFetchProgress({ ...fetchProgress, isOpen: false })}
