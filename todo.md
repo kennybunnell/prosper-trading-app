@@ -220,3 +220,9 @@
 - [ ] Implement auto-save on filter changes
 - [ ] Add "Clear Recents" button
 - [ ] Test persistence across republish/redeploy
+
+## CSP Dashboard Layout Improvements
+- [x] Move summary cards (Total Premium, Collateral, ROC, Buying Power) to position right above opportunities table
+- [x] Convert selection controls to gradient buttons (Select All Filtered → green, Clear Selection → red)
+- [x] Make Show Selected Only checkbox more prominent
+- [ ] Test layout with real data and verify summary updates are visible without scrolling

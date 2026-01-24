@@ -401,79 +401,6 @@ export default function CSPDashboard() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card className="bg-card/50 backdrop-blur border-border/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-green-500" />
-              Total Premium
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalPremium.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/50 backdrop-blur border-border/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Target className="w-4 h-4 text-blue-500" />
-              Total Collateral
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalCollateral.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/50 backdrop-blur border-border/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-purple-500" />
-              ROC
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{roc.toFixed(2)}%</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/50 backdrop-blur border-border/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-orange-500" />
-              Opportunities
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{filteredOpportunities.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card className={cn("bg-card/50 backdrop-blur border-border/50", buyingPowerBgColor)}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className={cn("w-4 h-4", buyingPowerColor)} />
-              Buying Power
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={cn("text-2xl font-bold", buyingPowerColor)}>
-              {buyingPowerUsedPct.toFixed(1)}%
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              ${availableBuyingPower.toFixed(0)} available
-            </div>
-            {overLimit > 0 && (
-              <div className="text-xs text-red-500 font-semibold mt-1">
-                Over Limit: ${overLimit.toFixed(2)}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Watchlist Management */}
       <EnhancedWatchlist 
         strategy="csp" 
@@ -727,11 +654,11 @@ export default function CSPDashboard() {
 
           {/* Selection Controls */}
           <div className="space-y-3">
-            <Label className="mb-2 block">Selection Controls</Label>
-            <div className="flex flex-wrap gap-2">
+            <Label className="mb-2 block text-base font-semibold">Selection Controls</Label>
+            <div className="flex flex-wrap gap-3">
               <Button
-                variant="outline"
-                size="sm"
+                className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+                size="default"
                 onClick={() => {
                   // Select all filtered opportunities
                   const newSelection = new Set(selectedOpportunities);
@@ -747,8 +674,8 @@ export default function CSPDashboard() {
                 ✓ Select All Filtered ({filteredOpportunities.length})
               </Button>
               <Button
-                variant="outline"
-                size="sm"
+                className="bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+                size="default"
                 onClick={() => {
                   setSelectedOpportunities(new Set());
                   toast.success("Cleared all selections");
@@ -758,19 +685,93 @@ export default function CSPDashboard() {
                 ✗ Clear Selection
               </Button>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 p-3 bg-accent/20 rounded-lg">
               <Checkbox
                 id="selected-only"
                 checked={showSelectedOnly}
                 onCheckedChange={(checked) => setShowSelectedOnly(checked as boolean)}
+                className="w-5 h-5"
               />
-              <Label htmlFor="selected-only" className="cursor-pointer">
+              <Label htmlFor="selected-only" className="cursor-pointer text-base font-medium">
                 Show Selected Only
               </Label>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Summary Cards - Positioned near table for easy viewing */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <Card className="bg-card/50 backdrop-blur border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-green-500" />
+              Total Premium
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${totalPremium.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/50 backdrop-blur border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Target className="w-4 h-4 text-blue-500" />
+              Total Collateral
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${totalCollateral.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/50 backdrop-blur border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-purple-500" />
+              ROC
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{roc.toFixed(2)}%</div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/50 backdrop-blur border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-orange-500" />
+              Opportunities
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{filteredOpportunities.length}</div>
+          </CardContent>
+        </Card>
+
+        <Card className={cn("bg-card/50 backdrop-blur border-border/50", buyingPowerBgColor)}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <TrendingUp className={cn("w-4 h-4", buyingPowerColor)} />
+              Buying Power
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={cn("text-2xl font-bold", buyingPowerColor)}>
+              {buyingPowerUsedPct.toFixed(1)}%
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              ${availableBuyingPower.toFixed(0)} available
+            </div>
+            {overLimit > 0 && (
+              <div className="text-xs text-red-500 font-semibold mt-1">
+                Over Limit: ${overLimit.toFixed(2)}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Opportunities Table */}
       <Card className="bg-card/50 backdrop-blur border-border/50">
