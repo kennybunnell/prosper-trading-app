@@ -249,3 +249,8 @@
 - [x] Write and pass all unit tests for validateOrders (5/5 passing)
 - [x] Integrate OrderPreviewDialog into CSP Dashboard
 - [ ] Test complete dry run workflow with selected opportunities (ready for Monday when market opens)
+
+## Bug Fix: Settings Page NaN Error
+- [x] Investigate NaN value error in Settings page numeric inputs
+- [x] Fix by adding proper default values or type conversion
+- [x] Test Settings page to ensure no console errors

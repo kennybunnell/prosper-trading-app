@@ -468,38 +468,38 @@ function PresetEditor({
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [values, setValues] = useState({
-    minDte: preset.minDte,
-    maxDte: preset.maxDte,
-    minDelta: preset.minDelta,
-    maxDelta: preset.maxDelta,
-    minOpenInterest: preset.minOpenInterest,
-    minVolume: preset.minVolume,
+    minDte: preset.minDte ?? 7,
+    maxDte: preset.maxDte ?? 45,
+    minDelta: preset.minDelta ?? "0.10",
+    maxDelta: preset.maxDelta ?? "0.30",
+    minOpenInterest: preset.minOpenInterest ?? 50,
+    minVolume: preset.minVolume ?? 10,
     minRsi: preset.minRsi ?? 0,
     maxRsi: preset.maxRsi ?? 100,
     minIvRank: preset.minIvRank ?? 0,
     maxIvRank: preset.maxIvRank ?? 100,
     minBbPercent: preset.minBbPercent ?? "0",
     maxBbPercent: preset.maxBbPercent ?? "1.0",
-    minScore: preset.minScore,
-    maxStrikePercent: preset.maxStrikePercent,
+    minScore: preset.minScore ?? 40,
+    maxStrikePercent: preset.maxStrikePercent ?? "0.10",
   });
 
   const handleReset = () => {
     setValues({
-      minDte: preset.minDte,
-      maxDte: preset.maxDte,
-      minDelta: preset.minDelta,
-      maxDelta: preset.maxDelta,
-      minOpenInterest: preset.minOpenInterest,
-      minVolume: preset.minVolume,
+      minDte: preset.minDte ?? 7,
+      maxDte: preset.maxDte ?? 45,
+      minDelta: preset.minDelta ?? "0.10",
+      maxDelta: preset.maxDelta ?? "0.30",
+      minOpenInterest: preset.minOpenInterest ?? 50,
+      minVolume: preset.minVolume ?? 10,
       minRsi: preset.minRsi ?? 0,
       maxRsi: preset.maxRsi ?? 100,
       minIvRank: preset.minIvRank ?? 0,
       maxIvRank: preset.maxIvRank ?? 100,
       minBbPercent: preset.minBbPercent ?? "0",
       maxBbPercent: preset.maxBbPercent ?? "1.0",
-      minScore: preset.minScore,
-      maxStrikePercent: preset.maxStrikePercent,
+      minScore: preset.minScore ?? 40,
+      maxStrikePercent: preset.maxStrikePercent ?? "0.10",
     });
   };
 
@@ -526,7 +526,7 @@ function PresetEditor({
                 id={`${preset.presetName}-minDte`}
                 type="number"
                 value={values.minDte}
-                onChange={(e) => setValues({ ...values, minDte: parseInt(e.target.value) })}
+                onChange={(e) => setValues({ ...values, minDte: parseInt(e.target.value) || 0 })}
               />
             </div>
             <div>
@@ -535,7 +535,7 @@ function PresetEditor({
                 id={`${preset.presetName}-maxDte`}
                 type="number"
                 value={values.maxDte}
-                onChange={(e) => setValues({ ...values, maxDte: parseInt(e.target.value) })}
+                onChange={(e) => setValues({ ...values, maxDte: parseInt(e.target.value) || 0 })}
               />
             </div>
           </div>
@@ -570,7 +570,7 @@ function PresetEditor({
                 id={`${preset.presetName}-minOI`}
                 type="number"
                 value={values.minOpenInterest}
-                onChange={(e) => setValues({ ...values, minOpenInterest: parseInt(e.target.value) })}
+                onChange={(e) => setValues({ ...values, minOpenInterest: parseInt(e.target.value) || 0 })}
               />
             </div>
             <div>
@@ -579,7 +579,7 @@ function PresetEditor({
                 id={`${preset.presetName}-minVol`}
                 type="number"
                 value={values.minVolume}
-                onChange={(e) => setValues({ ...values, minVolume: parseInt(e.target.value) })}
+                onChange={(e) => setValues({ ...values, minVolume: parseInt(e.target.value) || 0 })}
               />
             </div>
           </div>
@@ -591,7 +591,7 @@ function PresetEditor({
                 id={`${preset.presetName}-minRsi`}
                 type="number"
                 value={values.minRsi}
-                onChange={(e) => setValues({ ...values, minRsi: parseInt(e.target.value) })}
+                onChange={(e) => setValues({ ...values, minRsi: parseInt(e.target.value) || 0 })}
               />
             </div>
             <div>
@@ -600,7 +600,7 @@ function PresetEditor({
                 id={`${preset.presetName}-maxRsi`}
                 type="number"
                 value={values.maxRsi}
-                onChange={(e) => setValues({ ...values, maxRsi: parseInt(e.target.value) })}
+                onChange={(e) => setValues({ ...values, maxRsi: parseInt(e.target.value) || 0 })}
               />
             </div>
           </div>
@@ -612,7 +612,7 @@ function PresetEditor({
                 id={`${preset.presetName}-minIvRank`}
                 type="number"
                 value={values.minIvRank}
-                onChange={(e) => setValues({ ...values, minIvRank: parseInt(e.target.value) })}
+                onChange={(e) => setValues({ ...values, minIvRank: parseInt(e.target.value) || 0 })}
               />
             </div>
             <div>
@@ -621,7 +621,7 @@ function PresetEditor({
                 id={`${preset.presetName}-maxIvRank`}
                 type="number"
                 value={values.maxIvRank}
-                onChange={(e) => setValues({ ...values, maxIvRank: parseInt(e.target.value) })}
+                onChange={(e) => setValues({ ...values, maxIvRank: parseInt(e.target.value) || 0 })}
               />
             </div>
           </div>
@@ -656,7 +656,7 @@ function PresetEditor({
                 id={`${preset.presetName}-minScore`}
                 type="number"
                 value={values.minScore}
-                onChange={(e) => setValues({ ...values, minScore: parseInt(e.target.value) })}
+                onChange={(e) => setValues({ ...values, minScore: parseInt(e.target.value) || 0 })}
               />
             </div>
             <div>
@@ -665,7 +665,7 @@ function PresetEditor({
                 id={`${preset.presetName}-maxStrike`}
                 type="number"
                 value={values.maxStrikePercent}
-                onChange={(e) => setValues({ ...values, maxStrikePercent: parseInt(e.target.value) })}
+                onChange={(e) => setValues({ ...values, maxStrikePercent: e.target.value })}
                 placeholder="150"
               />
             </div>
