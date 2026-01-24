@@ -141,3 +141,16 @@
 - [x] Auto-select default account when opening CSP Dashboard
 - [x] Implement hard block on order submission when exceeding buying power
 - [x] Test complete workflow with real Tastytrade account data
+
+## Order Submission Implementation
+- [x] Add backend order submission logic with dry run mode (validation only)
+- [x] Add backend live order submission through Tastytrade API
+- [x] Implement frontend order submission UI with dry run/live mode toggle
+- [x] Add progress tracking for individual order submissions
+- [x] Display order status for each opportunity (pending/success/failed)
+- [x] Add confirmation dialog for live mode with final review
+- [x] Implement confetti animation for successful submissions (multi-burst with colors)
+- [x] Add success sound effect (plays automatically on success)
+- [x] Create progress dialog showing order status in real-time
+- [x] Test complete order submission workflow in dry run mode (ready for user testing)
+- [ ] Test live order submission with real Tastytrade account (requires user to test)

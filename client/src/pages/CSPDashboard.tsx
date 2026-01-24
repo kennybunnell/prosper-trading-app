@@ -30,6 +30,24 @@ import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 
 type ScoredOpportunity = {
   symbol: string;
@@ -71,7 +89,14 @@ export default function CSPDashboard() {
   const [maxDte, setMaxDte] = useState<number>(45);
   const [sortColumn, setSortColumn] = useState<string>('score');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [dryRun, setDryRun] = useState<boolean>(false);
+  const [dryRun, setDryRun] = useState(true);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showProgressDialog, setShowProgressDialog] = useState(false);
+  const [orderProgress, setOrderProgress] = useState<{
+    current: number;
+    total: number;
+    results: Array<{ symbol: string; status: 'pending' | 'success' | 'failed'; error?: string }>;
+  }>({ current: 0, total: 0, results: [] });
 
   const utils = trpc.useUtils();
 
@@ -256,26 +281,52 @@ export default function CSPDashboard() {
   const buyingPowerColor = buyingPowerUsedPct < 80 ? 'text-green-500' : buyingPowerUsedPct < 90 ? 'text-yellow-500' : 'text-red-500';
   const buyingPowerBgColor = buyingPowerUsedPct < 80 ? 'bg-green-500/10' : buyingPowerUsedPct < 90 ? 'bg-yellow-500/10' : 'bg-red-500/10';
 
+  // Play success sound
+  const playSuccessSound = () => {
+    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZSA0PVqzn77BdGAg+ltryxnMpBSuBzvLZiTYIGWi77eefTRAMUKfj8LZjHAY4ktfyzHksBSR3x/DdkEAKFF606+uoVRQKRp/g8r5sIQUxh9Hz04IzBh5uwO/jmUgND1as5++wXRgIPpba8sZzKQUrgc7y2Yk2CBlou+3nn00QDFCn4/C2YxwGOJLX8sx5LAUkd8fw3ZBAC'); audio.play().catch(() => {});
+  };
+
   // Submit orders mutation
   const submitOrders = trpc.csp.submitOrders.useMutation({
     onSuccess: (data) => {
+      setShowProgressDialog(false);
       if (data.success) {
         toast.success(`Successfully submitted ${data.results.length} orders!`);
+        playSuccessSound();
         confetti({
-          particleCount: 100,
-          spread: 70,
+          particleCount: 200,
+          spread: 100,
           origin: { y: 0.6 },
+          colors: ['#10b981', '#3b82f6', '#8b5cf6'],
         });
+        setTimeout(() => {
+          confetti({
+            particleCount: 100,
+            angle: 60,
+            spread: 55,
+            origin: { x: 0 },
+          });
+          confetti({
+            particleCount: 100,
+            angle: 120,
+            spread: 55,
+            origin: { x: 1 },
+          });
+        }, 250);
         setSelectedOpportunities(new Set());
         utils.csp.opportunities.invalidate();
+      } else {
+        const failedCount = data.results.filter(r => !r.success).length;
+        toast.error(`${failedCount} order(s) failed to submit`);
       }
     },
-    onError: (error: any) => {
+    onError: (error) => {
+      setShowProgressDialog(false);
       toast.error(`Failed to submit orders: ${error.message}`);
     },
   });
 
-  // Handle checkbox toggle
+  // Toggle opportunity selection
   const toggleOpportunity = (opp: ScoredOpportunity) => {
     const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
     const newSelected = new Set(selectedOpportunities);
@@ -311,6 +362,21 @@ export default function CSPDashboard() {
       return;
     }
 
+    // Show confirmation dialog for live mode
+    if (!dryRun) {
+      setShowConfirmDialog(true);
+      return;
+    }
+
+    // Proceed with dry run
+    executeOrderSubmission();
+  };
+
+  // Execute order submission
+  const executeOrderSubmission = () => {
+    setShowConfirmDialog(false);
+    setShowProgressDialog(true);
+    
     const orders = selectedOppsList.map(opp => ({
       symbol: opp.symbol,
       strike: opp.strike,
@@ -318,6 +384,17 @@ export default function CSPDashboard() {
       premium: opp.premium,
       optionSymbol: `${opp.symbol}${opp.expiration.replace(/-/g, '')}P${(opp.strike * 1000).toString().padStart(8, '0')}`,
     }));
+
+    setOrderProgress({
+      current: 0,
+      total: orders.length,
+      results: orders.map(o => ({ symbol: o.symbol, status: 'pending' })),
+    });
+
+    if (!selectedAccountId) {
+      toast.error("Please select an account");
+      return;
+    }
 
     submitOrders.mutate({
       orders,
@@ -729,6 +806,63 @@ export default function CSPDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Confirmation Dialog for Live Mode */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Live Order Submission</AlertDialogTitle>
+            <AlertDialogDescription>
+              You are about to submit <strong>{selectedOppsList.length} live order(s)</strong> to Tastytrade.
+              <br /><br />
+              <strong>Total Premium:</strong> ${totalPremium.toFixed(2)}
+              <br />
+              <strong>Total Collateral:</strong> ${totalCollateral.toFixed(2)}
+              <br />
+              <strong>Available Buying Power:</strong> ${availableBuyingPower.toFixed(2)}
+              <br /><br />
+              This action cannot be undone. Are you sure you want to proceed?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeOrderSubmission}>Submit Orders</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Progress Dialog */}
+      <Dialog open={showProgressDialog} onOpenChange={setShowProgressDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Submitting Orders</DialogTitle>
+            <DialogDescription>
+              Please wait while we submit your orders to Tastytrade...
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Progress</span>
+                <span>{submitOrders.isPending ? 'Processing...' : 'Complete'}</span>
+              </div>
+              <Progress value={submitOrders.isPending ? 50 : 100} />
+            </div>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {orderProgress.results.map((result, idx) => (
+                <div key={idx} className="flex items-center justify-between p-2 rounded border">
+                  <span className="text-sm font-medium">{result.symbol}</span>
+                  <Badge
+                    variant={result.status === 'success' ? 'default' : result.status === 'failed' ? 'destructive' : 'secondary'}
+                  >
+                    {result.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
