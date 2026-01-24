@@ -28,6 +28,43 @@ import {
   Filter,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+
+// Live countdown component for progress dialog
+function LiveCountdown({ startTime, totalSymbols }: { startTime: number; totalSymbols: number }) {
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  
+  useEffect(() => {
+    // Use actual performance: 1.32 seconds per symbol (based on 66s for 50 symbols)
+    const estimatedTotalSeconds = totalSymbols * 1.32;
+    
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      const remaining = Math.max(0, estimatedTotalSeconds - elapsed);
+      setRemainingSeconds(remaining);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [startTime, totalSymbols]);
+  
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = Math.floor(remainingSeconds % 60);
+  
+  return (
+    <div className="flex flex-col items-center justify-center space-y-4">
+      <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      <p className="text-sm text-muted-foreground">
+        Processing {totalSymbols} symbols...
+      </p>
+      <p className="text-lg font-semibold text-primary">
+        {remainingSeconds > 0 ? (
+          <>{minutes}:{seconds.toString().padStart(2, '0')} remaining</>
+        ) : (
+          <>Finishing up...</>
+        )}
+      </p>
+    </div>
+  );
+}
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { cn } from "@/lib/utils";
@@ -1030,15 +1067,10 @@ export default function CSPDashboard() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             {loadingOpportunities ? (
-              <div className="flex flex-col items-center justify-center space-y-4">
-                <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">
-                  Processing {fetchProgress.total} symbols...
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Estimated time: ~{Math.ceil(fetchProgress.total * 2.5 / 60)} min {Math.ceil((fetchProgress.total * 2.5) % 60)} sec
-                </p>
-              </div>
+              <LiveCountdown 
+                startTime={fetchProgress.startTime || Date.now()} 
+                totalSymbols={fetchProgress.total}
+              />
             ) : (
               <div className="text-center space-y-4">
                 <div className="text-4xl">✓</div>

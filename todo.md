@@ -296,3 +296,10 @@
 - [x] Track actual elapsed time from start to completion using startTime and endTime
 - [x] Show actual elapsed time when fetch completes
 - [x] Test time estimation with different symbol counts
+
+## UX Improvement: Accurate Time Estimation with Live Countdown
+- [x] Update time estimation to use actual performance data (1.32 seconds per symbol based on real test)
+- [x] Add live countdown timer that updates every second during fetch
+- [x] Show remaining time in MM:SS format for better readability
+- [x] Display "Finishing up..." message when countdown reaches zero
+- [x] Test countdown accuracy with different symbol counts
