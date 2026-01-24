@@ -76,6 +76,24 @@ export const appRouter = router({
         throw error;
       }
     }),
+    getConnectionStatus: protectedProcedure.query(async ({ ctx }) => {
+      const { getApiCredentials } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+      
+      const tastytradeConfigured = !!(credentials?.tastytradeUsername && credentials?.tastytradePassword);
+      const tradierConfigured = !!credentials?.tradierApiKey;
+      
+      return {
+        tastytrade: {
+          configured: tastytradeConfigured,
+          status: tastytradeConfigured ? 'connected' : 'disconnected',
+        },
+        tradier: {
+          configured: tradierConfigured,
+          status: tradierConfigured ? 'connected' : 'disconnected',
+        },
+      };
+    }),
   }),
 
   accounts: router({

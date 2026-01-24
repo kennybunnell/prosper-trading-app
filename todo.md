@@ -315,3 +315,12 @@
 - [x] Remove console.error from mutation cache subscriber
 - [x] Keep auth redirect logic intact for unauthorized errors
 - [x] Verify mutation errors are handled by component-level onError handlers with toast notifications
+
+## Feature: API Connection Status Indicator
+- [x] Create backend procedure to check Tastytrade API connection status
+- [x] Create backend procedure to check Tradier API connection status
+- [x] Add status indicator component to dashboard header
+- [x] Display green checkmark for connected APIs
+- [x] Display red warning icon for disconnected/unconfigured APIs
+- [x] Add tooltip showing connection details on hover
+- [x] Write unit tests for connection status checks (8/8 passing)

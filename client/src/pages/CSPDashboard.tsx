@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
+import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -532,6 +533,7 @@ export default function CSPDashboard() {
           <h1 className="text-3xl font-bold">Cash-Secured Puts Dashboard</h1>
           <p className="text-muted-foreground">Analyze and execute CSP strategies with intelligent scoring</p>
         </div>
+        <ConnectionStatusIndicator />
       </div>
 
       {/* Watchlist Management */}
