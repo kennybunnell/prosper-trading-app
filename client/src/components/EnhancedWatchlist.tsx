@@ -31,9 +31,11 @@ type WatchlistItem = {
 type EnhancedWatchlistProps = {
   strategy: 'csp' | 'cc' | 'pmcc';
   onWatchlistChange?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 };
 
-export default function EnhancedWatchlist({ strategy, onWatchlistChange }: EnhancedWatchlistProps) {
+export default function EnhancedWatchlist({ strategy, onWatchlistChange, isCollapsed = false, onToggleCollapse }: EnhancedWatchlistProps) {
   const [newSymbol, setNewSymbol] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -156,8 +158,37 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange }: Enhan
           return;
         }
 
+        // De-dupe: Remove duplicates from CSV itself
+        const uniqueSymbols = new Set<string>();
+        const deduped = items.filter(item => {
+          if (uniqueSymbols.has(item.symbol)) {
+            return false;
+          }
+          uniqueSymbols.add(item.symbol);
+          return true;
+        });
+
+        // Check for duplicates with existing watchlist
+        const existingSymbols = new Set(watchlist.map((w: WatchlistItem) => w.symbol));
+        const newItems = deduped.filter(item => !existingSymbols.has(item.symbol));
+        const duplicateCount = items.length - newItems.length;
+
+        if (newItems.length === 0) {
+          toast.error("All symbols already exist in watchlist");
+          return;
+        }
+
         // Import to backend
-        importCSV.mutate({ strategy, items });
+        importCSV.mutate(
+          { strategy, items: newItems },
+          {
+            onSuccess: () => {
+              if (duplicateCount > 0) {
+                toast.success(`Imported ${newItems.length} symbols (${duplicateCount} duplicates removed)`);
+              }
+            }
+          }
+        );
       } catch (error: any) {
         toast.error(`Failed to parse CSV: ${error.message}`);
       }
@@ -177,11 +208,54 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange }: Enhan
     toast.success("Tickers copied to clipboard");
   };
 
+  // Collapsed view
+  if (isCollapsed) {
+    return (
+      <div className="flex items-center justify-between p-4 bg-card/50 backdrop-blur border border-border/50 rounded-lg">
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-medium">Watchlist ({watchlist.length} symbols)</span>
+          <div className="flex gap-1">
+            {watchlist.slice(0, 5).map((item: WatchlistItem) => (
+              <Badge key={item.id} variant="secondary" className="text-xs">
+                {item.symbol}
+              </Badge>
+            ))}
+            {watchlist.length > 5 && (
+              <Badge variant="secondary" className="text-xs">+{watchlist.length - 5} more</Badge>
+            )}
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onToggleCollapse}
+        >
+          <ChevronDown className="w-4 h-4 mr-2" />
+          Expand Watchlist
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <Card className="bg-card/50 backdrop-blur border-border/50">
       <CardHeader>
-        <CardTitle>Watchlist</CardTitle>
-        <CardDescription>Add symbols to analyze {strategy.toUpperCase()} opportunities</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Watchlist</CardTitle>
+            <CardDescription>Add symbols to analyze {strategy.toUpperCase()} opportunities</CardDescription>
+          </div>
+          {onToggleCollapse && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleCollapse}
+            >
+              <ChevronUp className="w-4 h-4 mr-2" />
+              Collapse
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Quick Add Input */}
@@ -234,6 +308,42 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange }: Enhan
           >
             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             {isExpanded ? 'Collapse' : 'Expand'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              // Find duplicates
+              const symbolCounts = new Map<string, number>();
+              watchlist.forEach((item: WatchlistItem) => {
+                symbolCounts.set(item.symbol, (symbolCounts.get(item.symbol) || 0) + 1);
+              });
+              const duplicates = Array.from(symbolCounts.entries())
+                .filter(([_, count]) => count > 1)
+                .map(([symbol, _]) => symbol);
+
+              if (duplicates.length === 0) {
+                toast.info("No duplicates found");
+                return;
+              }
+
+              // Remove duplicates (keep first occurrence)
+              const seen = new Set<string>();
+              const toRemove: string[] = [];
+              watchlist.forEach((item: WatchlistItem) => {
+                if (seen.has(item.symbol)) {
+                  toRemove.push(item.symbol);
+                } else {
+                  seen.add(item.symbol);
+                }
+              });
+
+              // Delete duplicates
+              toRemove.forEach(symbol => removeFromWatchlist.mutate({ symbol, strategy }));
+              toast.success(`Removed ${toRemove.length} duplicate symbols`);
+            }}
+            disabled={watchlist.length === 0}
+          >
+            Remove Duplicates
           </Button>
         </div>
 

@@ -89,6 +89,7 @@ export default function CSPDashboard() {
   const [minDte, setMinDte] = useState<number>(7);
   const [maxDte, setMaxDte] = useState<number>(45);
   const [portfolioSizeFilter, setPortfolioSizeFilter] = useState<Array<'small' | 'medium' | 'large'>>(['small', 'medium', 'large']);
+  const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
   const [sortColumn, setSortColumn] = useState<string>('score');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [dryRun, setDryRun] = useState(true);
@@ -477,6 +478,8 @@ export default function CSPDashboard() {
       <EnhancedWatchlist 
         strategy="csp" 
         onWatchlistChange={() => utils.watchlist.list.invalidate()}
+        isCollapsed={watchlistCollapsed}
+        onToggleCollapse={() => setWatchlistCollapsed(!watchlistCollapsed)}
       />
 
       {/* DTE Range & Fetch Options */}
@@ -500,6 +503,7 @@ export default function CSPDashboard() {
                       : [...prev, 'small']
                   );
                 }}
+                className={portfolioSizeFilter.includes('small') ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-md transition-all duration-200 hover:scale-105' : ''}
               >
                 🟢 Small
               </Button>
@@ -513,6 +517,7 @@ export default function CSPDashboard() {
                       : [...prev, 'medium']
                   );
                 }}
+                className={portfolioSizeFilter.includes('medium') ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-md transition-all duration-200 hover:scale-105' : ''}
               >
                 🟡 Medium
               </Button>
@@ -526,6 +531,7 @@ export default function CSPDashboard() {
                       : [...prev, 'large']
                   );
                 }}
+                className={portfolioSizeFilter.includes('large') ? 'bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white shadow-md transition-all duration-200 hover:scale-105' : ''}
               >
                 🔴 Large
               </Button>
@@ -535,6 +541,67 @@ export default function CSPDashboard() {
                 onClick={() => setPortfolioSizeFilter(['small', 'medium', 'large'])}
               >
                 All
+              </Button>
+            </div>
+            {/* Quick Switch & Refetch */}
+            <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-border/50">
+              <span className="text-xs text-muted-foreground self-center">Quick Switch:</span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setPortfolioSizeFilter(['small']);
+                  const symbolCount = watchlist.filter((w: any) => w.portfolioSize === 'small').length;
+                  setFetchProgress({
+                    isOpen: true,
+                    current: 0,
+                    total: symbolCount,
+                    completed: 0,
+                  });
+                  setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
+                }}
+                disabled={loadingOpportunities}
+                className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/50 transition-all duration-200 hover:scale-105"
+              >
+                🟢 Small Only
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setPortfolioSizeFilter(['medium']);
+                  const symbolCount = watchlist.filter((w: any) => w.portfolioSize === 'medium').length;
+                  setFetchProgress({
+                    isOpen: true,
+                    current: 0,
+                    total: symbolCount,
+                    completed: 0,
+                  });
+                  setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
+                }}
+                disabled={loadingOpportunities}
+                className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/50 transition-all duration-200 hover:scale-105"
+              >
+                🟡 Medium Only
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setPortfolioSizeFilter(['large']);
+                  const symbolCount = watchlist.filter((w: any) => w.portfolioSize === 'large').length;
+                  setFetchProgress({
+                    isOpen: true,
+                    current: 0,
+                    total: symbolCount,
+                    completed: 0,
+                  });
+                  setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
+                }}
+                disabled={loadingOpportunities}
+                className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/50 transition-all duration-200 hover:scale-105"
+              >
+                🔴 Large Only
               </Button>
             </div>
           </div>
@@ -571,10 +638,13 @@ export default function CSPDashboard() {
                 total: symbolCount,
                 completed: 0,
               });
-              refetchOpportunities();
+              refetchOpportunities().then(() => {
+                // Auto-collapse watchlist after successful fetch
+                setWatchlistCollapsed(true);
+              });
             }} 
             disabled={loadingOpportunities || filteredWatchlist.length === 0}
-            className="w-full"
+            className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
           >
             {loadingOpportunities ? (
               <>

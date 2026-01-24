@@ -192,3 +192,12 @@
 - [x] Add Portfolio Size column to expanded table view with badges
 - [x] Allow editing portfolio size per symbol in table
 - [x] Test filtering workflow with different portfolio size selections
+
+## UX Improvements
+- [x] Auto-collapse watchlist after successful opportunity fetch
+- [x] Add "Expand Watchlist" button when collapsed
+- [x] Add quick portfolio size switch buttons (Small Only, Medium Only, Large Only) with auto-refetch
+- [x] Implement auto de-dupe on CSV import with toast notification
+- [x] Add manual "Remove Duplicates" button in watchlist header
+- [x] Create visual mockups for polish enhancements (gradients, animations, micro-interactions)
+- [x] Apply approved visual polish to buttons, cards, and badges
