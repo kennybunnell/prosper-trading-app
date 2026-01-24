@@ -162,3 +162,11 @@
 - [x] Add "Clear Selection" button to deselect all opportunities
 - [x] Verify summary cards (Premium, Collateral, ROC, Buying Power) only calculate from selected opportunities
 - [x] Test complete selection workflow with filters
+
+## Progress Tracking for Opportunity Fetching
+- [x] Add backend support for streaming progress updates during parallel opportunity fetching (already existed - 5 concurrent workers)
+- [x] Implement frontend progress dialog with real-time status messages
+- [x] Add visual progress bar showing percentage complete
+- [x] Display processing status ("Processing X symbols...")
+- [x] Show completion summary ("Found X opportunities" with close button)
+- [x] Test with multiple watchlist symbols

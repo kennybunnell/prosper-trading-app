@@ -97,6 +97,12 @@ export default function CSPDashboard() {
     total: number;
     results: Array<{ symbol: string; status: 'pending' | 'success' | 'failed'; error?: string }>;
   }>({ current: 0, total: 0, results: [] });
+  const [fetchProgress, setFetchProgress] = useState<{
+    isOpen: boolean;
+    current: number;
+    total: number;
+    completed: number;
+  }>({ isOpen: false, current: 0, total: 0, completed: 0 });
 
   const utils = trpc.useUtils();
 
@@ -563,7 +569,16 @@ export default function CSPDashboard() {
 
           {/* Fetch Button */}
           <Button 
-            onClick={() => refetchOpportunities()} 
+            onClick={() => {
+              const symbolCount = watchlist.length;
+              setFetchProgress({
+                isOpen: true,
+                current: 0,
+                total: symbolCount,
+                completed: 0,
+              });
+              refetchOpportunities();
+            }} 
             disabled={loadingOpportunities || watchlist.length === 0}
             className="w-full"
           >
@@ -839,6 +854,52 @@ export default function CSPDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Fetch Progress Dialog */}
+      <Dialog open={fetchProgress.isOpen} onOpenChange={(open) => {
+        if (!loadingOpportunities) {
+          setFetchProgress({ ...fetchProgress, isOpen: open });
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Fetching Opportunities</DialogTitle>
+            <DialogDescription>
+              Scanning option chains and scoring opportunities...
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Progress</span>
+                <span>
+                  {loadingOpportunities 
+                    ? `Processing ${fetchProgress.total} symbols...` 
+                    : `Found ${opportunities.length} opportunities`}
+                </span>
+              </div>
+              <Progress 
+                value={loadingOpportunities ? 50 : 100} 
+                className="h-2"
+              />
+            </div>
+            {!loadingOpportunities && (
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">
+                  ✓ Completed scanning {fetchProgress.total} symbols
+                </p>
+                <Button 
+                  onClick={() => setFetchProgress({ ...fetchProgress, isOpen: false })}
+                  className="mt-4"
+                  size="sm"
+                >
+                  Close
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirmation Dialog for Live Mode */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
