@@ -155,3 +155,10 @@
 - [x] Create progress dialog showing order status in real-time
 - [x] Test complete order submission workflow in dry run mode (ready for user testing)
 - [ ] Test live order submission with real Tastytrade account (requires user to test)
+
+## Selection UI Enhancement
+- [x] Add checkbox column to opportunities table for individual selection
+- [x] Add "Select All Filtered" button to bulk select all visible opportunities
+- [x] Add "Clear Selection" button to deselect all opportunities
+- [x] Verify summary cards (Premium, Collateral, ROC, Buying Power) only calculate from selected opportunities
+- [x] Test complete selection workflow with filters

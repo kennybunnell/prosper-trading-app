@@ -646,16 +646,49 @@ export default function CSPDashboard() {
             </div>
           </div>
 
-          {/* Selected Only Toggle */}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="selected-only"
-              checked={showSelectedOnly}
-              onCheckedChange={(checked) => setShowSelectedOnly(checked as boolean)}
-            />
-            <Label htmlFor="selected-only" className="cursor-pointer">
-              Show Selected Only
-            </Label>
+          {/* Selection Controls */}
+          <div className="space-y-3">
+            <Label className="mb-2 block">Selection Controls</Label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Select all filtered opportunities
+                  const newSelection = new Set(selectedOpportunities);
+                  filteredOpportunities.forEach(opp => {
+                    const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+                    newSelection.add(key);
+                  });
+                  setSelectedOpportunities(newSelection);
+                  toast.success(`Selected ${filteredOpportunities.length} opportunities`);
+                }}
+                disabled={filteredOpportunities.length === 0}
+              >
+                ✓ Select All Filtered ({filteredOpportunities.length})
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedOpportunities(new Set());
+                  toast.success("Cleared all selections");
+                }}
+                disabled={selectedOpportunities.size === 0}
+              >
+                ✗ Clear Selection
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="selected-only"
+                checked={showSelectedOnly}
+                onCheckedChange={(checked) => setShowSelectedOnly(checked as boolean)}
+              />
+              <Label htmlFor="selected-only" className="cursor-pointer">
+                Show Selected Only
+              </Label>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -673,7 +706,7 @@ export default function CSPDashboard() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="w-12">Select</TableHead>
                   {[
                     { key: 'symbol', label: 'Symbol' },
                     { key: 'strike', label: 'Strike' },
