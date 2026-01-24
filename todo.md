@@ -226,3 +226,10 @@
 - [x] Convert selection controls to gradient buttons (Select All Filtered → green, Clear Selection → red)
 - [x] Make Show Selected Only checkbox more prominent
 - [ ] Test layout with real data and verify summary updates are visible without scrolling
+
+## Preset Filter Button Styling
+- [x] Apply gradient styling to Conservative button (blue gradient)
+- [x] Apply gradient styling to Medium button (amber gradient)
+- [x] Apply gradient styling to Aggressive button (red gradient)
+- [x] Apply gradient styling to Clear Filters button (gray gradient)
+- [ ] Test preset filter buttons with gradient styling

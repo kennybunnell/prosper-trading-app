@@ -599,36 +599,45 @@ export default function CSPDashboard() {
         <CardContent className="space-y-4">
           {/* Preset Filters */}
           <div>
-            <Label className="mb-2 block">Preset Filters</Label>
-            <div className="flex flex-wrap gap-2">
+            <Label className="mb-2 block text-base font-semibold">Preset Filters</Label>
+            <div className="flex flex-wrap gap-3">
               <Button
-                variant={presetFilter === 'conservative' ? 'default' : 'outline'}
+                className={presetFilter === 'conservative' 
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105'
+                  : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 border-blue-500/30 transition-all duration-200 hover:scale-105'
+                }
                 onClick={() => handlePresetFilter('conservative')}
-                size="sm"
+                size="default"
               >
                 Conservative
               </Button>
               <Button
-                variant={presetFilter === 'medium' ? 'default' : 'outline'}
+                className={presetFilter === 'medium'
+                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105'
+                  : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 border-amber-500/30 transition-all duration-200 hover:scale-105'
+                }
                 onClick={() => handlePresetFilter('medium')}
-                size="sm"
+                size="default"
               >
                 Medium
               </Button>
               <Button
-                variant={presetFilter === 'aggressive' ? 'default' : 'outline'}
+                className={presetFilter === 'aggressive'
+                  ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105'
+                  : 'bg-red-500/10 hover:bg-red-500/20 text-red-600 border-red-500/30 transition-all duration-200 hover:scale-105'
+                }
                 onClick={() => handlePresetFilter('aggressive')}
-                size="sm"
+                size="default"
               >
                 Aggressive
               </Button>
               <Button
-                variant="outline"
+                className="bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
                 onClick={() => {
                   setPresetFilter(null);
                   setMinScore(undefined);
                 }}
-                size="sm"
+                size="default"
               >
                 Clear Filters
               </Button>
