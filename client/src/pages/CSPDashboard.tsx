@@ -49,6 +49,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { OrderPreviewDialog } from "@/components/OrderPreviewDialog";
 
 type ScoredOpportunity = {
   symbol: string;
@@ -106,6 +107,8 @@ export default function CSPDashboard() {
     total: number;
     completed: number;
   }>({ isOpen: false, current: 0, total: 0, completed: 0 });
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [validationData, setValidationData] = useState<any>(null);
 
   const utils = trpc.useUtils();
 
@@ -258,6 +261,17 @@ export default function CSPDashboard() {
     const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZSA0PVqzn77BdGAg+ltryxnMpBSuBzvLZiTYIGWi77eefTRAMUKfj8LZjHAY4ktfyzHksBSR3x/DdkEAKFF606+uoVRQKRp/g8r5sIQUxh9Hz04IzBh5uwO/jmUgND1as5++wXRgIPpba8sZzKQUrgc7y2Yk2CBlou+3nn00QDFCn4/C2YxwGOJLX8sx5LAUkd8fw3ZBAC'); audio.play().catch(() => {});
   };
 
+  // Validate orders mutation
+  const validateOrders = trpc.csp.validateOrders.useMutation({
+    onSuccess: (data) => {
+      setValidationData(data);
+      setShowPreviewDialog(true);
+    },
+    onError: (error) => {
+      toast.error(`Validation failed: ${error.message}`);
+    },
+  });
+
   // Submit orders mutation
   const submitOrders = trpc.csp.submitOrders.useMutation({
     onSuccess: (data) => {
@@ -322,7 +336,7 @@ export default function CSPDashboard() {
     setMinScore(undefined); // Clear score filter when using preset
   };
 
-  // Handle submit orders
+  // Handle submit orders - now triggers validation first
   const handleSubmitOrders = () => {
     if (selectedOppsList.length === 0) {
       toast.error("Please select at least one opportunity");
@@ -334,33 +348,54 @@ export default function CSPDashboard() {
       return;
     }
 
-    // Show confirmation dialog for live mode
-    if (!dryRun) {
-      setShowConfirmDialog(true);
-      return;
-    }
-
-    // Proceed with dry run
-    executeOrderSubmission();
-  };
-
-  // Execute order submission
-  const executeOrderSubmission = () => {
-    setShowConfirmDialog(false);
-    setShowProgressDialog(true);
-    
+    // Validate orders and show preview dialog
     const orders = selectedOppsList.map(opp => ({
       symbol: opp.symbol,
       strike: opp.strike,
       expiration: opp.expiration,
       premium: opp.premium,
-      optionSymbol: `${opp.symbol}${opp.expiration.replace(/-/g, '')}P${(opp.strike * 1000).toString().padStart(8, '0')}`,
+      bid: opp.bid,
+      ask: opp.ask,
+      currentPrice: opp.currentPrice,
     }));
+
+    validateOrders.mutate({
+      orders,
+      accountId: selectedAccountId,
+    });
+  };
+
+  // Execute order submission with midpoint pricing from validation
+  const executeOrderSubmission = () => {
+    setShowPreviewDialog(false);
+    setShowProgressDialog(true);
+    
+    if (!validationData) {
+      toast.error("Validation data not available");
+      return;
+    }
+
+    // Use validated orders with midpoint pricing
+    const orders = validationData.orders.map((validatedOrder: any) => {
+      const opp = selectedOppsList.find(
+        o => o.symbol === validatedOrder.symbol && 
+             o.strike === validatedOrder.strike && 
+             o.expiration === validatedOrder.expiration
+      );
+      
+      return {
+        symbol: validatedOrder.symbol,
+        strike: validatedOrder.strike,
+        expiration: validatedOrder.expiration,
+        premium: validatedOrder.premium / 100, // Convert back to per-share price
+        optionSymbol: `${validatedOrder.symbol}${validatedOrder.expiration.replace(/-/g, '')}P${(validatedOrder.strike * 1000).toString().padStart(8, '0')}`,
+      };
+    });
 
     setOrderProgress({
       current: 0,
       total: orders.length,
-      results: orders.map(o => ({ symbol: o.symbol, status: 'pending' })),
+      results: orders.map((o: any) => ({ symbol: o.symbol, status: 'pending' })),
     });
 
     if (!selectedAccountId) {
@@ -975,29 +1010,21 @@ export default function CSPDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation Dialog for Live Mode */}
-      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Live Order Submission</AlertDialogTitle>
-            <AlertDialogDescription>
-              You are about to submit <strong>{selectedOppsList.length} live order(s)</strong> to Tastytrade.
-              <br /><br />
-              <strong>Total Premium:</strong> ${totalPremium.toFixed(2)}
-              <br />
-              <strong>Total Collateral:</strong> ${totalCollateral.toFixed(2)}
-              <br />
-              <strong>Available Buying Power:</strong> ${availableBuyingPower.toFixed(2)}
-              <br /><br />
-              This action cannot be undone. Are you sure you want to proceed?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={executeOrderSubmission}>Submit Orders</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Order Preview Dialog with Validation */}
+      {validationData && (
+        <OrderPreviewDialog
+          open={showPreviewDialog}
+          onOpenChange={setShowPreviewDialog}
+          orders={validationData.orders}
+          totalPremium={validationData.totalPremium}
+          totalCollateral={validationData.totalCollateral}
+          availableBuyingPower={validationData.availableBuyingPower}
+          remainingBuyingPower={validationData.remainingBuyingPower}
+          isMarketOpen={validationData.isMarketOpen}
+          onSubmit={executeOrderSubmission}
+          isDryRun={dryRun}
+        />
+      )}
 
       {/* Progress Dialog */}
       <Dialog open={showProgressDialog} onOpenChange={setShowProgressDialog}>

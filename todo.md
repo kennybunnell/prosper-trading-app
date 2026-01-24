@@ -233,3 +233,19 @@
 - [x] Apply gradient styling to Aggressive button (red gradient)
 - [x] Apply gradient styling to Clear Filters button (gray gradient)
 - [ ] Test preset filter buttons with gradient styling
+
+## Enhanced Dry Run & Order Submission
+- [x] Add collateral calculation per contract (strike × 100 × quantity)
+- [x] Add total collateral validation against available buying power
+- [x] Add safety warning if using >80% of buying power
+- [x] Add concentration warning if >20% in single symbol
+- [x] Add market hours check and indicator
+- [x] Create detailed preview dialog component with order breakdown table
+- [x] Implement midpoint pricing calculation (bid + ask) / 2 for order submission
+- [x] Add two-step workflow: Validate Orders → Preview Dialog → Submit Real Orders
+- [x] Display remaining buying power after orders in preview
+- [x] Show validation status per order (✓ Valid, ⚠ Warning)
+- [x] Create backend validateOrders procedure with comprehensive validation logic
+- [x] Write and pass all unit tests for validateOrders (5/5 passing)
+- [x] Integrate OrderPreviewDialog into CSP Dashboard
+- [ ] Test complete dry run workflow with selected opportunities (ready for Monday when market opens)

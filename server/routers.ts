@@ -278,6 +278,102 @@ export const appRouter = router({
 
         return scored;
       }),
+    validateOrders: protectedProcedure
+      .input(
+        z.object({
+          orders: z.array(z.object({
+            symbol: z.string(),
+            strike: z.number(),
+            expiration: z.string(),
+            premium: z.number(),
+            bid: z.number(),
+            ask: z.number(),
+            currentPrice: z.number(),
+          })),
+          accountId: z.string(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { getApiCredentials } = await import('./db');
+        const { getTastytradeAPI } = await import('./tastytrade');
+
+        const credentials = await getApiCredentials(ctx.user.id);
+        if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+          throw new Error('Tastytrade credentials not configured');
+        }
+
+        const api = getTastytradeAPI();
+        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+
+        // Get account balances for buying power
+        const accounts = await api.getAccounts();
+        const account = accounts.find((acc: any) => acc.accountId === input.accountId);
+        if (!account) {
+          throw new Error('Account not found');
+        }
+
+        const balances = await api.getBalances(account.account['account-number']);
+        const availableBuyingPower = Number(balances['derivative-buying-power'] || 0);
+
+        // Check market hours (simplified - just check if it's a weekday during market hours)
+        const now = new Date();
+        const day = now.getUTCDay();
+        const hour = now.getUTCHours();
+        const isMarketOpen = day >= 1 && day <= 5 && hour >= 14 && hour < 21; // Approximate EST market hours in UTC
+
+        // Validate each order
+        const validatedOrders = input.orders.map(order => {
+          const collateral = order.strike * 100; // Collateral per contract
+          const midpoint = (order.bid + order.ask) / 2;
+          
+          // Validation checks
+          let status: 'valid' | 'warning' = 'valid';
+          let message = '';
+
+          // Check strike price sanity (within 20% of current price for puts)
+          const strikeVsPrice = (order.currentPrice - order.strike) / order.currentPrice;
+          if (strikeVsPrice > 0.20 || strikeVsPrice < -0.05) {
+            status = 'warning';
+            message = 'Strike price far from current price';
+          }
+
+          // Check DTE (already filtered, but double-check)
+          const dte = Math.floor((new Date(order.expiration).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          if (dte < 7 || dte > 60) {
+            status = 'warning';
+            message = 'Unusual DTE';
+          }
+
+          return {
+            symbol: order.symbol,
+            strike: order.strike,
+            expiration: order.expiration,
+            quantity: 1,
+            premium: midpoint * 100, // Premium per contract
+            collateral,
+            status,
+            message,
+          };
+        });
+
+        // Calculate totals
+        const totalPremium = validatedOrders.reduce((sum, o) => sum + o.premium, 0);
+        const totalCollateral = validatedOrders.reduce((sum, o) => sum + o.collateral, 0);
+        const remainingBuyingPower = availableBuyingPower - totalCollateral;
+
+        // Check if total collateral exceeds buying power
+        const hasInsufficientBP = totalCollateral > availableBuyingPower;
+
+        return {
+          orders: validatedOrders,
+          totalPremium,
+          totalCollateral,
+          availableBuyingPower,
+          remainingBuyingPower,
+          isMarketOpen,
+          hasInsufficientBP,
+        };
+      }),
     submitOrders: protectedProcedure
       .input(
         z.object({
