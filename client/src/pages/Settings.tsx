@@ -468,8 +468,7 @@ function StrategyFilterPresetsSection({ strategy, title }: { strategy: 'csp' | '
           <Button
             onClick={handleLoadAllRecommended}
             disabled={isLoadingAll || updatePreset.isPending}
-            variant="outline"
-            className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/50 shrink-0"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shrink-0 shadow-md"
           >
             {isLoadingAll && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Load All Recommended Values

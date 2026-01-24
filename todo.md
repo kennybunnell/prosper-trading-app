@@ -278,3 +278,7 @@
 - [x] Add "Load All Recommended Values" button at strategy section level
 - [x] Apply recommended values to all three presets (conservative, medium, aggressive) at once
 - [x] Test bulk load functionality for both CSP and CC sections
+
+## UI Improvement: Make Bulk Load Button More Prominent
+- [x] Change button styling to solid primary color for better visibility
+- [x] Ensure button stands out as the main action in the section
