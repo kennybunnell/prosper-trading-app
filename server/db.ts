@@ -105,6 +105,124 @@ export async function addToWatchlist(userId: number, symbol: string, strategy: '
   await db.insert(watchlists).values({ userId, symbol, strategy });
 }
 
+export async function addToWatchlistWithMetadata(
+  userId: number, 
+  data: { 
+    symbol: string; 
+    strategy: 'csp' | 'cc' | 'pmcc';
+    company?: string;
+    type?: string;
+    sector?: string;
+    reason?: string;
+    rank?: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) return;
+  const { watchlists } = await import('../drizzle/schema');
+  await db.insert(watchlists).values({
+    userId,
+    symbol: data.symbol,
+    strategy: data.strategy,
+    company: data.company,
+    type: data.type,
+    sector: data.sector,
+    reason: data.reason,
+    rank: data.rank,
+  });
+}
+
+export async function importWatchlistFromCSV(
+  userId: number,
+  strategy: 'csp' | 'cc' | 'pmcc',
+  items: Array<{
+    symbol: string;
+    company?: string;
+    type?: string;
+    sector?: string;
+    reason?: string;
+    rank?: number;
+  }>
+) {
+  const db = await getDb();
+  if (!db) return { success: false, imported: 0, skipped: 0 };
+  
+  const { watchlists } = await import('../drizzle/schema');
+  const { eq, and } = await import('drizzle-orm');
+  
+  let imported = 0;
+  let skipped = 0;
+  
+  for (const item of items) {
+    try {
+      // Check if symbol already exists
+      const existing = await db.select().from(watchlists)
+        .where(and(
+          eq(watchlists.userId, userId),
+          eq(watchlists.symbol, item.symbol),
+          eq(watchlists.strategy, strategy)
+        ))
+        .limit(1);
+      
+      if (existing.length > 0) {
+        skipped++;
+        continue;
+      }
+      
+      await db.insert(watchlists).values({
+        userId,
+        symbol: item.symbol,
+        strategy,
+        company: item.company,
+        type: item.type,
+        sector: item.sector,
+        reason: item.reason,
+        rank: item.rank,
+      });
+      imported++;
+    } catch (error) {
+      console.error(`[DB] Failed to import ${item.symbol}:`, error);
+      skipped++;
+    }
+  }
+  
+  return { success: true, imported, skipped };
+}
+
+export async function updateWatchlistMetadata(
+  userId: number,
+  data: {
+    id: number;
+    company?: string;
+    type?: string;
+    sector?: string;
+    reason?: string;
+    rank?: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) return;
+  
+  const { watchlists } = await import('../drizzle/schema');
+  const { eq, and } = await import('drizzle-orm');
+  
+  const updateData: any = {};
+  if (data.company !== undefined) updateData.company = data.company;
+  if (data.type !== undefined) updateData.type = data.type;
+  if (data.sector !== undefined) updateData.sector = data.sector;
+  if (data.reason !== undefined) updateData.reason = data.reason;
+  if (data.rank !== undefined) updateData.rank = data.rank;
+  
+  if (Object.keys(updateData).length === 0) return;
+  
+  await db.update(watchlists)
+    .set(updateData)
+    .where(and(
+      eq(watchlists.id, data.id),
+      eq(watchlists.userId, userId)
+    ));
+}
+
 export async function removeFromWatchlist(userId: number, symbol: string, strategy: 'csp' | 'cc' | 'pmcc') {
   const db = await getDb();
   if (!db) return;

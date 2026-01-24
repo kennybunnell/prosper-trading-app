@@ -170,3 +170,15 @@
 - [x] Display processing status ("Processing X symbols...")
 - [x] Show completion summary ("Found X opportunities" with close button)
 - [x] Test with multiple watchlist symbols
+
+## Enhanced Watchlist Management
+- [x] Update database schema to add metadata columns (company, type, sector, reason, rank)
+- [x] Add backend procedure for CSV import with validation
+- [x] Add backend procedure for updating watchlist metadata
+- [x] Implement expandable/collapsible table view with all columns
+- [x] Add CSV import button with file upload
+- [x] Add ticker summary pane at bottom showing comma-separated symbols
+- [x] Keep existing quick-add functionality (single or comma-separated)
+- [x] Add edit/delete capabilities for individual watchlist items
+- [x] Test CSV import with sample file (ready for user testing)
+- [x] Test expand/collapse functionality

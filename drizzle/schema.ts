@@ -33,6 +33,12 @@ export const watchlists = mysqlTable("watchlists", {
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   symbol: varchar("symbol", { length: 10 }).notNull(),
   strategy: mysqlEnum("strategy", ["csp", "cc", "pmcc"]).notNull(),
+  // Metadata columns for enhanced watchlist management
+  company: text("company"),
+  type: varchar("type", { length: 20 }), // Growth, Value, Blend
+  sector: varchar("sector", { length: 100 }),
+  reason: text("reason"),
+  rank: int("rank"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

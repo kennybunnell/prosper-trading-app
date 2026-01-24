@@ -133,20 +133,59 @@ export const appRouter = router({
         const { getWatchlist } = await import('./db');
         return getWatchlist(ctx.user.id, input.strategy);
       }),
-      add: protectedProcedure
-        .input(z.object({ symbol: z.string().min(1).max(10), strategy: z.enum(['csp', 'cc', 'pmcc']) }))
-        .mutation(async ({ ctx, input }) => {
-          const { addToWatchlist } = await import('./db');
-          await addToWatchlist(ctx.user.id, input.symbol, input.strategy);
-          return { success: true };
-        }),
-      remove: protectedProcedure
-        .input(z.object({ symbol: z.string(), strategy: z.enum(['csp', 'cc', 'pmcc']) }))
-        .mutation(async ({ ctx, input }) => {
-          const { removeFromWatchlist } = await import('./db');
-          await removeFromWatchlist(ctx.user.id, input.symbol, input.strategy);
-          return { success: true };
-        }),
+    add: protectedProcedure
+      .input(z.object({ 
+        symbol: z.string().min(1).max(10), 
+        strategy: z.enum(['csp', 'cc', 'pmcc']),
+        company: z.string().optional(),
+        type: z.string().optional(),
+        sector: z.string().optional(),
+        reason: z.string().optional(),
+        rank: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { addToWatchlistWithMetadata } = await import('./db');
+        await addToWatchlistWithMetadata(ctx.user.id, input);
+        return { success: true };
+      }),
+    importCSV: protectedProcedure
+      .input(z.object({
+        strategy: z.enum(['csp', 'cc', 'pmcc']),
+        items: z.array(z.object({
+          symbol: z.string().min(1).max(10),
+          company: z.string().optional(),
+          type: z.string().optional(),
+          sector: z.string().optional(),
+          reason: z.string().optional(),
+          rank: z.number().optional(),
+        })),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { importWatchlistFromCSV } = await import('./db');
+        const result = await importWatchlistFromCSV(ctx.user.id, input.strategy, input.items);
+        return result;
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        company: z.string().optional(),
+        type: z.string().optional(),
+        sector: z.string().optional(),
+        reason: z.string().optional(),
+        rank: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { updateWatchlistMetadata } = await import('./db');
+        await updateWatchlistMetadata(ctx.user.id, input);
+        return { success: true };
+      }),
+    remove: protectedProcedure
+      .input(z.object({ symbol: z.string(), strategy: z.enum(['csp', 'cc', 'pmcc']) }))
+      .mutation(async ({ ctx, input }) => {
+        const { removeFromWatchlist } = await import('./db');
+        await removeFromWatchlist(ctx.user.id, input.symbol, input.strategy);
+        return { success: true };
+      }),
   }),
 
   csp: router({

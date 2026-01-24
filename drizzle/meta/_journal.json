@@ -36,6 +36,13 @@
       "when": 1769211831932,
       "tag": "0004_boring_black_widow",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1769270068721,
+      "tag": "0005_slow_spyke",
+      "breakpoints": true
     }
   ]
 }

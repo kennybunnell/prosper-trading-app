@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -80,7 +81,7 @@ type PresetFilter = 'conservative' | 'medium' | 'aggressive' | null;
 export default function CSPDashboard() {
   const { user, loading: authLoading } = useAuth();
   const { selectedAccountId, setSelectedAccountId } = useAccount();
-  const [newSymbol, setNewSymbol] = useState("");
+  // newSymbol state moved to EnhancedWatchlist component
   const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
   const [minScore, setMinScore] = useState<number | undefined>(undefined);
   const [presetFilter, setPresetFilter] = useState<PresetFilter>(null);
@@ -147,52 +148,7 @@ export default function CSPDashboard() {
     { enabled: false } // Disabled by default, only fetch when user clicks button
   );
 
-  // Add to watchlist
-  const addToWatchlist = trpc.watchlist.add.useMutation({
-    onSuccess: () => {
-      setNewSymbol("");
-      utils.watchlist.list.invalidate();
-      toast.success("Symbol(s) added to watchlist");
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to add symbol: ${error.message}`);
-    },
-  });
-
-  // Remove from watchlist
-  const removeFromWatchlist = trpc.watchlist.remove.useMutation({
-    onSuccess: (_: any, variables: any) => {
-      toast.success(`Removed ${variables.symbol} from watchlist`);
-      utils.watchlist.list.invalidate();
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to remove symbol: ${error.message}`);
-    },
-  });
-
-  // Handle adding comma-delimited symbols
-  const handleAddSymbols = () => {
-    const symbols = newSymbol
-      .split(',')
-      .map(s => s.trim().toUpperCase())
-      .filter(s => s.length > 0);
-
-    if (symbols.length === 0) {
-      toast.error("Please enter at least one symbol");
-      return;
-    }
-
-    // Add each symbol
-    Promise.all(
-      symbols.map(symbol => 
-        addToWatchlist.mutateAsync({ symbol, strategy: 'csp' })
-      )
-    ).then(() => {
-      toast.success(`Added ${symbols.length} symbol(s) to watchlist`);
-    }).catch((error) => {
-      toast.error(`Failed to add symbols: ${error.message}`);
-    });
-  };
+  // Watchlist mutations are now handled by EnhancedWatchlist component
 
   // Apply preset filters
   const filteredOpportunities = useMemo(() => {
@@ -509,42 +465,18 @@ export default function CSPDashboard() {
       </div>
 
       {/* Watchlist Management */}
+      <EnhancedWatchlist 
+        strategy="csp" 
+        onWatchlistChange={() => utils.watchlist.list.invalidate()}
+      />
+
+      {/* DTE Range & Fetch Options */}
       <Card className="bg-card/50 backdrop-blur border-border/50">
         <CardHeader>
-          <CardTitle>Watchlist</CardTitle>
-          <CardDescription>Add symbols to analyze CSP opportunities</CardDescription>
+          <CardTitle>Fetch Options</CardTitle>
+          <CardDescription>Configure and fetch CSP opportunities</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <Input
-                placeholder="Enter symbols (comma-separated, e.g., AAPL, MSFT, TSLA)"
-                value={newSymbol}
-                onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddSymbols()}
-              />
-            </div>
-            <Button onClick={handleAddSymbols} disabled={addToWatchlist.isPending}>
-              {addToWatchlist.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Add
-            </Button>
-          </div>
-
-          {/* Watchlist Display */}
-          <div className="flex flex-wrap gap-2">
-            {watchlist.map((item: any) => (
-              <Badge key={item.id} variant="secondary" className="px-3 py-1 flex items-center gap-2">
-                {item.symbol}
-                <button
-                  onClick={() => removeFromWatchlist.mutate({ symbol: item.symbol, strategy: 'csp' })}
-                  className="hover:text-destructive"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </Badge>
-            ))}
-          </div>
-
           {/* DTE Range Filter */}
           <div className="flex items-center gap-4">
             <Label>DTE Range:</Label>
