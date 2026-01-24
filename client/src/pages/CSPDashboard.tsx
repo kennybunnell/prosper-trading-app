@@ -526,15 +526,34 @@ export default function CSPDashboard() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Cash-Secured Puts Dashboard</h1>
-          <p className="text-muted-foreground">Analyze and execute CSP strategies with intelligent scoring</p>
+    <div className="min-h-screen">
+      {/* Hero Header with Background Image */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+        <div 
+          className="absolute inset-0 opacity-30" 
+          style={{
+            backgroundImage: 'url(/csp-hero.png)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background" />
+        <div className="container relative py-12 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <h1 className="text-4xl font-bold tracking-tight text-white drop-shadow-lg">
+                Cash-Secured Puts
+              </h1>
+              <p className="text-lg text-blue-200">
+                Analyze and execute CSP strategies with dual scoring system
+              </p>
+            </div>
+            <ConnectionStatusIndicator />
+          </div>
         </div>
-        <ConnectionStatusIndicator />
       </div>
+      
+      <div className="container mx-auto py-8 space-y-8">
 
       {/* Watchlist Management */}
       <EnhancedWatchlist 
@@ -852,72 +871,112 @@ export default function CSPDashboard() {
         </CardContent>
       </Card>
 
-      {/* Summary Cards - Positioned near table for easy viewing */}
+      {/* Summary Cards - Enhanced with gradients and glassmorphism */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card className="bg-card/50 backdrop-blur border-border/50">
-          <CardHeader className="pb-2">
+        <Card className="relative overflow-hidden bg-gradient-to-br from-green-500/10 to-emerald-500/5 backdrop-blur border-green-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent" />
+          <CardHeader className="pb-2 relative">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-green-500" />
-              Total Premium
+              <div className="p-2 rounded-lg bg-green-500/20">
+                <DollarSign className="w-4 h-4 text-green-400" />
+              </div>
+              <span className="text-muted-foreground">Total Premium</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalPremium.toFixed(2)}</div>
+          <CardContent className="relative">
+            <div className="text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+              ${totalPremium.toFixed(2)}
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 backdrop-blur border-border/50">
-          <CardHeader className="pb-2">
+        <Card className="relative overflow-hidden bg-gradient-to-br from-blue-500/10 to-cyan-500/5 backdrop-blur border-blue-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent" />
+          <CardHeader className="pb-2 relative">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Target className="w-4 h-4 text-blue-500" />
-              Total Collateral
+              <div className="p-2 rounded-lg bg-blue-500/20">
+                <Target className="w-4 h-4 text-blue-400" />
+              </div>
+              <span className="text-muted-foreground">Total Collateral</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalCollateral.toFixed(2)}</div>
+          <CardContent className="relative">
+            <div className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+              ${totalCollateral.toFixed(2)}
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 backdrop-blur border-border/50">
-          <CardHeader className="pb-2">
+        <Card className="relative overflow-hidden bg-gradient-to-br from-purple-500/10 to-pink-500/5 backdrop-blur border-purple-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent" />
+          <CardHeader className="pb-2 relative">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-purple-500" />
-              ROC
+              <div className="p-2 rounded-lg bg-purple-500/20">
+                <TrendingUp className="w-4 h-4 text-purple-400" />
+              </div>
+              <span className="text-muted-foreground">ROC</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{roc.toFixed(2)}%</div>
+          <CardContent className="relative">
+            <div className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              {roc.toFixed(2)}%
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 backdrop-blur border-border/50">
-          <CardHeader className="pb-2">
+        <Card className="relative overflow-hidden bg-gradient-to-br from-orange-500/10 to-amber-500/5 backdrop-blur border-orange-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent" />
+          <CardHeader className="pb-2 relative">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-orange-500" />
-              Opportunities
+              <div className="p-2 rounded-lg bg-orange-500/20">
+                <Calendar className="w-4 h-4 text-orange-400" />
+              </div>
+              <span className="text-muted-foreground">Opportunities</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{filteredOpportunities.length}</div>
+          <CardContent className="relative">
+            <div className="text-3xl font-bold bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
+              {filteredOpportunities.length}
+            </div>
           </CardContent>
         </Card>
 
-        <Card className={cn("bg-card/50 backdrop-blur border-border/50", buyingPowerBgColor)}>
-          <CardHeader className="pb-2">
+        <Card className={cn(
+          "relative overflow-hidden backdrop-blur shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]",
+          buyingPowerUsedPct > 80 
+            ? "bg-gradient-to-br from-red-500/10 to-rose-500/5 border-red-500/20" 
+            : "bg-gradient-to-br from-emerald-500/10 to-green-500/5 border-emerald-500/20"
+        )}>
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent" />
+          <CardHeader className="pb-2 relative">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className={cn("w-4 h-4", buyingPowerColor)} />
-              Buying Power
+              <div className={cn(
+                "p-2 rounded-lg",
+                buyingPowerUsedPct > 80 ? "bg-red-500/20" : "bg-emerald-500/20"
+              )}>
+                <TrendingUp className={cn(
+                  "w-4 h-4",
+                  buyingPowerUsedPct > 80 ? "text-red-400" : "text-emerald-400"
+                )} />
+              </div>
+              <span className="text-muted-foreground">Buying Power</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className={cn("text-2xl font-bold", buyingPowerColor)}>
+          <CardContent className="relative">
+            <div className={cn(
+              "text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent",
+              buyingPowerUsedPct > 80 
+                ? "from-red-400 to-rose-400" 
+                : "from-emerald-400 to-green-400"
+            )}>
               {buyingPowerUsedPct.toFixed(1)}%
             </div>
             <div className="text-xs text-muted-foreground mt-1">
               ${availableBuyingPower.toFixed(0)} available
             </div>
             {overLimit > 0 && (
-              <div className="text-xs text-red-500 font-semibold mt-1">
+              <div className="text-xs text-red-400 font-semibold mt-1 flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
                 Over Limit: ${overLimit.toFixed(2)}
               </div>
             )}
@@ -1168,6 +1227,7 @@ export default function CSPDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }
