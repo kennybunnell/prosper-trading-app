@@ -201,3 +201,22 @@
 - [x] Add manual "Remove Duplicates" button in watchlist header
 - [x] Create visual mockups for polish enhancements (gradients, animations, micro-interactions)
 - [x] Apply approved visual polish to buttons, cards, and badges
+
+## Watchlist Enrichment (Practical Approach)
+- [x] Add price column to watchlists table schema
+- [ ] Update CSV import to parse and save all metadata columns (company, price, sector, type, portfolioSize)
+- [ ] Create Tradier-based price refresh function
+- [ ] Replace "Refresh Metadata" button with "Refresh Prices" (Tradier-powered)
+- [ ] Auto-recalculate portfolio sizes after price refresh
+- [x] Update portfolio size logic to use price thresholds ($0-50=Small, $51-150=Medium, $151+=Large)
+- [x] Add price column to expanded table view
+- [ ] Test CSV import with curated top 50 file
+- [ ] Test price refresh functionality
+
+## Persistent Recents Dropdown
+- [ ] Create database schema for filter presets (recents)
+- [ ] Add backend procedures for saving/loading/clearing filter presets
+- [ ] Add recents dropdown UI in CSP Dashboard
+- [ ] Implement auto-save on filter changes
+- [ ] Add "Clear Recents" button
+- [ ] Test persistence across republish/redeploy

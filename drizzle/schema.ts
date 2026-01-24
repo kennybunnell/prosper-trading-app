@@ -40,6 +40,7 @@ export const watchlists = mysqlTable("watchlists", {
   reason: text("reason"),
   rank: int("rank"),
   portfolioSize: mysqlEnum("portfolioSize", ["small", "medium", "large"]), // Portfolio size category
+  price: varchar("price", { length: 20 }), // Current stock price
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

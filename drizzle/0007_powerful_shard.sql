@@ -1,0 +1,1 @@
+ALTER TABLE `watchlists` ADD `price` varchar(20);

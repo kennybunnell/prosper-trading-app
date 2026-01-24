@@ -198,6 +198,8 @@ export async function updateWatchlistMetadata(
     sector?: string;
     reason?: string;
     rank?: number;
+    portfolioSize?: 'small' | 'medium' | 'large';
+    price?: string;
   }
 ) {
   const db = await getDb();
@@ -210,6 +212,8 @@ export async function updateWatchlistMetadata(
   if (data.company !== undefined) updateData.company = data.company;
   if (data.type !== undefined) updateData.type = data.type;
   if (data.sector !== undefined) updateData.sector = data.sector;
+  if (data.portfolioSize !== undefined) updateData.portfolioSize = data.portfolioSize;
+  if (data.price !== undefined) updateData.price = data.price;
   if (data.reason !== undefined) updateData.reason = data.reason;
   if (data.rank !== undefined) updateData.rank = data.rank;
   

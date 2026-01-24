@@ -167,6 +167,46 @@ export const appRouter = router({
         const result = await importWatchlistFromCSV(ctx.user.id, input.strategy, input.items);
         return result;
       }),
+    enrichSymbols: protectedProcedure
+      .input(z.object({
+        strategy: z.enum(['csp', 'cc', 'pmcc']),
+        symbols: z.array(z.string()).optional(), // If empty, enrich all watchlist symbols
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { getWatchlist, updateWatchlistMetadata } = await import('./db');
+        const { enrichMultipleStocks } = await import('./stockEnrichment');
+        
+        // Get symbols to enrich
+        let symbolsToEnrich: string[];
+        if (input.symbols && input.symbols.length > 0) {
+          symbolsToEnrich = input.symbols;
+        } else {
+          // Enrich all watchlist symbols
+          const watchlist = await getWatchlist(ctx.user.id, input.strategy);
+          symbolsToEnrich = watchlist.map((w: any) => w.symbol);
+        }
+        
+        // Fetch metadata for all symbols
+        const metadata = await enrichMultipleStocks(symbolsToEnrich);
+        
+        // Update database with enriched metadata
+        const watchlist = await getWatchlist(ctx.user.id, input.strategy);
+        for (const item of metadata) {
+          const watchlistItem = watchlist.find((w: any) => w.symbol === item.symbol);
+          if (watchlistItem) {
+            await updateWatchlistMetadata(ctx.user.id, {
+              id: watchlistItem.id,
+              company: item.company || undefined,
+              price: item.price || undefined,
+              sector: item.sector || undefined,
+              type: item.type || undefined,
+              portfolioSize: item.portfolioSize,
+            });
+          }
+        }
+        
+        return { success: true, enriched: metadata.length };
+      }),
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
@@ -176,6 +216,7 @@ export const appRouter = router({
         reason: z.string().optional(),
         rank: z.number().optional(),
         portfolioSize: z.enum(['small', 'medium', 'large']).optional(),
+        price: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { updateWatchlistMetadata } = await import('./db');

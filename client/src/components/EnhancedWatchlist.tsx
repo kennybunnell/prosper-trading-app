@@ -26,6 +26,7 @@ type WatchlistItem = {
   reason?: string | null;
   rank?: number | null;
   portfolioSize?: 'small' | 'medium' | 'large' | null;
+  price?: string | null;
 };
 
 type EnhancedWatchlistProps = {
@@ -68,6 +69,18 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
     },
     onError: (error: any) => {
       toast.error(`Failed to import CSV: ${error.message}`);
+    },
+  });
+
+  // Enrich symbols with metadata
+  const enrichSymbols = trpc.watchlist.enrichSymbols.useMutation({
+    onSuccess: (result) => {
+      utils.watchlist.list.invalidate();
+      toast.success(`Enriched ${result.enriched} symbols with metadata`);
+      onWatchlistChange?.();
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to enrich symbols: ${error.message}`);
     },
   });
 
@@ -131,7 +144,8 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
         const sectorIndex = header.indexOf('sector');
         const reasonIndex = header.indexOf('reason');
         const rankIndex = header.indexOf('rank');
-        const portfolioSizeIndex = header.indexOf('portfolio size');
+        const portfolioSizeIndex = header.indexOf('portfolio size') >= 0 ? header.indexOf('portfolio size') : header.indexOf('portfoliosize');
+        const priceIndex = header.indexOf('price');
 
         if (symbolIndex === -1) {
           toast.error("CSV must have a 'Symbol' column");
@@ -142,6 +156,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
         const items = lines.slice(1).map(line => {
           const cols = line.split(',').map(c => c.trim());
           const portfolioSizeValue = portfolioSizeIndex >= 0 ? cols[portfolioSizeIndex]?.toLowerCase() : undefined;
+          const priceValue = priceIndex >= 0 && cols[priceIndex] ? parseFloat(cols[priceIndex].replace('$', '')) : undefined;
           return {
             symbol: cols[symbolIndex]?.toUpperCase() || '',
             company: companyIndex >= 0 ? cols[companyIndex] : undefined,
@@ -149,6 +164,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
             sector: sectorIndex >= 0 ? cols[sectorIndex] : undefined,
             reason: reasonIndex >= 0 ? cols[reasonIndex] : undefined,
             rank: rankIndex >= 0 && cols[rankIndex] ? parseInt(cols[rankIndex]) : undefined,
+            price: priceValue ? priceValue.toFixed(2) : undefined,
             portfolioSize: (portfolioSizeValue === 'small' || portfolioSizeValue === 'medium' || portfolioSizeValue === 'large') ? portfolioSizeValue as 'small' | 'medium' | 'large' : undefined,
           };
         }).filter(item => item.symbol.length > 0);
@@ -311,6 +327,20 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
           </Button>
           <Button
             variant="outline"
+            onClick={() => enrichSymbols.mutate({ strategy })}
+            disabled={watchlist.length === 0 || enrichSymbols.isPending}
+          >
+            {enrichSymbols.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Refreshing...
+              </>
+            ) : (
+              'Refresh Metadata'
+            )}
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => {
               // Find duplicates
               const symbolCounts = new Map<string, number>();
@@ -384,6 +414,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
                   <TableHead>Company</TableHead>
                   <TableHead className="w-[100px]">Type</TableHead>
                   <TableHead className="w-[120px]">Portfolio Size</TableHead>
+                  <TableHead className="w-[80px]">Price</TableHead>
                   <TableHead>Sector</TableHead>
                   <TableHead>Reason</TableHead>
                   <TableHead className="w-[80px]">Actions</TableHead>
@@ -392,13 +423,13 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
               <TableBody>
                 {loadingWatchlist ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                     </TableCell>
                   </TableRow>
                 ) : watchlist.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No symbols in watchlist
                     </TableCell>
                   </TableRow>
@@ -431,6 +462,9 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
                              '🔴 Large'}
                           </Badge>
                         )}
+                      </TableCell>
+                      <TableCell className="font-mono">
+                        {item.price ? `$${item.price}` : '-'}
                       </TableCell>
                       <TableCell className="text-sm">{item.sector || '-'}</TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[300px] truncate">
