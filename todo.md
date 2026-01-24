@@ -309,3 +309,9 @@
 - [x] Display user-friendly toast message with "Go to Settings" action button
 - [x] Close progress dialog when error occurs
 - [x] Test error handling without configured account
+
+## Bug Fix: Remove Global Mutation Error Logger
+- [x] Investigate main.tsx global error handler that logs all mutation errors
+- [x] Remove console.error from mutation cache subscriber
+- [x] Keep auth redirect logic intact for unauthorized errors
+- [x] Verify mutation errors are handled by component-level onError handlers with toast notifications
