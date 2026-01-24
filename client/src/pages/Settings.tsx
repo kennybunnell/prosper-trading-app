@@ -390,11 +390,20 @@ export default function Settings() {
 }
 
 function FilterPresetsSection() {
-  const { data: presets, isLoading } = trpc.cspFilters.getPresets.useQuery();
-  const updatePreset = trpc.cspFilters.updatePreset.useMutation({
+  return (
+    <>
+      <StrategyFilterPresetsSection strategy="csp" title="Cash-Secured Puts (CSP) Filter Presets" />
+      <StrategyFilterPresetsSection strategy="cc" title="Covered Calls (CC) Filter Presets" />
+    </>
+  );
+}
+
+function StrategyFilterPresetsSection({ strategy, title }: { strategy: 'csp' | 'cc', title: string }) {
+  const { data: presets, isLoading } = trpc.filterPresets.getByStrategy.useQuery({ strategy });
+  const updatePreset = trpc.filterPresets.update.useMutation({
     onSuccess: () => {
       toast.success("Filter preset updated successfully");
-      utils.cspFilters.getPresets.invalidate();
+      utils.filterPresets.getByStrategy.invalidate({ strategy });
     },
     onError: (error) => {
       toast.error(`Failed to update preset: ${error.message}`);
@@ -406,7 +415,7 @@ function FilterPresetsSection() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>CSP Filter Presets</CardTitle>
+          <CardTitle>{title}</CardTitle>
           <CardDescription>Loading presets...</CardDescription>
         </CardHeader>
       </Card>
@@ -420,33 +429,36 @@ function FilterPresetsSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>CSP Filter Presets</CardTitle>
+        <CardTitle>{title}</CardTitle>
         <CardDescription>
-          Configure the filter criteria for Conservative, Medium, and Aggressive presets used in the CSP Dashboard
+          Configure the filter criteria for Conservative, Medium, and Aggressive presets. Each strategy has different recommended values based on optimal technical indicators.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {conservative && (
           <PresetEditor
             preset={conservative}
+            strategy={strategy}
             label="🟢 Conservative"
-            onSave={(updates) => updatePreset.mutate({ presetName: 'conservative', ...updates })}
+            onSave={(updates) => updatePreset.mutate({ strategy, presetName: 'conservative', ...updates })}
             isPending={updatePreset.isPending}
           />
         )}
         {medium && (
           <PresetEditor
             preset={medium}
+            strategy={strategy}
             label="🟡 Medium"
-            onSave={(updates) => updatePreset.mutate({ presetName: 'medium', ...updates })}
+            onSave={(updates) => updatePreset.mutate({ strategy, presetName: 'medium', ...updates })}
             isPending={updatePreset.isPending}
           />
         )}
         {aggressive && (
           <PresetEditor
             preset={aggressive}
+            strategy={strategy}
             label="🔴 Aggressive"
-            onSave={(updates) => updatePreset.mutate({ presetName: 'aggressive', ...updates })}
+            onSave={(updates) => updatePreset.mutate({ strategy, presetName: 'aggressive', ...updates })}
             isPending={updatePreset.isPending}
           />
         )}
@@ -457,11 +469,13 @@ function FilterPresetsSection() {
 
 function PresetEditor({
   preset,
+  strategy,
   label,
   onSave,
   isPending,
 }: {
   preset: any;
+  strategy: 'csp' | 'cc';
   label: string;
   onSave: (updates: any) => void;
   isPending: boolean;
@@ -505,6 +519,19 @@ function PresetEditor({
 
   const handleSave = () => {
     onSave(values);
+  };
+
+  const loadRecommendedValues = trpc.filterPresets.getRecommendedValues.useQuery(
+    { strategy, presetName: preset.presetName },
+    { enabled: false }
+  );
+
+  const handleLoadRecommended = async () => {
+    const recommended = await loadRecommendedValues.refetch();
+    if (recommended.data) {
+      setValues(recommended.data);
+      toast.success("Loaded recommended values for " + label);
+    }
   };
 
   return (
@@ -678,6 +705,15 @@ function PresetEditor({
             </Button>
             <Button onClick={handleReset} variant="outline" disabled={isPending}>
               Reset
+            </Button>
+            <Button 
+              onClick={handleLoadRecommended} 
+              variant="outline" 
+              disabled={isPending || loadRecommendedValues.isFetching}
+              className="bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/50"
+            >
+              {loadRecommendedValues.isFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Load Recommended Values
             </Button>
           </div>
         </div>

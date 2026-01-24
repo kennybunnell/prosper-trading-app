@@ -390,15 +390,15 @@ export async function seedCspFilterPresets(userId: number): Promise<void> {
     return;
   }
 
-  const { cspFilterPresets } = await import("../drizzle/schema");
+  const { filterPresets } = await import("../drizzle/schema");
   const { eq, and } = await import("drizzle-orm");
 
   try {
     // Check if presets already exist for this user
     const existing = await db
       .select()
-      .from(cspFilterPresets)
-      .where(eq(cspFilterPresets.userId, userId))
+      .from(filterPresets)
+      .where(and(eq(filterPresets.userId, userId), eq(filterPresets.strategy, "csp")))
       .limit(1);
 
     if (existing.length > 0) {
@@ -464,7 +464,9 @@ export async function seedCspFilterPresets(userId: number): Promise<void> {
       },
     ];
 
-    await db.insert(cspFilterPresets).values(defaults);
+    // Add strategy field to each preset
+    const presetsWithStrategy = defaults.map(preset => ({ ...preset, strategy: "csp" as const }));
+    await db.insert(filterPresets).values(presetsWithStrategy);
     console.log(`[Database] Seeded ${defaults.length} filter presets for user ${userId}`);
   } catch (error) {
     console.error("[Database] Failed to seed filter presets:", error);
@@ -481,13 +483,13 @@ export async function getCspFilterPresets(userId: number) {
     throw new Error("Database not available");
   }
 
-  const { cspFilterPresets } = await import("../drizzle/schema");
-  const { eq } = await import("drizzle-orm");
+  const { filterPresets } = await import("../drizzle/schema");
+  const { eq, and } = await import("drizzle-orm");
 
   const presets = await db
     .select()
-    .from(cspFilterPresets)
-    .where(eq(cspFilterPresets.userId, userId));
+    .from(filterPresets)
+    .where(and(eq(filterPresets.userId, userId), eq(filterPresets.strategy, "csp")));
 
   return presets;
 }
@@ -520,7 +522,7 @@ export async function updateCspFilterPreset(
     throw new Error("Database not available");
   }
 
-  const { cspFilterPresets } = await import("../drizzle/schema");
+  const { filterPresets } = await import("../drizzle/schema");
   const { eq, and } = await import("drizzle-orm");
 
   // Filter out undefined values
@@ -534,13 +536,10 @@ export async function updateCspFilterPreset(
   }
 
   await db
-    .update(cspFilterPresets)
+    .update(filterPresets)
     .set(filteredUpdates)
     .where(
-      and(
-        eq(cspFilterPresets.userId, userId),
-        eq(cspFilterPresets.presetName, presetName)
-      )
+      and(eq(filterPresets.userId, userId), eq(filterPresets.strategy, "csp"), eq(filterPresets.presetName, presetName))
     );
 
   console.log(`[Database] Updated ${presetName} filter preset for user ${userId}`);

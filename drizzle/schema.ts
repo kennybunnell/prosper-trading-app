@@ -150,11 +150,13 @@ export type TastytradeAccount = typeof tastytradeAccounts.$inferSelect;
 export type InsertTastytradeAccount = typeof tastytradeAccounts.$inferInsert;
 
 /**
- * CSP filter preset configurations (conservative, medium, aggressive)
+ * Filter preset configurations for different strategies (CSP, CC, PMCC)
+ * Each strategy has conservative, medium, and aggressive presets
  */
-export const cspFilterPresets = mysqlTable("cspFilterPresets", {
+export const filterPresets = mysqlTable("filterPresets", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  strategy: mysqlEnum("strategy", ["csp", "cc", "pmcc"]).notNull(),
   presetName: mysqlEnum("presetName", ["conservative", "medium", "aggressive"]).notNull(),
   
   // DTE (Days to Expiration) range
@@ -193,8 +195,12 @@ export const cspFilterPresets = mysqlTable("cspFilterPresets", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-export type CspFilterPreset = typeof cspFilterPresets.$inferSelect;
-export type InsertCspFilterPreset = typeof cspFilterPresets.$inferInsert;
+export type FilterPreset = typeof filterPresets.$inferSelect;
+export type InsertFilterPreset = typeof filterPresets.$inferInsert;
+
+// Legacy type aliases for backward compatibility
+export type CspFilterPreset = FilterPreset;
+export type InsertCspFilterPreset = InsertFilterPreset;
 /**
  * User preferences for trading settings
  */

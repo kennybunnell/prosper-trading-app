@@ -517,6 +517,63 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  filterPresets: router({
+    getByStrategy: protectedProcedure
+      .input(z.object({ strategy: z.enum(['csp', 'cc', 'pmcc']) }))
+      .query(async ({ ctx, input }) => {
+        const { getFilterPresetsByStrategy } = await import('./db-filter-presets');
+        const { seedCspFilterPresets } = await import('./db');
+        const { seedCcFilterPresets } = await import('./db-filter-presets');
+        
+        // Ensure presets exist for this strategy
+        if (input.strategy === 'csp') {
+          await seedCspFilterPresets(ctx.user.id);
+        } else if (input.strategy === 'cc') {
+          await seedCcFilterPresets(ctx.user.id);
+        }
+        
+        return getFilterPresetsByStrategy(ctx.user.id, input.strategy);
+      }),
+    getRecommendedValues: protectedProcedure
+      .input(
+        z.object({
+          strategy: z.enum(['csp', 'cc']),
+          presetName: z.enum(['conservative', 'medium', 'aggressive']),
+        })
+      )
+      .query(async ({ input }) => {
+        const { getRecommendedFilterValues } = await import('./db-filter-presets');
+        return getRecommendedFilterValues(input.strategy, input.presetName);
+      }),
+    update: protectedProcedure
+      .input(
+        z.object({
+          strategy: z.enum(['csp', 'cc', 'pmcc']),
+          presetName: z.enum(['conservative', 'medium', 'aggressive']),
+          minDte: z.number().optional(),
+          maxDte: z.number().optional(),
+          minDelta: z.string().optional(),
+          maxDelta: z.string().optional(),
+          minOpenInterest: z.number().optional(),
+          minVolume: z.number().optional(),
+          minRsi: z.number().nullable().optional(),
+          maxRsi: z.number().nullable().optional(),
+          minIvRank: z.number().nullable().optional(),
+          maxIvRank: z.number().nullable().optional(),
+          minBbPercent: z.string().nullable().optional(),
+          maxBbPercent: z.string().nullable().optional(),
+          minScore: z.number().optional(),
+          maxStrikePercent: z.union([z.number(), z.string()]).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { updateFilterPreset } = await import('./db-filter-presets');
+        const { strategy, presetName, ...updates } = input;
+        await updateFilterPreset(ctx.user.id, strategy, presetName, updates);
+        return { success: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

@@ -254,3 +254,16 @@
 - [x] Investigate NaN value error in Settings page numeric inputs
 - [x] Fix by adding proper default values or type conversion
 - [x] Test Settings page to ensure no console errors
+
+## Strategy-Specific Filter Presets
+- [x] Rename cspFilterPresets table to filterPresets and add strategy column
+- [x] Update database schema to support both CSP and CC strategies
+- [x] Create backend helper for seeding CC filter presets with recommended values
+- [x] Add backend procedure to load recommended values for each strategy/preset combination
+- [x] Update Settings UI to show separate sections for CSP and CC filter presets
+- [x] Add "Load Recommended Values" button for each preset
+- [x] Implement recommended values for CSP (Conservative: RSI 20-35, Medium: RSI 25-45, Aggressive: RSI 30-50)
+- [x] Implement recommended values for CC (Conservative: RSI 65-80, Medium: RSI 55-75, Aggressive: RSI 50-70)
+- [x] Write unit tests for recommended values functionality (14/14 passing)
+- [x] CSP Dashboard already uses strategy-specific filters (via cspFilters router)
+- [x] Test complete workflow with recommended values
