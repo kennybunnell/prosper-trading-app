@@ -106,7 +106,9 @@ export default function CSPDashboard() {
     current: number;
     total: number;
     completed: number;
-  }>({ isOpen: false, current: 0, total: 0, completed: 0 });
+    startTime: number | null;
+    endTime: number | null;
+  }>({ isOpen: false, current: 0, total: 0, completed: 0, startTime: null, endTime: null });
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [validationData, setValidationData] = useState<any>(null);
 
@@ -160,6 +162,13 @@ export default function CSPDashboard() {
     },
     { enabled: false } // Disabled by default, only fetch when user clicks button
   );
+
+  // Track when loading completes to set endTime
+  useEffect(() => {
+    if (!loadingOpportunities && fetchProgress.startTime && !fetchProgress.endTime) {
+      setFetchProgress(prev => ({ ...prev, endTime: Date.now() }));
+    }
+  }, [loadingOpportunities, fetchProgress.startTime, fetchProgress.endTime]);
 
   // Watchlist mutations are now handled by EnhancedWatchlist component
 
@@ -551,6 +560,8 @@ export default function CSPDashboard() {
                     current: 0,
                     total: symbolCount,
                     completed: 0,
+                    startTime: Date.now(),
+                    endTime: null,
                   });
                   setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
                 }}
@@ -570,6 +581,8 @@ export default function CSPDashboard() {
                     current: 0,
                     total: symbolCount,
                     completed: 0,
+                    startTime: Date.now(),
+                    endTime: null,
                   });
                   setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
                 }}
@@ -589,6 +602,8 @@ export default function CSPDashboard() {
                     current: 0,
                     total: symbolCount,
                     completed: 0,
+                    startTime: Date.now(),
+                    endTime: null,
                   });
                   setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
                 }}
@@ -631,6 +646,8 @@ export default function CSPDashboard() {
                 current: 0,
                 total: symbolCount,
                 completed: 0,
+                startTime: Date.now(),
+                endTime: null,
               });
               refetchOpportunities().then(() => {
                 // Auto-collapse watchlist after successful fetch
@@ -1018,6 +1035,9 @@ export default function CSPDashboard() {
                 <p className="text-sm text-muted-foreground">
                   Processing {fetchProgress.total} symbols...
                 </p>
+                <p className="text-xs text-muted-foreground">
+                  Estimated time: ~{Math.ceil(fetchProgress.total * 2.5 / 60)} min {Math.ceil((fetchProgress.total * 2.5) % 60)} sec
+                </p>
               </div>
             ) : (
               <div className="text-center space-y-4">
@@ -1028,6 +1048,11 @@ export default function CSPDashboard() {
                 <p className="text-lg font-semibold">
                   Found {opportunities.length} opportunities
                 </p>
+                {fetchProgress.startTime && fetchProgress.endTime && (
+                  <p className="text-xs text-muted-foreground">
+                    Completed in {((fetchProgress.endTime - fetchProgress.startTime) / 1000).toFixed(1)}s
+                  </p>
+                )}
                 <Button 
                   onClick={() => setFetchProgress({ ...fetchProgress, isOpen: false })}
                   className="mt-4"

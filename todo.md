@@ -289,3 +289,10 @@
 - [x] Simplify progress dialog to show completion status clearly
 - [x] Add Current Price column to opportunities table (after Strike column)
 - [x] Test progress dialog and current price column display
+
+## UX Improvement: Progress Time Estimation
+- [x] Calculate estimated wait time based on symbol count (2.5 seconds per symbol)
+- [x] Display estimated time in progress dialog while loading
+- [x] Track actual elapsed time from start to completion using startTime and endTime
+- [x] Show actual elapsed time when fetch completes
+- [x] Test time estimation with different symbol counts
