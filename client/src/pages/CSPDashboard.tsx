@@ -88,6 +88,7 @@ export default function CSPDashboard() {
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [minDte, setMinDte] = useState<number>(7);
   const [maxDte, setMaxDte] = useState<number>(45);
+  const [portfolioSizeFilter, setPortfolioSizeFilter] = useState<Array<'small' | 'medium' | 'large'>>(['small', 'medium', 'large']);
   const [sortColumn, setSortColumn] = useState<string>('score');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [dryRun, setDryRun] = useState(true);
@@ -139,9 +140,17 @@ export default function CSPDashboard() {
   );
 
   // Fetch opportunities (only when user clicks "Fetch Opportunities")
+  // Filter watchlist by selected portfolio sizes
+  const filteredWatchlist = useMemo(() => {
+    if (portfolioSizeFilter.length === 3) return watchlist; // All selected
+    return watchlist.filter((w: any) => 
+      !w.portfolioSize || portfolioSizeFilter.includes(w.portfolioSize)
+    );
+  }, [watchlist, portfolioSizeFilter]);
+
   const { data: opportunities = [], isLoading: loadingOpportunities, refetch: refetchOpportunities } = trpc.csp.opportunities.useQuery(
     { 
-      symbols: watchlist.map((w: any) => w.symbol),
+      symbols: filteredWatchlist.map((w: any) => w.symbol),
       minDte,
       maxDte,
     },
@@ -477,6 +486,59 @@ export default function CSPDashboard() {
           <CardDescription>Configure and fetch CSP opportunities</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Portfolio Size Filter */}
+          <div>
+            <Label className="mb-2 block">Portfolio Size</Label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={portfolioSizeFilter.includes('small') ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setPortfolioSizeFilter(prev => 
+                    prev.includes('small') 
+                      ? prev.filter(s => s !== 'small')
+                      : [...prev, 'small']
+                  );
+                }}
+              >
+                🟢 Small
+              </Button>
+              <Button
+                variant={portfolioSizeFilter.includes('medium') ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setPortfolioSizeFilter(prev => 
+                    prev.includes('medium') 
+                      ? prev.filter(s => s !== 'medium')
+                      : [...prev, 'medium']
+                  );
+                }}
+              >
+                🟡 Medium
+              </Button>
+              <Button
+                variant={portfolioSizeFilter.includes('large') ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setPortfolioSizeFilter(prev => 
+                    prev.includes('large') 
+                      ? prev.filter(s => s !== 'large')
+                      : [...prev, 'large']
+                  );
+                }}
+              >
+                🔴 Large
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPortfolioSizeFilter(['small', 'medium', 'large'])}
+              >
+                All
+              </Button>
+            </div>
+          </div>
+
           {/* DTE Range Filter */}
           <div className="flex items-center gap-4">
             <Label>DTE Range:</Label>
@@ -502,7 +564,7 @@ export default function CSPDashboard() {
           {/* Fetch Button */}
           <Button 
             onClick={() => {
-              const symbolCount = watchlist.length;
+              const symbolCount = filteredWatchlist.length;
               setFetchProgress({
                 isOpen: true,
                 current: 0,
@@ -511,7 +573,7 @@ export default function CSPDashboard() {
               });
               refetchOpportunities();
             }} 
-            disabled={loadingOpportunities || watchlist.length === 0}
+            disabled={loadingOpportunities || filteredWatchlist.length === 0}
             className="w-full"
           >
             {loadingOpportunities ? (

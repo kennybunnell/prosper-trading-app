@@ -142,6 +142,7 @@ export const appRouter = router({
         sector: z.string().optional(),
         reason: z.string().optional(),
         rank: z.number().optional(),
+        portfolioSize: z.enum(['small', 'medium', 'large']).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { addToWatchlistWithMetadata } = await import('./db');
@@ -158,6 +159,7 @@ export const appRouter = router({
           sector: z.string().optional(),
           reason: z.string().optional(),
           rank: z.number().optional(),
+          portfolioSize: z.enum(['small', 'medium', 'large']).optional(),
         })),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -173,6 +175,7 @@ export const appRouter = router({
         sector: z.string().optional(),
         reason: z.string().optional(),
         rank: z.number().optional(),
+        portfolioSize: z.enum(['small', 'medium', 'large']).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { updateWatchlistMetadata } = await import('./db');

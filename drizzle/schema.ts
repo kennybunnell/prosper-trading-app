@@ -39,6 +39,7 @@ export const watchlists = mysqlTable("watchlists", {
   sector: varchar("sector", { length: 100 }),
   reason: text("reason"),
   rank: int("rank"),
+  portfolioSize: mysqlEnum("portfolioSize", ["small", "medium", "large"]), // Portfolio size category
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

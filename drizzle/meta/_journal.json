@@ -43,6 +43,13 @@
       "when": 1769270068721,
       "tag": "0005_slow_spyke",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1769276379615,
+      "tag": "0006_clever_killmonger",
+      "breakpoints": true
     }
   ]
 }

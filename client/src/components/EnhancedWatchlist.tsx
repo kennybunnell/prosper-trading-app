@@ -25,6 +25,7 @@ type WatchlistItem = {
   sector?: string | null;
   reason?: string | null;
   rank?: number | null;
+  portfolioSize?: 'small' | 'medium' | 'large' | null;
 };
 
 type EnhancedWatchlistProps = {
@@ -128,6 +129,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange }: Enhan
         const sectorIndex = header.indexOf('sector');
         const reasonIndex = header.indexOf('reason');
         const rankIndex = header.indexOf('rank');
+        const portfolioSizeIndex = header.indexOf('portfolio size');
 
         if (symbolIndex === -1) {
           toast.error("CSV must have a 'Symbol' column");
@@ -137,6 +139,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange }: Enhan
         // Parse data rows
         const items = lines.slice(1).map(line => {
           const cols = line.split(',').map(c => c.trim());
+          const portfolioSizeValue = portfolioSizeIndex >= 0 ? cols[portfolioSizeIndex]?.toLowerCase() : undefined;
           return {
             symbol: cols[symbolIndex]?.toUpperCase() || '',
             company: companyIndex >= 0 ? cols[companyIndex] : undefined,
@@ -144,6 +147,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange }: Enhan
             sector: sectorIndex >= 0 ? cols[sectorIndex] : undefined,
             reason: reasonIndex >= 0 ? cols[reasonIndex] : undefined,
             rank: rankIndex >= 0 && cols[rankIndex] ? parseInt(cols[rankIndex]) : undefined,
+            portfolioSize: (portfolioSizeValue === 'small' || portfolioSizeValue === 'medium' || portfolioSizeValue === 'large') ? portfolioSizeValue as 'small' | 'medium' | 'large' : undefined,
           };
         }).filter(item => item.symbol.length > 0);
 
@@ -269,6 +273,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange }: Enhan
                   <TableHead className="w-[100px]">Symbol</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead className="w-[100px]">Type</TableHead>
+                  <TableHead className="w-[120px]">Portfolio Size</TableHead>
                   <TableHead>Sector</TableHead>
                   <TableHead>Reason</TableHead>
                   <TableHead className="w-[80px]">Actions</TableHead>
@@ -301,6 +306,19 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange }: Enhan
                             'outline'
                           }>
                             {item.type}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {item.portfolioSize && (
+                          <Badge variant={
+                            item.portfolioSize === 'small' ? 'secondary' : 
+                            item.portfolioSize === 'medium' ? 'default' : 
+                            'destructive'
+                          }>
+                            {item.portfolioSize === 'small' ? '🟢 Small' : 
+                             item.portfolioSize === 'medium' ? '🟡 Medium' : 
+                             '🔴 Large'}
                           </Badge>
                         )}
                       </TableCell>

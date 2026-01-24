@@ -1,0 +1,1 @@
+ALTER TABLE `watchlists` ADD `portfolioSize` enum('small','medium','large');

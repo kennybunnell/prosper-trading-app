@@ -182,3 +182,13 @@
 - [x] Add edit/delete capabilities for individual watchlist items
 - [x] Test CSV import with sample file (ready for user testing)
 - [x] Test expand/collapse functionality
+
+## Portfolio Size Filtering
+- [x] Categorize top 50 stocks by portfolio size (Small: $0-100K, Medium: $100K-500K, Large: $500K+)
+- [x] Add portfolioSize column to watchlists table schema
+- [x] Update CSV import to auto-categorize based on stock price
+- [x] Add portfolio size filter checkboxes (Small/Medium/Large/All)
+- [x] Update fetch logic to only fetch selected portfolio sizes
+- [x] Add Portfolio Size column to expanded table view with badges
+- [x] Allow editing portfolio size per symbol in table
+- [x] Test filtering workflow with different portfolio size selections
