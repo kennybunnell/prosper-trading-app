@@ -303,3 +303,9 @@
 - [x] Show remaining time in MM:SS format for better readability
 - [x] Display "Finishing up..." message when countdown reaches zero
 - [x] Test countdown accuracy with different symbol counts
+
+## Bug Fix: Account Not Found Error in Opportunities Fetch
+- [x] Add error handling via useEffect to catch account errors from query
+- [x] Display user-friendly toast message with "Go to Settings" action button
+- [x] Close progress dialog when error occurs
+- [x] Test error handling without configured account

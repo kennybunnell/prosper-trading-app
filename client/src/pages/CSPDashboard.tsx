@@ -191,7 +191,7 @@ export default function CSPDashboard() {
     );
   }, [watchlist, portfolioSizeFilter]);
 
-  const { data: opportunities = [], isLoading: loadingOpportunities, refetch: refetchOpportunities } = trpc.csp.opportunities.useQuery(
+  const { data: opportunities = [], isLoading: loadingOpportunities, refetch: refetchOpportunities, error: opportunitiesError } = trpc.csp.opportunities.useQuery(
     { 
       symbols: filteredWatchlist.map((w: any) => w.symbol),
       minDte,
@@ -199,6 +199,26 @@ export default function CSPDashboard() {
     },
     { enabled: false } // Disabled by default, only fetch when user clicks button
   );
+
+  // Handle opportunities fetch errors
+  useEffect(() => {
+    if (opportunitiesError) {
+      if (opportunitiesError.message.includes('Account not found')) {
+        toast.error('Tastytrade account not configured', {
+          description: 'Please configure your Tastytrade credentials in Settings to fetch opportunities.',
+          action: {
+            label: 'Go to Settings',
+            onClick: () => window.location.href = '/settings'
+          }
+        });
+      } else {
+        toast.error('Failed to fetch opportunities', {
+          description: opportunitiesError.message
+        });
+      }
+      setFetchProgress(prev => ({ ...prev, isOpen: false }));
+    }
+  }, [opportunitiesError]);
 
   // Track when loading completes to set endTime
   useEffect(() => {
