@@ -234,8 +234,8 @@ export default function CSPDashboard() {
   );
 
   // Fetch watchlist
-  const { data: watchlist = [], isLoading: loadingWatchlist } = trpc.watchlist.list.useQuery(
-    { strategy: 'csp' },
+  const { data: watchlist = [], isLoading: loadingWatchlist } = trpc.watchlist.get.useQuery(
+    undefined,
     { enabled: !!user }
   );
 
@@ -662,8 +662,7 @@ export default function CSPDashboard() {
         <>
           {/* Watchlist Management */}
           <EnhancedWatchlist 
-            strategy="csp" 
-            onWatchlistChange={() => utils.watchlist.list.invalidate()}
+            onWatchlistChange={() => utils.watchlist.get.invalidate()}
             isCollapsed={watchlistCollapsed}
             onToggleCollapse={() => setWatchlistCollapsed(!watchlistCollapsed)}
             onFullCollapse={() => {

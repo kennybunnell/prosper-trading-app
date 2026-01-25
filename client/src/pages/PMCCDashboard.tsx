@@ -42,7 +42,7 @@ export default function PMCCDashboard() {
 
         {/* Watchlist Management */}
         <div className="mb-8">
-          <EnhancedWatchlist strategy="pmcc" />
+          <EnhancedWatchlist />
         </div>
 
         {/* LEAP Scanner Section */}

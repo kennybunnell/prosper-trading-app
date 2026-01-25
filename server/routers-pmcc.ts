@@ -72,7 +72,7 @@ export const pmccRouter = router({
       }
 
       // Get PMCC watchlist
-      const watchlist = await getWatchlist(ctx.user.id, "pmcc");
+      const watchlist = await getWatchlist(ctx.user.id);
       if (watchlist.length === 0) {
         return { opportunities: [], message: "Watchlist is empty" };
       }

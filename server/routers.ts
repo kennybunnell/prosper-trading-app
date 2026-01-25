@@ -170,16 +170,15 @@ export const appRouter = router({
   }),
 
   watchlist: router({
-    list: protectedProcedure
-      .input(z.object({ strategy: z.enum(['csp', 'cc', 'pmcc']) }))
-      .query(async ({ ctx, input }) => {
+    get: protectedProcedure
+      .query(async ({ ctx }) => {
         const { getWatchlist } = await import('./db');
-        return getWatchlist(ctx.user.id, input.strategy);
+        return getWatchlist(ctx.user.id);
       }),
     add: protectedProcedure
       .input(z.object({ 
         symbol: z.string().min(1).max(10), 
-        strategy: z.enum(['csp', 'cc', 'pmcc']),
+        strategy: z.enum(['csp', 'cc', 'pmcc']).optional(),
         company: z.string().optional(),
         type: z.string().optional(),
         sector: z.string().optional(),
@@ -194,7 +193,6 @@ export const appRouter = router({
       }),
     importCSV: protectedProcedure
       .input(z.object({
-        strategy: z.enum(['csp', 'cc', 'pmcc']),
         items: z.array(z.object({
           symbol: z.string().min(1).max(10),
           company: z.string().optional(),
@@ -207,12 +205,11 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { importWatchlistFromCSV } = await import('./db');
-        const result = await importWatchlistFromCSV(ctx.user.id, input.strategy, input.items);
+        const result = await importWatchlistFromCSV(ctx.user.id, input.items);
         return result;
       }),
     enrichSymbols: protectedProcedure
       .input(z.object({
-        strategy: z.enum(['csp', 'cc', 'pmcc']),
         symbols: z.array(z.string()).optional(), // If empty, enrich all watchlist symbols
       }))
       .mutation(async ({ ctx, input }) => {
@@ -225,7 +222,7 @@ export const appRouter = router({
           symbolsToEnrich = input.symbols;
         } else {
           // Enrich all watchlist symbols
-          const watchlist = await getWatchlist(ctx.user.id, input.strategy);
+          const watchlist = await getWatchlist(ctx.user.id);
           symbolsToEnrich = watchlist.map((w: any) => w.symbol);
         }
         
@@ -233,7 +230,7 @@ export const appRouter = router({
         const metadata = await enrichMultipleStocks(symbolsToEnrich);
         
         // Update database with enriched metadata
-        const watchlist = await getWatchlist(ctx.user.id, input.strategy);
+        const watchlist = await getWatchlist(ctx.user.id);
         for (const item of metadata) {
           const watchlistItem = watchlist.find((w: any) => w.symbol === item.symbol);
           if (watchlistItem) {
@@ -267,10 +264,10 @@ export const appRouter = router({
         return { success: true };
       }),
     remove: protectedProcedure
-      .input(z.object({ symbol: z.string(), strategy: z.enum(['csp', 'cc', 'pmcc']) }))
+      .input(z.object({ symbol: z.string() }))
       .mutation(async ({ ctx, input }) => {
         const { removeFromWatchlist } = await import('./db');
-        await removeFromWatchlist(ctx.user.id, input.symbol, input.strategy);
+        await removeFromWatchlist(ctx.user.id, input.symbol);
         return { success: true };
       }),
   }),

@@ -660,3 +660,22 @@
 - [x] Register PMCC Dashboard route in App.tsx
 - [x] Verify CSP Dashboard "Open Dashboard" button works correctly
 - [x] Test all navigation buttons on home screen (all working)
+
+## 🔄 Unified Watchlist for CSP and PMCC
+
+- [ ] Modify database queries to use shared watchlist (remove strategy-specific filtering)
+- [ ] Update EnhancedWatchlist component to remove strategy parameter
+- [ ] Update CSPDashboard to use shared watchlist
+- [ ] Update PMCCDashboard to use shared watchlist
+- [ ] Migrate existing CSP watchlist data to shared watchlist
+- [ ] Test watchlist changes reflect across both dashboards
+- [ ] Verify Import CSV, Add, Remove, Refresh Metadata work on both pages
+
+## 🔄 Unified Watchlist for CSP and PMCC Dashboards
+
+- [x] Modify database queries to ignore strategy parameter and return all watchlist items
+- [x] Update EnhancedWatchlist component to remove strategy prop
+- [x] Update CSPDashboard and PMCCDashboard to not pass strategy to EnhancedWatchlist
+- [x] Update watchlist router procedures (add, importCSV, enrichSymbols) to make strategy optional
+- [ ] Test watchlist changes on CSP Dashboard reflect on PMCC Dashboard
+- [ ] Test watchlist changes on PMCC Dashboard reflect on CSP Dashboard

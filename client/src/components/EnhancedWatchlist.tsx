@@ -30,29 +30,26 @@ type WatchlistItem = {
 };
 
 type EnhancedWatchlistProps = {
-  strategy: 'csp' | 'cc' | 'pmcc';
   onWatchlistChange?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   onFullCollapse?: () => void;
 };
 
-export default function EnhancedWatchlist({ strategy, onWatchlistChange, isCollapsed = false, onToggleCollapse, onFullCollapse }: EnhancedWatchlistProps) {
+export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = false, onToggleCollapse, onFullCollapse }: EnhancedWatchlistProps) {
   const [newSymbol, setNewSymbol] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
 
   // Fetch watchlist
-  const { data: watchlist = [], isLoading: loadingWatchlist } = trpc.watchlist.list.useQuery(
-    { strategy },
-  );
+  const { data: watchlist = [], isLoading: loadingWatchlist } = trpc.watchlist.get.useQuery();
 
   // Add to watchlist
   const addToWatchlist = trpc.watchlist.add.useMutation({
     onSuccess: () => {
       setNewSymbol("");
-      utils.watchlist.list.invalidate();
+      utils.watchlist.get.invalidate();
       toast.success("Symbol(s) added to watchlist");
       onWatchlistChange?.();
     },
@@ -64,7 +61,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
   // Import CSV
   const importCSV = trpc.watchlist.importCSV.useMutation({
     onSuccess: (result) => {
-      utils.watchlist.list.invalidate();
+      utils.watchlist.get.invalidate();
       toast.success(`Imported ${result.imported} symbols${result.skipped > 0 ? `, skipped ${result.skipped} duplicates` : ''}`);
       onWatchlistChange?.();
     },
@@ -76,7 +73,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
   // Enrich symbols with metadata
   const enrichSymbols = trpc.watchlist.enrichSymbols.useMutation({
     onSuccess: (result) => {
-      utils.watchlist.list.invalidate();
+      utils.watchlist.get.invalidate();
       toast.success(`Enriched ${result.enriched} symbols with metadata`);
       onWatchlistChange?.();
     },
@@ -89,7 +86,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
   const removeFromWatchlist = trpc.watchlist.remove.useMutation({
     onSuccess: (_: any, variables: any) => {
       toast.success(`Removed ${variables.symbol} from watchlist`);
-      utils.watchlist.list.invalidate();
+      utils.watchlist.get.invalidate();
       onWatchlistChange?.();
     },
     onError: (error: any) => {
@@ -112,7 +109,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
     // Add each symbol
     Promise.all(
       symbols.map(symbol => 
-        addToWatchlist.mutateAsync({ symbol, strategy })
+        addToWatchlist.mutateAsync({ symbol })
       )
     ).then(() => {
       toast.success(`Added ${symbols.length} symbol(s) to watchlist`);
@@ -197,7 +194,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
 
         // Import to backend
         importCSV.mutate(
-          { strategy, items: newItems },
+          { items: newItems },
           {
             onSuccess: () => {
               if (duplicateCount > 0) {
@@ -260,7 +257,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
         <div className="flex items-center justify-between">
           <div>
             <CardTitle>Watchlist</CardTitle>
-            <CardDescription>Add symbols to analyze {strategy.toUpperCase()} opportunities</CardDescription>
+            <CardDescription>Add symbols to analyze trading opportunities</CardDescription>
           </div>
           {onFullCollapse && (
             <Button
@@ -328,7 +325,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
           </Button>
           <Button
             variant="outline"
-            onClick={() => enrichSymbols.mutate({ strategy })}
+            onClick={() => enrichSymbols.mutate({})}
             disabled={watchlist.length === 0 || enrichSymbols.isPending}
           >
             {enrichSymbols.isPending ? (
@@ -369,7 +366,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
               });
 
               // Delete duplicates
-              toRemove.forEach(symbol => removeFromWatchlist.mutate({ symbol, strategy }));
+              toRemove.forEach(symbol => removeFromWatchlist.mutate({ symbol }));
               toast.success(`Removed ${toRemove.length} duplicate symbols`);
             }}
             disabled={watchlist.length === 0}
@@ -393,7 +390,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
                 <Badge key={item.id} variant="secondary" className="px-3 py-1 flex items-center gap-2">
                   {item.symbol}
                   <button
-                    onClick={() => removeFromWatchlist.mutate({ symbol: item.symbol, strategy })}
+                    onClick={() => removeFromWatchlist.mutate({ symbol: item.symbol })}
                     className="hover:text-destructive"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -475,7 +472,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => removeFromWatchlist.mutate({ symbol: item.symbol, strategy })}
+                          onClick={() => removeFromWatchlist.mutate({ symbol: item.symbol })}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>

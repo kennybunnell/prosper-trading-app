@@ -89,16 +89,16 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// Watchlist queries
-export async function getWatchlist(userId: number, strategy: 'csp' | 'cc' | 'pmcc') {
+// Watchlist queries (shared across all strategies)
+export async function getWatchlist(userId: number) {
   const db = await getDb();
   if (!db) return [];
   const { watchlists } = await import('../drizzle/schema');
-  const { eq, and } = await import('drizzle-orm');
-  return db.select().from(watchlists).where(and(eq(watchlists.userId, userId), eq(watchlists.strategy, strategy)));
+  const { eq } = await import('drizzle-orm');
+  return db.select().from(watchlists).where(eq(watchlists.userId, userId));
 }
 
-export async function addToWatchlist(userId: number, symbol: string, strategy: 'csp' | 'cc' | 'pmcc') {
+export async function addToWatchlist(userId: number, symbol: string, strategy: 'csp' | 'cc' | 'pmcc' = 'csp') {
   const db = await getDb();
   if (!db) return;
   const { watchlists } = await import('../drizzle/schema');
@@ -108,8 +108,8 @@ export async function addToWatchlist(userId: number, symbol: string, strategy: '
 export async function addToWatchlistWithMetadata(
   userId: number, 
   data: { 
-    symbol: string; 
-    strategy: 'csp' | 'cc' | 'pmcc';
+    symbol: string;
+    strategy?: 'csp' | 'cc' | 'pmcc';
     company?: string;
     type?: string;
     sector?: string;
@@ -123,7 +123,7 @@ export async function addToWatchlistWithMetadata(
   await db.insert(watchlists).values({
     userId,
     symbol: data.symbol,
-    strategy: data.strategy,
+    strategy: data.strategy || 'csp',
     company: data.company,
     type: data.type,
     sector: data.sector,
@@ -134,7 +134,6 @@ export async function addToWatchlistWithMetadata(
 
 export async function importWatchlistFromCSV(
   userId: number,
-  strategy: 'csp' | 'cc' | 'pmcc',
   items: Array<{
     symbol: string;
     company?: string;
@@ -159,8 +158,7 @@ export async function importWatchlistFromCSV(
       const existing = await db.select().from(watchlists)
         .where(and(
           eq(watchlists.userId, userId),
-          eq(watchlists.symbol, item.symbol),
-          eq(watchlists.strategy, strategy)
+          eq(watchlists.symbol, item.symbol)
         ))
         .limit(1);
       
@@ -172,7 +170,7 @@ export async function importWatchlistFromCSV(
       await db.insert(watchlists).values({
         userId,
         symbol: item.symbol,
-        strategy,
+        strategy: 'csp',
         company: item.company,
         type: item.type,
         sector: item.sector,
@@ -227,12 +225,12 @@ export async function updateWatchlistMetadata(
     ));
 }
 
-export async function removeFromWatchlist(userId: number, symbol: string, strategy: 'csp' | 'cc' | 'pmcc') {
+export async function removeFromWatchlist(userId: number, symbol: string) {
   const db = await getDb();
   if (!db) return;
   const { watchlists } = await import('../drizzle/schema');
   const { eq, and } = await import('drizzle-orm');
-  await db.delete(watchlists).where(and(eq(watchlists.userId, userId), eq(watchlists.symbol, symbol), eq(watchlists.strategy, strategy)));
+  await db.delete(watchlists).where(and(eq(watchlists.userId, userId), eq(watchlists.symbol, symbol)));
 }
 
 // API Credentials queries
