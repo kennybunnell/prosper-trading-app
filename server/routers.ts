@@ -4,10 +4,12 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { ccRouter } from "./routers-cc";
+import { pmccRouter } from "./routers-pmcc";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
+  pmcc: pmccRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -565,13 +567,15 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         const { getFilterPresetsByStrategy } = await import('./db-filter-presets');
         const { seedCspFilterPresets } = await import('./db');
-        const { seedCcFilterPresets } = await import('./db-filter-presets');
+        const { seedCcFilterPresets, seedPmccFilterPresets } = await import('./db-filter-presets');
         
         // Ensure presets exist for this strategy
         if (input.strategy === 'csp') {
           await seedCspFilterPresets(ctx.user.id);
         } else if (input.strategy === 'cc') {
           await seedCcFilterPresets(ctx.user.id);
+        } else if (input.strategy === 'pmcc') {
+          await seedPmccFilterPresets(ctx.user.id);
         }
         
         return getFilterPresetsByStrategy(ctx.user.id, input.strategy);

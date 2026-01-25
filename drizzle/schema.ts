@@ -221,3 +221,28 @@ export const userPreferences = mysqlTable("userPreferences", {
 
 export type UserPreference = typeof userPreferences.$inferSelect;
 export type InsertUserPreference = typeof userPreferences.$inferInsert;
+
+/**
+ * PMCC LEAP positions - tracks purchased LEAP call options used for Poor Man's Covered Calls
+ */
+export const pmccLeapPositions = mysqlTable("pmccLeapPositions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  accountId: varchar("accountId", { length: 64 }).notNull(),
+  symbol: varchar("symbol", { length: 10 }).notNull(),
+  strike: varchar("strike", { length: 20 }).notNull(),
+  expiration: varchar("expiration", { length: 20 }).notNull(), // LEAP expiration (9-15 months out)
+  quantity: int("quantity").notNull(), // Number of LEAP contracts owned
+  purchasePrice: varchar("purchasePrice", { length: 20 }).notNull(), // Price paid per contract
+  currentPrice: varchar("currentPrice", { length: 20 }), // Current market price
+  delta: varchar("delta", { length: 10 }), // Delta at purchase time
+  score: int("score"), // Opportunity score at purchase time
+  availableContracts: int("availableContracts").notNull(), // Contracts available for selling calls (quantity - active short calls)
+  status: mysqlEnum("status", ["active", "closed"]).default("active").notNull(),
+  purchasedAt: timestamp("purchasedAt").defaultNow().notNull(),
+  closedAt: timestamp("closedAt"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PmccLeapPosition = typeof pmccLeapPositions.$inferSelect;
+export type InsertPmccLeapPosition = typeof pmccLeapPositions.$inferInsert;

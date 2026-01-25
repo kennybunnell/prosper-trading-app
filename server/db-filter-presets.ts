@@ -8,7 +8,7 @@ import { getDb } from "./db";
  * Get recommended values for a specific strategy and preset combination
  */
 export function getRecommendedFilterValues(
-  strategy: "csp" | "cc",
+  strategy: "csp" | "cc" | "pmcc",
   presetName: "conservative" | "medium" | "aggressive"
 ) {
   const recommendations = {
@@ -112,6 +112,56 @@ export function getRecommendedFilterValues(
         maxStrikePercent: 115,
       },
     },
+    pmcc: {
+      conservative: {
+        minDte: 270, // 9 months minimum for LEAP
+        maxDte: 450, // 15 months maximum
+        minDelta: "0.75", // Deep ITM for LEAP
+        maxDelta: "0.90",
+        minOpenInterest: 50,
+        minVolume: 20,
+        minRsi: 30,
+        maxRsi: 70,
+        minIvRank: 20,
+        maxIvRank: 100,
+        minBbPercent: "0",
+        maxBbPercent: "1.0",
+        minScore: 60,
+        maxStrikePercent: 90, // ITM strikes
+      },
+      medium: {
+        minDte: 270,
+        maxDte: 450,
+        minDelta: "0.70",
+        maxDelta: "0.85",
+        minOpenInterest: 30,
+        minVolume: 10,
+        minRsi: 25,
+        maxRsi: 75,
+        minIvRank: 15,
+        maxIvRank: 100,
+        minBbPercent: "0",
+        maxBbPercent: "1.0",
+        minScore: 50,
+        maxStrikePercent: 95,
+      },
+      aggressive: {
+        minDte: 270,
+        maxDte: 450,
+        minDelta: "0.65",
+        maxDelta: "0.80",
+        minOpenInterest: 20,
+        minVolume: 5,
+        minRsi: 20,
+        maxRsi: 80,
+        minIvRank: 10,
+        maxIvRank: 100,
+        minBbPercent: "0",
+        maxBbPercent: "1.0",
+        minScore: 40,
+        maxStrikePercent: 100,
+      },
+    },
   };
 
   return recommendations[strategy][presetName];
@@ -169,6 +219,62 @@ export async function seedCcFilterPresets(userId: number): Promise<void> {
     console.log(`[Database] Seeded ${defaults.length} CC filter presets for user ${userId}`);
   } catch (error) {
     console.error("[Database] Failed to seed CC filter presets:", error);
+    throw error;
+  }
+}
+
+/**
+ * Seed default PMCC filter presets for a user if they don't exist
+ */
+export async function seedPmccFilterPresets(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot seed PMCC filter presets: database not available");
+    return;
+  }
+
+  const { filterPresets } = await import("../drizzle/schema");
+  const { eq, and } = await import("drizzle-orm");
+
+  try {
+    // Check if PMCC presets already exist for this user
+    const existing = await db
+      .select()
+      .from(filterPresets)
+      .where(and(eq(filterPresets.userId, userId), eq(filterPresets.strategy, "pmcc")))
+      .limit(1);
+
+    if (existing.length > 0) {
+      console.log(`[Database] PMCC filter presets already exist for user ${userId}`);
+      return;
+    }
+
+    // Use recommended values for PMCC strategy (LEAP buying)
+    const defaults = [
+      {
+        userId,
+        strategy: "pmcc" as const,
+        presetName: "conservative" as const,
+        ...getRecommendedFilterValues("pmcc", "conservative"),
+      },
+      {
+        userId,
+        strategy: "pmcc" as const,
+        presetName: "medium" as const,
+        ...getRecommendedFilterValues("pmcc", "medium"),
+      },
+      {
+        userId,
+        strategy: "pmcc" as const,
+        presetName: "aggressive" as const,
+        ...getRecommendedFilterValues("pmcc", "aggressive"),
+      },
+    ];
+
+    await db.insert(filterPresets).values(defaults);
+    console.log(`[Database] Seeded ${defaults.length} PMCC filter presets for user ${userId}`);
+  } catch (error) {
+    console.error("[Database] Failed to seed PMCC filter presets:", error);
     throw error;
   }
 }

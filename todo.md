@@ -599,3 +599,54 @@
 ## 🐛 Order Summary Display Bug
 
 - [x] Fix duplicate dollar sign in Total Premium display (showing "$ $7455.50" instead of "$7455.50")
+
+## 🚀 PMCC Dashboard Implementation
+
+### Phase 1: Shared Watchlist Component
+- [x] Extract watchlist UI from CSP Dashboard to `client/src/components/WatchlistManager.tsx` (already exists as EnhancedWatchlist)
+- [x] Extract watchlist DB queries from `server/routers.ts` to `server/db.ts` (already strategy-aware)
+- [x] Update CSP Dashboard to use shared WatchlistManager component (already using EnhancedWatchlist)
+- [x] Verify watchlist changes in CSP Dashboard reflect immediately (already working)
+
+### Phase 2: LEAP Filter Presets & Database Schema
+- [x] Create `pmccFilterPresets` table in `drizzle/schema.ts` (unified filterPresets table already supports pmcc)
+- [x] Create `pmccLeapPositions` table to track owned LEAPs (symbol, strike, expiration, purchasePrice, purchaseDate, quantity, status)
+- [x] Run `pnpm db:push` to apply schema changes (used webdev_execute_sql to create table)
+- [x] Seed default LEAP filter preset (DTE 270-450, Delta 0.70-0.90, Min OI 50, Max Bid-Ask Spread 5%) - added seedPmccFilterPresets function
+
+### Phase 3: LEAP Scanner
+- [x] Create `scanLeaps` tRPC procedure in `server/routers-pmcc.ts` with parallel processing (5 concurrent workers)
+- [x] Implement LEAP opportunity scoring (similar to CSP/CC scoring logic)
+- [x] Register pmccRouter in main appRouter
+- [x] Add PMCC filter preset seeding to filterPresets router
+- [ ] Create LEAP opportunity table component with sortable columns
+- [ ] Add LEAP filter controls (DTE range, Delta range, OI, Bid-Ask spread, RSI, IV Rank)
+- [ ] Test parallel scanning with 10+ watchlist symbols
+
+### Phase 4: LEAP Purchase Workflow
+- [ ] Create `purchaseLeaps` tRPC procedure for submitting BUY orders (dry run + live mode)
+- [ ] Add LEAP selection logic (checkboxes, Select All, Show Selected Only)
+- [ ] Create Order Summary for LEAP purchases (Total Cost, Total Contracts, Avg Delta, Avg Score)
+- [ ] Implement dry run validation and live order submission via Tastytrade API
+- [ ] Add purchased LEAPs to `pmccLeapPositions` table after successful orders
+
+### Phase 5: Sell Calls Against LEAPs
+- [ ] Create `getLeapPositions` tRPC procedure to fetch owned LEAPs (similar to getStockPositions)
+- [ ] Reuse CC Dashboard scanning logic - create `scanLeapCoveredCalls` procedure
+- [ ] Reuse CC opportunity table, filters, selection, Order Summary components
+- [ ] Update validation to check LEAP contracts available (not stock shares)
+- [ ] Test selling multiple short calls against single LEAP position
+
+### Phase 6: Complete PMCC Dashboard UI
+- [ ] Create `client/src/pages/PMCCDashboard.tsx` with 3-step workflow UI
+- [ ] Add "Active PMCC Positions" section showing owned LEAPs
+- [ ] Wire watchlist → LEAP scanner → purchase → position tracking → CC selling
+- [ ] Add navigation link in sidebar and main dashboard
+- [ ] Test complete end-to-end workflow (watchlist → buy LEAP → sell call)
+
+### Phase 7: Testing & Delivery
+- [ ] Write unit tests for LEAP scanner parallel processing
+- [ ] Write unit tests for LEAP purchase validation
+- [ ] Write unit tests for CC selling against LEAP positions
+- [ ] Run all tests and verify passing
+- [ ] Save checkpoint and deliver to user
