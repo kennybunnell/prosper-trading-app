@@ -538,3 +538,9 @@
 - [x] Show Total Premium, Total Contracts, Avg Delta, Avg Weekly Return %, Avg Score
 - [x] Update metrics in real-time as opportunities are selected/deselected
 - [x] Match CSP Dashboard styling and layout
+
+## 🐛 Bug Fixes (Round 2)
+
+- [x] Fix missing checkboxes in opportunities table rows - added explicit amber border styling for visibility
+- [x] Disable/filter stocks with existing covered calls from stock selection (IBIT, BMNR, HOOD, AVGO, HIMS showing "Has Calls") - checkboxes now disabled when maxContracts === 0
+- [x] Increase countdown timer estimate (currently off by ~15 seconds) - changed from 1.32s to 2.0s per symbol

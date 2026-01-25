@@ -157,7 +157,7 @@ export default function CCDashboard() {
 
     const interval = setInterval(() => {
       const elapsed = (Date.now() - scanStartTime) / 1000;
-      const estimatedTotal = selectedStocks.length * 1.32; // 1.32s per symbol
+      const estimatedTotal = selectedStocks.length * 2.0; // 2.0s per symbol (adjusted for buffer)
       const progress = Math.min(95, (elapsed / estimatedTotal) * 100);
       setScanProgress(progress);
     }, 100);
@@ -611,10 +611,12 @@ export default function CCDashboard() {
                       {availableHoldings.map((holding) => (
                         <TableRow key={holding.symbol}>
                           <TableCell>
-                            <Checkbox
-                              checked={selectedStocks.includes(holding.symbol)}
-                              onCheckedChange={() => toggleStockSelection(holding.symbol)}
-                            />
+                    <Checkbox
+                      checked={selectedStocks.includes(holding.symbol)}
+                      onCheckedChange={() => toggleStockSelection(holding.symbol)}
+                      disabled={holding.maxContracts === 0}
+                      className="border-2 border-amber-500/50 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                    />
                           </TableCell>
                           <TableCell className="font-semibold">
                             {holding.symbol}
@@ -704,7 +706,7 @@ export default function CCDashboard() {
                   <p className="text-sm text-muted-foreground">
                     {scanProgress < 100 ? (
                       <>
-                        {Math.floor((100 - scanProgress) * selectedStocks.length * 1.32 / 100)}s remaining
+                        {Math.floor((100 - scanProgress) * selectedStocks.length * 2.0 / 100)}s remaining
                       </>
                     ) : (
                       <>Finishing up...</>
@@ -1088,6 +1090,7 @@ export default function CCDashboard() {
                           <Checkbox
                             checked={selectedOpportunities.has(index)}
                             onCheckedChange={() => toggleOpportunitySelection(index)}
+                            className="border-2 border-amber-500/50 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
                           />
                         </TableCell>
                         <TableCell className="font-semibold">{opp.symbol}</TableCell>
