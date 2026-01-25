@@ -573,9 +573,10 @@ export default function CSPDashboard() {
           {/* Portfolio Size Filter */}
           <div>
             <Label className="mb-2 block">Portfolio Size</Label>
-            <div className="flex flex-wrap gap-2">
+            {/* Option 1: Gradient Pills with Icon Badges */}
+            <div className="flex flex-wrap gap-3">
               <Button
-                variant={portfolioSizeFilter.includes('small') ? 'default' : 'outline'}
+                variant="ghost"
                 size="sm"
                 onClick={() => {
                   setPortfolioSizeFilter(prev => 
@@ -584,12 +585,24 @@ export default function CSPDashboard() {
                       : [...prev, 'small']
                   );
                 }}
-                className={portfolioSizeFilter.includes('small') ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-md transition-all duration-200 hover:scale-105' : ''}
+                className={cn(
+                  "relative overflow-hidden rounded-full px-4 py-2 font-semibold transition-all duration-300",
+                  portfolioSizeFilter.includes('small')
+                    ? "bg-gradient-to-r from-emerald-500 via-emerald-600 to-green-600 text-white shadow-lg shadow-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/60 hover:scale-110"
+                    : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-500/50 hover:scale-105"
+                )}
               >
-                🟢 Small
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                  Small
+                </span>
+                {portfolioSizeFilter.includes('small') && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                )}
               </Button>
+              
               <Button
-                variant={portfolioSizeFilter.includes('medium') ? 'default' : 'outline'}
+                variant="ghost"
                 size="sm"
                 onClick={() => {
                   setPortfolioSizeFilter(prev => 
@@ -598,12 +611,24 @@ export default function CSPDashboard() {
                       : [...prev, 'medium']
                   );
                 }}
-                className={portfolioSizeFilter.includes('medium') ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-md transition-all duration-200 hover:scale-105' : ''}
+                className={cn(
+                  "relative overflow-hidden rounded-full px-4 py-2 font-semibold transition-all duration-300",
+                  portfolioSizeFilter.includes('medium')
+                    ? "bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-lg shadow-amber-500/50 hover:shadow-xl hover:shadow-amber-500/60 hover:scale-110"
+                    : "bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-105"
+                )}
               >
-                🟡 Medium
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse" />
+                  Medium
+                </span>
+                {portfolioSizeFilter.includes('medium') && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                )}
               </Button>
+              
               <Button
-                variant={portfolioSizeFilter.includes('large') ? 'default' : 'outline'}
+                variant="ghost"
                 size="sm"
                 onClick={() => {
                   setPortfolioSizeFilter(prev => 
@@ -612,23 +637,36 @@ export default function CSPDashboard() {
                       : [...prev, 'large']
                   );
                 }}
-                className={portfolioSizeFilter.includes('large') ? 'bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white shadow-md transition-all duration-200 hover:scale-105' : ''}
+                className={cn(
+                  "relative overflow-hidden rounded-full px-4 py-2 font-semibold transition-all duration-300",
+                  portfolioSizeFilter.includes('large')
+                    ? "bg-gradient-to-r from-rose-500 via-rose-600 to-red-600 text-white shadow-lg shadow-rose-500/50 hover:shadow-xl hover:shadow-rose-500/60 hover:scale-110"
+                    : "bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20 hover:border-rose-500/50 hover:scale-105"
+                )}
               >
-                🔴 Large
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-300 animate-pulse" />
+                  Large
+                </span>
+                {portfolioSizeFilter.includes('large') && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                )}
               </Button>
+              
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setPortfolioSizeFilter(['small', 'medium', 'large'])}
+                className="rounded-full px-4 py-2 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200 hover:scale-105"
               >
                 All
               </Button>
             </div>
             {/* Quick Switch & Refetch */}
-            <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-border/50">
-              <span className="text-xs text-muted-foreground self-center">Quick Switch:</span>
+            <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-border/50">
+              <span className="text-xs text-muted-foreground self-center font-semibold">Quick Switch:</span>
               <Button
-                variant="secondary"
+                variant="ghost"
                 size="sm"
                 onClick={() => {
                   setPortfolioSizeFilter(['small']);
@@ -644,12 +682,15 @@ export default function CSPDashboard() {
                   setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
                 }}
                 disabled={loadingOpportunities}
-                className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/50 transition-all duration-200 hover:scale-105"
+                className="relative overflow-hidden rounded-full px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-500/50 hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                🟢 Small Only
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  Small Only
+                </span>
               </Button>
               <Button
-                variant="secondary"
+                variant="ghost"
                 size="sm"
                 onClick={() => {
                   setPortfolioSizeFilter(['medium']);
@@ -665,12 +706,15 @@ export default function CSPDashboard() {
                   setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
                 }}
                 disabled={loadingOpportunities}
-                className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/50 transition-all duration-200 hover:scale-105"
+                className="relative overflow-hidden rounded-full px-4 py-2 bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                🟡 Medium Only
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400" />
+                  Medium Only
+                </span>
               </Button>
               <Button
-                variant="secondary"
+                variant="ghost"
                 size="sm"
                 onClick={() => {
                   setPortfolioSizeFilter(['large']);
@@ -686,9 +730,12 @@ export default function CSPDashboard() {
                   setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
                 }}
                 disabled={loadingOpportunities}
-                className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/50 transition-all duration-200 hover:scale-105"
+                className="relative overflow-hidden rounded-full px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20 hover:border-rose-500/50 hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                🔴 Large Only
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-400" />
+                  Large Only
+                </span>
               </Button>
             </div>
           </div>
@@ -764,37 +811,65 @@ export default function CSPDashboard() {
             <Label className="mb-2 block text-base font-semibold">Preset Filters</Label>
             <div className="flex flex-wrap gap-3">
               <Button
-                className={presetFilter === 'conservative' 
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105'
-                  : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 border-blue-500/30 transition-all duration-200 hover:scale-105'
-                }
+                variant="ghost"
+                className={cn(
+                  "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
+                  presetFilter === 'conservative'
+                    ? "bg-gradient-to-r from-blue-500 via-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-500/50 hover:shadow-xl hover:shadow-blue-500/60 hover:scale-110"
+                    : "bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 hover:border-blue-500/50 hover:scale-105"
+                )}
                 onClick={() => handlePresetFilter('conservative')}
                 size="default"
               >
-                Conservative
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-300 animate-pulse" />
+                  Conservative
+                </span>
+                {presetFilter === 'conservative' && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                )}
               </Button>
               <Button
-                className={presetFilter === 'medium'
-                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105'
-                  : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 border-amber-500/30 transition-all duration-200 hover:scale-105'
-                }
+                variant="ghost"
+                className={cn(
+                  "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
+                  presetFilter === 'medium'
+                    ? "bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-lg shadow-amber-500/50 hover:shadow-xl hover:shadow-amber-500/60 hover:scale-110"
+                    : "bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-105"
+                )}
                 onClick={() => handlePresetFilter('medium')}
                 size="default"
               >
-                Medium
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse" />
+                  Medium
+                </span>
+                {presetFilter === 'medium' && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                )}
               </Button>
               <Button
-                className={presetFilter === 'aggressive'
-                  ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105'
-                  : 'bg-red-500/10 hover:bg-red-500/20 text-red-600 border-red-500/30 transition-all duration-200 hover:scale-105'
-                }
+                variant="ghost"
+                className={cn(
+                  "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
+                  presetFilter === 'aggressive'
+                    ? "bg-gradient-to-r from-red-500 via-red-600 to-rose-600 text-white shadow-lg shadow-red-500/50 hover:shadow-xl hover:shadow-red-500/60 hover:scale-110"
+                    : "bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 hover:border-red-500/50 hover:scale-105"
+                )}
                 onClick={() => handlePresetFilter('aggressive')}
                 size="default"
               >
-                Aggressive
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-red-300 animate-pulse" />
+                  Aggressive
+                </span>
+                {presetFilter === 'aggressive' && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                )}
               </Button>
               <Button
-                className="bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+                variant="ghost"
+                className="rounded-full px-5 py-2.5 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200 hover:scale-105"
                 onClick={() => {
                   setPresetFilter(null);
                   setMinScore(undefined);

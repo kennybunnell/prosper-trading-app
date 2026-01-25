@@ -171,18 +171,46 @@ export function Sidebar({ className }: SidebarProps) {
               key={item.path}
               href={item.path}
               className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200',
-                'hover:bg-accent/50 hover:shadow-lg hover:shadow-primary/20',
-                isActive && 'bg-primary/20 text-primary shadow-lg shadow-primary/30 border-l-2 border-primary',
-                !isActive && 'text-muted-foreground hover:text-foreground'
+                'relative overflow-hidden flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group',
+                isActive && 'bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 text-white shadow-xl shadow-primary/40 border border-primary/30',
+                !isActive && 'text-muted-foreground hover:text-foreground hover:bg-accent/30 hover:shadow-lg hover:shadow-primary/10 hover:scale-[1.02]'
               )}
             >
-              <item.icon className="w-5 h-5" />
+              {/* Gradient Border Effect */}
+              {isActive && (
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/30 via-purple-500/30 to-pink-500/30 rounded-xl blur-md -z-10" />
+              )}
+              
+              {/* Icon with gradient background */}
+              <div className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-300",
+                isActive && "bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg shadow-blue-500/50",
+                !isActive && "bg-accent/50 group-hover:bg-accent"
+              )}>
+                <item.icon className={cn(
+                  "w-5 h-5 transition-all duration-300",
+                  isActive && "text-white",
+                  !isActive && "text-muted-foreground group-hover:text-foreground"
+                )} />
+              </div>
+              
               {!collapsed && (
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">{item.name}</span>
-                  <span className="text-xs text-muted-foreground">{item.description}</span>
+                <div className="flex flex-col flex-1">
+                  <span className={cn(
+                    "text-sm font-semibold transition-all duration-300",
+                    isActive && "text-white"
+                  )}>{item.name}</span>
+                  <span className={cn(
+                    "text-xs transition-all duration-300",
+                    isActive && "text-blue-200",
+                    !isActive && "text-muted-foreground"
+                  )}>{item.description}</span>
                 </div>
+              )}
+              
+              {/* Shimmer effect for active item */}
+              {isActive && (
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
               )}
             </Link>
           );
