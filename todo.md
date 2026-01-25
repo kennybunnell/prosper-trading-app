@@ -679,3 +679,14 @@
 - [x] Update watchlist router procedures (add, importCSV, enrichSymbols) to make strategy optional
 - [ ] Test watchlist changes on CSP Dashboard reflect on PMCC Dashboard
 - [ ] Test watchlist changes on PMCC Dashboard reflect on CSP Dashboard
+
+## 🎨 PMCC Dashboard UI Flow & LEAP Opportunities Table
+
+- [x] Reorganize PMCC Dashboard - move "Scan for LEAPs" button ABOVE filter presets (scan first, then filter)
+- [x] Build LEAP opportunities table with sortable columns (Symbol, Strike, Expiration, DTE, Delta, Premium, Bid, Ask, Spread %, OI, Volume, Score)
+- [x] Add selection checkboxes to LEAP opportunities table
+- [x] Add "Select All", "Clear All", "Show Selected Only" buttons above table
+- [x] Add Order Summary panel showing selected LEAPs (Total Cost, Total Contracts, Avg Delta, Avg Score)
+- [ ] Wire filter presets to filter displayed LEAP opportunities after scan
+- [ ] Add PMCC filter preset management UI to Settings page
+- [ ] Test complete workflow: Watchlist → Scan → Filter → Select → Purchase
