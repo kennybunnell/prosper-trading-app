@@ -139,93 +139,115 @@ export const ccRouter = router({
         input.holdings.map(h => [h.symbol, h])
       );
 
-      // Scan each symbol
-      for (const symbol of input.symbols) {
-        const holding = holdingsMap.get(symbol);
-        if (!holding) continue;
+      // Process symbols in parallel with concurrency limit of 5 (matches CSP Dashboard)
+      const CONCURRENCY = 5;
+      console.log(`[CC Scanner] Processing ${input.symbols.length} symbols with ${CONCURRENCY} concurrent workers...`);
+      
+      for (let i = 0; i < input.symbols.length; i += CONCURRENCY) {
+        const batch = input.symbols.slice(i, i + CONCURRENCY);
+        console.log(`[CC Scanner] Batch ${Math.floor(i / CONCURRENCY) + 1}/${Math.ceil(input.symbols.length / CONCURRENCY)}: ${batch.join(', ')}`);
+        
+        const batchPromises = batch.map(async (symbol) => {
+          const holding = holdingsMap.get(symbol);
+          if (!holding) return [];
 
-        try {
-          // Fetch indicators (RSI, IV Rank, BB %B)
-          const indicators = await api.getTechnicalIndicators(symbol);
-          const rsi = indicators?.rsi || null;
-          const ivRank = indicators?.ivRank || null;
-          const bbPctB = indicators?.bollingerBands?.percentB || null;
+          const symbolOpportunities: any[] = [];
 
-          // Fetch expirations and filter by DTE
-          const expirations = await api.getExpirations(symbol);
-          const today = new Date();
-          const filteredExpirations = expirations.filter(exp => {
-            const expDate = new Date(exp);
-            const dte = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            return dte >= input.minDte && dte <= input.maxDte;
-          });
+          try {
+            // Fetch indicators (RSI, IV Rank, BB %B)
+            const indicators = await api.getTechnicalIndicators(symbol);
+            const rsi = indicators?.rsi || null;
+            const ivRank = indicators?.ivRank || null;
+            const bbPctB = indicators?.bollingerBands?.percentB || null;
 
-          if (filteredExpirations.length === 0) continue;
-
-          // Process each expiration
-          for (const expiration of filteredExpirations) {
-            const options = await api.getOptionChain(symbol, expiration, true);
-            const calls = options.filter(opt => opt.option_type === 'call');
-
-            for (const option of calls) {
-
-              const strike = option.strike || 0;
-              const delta = Math.abs(option.greeks?.delta || 0);
-              const bid = option.bid || 0;
-              const ask = option.ask || 0;
-              const mid = (bid + ask) / 2;
-              const volume = option.volume || 0;
-              const openInterest = option.open_interest || 0;
-
-              // Only OTM calls (strike > current price)
-              if (strike <= holding.currentPrice) continue;
-
-              // Filter by delta range
-              if (delta < input.minDelta || delta > input.maxDelta) continue;
-
-              // Skip if no bid
-              if (bid <= 0) continue;
-
-              // Calculate DTE
-              const expDate = new Date(expiration);
+            // Fetch expirations and filter by DTE
+            const expirations = await api.getExpirations(symbol);
+            const today = new Date();
+            const filteredExpirations = expirations.filter(exp => {
+              const expDate = new Date(exp);
               const dte = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+              return dte >= input.minDte && dte <= input.maxDte;
+            });
 
-              // Calculate metrics
-              const premiumPerShare = mid;
-              const returnPct = (premiumPerShare / holding.currentPrice) * 100;
-              const weeklyReturn = dte > 0 ? (returnPct / dte) * 7 : 0;
-              const spreadPct = mid > 0 ? ((ask - bid) / mid) * 100 : 999;
-              const distanceOtmPct = ((strike - holding.currentPrice) / holding.currentPrice) * 100;
+            if (filteredExpirations.length === 0) return [];
 
-              opportunities.push({
-                symbol,
-                currentPrice: holding.currentPrice,
-                strike,
-                expiration,
-                dte,
-                delta,
-                bid,
-                ask,
-                mid,
-                premium: mid * 100, // Per contract
-                returnPct,
-                weeklyReturn,
-                volume,
-                openInterest,
-                spreadPct,
-                rsi,
-                ivRank,
-                bbPctB,
-                sharesOwned: holding.quantity,
-                maxContracts: holding.maxContracts,
-                distanceOtm: distanceOtmPct,
-              });
+            // Process each expiration
+            for (const expiration of filteredExpirations) {
+              const options = await api.getOptionChain(symbol, expiration, true);
+              const calls = options.filter(opt => opt.option_type === 'call');
+
+              for (const option of calls) {
+
+                const strike = option.strike || 0;
+                const delta = Math.abs(option.greeks?.delta || 0);
+                const bid = option.bid || 0;
+                const ask = option.ask || 0;
+                const mid = (bid + ask) / 2;
+                const volume = option.volume || 0;
+                const openInterest = option.open_interest || 0;
+
+                // Only OTM calls (strike > current price)
+                if (strike <= holding.currentPrice) continue;
+
+                // Filter by delta range
+                if (delta < input.minDelta || delta > input.maxDelta) continue;
+
+                // Skip if no bid
+                if (bid <= 0) continue;
+
+                // Calculate DTE
+                const expDate = new Date(expiration);
+                const dte = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+                // Calculate metrics
+                const premiumPerShare = mid;
+                const returnPct = (premiumPerShare / holding.currentPrice) * 100;
+                const weeklyReturn = dte > 0 ? (returnPct / dte) * 7 : 0;
+                const spreadPct = mid > 0 ? ((ask - bid) / mid) * 100 : 999;
+                const distanceOtmPct = ((strike - holding.currentPrice) / holding.currentPrice) * 100;
+
+                symbolOpportunities.push({
+                  symbol,
+                  currentPrice: holding.currentPrice,
+                  strike,
+                  expiration,
+                  dte,
+                  delta,
+                  bid,
+                  ask,
+                  mid,
+                  premium: mid * 100, // Per contract
+                  returnPct,
+                  weeklyReturn,
+                  volume,
+                  openInterest,
+                  spreadPct,
+                  rsi,
+                  ivRank,
+                  bbPctB,
+                  sharesOwned: holding.quantity,
+                  maxContracts: holding.maxContracts,
+                  distanceOtm: distanceOtmPct,
+                });
+              }
             }
+            console.log(`[CC Scanner] ✓ ${symbol}: found ${symbolOpportunities.length} opportunities`);
+          } catch (error: any) {
+            console.error(`[CC Scanner] ✗ ${symbol}: ${error.message}`);
           }
-        } catch (error: any) {
-          console.error(`Error scanning ${symbol}:`, error.message);
-          // Continue with other symbols
-        }
+          
+          return symbolOpportunities;
+        });
+        
+        // Wait for batch to complete
+        const batchResults = await Promise.allSettled(batchPromises);
+        
+        // Collect opportunities from batch
+        batchResults.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            opportunities.push(...result.value);
+          }
+        });
       }
 
       // Calculate composite scores for all opportunities

@@ -104,6 +104,7 @@ export default function CCDashboard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sortColumn, setSortColumn] = useState<keyof CCOpportunity | null>('score');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   
   const filtersRef = useRef<HTMLDivElement>(null);
 
@@ -398,9 +399,17 @@ export default function CCDashboard() {
 
   // Sort opportunities based on current sort state
   const sortedOpportunities = useMemo(() => {
-    if (!sortColumn) return filteredOpportunities;
+    let opps = filteredOpportunities;
+    
+    // Apply "Show Selected Only" filter
+    if (showSelectedOnly) {
+      opps = opps.filter((_, idx) => selectedOpportunities.has(idx));
+    }
+    
+    // Sort if column is selected
+    if (!sortColumn) return opps;
 
-    return [...filteredOpportunities].sort((a, b) => {
+    return [...opps].sort((a, b) => {
       const aVal = a[sortColumn];
       const bVal = b[sortColumn];
 
@@ -414,7 +423,7 @@ export default function CCDashboard() {
       if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [filteredOpportunities, sortColumn, sortDirection]);
+  }, [filteredOpportunities, sortColumn, sortDirection, showSelectedOnly, selectedOpportunities]);
 
   // Handle order submission
   const handleSubmitOrders = async () => {
@@ -1203,6 +1212,15 @@ export default function CCDashboard() {
                     disabled={selectedOpportunities.size === 0}
                   >
                     Clear All
+                  </Button>
+                  <Button
+                    variant={showSelectedOnly ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowSelectedOnly(!showSelectedOnly)}
+                    disabled={selectedOpportunities.size === 0}
+                    className={showSelectedOnly ? "bg-amber-500 hover:bg-amber-600" : ""}
+                  >
+                    {showSelectedOnly ? "Show All" : "Show Selected Only"}
                   </Button>
                   <Badge
                     variant="secondary"

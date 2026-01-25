@@ -568,3 +568,12 @@
 - [x] Consolidate into single Order Summary panel with all metrics: Total Premium, Total Contracts, Avg Weekly Return, Avg Delta, Avg Score
 - [x] Add sortable column headers to opportunities table (click to sort by DTE, Delta, Premium, Score, etc.)
 - [x] Confirm stock selection logic is correct - positions with "Has Calls" badges should still be selectable if they have available contracts
+
+## 🚀 CC Dashboard Performance & UX Enhancements
+
+- [x] Verify CC option chain scanning uses parallel processing (5 concurrent workers like CSP Dashboard)
+- [x] Add parallel processing to CC scanning if not implemented
+- [x] Add "Show Selected Only" button next to Select All/Clear All buttons
+- [x] Implement toggle state for showing only selected opportunities vs all filtered opportunities
+- [ ] Test parallel scanning performance with 10+ stocks
+- [ ] Test Show Selected Only toggle with various filter combinations
