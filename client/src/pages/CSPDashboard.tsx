@@ -527,29 +527,18 @@ export default function CSPDashboard() {
 
   return (
     <div className="min-h-screen">
-      {/* Hero Header with Background Image */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-amber-950 to-slate-900">
-        <div 
-          className="absolute inset-0 opacity-30" 
-          style={{
-            backgroundImage: 'url(/csp-hero.png)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background" />
-        <div className="container relative py-12 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-2">
-              <h1 className="text-4xl font-bold tracking-tight text-white drop-shadow-lg">
-                Cash-Secured Puts
-              </h1>
-              <p className="text-lg text-amber-200">
-                Analyze and execute CSP strategies with dual scoring system
-              </p>
-            </div>
-            <ConnectionStatusIndicator />
+      {/* Simple Header */}
+      <div className="container py-8">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
+              Cash-Secured Puts
+            </h1>
+            <p className="text-lg text-muted-foreground">
+              Analyze and execute CSP strategies with dual scoring system
+            </p>
           </div>
+          <ConnectionStatusIndicator />
         </div>
       </div>
       

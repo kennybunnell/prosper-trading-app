@@ -364,3 +364,9 @@
 - [x] User selected option 3 (teal/slate Damascus)
 - [x] Apply selected Damascus pattern as subtle background (3% opacity) to main content area (not sidebar)
 - [x] Test Damascus background rendering on Dashboard and CSP Dashboard
+
+## UX Refinement: Remove Hero Image and Increase Damascus Visibility
+- [x] Remove hero image from CSP Dashboard header
+- [x] Simplify header to gold gradient title with subtitle
+- [x] Increase Damascus background opacity from 3% to 8% for better visibility
+- [x] Test Damascus visibility - pattern now visible without competing with content
