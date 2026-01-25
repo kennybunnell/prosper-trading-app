@@ -385,3 +385,13 @@
 - [x] Fix preview box opacity calculation (currently showing 0.2 instead of 0.20)
 - [x] Remove page reload requirement - make opacity update instantly
 - [x] Test Damascus pattern visibility at different opacity levels (10%, 15%, 20%)
+
+## Feature: Replace Damascus with CSS Geometric Pattern Background
+- [x] Add backgroundPattern column to userPreferences table (enum: diagonal, crosshatch, dots, woven, none)
+- [x] Create CSS-based geometric patterns: diagonal lines, cross-hatch, dots, woven, none
+- [x] Add pattern selector dropdown in Settings (5 options)
+- [x] Update backend procedures to get/set background pattern preference
+- [x] Update CSP Dashboard to use selected CSS pattern with opacity
+- [x] Update Settings page to show pattern selector + opacity slider
+- [x] Test all pattern options at different opacity levels
+- [ ] Apply same pattern system to other dashboard pages

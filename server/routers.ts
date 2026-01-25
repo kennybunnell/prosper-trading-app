@@ -94,16 +94,26 @@ export const appRouter = router({
         },
       };
     }),
-    getDamascusOpacity: protectedProcedure.query(async ({ ctx }) => {
+    getBackgroundPreferences: protectedProcedure.query(async ({ ctx }) => {
       const { getUserPreferences } = await import('./db');
       const prefs = await getUserPreferences(ctx.user.id);
-      return { opacity: prefs?.damascusOpacity ?? 8 };
+      return { 
+        opacity: prefs?.damascusOpacity ?? 8,
+        pattern: prefs?.backgroundPattern ?? 'diagonal'
+      };
     }),
-    setDamascusOpacity: protectedProcedure
+    setBackgroundOpacity: protectedProcedure
       .input(z.object({ opacity: z.number().min(0).max(20) }))
       .mutation(async ({ ctx, input }) => {
         const { setDamascusOpacity } = await import('./db');
         await setDamascusOpacity(ctx.user.id, input.opacity);
+        return { success: true };
+      }),
+    setBackgroundPattern: protectedProcedure
+      .input(z.object({ pattern: z.enum(['diagonal', 'crosshatch', 'dots', 'woven', 'none']) }))
+      .mutation(async ({ ctx, input }) => {
+        const { setBackgroundPattern } = await import('./db');
+        await setBackgroundPattern(ctx.user.id, input.pattern);
         return { success: true };
       }),
   }),

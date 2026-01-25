@@ -1,0 +1,1 @@
+ALTER TABLE `userPreferences` ADD `backgroundPattern` enum('diagonal','crosshatch','dots','woven','none') DEFAULT 'diagonal' NOT NULL;

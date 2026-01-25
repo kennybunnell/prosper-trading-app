@@ -120,9 +120,59 @@ type PresetFilter = 'conservative' | 'medium' | 'aggressive' | null;
 export default function CSPDashboard() {
   const { user, loading: authLoading } = useAuth();
   
-  // Fetch user's Damascus opacity preference
-  const { data: opacityData } = trpc.settings.getDamascusOpacity.useQuery();
-  const damascusOpacity = opacityData?.opacity ?? 8;
+  // Fetch user's background texture preferences
+  const { data: backgroundPrefs } = trpc.settings.getBackgroundPreferences.useQuery();
+  const backgroundOpacity = backgroundPrefs?.opacity ?? 8;
+  const backgroundPattern = backgroundPrefs?.pattern ?? 'diagonal';
+  
+  // Generate CSS pattern based on user's selection
+  const getPatternCSS = (pattern: string) => {
+    switch (pattern) {
+      case 'diagonal':
+        return `repeating-linear-gradient(
+          45deg,
+          transparent,
+          transparent 10px,
+          rgba(255, 255, 255, 0.03) 10px,
+          rgba(255, 255, 255, 0.03) 20px
+        )`;
+      case 'crosshatch':
+        return `repeating-linear-gradient(
+          45deg,
+          transparent,
+          transparent 10px,
+          rgba(255, 255, 255, 0.03) 10px,
+          rgba(255, 255, 255, 0.03) 20px
+        ),
+        repeating-linear-gradient(
+          -45deg,
+          transparent,
+          transparent 10px,
+          rgba(255, 255, 255, 0.03) 10px,
+          rgba(255, 255, 255, 0.03) 20px
+        )`;
+      case 'dots':
+        return `radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px)`;
+      case 'woven':
+        return `repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(255, 255, 255, 0.02) 2px,
+          rgba(255, 255, 255, 0.02) 4px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          transparent,
+          transparent 2px,
+          rgba(255, 255, 255, 0.02) 2px,
+          rgba(255, 255, 255, 0.02) 4px
+        )`;
+      case 'none':
+      default:
+        return 'none';
+    }
+  };
   const { selectedAccountId, setSelectedAccountId } = useAccount();
   // newSymbol state moved to EnhancedWatchlist component
   const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
@@ -531,16 +581,17 @@ export default function CSPDashboard() {
 
   return (
     <div className="min-h-screen relative">
-      {/* Damascus steel background */}
-      <div 
-        className="absolute inset-0 pointer-events-none" 
-        style={{
-          backgroundImage: 'url(/damascus-option-3.png)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          opacity: damascusOpacity / 100
-        }}
-      />
+      {/* Background texture pattern */}
+      {backgroundPattern !== 'none' && (
+        <div 
+          className="absolute inset-0 pointer-events-none" 
+          style={{
+            backgroundImage: getPatternCSS(backgroundPattern),
+            backgroundSize: backgroundPattern === 'dots' ? '20px 20px' : 'auto',
+            opacity: backgroundOpacity / 100
+          }}
+        />
+      )}
       {/* Simple Header */}
       <div className="container py-8 relative z-10">
         <div className="flex items-center justify-between">

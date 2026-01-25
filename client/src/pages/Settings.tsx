@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function Settings() {
   const { user, loading: authLoading } = useAuth();
@@ -382,8 +383,8 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* Damascus Background Opacity */}
-        <DamascusOpacitySection />
+        {/* Background Texture */}
+        <BackgroundTextureSection />
 
         {/* CSP Filter Presets */}
         <FilterPresetsSection />
@@ -392,31 +393,63 @@ export default function Settings() {
   );
 }
 
-function DamascusOpacitySection() {
-  const { data: opacityData } = trpc.settings.getDamascusOpacity.useQuery();
+function BackgroundTextureSection() {
+  const { data: backgroundPrefs } = trpc.settings.getBackgroundPreferences.useQuery();
   const [opacity, setOpacity] = useState(8);
+  const [pattern, setPattern] = useState<'diagonal' | 'crosshatch' | 'dots' | 'woven' | 'none'>('diagonal');
   const utils = trpc.useUtils();
-  const setDamascusOpacity = trpc.settings.setDamascusOpacity.useMutation({
+  
+  const setBackgroundOpacity = trpc.settings.setBackgroundOpacity.useMutation({
     onSuccess: () => {
-      toast.success("Damascus background opacity updated");
-      // Invalidate the query to trigger a refetch and update the dashboard
-      utils.settings.getDamascusOpacity.invalidate();
+      toast.success("Background opacity updated");
+      utils.settings.getBackgroundPreferences.invalidate();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(`Failed to update opacity: ${error.message}`);
+    },
+  });
+  
+  const setBackgroundPattern = trpc.settings.setBackgroundPattern.useMutation({
+    onSuccess: () => {
+      toast.success("Background pattern updated");
+      utils.settings.getBackgroundPreferences.invalidate();
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to update pattern: ${error.message}`);
     },
   });
 
   useEffect(() => {
-    if (opacityData) {
-      setOpacity(opacityData.opacity);
+    if (backgroundPrefs) {
+      setOpacity(backgroundPrefs.opacity);
+      setPattern(backgroundPrefs.pattern as any);
     }
-  }, [opacityData]);
+  }, [backgroundPrefs]);
 
   const handleOpacityChange = (value: number) => {
     setOpacity(value);
-    // Debounce the save to avoid too many requests
-    setDamascusOpacity.mutate({ opacity: value });
+    setBackgroundOpacity.mutate({ opacity: value });
+  };
+  
+  const handlePatternChange = (newPattern: 'diagonal' | 'crosshatch' | 'dots' | 'woven' | 'none') => {
+    setPattern(newPattern);
+    setBackgroundPattern.mutate({ pattern: newPattern });
+  };
+  
+  // Generate CSS pattern for preview
+  const getPatternCSS = (p: string) => {
+    switch (p) {
+      case 'diagonal':
+        return `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.03) 10px, rgba(255, 255, 255, 0.03) 20px)`;
+      case 'crosshatch':
+        return `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.03) 10px, rgba(255, 255, 255, 0.03) 20px), repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.03) 10px, rgba(255, 255, 255, 0.03) 20px)`;
+      case 'dots':
+        return `radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px)`;
+      case 'woven':
+        return `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255, 255, 255, 0.02) 2px, rgba(255, 255, 255, 0.02) 4px), repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255, 255, 255, 0.02) 2px, rgba(255, 255, 255, 0.02) 4px)`;
+      default:
+        return 'none';
+    }
   };
 
   return (
@@ -427,14 +460,48 @@ function DamascusOpacitySection() {
           Customize the visual appearance of your dashboard
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
+        {/* Pattern Selector */}
+        <div className="space-y-3">
+          <Label>Background Pattern</Label>
+          <div className="grid grid-cols-5 gap-2">
+            {(['diagonal', 'crosshatch', 'dots', 'woven', 'none'] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => handlePatternChange(p)}
+                className={cn(
+                  "relative h-20 rounded-lg border-2 transition-all overflow-hidden",
+                  pattern === p
+                    ? "border-amber-500 ring-2 ring-amber-500/50"
+                    : "border-border hover:border-amber-500/50"
+                )}
+              >
+                <div 
+                  className="absolute inset-0 bg-slate-900"
+                  style={{
+                    backgroundImage: p !== 'none' ? getPatternCSS(p) : 'none',
+                    backgroundSize: p === 'dots' ? '20px 20px' : 'auto',
+                    opacity: 0.5
+                  }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xs font-medium capitalize bg-black/50 px-2 py-1 rounded">
+                    {p}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        {/* Opacity Slider */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label htmlFor="damascus-opacity">Damascus Background Opacity</Label>
+            <Label htmlFor="background-opacity">Pattern Opacity</Label>
             <span className="text-sm font-medium text-muted-foreground">{opacity}%</span>
           </div>
           <input
-            id="damascus-opacity"
+            id="background-opacity"
             type="range"
             min="0"
             max="20"
@@ -444,21 +511,25 @@ function DamascusOpacitySection() {
             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-amber-500"
           />
           <p className="text-xs text-muted-foreground">
-            Adjust the visibility of the Damascus steel background pattern. Higher values make the pattern more visible.
+            Adjust the visibility of the background texture. Higher values make the pattern more visible.
           </p>
-          {/* Preview area showing the current opacity */}
+          
+          {/* Preview area */}
           <div className="relative h-24 rounded-lg overflow-hidden border border-border bg-slate-900">
-            <div 
-              className="absolute inset-0"
-              style={{
-                backgroundImage: 'url(/damascus-option-3.png)',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                opacity: opacity / 100,
-              }}
-            />
+            {pattern !== 'none' && (
+              <div 
+                className="absolute inset-0"
+                style={{
+                  backgroundImage: getPatternCSS(pattern),
+                  backgroundSize: pattern === 'dots' ? '20px 20px' : 'auto',
+                  opacity: opacity / 100,
+                }}
+              />
+            )}
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-sm font-medium text-white drop-shadow-lg bg-black/30 px-3 py-1 rounded">Preview at {opacity}%</span>
+              <span className="text-sm font-medium text-white drop-shadow-lg bg-black/30 px-3 py-1 rounded">
+                Preview at {opacity}%
+              </span>
             </div>
           </div>
         </div>

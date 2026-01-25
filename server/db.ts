@@ -592,6 +592,33 @@ export async function setDamascusOpacity(userId: number, opacity: number) {
 }
 
 /**
+ * Set background pattern preference
+ */
+export async function setBackgroundPattern(userId: number, pattern: 'diagonal' | 'crosshatch' | 'dots' | 'woven' | 'none') {
+  const db = await getDb();
+  if (!db) return;
+  const { userPreferences } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  
+  // Check if preferences exist
+  const existing = await getUserPreferences(userId);
+  
+  if (existing) {
+    // Update existing preferences
+    await db
+      .update(userPreferences)
+      .set({ backgroundPattern: pattern })
+      .where(eq(userPreferences.userId, userId));
+  } else {
+    // Insert new preferences with selected pattern
+    await db.insert(userPreferences).values({
+      userId,
+      backgroundPattern: pattern,
+    });
+  }
+}
+
+/**
  * Upsert user preferences
  */
 export async function upsertUserPreferences(
