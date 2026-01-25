@@ -34,9 +34,10 @@ type EnhancedWatchlistProps = {
   onWatchlistChange?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  onFullCollapse?: () => void;
 };
 
-export default function EnhancedWatchlist({ strategy, onWatchlistChange, isCollapsed = false, onToggleCollapse }: EnhancedWatchlistProps) {
+export default function EnhancedWatchlist({ strategy, onWatchlistChange, isCollapsed = false, onToggleCollapse, onFullCollapse }: EnhancedWatchlistProps) {
   const [newSymbol, setNewSymbol] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -261,11 +262,11 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
             <CardTitle>Watchlist</CardTitle>
             <CardDescription>Add symbols to analyze {strategy.toUpperCase()} opportunities</CardDescription>
           </div>
-          {onToggleCollapse && (
+          {onFullCollapse && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={onToggleCollapse}
+              onClick={onFullCollapse}
             >
               <ChevronUp className="w-4 h-4 mr-2" />
               Collapse
@@ -487,21 +488,7 @@ export default function EnhancedWatchlist({ strategy, onWatchlistChange, isColla
           </div>
         )}
 
-        {/* Ticker Summary Pane */}
-        {watchlist.length > 0 && (
-          <div className="bg-muted/50 rounded-md p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Ticker Summary ({watchlist.length} symbols)</Label>
-              <Button variant="ghost" size="sm" onClick={handleCopyTickers}>
-                <Copy className="w-4 h-4 mr-1" />
-                Copy
-              </Button>
-            </div>
-            <div className="text-sm font-mono text-muted-foreground break-all">
-              {watchlist.map((item: WatchlistItem) => item.symbol).join(', ')}
-            </div>
-          </div>
-        )}
+
       </CardContent>
     </Card>
   );

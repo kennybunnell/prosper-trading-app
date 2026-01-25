@@ -423,3 +423,12 @@
 - [x] Implement Expand button to restore full watchlist view
 - [x] Test complete workflow: configure → fetch → collapse → scroll → filter → select → submit
 - [x] Verify collapsed state persists until user manually expands
+
+## UX Improvement: Fix Collapse Button and Remove Duplicate Ticker Summary
+- [x] Update EnhancedWatchlist "Collapse" button to trigger full collapse (same as after fetch)
+- [x] Make Collapse button set isFullyCollapsed=true and scroll to Filters section
+- [x] Add "Refresh" button to collapsed header (next to "Expand Watchlist")
+- [x] Implement Refresh button to re-run fetch with current settings without expanding
+- [x] Remove duplicate "Ticker Summary (50 symbols)" section from EnhancedWatchlist component
+- [x] Verify ticker badges in collapsed header still show all symbols
+- [x] Test complete workflow: Expand → Collapse → Verify full collapse → Test Refresh button

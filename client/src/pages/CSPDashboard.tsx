@@ -630,15 +630,33 @@ export default function CSPDashboard() {
               )}
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsFullyCollapsed(false)}
-            className="hover:bg-primary/10 hover:border-primary/50 transition-colors"
-          >
-            <ChevronDown className="w-4 h-4 mr-2" />
-            Expand Watchlist
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setFetchProgress({ isOpen: true, current: 0, total: filteredWatchlist.length, completed: 0, startTime: Date.now(), endTime: null });
+                setTimeout(() => {
+                  setFetchProgress(prev => ({ ...prev, isOpen: false, completed: filteredWatchlist.length }));
+                }, 100);
+                refetchOpportunities();
+              }}
+              disabled={loadingOpportunities || filteredWatchlist.length === 0}
+              className="hover:bg-primary/10 hover:border-primary/50 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsFullyCollapsed(false)}
+              className="hover:bg-primary/10 hover:border-primary/50 transition-colors"
+            >
+              <ChevronDown className="w-4 h-4 mr-2" />
+              Expand Watchlist
+            </Button>
+          </div>
         </div>
       ) : (
         <>
@@ -648,6 +666,12 @@ export default function CSPDashboard() {
             onWatchlistChange={() => utils.watchlist.list.invalidate()}
             isCollapsed={watchlistCollapsed}
             onToggleCollapse={() => setWatchlistCollapsed(!watchlistCollapsed)}
+            onFullCollapse={() => {
+              setIsFullyCollapsed(true);
+              setTimeout(() => {
+                document.querySelector('[data-section="filters"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 100);
+            }}
           />
 
           {/* DTE Range & Fetch Options */}
