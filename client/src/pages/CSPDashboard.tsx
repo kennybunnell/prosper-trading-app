@@ -528,7 +528,7 @@ export default function CSPDashboard() {
   return (
     <div className="min-h-screen">
       {/* Hero Header with Background Image */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-amber-950 to-slate-900">
         <div 
           className="absolute inset-0 opacity-30" 
           style={{
@@ -544,7 +544,7 @@ export default function CSPDashboard() {
               <h1 className="text-4xl font-bold tracking-tight text-white drop-shadow-lg">
                 Cash-Secured Puts
               </h1>
-              <p className="text-lg text-blue-200">
+              <p className="text-lg text-amber-200">
                 Analyze and execute CSP strategies with dual scoring system
               </p>
             </div>
@@ -780,7 +780,7 @@ export default function CSPDashboard() {
               });
             }} 
             disabled={loadingOpportunities || filteredWatchlist.length === 0}
-            className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
+            className="w-full bg-gradient-to-r from-amber-600 to-yellow-700 hover:from-amber-700 hover:to-yellow-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
           >
             {loadingOpportunities ? (
               <>
@@ -815,8 +815,8 @@ export default function CSPDashboard() {
                 className={cn(
                   "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
                   presetFilter === 'conservative'
-                    ? "bg-gradient-to-r from-blue-500 via-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-500/50 hover:shadow-xl hover:shadow-blue-500/60 hover:scale-110"
-                    : "bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 hover:border-blue-500/50 hover:scale-105"
+                    ? "bg-gradient-to-r from-slate-600 via-gray-700 to-slate-800 text-white shadow-lg shadow-slate-500/50 hover:shadow-xl hover:shadow-slate-500/60 hover:scale-110"
+                    : "bg-slate-500/10 text-slate-400 border border-slate-500/30 hover:bg-slate-500/20 hover:border-slate-500/50 hover:scale-105"
                 )}
                 onClick={() => handlePresetFilter('conservative')}
                 size="default"
@@ -834,7 +834,7 @@ export default function CSPDashboard() {
                 className={cn(
                   "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
                   presetFilter === 'medium'
-                    ? "bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-lg shadow-amber-500/50 hover:shadow-xl hover:shadow-amber-500/60 hover:scale-110"
+                    ? "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-white shadow-lg shadow-amber-500/50 hover:shadow-xl hover:shadow-amber-500/60 hover:scale-110"
                     : "bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-105"
                 )}
                 onClick={() => handlePresetFilter('medium')}
@@ -853,8 +853,8 @@ export default function CSPDashboard() {
                 className={cn(
                   "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
                   presetFilter === 'aggressive'
-                    ? "bg-gradient-to-r from-red-500 via-red-600 to-rose-600 text-white shadow-lg shadow-red-500/50 hover:shadow-xl hover:shadow-red-500/60 hover:scale-110"
-                    : "bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 hover:border-red-500/50 hover:scale-105"
+                    ? "bg-gradient-to-r from-orange-600 via-amber-700 to-orange-800 text-white shadow-lg shadow-orange-500/50 hover:shadow-xl hover:shadow-orange-500/60 hover:scale-110"
+                    : "bg-orange-500/10 text-orange-400 border border-orange-500/30 hover:bg-orange-500/20 hover:border-orange-500/50 hover:scale-105"
                 )}
                 onClick={() => handlePresetFilter('aggressive')}
                 size="default"
@@ -948,69 +948,69 @@ export default function CSPDashboard() {
 
       {/* Summary Cards - Enhanced with gradients and glassmorphism */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card className="relative overflow-hidden bg-gradient-to-br from-green-500/10 to-emerald-500/5 backdrop-blur border-green-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
-          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent" />
+        <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 to-yellow-500/5 backdrop-blur border-amber-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent" />
           <CardHeader className="pb-2 relative">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <div className="p-2 rounded-lg bg-green-500/20">
-                <DollarSign className="w-4 h-4 text-green-400" />
+                <DollarSign className="w-4 h-4 text-amber-400" />
               </div>
               <span className="text-muted-foreground">Total Premium</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+            <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
               ${totalPremium.toFixed(2)}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden bg-gradient-to-br from-blue-500/10 to-cyan-500/5 backdrop-blur border-blue-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent" />
+        <Card className="relative overflow-hidden bg-gradient-to-br from-slate-500/10 to-gray-500/5 backdrop-blur border-slate-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-500/5 to-transparent" />
           <CardHeader className="pb-2 relative">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <div className="p-2 rounded-lg bg-blue-500/20">
-                <Target className="w-4 h-4 text-blue-400" />
+                <Target className="w-4 h-4 text-slate-400" />
               </div>
               <span className="text-muted-foreground">Total Collateral</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+            <div className="text-3xl font-bold bg-gradient-to-r from-slate-400 to-gray-400 bg-clip-text text-transparent">
               ${totalCollateral.toFixed(2)}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden bg-gradient-to-br from-purple-500/10 to-pink-500/5 backdrop-blur border-purple-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent" />
+        <Card className="relative overflow-hidden bg-gradient-to-br from-amber-600/10 to-orange-600/5 backdrop-blur border-amber-600/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-600/5 to-transparent" />
           <CardHeader className="pb-2 relative">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <div className="p-2 rounded-lg bg-purple-500/20">
-                <TrendingUp className="w-4 h-4 text-purple-400" />
+                <TrendingUp className="w-4 h-4 text-amber-400" />
               </div>
               <span className="text-muted-foreground">ROC</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
               {roc.toFixed(2)}%
             </div>
           </CardContent>
         </Card>
 
-        <Card className="relative overflow-hidden bg-gradient-to-br from-orange-500/10 to-amber-500/5 backdrop-blur border-orange-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
-          <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent" />
+        <Card className="relative overflow-hidden bg-gradient-to-br from-yellow-600/10 to-amber-700/5 backdrop-blur border-yellow-600/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+          <div className="absolute inset-0 bg-gradient-to-br from-yellow-600/5 to-transparent" />
           <CardHeader className="pb-2 relative">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <div className="p-2 rounded-lg bg-orange-500/20">
-                <Calendar className="w-4 h-4 text-orange-400" />
+                <Calendar className="w-4 h-4 text-yellow-400" />
               </div>
               <span className="text-muted-foreground">Opportunities</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
+            <div className="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">
               {filteredOpportunities.length}
             </div>
           </CardContent>

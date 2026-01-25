@@ -97,7 +97,7 @@ export function Sidebar({ className }: SidebarProps) {
       <div className="p-4 flex items-center justify-between">
         {!collapsed && (
           <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-amber-200 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
               Prosper Trading
             </h1>
             <p className="text-[10px] text-yellow-500 uppercase tracking-wider font-semibold">Premium Platform</p>
@@ -172,19 +172,19 @@ export function Sidebar({ className }: SidebarProps) {
               href={item.path}
               className={cn(
                 'relative overflow-hidden flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group',
-                isActive && 'bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 text-white shadow-xl shadow-primary/40 border border-primary/30',
-                !isActive && 'text-muted-foreground hover:text-foreground hover:bg-accent/30 hover:shadow-lg hover:shadow-primary/10 hover:scale-[1.02]'
+                isActive && 'bg-gradient-to-r from-amber-900/30 via-yellow-900/20 to-amber-800/30 text-amber-100 shadow-xl shadow-amber-500/30 border border-amber-500/40',
+                !isActive && 'text-muted-foreground hover:text-foreground hover:bg-accent/30 hover:shadow-lg hover:shadow-amber-500/10 hover:scale-[1.02]'
               )}
             >
               {/* Gradient Border Effect */}
               {isActive && (
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/30 via-purple-500/30 to-pink-500/30 rounded-xl blur-md -z-10" />
+                <div className="absolute inset-0 bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-amber-600/20 rounded-xl blur-md -z-10" />
               )}
               
               {/* Icon with gradient background */}
               <div className={cn(
                 "flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-300",
-                isActive && "bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg shadow-blue-500/50",
+                isActive && "bg-gradient-to-br from-amber-600 to-yellow-700 shadow-lg shadow-amber-500/50",
                 !isActive && "bg-accent/50 group-hover:bg-accent"
               )}>
                 <item.icon className={cn(
@@ -202,7 +202,7 @@ export function Sidebar({ className }: SidebarProps) {
                   )}>{item.name}</span>
                   <span className={cn(
                     "text-xs transition-all duration-300",
-                    isActive && "text-blue-200",
+                    isActive && "text-amber-200",
                     !isActive && "text-muted-foreground"
                   )}>{item.description}</span>
                 </div>

@@ -344,3 +344,14 @@
 - [x] Apply gradient pill style to preset filter buttons (Conservative, Medium, Aggressive)
 - [x] Enhance sidebar navigation items with premium gradient styling, icon badges, and shimmer effects
 - [x] Test all button interactions and hover effects
+
+## Design Refinement: Luxury Financial Color Scheme
+- [x] Replace purple/pink/blue gradients with gold/charcoal/bronze luxury palette
+- [x] Update "Prosper Trading" logo gradient to amber → yellow → amber (gold)
+- [x] Redesign sidebar active navigation with amber/bronze gradient and gold glow
+- [x] Update hero header backgrounds to slate-900 → amber-950 → slate-900
+- [x] Redesign summary card gradients with amber/yellow/slate/orange themes
+- [x] Update preset filter buttons to charcoal/gold/bronze gradients
+- [x] Update Fetch Opportunities button to amber/yellow gradient
+- [x] Keep red/yellow/green for functional indicators (portfolio size, status)
+- [x] Test luxury aesthetic across CSP Dashboard
