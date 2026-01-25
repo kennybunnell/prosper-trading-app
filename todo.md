@@ -650,3 +650,13 @@
 - [ ] Write unit tests for CC selling against LEAP positions
 - [ ] Run all tests and verify passing
 - [ ] Save checkpoint and deliver to user
+
+## 🐛 Dashboard Navigation Issues
+
+- [x] Investigate why dashboard buttons are unresponsive (buttons were disabled)
+- [x] Fix "Coming Soon" button for Covered Calls - should navigate to /cc
+- [x] Fix "Coming Soon" button for PMCC Strategy - should navigate to /pmcc
+- [x] Create basic PMCC Dashboard page with watchlist and LEAP scanner
+- [x] Register PMCC Dashboard route in App.tsx
+- [x] Verify CSP Dashboard "Open Dashboard" button works correctly
+- [x] Test all navigation buttons on home screen (all working)

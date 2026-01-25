@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import Settings from "./pages/Settings";
 import CSPDashboard from "./pages/CSPDashboard";
 import CCDashboard from "./pages/CCDashboard";
+import PMCCDashboard from "./pages/PMCCDashboard";
 import { Sidebar } from "./components/Sidebar";
 
 function Router() {
@@ -21,6 +22,7 @@ function Router() {
           <Route path={"/settings"} component={Settings} />
           <Route path={"/csp"} component={CSPDashboard} />
           <Route path={"/cc"} component={CCDashboard} />
+          <Route path={"/pmcc"} component={PMCCDashboard} />
           <Route path={"/404"} component={NotFound} />
           {/* Final fallback route */}
           <Route component={NotFound} />

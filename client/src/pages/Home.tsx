@@ -178,8 +178,8 @@ export default function Home() {
                 <li>• Premium optimization</li>
                 <li>• Risk management</li>
               </ul>
-              <Button className="w-full mt-4" disabled>
-                Coming Soon
+              <Button className="w-full mt-4" asChild>
+                <Link href="/cc">Open Dashboard</Link>
               </Button>
             </CardContent>
           </Card>
@@ -202,8 +202,8 @@ export default function Home() {
                 <li>• Notification alerts</li>
                 <li>• Performance tracking</li>
               </ul>
-              <Button className="w-full mt-4" disabled>
-                Coming Soon
+              <Button className="w-full mt-4" asChild>
+                <Link href="/pmcc">Open Dashboard</Link>
               </Button>
             </CardContent>
           </Card>
