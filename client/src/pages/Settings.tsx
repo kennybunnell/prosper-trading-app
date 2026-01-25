@@ -19,6 +19,10 @@ export default function Settings() {
   const [defaultTastytradeAccountId, setDefaultTastytradeAccountId] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
   
+  // Background pattern state for real-time preview
+  const [opacity, setOpacity] = useState(8);
+  const [pattern, setPattern] = useState<'diagonal' | 'crosshatch' | 'dots' | 'woven' | 'none'>('diagonal');
+  
   // Debug: Log hasChanges whenever it changes
   useEffect(() => {
     console.log('[Settings] hasChanges state updated to:', hasChanges);
@@ -28,6 +32,17 @@ export default function Settings() {
     undefined,
     { enabled: !!user }
   );
+  
+  // Fetch background preferences
+  const { data: backgroundPrefs } = trpc.settings.getBackgroundPreferences.useQuery();
+  
+  // Update local state when preferences load
+  useEffect(() => {
+    if (backgroundPrefs) {
+      setOpacity(backgroundPrefs.opacity);
+      setPattern(backgroundPrefs.pattern as any);
+    }
+  }, [backgroundPrefs]);
 
   const saveCredentials = trpc.settings.saveCredentials.useMutation({
     onSuccess: () => {
@@ -124,6 +139,22 @@ export default function Settings() {
     console.log('[Settings] Input changed, setting hasChanges to true');
     setHasChanges(true);
   };
+  
+  // Generate CSS pattern based on user's selection
+  const getPatternCSS = (p: string) => {
+    switch (p) {
+      case 'diagonal':
+        return `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.03) 10px, rgba(255, 255, 255, 0.03) 20px)`;
+      case 'crosshatch':
+        return `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.03) 10px, rgba(255, 255, 255, 0.03) 20px), repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.03) 10px, rgba(255, 255, 255, 0.03) 20px)`;
+      case 'dots':
+        return `radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px)`;
+      case 'woven':
+        return `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255, 255, 255, 0.02) 2px, rgba(255, 255, 255, 0.02) 4px), repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255, 255, 255, 0.02) 2px, rgba(255, 255, 255, 0.02) 4px)`;
+      default:
+        return 'none';
+    }
+  };
 
   if (authLoading || loadingCredentials) {
     return (
@@ -147,8 +178,19 @@ export default function Settings() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-4xl mx-auto space-y-8">
+    <div className="min-h-screen bg-background p-8 relative">
+      {/* Background texture pattern - uses local state for instant feedback */}
+      {pattern !== 'none' && (
+        <div 
+          className="absolute inset-0 pointer-events-none" 
+          style={{
+            backgroundImage: getPatternCSS(pattern),
+            backgroundSize: pattern === 'dots' ? '20px 20px' : 'auto',
+            opacity: opacity / 100
+          }}
+        />
+      )}
+      <div className="max-w-4xl mx-auto space-y-8 relative z-10">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
           <p className="text-muted-foreground mt-2">
@@ -384,7 +426,13 @@ export default function Settings() {
         </Card>
 
         {/* Background Texture */}
-        <BackgroundTextureSection />
+        <BackgroundTextureSection 
+          opacity={opacity}
+          pattern={pattern}
+          setOpacity={setOpacity}
+          setPattern={setPattern}
+          getPatternCSS={getPatternCSS}
+        />
 
         {/* CSP Filter Presets */}
         <FilterPresetsSection />
@@ -393,10 +441,15 @@ export default function Settings() {
   );
 }
 
-function BackgroundTextureSection() {
-  const { data: backgroundPrefs } = trpc.settings.getBackgroundPreferences.useQuery();
-  const [opacity, setOpacity] = useState(8);
-  const [pattern, setPattern] = useState<'diagonal' | 'crosshatch' | 'dots' | 'woven' | 'none'>('diagonal');
+interface BackgroundTextureSectionProps {
+  opacity: number;
+  pattern: 'diagonal' | 'crosshatch' | 'dots' | 'woven' | 'none';
+  setOpacity: (value: number) => void;
+  setPattern: (value: 'diagonal' | 'crosshatch' | 'dots' | 'woven' | 'none') => void;
+  getPatternCSS: (p: string) => string;
+}
+
+function BackgroundTextureSection({ opacity, pattern, setOpacity, setPattern, getPatternCSS }: BackgroundTextureSectionProps) {
   const utils = trpc.useUtils();
   
   const setBackgroundOpacity = trpc.settings.setBackgroundOpacity.useMutation({
@@ -419,13 +472,6 @@ function BackgroundTextureSection() {
     },
   });
 
-  useEffect(() => {
-    if (backgroundPrefs) {
-      setOpacity(backgroundPrefs.opacity);
-      setPattern(backgroundPrefs.pattern as any);
-    }
-  }, [backgroundPrefs]);
-
   const handleOpacityChange = (value: number) => {
     setOpacity(value);
     setBackgroundOpacity.mutate({ opacity: value });
@@ -434,22 +480,6 @@ function BackgroundTextureSection() {
   const handlePatternChange = (newPattern: 'diagonal' | 'crosshatch' | 'dots' | 'woven' | 'none') => {
     setPattern(newPattern);
     setBackgroundPattern.mutate({ pattern: newPattern });
-  };
-  
-  // Generate CSS pattern for preview
-  const getPatternCSS = (p: string) => {
-    switch (p) {
-      case 'diagonal':
-        return `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.03) 10px, rgba(255, 255, 255, 0.03) 20px)`;
-      case 'crosshatch':
-        return `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.03) 10px, rgba(255, 255, 255, 0.03) 20px), repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(255, 255, 255, 0.03) 10px, rgba(255, 255, 255, 0.03) 20px)`;
-      case 'dots':
-        return `radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px)`;
-      case 'woven':
-        return `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255, 255, 255, 0.02) 2px, rgba(255, 255, 255, 0.02) 4px), repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255, 255, 255, 0.02) 2px, rgba(255, 255, 255, 0.02) 4px)`;
-      default:
-        return 'none';
-    }
   };
 
   return (

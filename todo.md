@@ -407,3 +407,9 @@
 - [ ] Apply pattern background to PMCC Dashboard page
 - [ ] Apply pattern background to Performance page
 - [ ] Test pattern visibility at 30%, 50%, and 80% opacity levels
+
+## UX Improvement: Real-time Pattern Preview on Settings Page
+- [x] Apply pattern background to Settings page itself (not just preview box)
+- [x] Use local opacity state for instant visual feedback when slider moves
+- [x] Keep database save on slider change for persistence across pages
+- [x] Test that adjusting slider shows immediate changes on Settings page background
