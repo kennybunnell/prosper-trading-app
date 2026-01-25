@@ -149,8 +149,31 @@ export default function CCDashboard() {
   };
 
   const selectAllOpportunities = () => {
-    const allIndices = new Set(filteredOpportunities.map((_, idx) => idx));
-    setSelectedOpportunities(allIndices);
+    // Group opportunities by symbol and respect available contract limits
+    const selectedIndices = new Set<number>();
+    const contractsUsedPerSymbol: Record<string, number> = {};
+
+    filteredOpportunities.forEach((opp, idx) => {
+      const holding = holdings.find(h => h.symbol === opp.symbol);
+      if (!holding) return;
+
+      const usedContracts = contractsUsedPerSymbol[opp.symbol] || 0;
+      if (usedContracts < holding.maxContracts) {
+        selectedIndices.add(idx);
+        contractsUsedPerSymbol[opp.symbol] = usedContracts + 1;
+      }
+    });
+
+    setSelectedOpportunities(selectedIndices);
+
+    // Show toast if some opportunities were skipped
+    const skipped = filteredOpportunities.length - selectedIndices.size;
+    if (skipped > 0) {
+      toast.info(
+        `Selected ${selectedIndices.size} opportunities. ` +
+        `Skipped ${skipped} due to contract availability limits.`
+      );
+    }
   };
 
   const clearOpportunitySelection = () => {
@@ -246,6 +269,28 @@ export default function CCDashboard() {
       if (newSet.has(index)) {
         newSet.delete(index);
       } else {
+        // Check if adding this opportunity would exceed available contracts for this symbol
+        const opp = filteredOpportunities[index];
+        const holding = holdings.find(h => h.symbol === opp.symbol);
+        if (!holding) {
+          toast.error(`Position not found for ${opp.symbol}`);
+          return prev;
+        }
+
+        // Count how many opportunities are already selected for this symbol
+        const selectedForSymbol = Array.from(newSet).filter(idx => {
+          const selectedOpp = filteredOpportunities[idx];
+          return selectedOpp && selectedOpp.symbol === opp.symbol;
+        }).length;
+
+        if (selectedForSymbol >= holding.maxContracts) {
+          toast.error(
+            `Cannot select more ${opp.symbol} opportunities. ` +
+            `You have ${holding.maxContracts} available contracts (${holding.quantity} shares).`
+          );
+          return prev;
+        }
+
         newSet.add(index);
       }
       return newSet;
@@ -963,7 +1008,7 @@ export default function CCDashboard() {
                     <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
                       ${Array.from(selectedOpportunities).reduce((sum, idx) => {
                         const opp = filteredOpportunities[idx];
-                        return sum + (opp ? opp.premium * 100 : 0);
+                        return sum + (opp ? opp.premium : 0);
                       }, 0).toFixed(2)}
                     </div>
                   </CardContent>

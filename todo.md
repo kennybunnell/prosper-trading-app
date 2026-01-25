@@ -551,3 +551,11 @@
 - [x] Add "Clear All" button for opportunities table
 - [x] Fix "Select All" button in stock selection to exclude stocks with existing calls (maxContracts === 0) - already working correctly
 - [x] Ensure scanning never includes stocks with existing covered calls - selectAllStocks filters for maxContracts > 0
+
+## 🐛 Critical Bug Fixes
+
+- [x] Fix Total Premium calculation in selection summary panel ($65,450 vs $675.50 in Order Summary) - removed incorrect *100 multiplier
+- [x] Add validation to prevent selecting more opportunities per symbol than available contracts
+- [x] Ensure contract quantity logic accounts for multiple opportunities per symbol (e.g., 5 APLD opportunities = 5 contracts, must have 500 shares)
+- [x] Added toast notifications when selection exceeds available contracts
+- [x] Select All now respects contract limits per symbol and shows skipped count
