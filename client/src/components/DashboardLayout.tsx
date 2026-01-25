@@ -242,7 +242,9 @@ function DashboardLayoutContent({
         />
       </div>
 
-      <SidebarInset>
+      <SidebarInset className="relative">
+        {/* Damascus steel background */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{backgroundImage: 'url(/damascus-bg.png)', backgroundSize: '800px 800px', backgroundRepeat: 'repeat'}} />
         {isMobile && (
           <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
             <div className="flex items-center gap-2">
@@ -257,7 +259,7 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1 p-4 relative z-10">{children}</main>
       </SidebarInset>
     </>
   );

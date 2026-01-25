@@ -355,3 +355,12 @@
 - [x] Update Fetch Opportunities button to amber/yellow gradient
 - [x] Keep red/yellow/green for functional indicators (portfolio size, status)
 - [x] Test luxury aesthetic across CSP Dashboard
+
+## Feature: Damascus Steel Background Pattern
+- [x] Generate Damascus steel pattern option 1: Deep charcoal with emerald green swirls
+- [x] Generate Damascus steel pattern option 2: Charcoal with gold/bronze accents
+- [x] Generate Damascus steel pattern option 3: Dark slate with subtle teal highlights
+- [x] Present all options to user for selection
+- [x] User selected option 3 (teal/slate Damascus)
+- [x] Apply selected Damascus pattern as subtle background (3% opacity) to main content area (not sidebar)
+- [x] Test Damascus background rendering on Dashboard and CSP Dashboard
