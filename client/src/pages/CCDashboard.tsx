@@ -21,6 +21,8 @@ import {
   ChevronDown,
   ChevronRight,
   Target,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
@@ -100,6 +102,8 @@ export default function CCDashboard() {
   const [minScore, setMinScore] = useState<number | undefined>(undefined);
   const [dryRun, setDryRun] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sortColumn, setSortColumn] = useState<keyof CCOpportunity | null>('score');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   
   const filtersRef = useRef<HTMLDivElement>(null);
 
@@ -379,6 +383,38 @@ export default function CCDashboard() {
 
     return filtered;
   }, [opportunities, presetFilter, presets, minScore]);
+
+  // Handle sorting
+  const handleSort = (column: keyof CCOpportunity) => {
+    if (sortColumn === column) {
+      // Toggle direction if clicking same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to descending
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  // Sort opportunities based on current sort state
+  const sortedOpportunities = useMemo(() => {
+    if (!sortColumn) return filteredOpportunities;
+
+    return [...filteredOpportunities].sort((a, b) => {
+      const aVal = a[sortColumn];
+      const bVal = b[sortColumn];
+
+      // Handle null values
+      if (aVal === null && bVal === null) return 0;
+      if (aVal === null) return 1;
+      if (bVal === null) return -1;
+
+      // Compare values
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredOpportunities, sortColumn, sortDirection]);
 
   // Handle order submission
   const handleSubmitOrders = async () => {
@@ -911,7 +947,7 @@ export default function CCDashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
                     <div className="flex items-center gap-3 p-4 rounded-lg bg-green-500/10 border border-green-500/20">
                       <DollarSign className="w-8 h-8 text-green-400" />
                       <div>
@@ -919,7 +955,10 @@ export default function CCDashboard() {
                         <p className="text-2xl font-bold text-green-400">
                           $
                           {Array.from(selectedOpportunities)
-                            .reduce((sum, idx) => sum + opportunities[idx].premium, 0)
+                            .reduce((sum, idx) => {
+                              const opp = filteredOpportunities[idx];
+                              return sum + (opp ? opp.premium : 0);
+                            }, 0)
                             .toFixed(2)}
                         </p>
                       </div>
@@ -942,13 +981,58 @@ export default function CCDashboard() {
                             selectedOpportunities.size > 0
                               ? (
                                   Array.from(selectedOpportunities).reduce(
-                                    (sum, idx) => sum + opportunities[idx].weeklyReturn,
+                                    (sum, idx) => {
+                                      const opp = filteredOpportunities[idx];
+                                      return sum + (opp ? opp.weeklyReturn : 0);
+                                    },
                                     0
                                   ) / selectedOpportunities.size
                                 ).toFixed(2)
                               : '0.00'
                           }
                           %
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                      <TrendingUp className="w-8 h-8 text-blue-400" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Avg Delta</p>
+                        <p className="text-2xl font-bold text-blue-400">
+                          {
+                            selectedOpportunities.size > 0
+                              ? (
+                                  Array.from(selectedOpportunities).reduce(
+                                    (sum, idx) => {
+                                      const opp = filteredOpportunities[idx];
+                                      return sum + (opp ? opp.delta : 0);
+                                    },
+                                    0
+                                  ) / selectedOpportunities.size
+                                ).toFixed(2)
+                              : '0.00'
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                      <Target className="w-8 h-8 text-orange-400" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Avg Score</p>
+                        <p className="text-2xl font-bold text-orange-400">
+                          {
+                            selectedOpportunities.size > 0
+                              ? (
+                                  Array.from(selectedOpportunities).reduce(
+                                    (sum, idx) => {
+                                      const opp = filteredOpportunities[idx];
+                                      return sum + (opp ? opp.score : 0);
+                                    },
+                                    0
+                                  ) / selectedOpportunities.size
+                                ).toFixed(0)
+                              : '0'
+                          }
                         </p>
                       </div>
                     </div>
@@ -991,8 +1075,8 @@ export default function CCDashboard() {
               </Card>
             )}
 
-            {/* Selection Summary Cards */}
-            {selectedOpportunities.size > 0 && (
+            {/* Selection Summary Cards - REMOVED: Consolidated into Order Summary above */}
+            {false && selectedOpportunities.size > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 to-yellow-500/5 backdrop-blur border-amber-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
                   <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent" />
@@ -1136,28 +1220,113 @@ export default function CCDashboard() {
                     <TableRow>
                       <TableHead className="w-12">Select</TableHead>
                       <TableHead>Symbol</TableHead>
-                      <TableHead className="text-right">Score</TableHead>
-                      <TableHead className="text-right">Strike</TableHead>
-                      <TableHead className="text-right">Current Price</TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('score')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Score
+                          {sortColumn === 'score' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('strike')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Strike
+                          {sortColumn === 'strike' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('currentPrice')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Current Price
+                          {sortColumn === 'currentPrice' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
                       <TableHead>Expiration</TableHead>
-                      <TableHead className="text-right">DTE</TableHead>
-                      <TableHead className="text-right">Delta</TableHead>
-                      <TableHead className="text-right">Bid</TableHead>
-                      <TableHead className="text-right">Ask</TableHead>
-                      <TableHead className="text-right">Mid</TableHead>
-                      <TableHead className="text-right">Premium</TableHead>
-                      <TableHead className="text-right">Weekly %</TableHead>
-                      <TableHead className="text-right">Distance OTM</TableHead>
-                      <TableHead className="text-right">RSI</TableHead>
-                      <TableHead className="text-right">IV Rank</TableHead>
-                      <TableHead className="text-right">BB %B</TableHead>
-                      <TableHead className="text-right">Spread %</TableHead>
-                      <TableHead className="text-right">Volume</TableHead>
-                      <TableHead className="text-right">OI</TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('dte')}>
+                        <div className="flex items-center justify-end gap-1">
+                          DTE
+                          {sortColumn === 'dte' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('delta')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Delta
+                          {sortColumn === 'delta' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('bid')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Bid
+                          {sortColumn === 'bid' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('ask')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Ask
+                          {sortColumn === 'ask' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('mid')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Mid
+                          {sortColumn === 'mid' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('premium')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Premium
+                          {sortColumn === 'premium' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('weeklyReturn')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Weekly %
+                          {sortColumn === 'weeklyReturn' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('distanceOtm')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Distance OTM
+                          {sortColumn === 'distanceOtm' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('rsi')}>
+                        <div className="flex items-center justify-end gap-1">
+                          RSI
+                          {sortColumn === 'rsi' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('ivRank')}>
+                        <div className="flex items-center justify-end gap-1">
+                          IV Rank
+                          {sortColumn === 'ivRank' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('bbPctB')}>
+                        <div className="flex items-center justify-end gap-1">
+                          BB %B
+                          {sortColumn === 'bbPctB' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('spreadPct')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Spread %
+                          {sortColumn === 'spreadPct' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('volume')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Volume
+                          {sortColumn === 'volume' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('openInterest')}>
+                        <div className="flex items-center justify-end gap-1">
+                          OI
+                          {sortColumn === 'openInterest' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredOpportunities.map((opp, index) => (
+                    {sortedOpportunities.map((opp, index) => (
                       <TableRow key={index}>
                         <TableCell>
                           <Checkbox

@@ -559,3 +559,12 @@
 - [x] Ensure contract quantity logic accounts for multiple opportunities per symbol (e.g., 5 APLD opportunities = 5 contracts, must have 500 shares)
 - [x] Added toast notifications when selection exceeds available contracts
 - [x] Select All now respects contract limits per symbol and shows skipped count
+
+## 🔧 UI/UX Improvements
+
+- [x] Fix selection summary panel calculations - $3734.00 should match Order Summary $2091.50
+- [x] Fix avg weekly % discrepancy - Order Summary shows 2.01% but selection panel shows 1.19%
+- [x] Remove redundant selection summary panel (5 cards below Order Summary)
+- [x] Consolidate into single Order Summary panel with all metrics: Total Premium, Total Contracts, Avg Weekly Return, Avg Delta, Avg Score
+- [x] Add sortable column headers to opportunities table (click to sort by DTE, Delta, Premium, Score, etc.)
+- [x] Confirm stock selection logic is correct - positions with "Has Calls" badges should still be selectable if they have available contracts
