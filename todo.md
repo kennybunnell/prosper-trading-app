@@ -519,3 +519,8 @@
 - [x] Update getEligiblePositions procedure to correctly filter stock positions
 - [x] Add test case for eligible position logic (maxContracts calculation)
 - [x] All 12 CC router tests passing
+
+- [x] Debug why 0 stock positions are found despite 71 total positions
+- [x] Check Tastytrade API response format for instrumentType field - found it uses 'instrument-type' (hyphenated)
+- [x] Fixed all field names to use hyphenated format: 'instrument-type', 'quantity-direction', 'underlying-symbol', 'close-price', 'expires-at'
+- [x] Compare with Streamlit covered_calls.py stock position detection logic - now matches exactly

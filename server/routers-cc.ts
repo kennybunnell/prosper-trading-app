@@ -29,26 +29,28 @@ export const ccRouter = router({
       const positions = await api.getPositions(input.accountNumber);
 
       // Separate stock positions and option positions
-      const stockPositions = positions.filter(p => p.instrumentType === 'Equity');
-      const optionPositions = positions.filter(p => p.instrumentType === 'Equity Option');
+      // Tastytrade API returns hyphenated field names like 'instrument-type', not camelCase
+      const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
+      const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
 
       // Identify short calls (covered calls already sold)
       const shortCalls: Record<string, { contracts: number; details: any[] }> = {};
       
       for (const opt of optionPositions) {
         // Short calls have negative quantity and are calls
-        if (opt.quantityDirection === 'Short' && opt.symbol.includes('C')) {
-          const underlying = opt.underlyingSymbol;
+        const quantityDirection = (opt as any)['quantity-direction'];
+        if (quantityDirection === 'Short' && (opt as any).symbol.includes('C')) {
+          const underlying = (opt as any)['underlying-symbol'];
           if (!shortCalls[underlying]) {
             shortCalls[underlying] = { contracts: 0, details: [] };
           }
-          const qty = Math.abs(parseFloat(opt.quantity));
+          const qty = Math.abs(parseFloat((opt as any).quantity));
           shortCalls[underlying].contracts += qty;
           shortCalls[underlying].details.push({
-            symbol: opt.symbol,
+            symbol: (opt as any).symbol,
             quantity: qty,
-            strike: parseFloat(opt.symbol.match(/(\d+)C/)?.[1] || '0'),
-            expiration: opt.expiresAt,
+            strike: parseFloat((opt as any).symbol.match(/(\d+)C/)?.[1] || '0'),
+            expiration: (opt as any)['expires-at'],
           });
         }
       }
@@ -56,11 +58,11 @@ export const ccRouter = router({
       // Build holdings list - include ALL stock positions (not just ≥100 shares)
       // This matches Streamlit logic: all stocks are added, then filter by maxContracts > 0
       const holdings = stockPositions
-        .filter(p => parseFloat(p.quantity) > 0) // Long positions only
-        .map(p => {
+        .filter((p: any) => parseFloat(p.quantity) > 0) // Long positions only
+        .map((p: any) => {
           const symbol = p.symbol;
           const quantity = parseFloat(p.quantity);
-          const currentPrice = parseFloat(p.closePrice);
+          const currentPrice = parseFloat(p['close-price']);
           const marketValue = quantity * currentPrice;
 
           // Calculate contracts covered by existing short calls
