@@ -141,10 +141,20 @@ export default function CCDashboard() {
   };
 
   const selectAllStocks = () => {
+    // Use availableHoldings which already filters for maxContracts > 0
     const eligibleSymbols = holdings
       .filter(h => h.maxContracts > 0)
       .map(h => h.symbol);
     setSelectedStocks(eligibleSymbols);
+  };
+
+  const selectAllOpportunities = () => {
+    const allIndices = new Set(filteredOpportunities.map((_, idx) => idx));
+    setSelectedOpportunities(allIndices);
+  };
+
+  const clearOpportunitySelection = () => {
+    setSelectedOpportunities(new Set());
   };
 
   const clearSelection = () => {
@@ -1048,12 +1058,30 @@ export default function CCDashboard() {
                     {filteredOpportunities.length} of {opportunities.length} opportunities • Sorted by composite score
                   </CardDescription>
                 </div>
-                <Badge
-                  variant="secondary"
-                  className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-lg px-4 py-2"
-                >
-                  {selectedOpportunities.size} Selected
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={selectAllOpportunities}
+                    disabled={filteredOpportunities.length === 0}
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearOpportunitySelection}
+                    disabled={selectedOpportunities.size === 0}
+                  >
+                    Clear All
+                  </Button>
+                  <Badge
+                    variant="secondary"
+                    className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-lg px-4 py-2"
+                  >
+                    {selectedOpportunities.size} Selected
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
             <CardContent>

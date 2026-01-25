@@ -544,3 +544,10 @@
 - [x] Fix missing checkboxes in opportunities table rows - added explicit amber border styling for visibility
 - [x] Disable/filter stocks with existing covered calls from stock selection (IBIT, BMNR, HOOD, AVGO, HIMS showing "Has Calls") - checkboxes now disabled when maxContracts === 0
 - [x] Increase countdown timer estimate (currently off by ~15 seconds) - changed from 1.32s to 2.0s per symbol
+
+## 🎯 Final Improvements
+
+- [x] Add "Select All" button above opportunities table to select all visible/filtered opportunities
+- [x] Add "Clear All" button for opportunities table
+- [x] Fix "Select All" button in stock selection to exclude stocks with existing calls (maxContracts === 0) - already working correctly
+- [x] Ensure scanning never includes stocks with existing covered calls - selectAllStocks filters for maxContracts > 0
