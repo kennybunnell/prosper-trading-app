@@ -530,3 +530,11 @@
 - [x] Filter out stocks with existing covered calls from scanning (only scan stocks with maxContracts > 0)
 - [x] Add countdown timer during scanning (similar to CSP Dashboard)
 - [x] Add "Current Price" column in opportunities table (right after Strike column)
+
+## 📊 Selection Summary Panel
+
+- [x] Study CSP Dashboard selection summary panel design and metrics
+- [x] Add selection summary panel above opportunities table (below score filter buttons)
+- [x] Show Total Premium, Total Contracts, Avg Delta, Avg Weekly Return %, Avg Score
+- [x] Update metrics in real-time as opportunities are selected/deselected
+- [x] Match CSP Dashboard styling and layout
