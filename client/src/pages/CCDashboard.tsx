@@ -97,7 +97,11 @@ export default function CCDashboard() {
   const [isPositionsSectionCollapsed, setIsPositionsSectionCollapsed] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [opportunities, setOpportunities] = useState<CCOpportunity[]>([]);
-  const [selectedOpportunities, setSelectedOpportunities] = useState<Set<number>>(new Set());
+  // Store selected opportunities by unique key (symbol-strike-expiration) instead of index
+  const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
+  
+  // Helper function to create unique key for an opportunity
+  const getOpportunityKey = (opp: CCOpportunity) => `${opp.symbol}-${opp.strike}-${opp.expiration}`;
   const [presetFilter, setPresetFilter] = useState<'conservative' | 'medium' | 'aggressive' | null>(null);
   const [minScore, setMinScore] = useState<number | undefined>(undefined);
   const [dryRun, setDryRun] = useState(true);
@@ -155,27 +159,27 @@ export default function CCDashboard() {
 
   const selectAllOpportunities = () => {
     // Group opportunities by symbol and respect available contract limits
-    const selectedIndices = new Set<number>();
+    const selectedKeys = new Set<string>();
     const contractsUsedPerSymbol: Record<string, number> = {};
 
-    filteredOpportunities.forEach((opp, idx) => {
+    filteredOpportunities.forEach((opp) => {
       const holding = holdings.find(h => h.symbol === opp.symbol);
       if (!holding) return;
 
       const usedContracts = contractsUsedPerSymbol[opp.symbol] || 0;
       if (usedContracts < holding.maxContracts) {
-        selectedIndices.add(idx);
+        selectedKeys.add(getOpportunityKey(opp));
         contractsUsedPerSymbol[opp.symbol] = usedContracts + 1;
       }
     });
 
-    setSelectedOpportunities(selectedIndices);
+    setSelectedOpportunities(selectedKeys);
 
     // Show toast if some opportunities were skipped
-    const skipped = filteredOpportunities.length - selectedIndices.size;
+    const skipped = filteredOpportunities.length - selectedKeys.size;
     if (skipped > 0) {
       toast.info(
-        `Selected ${selectedIndices.size} opportunities. ` +
+        `Selected ${selectedKeys.size} opportunities. ` +
         `Skipped ${skipped} due to contract availability limits.`
       );
     }
@@ -268,14 +272,15 @@ export default function CCDashboard() {
   };
 
   // Toggle opportunity selection
-  const toggleOpportunitySelection = (index: number) => {
+  const toggleOpportunitySelection = (opp: CCOpportunity) => {
+    const oppKey = getOpportunityKey(opp);
+    
     setSelectedOpportunities(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(index)) {
-        newSet.delete(index);
+      if (newSet.has(oppKey)) {
+        newSet.delete(oppKey);
       } else {
         // Check if adding this opportunity would exceed available contracts for this symbol
-        const opp = filteredOpportunities[index];
         const holding = holdings.find(h => h.symbol === opp.symbol);
         if (!holding) {
           toast.error(`Position not found for ${opp.symbol}`);
@@ -283,9 +288,8 @@ export default function CCDashboard() {
         }
 
         // Count how many opportunities are already selected for this symbol
-        const selectedForSymbol = Array.from(newSet).filter(idx => {
-          const selectedOpp = filteredOpportunities[idx];
-          return selectedOpp && selectedOpp.symbol === opp.symbol;
+        const selectedForSymbol = Array.from(newSet).filter(key => {
+          return key.startsWith(`${opp.symbol}-`);
         }).length;
 
         if (selectedForSymbol >= holding.maxContracts) {
@@ -296,7 +300,7 @@ export default function CCDashboard() {
           return prev;
         }
 
-        newSet.add(index);
+        newSet.add(oppKey);
       }
       return newSet;
     });
@@ -403,7 +407,10 @@ export default function CCDashboard() {
     
     // Apply "Show Selected Only" filter
     if (showSelectedOnly) {
-      opps = opps.filter((_, idx) => selectedOpportunities.has(idx));
+      opps = opps.filter((opp) => {
+        const oppKey = getOpportunityKey(opp);
+        return selectedOpportunities.has(oppKey);
+      });
     }
     
     // Sort if column is selected
@@ -439,7 +446,10 @@ export default function CCDashboard() {
 
     setIsSubmitting(true);
     try {
-      const selectedOpps = Array.from(selectedOpportunities).map(idx => opportunities[idx]);
+      // Map selected keys back to opportunity objects
+      const selectedOpps = Array.from(selectedOpportunities)
+        .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
+        .filter((opp): opp is CCOpportunity => opp !== undefined);
       
       const orders = selectedOpps.map(opp => ({
         symbol: opp.symbol,
@@ -963,13 +973,11 @@ export default function CCDashboard() {
                         <p className="text-sm text-muted-foreground">Total Premium</p>
                         <p className="text-2xl font-bold text-green-400">
                           $
-                          {Array.from(selectedOpportunities)
-                            .reduce((sum, idx) => {
-                              const opp = filteredOpportunities[idx];
-                              return sum + (opp ? opp.premium : 0);
-                            }, 0)
-                            .toFixed(2)}
-                        </p>
+                          ${Array.from(selectedOpportunities)
+                            .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
+                            .filter((opp): opp is CCOpportunity => opp !== undefined)
+                            .reduce((sum, opp) => sum + opp.premium, 0)
+                            .toFixed(2)}                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
@@ -989,13 +997,10 @@ export default function CCDashboard() {
                           {
                             selectedOpportunities.size > 0
                               ? (
-                                  Array.from(selectedOpportunities).reduce(
-                                    (sum, idx) => {
-                                      const opp = filteredOpportunities[idx];
-                                      return sum + (opp ? opp.weeklyReturn : 0);
-                                    },
-                                    0
-                                  ) / selectedOpportunities.size
+                                  Array.from(selectedOpportunities)
+                                    .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
+                                    .filter((opp): opp is CCOpportunity => opp !== undefined)
+                                    .reduce((sum, opp) => sum + opp.weeklyReturn, 0) / selectedOpportunities.size
                                 ).toFixed(2)
                               : '0.00'
                           }
@@ -1011,13 +1016,10 @@ export default function CCDashboard() {
                           {
                             selectedOpportunities.size > 0
                               ? (
-                                  Array.from(selectedOpportunities).reduce(
-                                    (sum, idx) => {
-                                      const opp = filteredOpportunities[idx];
-                                      return sum + (opp ? opp.delta : 0);
-                                    },
-                                    0
-                                  ) / selectedOpportunities.size
+                                  Array.from(selectedOpportunities)
+                                    .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
+                                    .filter((opp): opp is CCOpportunity => opp !== undefined)
+                                    .reduce((sum, opp) => sum + opp.delta, 0) / selectedOpportunities.size
                                 ).toFixed(2)
                               : '0.00'
                           }
@@ -1032,13 +1034,10 @@ export default function CCDashboard() {
                           {
                             selectedOpportunities.size > 0
                               ? (
-                                  Array.from(selectedOpportunities).reduce(
-                                    (sum, idx) => {
-                                      const opp = filteredOpportunities[idx];
-                                      return sum + (opp ? opp.score : 0);
-                                    },
-                                    0
-                                  ) / selectedOpportunities.size
+                                  Array.from(selectedOpportunities)
+                                    .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
+                                    .filter((opp): opp is CCOpportunity => opp !== undefined)
+                                    .reduce((sum, opp) => sum + opp.score, 0) / selectedOpportunities.size
                                 ).toFixed(0)
                               : '0'
                           }
@@ -1344,12 +1343,14 @@ export default function CCDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sortedOpportunities.map((opp, index) => (
-                      <TableRow key={index}>
+                    {sortedOpportunities.map((opp, index) => {
+                      const oppKey = getOpportunityKey(opp);
+                      return (
+                      <TableRow key={oppKey}>
                         <TableCell>
                           <Checkbox
-                            checked={selectedOpportunities.has(index)}
-                            onCheckedChange={() => toggleOpportunitySelection(index)}
+                            checked={selectedOpportunities.has(oppKey)}
+                            onCheckedChange={() => toggleOpportunitySelection(opp)}
                             className="border-2 border-amber-500/50 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
                           />
                         </TableCell>
@@ -1393,7 +1394,8 @@ export default function CCDashboard() {
                         <TableCell className="text-right">{opp.volume.toLocaleString()}</TableCell>
                         <TableCell className="text-right">{opp.openInterest.toLocaleString()}</TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

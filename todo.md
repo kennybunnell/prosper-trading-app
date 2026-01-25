@@ -587,3 +587,11 @@
 - [x] Add unit test for contract limit validation (test case: select 25 APLD opportunities when only 20 contracts available)
 - [x] Test dry run rejection with over-limit selections
 - [x] Verify preset filters select best opportunities based on scoring criteria
+
+## 🐛 Show Selected Only Filter Bug
+
+- [x] Fix Show Selected Only filter - currently showing unselected opportunities when filter is active
+- [x] Update sortedOpportunities useMemo to track original opportunity indices correctly
+- [x] Changed selectedOpportunities from Set<number> to Set<string> using unique keys (symbol-strike-expiration)
+- [x] Updated all functions to use unique keys instead of array indices
+- [ ] Test filter with various selection combinations
