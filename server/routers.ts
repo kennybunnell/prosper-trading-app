@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
+import { ccRouter } from "./routers-cc";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -614,6 +615,52 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  ccFilters: router({
+    getPresets: protectedProcedure.query(async ({ ctx }) => {
+      const { getFilterPresetsByStrategy, seedCcFilterPresets } = await import('./db-filter-presets');
+      
+      // Ensure CC presets exist for this user
+      await seedCcFilterPresets(ctx.user.id);
+      
+      return getFilterPresetsByStrategy(ctx.user.id, 'cc');
+    }),
+    updatePreset: protectedProcedure
+      .input(
+        z.object({
+          presetName: z.enum(['conservative', 'medium', 'aggressive']),
+          minDelta: z.number().optional(),
+          maxDelta: z.number().optional(),
+          minDte: z.number().optional(),
+          maxDte: z.number().optional(),
+          minOpenInterest: z.number().optional(),
+          minVolume: z.number().optional(),
+          minWeeklyReturn: z.number().optional(),
+          minRsi: z.number().nullable().optional(),
+          maxRsi: z.number().nullable().optional(),
+          minIvRank: z.number().nullable().optional(),
+          maxIvRank: z.number().nullable().optional(),
+          minBbPercent: z.string().nullable().optional(),
+          maxBbPercent: z.string().nullable().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { updateFilterPreset } = await import('./db-filter-presets');
+        const { presetName, minDelta, maxDelta, ...updates } = input;
+        
+        // Convert delta numbers to strings for database
+        const deltaUpdates = {
+          ...(minDelta !== undefined && { minDelta: minDelta.toString() }),
+          ...(maxDelta !== undefined && { maxDelta: maxDelta.toString() }),
+        };
+        
+        await updateFilterPreset(ctx.user.id, 'cc', presetName, { ...updates, ...deltaUpdates });
+        return { success: true };
+      }),
+  }),
+
+  // Covered Calls Dashboard
+  cc: ccRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -440,3 +440,73 @@
 - [x] Test with Small, Medium, Large, and All portfolio sizes
 - [x] Test with Quick Switch buttons (Small Only, Medium Only, Large Only)
 - [x] Verify watchlist + fetch options both hide after fetch completes
+## Covered Calls Dashboard Build
+- [x] Clone GitHub repo (kennybunnell/options-trading.git) and analyze CC logic
+- [ ] Extract CC scoring formula and filter criteria from Streamlit app
+- [ ] Design CC database schema (stock positions, CC opportunities)
+- [ ] Create backend procedures for fetching stock positions from Tastytrade
+- [ ] Implement CC opportunity fetching with call option chain analysis
+- [ ] Add CC scoring logic matching Streamlit implementation
+- [ ] Create CC filter presets (Conservative, Medium, Aggressive)
+- [ ] Build CC Dashboard frontend layout matching CSP Dashboard design
+- [ ] Add stock position watchlist with expand/collapse functionality
+- [ ] Implement full-collapse pattern after fetch (same as CSP)
+- [ ] Add filters section with preset buttons and score filters
+- [ ] Create opportunities table with all CC-specific columns
+- [ ] Add selection controls and summary cards (Premium, Collateral, ROC, Buying Power)
+- [ ] Implement order preview and submission workflow
+- [ ] Test complete CC workflow end-to-end
+
+
+## 🚀 Covered Calls Dashboard Implementation (Current Focus)
+
+### Phase 1: Backend Infrastructure
+- [ ] Create tRPC procedure for fetching stock positions (≥100 shares)
+- [ ] Create tRPC procedure for identifying existing short calls
+- [ ] Create tRPC procedure for calculating available contracts per position
+- [ ] Create tRPC procedure for fetching call option chains from Tradier
+- [ ] Implement CC composite scoring formula (0-100 scale: Weekly Return 25%, Delta 20%, RSI 15%, BB %B 15%, Distance to Strike 15%, Spread 10%)
+- [ ] Create tRPC procedure for filtering and sorting CC opportunities
+- [ ] Add CC order submission procedure with dry run support
+- [ ] Write unit tests for all CC backend procedures
+
+### Phase 2: Frontend Position Fetching & Stock Selection
+- [ ] Create CC Dashboard page matching CSP luxury design (gold gradients, Damascus background)
+- [ ] Add Position Summary cards (Total Positions, Stock Positions, Existing Calls, Eligible for CC, CC Eligible Contracts)
+- [ ] Implement "Fetch Portfolio Positions" button with progress dialog
+- [ ] Create Stock Selection Table with checkboxes
+- [ ] Add "Select All" and "Clear All" buttons for stock selection
+- [ ] Implement "Scan Selected Stocks" button
+- [ ] Add collapsible sections for Position Summary and Stock Selection
+
+### Phase 3: Option Scanning & Opportunities Display
+- [x] Implement option chain scanning with progress dialog
+- [x] Calculate composite scores for all opportunities (0-100 scale)
+- [x] Create Opportunities Table with all columns (Symbol, Strike, Expiration, DTE, Delta, Bid, Ask, Mid, Premium, Weekly %, RSI, IV Rank, BB %B, Distance OTM %, Spread %, Score)
+- [x] Add color-coded score badges (Red <50, Yellow 50-69, Green 70-89, Gold 90+)
+- [x] Implement full-collapse behavior for Position/Stock sections after scan
+- [x] Add auto-scroll to Opportunities section after collapse
+- [ ] Add "Refresh" button to collapsed header for quick re-scan
+
+### Phase 4: Filtering & Order Submission
+- [ ] Add preset filter buttons (Conservative, Medium, Aggressive)
+- [ ] Implement score threshold buttons (100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40)
+- [ ] Add "Selected Only" toggle filter
+- [ ] Create Order Summary section with metrics (Total Premium, Total Contracts, Avg Weekly Return)
+- [ ] Add quantity adjustment controls (+1, +5, +10, -1, Reset)
+- [ ] Implement dry run mode checkbox
+- [ ] Create order submission dialog with progress tracking
+- [ ] Add success feedback (confetti, sound, status messages)
+- [ ] Test complete CC workflow end-to-end
+
+### Phase 5: Testing & Refinement
+- [ ] Test position fetching with real Tastytrade account
+- [ ] Verify existing short calls are correctly identified
+- [ ] Test available contracts calculation
+- [ ] Verify composite scoring matches Streamlit formula
+- [ ] Test all preset filters
+- [ ] Test order submission in dry run mode
+- [ ] Test live order submission (requires user)
+- [ ] Verify full-collapse and auto-scroll behavior
+- [ ] Check responsive design
+- [ ] Create checkpoint for CC Dashboard

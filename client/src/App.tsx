@@ -8,6 +8,7 @@ import { AccountProvider } from "./contexts/AccountContext";
 import Home from "./pages/Home";
 import Settings from "./pages/Settings";
 import CSPDashboard from "./pages/CSPDashboard";
+import CCDashboard from "./pages/CCDashboard";
 import { Sidebar } from "./components/Sidebar";
 
 function Router() {
@@ -19,6 +20,7 @@ function Router() {
           <Route path={"/"} component={Home} />
           <Route path={"/settings"} component={Settings} />
           <Route path={"/csp"} component={CSPDashboard} />
+          <Route path={"/cc"} component={CCDashboard} />
           <Route path={"/404"} component={NotFound} />
           {/* Final fallback route */}
           <Route component={NotFound} />
