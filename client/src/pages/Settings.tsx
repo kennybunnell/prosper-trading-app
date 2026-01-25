@@ -395,11 +395,12 @@ export default function Settings() {
 function DamascusOpacitySection() {
   const { data: opacityData } = trpc.settings.getDamascusOpacity.useQuery();
   const [opacity, setOpacity] = useState(8);
+  const utils = trpc.useUtils();
   const setDamascusOpacity = trpc.settings.setDamascusOpacity.useMutation({
     onSuccess: () => {
       toast.success("Damascus background opacity updated");
-      // Trigger a page refresh to apply the new opacity
-      window.location.reload();
+      // Invalidate the query to trigger a refetch and update the dashboard
+      utils.settings.getDamascusOpacity.invalidate();
     },
     onError: (error) => {
       toast.error(`Failed to update opacity: ${error.message}`);
@@ -446,17 +447,18 @@ function DamascusOpacitySection() {
             Adjust the visibility of the Damascus steel background pattern. Higher values make the pattern more visible.
           </p>
           {/* Preview area showing the current opacity */}
-          <div 
-            className="relative h-24 rounded-lg overflow-hidden border border-border"
-            style={{
-              backgroundImage: 'url(/damascus-option-3.png)',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              opacity: opacity / 100,
-            }}
-          >
-            <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-              <span className="text-sm font-medium text-white drop-shadow-lg">Preview</span>
+          <div className="relative h-24 rounded-lg overflow-hidden border border-border bg-slate-900">
+            <div 
+              className="absolute inset-0"
+              style={{
+                backgroundImage: 'url(/damascus-option-3.png)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                opacity: opacity / 100,
+              }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-sm font-medium text-white drop-shadow-lg bg-black/30 px-3 py-1 rounded">Preview at {opacity}%</span>
             </div>
           </div>
         </div>

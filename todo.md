@@ -379,3 +379,9 @@
 - [x] Add opacity slider (0% to 20%) with real-time preview
 - [x] Update DashboardLayout to read and apply user's opacity preference
 - [x] Test opacity slider with different values and verify real-time updates
+
+## Bug Fix: Damascus Opacity Not Visible on Dashboard
+- [x] Debug why Damascus background isn't showing on dashboard even at 20% opacity
+- [x] Fix preview box opacity calculation (currently showing 0.2 instead of 0.20)
+- [x] Remove page reload requirement - make opacity update instantly
+- [x] Test Damascus pattern visibility at different opacity levels (10%, 15%, 20%)

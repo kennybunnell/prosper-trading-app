@@ -119,6 +119,10 @@ type PresetFilter = 'conservative' | 'medium' | 'aggressive' | null;
 
 export default function CSPDashboard() {
   const { user, loading: authLoading } = useAuth();
+  
+  // Fetch user's Damascus opacity preference
+  const { data: opacityData } = trpc.settings.getDamascusOpacity.useQuery();
+  const damascusOpacity = opacityData?.opacity ?? 8;
   const { selectedAccountId, setSelectedAccountId } = useAccount();
   // newSymbol state moved to EnhancedWatchlist component
   const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
@@ -526,9 +530,19 @@ export default function CSPDashboard() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen relative">
+      {/* Damascus steel background */}
+      <div 
+        className="absolute inset-0 pointer-events-none" 
+        style={{
+          backgroundImage: 'url(/damascus-option-3.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: damascusOpacity / 100
+        }}
+      />
       {/* Simple Header */}
-      <div className="container py-8">
+      <div className="container py-8 relative z-10">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
@@ -542,7 +556,7 @@ export default function CSPDashboard() {
         </div>
       </div>
       
-      <div className="container mx-auto py-8 space-y-8">
+      <div className="container mx-auto py-8 space-y-8 relative z-10">
 
       {/* Watchlist Management */}
       <EnhancedWatchlist 
