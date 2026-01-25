@@ -26,6 +26,14 @@ import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 
 type StockPosition = {
   symbol: string;
@@ -78,6 +86,8 @@ export default function CCDashboard() {
   const { selectedAccountId } = useAccount();
   const utils = trpc.useUtils();
   const [isLoadingPositions, setIsLoadingPositions] = useState(false);
+  const [scanStartTime, setScanStartTime] = useState<number | null>(null);
+  const [scanProgress, setScanProgress] = useState(0);
   const [holdings, setHoldings] = useState<StockPosition[]>([]);
   const [breakdown, setBreakdown] = useState<PositionBreakdown | null>(null);
   const [selectedStocks, setSelectedStocks] = useState<string[]>([]);
@@ -141,18 +151,46 @@ export default function CCDashboard() {
     setSelectedStocks([]);
   };
 
+  // Countdown timer effect
+  useEffect(() => {
+    if (!isScanning || !scanStartTime) return;
+
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - scanStartTime) / 1000;
+      const estimatedTotal = selectedStocks.length * 1.32; // 1.32s per symbol
+      const progress = Math.min(95, (elapsed / estimatedTotal) * 100);
+      setScanProgress(progress);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [isScanning, scanStartTime, selectedStocks.length]);
+
   // Scan selected stocks for opportunities
   const scanOpportunities = async () => {
-    if (selectedStocks.length === 0) {
-      toast.error("Please select at least one stock to scan");
+    // Filter out stocks that are fully covered (maxContracts = 0)
+    const eligibleStocks = selectedStocks.filter(symbol => {
+      const holding = holdings.find(h => h.symbol === symbol);
+      return holding && holding.maxContracts > 0;
+    });
+
+    if (eligibleStocks.length === 0) {
+      toast.error("No eligible stocks selected. Selected stocks are fully covered by existing calls.");
       return;
     }
 
+    const skippedCount = selectedStocks.length - eligibleStocks.length;
+    if (skippedCount > 0) {
+      toast.info(`Skipping ${skippedCount} stock(s) with existing covered calls`);
+    }
+
     setIsScanning(true);
+    setScanStartTime(Date.now());
+    setScanProgress(0);
+    
     try {
-      // Build holdings data for selected stocks
+      // Build holdings data for eligible stocks only
       const selectedHoldings = holdings
-        .filter(h => selectedStocks.includes(h.symbol))
+        .filter(h => eligibleStocks.includes(h.symbol))
         .map(h => ({
           symbol: h.symbol,
           quantity: h.quantity,
@@ -161,7 +199,7 @@ export default function CCDashboard() {
         }));
 
       const result = await utils.client.cc.scanOpportunities.mutate({
-        symbols: selectedStocks,
+        symbols: eligibleStocks,
         holdings: selectedHoldings,
         minDte: 7,
         maxDte: 45,
@@ -180,11 +218,14 @@ export default function CCDashboard() {
         filtersRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
 
+      setScanProgress(100);
       toast.success(`Found ${result.length} opportunities`);
     } catch (error: any) {
       toast.error(error.message || "Failed to scan opportunities");
     } finally {
       setIsScanning(false);
+      setScanStartTime(null);
+      setScanProgress(0);
     }
   };
 
@@ -640,10 +681,38 @@ export default function CCDashboard() {
                         </>
                       )}
                     </Button>
-                  </div>
+                   </div>
                 </CardContent>
               </Card>
             )}
+
+            {/* Scanning Progress Dialog */}
+            <Dialog open={isScanning} onOpenChange={() => {}}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Scanning Options Chains</DialogTitle>
+                  <DialogDescription>
+                    Analyzing {selectedStocks.filter(symbol => {
+                      const holding = holdings.find(h => h.symbol === symbol);
+                      return holding && holding.maxContracts > 0;
+                    }).length} stocks for covered call opportunities...
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col items-center justify-center space-y-4 py-6">
+                  <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                  <Progress value={scanProgress} className="w-full" />
+                  <p className="text-sm text-muted-foreground">
+                    {scanProgress < 100 ? (
+                      <>
+                        {Math.floor((100 - scanProgress) * selectedStocks.length * 1.32 / 100)}s remaining
+                      </>
+                    ) : (
+                      <>Finishing up...</>
+                    )}
+                  </p>
+                </div>
+              </DialogContent>
+            </Dialog>
 
             {/* No eligible positions message */}
             {breakdown && availableHoldings.length === 0 && isPositionsSectionExpanded && (
@@ -892,6 +961,7 @@ export default function CCDashboard() {
                       <TableHead>Symbol</TableHead>
                       <TableHead className="text-right">Score</TableHead>
                       <TableHead className="text-right">Strike</TableHead>
+                      <TableHead className="text-right">Current Price</TableHead>
                       <TableHead>Expiration</TableHead>
                       <TableHead className="text-right">DTE</TableHead>
                       <TableHead className="text-right">Delta</TableHead>
@@ -925,6 +995,9 @@ export default function CCDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">${opp.strike.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">
+                          <span className="text-muted-foreground">${opp.currentPrice.toFixed(2)}</span>
+                        </TableCell>
                         <TableCell>{opp.expiration}</TableCell>
                         <TableCell className="text-right">{opp.dte}</TableCell>
                         <TableCell className="text-right">{opp.delta.toFixed(2)}</TableCell>

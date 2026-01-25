@@ -524,3 +524,9 @@
 - [x] Check Tastytrade API response format for instrumentType field - found it uses 'instrument-type' (hyphenated)
 - [x] Fixed all field names to use hyphenated format: 'instrument-type', 'quantity-direction', 'underlying-symbol', 'close-price', 'expires-at'
 - [x] Compare with Streamlit covered_calls.py stock position detection logic - now matches exactly
+
+## 🎯 CC Dashboard Improvements
+
+- [x] Filter out stocks with existing covered calls from scanning (only scan stocks with maxContracts > 0)
+- [x] Add countdown timer during scanning (similar to CSP Dashboard)
+- [x] Add "Current Price" column in opportunities table (right after Strike column)
