@@ -5,10 +5,62 @@ import { Loader2, TrendingUp, DollarSign, BarChart3, Settings as SettingsIcon, M
 import { getLoginUrl } from "@/const";
 import { Link } from "wouter";
 import { useTheme } from "@/contexts/ThemeContext";
+import { trpc } from "@/lib/trpc";
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  
+  // Fetch user's background texture preferences
+  const { data: backgroundPrefs } = trpc.settings.getBackgroundPreferences.useQuery();
+  const backgroundOpacity = backgroundPrefs?.opacity ?? 8;
+  const backgroundPattern = backgroundPrefs?.pattern ?? 'diagonal';
+  
+  // Generate CSS pattern based on user's selection
+  const getPatternCSS = (pattern: string) => {
+    switch (pattern) {
+      case 'diagonal':
+        return `repeating-linear-gradient(
+          45deg,
+          transparent,
+          transparent 10px,
+          rgba(255, 255, 255, 0.03) 10px,
+          rgba(255, 255, 255, 0.03) 20px
+        )`;
+      case 'crosshatch':
+        return `repeating-linear-gradient(
+          45deg,
+          transparent,
+          transparent 10px,
+          rgba(255, 255, 255, 0.03) 10px,
+          rgba(255, 255, 255, 0.03) 20px
+        ), repeating-linear-gradient(
+          -45deg,
+          transparent,
+          transparent 10px,
+          rgba(255, 255, 255, 0.03) 10px,
+          rgba(255, 255, 255, 0.03) 20px
+        )`;
+      case 'dots':
+        return `radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px)`;
+      case 'woven':
+        return `repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(255, 255, 255, 0.02) 2px,
+          rgba(255, 255, 255, 0.02) 4px
+        ), repeating-linear-gradient(
+          90deg,
+          transparent,
+          transparent 2px,
+          rgba(255, 255, 255, 0.02) 2px,
+          rgba(255, 255, 255, 0.02) 4px
+        )`;
+      default:
+        return 'none';
+    }
+  };
 
   if (loading) {
     return (
@@ -45,9 +97,20 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      {/* Background texture pattern */}
+      {backgroundPattern !== 'none' && (
+        <div 
+          className="absolute inset-0 pointer-events-none" 
+          style={{
+            backgroundImage: getPatternCSS(backgroundPattern),
+            backgroundSize: backgroundPattern === 'dots' ? '20px 20px' : 'auto',
+            opacity: backgroundOpacity / 100
+          }}
+        />
+      )}
       {/* Header */}
-      <header className="border-b border-border">
+      <header className="border-b border-border relative z-10">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Prosper Trading</h1>
@@ -71,7 +134,7 @@ export default function Home() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 relative z-10">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* CSP Dashboard Card */}
           <Card className="hover:border-primary/50 transition-all duration-300 cursor-pointer backdrop-blur-sm bg-card/80 hover:shadow-lg hover:shadow-primary/20">

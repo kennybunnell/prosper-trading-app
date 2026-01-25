@@ -504,7 +504,7 @@ function BackgroundTextureSection() {
             id="background-opacity"
             type="range"
             min="0"
-            max="20"
+            max="100"
             step="1"
             value={opacity}
             onChange={(e) => handleOpacityChange(parseInt(e.target.value))}

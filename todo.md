@@ -395,3 +395,15 @@
 - [x] Update Settings page to show pattern selector + opacity slider
 - [x] Test all pattern options at different opacity levels
 - [ ] Apply same pattern system to other dashboard pages
+
+## Bug Fix: Background Patterns Not Visible
+- [x] Lighten global page background from pure black to dark charcoal (oklch(0.18) for better pattern visibility)
+- [x] Increase pattern opacity range from 0-20% to 0-100% in Settings UI
+- [x] Update backend validation to accept 0-100 opacity range (was rejecting values >20)
+- [x] Apply pattern background to Home page with user preferences
+- [x] Test pattern visibility at 50% opacity - crosshatch pattern now clearly visible
+- [x] Verify Settings slider saves correctly to database
+- [ ] Apply pattern background to CC Dashboard page
+- [ ] Apply pattern background to PMCC Dashboard page
+- [ ] Apply pattern background to Performance page
+- [ ] Test pattern visibility at 30%, 50%, and 80% opacity levels

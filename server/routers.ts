@@ -103,7 +103,7 @@ export const appRouter = router({
       };
     }),
     setBackgroundOpacity: protectedProcedure
-      .input(z.object({ opacity: z.number().min(0).max(20) }))
+      .input(z.object({ opacity: z.number().min(0).max(100) }))
       .mutation(async ({ ctx, input }) => {
         const { setDamascusOpacity } = await import('./db');
         await setDamascusOpacity(ctx.user.id, input.opacity);
