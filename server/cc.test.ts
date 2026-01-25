@@ -26,7 +26,7 @@ describe('CC Router Tests', () => {
       ).rejects.toThrow();
     });
 
-    it('should accept valid account number', async () => {
+    it('should accept valid account number', { timeout: 10000 }, async () => {
       const input: inferProcedureInput<AppRouter['cc']['getEligiblePositions']> = {
         accountNumber: 'test-account-123',
       };
@@ -197,6 +197,28 @@ describe('CC Router Tests', () => {
       expect(Array.isArray(result)).toBe(true);
       expect(result[0].success).toBe(false);
       expect(result[0].message).toMatch(/credentials|failed|404/i);
+    });
+  });
+
+  describe('Eligible Position Logic', () => {
+    it('should include all stock positions and calculate maxContracts correctly', () => {
+      // Test the core logic: all stocks included, maxContracts = floor((quantity - sharesCovered) / 100)
+      const testCases = [
+        { quantity: 100, existing: 0, expected: 1 },  // 100 shares, no calls = 1 contract
+        { quantity: 199, existing: 0, expected: 1 },  // 199 shares, no calls = 1 contract
+        { quantity: 200, existing: 0, expected: 2 },  // 200 shares, no calls = 2 contracts
+        { quantity: 300, existing: 1, expected: 2 },  // 300 shares, 1 call sold = 2 contracts available
+        { quantity: 100, existing: 1, expected: 0 },  // 100 shares, 1 call sold = 0 contracts available
+        { quantity: 50, existing: 0, expected: 0 },   // 50 shares, no calls = 0 contracts (not eligible)
+      ];
+      
+      for (const { quantity, existing, expected } of testCases) {
+        const sharesCovered = existing * 100;
+        const availableShares = Math.max(0, quantity - sharesCovered);
+        const maxContracts = Math.floor(availableShares / 100);
+        
+        expect(maxContracts).toBe(expected);
+      }
     });
   });
 

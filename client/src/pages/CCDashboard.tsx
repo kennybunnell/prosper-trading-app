@@ -32,8 +32,9 @@ type StockPosition = {
   quantity: number;
   currentPrice: number;
   marketValue: number;
-  totalContracts: number;
   existingContracts: number;
+  sharesCovered: number;
+  availableShares: number;
   maxContracts: number;
   hasExistingCalls: boolean;
 };

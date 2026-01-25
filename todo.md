@@ -510,3 +510,12 @@
 - [ ] Verify full-collapse and auto-scroll behavior
 - [ ] Check responsive design
 - [ ] Create checkpoint for CC Dashboard
+
+
+## 🐛 Bug Fixes
+
+- [x] Fix eligible position filtering logic - currently showing 0 eligible stocks instead of 15 (ACHR, AAL, LYFT, PLTR, IBIT, BMMB, AMZN, HOOD, NRDS, AVGO, UBER, NVDA, APLD, SHOP, HIMS)
+- [x] Compare Streamlit covered_calls.py logic with backend routers-cc.ts to identify discrepancy
+- [x] Update getEligiblePositions procedure to correctly filter stock positions
+- [x] Add test case for eligible position logic (maxContracts calculation)
+- [x] All 12 CC router tests passing

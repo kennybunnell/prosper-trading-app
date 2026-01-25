@@ -53,27 +53,32 @@ export const ccRouter = router({
         }
       }
 
-      // Build eligible holdings list
+      // Build holdings list - include ALL stock positions (not just ≥100 shares)
+      // This matches Streamlit logic: all stocks are added, then filter by maxContracts > 0
       const holdings = stockPositions
-        .filter(p => parseFloat(p.quantity) >= 100) // Only positions with 100+ shares
+        .filter(p => parseFloat(p.quantity) > 0) // Long positions only
         .map(p => {
           const symbol = p.symbol;
           const quantity = parseFloat(p.quantity);
           const currentPrice = parseFloat(p.closePrice);
           const marketValue = quantity * currentPrice;
 
-          // Calculate max contracts available (total shares / 100 - existing short calls)
-          const totalContracts = Math.floor(quantity / 100);
+          // Calculate contracts covered by existing short calls
           const existingContracts = shortCalls[symbol]?.contracts || 0;
-          const maxContracts = Math.max(0, totalContracts - existingContracts);
+          const sharesCovered = existingContracts * 100;
+          
+          // Calculate available shares and max new contracts
+          const availableShares = Math.max(0, quantity - sharesCovered);
+          const maxContracts = Math.floor(availableShares / 100);
 
           return {
             symbol,
             quantity,
             currentPrice,
             marketValue,
-            totalContracts,
             existingContracts,
+            sharesCovered,
+            availableShares,
             maxContracts,
             hasExistingCalls: existingContracts > 0,
           };
