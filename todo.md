@@ -432,3 +432,11 @@
 - [x] Remove duplicate "Ticker Summary (50 symbols)" section from EnhancedWatchlist component
 - [x] Verify ticker badges in collapsed header still show all symbols
 - [x] Test complete workflow: Expand → Collapse → Verify full collapse → Test Refresh button
+
+## Bug Fix: Auto-Collapse After Fetch Not Working
+- [x] Move auto-collapse logic from Fetch button onClick to Close button onClick in fetch progress dialog
+- [x] Ensure isFullyCollapsed=true is set when Close button is clicked
+- [x] Ensure scroll to Filters section happens after dialog closes
+- [x] Test with Small, Medium, Large, and All portfolio sizes
+- [x] Test with Quick Switch buttons (Small Only, Medium Only, Large Only)
+- [x] Verify watchlist + fetch options both hide after fetch completes

@@ -885,17 +885,7 @@ export default function CSPDashboard() {
                 startTime: Date.now(),
                 endTime: null,
               });
-              refetchOpportunities().then(() => {
-                // Full collapse watchlist + fetch options after successful fetch
-                setIsFullyCollapsed(true);
-                // Scroll to Filters section
-                setTimeout(() => {
-                  const filtersSection = document.querySelector('[data-section="filters"]');
-                  if (filtersSection) {
-                    filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }
-                }, 300);
-              });
+              refetchOpportunities();
             }} 
             disabled={loadingOpportunities || filteredWatchlist.length === 0}
             className="w-full bg-gradient-to-r from-amber-600 to-yellow-700 hover:from-amber-700 hover:to-yellow-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
@@ -1362,7 +1352,18 @@ export default function CSPDashboard() {
                   </p>
                 )}
                 <Button 
-                  onClick={() => setFetchProgress({ ...fetchProgress, isOpen: false })}
+                  onClick={() => {
+                    setFetchProgress({ ...fetchProgress, isOpen: false });
+                    // Full collapse watchlist + fetch options after dialog closes
+                    setIsFullyCollapsed(true);
+                    // Scroll to Filters section
+                    setTimeout(() => {
+                      const filtersSection = document.querySelector('[data-section="filters"]');
+                      if (filtersSection) {
+                        filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }, 300);
+                  }}
                   className="mt-4"
                   size="sm"
                 >
