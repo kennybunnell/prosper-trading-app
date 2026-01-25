@@ -595,3 +595,7 @@
 - [x] Changed selectedOpportunities from Set<number> to Set<string> using unique keys (symbol-strike-expiration)
 - [x] Updated all functions to use unique keys instead of array indices
 - [ ] Test filter with various selection combinations
+
+## 🐛 Order Summary Display Bug
+
+- [x] Fix duplicate dollar sign in Total Premium display (showing "$ $7455.50" instead of "$7455.50")

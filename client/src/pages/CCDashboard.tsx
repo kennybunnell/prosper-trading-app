@@ -972,12 +972,12 @@ export default function CCDashboard() {
                       <div>
                         <p className="text-sm text-muted-foreground">Total Premium</p>
                         <p className="text-2xl font-bold text-green-400">
-                          $
                           ${Array.from(selectedOpportunities)
                             .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
                             .filter((opp): opp is CCOpportunity => opp !== undefined)
                             .reduce((sum, opp) => sum + opp.premium, 0)
-                            .toFixed(2)}                        </p>
+                            .toFixed(2)}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
