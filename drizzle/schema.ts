@@ -211,6 +211,9 @@ export const userPreferences = mysqlTable("userPreferences", {
   // Default Tastytrade account for trading
   defaultTastytradeAccountId: varchar("defaultTastytradeAccountId", { length: 64 }),
   
+  // Damascus background opacity (0-20%)
+  damascusOpacity: int("damascusOpacity").notNull().default(8),
+  
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

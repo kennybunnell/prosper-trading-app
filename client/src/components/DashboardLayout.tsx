@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -114,6 +115,10 @@ function DashboardLayoutContent({
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
+  
+  // Fetch user's Damascus opacity preference
+  const { data: opacityData } = trpc.settings.getDamascusOpacity.useQuery();
+  const damascusOpacity = opacityData?.opacity ?? 8;
 
   useEffect(() => {
     if (isCollapsed) {
@@ -244,7 +249,7 @@ function DashboardLayoutContent({
 
       <SidebarInset className="relative">
         {/* Damascus steel background */}
-        <div className="absolute inset-0 opacity-[0.08] pointer-events-none" style={{backgroundImage: 'url(/damascus-bg.png)', backgroundSize: '800px 800px', backgroundRepeat: 'repeat'}} />
+        <div className="absolute inset-0 pointer-events-none" style={{backgroundImage: 'url(/damascus-option-3.png)', backgroundSize: 'cover', backgroundPosition: 'center', opacity: damascusOpacity / 100}} />
         {isMobile && (
           <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
             <div className="flex items-center gap-2">

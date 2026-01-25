@@ -94,6 +94,18 @@ export const appRouter = router({
         },
       };
     }),
+    getDamascusOpacity: protectedProcedure.query(async ({ ctx }) => {
+      const { getUserPreferences } = await import('./db');
+      const prefs = await getUserPreferences(ctx.user.id);
+      return { opacity: prefs?.damascusOpacity ?? 8 };
+    }),
+    setDamascusOpacity: protectedProcedure
+      .input(z.object({ opacity: z.number().min(0).max(20) }))
+      .mutation(async ({ ctx, input }) => {
+        const { setDamascusOpacity } = await import('./db');
+        await setDamascusOpacity(ctx.user.id, input.opacity);
+        return { success: true };
+      }),
   }),
 
   accounts: router({

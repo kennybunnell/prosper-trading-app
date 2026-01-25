@@ -370,3 +370,12 @@
 - [x] Simplify header to gold gradient title with subtitle
 - [x] Increase Damascus background opacity from 3% to 8% for better visibility
 - [x] Test Damascus visibility - pattern now visible without competing with content
+
+## Feature: Damascus Background Opacity Slider
+- [x] Add damascusOpacity column to user settings table (integer 0-20)
+- [x] Create backend procedure to get Damascus opacity preference
+- [x] Create backend procedure to update Damascus opacity preference
+- [x] Add "Appearance" section to Settings page
+- [x] Add opacity slider (0% to 20%) with real-time preview
+- [x] Update DashboardLayout to read and apply user's opacity preference
+- [x] Test opacity slider with different values and verify real-time updates

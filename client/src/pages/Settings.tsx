@@ -382,10 +382,86 @@ export default function Settings() {
           </CardContent>
         </Card>
 
+        {/* Damascus Background Opacity */}
+        <DamascusOpacitySection />
+
         {/* CSP Filter Presets */}
         <FilterPresetsSection />
       </div>
     </div>
+  );
+}
+
+function DamascusOpacitySection() {
+  const { data: opacityData } = trpc.settings.getDamascusOpacity.useQuery();
+  const [opacity, setOpacity] = useState(8);
+  const setDamascusOpacity = trpc.settings.setDamascusOpacity.useMutation({
+    onSuccess: () => {
+      toast.success("Damascus background opacity updated");
+      // Trigger a page refresh to apply the new opacity
+      window.location.reload();
+    },
+    onError: (error) => {
+      toast.error(`Failed to update opacity: ${error.message}`);
+    },
+  });
+
+  useEffect(() => {
+    if (opacityData) {
+      setOpacity(opacityData.opacity);
+    }
+  }, [opacityData]);
+
+  const handleOpacityChange = (value: number) => {
+    setOpacity(value);
+    // Debounce the save to avoid too many requests
+    setDamascusOpacity.mutate({ opacity: value });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Appearance</CardTitle>
+        <CardDescription>
+          Customize the visual appearance of your dashboard
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="damascus-opacity">Damascus Background Opacity</Label>
+            <span className="text-sm font-medium text-muted-foreground">{opacity}%</span>
+          </div>
+          <input
+            id="damascus-opacity"
+            type="range"
+            min="0"
+            max="20"
+            step="1"
+            value={opacity}
+            onChange={(e) => handleOpacityChange(parseInt(e.target.value))}
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-amber-500"
+          />
+          <p className="text-xs text-muted-foreground">
+            Adjust the visibility of the Damascus steel background pattern. Higher values make the pattern more visible.
+          </p>
+          {/* Preview area showing the current opacity */}
+          <div 
+            className="relative h-24 rounded-lg overflow-hidden border border-border"
+            style={{
+              backgroundImage: 'url(/damascus-option-3.png)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              opacity: opacity / 100,
+            }}
+          >
+            <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+              <span className="text-sm font-medium text-white drop-shadow-lg">Preview</span>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

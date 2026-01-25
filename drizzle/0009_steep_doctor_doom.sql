@@ -1,0 +1,1 @@
+ALTER TABLE `userPreferences` ADD `damascusOpacity` int DEFAULT 8 NOT NULL;

@@ -565,6 +565,33 @@ export async function getUserPreferences(userId: number) {
 }
 
 /**
+ * Set Damascus background opacity preference
+ */
+export async function setDamascusOpacity(userId: number, opacity: number) {
+  const db = await getDb();
+  if (!db) return;
+  const { userPreferences } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  
+  // Check if preferences exist
+  const existing = await getUserPreferences(userId);
+  
+  if (existing) {
+    // Update existing preferences
+    await db
+      .update(userPreferences)
+      .set({ damascusOpacity: opacity })
+      .where(eq(userPreferences.userId, userId));
+  } else {
+    // Insert new preferences with default opacity
+    await db.insert(userPreferences).values({
+      userId,
+      damascusOpacity: opacity,
+    });
+  }
+}
+
+/**
  * Upsert user preferences
  */
 export async function upsertUserPreferences(
