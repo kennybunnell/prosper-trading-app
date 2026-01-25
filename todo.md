@@ -413,3 +413,13 @@
 - [x] Use local opacity state for instant visual feedback when slider moves
 - [x] Keep database save on slider change for persistence across pages
 - [x] Test that adjusting slider shows immediate changes on Settings page background
+
+## UX Enhancement: Full-Collapse Watchlist After Fetch
+- [x] Add isFullyCollapsed state to CSP Dashboard (separate from isExpanded)
+- [x] Create compact header bar UI showing "Watchlist (X symbols)" with Expand button
+- [x] Implement full collapse logic: hide ticker list + Fetch Options when isFullyCollapsed=true
+- [x] Add auto-scroll to Filters section after successful fetch completion
+- [x] Add smooth scroll animation for better UX
+- [x] Implement Expand button to restore full watchlist view
+- [x] Test complete workflow: configure → fetch → collapse → scroll → filter → select → submit
+- [x] Verify collapsed state persists until user manually expands

@@ -27,6 +27,7 @@ import {
   Calendar,
   Target,
   Filter,
+  ChevronDown,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 
@@ -183,6 +184,7 @@ export default function CSPDashboard() {
   const [maxDte, setMaxDte] = useState<number>(45);
   const [portfolioSizeFilter, setPortfolioSizeFilter] = useState<Array<'small' | 'medium' | 'large'>>(['small', 'medium', 'large']);
   const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
+  const [isFullyCollapsed, setIsFullyCollapsed] = useState(false);
   const [sortColumn, setSortColumn] = useState<string>('score');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [dryRun, setDryRun] = useState(true);
@@ -609,16 +611,47 @@ export default function CSPDashboard() {
       
       <div className="container mx-auto py-8 space-y-8 relative z-10">
 
-      {/* Watchlist Management */}
-      <EnhancedWatchlist 
-        strategy="csp" 
-        onWatchlistChange={() => utils.watchlist.list.invalidate()}
-        isCollapsed={watchlistCollapsed}
-        onToggleCollapse={() => setWatchlistCollapsed(!watchlistCollapsed)}
-      />
+      {/* Watchlist Management - Full Collapse Mode */}
+      {isFullyCollapsed ? (
+        <div className="flex items-center justify-between p-6 bg-card/50 backdrop-blur border border-border/50 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col">
+              <span className="text-base font-semibold">📊 Watchlist ({watchlist.length} symbols)</span>
+              <span className="text-sm text-muted-foreground">Opportunities fetched • Ready to filter</span>
+            </div>
+            <div className="flex gap-1 ml-4">
+              {watchlist.slice(0, 8).map((item: any) => (
+                <Badge key={item.id} variant="secondary" className="text-xs">
+                  {item.symbol}
+                </Badge>
+              ))}
+              {watchlist.length > 8 && (
+                <Badge variant="secondary" className="text-xs">+{watchlist.length - 8} more</Badge>
+              )}
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsFullyCollapsed(false)}
+            className="hover:bg-primary/10 hover:border-primary/50 transition-colors"
+          >
+            <ChevronDown className="w-4 h-4 mr-2" />
+            Expand Watchlist
+          </Button>
+        </div>
+      ) : (
+        <>
+          {/* Watchlist Management */}
+          <EnhancedWatchlist 
+            strategy="csp" 
+            onWatchlistChange={() => utils.watchlist.list.invalidate()}
+            isCollapsed={watchlistCollapsed}
+            onToggleCollapse={() => setWatchlistCollapsed(!watchlistCollapsed)}
+          />
 
-      {/* DTE Range & Fetch Options */}
-      <Card className="bg-card/50 backdrop-blur border-border/50">
+          {/* DTE Range & Fetch Options */}
+          <Card className="bg-card/50 backdrop-blur border-border/50">
         <CardHeader>
           <CardTitle>Fetch Options</CardTitle>
           <CardDescription>Configure and fetch CSP opportunities</CardDescription>
@@ -829,8 +862,15 @@ export default function CSPDashboard() {
                 endTime: null,
               });
               refetchOpportunities().then(() => {
-                // Auto-collapse watchlist after successful fetch
-                setWatchlistCollapsed(true);
+                // Full collapse watchlist + fetch options after successful fetch
+                setIsFullyCollapsed(true);
+                // Scroll to Filters section
+                setTimeout(() => {
+                  const filtersSection = document.querySelector('[data-section="filters"]');
+                  if (filtersSection) {
+                    filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }, 300);
               });
             }} 
             disabled={loadingOpportunities || filteredWatchlist.length === 0}
@@ -850,9 +890,11 @@ export default function CSPDashboard() {
           </Button>
         </CardContent>
       </Card>
+        </>
+      )}
 
       {/* Filters */}
-      <Card className="bg-card/50 backdrop-blur border-border/50">
+      <Card className="bg-card/50 backdrop-blur border-border/50" data-section="filters">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="w-5 h-5" />
