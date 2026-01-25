@@ -282,19 +282,7 @@ export const ccRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (input.dryRun) {
-        // Dry run - just validate and return success
-        return input.orders.map(order => ({
-          success: true,
-          symbol: order.symbol,
-          strike: order.strike,
-          quantity: order.quantity,
-          message: 'Dry run - order not submitted',
-          orderId: 'DRY_RUN',
-        }));
-      }
-
-      // Live mode - submit real orders
+      // Validate contract limits before submission (both dry run and live)
       const { getApiCredentials } = await import('./db');
       const { getTastytradeAPI } = await import('./tastytrade');
 
@@ -306,6 +294,70 @@ export const ccRouter = router({
       const api = getTastytradeAPI();
       await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
 
+      // Fetch current positions to get maxContracts for each symbol
+      const positions = await api.getPositions(input.accountNumber);
+      const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
+      const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
+
+      // Identify short calls (covered calls already sold)
+      const shortCalls: Record<string, number> = {};
+      for (const opt of optionPositions) {
+        const quantityDirection = (opt as any)['quantity-direction'];
+        if (quantityDirection === 'Short' && (opt as any).symbol.includes('C')) {
+          const underlying = (opt as any)['underlying-symbol'];
+          const qty = Math.abs(parseFloat((opt as any).quantity));
+          shortCalls[underlying] = (shortCalls[underlying] || 0) + qty;
+        }
+      }
+
+      // Calculate maxContracts for each stock position
+      const maxContractsMap: Record<string, number> = {};
+      for (const pos of stockPositions) {
+        const symbol = (pos as any).symbol;
+        const quantity = parseFloat((pos as any).quantity);
+        if (quantity > 0) {
+          const existingContracts = shortCalls[symbol] || 0;
+          const sharesCovered = existingContracts * 100;
+          const availableShares = Math.max(0, quantity - sharesCovered);
+          maxContractsMap[symbol] = Math.floor(availableShares / 100);
+        }
+      }
+
+      // Group orders by symbol and count contracts
+      const contractsPerSymbol: Record<string, number> = {};
+      for (const order of input.orders) {
+        contractsPerSymbol[order.symbol] = (contractsPerSymbol[order.symbol] || 0) + order.quantity;
+      }
+
+      // Validate each symbol doesn't exceed maxContracts
+      const validationErrors: string[] = [];
+      for (const [symbol, requestedContracts] of Object.entries(contractsPerSymbol)) {
+        const maxContracts = maxContractsMap[symbol] || 0;
+        if (requestedContracts > maxContracts) {
+          validationErrors.push(
+            `${symbol}: Requested ${requestedContracts} contracts but only ${maxContracts} available`
+          );
+        }
+      }
+
+      // If validation fails, return errors
+      if (validationErrors.length > 0) {
+        throw new Error(`Contract limit validation failed:\n${validationErrors.join('\n')}`);
+      }
+
+      if (input.dryRun) {
+        // Dry run - validation passed, return success
+        return input.orders.map(order => ({
+          success: true,
+          symbol: order.symbol,
+          strike: order.strike,
+          quantity: order.quantity,
+          message: 'Dry run - validation passed, order not submitted',
+          orderId: 'DRY_RUN',
+        }));
+      }
+
+      // Live mode - submit real orders (api and credentials already initialized above)
       const results = [];
 
       for (const order of input.orders) {

@@ -577,3 +577,13 @@
 - [x] Implement toggle state for showing only selected opportunities vs all filtered opportunities
 - [ ] Test parallel scanning performance with 10+ stocks
 - [ ] Test Show Selected Only toggle with various filter combinations
+
+## 🔒 Contract Limit Validation Audit & Enhancement
+
+- [x] Audit frontend selection logic - verify it prevents selecting more opportunities per symbol than maxContracts
+- [x] Audit backend submitOrders procedure - verify it validates contract limits before submission
+- [x] Check if dry run mode catches contract limit violations (e.g., APLD with 2000 shares should reject >20 contracts)
+- [x] Add per-symbol contract counting in validation logic
+- [x] Add unit test for contract limit validation (test case: select 25 APLD opportunities when only 20 contracts available)
+- [x] Test dry run rejection with over-limit selections
+- [x] Verify preset filters select best opportunities based on scoring criteria
