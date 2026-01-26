@@ -1181,3 +1181,25 @@
 - [x] Fix quote parsing to convert string values to numbers (API returns "0.9" not 0.9)
 - [x] Fix response data access path (response.data.data.items not response.data.data)
 - [x] Test with real working orders - verified both cancellation and resubmission work
+
+## Active Positions Close Orders Bug
+- [ ] Investigate preflight check failure when closing positions from Active Positions tab
+- [ ] Compare with working CSP/CC dashboard order submission code
+- [ ] Fix order payload to pass Tastytrade API preflight checks
+- [ ] Test closing orders for positions with 80%+ realized premium
+
+## Tastytrade API Network Connectivity
+- [x] Add automatic retry logic with exponential backoff for network errors
+- [x] Handle "Client network socket disconnected before secure TLS connection" errors
+- [ ] Test retry logic with temporary network issues
+
+## Month-over-Month Premium Chart on Dashboard
+- [x] Create realistic mockups showing 2-3 design options using Recharts capabilities
+- [x] Get user approval on preferred design (Option 3: Glowing waterfall style)
+- [x] Implement backend tRPC procedure to fetch monthly premium data across ALL accounts
+- [x] Create MonthlyPremiumChart component with approved design
+- [x] Place chart above the three strategy cards on Home page
+- [x] Ensure chart is account-independent (shows all accounts combined)
+- [x] Display last 6 months rolling window
+- [x] Remove Quick Stats widget from sidebar
+- [ ] Test with real data across multiple accounts

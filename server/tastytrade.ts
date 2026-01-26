@@ -111,15 +111,56 @@ export class TastytradeAPI {
   }
 
   /**
+   * Retry helper with exponential backoff
+   */
+  private async retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    maxRetries: number = 3,
+    initialDelay: number = 1000
+  ): Promise<T> {
+    let lastError: any;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
+        
+        // Check if error is retryable (network errors, timeouts)
+        const isRetryable = 
+          error.code === 'ECONNRESET' ||
+          error.code === 'ETIMEDOUT' ||
+          error.code === 'ENOTFOUND' ||
+          error.code === 'ECONNREFUSED' ||
+          error.message?.includes('socket') ||
+          error.message?.includes('network') ||
+          error.message?.includes('TLS');
+        
+        if (!isRetryable || attempt === maxRetries) {
+          throw error;
+        }
+        
+        const delay = initialDelay * Math.pow(2, attempt);
+        console.log(`[Tastytrade] Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    throw lastError;
+  }
+
+  /**
    * Authenticate with Tastytrade API
    */
   async login(username: string, password: string): Promise<TastytradeSession> {
     try {
-      const response = await this.client.post('/sessions', {
-        login: username,
-        password: password,
-        'remember-me': true,
-      });
+      const response = await this.retryWithBackoff(() =>
+        this.client.post('/sessions', {
+          login: username,
+          password: password,
+          'remember-me': true,
+        })
+      );
 
       const data = response.data.data;
       this.sessionToken = data['session-token'];
@@ -450,37 +491,37 @@ export class TastytradeAPI {
    * @param dryRun - If true, only validate without submitting
    */
   async buyToCloseOption(accountNumber: string, optionSymbol: string, quantity: number, price: number, dryRun: boolean = false): Promise<{ success: boolean; orderId?: string; message: string }> {
+    // Parse option symbol to extract underlying
+    const underlyingMatch = optionSymbol.match(/^([A-Z]+)/);
+    const underlyingSymbol = underlyingMatch ? underlyingMatch[1] : optionSymbol.substring(0, 6).trim();
+
+    // Ensure option symbol has proper spacing for Tastytrade API
+    // OCC format requires 6-char ticker padded with spaces
+    let formattedSymbol = optionSymbol.replace(' ', '');
+    const match = formattedSymbol.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);
+    if (match) {
+      const ticker = match[1].padEnd(6, ' ');
+      const rest = match[2] + match[3] + match[4];
+      formattedSymbol = ticker + rest;
+    }
+
+    const orderPayload = {
+      'time-in-force': 'Day',
+      'order-type': 'Limit',
+      'underlying-symbol': underlyingSymbol,
+      price: price.toFixed(2),
+      'price-effect': 'Debit', // We pay to buy back
+      legs: [
+        {
+          'instrument-type': 'Equity Option',
+          symbol: formattedSymbol,
+          quantity: quantity.toString(),
+          action: 'Buy to Close',
+        },
+      ],
+    };
+
     try {
-      // Parse option symbol to extract underlying
-      const underlyingMatch = optionSymbol.match(/^([A-Z]+)/);
-      const underlyingSymbol = underlyingMatch ? underlyingMatch[1] : optionSymbol.substring(0, 6).trim();
-
-      // Ensure option symbol has proper spacing for Tastytrade API
-      // OCC format requires 6-char ticker padded with spaces
-      let formattedSymbol = optionSymbol.replace(' ', '');
-      const match = formattedSymbol.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);
-      if (match) {
-        const ticker = match[1].padEnd(6, ' ');
-        const rest = match[2] + match[3] + match[4];
-        formattedSymbol = ticker + rest;
-      }
-
-      const orderPayload = {
-        'time-in-force': 'Day',
-        'order-type': 'Limit',
-        'underlying-symbol': underlyingSymbol,
-        price: price.toFixed(2),
-        'price-effect': 'Debit', // We pay to buy back
-        legs: [
-          {
-            'instrument-type': 'Equity Option',
-            symbol: formattedSymbol,
-            quantity: quantity.toString(),
-            action: 'Buy to Close',
-          },
-        ],
-      };
-
       console.log(`[Tastytrade] ${dryRun ? 'Dry run' : 'Submitting'} buy-to-close order:`, {
         account: accountNumber,
         symbol: formattedSymbol,
@@ -510,6 +551,8 @@ export class TastytradeAPI {
     } catch (error: any) {
       const errorMsg = error.response?.data?.error?.message || error.message;
       console.error(`[Tastytrade] Buy-to-close error:`, errorMsg);
+      console.error(`[Tastytrade] Full error response:`, JSON.stringify(error.response?.data, null, 2));
+      console.error(`[Tastytrade] Order payload was:`, JSON.stringify(orderPayload, null, 2));
       return {
         success: false,
         message: `Failed to ${dryRun ? 'validate' : 'submit'} order: ${errorMsg}`,

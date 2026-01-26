@@ -6,6 +6,29 @@ import { getLoginUrl } from "@/const";
 import { Link } from "wouter";
 import { useTheme } from "@/contexts/ThemeContext";
 import { trpc } from "@/lib/trpc";
+import { MonthlyPremiumChart } from "@/components/MonthlyPremiumChart";
+
+function MonthlyPremiumChartSection() {
+  const { data, isLoading, error } = trpc.dashboard.getMonthlyPremiumData.useQuery();
+  
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  
+  if (error || !data || data.error) {
+    return null; // Silently hide chart if no data or error
+  }
+  
+  if (data.monthlyData.length === 0) {
+    return null; // Hide chart if no data available
+  }
+  
+  return <MonthlyPremiumChart data={data.monthlyData} />;
+}
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
@@ -135,7 +158,10 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 relative z-10">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Monthly Premium Chart - All Accounts Combined */}
+        <MonthlyPremiumChartSection />
+        
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-8">
           {/* CSP Dashboard Card */}
           <Card className="hover:border-primary/50 transition-all duration-300 cursor-pointer backdrop-blur-sm bg-card/80 hover:shadow-lg hover:shadow-primary/20">
             <CardHeader>

@@ -76,14 +76,7 @@ export function Sidebar({ className }: SidebarProps) {
     },
   ];
 
-  // Mock Quick Stats (TODO: Replace with real data from backend)
-  const quickStats = {
-    openPositions: 0,
-    workingOrders: 0,
-    weeklyPremium: 0,
-    monthlyPremium: 0,
-    winRate: 0,
-  };
+
 
   return (
     <div
@@ -230,56 +223,6 @@ export function Sidebar({ className }: SidebarProps) {
           );
         })}
       </nav>
-
-      <Separator className="bg-border/50" />
-
-      {/* Quick Stats Panel */}
-      {!collapsed && (
-        <div className="p-4">
-          <Card className="bg-card/50 backdrop-blur border-border/50">
-            <CardContent className="p-3 space-y-2">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Quick Stats</div>
-              
-              <div className="flex items-center justify-between text-sm">
-                <span className="flex items-center gap-2 text-muted-foreground">
-                  <Circle className="h-2 w-2 fill-green-500 text-green-500" />
-                  Open Positions
-                </span>
-                <span className="font-semibold">{quickStats.openPositions}</span>
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <span className="flex items-center gap-2 text-muted-foreground">
-                  <Circle className="h-2 w-2 fill-yellow-500 text-yellow-500" />
-                  Working Orders
-                </span>
-                <span className="font-semibold">{quickStats.workingOrders}</span>
-              </div>
-
-              <Separator className="bg-border/50 my-2" />
-
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">This Week</span>
-                <span className={cn("font-semibold", quickStats.weeklyPremium >= 0 ? "text-green-500" : "text-red-500")}>
-                  {quickStats.weeklyPremium >= 0 ? '+' : '-'}${Math.abs(quickStats.weeklyPremium).toLocaleString()}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">This Month</span>
-                <span className={cn("font-semibold", quickStats.monthlyPremium >= 0 ? "text-green-500" : "text-red-500")}>
-                  {quickStats.monthlyPremium >= 0 ? '+' : '-'}${Math.abs(quickStats.monthlyPremium).toLocaleString()}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Win Rate</span>
-                <span className="font-semibold">{quickStats.winRate}% ⭐</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       <Separator className="bg-border/50" />
 
