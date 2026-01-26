@@ -62,10 +62,12 @@ export const performanceRouter = router({
       }
 
       const accountNumber = accountId || accounts[0].account["account-number"];
+      console.log(`[Performance] Fetching positions for account: ${accountNumber}`);
 
       try {
         // Fetch all positions from Tastytrade
         const positions = await api.getPositions(accountNumber);
+        console.log(`[Performance] Retrieved ${positions.length} total positions`);
         
         // Filter for short option positions only
         const shortOptions = positions.filter((pos) => {
@@ -73,6 +75,7 @@ export const performanceRouter = router({
           const isShort = pos.quantityDirection === 'Short';
           return isOption && isShort;
         });
+        console.log(`[Performance] Found ${shortOptions.length} short option positions`);
 
         // Process each position
         const processedPositions: ProcessedPosition[] = [];
@@ -141,6 +144,8 @@ export const performanceRouter = router({
           ? processedPositions.reduce((sum, pos) => sum + pos.realizedPercent, 0) / openPositions
           : 0;
         const readyToClose = processedPositions.filter(pos => pos.action === 'CLOSE').length;
+
+        console.log(`[Performance] Processed ${processedPositions.length} positions, ${readyToClose} ready to close`);
 
         return {
           positions: processedPositions,

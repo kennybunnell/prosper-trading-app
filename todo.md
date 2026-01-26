@@ -820,3 +820,12 @@
 - [x] Create positions table with all columns (Account, Symbol, Type, Qty, Strike, Exp, DTE, Premium, Current, Realized %, Action)
 - [x] Implement CLOSE/WATCH/HOLD action buttons with color coding
 - [x] Test Active Positions tracker with real data (5/5 tests passing)
+
+## Performance Analytics - Active Positions Debugging
+- [x] Check browser console for API errors
+- [x] Verify account selection is passing correct accountId
+- [x] Check if Tastytrade API authentication is working
+- [x] Add console logging to backend getActivePositions procedure
+- [x] Test API call with real Tastytrade credentials (Main Cash Account: 71 positions, Individual-HELOC: 1 position)
+- [x] Verify position data is being returned correctly (0 short options found in both accounts)
+- [x] Fix any data parsing or display issues (Working correctly - accounts simply have no short option positions)

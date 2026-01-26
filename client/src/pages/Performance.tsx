@@ -71,7 +71,7 @@ function ActivePositionsTab() {
   const [profitFilter, setProfitFilter] = useState<number | null>(null);
 
   // Fetch active positions
-  const { data, isLoading, refetch } = trpc.performance.getActivePositions.useQuery(
+  const { data, isLoading, refetch, error } = trpc.performance.getActivePositions.useQuery(
     {
       accountId: selectedAccountId || '',
       positionType,
@@ -80,15 +80,26 @@ function ActivePositionsTab() {
     {
       enabled: !!selectedAccountId,
       refetchOnWindowFocus: false,
+      retry: false,
     }
   );
 
+  // Show error if API call fails
+  if (error) {
+    console.error('[Performance] Error fetching positions:', error);
+  }
+
   const handleRefresh = async () => {
+    if (!selectedAccountId) {
+      toast.error('Please select an account first');
+      return;
+    }
     try {
       await refetch();
       toast.success('Positions refreshed');
-    } catch (error) {
-      toast.error('Failed to refresh positions');
+    } catch (error: any) {
+      console.error('[Performance] Refresh error:', error);
+      toast.error(`Failed to refresh positions: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -105,6 +116,41 @@ function ActivePositionsTab() {
     avgRealizedPercent: 0,
     readyToClose: 0,
   };
+
+  // Show account selection prompt if no account selected
+  if (!selectedAccountId) {
+    return (
+      <Card className="p-8 text-center">
+        <div className="space-y-4">
+          <div className="text-lg font-medium text-muted-foreground">
+            Please select a Tastytrade account from the sidebar to view active positions
+          </div>
+          <p className="text-sm text-muted-foreground">
+            If you don't see any accounts, make sure you've configured your Tastytrade credentials in Settings.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  // Show error message if API call failed
+  if (error) {
+    return (
+      <Card className="p-8 text-center">
+        <div className="space-y-4">
+          <div className="text-lg font-medium text-red-400">
+            Error loading positions
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {error.message || 'Failed to fetch positions from Tastytrade API'}
+          </p>
+          <Button onClick={handleRefresh} variant="outline">
+            Try Again
+          </Button>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
