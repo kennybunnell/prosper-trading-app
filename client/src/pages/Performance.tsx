@@ -1324,6 +1324,24 @@ function PerformanceOverviewTab() {
   const [symbolSortKey, setSymbolSortKey] = useState<string>('netPremium');
   const [symbolSortDir, setSymbolSortDir] = useState<'asc' | 'desc'>('desc');
 
+  // Calculate monthsBack based on time period
+  const calculateMonthsBack = (period: '3m' | '6m' | 'ytd' | 'all') => {
+    if (period === '3m') return 3;
+    if (period === '6m') return 6;
+    if (period === 'ytd') {
+      const now = new Date();
+      const yearStart = new Date(now.getFullYear(), 0, 1);
+      const monthsDiff = (now.getFullYear() - yearStart.getFullYear()) * 12 + (now.getMonth() - yearStart.getMonth());
+      return Math.max(1, monthsDiff + 1);
+    }
+    return 120; // All time (10 years)
+  };
+
+  // Update monthsBack when time period changes
+  useEffect(() => {
+    setMonthsBack(calculateMonthsBack(timePeriod));
+  }, [timePeriod]);
+
   // Fetch performance overview data
   const { data, isLoading, refetch, error } = trpc.performance.getPerformanceOverview.useQuery(
     {
@@ -1378,24 +1396,6 @@ function PerformanceOverviewTab() {
   }
 
   const { monthlyData, symbolPerformance, performanceMetrics, totals, dateRange } = data;
-
-  // Calculate monthsBack based on time period
-  const calculateMonthsBack = (period: '3m' | '6m' | 'ytd' | 'all') => {
-    if (period === '3m') return 3;
-    if (period === '6m') return 6;
-    if (period === 'ytd') {
-      const now = new Date();
-      const yearStart = new Date(now.getFullYear(), 0, 1);
-      const monthsDiff = (now.getFullYear() - yearStart.getFullYear()) * 12 + (now.getMonth() - yearStart.getMonth());
-      return Math.max(1, monthsDiff + 1);
-    }
-    return 120; // All time (10 years)
-  };
-
-  // Update monthsBack when time period changes
-  useEffect(() => {
-    setMonthsBack(calculateMonthsBack(timePeriod));
-  }, [timePeriod]);
 
   // Sorting helper
   const handleMonthlySort = (key: string) => {

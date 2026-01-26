@@ -1039,3 +1039,6 @@
 - [x] Add clustering warnings (5+ contracts per day, 10+ per week)
 - [x] Display expiration details (symbols, types, quantities)
 - [x] Add clustering risk indicator (⚠️ warnings for clustered dates)
+
+## Bug Fixes (User Reported)
+- [x] Fix React Hooks violation in PerformanceOverviewTab (moved useEffect before conditional returns)
