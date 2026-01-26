@@ -797,3 +797,15 @@
 - [x] Wire frontend to call backend mutation and show progress
 - [ ] Test dry run mode (validation only, no submission)
 - [ ] Test live mode with real order submission
+
+## Active PMCC Positions Tracker Implementation
+- [x] Create `pmcc.getLeapPositions` tRPC query procedure
+- [x] Fetch positions from Tastytrade API and filter for LEAP calls (270+ DTE)
+- [x] Calculate cost basis, current value, P/L for each position
+- [x] Add "Active PMCC Positions" section to PMCC Dashboard
+- [x] Display position cards with symbol, strike, expiration, DTE, P/L
+- [x] Show cost basis, current value, P/L percentage
+- [x] Display current delta and stock price
+- [x] Add "Sell Calls" button per position
+- [x] Add refresh button to reload positions
+- [ ] Test position fetching with real Tastytrade account

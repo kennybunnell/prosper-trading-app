@@ -191,6 +191,106 @@ export const pmccRouter = router({
     }),
 
   /**
+   * Get active LEAP positions from Tastytrade account
+   * Filters for long call options with 270+ DTE
+   */
+  getLeapPositions: protectedProcedure
+    .query(async ({ ctx }) => {
+      const { getApiCredentials } = await import("./db");
+      const { getTastytradeAPI } = await import("./tastytrade");
+      const { createTradierAPI } = await import("./tradier");
+
+      // Get Tastytrade credentials
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Tastytrade credentials not configured. Please add them in Settings.",
+        });
+      }
+
+      // Initialize Tastytrade API
+      const api = getTastytradeAPI();
+      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+
+      // Get accounts
+      const accounts = await api.getAccounts();
+      if (!accounts || accounts.length === 0) {
+        return { positions: [] };
+      }
+
+      const accountNumber = accounts[0].account["account-number"];
+
+      // Get positions
+      const positions = await api.getPositions(accountNumber);
+
+      // Filter for LEAP calls (long call options with 270+ DTE)
+      const leapPositions = positions.filter(pos => {
+        if (pos.instrumentType !== "Equity Option") return false;
+        if (pos.quantityDirection !== "Long") return false;
+        if (!pos.symbol.includes("C")) return false; // Must be a call
+        if (!pos.expiresAt) return false;
+
+        // Calculate DTE
+        const expiration = new Date(pos.expiresAt);
+        const now = new Date();
+        const dte = Math.floor((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+        return dte >= 270; // Only LEAPs (9+ months)
+      });
+
+      // Get current market data for each LEAP
+      const tradierApi = createTradierAPI(credentials.tradierApiKey || "");
+      const enrichedPositions = await Promise.all(
+        leapPositions.map(async (pos) => {
+          try {
+            // Parse option symbol to get underlying and strike
+            const underlying = pos.underlyingSymbol;
+            const strike = parseFloat(pos.symbol.match(/C(\d+)/)?.[1] || "0") / 1000;
+            const expiration = new Date(pos.expiresAt!);
+            const dte = Math.floor((expiration.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+
+            // Get current option price from position data
+            const currentPrice = parseFloat(pos.closePrice);
+
+            // Get stock price
+            const stockQuote = await tradierApi.getQuote(underlying);
+            const stockPrice = stockQuote?.last || 0;
+
+            // Calculate P/L
+            const costBasis = Math.abs(parseFloat(pos.averageOpenPrice)) * 100 * parseInt(pos.quantity); // *100 for multiplier
+            const currentValue = currentPrice * 100 * parseInt(pos.quantity);
+            const profitLoss = currentValue - costBasis;
+            const profitLossPercent = (profitLoss / costBasis) * 100;
+
+            return {
+              symbol: underlying,
+              optionSymbol: pos.symbol,
+              strike,
+              expiration: pos.expiresAt!,
+              dte,
+              quantity: parseInt(pos.quantity),
+              costBasis,
+              currentValue,
+              profitLoss,
+              profitLossPercent,
+              currentPrice,
+              stockPrice,
+              delta: 0.80, // TODO: Get from Greeks if available
+            };
+          } catch (error) {
+            console.error(`[PMCC] Error enriching position ${pos.symbol}:`, error);
+            return null;
+          }
+        })
+      );
+
+      return {
+        positions: enrichedPositions.filter(p => p !== null),
+      };
+    }),
+
+  /**
    * Submit LEAP purchase orders via Tastytrade API
    * Supports dry run mode for validation without execution
    */

@@ -13,6 +13,114 @@ import { cn } from "@/lib/utils";
 type SortColumn = 'symbol' | 'strike' | 'expiration' | 'dte' | 'delta' | 'premium' | 'bidAskSpread' | 'openInterest' | 'volume' | 'score';
 type SortDirection = 'asc' | 'desc';
 
+// Active Positions Section Component
+function ActivePositionsSection() {
+  const { data: positionsData, isLoading, refetch } = trpc.pmcc.getLeapPositions.useQuery();
+  const positions = positionsData?.positions || [];
+
+  if (isLoading) {
+    return (
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Active PMCC Positions
+          </CardTitle>
+          <CardDescription>Your current LEAP call positions</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (positions.length === 0) {
+    return (
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Active PMCC Positions
+          </CardTitle>
+          <CardDescription>Your current LEAP call positions</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-muted-foreground">
+            <p>No active LEAP positions found.</p>
+            <p className="text-sm mt-2">Purchase LEAPs below to start your PMCC strategy.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="mb-8">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Active PMCC Positions ({positions.length})
+            </CardTitle>
+            <CardDescription>Your current LEAP call positions</CardDescription>
+          </div>
+          <Button onClick={() => refetch()} variant="outline" size="sm">
+            Refresh
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {positions.map((pos: any, idx: number) => (
+            <Card key={idx} className="border-2">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">{pos.symbol}</CardTitle>
+                  <span className={`text-sm font-semibold ${pos.profitLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {pos.profitLoss >= 0 ? '+' : ''}{pos.profitLossPercent.toFixed(1)}%
+                  </span>
+                </div>
+                <CardDescription>
+                  ${pos.strike.toFixed(2)} Call • {new Date(pos.expiration).toLocaleDateString()} ({pos.dte} DTE)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Cost Basis</p>
+                    <p className="font-semibold">${pos.costBasis.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Current Value</p>
+                    <p className="font-semibold">${pos.currentValue.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">P/L</p>
+                    <p className={`font-semibold ${pos.profitLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {pos.profitLoss >= 0 ? '+' : ''}${pos.profitLoss.toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Stock Price</p>
+                    <p className="font-semibold">${pos.stockPrice.toFixed(2)}</p>
+                  </div>
+                </div>
+                <Button className="w-full mt-4" size="sm">
+                  Sell Calls
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PMCCDashboard() {
   const [selectedPreset, setSelectedPreset] = useState<'conservative' | 'medium' | 'aggressive' | null>(null);
   const [showBestPerTicker, setShowBestPerTicker] = useState(false);
@@ -245,6 +353,9 @@ export default function PMCCDashboard() {
             Poor Man's Covered Call - Buy LEAPs and sell short calls for income
           </p>
         </div>
+
+        {/* Active PMCC Positions */}
+        <ActivePositionsSection />
 
         {/* Watchlist Management */}
         <div className="mb-8">
