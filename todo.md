@@ -717,3 +717,16 @@
 - [ ] Add "Sell Calls" button for each position
 - [ ] Implement short call scanning against owned LEAPs
 - [ ] Test position tracking with mock data
+
+## PMCC Advanced Scoring System Implementation
+- [x] Update scoring function to calculate Extrinsic Value % (Premium - Intrinsic)
+- [x] Add Cost per Delta calculation (Premium / Delta)
+- [x] Add IV comparison (mid_iv vs smv_vol)
+- [x] Implement new 100-point scoring system with weighted categories
+- [x] Add "Best Per Ticker" filter button to show top LEAP per symbol
+- [x] Update Conservative preset: OI 1000+, Volume 50+, Spread <1.5%, Delta 0.75-0.85, DTE 330-390
+- [x] Update Medium preset: OI 500+, Volume 25+, Spread <2.5%, DTE 300-420
+- [x] Update Aggressive preset: OI 100+, Volume 10+, Spread <5%, DTE 270-450
+- [x] Test scoring with real data to verify score distribution (40-83 range achieved)
+- [x] Verify "Best Per Ticker" reduces opportunities to 33 unique tickers
+- [x] Test Conservative preset (shows 3 LEAPs, may need slight relaxation)

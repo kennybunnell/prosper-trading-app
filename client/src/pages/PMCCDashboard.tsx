@@ -12,7 +12,8 @@ type SortColumn = 'symbol' | 'strike' | 'expiration' | 'dte' | 'delta' | 'premiu
 type SortDirection = 'asc' | 'desc';
 
 export default function PMCCDashboard() {
-  const [selectedPreset, setSelectedPreset] = useState<"conservative" | "medium" | "aggressive" | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState<'conservative' | 'medium' | 'aggressive' | null>(null);
+  const [showBestPerTicker, setShowBestPerTicker] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [selectedLeaps, setSelectedLeaps] = useState<Set<string>>(new Set());
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
@@ -103,9 +104,10 @@ export default function PMCCDashboard() {
           // Volume filter
           if (leap.volume < preset.minVolume) return false;
           
-          // Spread % filter (if maxStrikePercent is used as max spread)
+          // Spread % filter (use maxBbPercent as max spread %)
           const spreadPercent = ((leap.ask - leap.bid) / leap.ask) * 100;
-          if (spreadPercent > 10) return false; // Max 10% spread for LEAPs
+          const maxSpreadPercent = preset.maxBbPercent ? parseFloat(preset.maxBbPercent) * 100 : 10; // Convert from decimal to %, default 10%
+          if (spreadPercent > maxSpreadPercent) return false;
           
           // Score filter
           if (leap.score < preset.minScore) return false;
@@ -113,6 +115,20 @@ export default function PMCCDashboard() {
           return true;
         });
       }
+    }
+    
+    // Apply "Best Per Ticker" filter - show only top-scoring LEAP per symbol
+    if (showBestPerTicker) {
+      const bestPerTicker = new Map<string, typeof filtered[0]>();
+      
+      filtered.forEach(leap => {
+        const existing = bestPerTicker.get(leap.symbol);
+        if (!existing || leap.score > existing.score) {
+          bestPerTicker.set(leap.symbol, leap);
+        }
+      });
+      
+      filtered = Array.from(bestPerTicker.values());
     }
     
     // Apply "Show Selected Only" filter
@@ -136,7 +152,7 @@ export default function PMCCDashboard() {
     });
     
     return filtered;
-  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection, selectedPreset, presets]);
+  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection, selectedPreset, presets, showBestPerTicker]);
 
   // Calculate order summary
   const orderSummary = useMemo(() => {
@@ -271,6 +287,19 @@ export default function PMCCDashboard() {
                       onClick={() => setSelectedPreset(null)}
                     >
                       Clear Filters
+                    </Button>
+                    <div className="h-6 w-px bg-border mx-2" />
+                    <Button
+                      variant="ghost"
+                      className={cn(
+                        "rounded-full px-5 py-2.5 font-semibold transition-all duration-200",
+                        showBestPerTicker
+                          ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/50 hover:shadow-xl hover:shadow-purple-500/60"
+                          : "bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 hover:border-purple-500/50"
+                      )}
+                      onClick={() => setShowBestPerTicker(!showBestPerTicker)}
+                    >
+                      {showBestPerTicker ? '✓ ' : ''}Best Per Ticker
                     </Button>
                   </div>
                 </div>

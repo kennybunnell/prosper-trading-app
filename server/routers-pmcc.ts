@@ -192,61 +192,161 @@ export const pmccRouter = router({
 });
 
 /**
- * Calculate LEAP opportunity score
- * Similar to CSP/CC scoring but optimized for LEAP buying criteria
+ * Calculate score for a LEAP option based on quality criteria
+ * Advanced multi-factor scoring system (100 points total):
+ * - Liquidity & Execution (30 pts): OI, Volume, Spread
+ * - Value & Efficiency (35 pts): Extrinsic %, Cost/Delta, IV Quality
+ * - Risk Management (25 pts): Delta, Theta, DTE
+ * - Stock Quality (10 pts): Price trend, MA position
  */
 function calculateLeapScore(
   option: any,
   currentPrice: number,
   preset: any
 ): number {
-  let score = 50; // Base score
+  let score = 0;
 
-  // Delta score (prefer deep ITM: 0.75-0.85)
-  const delta = option.greeks?.delta || 0;
-  if (delta >= 0.75 && delta <= 0.85) {
-    score += 20; // Ideal delta range
-  } else if (delta >= 0.70 && delta < 0.75) {
-    score += 10; // Acceptable
-  } else if (delta > 0.85 && delta <= 0.90) {
-    score += 10; // Acceptable
-  }
-
-  // Open Interest score
-  if (option.open_interest >= 100) {
+  // === LIQUIDITY & EXECUTION (30 points) ===
+  
+  // Open Interest (15 points)
+  const oi = option.open_interest || 0;
+  if (oi >= 1000) {
     score += 15;
-  } else if (option.open_interest >= 50) {
+  } else if (oi >= 500) {
     score += 10;
-  } else if (option.open_interest >= 20) {
+  } else if (oi >= 100) {
     score += 5;
+  } else if (oi >= 50) {
+    score += 2;
   }
+  // else 0 points
 
-  // Volume score
-  if (option.volume >= 50) {
+  // Volume (10 points)
+  const volume = option.volume || 0;
+  if (volume >= 50) {
     score += 10;
-  } else if (option.volume >= 20) {
-    score += 5;
+  } else if (volume >= 20) {
+    score += 7;
+  } else if (volume >= 10) {
+    score += 4;
+  } else if (volume >= 5) {
+    score += 2;
   }
+  // else 0 points
 
-  // Bid-Ask spread score (tighter is better)
-  const bidAskSpreadPercent = ((option.ask - option.bid) / option.ask) * 100;
-  if (bidAskSpreadPercent <= 2) {
-    score += 10;
-  } else if (bidAskSpreadPercent <= 5) {
+  // Bid-Ask Spread % (5 points)
+  const bid = option.bid || 0;
+  const ask = option.ask || 0;
+  const spreadPercent = ask > 0 ? ((ask - bid) / ask) * 100 : 100;
+  if (spreadPercent < 1.0) {
     score += 5;
-  } else if (bidAskSpreadPercent > 10) {
-    score -= 10; // Penalize wide spreads
+  } else if (spreadPercent < 2.0) {
+    score += 3;
+  } else if (spreadPercent < 5.0) {
+    score += 1;
   }
+  // else 0 points
 
-  // Strike price relative to current price (prefer ITM but not too deep)
-  const strikePercent = (option.strike / currentPrice) * 100;
-  if (strikePercent >= 85 && strikePercent <= 95) {
-    score += 10; // Ideal ITM range
-  } else if (strikePercent >= 80 && strikePercent < 85) {
+  // === VALUE & EFFICIENCY (35 points) ===
+
+  // Extrinsic Value % (15 points) - Lower is better for LEAPs
+  const premium = (bid + ask) / 2;
+  const intrinsicValue = Math.max(0, currentPrice - option.strike);
+  const extrinsicValue = premium - intrinsicValue;
+  const extrinsicPercent = premium > 0 ? (extrinsicValue / premium) * 100 : 100;
+  
+  if (extrinsicPercent < 15) {
+    score += 15; // Excellent - mostly intrinsic value
+  } else if (extrinsicPercent < 25) {
+    score += 10; // Good
+  } else if (extrinsicPercent < 35) {
     score += 5; // Acceptable
-  } else if (strikePercent < 75) {
-    score -= 5; // Too deep ITM, expensive
+  } else if (extrinsicPercent < 45) {
+    score += 2; // Poor
+  }
+  // else 0 points - too much time value
+
+  // Cost per Delta (10 points) - Lower is better (capital efficiency)
+  const delta = option.greeks?.delta || 0;
+  const costPerDelta = delta > 0 ? (premium * 100) / delta : 999999; // premium in dollars per contract
+  
+  // Scale: excellent < 10000, good < 15000, acceptable < 20000
+  if (costPerDelta < 10000) {
+    score += 10;
+  } else if (costPerDelta < 15000) {
+    score += 7;
+  } else if (costPerDelta < 20000) {
+    score += 4;
+  } else if (costPerDelta < 30000) {
+    score += 2;
+  }
+  // else 0 points
+
+  // IV Quality (10 points) - Compare mid_iv to smv_vol
+  const midIV = option.greeks?.mid_iv || 0;
+  const smvVol = option.greeks?.smv_vol || midIV;
+  
+  if (smvVol > 0) {
+    const ivRatio = midIV / smvVol;
+    if (ivRatio < 0.9) {
+      score += 10; // IV below smoothed vol - good value
+    } else if (ivRatio < 1.0) {
+      score += 7; // Slightly below - acceptable
+    } else if (ivRatio < 1.1) {
+      score += 4; // Slightly above - fair
+    } else if (ivRatio < 1.2) {
+      score += 2; // Above - expensive
+    }
+    // else 0 points - significantly overpriced
+  } else {
+    score += 5; // Neutral if no IV data
   }
 
-  return Math.max(0, Math.min(100, score)); // Clamp to 0-100
+  // === RISK MANAGEMENT (25 points) ===
+
+  // Delta (10 points) - Prefer 0.75-0.85 for PMCC
+  if (delta >= 0.75 && delta <= 0.85) {
+    score += 10; // Ideal sweet spot
+  } else if (delta >= 0.70 && delta < 0.75) {
+    score += 7; // Acceptable
+  } else if (delta > 0.85 && delta <= 0.90) {
+    score += 7; // Acceptable
+  } else if (delta >= 0.65 && delta < 0.70) {
+    score += 3; // Marginal
+  }
+  // else 0 points
+
+  // Theta (10 points) - Lower daily decay is better for LEAPs
+  const theta = Math.abs(option.greeks?.theta || 0);
+  if (theta < 0.05) {
+    score += 10; // Excellent - very low decay
+  } else if (theta < 0.10) {
+    score += 7; // Good
+  } else if (theta < 0.15) {
+    score += 4; // Acceptable
+  } else if (theta < 0.20) {
+    score += 2; // High decay
+  }
+  // else 0 points - too much daily cost
+
+  // DTE (5 points) - Prefer 330-390 days (11-13 months)
+  const expiration = new Date(option.expiration);
+  const today = new Date();
+  const dte = Math.floor((expiration.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  
+  if (dte >= 330 && dte <= 390) {
+    score += 5; // Ideal range
+  } else if (dte >= 270 && dte <= 450) {
+    score += 3; // Acceptable LEAP range
+  } else if (dte >= 240 && dte < 270) {
+    score += 1; // Short for LEAP
+  }
+  // else 0 points
+
+  // === STOCK QUALITY (10 points) ===
+  // TODO: Implement when we have stock technical data
+  // For now, give 5 points as neutral baseline
+  score += 5;
+
+  return Math.max(0, Math.min(100, Math.round(score))); // Clamp to 0-100
 }
