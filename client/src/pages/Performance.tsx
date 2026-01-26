@@ -8,7 +8,7 @@ import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Load
 import { trpc } from '@/lib/trpc';
 import { useAccount } from '@/contexts/AccountContext';
 import { toast } from 'sonner';
-import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart } from 'recharts';
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Cell, LabelList } from 'recharts';
 
 export default function Performance() {
   const [activeTab, setActiveTab] = useState('active-positions');
@@ -1638,10 +1638,26 @@ function PerformanceOverviewTab() {
               <Bar 
                 yAxisId="left"
                 dataKey="totalNet" 
-                fill="#10b981" 
                 name="Monthly Net Premium"
                 radius={[4, 4, 0, 0]}
-              />
+              >
+                {(() => {
+                  const reversed = [...monthlyData].reverse();
+                  let cumulative = 0;
+                  return reversed.map(m => {
+                    cumulative += m.totalNet;
+                    return { ...m, cumulativeNet: cumulative };
+                  });
+                })().map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.totalNet >= 0 ? '#10b981' : '#ef4444'} />
+                ))}
+                <LabelList 
+                  dataKey="totalNet" 
+                  position="top" 
+                  formatter={(value: number) => `$${value.toFixed(0)}`}
+                  style={{ fill: '#fff', fontSize: 11, fontWeight: 'bold' }}
+                />
+              </Bar>
               <Line 
                 yAxisId="right"
                 type="monotone" 
@@ -1679,10 +1695,19 @@ function PerformanceOverviewTab() {
                 />
                 <Bar 
                   dataKey="cspNet" 
-                  fill="#a855f7" 
                   name="CSP Net Premium"
                   radius={[4, 4, 0, 0]}
-                />
+                >
+                  {[...monthlyData].reverse().slice(-6).map((entry, index) => (
+                    <Cell key={`cell-csp-${index}`} fill={entry.cspNet >= 0 ? '#a855f7' : '#ef4444'} />
+                  ))}
+                  <LabelList 
+                    dataKey="cspNet" 
+                    position="top" 
+                    formatter={(value: number) => `$${value.toFixed(0)}`}
+                    style={{ fill: '#fff', fontSize: 10, fontWeight: 'bold' }}
+                  />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -1729,10 +1754,19 @@ function PerformanceOverviewTab() {
                 />
                 <Bar 
                   dataKey="ccNet" 
-                  fill="#f59e0b" 
                   name="CC Net Premium"
                   radius={[4, 4, 0, 0]}
-                />
+                >
+                  {[...monthlyData].reverse().slice(-6).map((entry, index) => (
+                    <Cell key={`cell-cc-${index}`} fill={entry.ccNet >= 0 ? '#f59e0b' : '#ef4444'} />
+                  ))}
+                  <LabelList 
+                    dataKey="ccNet" 
+                    position="top" 
+                    formatter={(value: number) => `$${value.toFixed(0)}`}
+                    style={{ fill: '#fff', fontSize: 10, fontWeight: 'bold' }}
+                  />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>

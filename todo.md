@@ -1002,3 +1002,11 @@
 - [x] Implement sortable headers for Symbol Performance table (all 7 columns)
 - [x] Add visual indicators for sort direction (↑↓ arrows)
 - [x] Ensure all tables in Performance Analytics are sortable
+
+## Chart Enhancements (User Request)
+- [x] Add data labels directly on Premium Earnings chart bars (show dollar amounts)
+- [x] Add conditional coloring to Premium Earnings chart (red for negative bars, green for positive)
+- [x] Add data labels to CSP Performance chart bars
+- [x] Add conditional coloring to CSP Performance chart (red for negative, purple for positive)
+- [x] Add data labels to CC Performance chart bars
+- [x] Add conditional coloring to CC Performance chart (red for negative, amber for positive)
