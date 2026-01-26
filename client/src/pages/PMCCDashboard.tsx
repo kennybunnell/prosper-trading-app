@@ -374,7 +374,7 @@ export default function PMCCDashboard() {
                           )}
                           onClick={() => {
                             setMinScore(score);
-                            setSelectedPreset(null); // Clear preset when using score filter
+                            // Don't clear preset - allow cumulative filtering
                           }}
                         >
                           {bucketLabel}

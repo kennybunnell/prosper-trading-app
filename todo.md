@@ -755,3 +755,10 @@
   * All checkbox selections
 - [ ] Test combined filtering: Aggressive + 75-84 score bucket should show subset
 - [ ] Verify Clear All Filters returns to full 160 LEAP list
+
+## PMCC Score Bucket Filter Debug & Performance
+- [x] Debug why score bucket buttons aren't filtering LEAPs (found: setSelectedPreset(null) was clearing preset)
+- [x] Fix score bucket filter to work cumulatively with presets (removed setSelectedPreset(null) from click handler)
+- [ ] Add console.log debugging to verify minScore state updates when clicking score buckets
+- [x] Increase concurrent workers from 5 to 10 for faster LEAP scanning (Tradier rate limit: 120 req/min allows it)
+- [ ] Test combined filtering: Conservative → 85-94 bucket should show only high-scoring subset

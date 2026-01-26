@@ -34,7 +34,7 @@ export type LeapOpportunity = {
 export const pmccRouter = router({
   /**
    * Scan watchlist for LEAP buy opportunities
-   * Uses parallel processing (5 concurrent workers) to scan multiple symbols simultaneously
+   * Uses parallel processing (10 concurrent workers) to scan multiple symbols simultaneously
    */
   scanLeaps: protectedProcedure
     .input(
@@ -82,8 +82,8 @@ export const pmccRouter = router({
 
       console.log(`[PMCC] Scanning ${symbols.length} symbols for LEAP opportunities with ${input.presetName} preset`);
 
-      // Parallel processing with 5 concurrent workers
-      const CONCURRENT_WORKERS = 5;
+      // Parallel processing with 10 concurrent workers (Tradier rate limit: 120 req/min)
+      const CONCURRENT_WORKERS = 10;
       const allOpportunities: LeapOpportunity[] = [];
 
       for (let i = 0; i < symbols.length; i += CONCURRENT_WORKERS) {
