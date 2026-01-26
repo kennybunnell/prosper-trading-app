@@ -163,6 +163,7 @@ export class TradierAPI {
         'Authorization': `Bearer ${apiKey}`,
         'Accept': 'application/json',
       },
+      timeout: 30000, // 30 second timeout per request
     });
   }
 
@@ -515,7 +516,8 @@ export class TradierAPI {
   ): Promise<CSPOpportunity[]> {
     const opportunities: CSPOpportunity[] = [];
     const today = new Date();
-      try {
+    
+    try {
         // Get all expirations for this symbol
         const expirations = await this.getExpirations(symbol);
         
@@ -608,10 +610,11 @@ export class TradierAPI {
             });
           }
         }
-      } catch (error: any) {
-        console.error(`Error processing ${symbol}:`, error.message);
-        throw error; // Propagate error to Promise.allSettled
-      }
+    } catch (error: any) {
+      console.error(`[Tradier API] ✗ ${symbol}: Error: ${error.message}`);
+      // Return empty array instead of throwing to allow other symbols to continue
+      return [];
+    }
 
     return opportunities;
   }
