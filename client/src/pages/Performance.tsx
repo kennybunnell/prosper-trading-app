@@ -31,7 +31,7 @@ export default function Performance() {
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="active-positions">Active Positions</TabsTrigger>
           <TabsTrigger value="working-orders">Working Orders</TabsTrigger>
-          <TabsTrigger value="overview" disabled>Overview</TabsTrigger>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="stock-basis" disabled>Stock Basis</TabsTrigger>
           <TabsTrigger value="projections" disabled>Projections</TabsTrigger>
         </TabsList>
@@ -45,10 +45,8 @@ export default function Performance() {
         <TabsContent value="working-orders" className="space-y-6">
           <WorkingOrdersTab />
         </TabsContent>
-        <TabsContent value="overview">
-          <Card className="p-8 text-center text-muted-foreground">
-            Performance Overview tab coming soon...
-          </Card>
+        <TabsContent value="overview" className="space-y-6">
+          <PerformanceOverviewTab />
         </TabsContent>
         <TabsContent value="stock-basis">
           <Card className="p-8 text-center text-muted-foreground">
@@ -1312,6 +1310,381 @@ function WorkingOrdersTab() {
           </div>
         </Card>
       )}
+    </div>
+  );
+}
+
+function PerformanceOverviewTab() {
+  const { selectedAccountId } = useAccount();
+  const [monthsBack, setMonthsBack] = useState(12);
+
+  // Fetch performance overview data
+  const { data, isLoading, refetch, error } = trpc.performance.getPerformanceOverview.useQuery(
+    {
+      accountId: selectedAccountId || '',
+      monthsBack,
+    },
+    {
+      enabled: !!selectedAccountId,
+      refetchOnWindowFocus: false,
+      retry: false,
+    }
+  );
+
+  if (!selectedAccountId) {
+    return (
+      <Card className="p-8 text-center">
+        <p className="text-muted-foreground">Please select an account to view performance overview</p>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="p-8 text-center">
+        <p className="text-red-400">Error loading performance data: {error.message}</p>
+        <Button onClick={() => refetch()} className="mt-4">
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Retry
+        </Button>
+      </Card>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <Card className="p-8 text-center">
+        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-400" />
+        <p className="text-muted-foreground">Loading performance data...</p>
+      </Card>
+    );
+  }
+
+  if (!data || data.monthlyData.length === 0) {
+    return (
+      <Card className="p-8 text-center">
+        <p className="text-muted-foreground">No transaction history found for the selected period</p>
+        <p className="text-sm text-muted-foreground mt-2">
+          Try selecting a different time range or account
+        </p>
+      </Card>
+    );
+  }
+
+  const { monthlyData, symbolPerformance, performanceMetrics, totals, dateRange } = data;
+
+  // Calculate retention percentage
+  const retentionPercent = totals.totalCredits > 0 
+    ? ((totals.totalNet / totals.totalCredits) * 100).toFixed(1)
+    : '0.0';
+
+  // Calculate CSP and CC percentages of total
+  const cspPercent = totals.totalNet > 0 
+    ? ((totals.cspNet / totals.totalNet) * 100).toFixed(1)
+    : '0.0';
+  const ccPercent = totals.totalNet > 0 
+    ? ((totals.ccNet / totals.totalNet) * 100).toFixed(1)
+    : '0.0';
+
+  return (
+    <div className="space-y-6">
+      {/* Header with Refresh */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Performance Overview</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {dateRange.firstMonth} - {dateRange.lastMonth} ({dateRange.monthsWithActivity} months with activity)
+          </p>
+        </div>
+        <Button onClick={() => refetch()} variant="outline" size="sm">
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Summary Metrics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        {/* Total Credits */}
+        <Card className="p-4 bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Total Credits</p>
+            <p className="text-2xl font-bold text-green-400">
+              ${totals.totalCredits.toFixed(2)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {totals.cspTrades + totals.ccTrades} trades opened
+            </p>
+          </div>
+        </Card>
+
+        {/* Total Debits */}
+        <Card className="p-4 bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20">
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Total Debits</p>
+            <p className="text-2xl font-bold text-red-400">
+              ${totals.totalDebits.toFixed(2)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Closing costs
+            </p>
+          </div>
+        </Card>
+
+        {/* NET Premium */}
+        <Card className="p-4 bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">NET Premium</p>
+            <p className="text-2xl font-bold text-blue-400">
+              ${totals.totalNet.toFixed(2)}
+            </p>
+            <p className="text-xs text-green-400">
+              {retentionPercent}% retention
+            </p>
+          </div>
+        </Card>
+
+        {/* CSP Premium */}
+        <Card className="p-4 bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">CSP Premium</p>
+            <p className="text-2xl font-bold text-purple-400">
+              ${totals.cspNet.toFixed(2)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {cspPercent}% of total
+            </p>
+          </div>
+        </Card>
+
+        {/* CC Premium */}
+        <Card className="p-4 bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-amber-500/20">
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">CC Premium</p>
+            <p className="text-2xl font-bold text-amber-400">
+              ${totals.ccNet.toFixed(2)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {ccPercent}% of total
+            </p>
+          </div>
+        </Card>
+      </div>
+
+      {/* Performance Metrics Card (Phase 2) */}
+      <Card className="p-6 bg-gradient-to-br from-indigo-500/10 to-indigo-600/5 border-indigo-500/20">
+        <h3 className="text-lg font-semibold mb-4">📊 Performance Metrics</h3>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div>
+            <p className="text-sm text-muted-foreground">Win Rate</p>
+            <p className="text-xl font-bold text-indigo-400">
+              {performanceMetrics.winRate.toFixed(1)}%
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {performanceMetrics.wins}/{performanceMetrics.closedTrades} closed
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Avg Win</p>
+            <p className="text-xl font-bold text-green-400">
+              ${performanceMetrics.avgWin.toFixed(2)}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Avg Loss</p>
+            <p className="text-xl font-bold text-red-400">
+              ${performanceMetrics.avgLoss.toFixed(2)}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Profit Factor</p>
+            <p className="text-xl font-bold text-blue-400">
+              {performanceMetrics.profitFactor.toFixed(2)}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Best Month</p>
+            <p className="text-xl font-bold text-green-400">
+              ${performanceMetrics.bestMonth?.value.toFixed(2) || '0.00'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {performanceMetrics.bestMonth?.month || 'N/A'}
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Premium Earnings Chart - Placeholder for now */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Premium Earnings Over Time</h3>
+        <div className="h-64 flex items-center justify-center text-muted-foreground">
+          Chart coming soon (Recharts integration)
+        </div>
+      </Card>
+
+      {/* Strategy Performance Section - Placeholder */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4 text-purple-400">CSP Performance</h3>
+          <div className="h-48 flex items-center justify-center text-muted-foreground">
+            Chart coming soon
+          </div>
+          <div className="mt-4 space-y-2">
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Total Trades</span>
+              <span className="font-semibold">{totals.cspTrades}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Total Premium</span>
+              <span className="font-semibold text-green-400">${totals.cspNet.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Avg/Trade</span>
+              <span className="font-semibold">
+                ${totals.cspTrades > 0 ? (totals.cspNet / totals.cspTrades).toFixed(2) : '0.00'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Assignments</span>
+              <span className="font-semibold">{totals.assignments}</span>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4 text-amber-400">CC Performance</h3>
+          <div className="h-48 flex items-center justify-center text-muted-foreground">
+            Chart coming soon
+          </div>
+          <div className="mt-4 space-y-2">
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Total Trades</span>
+              <span className="font-semibold">{totals.ccTrades}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Total Premium</span>
+              <span className="font-semibold text-green-400">${totals.ccNet.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Avg/Trade</span>
+              <span className="font-semibold">
+                ${totals.ccTrades > 0 ? (totals.ccNet / totals.ccTrades).toFixed(2) : '0.00'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Called Away</span>
+              <span className="font-semibold">{totals.calledAway}</span>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Monthly Breakdown Table */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Monthly Breakdown</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-2 px-2 text-sm font-semibold">Month</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">CSP Credits</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">CSP Debits</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">CSP Net</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">CC Credits</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">CC Debits</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">CC Net</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">Total Net</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">Trades</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthlyData.map((month) => (
+                <tr key={month.monthKey} className="border-b border-border/50 hover:bg-accent/50">
+                  <td className="py-2 px-2 text-sm">{month.monthName}</td>
+                  <td className="py-2 px-2 text-sm text-right text-green-400">
+                    ${month.cspCredits.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-2 text-sm text-right text-red-400">
+                    ${month.cspDebits.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-2 text-sm text-right font-semibold">
+                    ${month.cspNet.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-2 text-sm text-right text-green-400">
+                    ${month.ccCredits.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-2 text-sm text-right text-red-400">
+                    ${month.ccDebits.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-2 text-sm text-right font-semibold">
+                    ${month.ccNet.toFixed(2)}
+                  </td>
+                  <td className={`py-2 px-2 text-sm text-right font-bold ${
+                    month.totalNet > 0 ? 'text-green-400' : month.totalNet < 0 ? 'text-red-400' : ''
+                  }`}>
+                    ${month.totalNet.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-2 text-sm text-right text-muted-foreground">
+                    {month.cspTrades + month.ccTrades}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Symbol Performance Table (Phase 3) */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Top Performers by Symbol</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-2 px-2 text-sm font-semibold">Symbol</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">Trades</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">Net Premium</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">Win Rate</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">Avg/Trade</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">CSP</th>
+                <th className="text-right py-2 px-2 text-sm font-semibold">CC</th>
+              </tr>
+            </thead>
+            <tbody>
+              {symbolPerformance.slice(0, 20).map((symbol) => (
+                <tr key={symbol.symbol} className="border-b border-border/50 hover:bg-accent/50">
+                  <td className="py-2 px-2 text-sm font-semibold">
+                    {symbol.symbol}
+                    {symbol.winRate < 50 && symbol.losses > 0 && (
+                      <span className="ml-2 text-xs text-red-400">⚠️ AVOID</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-2 text-sm text-right">{symbol.trades}</td>
+                  <td className={`py-2 px-2 text-sm text-right font-semibold ${
+                    symbol.netPremium > 0 ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    ${symbol.netPremium.toFixed(2)}
+                  </td>
+                  <td className={`py-2 px-2 text-sm text-right ${
+                    symbol.winRate >= 70 ? 'text-green-400' : 
+                    symbol.winRate >= 50 ? 'text-yellow-400' : 'text-red-400'
+                  }`}>
+                    {symbol.winRate.toFixed(1)}%
+                  </td>
+                  <td className="py-2 px-2 text-sm text-right">
+                    ${symbol.avgPremiumPerTrade.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-2 text-sm text-right text-muted-foreground">
+                    {symbol.cspTrades}
+                  </td>
+                  <td className="py-2 px-2 text-sm text-right text-muted-foreground">
+                    {symbol.ccTrades}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }

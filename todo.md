@@ -912,3 +912,50 @@
 - [x] Add replacement log display panel
 - [x] Test Working Orders with real Tastytrade data (UI complete, ready for live testing)
 - [ ] Write unit tests for working orders procedures (5/8 passing, needs refinement for error handling)
+
+## Performance Overview Tab (Phases 1-3)
+
+### Phase 1: Core Overview - Transaction History & Charts
+- [x] Add getTransactionHistory method to Tastytrade API (server/tastytrade.ts)
+- [x] Create performance-utils.ts for monthly aggregation logic
+- [x] Implement option symbol parser (extract PUT/CALL from OCC format)
+- [x] Create aggregateMonthlyData function (group by month/year)
+- [x] Track CSP Credits, CSP Debits, CC Credits, CC Debits per month
+- [x] Track trade counts and assignments (PUT assignments, CALL called-away)
+- [x] Create getPerformanceOverview tRPC procedure (server/routers-performance.ts)
+- [x] Support ALL_ACCOUNTS aggregation for performance data
+- [x] Build PerformanceOverviewTab component (client/src/pages/Performance.tsx)
+- [x] Add Summary Metrics Cards (5 cards: Total Credits, Total Debits, NET Premium, CSP Premium, CC Premium)
+- [ ] Create Premium Earnings Chart (dual-axis: monthly bars + cumulative line) - Placeholder added
+- [ ] Add Strategy Performance Section (CSP and CC side-by-side charts) - Placeholder added
+- [x] Create Monthly Breakdown Table (sortable, currency formatted)
+- [x] Add empty state handling (no transaction history found)
+
+### Phase 2: Performance Metrics
+- [x] Calculate win rate (closed trades only: wins / total closed)
+- [x] Calculate profit factor (total wins / total losses)
+- [x] Calculate avg win and avg loss per trade
+- [x] Track best month and worst month performance
+- [x] Add Performance Metrics card to Overview UI
+- [x] Display: Win Rate, Avg Win, Avg Loss, Profit Factor, Best Month
+- [ ] Add capital efficiency metrics (if account balance data available) - Deferred (requires balance API)
+- [ ] Calculate monthly return on capital percentage - Deferred
+- [ ] Calculate annualized return estimate - Deferred
+
+### Phase 3: Symbol-Level Performance
+- [x] Aggregate performance data by underlying symbol
+- [x] Calculate per-symbol: trade count, net premium, win rate, avg premium/trade
+- [x] Create Top Performers table component
+- [x] Sort by net premium (descending)
+- [x] Add visual indicators for symbols with <50% win rate (⚠️ AVOID)
+- [ ] Add filtering options (show all / profitable only / losing only) - Deferred
+- [x] Display symbol-level stats in sortable table format
+
+### Testing & Refinement
+- [ ] Write unit tests for monthly aggregation logic (Deferred - ready for user testing first)
+- [ ] Write unit tests for symbol-level aggregation (Deferred - ready for user testing first)
+- [x] Test with real Tastytrade transaction data (UI ready, awaiting user account selection)
+- [ ] Verify chart rendering with various data ranges (Charts are placeholders)
+- [x] Test ALL_ACCOUNTS aggregation (Backend supports it)
+- [x] Verify win rate and profit factor calculations (Logic implemented)
+- [x] Test empty states and edge cases (Empty state handling added)

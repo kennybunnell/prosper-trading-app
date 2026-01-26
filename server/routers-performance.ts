@@ -26,6 +26,158 @@ interface ProcessedPosition {
 
 export const performanceRouter = router({
   /**
+   * Get performance overview with transaction history
+   */
+  getPerformanceOverview: protectedProcedure
+    .input(z.object({
+      accountId: z.string(),
+      monthsBack: z.number().min(1).max(24).default(12),
+    }))
+    .query(async ({ input, ctx }) => {
+      const { accountId, monthsBack } = input;
+      const userId = ctx.user.id;
+
+      console.log(`[Performance] Fetching overview for account ${accountId}, ${monthsBack} months back`);
+
+      // Get API credentials
+      const credentials = await getApiCredentials(userId);
+      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Tastytrade API credentials not configured',
+        });
+      }
+
+      // Get Tastytrade API instance
+      const api = getTastytradeAPI();
+      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+
+      // Get accounts
+      const accounts = await api.getAccounts();
+      let accountNumbers: string[] = [];
+      if (accountId === 'ALL_ACCOUNTS') {
+        accountNumbers = accounts.map(acc => acc.account['account-number']);
+      } else {
+        accountNumbers = [accountId];
+      }
+
+      // Calculate date range (last N months)
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - monthsBack);
+
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+
+      console.log(`[Performance] Date range: ${startDateStr} to ${endDateStr}`);
+
+      // Fetch transactions for all accounts
+      const allTransactions: any[] = [];
+      for (const accountNumber of accountNumbers) {
+        try {
+          const transactions = await api.getTransactionHistory(
+            accountNumber,
+            startDateStr,
+            endDateStr,
+            1000
+          );
+          allTransactions.push(...transactions);
+          console.log(`[Performance] Fetched ${transactions.length} transactions for ${accountNumber}`);
+        } catch (error: any) {
+          console.error(`[Performance] Error fetching transactions for ${accountNumber}:`, error.message);
+          // Continue with other accounts
+        }
+      }
+
+      if (allTransactions.length === 0) {
+        return {
+          monthlyData: [],
+          symbolPerformance: [],
+          performanceMetrics: {
+            totalTrades: 0,
+            closedTrades: 0,
+            wins: 0,
+            losses: 0,
+            winRate: 0,
+            avgWin: 0,
+            avgLoss: 0,
+            profitFactor: 0,
+            bestMonth: null,
+            worstMonth: null,
+            totalWinAmount: 0,
+            totalLossAmount: 0,
+          },
+          totals: {
+            totalCredits: 0,
+            totalDebits: 0,
+            totalNet: 0,
+            cspCredits: 0,
+            cspDebits: 0,
+            cspNet: 0,
+            ccCredits: 0,
+            ccDebits: 0,
+            ccNet: 0,
+            cspTrades: 0,
+            ccTrades: 0,
+            assignments: 0,
+            calledAway: 0,
+          },
+          dateRange: {
+            start: startDateStr,
+            end: endDateStr,
+            firstMonth: null,
+            lastMonth: null,
+            monthsWithActivity: 0,
+          },
+        };
+      }
+
+      // Import aggregation functions
+      const { aggregateMonthlyData, aggregateBySymbol, calculatePerformanceMetrics } = await import('./lib/performance-utils');
+
+      // Aggregate data
+      const monthlyData = aggregateMonthlyData(allTransactions);
+      const symbolPerformance = aggregateBySymbol(allTransactions);
+      const performanceMetrics = calculatePerformanceMetrics(allTransactions, monthlyData);
+
+      // Calculate totals
+      const totals = {
+        totalCredits: monthlyData.reduce((sum, m) => sum + m.cspCredits + m.ccCredits, 0),
+        totalDebits: monthlyData.reduce((sum, m) => sum + m.cspDebits + m.ccDebits, 0),
+        totalNet: monthlyData.reduce((sum, m) => sum + m.totalNet, 0),
+        cspCredits: monthlyData.reduce((sum, m) => sum + m.cspCredits, 0),
+        cspDebits: monthlyData.reduce((sum, m) => sum + m.cspDebits, 0),
+        cspNet: monthlyData.reduce((sum, m) => sum + m.cspNet, 0),
+        ccCredits: monthlyData.reduce((sum, m) => sum + m.ccCredits, 0),
+        ccDebits: monthlyData.reduce((sum, m) => sum + m.ccDebits, 0),
+        ccNet: monthlyData.reduce((sum, m) => sum + m.ccNet, 0),
+        cspTrades: monthlyData.reduce((sum, m) => sum + m.cspTrades, 0),
+        ccTrades: monthlyData.reduce((sum, m) => sum + m.ccTrades, 0),
+        assignments: monthlyData.reduce((sum, m) => sum + m.assignments, 0),
+        calledAway: monthlyData.reduce((sum, m) => sum + m.calledAway, 0),
+      };
+
+      // Date range info
+      const dateRange = {
+        start: startDateStr,
+        end: endDateStr,
+        firstMonth: monthlyData.length > 0 ? monthlyData[0].monthName : null,
+        lastMonth: monthlyData.length > 0 ? monthlyData[monthlyData.length - 1].monthName : null,
+        monthsWithActivity: monthlyData.length,
+      };
+
+      console.log(`[Performance] Aggregated ${monthlyData.length} months, ${symbolPerformance.length} symbols`);
+
+      return {
+        monthlyData,
+        symbolPerformance,
+        performanceMetrics,
+        totals,
+        dateRange,
+      };
+    }),
+
+  /**
    * Fetch active short option positions (CSPs and CCs) with premium realization
    */
   getActivePositions: protectedProcedure

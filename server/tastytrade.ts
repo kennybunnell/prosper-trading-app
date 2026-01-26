@@ -460,6 +460,38 @@ export class TastytradeAPI {
   }
 
   /**
+   * Get transaction history for an account
+   * @param accountNumber - Account number
+   * @param startDate - Start date (YYYY-MM-DD format)
+   * @param endDate - End date (YYYY-MM-DD format)
+   * @param perPage - Number of transactions per page (default 1000)
+   */
+  async getTransactionHistory(
+    accountNumber: string,
+    startDate: string,
+    endDate: string,
+    perPage: number = 1000
+  ): Promise<any[]> {
+    try {
+      const params = {
+        'start-date': startDate,
+        'end-date': endDate,
+        'per-page': perPage,
+      };
+
+      const response = await this.client.get(
+        `/accounts/${accountNumber}/transactions`,
+        { params }
+      );
+
+      return response.data.data?.items || [];
+    } catch (error: any) {
+      console.error(`[Tastytrade] Transaction history error:`, error.response?.data?.error?.message || error.message);
+      throw new Error(`Failed to fetch transaction history: ${error.response?.data?.error?.message || error.message}`);
+    }
+  }
+
+  /**
    * Logout and destroy session
    */
   async logout(): Promise<void> {
