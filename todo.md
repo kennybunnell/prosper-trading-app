@@ -784,3 +784,16 @@
 - [ ] Show success/failure feedback with order confirmation numbers
 - [ ] Handle partial success (some orders succeed, some fail)
 - [ ] Test complete workflow: select LEAPs → preview → dry run → live submission
+
+## PMCC Backend Order Submission Implementation
+- [x] Review existing Tastytrade API integration code (CSP/CC order submission) - submitOrder and dryRunOrder methods available
+- [x] Create `pmcc.submitLeapOrders` tRPC mutation procedure
+- [x] Implement market hours validation (9:30 AM - 4:00 PM ET)
+- [x] Implement buying power check via Tastytrade API
+- [x] Implement duplicate order prevention logic
+- [x] Submit BTO orders for LEAP calls via Tastytrade API
+- [x] Return order confirmation numbers and status for each LEAP
+- [x] Handle partial success (some orders succeed, some fail)
+- [x] Wire frontend to call backend mutation and show progress
+- [ ] Test dry run mode (validation only, no submission)
+- [ ] Test live mode with real order submission

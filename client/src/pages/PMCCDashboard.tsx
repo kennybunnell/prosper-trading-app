@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
@@ -26,6 +26,7 @@ export default function PMCCDashboard() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [showOrderPreview, setShowOrderPreview] = useState(false);
   const [isDryRun, setIsDryRun] = useState(true);
+  const [isSubmittingOrders, setIsSubmittingOrders] = useState(false);
 
   // Fetch PMCC filter presets from database
   const { data: presets } = trpc.filterPresets.getByStrategy.useQuery({ strategy: 'pmcc' });
@@ -46,6 +47,27 @@ export default function PMCCDashboard() {
 
     return () => clearInterval(interval);
   }, [isScanning, scanStartTime, watchlist.length]);
+
+  const submitLeapOrdersMutation = trpc.pmcc.submitLeapOrders.useMutation({
+    onSuccess: (data) => {
+      setIsSubmittingOrders(false);
+      if (data.summary.failed === 0) {
+        toast.success(
+          `${isDryRun ? "Dry run" : "Order submission"} successful! ${data.summary.success} of ${data.summary.total} orders ${isDryRun ? "validated" : "submitted"}.`
+        );
+      } else {
+        toast.warning(
+          `Partial success: ${data.summary.success} succeeded, ${data.summary.failed} failed. Check results for details.`
+        );
+      }
+      setShowOrderPreview(false);
+      setSelectedLeaps(new Set()); // Clear selections after submission
+    },
+    onError: (error) => {
+      setIsSubmittingOrders(false);
+      toast.error(`Order submission failed: ${error.message}`);
+    },
+  });
 
   const scanLeapsMutation = trpc.pmcc.scanLeaps.useMutation({
     onSuccess: (data) => {
@@ -672,14 +694,34 @@ export default function PMCCDashboard() {
 
               {/* Action Buttons */}
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setShowOrderPreview(false)}>
+                <Button variant="outline" onClick={() => setShowOrderPreview(false)} disabled={isSubmittingOrders}>
                   Cancel
                 </Button>
                 <Button
-                  onClick={() => toast.info("Order submission coming soon!")}
+                  onClick={() => {
+                    const selectedLeapsArray = sortedLeaps.filter(leap => selectedLeaps.has(getLeapKey(leap)));
+                    setIsSubmittingOrders(true);
+                    submitLeapOrdersMutation.mutate({
+                      leaps: selectedLeapsArray.map(leap => ({
+                        symbol: leap.symbol,
+                        strike: leap.strike,
+                        expiration: leap.expiration,
+                        premium: leap.premium,
+                      })),
+                      isDryRun,
+                    });
+                  }}
+                  disabled={isSubmittingOrders}
                   className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
                 >
-                  {isDryRun ? "Test Order" : "Submit Order"}
+                  {isSubmittingOrders ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      {isDryRun ? "Testing..." : "Submitting..."}
+                    </>
+                  ) : (
+                    <>{isDryRun ? "Test Order" : "Submit Order"}</>
+                  )}
                 </Button>
               </div>
             </div>

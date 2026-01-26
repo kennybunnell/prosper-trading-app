@@ -189,6 +189,169 @@ export const pmccRouter = router({
         message: `Found ${allOpportunities.length} LEAP opportunities`,
       };
     }),
+
+  /**
+   * Submit LEAP purchase orders via Tastytrade API
+   * Supports dry run mode for validation without execution
+   */
+  submitLeapOrders: protectedProcedure
+    .input(
+      z.object({
+        leaps: z.array(
+          z.object({
+            symbol: z.string(),
+            strike: z.number(),
+            expiration: z.string(),
+            premium: z.number(),
+          })
+        ),
+        isDryRun: z.boolean(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import("./db");
+      const { getTastytradeAPI } = await import("./tastytrade");
+
+      // Get Tastytrade credentials
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Tastytrade credentials not configured. Please add them in Settings.",
+        });
+      }
+
+      // Validate market hours (9:30 AM - 4:00 PM ET)
+      const now = new Date();
+      const etHour = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" })).getHours();
+      const etMinute = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" })).getMinutes();
+      const etTime = etHour * 60 + etMinute;
+      const marketOpen = 9 * 60 + 30; // 9:30 AM
+      const marketClose = 16 * 60; // 4:00 PM
+
+      if (etTime < marketOpen || etTime >= marketClose) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Market is closed. Orders can only be submitted between 9:30 AM - 4:00 PM ET.",
+        });
+      }
+
+      // Initialize Tastytrade API
+      const api = getTastytradeAPI();
+      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+
+      // Get accounts
+      const accounts = await api.getAccounts();
+      if (!accounts || accounts.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No Tastytrade accounts found.",
+        });
+      }
+
+      const accountNumber = accounts[0].account["account-number"];
+
+      // Get account balances for buying power check
+      const balances = await api.getBalances(accountNumber);
+      const buyingPower = parseFloat(balances["derivative-buying-power"] || balances["cash-available-to-withdraw"] || "0");
+
+      // Calculate total cost
+      const totalCost = input.leaps.reduce((sum, leap) => sum + (leap.premium * 100), 0); // *100 for contract multiplier
+
+      if (totalCost > buyingPower) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Insufficient buying power. Required: $${totalCost.toFixed(2)}, Available: $${buyingPower.toFixed(2)}`,
+        });
+      }
+
+      // Check for duplicate orders (existing working orders for same symbols)
+      const workingOrders = await api.getWorkingOrders(accountNumber);
+      const workingSymbols = new Set(
+        workingOrders
+          .flatMap(order => order.legs.map(leg => leg.symbol))
+      );
+
+      const duplicates = input.leaps.filter(leap => {
+        // Construct option symbol (e.g., AAPL  260116C00150000)
+        const expDate = leap.expiration.replace(/-/g, "").slice(2); // YYMMDD
+        const strikeStr = (leap.strike * 1000).toFixed(0).padStart(8, "0");
+        const optionSymbol = `${leap.symbol.padEnd(6)}${expDate}C${strikeStr}`;
+        return workingSymbols.has(optionSymbol);
+      });
+
+      if (duplicates.length > 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `Duplicate orders detected for: ${duplicates.map(d => d.symbol).join(", ")}. Cancel existing orders first.`,
+        });
+      }
+
+      // Submit orders (or dry run)
+      const results = [];
+      for (const leap of input.leaps) {
+        try {
+          // Construct option symbol (OCC format)
+          const expDate = leap.expiration.replace(/-/g, "").slice(2); // YYMMDD
+          const strikeStr = (leap.strike * 1000).toFixed(0).padStart(8, "0");
+          const optionSymbol = `${leap.symbol.padEnd(6)}${expDate}C${strikeStr}`;
+
+          const order = {
+            accountNumber,
+            timeInForce: "Day" as const,
+            orderType: "Limit" as const,
+            price: leap.premium.toFixed(2),
+            priceEffect: "Debit" as const,
+            legs: [
+              {
+                instrumentType: "Equity Option" as const,
+                symbol: optionSymbol,
+                quantity: "1",
+                action: "Buy to Open" as const,
+              },
+            ],
+          };
+
+          if (input.isDryRun) {
+            const dryRunResult = await api.dryRunOrder(order);
+            results.push({
+              symbol: leap.symbol,
+              status: "dry_run_success",
+              message: "Order validated successfully",
+              orderId: null,
+            });
+          } else {
+            const submittedOrder = await api.submitOrder(order);
+            results.push({
+              symbol: leap.symbol,
+              status: "success",
+              message: "Order submitted successfully",
+              orderId: submittedOrder.id,
+            });
+          }
+        } catch (error: any) {
+          results.push({
+            symbol: leap.symbol,
+            status: "failed",
+            message: error.message || "Order submission failed",
+            orderId: null,
+          });
+        }
+      }
+
+      const successCount = results.filter(r => r.status === "success" || r.status === "dry_run_success").length;
+      const failCount = results.filter(r => r.status === "failed").length;
+
+      return {
+        results,
+        summary: {
+          total: input.leaps.length,
+          success: successCount,
+          failed: failCount,
+          isDryRun: input.isDryRun,
+        },
+      };
+    }),
 });
 
 /**
