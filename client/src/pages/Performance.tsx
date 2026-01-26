@@ -810,7 +810,8 @@ function WorkingOrdersTab() {
   // Cancel orders mutation
   const cancelOrdersMutation = trpc.workingOrders.cancelOrders.useMutation({
     onSuccess: (result) => {
-      setActionResults(result);
+      // Add action type to distinguish from replace
+      setActionResults({ ...result, action: 'cancel' });
       setSelectedOrders(new Set());
       refetch();
       toast.success(`Canceled ${result.successCount} of ${result.successCount + result.failedCount} orders`);
@@ -823,7 +824,8 @@ function WorkingOrdersTab() {
   // Replace orders mutation
   const replaceOrdersMutation = trpc.workingOrders.replaceOrders.useMutation({
     onSuccess: (result) => {
-      setActionResults(result);
+      // Add action type to distinguish from cancel
+      setActionResults({ ...result, action: 'replace' });
       setSelectedOrders(new Set());
       refetch();
       toast.success(`Replaced ${result.successCount} of ${result.successCount + result.failedCount} orders`);
@@ -880,8 +882,8 @@ function WorkingOrdersTab() {
 
   const confirmCancel = () => {
     const ordersToCancel = Array.from(selectedOrders).map(idx => ({
-      orderId: orders[idx].orderId,
-      accountNumber: orders[idx].accountNumber,
+      orderId: String(orders[idx].orderId), // Convert to string to match schema
+      accountNumber: String(orders[idx].accountNumber),
       symbol: orders[idx].symbol,
     }));
 
@@ -893,8 +895,8 @@ function WorkingOrdersTab() {
     const ordersToReplace = orders
       .filter(order => order.needsReplacement)
       .map(order => ({
-        orderId: order.orderId,
-        accountNumber: order.accountNumber,
+        orderId: String(order.orderId), // Convert to string to match schema
+        accountNumber: String(order.accountNumber),
         symbol: order.symbol,
         suggestedPrice: order.suggestedPrice,
         originalOrder: order, // Pass full order object for replacement
@@ -1272,7 +1274,7 @@ function WorkingOrdersTab() {
                     </div>
                     {result.success ? (
                       <div className="text-sm text-muted-foreground">
-                        Order replaced successfully
+                        {actionResults.action === 'cancel' ? 'Order cancelled successfully' : 'Order replaced successfully'}
                         {result.oldPrice && result.newPrice && (
                           <span className="ml-2">
                             ${result.oldPrice.toFixed(2)} → ${result.newPrice.toFixed(2)}

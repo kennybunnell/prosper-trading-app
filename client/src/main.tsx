@@ -25,7 +25,14 @@ queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.query.state.error;
     redirectToLoginIfUnauthorized(error);
-    console.error("[API Query Error]", error);
+    
+    // Suppress "Account not found" errors when query is disabled (expected behavior)
+    const isAccountNotFoundError = error && typeof error === 'object' && 'message' in error && error.message === 'Account not found';
+    const isQueryDisabled = event.query.state.fetchStatus === 'idle';
+    
+    if (!isAccountNotFoundError || !isQueryDisabled) {
+      console.error("[API Query Error]", error);
+    }
   }
 });
 

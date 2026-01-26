@@ -294,26 +294,60 @@ export class TastytradeAPI {
 
   /**
    * Get option quotes for multiple symbols
+   * Uses the /market-data/by-type endpoint with equity-option parameters
    */
   async getOptionQuotesBatch(symbols: string[]): Promise<Record<string, any>> {
     try {
-      // Tastytrade API accepts comma-separated symbols
-      const symbolsParam = symbols.join(',');
-      const response = await this.client.get('/market-metrics', {
-        params: {
-          symbols: symbolsParam,
+      // Build query string with multiple equity-option parameters
+      // Example: ?equity-option=AAPL  260220C00150000&equity-option=MSFT  260220P00400000
+      const params = new URLSearchParams();
+      symbols.forEach(symbol => {
+        params.append('equity-option', symbol);
+      });
+      
+      console.log(`[Tastytrade] Requesting quotes for symbols:`, symbols);
+      console.log(`[Tastytrade] Query string:`, params.toString());
+      
+      const response = await this.client.get('/market-data/by-type', {
+        params,
+        paramsSerializer: (params) => {
+          // Return the URLSearchParams as-is to preserve multiple equity-option params
+          return params.toString();
         },
       });
       
+      console.log(`[Tastytrade] API response status:`, response.status);
+      console.log(`[Tastytrade] API response data:`, JSON.stringify(response.data, null, 2));
+      
       // Convert array response to map keyed by symbol
       const quotes: Record<string, any> = {};
-      const items = response.data.data?.items || [];
-      for (const item of items) {
-        quotes[item.symbol] = item;
+      
+      // Access the items array from response.data.data.items
+      let items = response.data?.data?.items || response.data?.data || [];
+      
+      // Handle both array and object responses
+      const itemsArray = Array.isArray(items) ? items : [items];
+      
+      for (const item of itemsArray) {
+        if (item && item.symbol) {
+          // Convert string values to numbers (Tastytrade API returns strings)
+          quotes[item.symbol] = {
+            bid: parseFloat(item.bid) || 0,
+            ask: parseFloat(item.ask) || 0,
+            mid: parseFloat(item.mid) || 0,
+            last: parseFloat(item.last) || 0,
+            mark: parseFloat(item.mark) || 0,
+          };
+        }
       }
+      
+      console.log(`[Tastytrade] Parsed quotes:`, JSON.stringify(quotes, null, 2));
+      console.log(`[Tastytrade] Fetched ${Object.keys(quotes).length}/${symbols.length} option quotes`);
       return quotes;
     } catch (error: any) {
-      console.error('[Tastytrade] Failed to fetch option quotes:', error.response?.data || error.message);
+      console.error('[Tastytrade] Failed to fetch option quotes:');
+      console.error('[Tastytrade] Error response:', error.response?.data);
+      console.error('[Tastytrade] Error message:', error.message);
       return {}; // Return empty object on error to allow graceful degradation
     }
   }
@@ -330,51 +364,33 @@ export class TastytradeAPI {
   }
 
   /**
-   * Cancel and replace an order with a new price
+   * Cancel and replace an order with a new price using atomic PUT request
+   * This is the proper Tastytrade API method that cancels and replaces in a single operation
    */
   async cancelReplaceOrder(accountNumber: string, orderId: string, newPrice: number, originalOrder: any): Promise<{ success: boolean; orderId?: string; message: string }> {
     try {
-      // First cancel the existing order
-      await this.cancelOrder(accountNumber, orderId);
-      
-      // Extract order details from original order
-      const legs = originalOrder.legs || [];
-      if (legs.length === 0) {
-        throw new Error('No legs found in original order');
-      }
-      
-      const leg = legs[0];
-      const symbol = leg.symbol;
-      const quantity = parseInt(leg.quantity);
-      const action = leg.action;
-      const underlyingSymbol = originalOrder['underlying-symbol'] || originalOrder.underlyingSymbol;
-      const timeInForce = originalOrder['time-in-force'] || originalOrder.timeInForce || 'Day';
-      
-      // Create new order with updated price
-      const orderPayload = {
-        'time-in-force': timeInForce,
-        'order-type': 'Limit',
-        'underlying-symbol': underlyingSymbol,
-        price: newPrice.toFixed(2),
-        'price-effect': action === 'Buy to Close' ? 'Debit' : 'Credit',
-        legs: [
-          {
-            'instrument-type': leg['instrument-type'] || 'Equity Option',
-            symbol: symbol,
-            quantity: quantity.toString(),
-            action: action,
-          },
-        ],
+      // Build the replacement order payload
+      // Must include: time-in-force, order-type, price, price-effect, legs
+      const payload = {
+        'time-in-force': originalOrder['time-in-force'] || originalOrder.timeInForce || 'Day',
+        'order-type': originalOrder['order-type'] || originalOrder.orderType || 'Limit',
+        'price': newPrice.toFixed(2),
+        'price-effect': originalOrder['price-effect'] || originalOrder.priceEffect || 'Credit',
+        'legs': originalOrder.legs || [],
       };
       
       console.log(`[Tastytrade] Replacing order ${orderId} with new price $${newPrice.toFixed(2)}`);
+      console.log(`[Tastytrade] Payload:`, JSON.stringify(payload, null, 2));
       
-      const response = await this.client.post(
-        `/accounts/${accountNumber}/orders`,
-        orderPayload
+      // Use PUT request to replace the order atomically
+      const response = await this.client.put(
+        `/accounts/${accountNumber}/orders/${orderId}`,
+        payload
       );
       
-      const newOrderId = response.data.data?.order?.id || response.data.data?.id;
+      const newOrderId = response.data.data?.order?.id || response.data.data?.id || orderId;
+      
+      console.log(`[Tastytrade] Order replaced successfully. New order ID: ${newOrderId}`);
       
       return {
         success: true,
@@ -383,6 +399,8 @@ export class TastytradeAPI {
       };
     } catch (error: any) {
       const errorMsg = error.response?.data?.error?.message || error.message;
+      console.error(`[Tastytrade] Failed to replace order ${orderId}:`, errorMsg);
+      console.error(`[Tastytrade] Error response:`, error.response?.data);
       console.error(`[Tastytrade] Cancel-replace error:`, errorMsg);
       return {
         success: false,

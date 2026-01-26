@@ -1131,3 +1131,53 @@
 - [x] Verify that filled/cancelled orders are being removed from the display
 - [x] Fix sync logic to only show active working orders (filter out Filled, Cancelled, Rejected, Expired)
 - [x] Test that working orders accurately reflect Tastytrade account status (6 orders match perfectly)
+
+## Bug: Cancel Orders Function Failing
+- [x] Clone Streamlit repo to review working cancel/replace implementation
+- [x] Fix cancel orders function - handle proper data structure (convert orderId and accountNumber to strings)
+- [x] Ensure cancel handles multi-leg orders correctly (backend handles this)
+- [ ] Test cancel function with single and multiple order selection
+
+## Code Quality: Centralize Order Submission Logic
+- [x] Extract price formatting logic from CSP dashboard
+- [x] Create shared order submission utility function (orderUtils.ts with penny rounding)
+- [x] Changed from nickel ($0.05) to penny ($0.01) rounding to avoid losing money on spreads
+- [x] Keep nickel rounding function as fallback if Tastytrade rejects penny increments
+- [ ] Audit CSP Dashboard order submission
+- [ ] Audit CC Dashboard order submission  
+- [ ] Audit PMCC Dashboard order submission
+- [ ] Audit Working Orders replace function
+- [ ] Update all submission points to use centralized logic
+- [ ] Test penny rounding with small order first
+- [ ] Test all order submission flows end-to-end
+
+## Bug: Cancel Order Shows Wrong Success Message
+- [x] Fix cancel order success message - now shows "Order cancelled successfully" for cancel actions
+- [x] Add action type tracking to distinguish cancel vs replace operations
+- [ ] Test cancel and replace to verify correct messages
+
+## Bug: Account Not Found Error on Working Orders Page Load
+- [x] Fix "Account not found" TRPCClientError when working orders page loads without account selected
+- [x] Suppress error logging for expected "Account not found" errors when query is disabled
+- [x] Query already has conditional execution (enabled: !!selectedAccountId)
+- [x] Proper empty state already shows when no account selected
+- [ ] Test that error no longer appears in console
+
+## CRITICAL BUG: Replace Orders Suggesting $0.00 Prices
+- [x] Investigate why bid/ask are both $0.00 in working orders data (working orders don't include live market data)
+- [ ] Check if market data is being fetched when calculating suggested prices
+- [x] Fix calculateSmartFillPrice to handle missing/stale market data (now returns current price if bid/ask invalid)
+- [x] Add fallback logic: if bid/ask are $0.00, keep current price instead of suggesting $0.00
+- [ ] Fetch fresh market data for each symbol when calculating suggested prices
+- [ ] Test replace orders during market hours with live data
+- [ ] Add validation to prevent submitting orders with $0.00 prices
+
+## Replace Orders Bug Fix
+- [x] Fix replaceOrders backend to properly resubmit orders after cancellation (currently only cancels without replacing)
+- [x] Check Streamlit implementation for correct cancel-replace flow
+- [x] Review Tastytrade API documentation for proper replace order method
+- [x] Changed from two-step (cancel + create) to atomic PUT request to /accounts/{accountNumber}/orders/{orderId}
+- [x] Fix Tastytrade API quote endpoint (was using /market-metrics, now uses /market-data/by-type with equity-option params)
+- [x] Fix quote parsing to convert string values to numbers (API returns "0.9" not 0.9)
+- [x] Fix response data access path (response.data.data.items not response.data.data)
+- [x] Test with real working orders - verified both cancellation and resubmission work

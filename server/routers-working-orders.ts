@@ -112,6 +112,7 @@ export const workingOrdersRouter = router({
 
         // Fetch quotes for all symbols
         const quotes = await api.getOptionQuotesBatch(optionSymbols);
+        console.log(`[WorkingOrders] Quote data sample:`, JSON.stringify(Object.entries(quotes).slice(0, 2), null, 2));
 
         // Process orders with smart pricing
         const processedOrders: ProcessedWorkingOrder[] = [];
@@ -145,6 +146,10 @@ export const workingOrdersRouter = router({
           const ask = quote.ask || 0;
           const mid = (bid + ask) / 2;
           const spread = ask - bid;
+          
+          if (bid === 0 && ask === 0) {
+            console.log(`[WorkingOrders] WARNING: No market data for ${symbol}. Quote:`, JSON.stringify(quote));
+          }
 
           // Calculate time working
           const minutesWorking = calculateMinutesWorking(order['received-at'] || order.receivedAt);

@@ -33,6 +33,16 @@ export function calculateSmartFillPrice(
 ): PriceSuggestion {
   const bid = quote.bid || 0;
   const ask = quote.ask || 0;
+  
+  // Validate market data - return null suggestion if bid/ask are missing or invalid
+  if (!bid || !ask || bid <= 0 || ask <= 0) {
+    return {
+      suggestedPrice: currentPrice, // Keep current price if no market data
+      strategy: 'Unable to calculate - missing or invalid bid/ask data. Keeping current price.',
+      needsReplacement: false,
+    };
+  }
+  
   const mid = quote.mid || (bid + ask) / 2;
   const spread = ask - bid;
 
@@ -82,7 +92,7 @@ export function calculateSmartFillPrice(
     }
   }
 
-  // Round to nearest cent
+  // Round to nearest penny (cent)
   suggestedPrice = Math.round(suggestedPrice * 100) / 100;
 
   // Ensure suggested price is within bid-ask spread
