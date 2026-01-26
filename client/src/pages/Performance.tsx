@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -1317,6 +1317,7 @@ function WorkingOrdersTab() {
 
 function PerformanceOverviewTab() {
   const { selectedAccountId } = useAccount();
+  const [timePeriod, setTimePeriod] = useState<'3m' | '6m' | 'ytd' | 'all'>('all');
   const [monthsBack, setMonthsBack] = useState(12);
   const [monthlySortKey, setMonthlySortKey] = useState<string | null>(null);
   const [monthlySortDir, setMonthlySortDir] = useState<'asc' | 'desc'>('desc');
@@ -1378,6 +1379,24 @@ function PerformanceOverviewTab() {
 
   const { monthlyData, symbolPerformance, performanceMetrics, totals, dateRange } = data;
 
+  // Calculate monthsBack based on time period
+  const calculateMonthsBack = (period: '3m' | '6m' | 'ytd' | 'all') => {
+    if (period === '3m') return 3;
+    if (period === '6m') return 6;
+    if (period === 'ytd') {
+      const now = new Date();
+      const yearStart = new Date(now.getFullYear(), 0, 1);
+      const monthsDiff = (now.getFullYear() - yearStart.getFullYear()) * 12 + (now.getMonth() - yearStart.getMonth());
+      return Math.max(1, monthsDiff + 1);
+    }
+    return 120; // All time (10 years)
+  };
+
+  // Update monthsBack when time period changes
+  useEffect(() => {
+    setMonthsBack(calculateMonthsBack(timePeriod));
+  }, [timePeriod]);
+
   // Sorting helper
   const handleMonthlySort = (key: string) => {
     if (monthlySortKey === key) {
@@ -1430,7 +1449,7 @@ function PerformanceOverviewTab() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Refresh */}
+      {/* Header with Time Period Selector and Refresh */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Performance Overview</h2>
@@ -1438,10 +1457,22 @@ function PerformanceOverviewTab() {
             {dateRange.firstMonth} - {dateRange.lastMonth} ({dateRange.monthsWithActivity} months with activity)
           </p>
         </div>
-        <Button onClick={() => refetch()} variant="outline" size="sm">
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-3">
+          <select
+            value={timePeriod}
+            onChange={(e) => setTimePeriod(e.target.value as '3m' | '6m' | 'ytd' | 'all')}
+            className="px-3 py-2 bg-card border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="3m">Last 3 Months</option>
+            <option value="6m">Last 6 Months</option>
+            <option value="ytd">Year to Date</option>
+            <option value="all">All Time</option>
+          </select>
+          <Button onClick={() => refetch()} variant="outline" size="sm">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Summary Metrics Cards */}
@@ -1798,7 +1829,41 @@ function PerformanceOverviewTab() {
 
       {/* Monthly Breakdown Table */}
       <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Monthly Breakdown</h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Monthly Breakdown</h3>
+          <button
+            onClick={() => {
+              const csv = [
+                ['Month', 'CSP Credits', 'CSP Debits', 'CSP Net', 'CC Credits', 'CC Debits', 'CC Net', 'Total Net', 'Assignments'].join(','),
+                ...sortedMonthlyData.map(m => [
+                  m.monthName,
+                  m.cspCredits.toFixed(2),
+                  m.cspDebits.toFixed(2),
+                  m.cspNet.toFixed(2),
+                  m.ccCredits.toFixed(2),
+                  m.ccDebits.toFixed(2),
+                  m.ccNet.toFixed(2),
+                  m.totalNet.toFixed(2),
+                  m.assignments
+                ].join(','))
+              ].join('\n');
+              const blob = new Blob([csv], { type: 'text/csv' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `monthly-breakdown-${new Date().toISOString().split('T')[0]}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+              toast.success('Monthly breakdown exported to CSV');
+            }}
+            className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 rounded-md flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Export CSV
+          </button>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -1898,7 +1963,40 @@ function PerformanceOverviewTab() {
 
       {/* Symbol Performance Table (Phase 3) */}
       <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Top Performers by Symbol</h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Top Performers by Symbol</h3>
+          <button
+            onClick={() => {
+              const csv = [
+                ['Symbol', 'Trades', 'Net Premium', 'Win Rate', 'Avg/Trade', 'CSP Trades', 'CC Trades', 'Recommendation'].join(','),
+                ...sortedSymbolPerformance.map((s: any) => [
+                  s.symbol,
+                  s.trades,
+                  s.netPremium.toFixed(2),
+                  `${s.winRate.toFixed(1)}%`,
+                  s.avgPremiumPerTrade.toFixed(2),
+                  s.cspTrades,
+                  s.ccTrades,
+                  s.winRate < 50 ? 'AVOID' : 'OK'
+                ].join(','))
+              ].join('\n');
+              const blob = new Blob([csv], { type: 'text/csv' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `symbol-performance-${new Date().toISOString().split('T')[0]}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+              toast.success('Symbol performance exported to CSV');
+            }}
+            className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 rounded-md flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Export CSV
+          </button>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -1983,6 +2081,85 @@ function PerformanceOverviewTab() {
           </table>
         </div>
       </Card>
+
+      {/* Expiration Calendar */}
+      <ExpirationCalendarSection selectedAccountId={selectedAccountId} />
     </div>
+  );
+}
+
+// Expiration Calendar Component
+function ExpirationCalendarSection({ selectedAccountId }: { selectedAccountId: string | null }) {
+  const { data, isLoading } = trpc.performance.getExpirationCalendar.useQuery(
+    { accountId: selectedAccountId || '' },
+    { enabled: !!selectedAccountId, refetchOnWindowFocus: false }
+  );
+
+  if (!selectedAccountId || isLoading) {
+    return null;
+  }
+
+  if (!data || data.expirations.length === 0) {
+    return (
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Upcoming Expirations</h3>
+        <p className="text-sm text-muted-foreground">No upcoming option expirations</p>
+      </Card>
+    );
+  }
+
+  const { expirations, weeklyClusterWarnings, totalUpcomingContracts } = data;
+
+  return (
+    <Card className="p-6">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold">Upcoming Expirations</h3>
+        <div className="text-sm text-muted-foreground">
+          {totalUpcomingContracts} contracts across {expirations.length} dates
+        </div>
+      </div>
+
+      {/* Clustering Warnings */}
+      {weeklyClusterWarnings.length > 0 && (
+        <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-md">
+          <p className="text-sm font-semibold text-yellow-400 mb-2">⚠️ Clustering Warnings</p>
+          {weeklyClusterWarnings.map((warning, idx) => (
+            <p key={idx} className="text-xs text-muted-foreground">
+              Week of {new Date(warning.week).toLocaleDateString()}: {warning.count} contracts expiring
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* Expiration Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border">
+              <th className="text-left py-2 px-2 text-sm font-semibold">Date</th>
+              <th className="text-right py-2 px-2 text-sm font-semibold">Contracts</th>
+              <th className="text-right py-2 px-2 text-sm font-semibold">Symbols</th>
+              <th className="text-left py-2 px-2 text-sm font-semibold">Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {expirations.slice(0, 20).map((exp, idx) => (
+              <tr key={idx} className="border-b border-border/50 hover:bg-muted/30">
+                <td className="py-2 px-2 text-sm font-semibold">
+                  {new Date(exp.date).toLocaleDateString()}
+                  {exp.clustered && <span className="ml-2 text-xs text-yellow-400">⚠️</span>}
+                </td>
+                <td className="py-2 px-2 text-sm text-right">{exp.totalContracts}</td>
+                <td className="py-2 px-2 text-sm text-right">{exp.uniqueSymbols}</td>
+                <td className="py-2 px-2 text-xs text-muted-foreground">
+                  {exp.positions.slice(0, 3).map((p: any) => `${p.symbol} ${p.type}`).join(', ')}
+                  {exp.positions.length > 3 && ` +${exp.positions.length - 3} more`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }

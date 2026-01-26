@@ -436,4 +436,107 @@ export const performanceRouter = router({
         },
       };
     }),
+
+  /**
+   * Get expiration calendar with clustering analysis
+   */
+  getExpirationCalendar: protectedProcedure
+    .input(z.object({
+      accountId: z.string(),
+    }))
+    .query(async ({ input, ctx }) => {
+      const { accountId } = input;
+      const userId = ctx.user.id;
+
+      console.log(`[Performance] Fetching expiration calendar for account ${accountId}`);
+
+      // Get API credentials
+      const credentials = await getApiCredentials(userId);
+      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Tastytrade API credentials not configured',
+        });
+      }
+
+      const api = await getTastytradeAPI();
+      const accounts = await api.getAccounts();
+
+      // Handle ALL_ACCOUNTS
+      const targetAccounts = accountId === 'ALL_ACCOUNTS'
+        ? accounts
+        : accounts.filter(acc => (acc as any)['account-number'] === accountId);
+
+      if (targetAccounts.length === 0) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Account not found',
+        });
+      }
+
+      // Fetch positions from all target accounts
+      const allPositions = [];
+      for (const account of targetAccounts) {
+        const positions = await api.getPositions((account as any)['account-number']);
+        const shortOptions = positions.filter(p => 
+          p['instrument-type'] === 'Equity Option' && 
+          p.quantity < 0
+        );
+        allPositions.push(...shortOptions.map(p => ({
+          ...p,
+          accountNumber: (account as any)['account-number'],
+          accountName: (account as any).nickname || (account as any)['account-number'],
+        })));
+      }
+
+      // Group by expiration date
+      const expirationMap = new Map<string, any[]>();
+      for (const pos of allPositions) {
+        const expDate = (pos as any)['expiration-date'];
+        if (!expirationMap.has(expDate)) {
+          expirationMap.set(expDate, []);
+        }
+        expirationMap.get(expDate)!.push({
+          symbol: pos['underlying-symbol'],
+          optionSymbol: pos.symbol,
+          strike: (pos as any)['strike-price'] || 0,
+          quantity: Math.abs(pos.quantity),
+          type: pos.symbol.includes('P') ? 'PUT' : 'CALL',
+          account: pos.accountName,
+        });
+      }
+
+      // Convert to array and calculate clustering
+      const expirations = Array.from(expirationMap.entries()).map(([date, positions]) => {
+        const totalContracts = positions.reduce((sum, p) => sum + p.quantity, 0);
+        const uniqueSymbols = new Set(positions.map(p => p.symbol)).size;
+        return {
+          date,
+          positions,
+          totalContracts,
+          uniqueSymbols,
+          clustered: totalContracts >= 5, // Flag if 5+ contracts expire same day
+        };
+      }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // Calculate weekly clustering
+      const weeklyMap = new Map<string, number>();
+      for (const exp of expirations) {
+        const date = new Date(exp.date);
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+        const weekKey = weekStart.toISOString().split('T')[0];
+        weeklyMap.set(weekKey, (weeklyMap.get(weekKey) || 0) + exp.totalContracts);
+      }
+
+      const weeklyClusterWarnings = Array.from(weeklyMap.entries())
+        .filter(([_, count]) => count >= 10)
+        .map(([week, count]) => ({ week, count }));
+
+      return {
+        expirations,
+        weeklyClusterWarnings,
+        totalUpcomingContracts: expirations.reduce((sum, e) => sum + e.totalContracts, 0),
+      };
+    }),
 });

@@ -1015,3 +1015,27 @@
 - [x] Increase font size on all chart labels for better readability (13px Premium, 12px CSP/CC)
 - [x] Fix label positioning to prevent overflow (November label cut off)
 - [x] Use intelligent positioning (insideTop with offset to keep labels visible)
+
+## Performance Overview Enhancements (Phase 2)
+
+### Export Functionality
+- [x] Add CSV export button for Monthly Breakdown table
+- [x] Add CSV export button for Symbol Performance table
+- [x] Implement CSV generation logic (convert table data to CSV format)
+- [x] Add download trigger for generated CSV files
+
+### Time Period Selector
+- [x] Add dropdown selector UI component (Last 3 months, Last 6 months, YTD, All Time)
+- [x] Implement date range filtering logic in backend (uses monthsBack parameter)
+- [x] Update getPerformanceOverview procedure to accept date range parameter (already supports monthsBack)
+- [x] Connect frontend selector to backend filtering (calculates monthsBack from period)
+- [x] Update charts and tables to reflect selected time period (automatic via query refetch)
+
+### Expiration Calendar View
+- [x] Create new tab/section for Expiration Calendar (added to Overview tab)
+- [x] Add backend procedure to fetch upcoming option expirations
+- [x] Group expirations by date and calculate clustering metrics
+- [x] Build calendar table UI component (simplified from heatmap)
+- [x] Add clustering warnings (5+ contracts per day, 10+ per week)
+- [x] Display expiration details (symbols, types, quantities)
+- [x] Add clustering risk indicator (⚠️ warnings for clustered dates)
