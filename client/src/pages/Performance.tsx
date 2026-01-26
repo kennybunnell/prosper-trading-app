@@ -1653,9 +1653,10 @@ function PerformanceOverviewTab() {
                 ))}
                 <LabelList 
                   dataKey="totalNet" 
-                  position="top" 
+                  position="insideTop" 
                   formatter={(value: number) => `$${value.toFixed(0)}`}
-                  style={{ fill: '#fff', fontSize: 11, fontWeight: 'bold' }}
+                  style={{ fill: '#fff', fontSize: 13, fontWeight: 'bold' }}
+                  offset={10}
                 />
               </Bar>
               <Line 
@@ -1703,9 +1704,10 @@ function PerformanceOverviewTab() {
                   ))}
                   <LabelList 
                     dataKey="cspNet" 
-                    position="top" 
+                    position="insideTop" 
                     formatter={(value: number) => `$${value.toFixed(0)}`}
-                    style={{ fill: '#fff', fontSize: 10, fontWeight: 'bold' }}
+                    style={{ fill: '#fff', fontSize: 12, fontWeight: 'bold' }}
+                    offset={8}
                   />
                 </Bar>
               </BarChart>
@@ -1762,9 +1764,10 @@ function PerformanceOverviewTab() {
                   ))}
                   <LabelList 
                     dataKey="ccNet" 
-                    position="top" 
+                    position="insideTop" 
                     formatter={(value: number) => `$${value.toFixed(0)}`}
-                    style={{ fill: '#fff', fontSize: 10, fontWeight: 'bold' }}
+                    style={{ fill: '#fff', fontSize: 12, fontWeight: 'bold' }}
+                    offset={8}
                   />
                 </Bar>
               </BarChart>

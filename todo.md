@@ -1010,3 +1010,8 @@
 - [x] Add conditional coloring to CSP Performance chart (red for negative, purple for positive)
 - [x] Add data labels to CC Performance chart bars
 - [x] Add conditional coloring to CC Performance chart (red for negative, amber for positive)
+
+## Chart Label Improvements (User Request)
+- [x] Increase font size on all chart labels for better readability (13px Premium, 12px CSP/CC)
+- [x] Fix label positioning to prevent overflow (November label cut off)
+- [x] Use intelligent positioning (insideTop with offset to keep labels visible)
