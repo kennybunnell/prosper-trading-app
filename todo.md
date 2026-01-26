@@ -1065,3 +1065,10 @@
 - [ ] Optimize opportunity fetch speed - currently taking 100+ seconds for 50 symbols (10 seconds per batch of 5)
 - [ ] Investigate why fetch performance degraded from 7-9 seconds back to slow speeds
 - [ ] Consider reducing batch processing time or increasing concurrency
+
+## Critical Bug - Option Symbol Format
+- [x] Fix option symbol date format - must use 2-digit year (YYMMDD) not 4-digit year (YYYYMMDD)
+  - Working format from Streamlit: `TICKER(6)YYMMDD(6)C/P(1)STRIKE(8)` 
+  - Example: `AAPL  260206P00150000` (AAPL Feb 6, 2026 Put $150)
+  - Current wrong format: `AAPL  20260206P00150000` (has 2026 instead of 26)
+- [x] Fix Zod schema trimming spaces from optionSymbol field - added .transform() to preserve spaces

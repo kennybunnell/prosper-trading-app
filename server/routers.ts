@@ -432,7 +432,7 @@ export const appRouter = router({
             strike: z.number(),
             expiration: z.string(),
             premium: z.number(),
-            optionSymbol: z.string(),
+            optionSymbol: z.string().transform(val => val), // Preserve spaces - don't trim
           })),
           accountId: z.string(),
           dryRun: z.boolean().optional(),

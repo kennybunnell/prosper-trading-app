@@ -571,8 +571,22 @@ export default function CSPDashboard() {
         strike: validatedOrder.strike,
         expiration: validatedOrder.expiration,
         premium: validatedOrder.premium / 100, // Convert back to per-share price
-        // Use the actual option symbol from Tradier API (already in correct format)
-        optionSymbol: opp?.optionSymbol || `${validatedOrder.symbol.padEnd(6, ' ')}${validatedOrder.expiration.replace(/-/g, '')}P${(validatedOrder.strike * 1000).toString().padStart(8, '0')}`,
+        // Build option symbol in Tastytrade format: TICKER(6)YYMMDD(6)P(1)STRIKE(8)
+        // Example: 'AAPL  260206P00150000' for AAPL Feb 6, 2026 Put $150
+        optionSymbol: (() => {
+          if (opp?.optionSymbol) return opp.optionSymbol;
+          
+          // Format date as YYMMDD (2-digit year)
+          const expFormatted = validatedOrder.expiration.replace(/-/g, ''); // YYYYMMDD
+          const expShort = expFormatted.substring(2); // Remove century: YYMMDD
+          
+          // Format strike as 8-digit cents
+          const strikeFormatted = (validatedOrder.strike * 1000).toString().padStart(8, '0');
+          
+          // Build symbol: TICKER(6) + YYMMDD(6) + P(1) + STRIKE(8)
+          const ticker = validatedOrder.symbol.padEnd(6, ' ');
+          return `${ticker}${expShort}P${strikeFormatted}`;
+        })(),
       };
     });
 
