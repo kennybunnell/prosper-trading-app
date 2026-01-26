@@ -849,3 +849,17 @@
 - [x] Update frontend to display combined positions with Account column
 - [x] Test aggregated view showing all 54 positions across 3 accounts (27 CSPs + 27 CCs)
 - [x] Verify summary cards show correct totals (CSPs: 27 positions, $7,230 premium, 30.7% avg; CCs: 27 positions, $8,927 premium, -15.2% avg, 6 ready to close)
+
+## Performance Analytics - Position Selection & Close Orders
+- [x] Add checkbox selection column to positions table
+- [x] Add profit threshold filter buttons (80%+, 85%+, 90%+, 95%+, Clear All) with position counts
+- [x] Implement selection state management (track selected positions)
+- [x] Add backend buy-to-close order submission procedure with dry run mode
+- [x] Implement Tastytrade API buy-to-close method (OCC format with proper spacing)
+- [x] Add order submission UI with dry run/live mode toggle
+- [x] Display selected positions summary (count, total cost to close, total premium)
+- [x] Add progress tracking during order submission
+- [x] Show individual order results (success/failure with order IDs)
+- [x] Auto-refresh positions after successful order submission
+- [x] Test complete workflow with dry run mode (5/5 tests passing)
+- [ ] Test live order submission with real account (user testing required)

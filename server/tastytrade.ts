@@ -284,6 +284,82 @@ export class TastytradeAPI {
   }
 
   /**
+   * Buy to close an option position
+   * @param accountNumber - Account number
+   * @param optionSymbol - Full option symbol (OCC format)
+   * @param quantity - Number of contracts to close
+   * @param price - Limit price per contract
+   * @param dryRun - If true, only validate without submitting
+   */
+  async buyToCloseOption(accountNumber: string, optionSymbol: string, quantity: number, price: number, dryRun: boolean = false): Promise<{ success: boolean; orderId?: string; message: string }> {
+    try {
+      // Parse option symbol to extract underlying
+      const underlyingMatch = optionSymbol.match(/^([A-Z]+)/);
+      const underlyingSymbol = underlyingMatch ? underlyingMatch[1] : optionSymbol.substring(0, 6).trim();
+
+      // Ensure option symbol has proper spacing for Tastytrade API
+      // OCC format requires 6-char ticker padded with spaces
+      let formattedSymbol = optionSymbol.replace(' ', '');
+      const match = formattedSymbol.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);
+      if (match) {
+        const ticker = match[1].padEnd(6, ' ');
+        const rest = match[2] + match[3] + match[4];
+        formattedSymbol = ticker + rest;
+      }
+
+      const orderPayload = {
+        'time-in-force': 'Day',
+        'order-type': 'Limit',
+        'underlying-symbol': underlyingSymbol,
+        price: price.toFixed(2),
+        'price-effect': 'Debit', // We pay to buy back
+        legs: [
+          {
+            'instrument-type': 'Equity Option',
+            symbol: formattedSymbol,
+            quantity: quantity.toString(),
+            action: 'Buy to Close',
+          },
+        ],
+      };
+
+      console.log(`[Tastytrade] ${dryRun ? 'Dry run' : 'Submitting'} buy-to-close order:`, {
+        account: accountNumber,
+        symbol: formattedSymbol,
+        quantity,
+        price,
+      });
+
+      const response = await this.client.post(
+        `/accounts/${accountNumber}/orders`,
+        orderPayload,
+        {
+          params: {
+            'dry-run': dryRun,
+          },
+        }
+      );
+
+      const orderId = response.data.data?.order?.id || response.data.data?.id;
+      
+      return {
+        success: true,
+        orderId: dryRun ? undefined : orderId,
+        message: dryRun 
+          ? `Dry run successful for ${quantity} contract(s) at $${price.toFixed(2)}`
+          : `Order submitted successfully (ID: ${orderId})`,
+      };
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error?.message || error.message;
+      console.error(`[Tastytrade] Buy-to-close error:`, errorMsg);
+      return {
+        success: false,
+        message: `Failed to ${dryRun ? 'validate' : 'submit'} order: ${errorMsg}`,
+      };
+    }
+  }
+
+  /**
    * Logout and destroy session
    */
   async logout(): Promise<void> {

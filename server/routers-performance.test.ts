@@ -429,3 +429,259 @@ describe('Performance Router - getActivePositions', () => {
     expect(result.positions[0].realizedPercent).toBe(90);
   });
 });
+
+describe('Performance Router - closePositions', () => {
+  const mockUser = {
+    id: 'test-user-id',
+    openId: 'test-open-id',
+    name: 'Test User',
+    email: 'test@example.com',
+  };
+
+  const mockContext = {
+    user: mockUser,
+    req: {} as any,
+    res: {} as any,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should validate close orders in dry run mode', async () => {
+    const { getApiCredentials } = await import('./db');
+    const { getTastytradeAPI } = await import('./tastytrade');
+
+    vi.mocked(getApiCredentials).mockResolvedValue({
+      userId: 'test-user-id',
+      tastytradeUsername: 'test-user',
+      tastytradePassword: 'test-pass',
+      tradierApiKey: null,
+      tradierAccountId: null,
+      defaultTastytradeAccountId: null,
+    });
+
+    const mockApi = {
+      login: vi.fn().mockResolvedValue(undefined),
+      buyToCloseOption: vi.fn().mockResolvedValue({
+        success: true,
+        message: 'Dry run successful for 1 contract(s) at $0.50',
+      }),
+    };
+
+    vi.mocked(getTastytradeAPI).mockReturnValue(mockApi as any);
+
+    const caller = performanceRouter.createCaller(mockContext);
+
+    const result = await caller.closePositions({
+      positions: [
+        {
+          accountId: '5WZ77313',
+          optionSymbol: 'AAPL  260117P00150000',
+          underlying: 'AAPL',
+          quantity: 1,
+          strike: 150,
+          currentPrice: 0.50,
+        },
+      ],
+      dryRun: true,
+    });
+
+    expect(result.summary.total).toBe(1);
+    expect(result.summary.success).toBe(1);
+    expect(result.summary.failed).toBe(0);
+    expect(result.results[0].success).toBe(true);
+    expect(mockApi.buyToCloseOption).toHaveBeenCalledWith(
+      '5WZ77313',
+      'AAPL  260117P00150000',
+      1,
+      0.50,
+      true
+    );
+  });
+
+  it('should submit live close orders when dry run is false', async () => {
+    const { getApiCredentials } = await import('./db');
+    const { getTastytradeAPI } = await import('./tastytrade');
+
+    vi.mocked(getApiCredentials).mockResolvedValue({
+      userId: 'test-user-id',
+      tastytradeUsername: 'test-user',
+      tastytradePassword: 'test-pass',
+      tradierApiKey: null,
+      tradierAccountId: null,
+      defaultTastytradeAccountId: null,
+    });
+
+    const mockApi = {
+      login: vi.fn().mockResolvedValue(undefined),
+      buyToCloseOption: vi.fn().mockResolvedValue({
+        success: true,
+        orderId: 'ORDER123',
+        message: 'Order submitted successfully (ID: ORDER123)',
+      }),
+    };
+
+    vi.mocked(getTastytradeAPI).mockReturnValue(mockApi as any);
+
+    const caller = performanceRouter.createCaller(mockContext);
+
+    const result = await caller.closePositions({
+      positions: [
+        {
+          accountId: '5WZ77313',
+          optionSymbol: 'TSLA  260117P00200000',
+          underlying: 'TSLA',
+          quantity: 2,
+          strike: 200,
+          currentPrice: 1.25,
+        },
+      ],
+      dryRun: false,
+    });
+
+    expect(result.summary.total).toBe(1);
+    expect(result.summary.success).toBe(1);
+    expect(result.results[0].success).toBe(true);
+    expect(result.results[0].orderId).toBe('ORDER123');
+    expect(mockApi.buyToCloseOption).toHaveBeenCalledWith(
+      '5WZ77313',
+      'TSLA  260117P00200000',
+      2,
+      1.25,
+      false
+    );
+  });
+
+  it('should handle multiple positions and track success/failure', async () => {
+    const { getApiCredentials } = await import('./db');
+    const { getTastytradeAPI } = await import('./tastytrade');
+
+    vi.mocked(getApiCredentials).mockResolvedValue({
+      userId: 'test-user-id',
+      tastytradeUsername: 'test-user',
+      tastytradePassword: 'test-pass',
+      tradierApiKey: null,
+      tradierAccountId: null,
+      defaultTastytradeAccountId: null,
+    });
+
+    const mockApi = {
+      login: vi.fn().mockResolvedValue(undefined),
+      buyToCloseOption: vi.fn()
+        .mockResolvedValueOnce({ success: true, message: 'Success' })
+        .mockResolvedValueOnce({ success: true, message: 'Success' })
+        .mockResolvedValueOnce({ success: false, message: 'Insufficient buying power' }),
+    };
+
+    vi.mocked(getTastytradeAPI).mockReturnValue(mockApi as any);
+
+    const caller = performanceRouter.createCaller(mockContext);
+
+    const result = await caller.closePositions({
+      positions: [
+        {
+          accountId: '5WZ77313',
+          optionSymbol: 'AAPL  260117P00150000',
+          underlying: 'AAPL',
+          quantity: 1,
+          strike: 150,
+          currentPrice: 0.50,
+        },
+        {
+          accountId: '5WZ77313',
+          optionSymbol: 'TSLA  260117P00200000',
+          underlying: 'TSLA',
+          quantity: 2,
+          strike: 200,
+          currentPrice: 1.25,
+        },
+        {
+          accountId: '5WZ77313',
+          optionSymbol: 'NVDA  260117C00500000',
+          underlying: 'NVDA',
+          quantity: 1,
+          strike: 500,
+          currentPrice: 2.00,
+        },
+      ],
+      dryRun: true,
+    });
+
+    expect(result.summary.total).toBe(3);
+    expect(result.summary.success).toBe(2);
+    expect(result.summary.failed).toBe(1);
+    expect(result.results[0].success).toBe(true);
+    expect(result.results[1].success).toBe(true);
+    expect(result.results[2].success).toBe(false);
+    expect(result.results[2].message).toContain('Insufficient buying power');
+  });
+
+  it('should throw error if Tastytrade credentials are not configured', async () => {
+    const { getApiCredentials } = await import('./db');
+    vi.mocked(getApiCredentials).mockResolvedValue(null);
+
+    const caller = performanceRouter.createCaller(mockContext);
+    
+    await expect(
+      caller.closePositions({
+        positions: [
+          {
+            accountId: '5WZ77313',
+            optionSymbol: 'AAPL  260117P00150000',
+            underlying: 'AAPL',
+            quantity: 1,
+            strike: 150,
+            currentPrice: 0.50,
+          },
+        ],
+        dryRun: true,
+      })
+    ).rejects.toThrow('Tastytrade credentials not configured');
+  });
+
+  it('should include position details in results', async () => {
+    const { getApiCredentials } = await import('./db');
+    const { getTastytradeAPI } = await import('./tastytrade');
+
+    vi.mocked(getApiCredentials).mockResolvedValue({
+      userId: 'test-user-id',
+      tastytradeUsername: 'test-user',
+      tastytradePassword: 'test-pass',
+      tradierApiKey: null,
+      tradierAccountId: null,
+      defaultTastytradeAccountId: null,
+    });
+
+    const mockApi = {
+      login: vi.fn().mockResolvedValue(undefined),
+      buyToCloseOption: vi.fn().mockResolvedValue({
+        success: true,
+        message: 'Dry run successful',
+      }),
+    };
+
+    vi.mocked(getTastytradeAPI).mockReturnValue(mockApi as any);
+
+    const caller = performanceRouter.createCaller(mockContext);
+
+    const result = await caller.closePositions({
+      positions: [
+        {
+          accountId: '5WZ77313',
+          optionSymbol: 'SPY   260117P00450000',
+          underlying: 'SPY',
+          quantity: 5,
+          strike: 450,
+          currentPrice: 0.75,
+        },
+      ],
+      dryRun: true,
+    });
+
+    expect(result.results[0].underlying).toBe('SPY');
+    expect(result.results[0].strike).toBe(450);
+    expect(result.results[0].quantity).toBe(5);
+    expect(result.results[0].success).toBe(true);
+  });
+});

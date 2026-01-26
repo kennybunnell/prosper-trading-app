@@ -2,7 +2,9 @@ import { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { useAccount } from '@/contexts/AccountContext';
 import { toast } from 'sonner';
@@ -69,6 +71,10 @@ function ActivePositionsTab() {
   const { selectedAccountId } = useAccount();
   const [positionType, setPositionType] = useState<'csp' | 'cc'>('csp');
   const [profitFilter, setProfitFilter] = useState<number | null>(null);
+  const [selectedPositions, setSelectedPositions] = useState<Set<number>>(new Set());
+  const [dryRun, setDryRun] = useState(true);
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [closeResults, setCloseResults] = useState<any>(null);
 
   // Fetch active positions
   const { data, isLoading, refetch, error } = trpc.performance.getActivePositions.useQuery(
@@ -83,6 +89,19 @@ function ActivePositionsTab() {
       retry: false,
     }
   );
+
+  // Close positions mutation
+  const closePositionsMutation = trpc.performance.closePositions.useMutation({
+    onSuccess: (result) => {
+      setCloseResults(result);
+      setSelectedPositions(new Set());
+      refetch();
+      toast.success(`${result.summary.success} order(s) ${dryRun ? 'validated' : 'submitted'} successfully`);
+    },
+    onError: (error) => {
+      toast.error(`Failed to ${dryRun ? 'validate' : 'submit'} orders: ${error.message}`);
+    },
+  });
 
   // Show error if API call fails
   if (error) {
@@ -110,12 +129,81 @@ function ActivePositionsTab() {
     return data.positions.filter(pos => pos.realizedPercent >= profitFilter);
   }, [data?.positions, profitFilter]);
 
+  // Get selected positions data
+  const selectedPositionsData = useMemo(() => {
+    return filteredPositions.filter((_, idx) => selectedPositions.has(idx));
+  }, [filteredPositions, selectedPositions]);
+
+  // Calculate selected positions summary
+  const selectedSummary = useMemo(() => {
+    const count = selectedPositionsData.length;
+    const totalCost = selectedPositionsData.reduce((sum, pos) => sum + pos.current, 0);
+    const totalPremium = selectedPositionsData.reduce((sum, pos) => sum + pos.premium, 0);
+    return { count, totalCost, totalPremium };
+  }, [selectedPositionsData]);
+
+  const handleSelectAll = () => {
+    if (selectedPositions.size === filteredPositions.length) {
+      setSelectedPositions(new Set());
+    } else {
+      setSelectedPositions(new Set(filteredPositions.map((_, idx) => idx)));
+    }
+  };
+
+  const handleTogglePosition = (idx: number) => {
+    const newSelected = new Set(selectedPositions);
+    if (newSelected.has(idx)) {
+      newSelected.delete(idx);
+    } else {
+      newSelected.add(idx);
+    }
+    setSelectedPositions(newSelected);
+  };
+
+  const handleClosePositions = () => {
+    if (selectedPositionsData.length === 0) {
+      toast.error('Please select at least one position to close');
+      return;
+    }
+    setShowCloseDialog(true);
+  };
+
+  const handleConfirmClose = async () => {
+    setShowCloseDialog(false);
+    setCloseResults(null);
+
+    const positionsToClose = selectedPositionsData.map(pos => ({
+      accountId: pos.accountId,
+      optionSymbol: pos.optionSymbol,
+      underlying: pos.symbol,
+      quantity: pos.quantity,
+      strike: pos.strike,
+      currentPrice: pos.currentPrice,
+    }));
+
+    await closePositionsMutation.mutateAsync({
+      positions: positionsToClose,
+      dryRun,
+    });
+  };
+
   const summary = data?.summary || {
     openPositions: 0,
     totalPremiumAtRisk: 0,
     avgRealizedPercent: 0,
     readyToClose: 0,
   };
+
+  // Count positions by profit threshold
+  const profitCounts = useMemo(() => {
+    if (!data?.positions) return { p80: 0, p85: 0, p90: 0, p95: 0 };
+    return {
+      p80: data.positions.filter(p => p.realizedPercent >= 80).length,
+      p85: data.positions.filter(p => p.realizedPercent >= 85).length,
+      p90: data.positions.filter(p => p.realizedPercent >= 90).length,
+      p95: data.positions.filter(p => p.realizedPercent >= 95).length,
+    };
+  }, [data?.positions]);
 
   // Show account selection prompt if no account selected
   if (!selectedAccountId) {
@@ -178,8 +266,8 @@ function ActivePositionsTab() {
 
       {/* Quick Profit Filters */}
       <Card className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium">Quick Filters:</span>
             <Button
               variant={profitFilter === 80 ? 'default' : 'outline'}
@@ -187,15 +275,15 @@ function ActivePositionsTab() {
               onClick={() => setProfitFilter(profitFilter === 80 ? null : 80)}
               className="bg-red-500/20 hover:bg-red-500/30 border-red-500/50"
             >
-              80%+
+              80%+ ({profitCounts.p80})
             </Button>
             <Button
               variant={profitFilter === 85 ? 'default' : 'outline'}
               size="sm"
               onClick={() => setProfitFilter(profitFilter === 85 ? null : 85)}
-              className="bg-red-500/20 hover:bg-red-500/30 border-red-500/50"
+              className="bg-orange-500/20 hover:bg-orange-500/30 border-orange-500/50"
             >
-              85%+
+              85%+ ({profitCounts.p85})
             </Button>
             <Button
               variant={profitFilter === 90 ? 'default' : 'outline'}
@@ -203,7 +291,7 @@ function ActivePositionsTab() {
               onClick={() => setProfitFilter(profitFilter === 90 ? null : 90)}
               className="bg-yellow-500/20 hover:bg-yellow-500/30 border-yellow-500/50"
             >
-              90%+
+              90%+ ({profitCounts.p90})
             </Button>
             <Button
               variant={profitFilter === 95 ? 'default' : 'outline'}
@@ -211,7 +299,7 @@ function ActivePositionsTab() {
               onClick={() => setProfitFilter(profitFilter === 95 ? null : 95)}
               className="bg-green-500/20 hover:bg-green-500/30 border-green-500/50"
             >
-              95%+
+              95%+ ({profitCounts.p95})
             </Button>
             {profitFilter && (
               <Button
@@ -235,6 +323,61 @@ function ActivePositionsTab() {
         </div>
       </Card>
 
+      {/* Selected Positions Summary & Close Button */}
+      {selectedSummary.count > 0 && (
+        <Card className="p-4 bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/20">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-6">
+              <div>
+                <div className="text-sm text-muted-foreground">Selected Positions</div>
+                <div className="text-2xl font-bold text-amber-400">{selectedSummary.count}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Cost to Close</div>
+                <div className="text-2xl font-bold text-amber-400">
+                  ${selectedSummary.totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Premium Collected</div>
+                <div className="text-2xl font-bold text-green-400">
+                  ${selectedSummary.totalPremium.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-3 py-2 bg-background/50 rounded-lg border">
+                <Checkbox
+                  checked={dryRun}
+                  onCheckedChange={(checked) => setDryRun(checked as boolean)}
+                  id="dry-run"
+                />
+                <label htmlFor="dry-run" className="text-sm font-medium cursor-pointer">
+                  Dry Run Mode
+                </label>
+              </div>
+              <Button
+                onClick={handleClosePositions}
+                className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/50"
+                disabled={closePositionsMutation.isPending}
+              >
+                {closePositionsMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {dryRun ? 'Validating...' : 'Submitting...'}
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    {dryRun ? 'Validate Close Orders' : 'Submit Close Orders'}
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Position Type Tabs */}
       <Tabs value={positionType} onValueChange={(v) => setPositionType(v as 'csp' | 'cc')}>
         <TabsList className="grid w-full grid-cols-2">
@@ -243,20 +386,131 @@ function ActivePositionsTab() {
         </TabsList>
 
         <TabsContent value="csp" className="mt-6">
-          <PositionsTable positions={filteredPositions} isLoading={isLoading} />
+          <PositionsTable 
+            positions={filteredPositions} 
+            isLoading={isLoading}
+            selectedPositions={selectedPositions}
+            onTogglePosition={handleTogglePosition}
+            onSelectAll={handleSelectAll}
+          />
         </TabsContent>
 
         <TabsContent value="cc" className="mt-6">
-          <PositionsTable positions={filteredPositions} isLoading={isLoading} />
+          <PositionsTable 
+            positions={filteredPositions} 
+            isLoading={isLoading}
+            selectedPositions={selectedPositions}
+            onTogglePosition={handleTogglePosition}
+            onSelectAll={handleSelectAll}
+          />
         </TabsContent>
       </Tabs>
+
+      {/* Close Confirmation Dialog */}
+      <Dialog open={showCloseDialog} onOpenChange={setShowCloseDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{dryRun ? 'Validate Close Orders' : 'Confirm Close Orders'}</DialogTitle>
+            <DialogDescription>
+              {dryRun 
+                ? `This will validate ${selectedSummary.count} close order(s) without submitting them to Tastytrade.`
+                : `This will submit ${selectedSummary.count} buy-to-close order(s) to Tastytrade. Are you sure?`
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Positions to close:</span>
+                <span className="font-medium">{selectedSummary.count}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Total cost:</span>
+                <span className="font-medium">${selectedSummary.totalCost.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Premium collected:</span>
+                <span className="font-medium text-green-400">${selectedSummary.totalPremium.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Net profit:</span>
+                <span className="font-medium text-green-400">
+                  ${(selectedSummary.totalPremium - selectedSummary.totalCost).toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCloseDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmClose} className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/50">
+              {dryRun ? 'Validate Orders' : 'Submit Orders'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Results Dialog */}
+      {closeResults && (
+        <Dialog open={!!closeResults} onOpenChange={() => setCloseResults(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>
+                {dryRun ? 'Validation Results' : 'Order Submission Results'}
+              </DialogTitle>
+              <DialogDescription>
+                {closeResults.summary.success} of {closeResults.summary.total} order(s) {dryRun ? 'validated' : 'submitted'} successfully
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {closeResults.results.map((result: any, idx: number) => (
+                <div
+                  key={idx}
+                  className={`p-3 rounded-lg border ${
+                    result.success
+                      ? 'bg-green-500/10 border-green-500/20'
+                      : 'bg-red-500/10 border-red-500/20'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {result.success ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-400 mt-0.5" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-400 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <div className="font-medium">
+                        {result.underlying} ${result.strike} ({result.quantity} contracts)
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        {result.message}
+                      </div>
+                      {result.orderId && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Order ID: {result.orderId}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setCloseResults(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
 
 interface Position {
   account: string;
+  accountId: string;
   symbol: string;
+  optionSymbol: string;
   type: 'CSP' | 'CC';
   quantity: number;
   strike: number;
@@ -264,11 +518,20 @@ interface Position {
   dte: number;
   premium: number;
   current: number;
+  currentPrice: number;
   realizedPercent: number;
   action: 'CLOSE' | 'WATCH' | 'HOLD';
 }
 
-function PositionsTable({ positions, isLoading }: { positions: Position[]; isLoading: boolean }) {
+interface PositionsTableProps {
+  positions: Position[];
+  isLoading: boolean;
+  selectedPositions: Set<number>;
+  onTogglePosition: (idx: number) => void;
+  onSelectAll: () => void;
+}
+
+function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosition, onSelectAll }: PositionsTableProps) {
   if (isLoading) {
     return (
       <Card className="p-6">
@@ -290,12 +553,21 @@ function PositionsTable({ positions, isLoading }: { positions: Position[]; isLoa
     );
   }
 
+  const allSelected = selectedPositions.size === positions.length;
+
   return (
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-muted/50">
             <tr>
+              <th className="text-left p-3 text-sm font-medium w-12">
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={onSelectAll}
+                  aria-label="Select all"
+                />
+              </th>
               <th className="text-left p-3 text-sm font-medium">Account</th>
               <th className="text-left p-3 text-sm font-medium">Symbol</th>
               <th className="text-left p-3 text-sm font-medium">Type</th>
@@ -312,6 +584,13 @@ function PositionsTable({ positions, isLoading }: { positions: Position[]; isLoa
           <tbody>
             {positions.map((pos, idx) => (
               <tr key={idx} className="border-t border-border hover:bg-muted/30">
+                <td className="p-3">
+                  <Checkbox
+                    checked={selectedPositions.has(idx)}
+                    onCheckedChange={() => onTogglePosition(idx)}
+                    aria-label={`Select ${pos.symbol}`}
+                  />
+                </td>
                 <td className="p-3 text-sm">{pos.account}</td>
                 <td className="p-3 text-sm font-medium">{pos.symbol}</td>
                 <td className="p-3 text-sm">
@@ -370,14 +649,9 @@ function ActionButton({ action }: { action: 'CLOSE' | 'WATCH' | 'HOLD' }) {
   const { label, icon: Icon, className } = config[action];
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      className={className}
-      onClick={() => toast.info(`${label} action coming soon`)}
-    >
+    <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium border ${className}`}>
       <Icon className="h-3 w-3 mr-1" />
       {label}
-    </Button>
+    </div>
   );
 }

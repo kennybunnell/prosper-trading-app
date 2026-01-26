@@ -9,7 +9,9 @@ import { getTastytradeAPI } from "./tastytrade";
  */
 interface ProcessedPosition {
   account: string;
+  accountId: string;
   symbol: string;
+  optionSymbol: string;
   type: 'CSP' | 'CC';
   quantity: number;
   strike: number;
@@ -17,6 +19,7 @@ interface ProcessedPosition {
   dte: number;
   premium: number;
   current: number;
+  currentPrice: number;
   realizedPercent: number;
   action: 'CLOSE' | 'WATCH' | 'HOLD';
 }
@@ -157,7 +160,9 @@ export const performanceRouter = router({
 
           processedPositions.push({
             account: pos._accountNumber || 'Unknown',
+            accountId: pos['account-number'],
             symbol: pos['underlying-symbol'],
+            optionSymbol: pos.symbol,
             type: optionType,
             quantity,
             strike,
@@ -165,6 +170,7 @@ export const performanceRouter = router({
             dte,
             premium: premiumReceived,
             current: currentCost,
+            currentPrice: parseFloat(pos['close-price']),
             realizedPercent: Math.round(realizedPercent * 100) / 100, // Round to 2 decimals
             action,
           });
@@ -196,5 +202,74 @@ export const performanceRouter = router({
           message: `Failed to fetch positions: ${error.message}`,
         });
       }
+    }),
+
+  /**
+   * Close selected positions (buy-to-close)
+   */
+  closePositions: protectedProcedure
+    .input(z.object({
+      positions: z.array(z.object({
+        accountId: z.string(),
+        optionSymbol: z.string(),
+        underlying: z.string(),
+        quantity: z.number(),
+        strike: z.number(),
+        currentPrice: z.number(),
+      })),
+      dryRun: z.boolean().default(true),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { positions, dryRun } = input;
+
+      // Get Tastytrade credentials
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Tastytrade credentials not configured. Please add them in Settings.',
+        });
+      }
+
+      // Initialize Tastytrade API
+      const api = getTastytradeAPI();
+      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+
+      console.log(`[Performance] ${dryRun ? 'Dry run' : 'Submitting'} close orders for ${positions.length} position(s)`);
+
+      // Submit orders for each position
+      const results = [];
+      for (const pos of positions) {
+        console.log(`[Performance] Processing ${pos.underlying} $${pos.strike} (${pos.quantity} contracts)`);
+        
+        const result = await api.buyToCloseOption(
+          pos.accountId,
+          pos.optionSymbol,
+          pos.quantity,
+          pos.currentPrice,
+          dryRun
+        );
+
+        results.push({
+          ...result,
+          underlying: pos.underlying,
+          strike: pos.strike,
+          quantity: pos.quantity,
+        });
+      }
+
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.length - successCount;
+
+      console.log(`[Performance] Close orders complete: ${successCount} success, ${failCount} failed`);
+
+      return {
+        results,
+        summary: {
+          total: results.length,
+          success: successCount,
+          failed: failCount,
+        },
+      };
     }),
 });
