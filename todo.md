@@ -959,3 +959,46 @@
 - [x] Test ALL_ACCOUNTS aggregation (Backend supports it)
 - [x] Verify win rate and profit factor calculations (Logic implemented)
 - [x] Test empty states and edge cases (Empty state handling added)
+
+## Performance Overview Enhancements (Next Steps)
+
+### Visual Charts Integration
+- [x] Install recharts package
+- [x] Create Premium Earnings Chart component (dual-axis: monthly bars + cumulative line)
+- [x] Add CSP Performance chart (monthly bars, purple)
+- [x] Add CC Performance chart (monthly bars, amber)
+- [x] Implement responsive chart sizing
+- [x] Add chart tooltips with detailed data
+- [x] Replace placeholder divs with actual charts
+
+### Assignment Impact Analysis
+- [x] Extend transaction aggregation to track assignments
+- [x] Calculate days holding assigned stock per assignment
+- [x] Track recovery success rate (assigned → called away profitably)
+- [x] Calculate average loss on failed recoveries
+- [x] Track current capital tied up in assigned positions
+- [x] Create Assignment Impact Analysis card in UI
+- [x] Display: Total Assignments, Avg Days Holding, Recovery Rate, Capital Tied Up
+
+### Time Period Selector
+- [ ] Add time period selector UI (Weekly | Monthly | Quarterly | YTD | All Time)
+- [ ] Implement weekly aggregation logic
+- [ ] Implement quarterly aggregation logic
+- [ ] Implement YTD aggregation logic
+- [ ] Add comparison metrics (This Week vs Last Week, etc.)
+- [ ] Update all charts and tables based on selected period
+- [ ] Persist selected period in component state
+
+### Sortable Tables
+- [ ] Make Monthly Breakdown table sortable by all columns
+- [ ] Make Symbol Performance table sortable by all columns
+- [ ] Add sort indicators (↑↓) to table headers
+- [ ] Implement ascending/descending toggle on header click
+- [ ] Preserve sort state when data refreshes
+
+### Sortable Tables (COMPLETED)
+- [x] Add sorting state management to Performance Overview
+- [x] Implement sortable headers for Monthly Breakdown table (all 9 columns)
+- [x] Implement sortable headers for Symbol Performance table (all 7 columns)
+- [x] Add visual indicators for sort direction (↑↓ arrows)
+- [x] Ensure all tables in Performance Analytics are sortable

@@ -8,6 +8,7 @@ import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Load
 import { trpc } from '@/lib/trpc';
 import { useAccount } from '@/contexts/AccountContext';
 import { toast } from 'sonner';
+import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart } from 'recharts';
 
 export default function Performance() {
   const [activeTab, setActiveTab] = useState('active-positions');
@@ -1317,6 +1318,10 @@ function WorkingOrdersTab() {
 function PerformanceOverviewTab() {
   const { selectedAccountId } = useAccount();
   const [monthsBack, setMonthsBack] = useState(12);
+  const [monthlySortKey, setMonthlySortKey] = useState<string | null>(null);
+  const [monthlySortDir, setMonthlySortDir] = useState<'asc' | 'desc'>('desc');
+  const [symbolSortKey, setSymbolSortKey] = useState<string>('netPremium');
+  const [symbolSortDir, setSymbolSortDir] = useState<'asc' | 'desc'>('desc');
 
   // Fetch performance overview data
   const { data, isLoading, refetch, error } = trpc.performance.getPerformanceOverview.useQuery(
@@ -1372,6 +1377,43 @@ function PerformanceOverviewTab() {
   }
 
   const { monthlyData, symbolPerformance, performanceMetrics, totals, dateRange } = data;
+
+  // Sorting helper
+  const handleMonthlySort = (key: string) => {
+    if (monthlySortKey === key) {
+      setMonthlySortDir(monthlySortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setMonthlySortKey(key);
+      setMonthlySortDir('desc');
+    }
+  };
+
+  const handleSymbolSort = (key: string) => {
+    if (symbolSortKey === key) {
+      setSymbolSortDir(symbolSortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSymbolSortKey(key);
+      setSymbolSortDir('desc');
+    }
+  };
+
+  // Sort monthly data
+  const sortedMonthlyData = monthlySortKey
+    ? [...monthlyData].sort((a: any, b: any) => {
+        const aVal = a[monthlySortKey];
+        const bVal = b[monthlySortKey];
+        const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+        return monthlySortDir === 'asc' ? comparison : -comparison;
+      })
+    : monthlyData;
+
+  // Sort symbol performance
+  const sortedSymbolPerformance = [...symbolPerformance].sort((a: any, b: any) => {
+    const aVal = a[symbolSortKey];
+    const bVal = b[symbolSortKey];
+    const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+    return symbolSortDir === 'asc' ? comparison : -comparison;
+  });
 
   // Calculate retention percentage
   const retentionPercent = totals.totalCredits > 0 
@@ -1470,6 +1512,49 @@ function PerformanceOverviewTab() {
         </Card>
       </div>
 
+      {/* Assignment Impact Analysis Card */}
+      <Card className="p-6 bg-gradient-to-br from-rose-500/10 to-rose-600/5 border-rose-500/20">
+        <h3 className="text-lg font-semibold mb-4">🎯 Assignment Impact Analysis</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p className="text-sm text-muted-foreground">Total Assignments</p>
+            <p className="text-xl font-bold text-rose-400">
+              {data.assignmentImpact.totalAssignments}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              CSP assignments
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Avg Days Holding</p>
+            <p className="text-xl font-bold text-amber-400">
+              {data.assignmentImpact.avgDaysHolding}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              days until called away
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Recovery Rate</p>
+            <p className="text-xl font-bold text-green-400">
+              {data.assignmentImpact.recoveryRate.toFixed(1)}%
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {data.assignmentImpact.successfulRecoveries}/{data.assignmentImpact.totalAssignments} successful
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Capital Tied Up</p>
+            <p className="text-xl font-bold text-red-400">
+              ${data.assignmentImpact.capitalTiedUp.toFixed(2)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              in assigned positions
+            </p>
+          </div>
+        </div>
+      </Card>
+
       {/* Performance Metrics Card (Phase 2) */}
       <Card className="p-6 bg-gradient-to-br from-indigo-500/10 to-indigo-600/5 border-indigo-500/20">
         <h3 className="text-lg font-semibold mb-4">📊 Performance Metrics</h3>
@@ -1513,20 +1598,93 @@ function PerformanceOverviewTab() {
         </div>
       </Card>
 
-      {/* Premium Earnings Chart - Placeholder for now */}
+      {/* Premium Earnings Chart */}
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4">Premium Earnings Over Time</h3>
-        <div className="h-64 flex items-center justify-center text-muted-foreground">
-          Chart coming soon (Recharts integration)
+        <div className="h-80 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={(() => {
+              const reversed = [...monthlyData].reverse();
+              let cumulative = 0;
+              return reversed.map(m => {
+                cumulative += m.totalNet;
+                return { ...m, cumulativeNet: cumulative };
+              });
+            })()}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+              <XAxis 
+                dataKey="monthName" 
+                stroke="#888"
+                tick={{ fill: '#888', fontSize: 12 }}
+              />
+              <YAxis 
+                yAxisId="left"
+                stroke="#888"
+                tick={{ fill: '#888', fontSize: 12 }}
+                label={{ value: 'Monthly Net ($)', angle: -90, position: 'insideLeft', fill: '#888' }}
+              />
+              <YAxis 
+                yAxisId="right"
+                orientation="right"
+                stroke="#888"
+                tick={{ fill: '#888', fontSize: 12 }}
+                label={{ value: 'Cumulative ($)', angle: 90, position: 'insideRight', fill: '#888' }}
+              />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
+                labelStyle={{ color: '#fff' }}
+              />
+              <Legend />
+              <Bar 
+                yAxisId="left"
+                dataKey="totalNet" 
+                fill="#10b981" 
+                name="Monthly Net Premium"
+                radius={[4, 4, 0, 0]}
+              />
+              <Line 
+                yAxisId="right"
+                type="monotone" 
+                dataKey="cumulativeNet"
+                stroke="#3b82f6" 
+                strokeWidth={3}
+                name="Cumulative Premium"
+                dot={{ fill: '#3b82f6', r: 4 }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
       </Card>
 
-      {/* Strategy Performance Section - Placeholder */}
+      {/* Strategy Performance Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-4 text-purple-400">CSP Performance</h3>
-          <div className="h-48 flex items-center justify-center text-muted-foreground">
-            Chart coming soon
+          <div className="h-48 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={[...monthlyData].reverse().slice(-6)}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <XAxis 
+                  dataKey="monthName" 
+                  stroke="#888"
+                  tick={{ fill: '#888', fontSize: 11 }}
+                />
+                <YAxis 
+                  stroke="#888"
+                  tick={{ fill: '#888', fontSize: 11 }}
+                />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
+                  labelStyle={{ color: '#fff' }}
+                />
+                <Bar 
+                  dataKey="cspNet" 
+                  fill="#a855f7" 
+                  name="CSP Net Premium"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
           <div className="mt-4 space-y-2">
             <div className="flex justify-between">
@@ -1552,8 +1710,31 @@ function PerformanceOverviewTab() {
 
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-4 text-amber-400">CC Performance</h3>
-          <div className="h-48 flex items-center justify-center text-muted-foreground">
-            Chart coming soon
+          <div className="h-48 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={[...monthlyData].reverse().slice(-6)}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <XAxis 
+                  dataKey="monthName" 
+                  stroke="#888"
+                  tick={{ fill: '#888', fontSize: 11 }}
+                />
+                <YAxis 
+                  stroke="#888"
+                  tick={{ fill: '#888', fontSize: 11 }}
+                />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
+                  labelStyle={{ color: '#fff' }}
+                />
+                <Bar 
+                  dataKey="ccNet" 
+                  fill="#f59e0b" 
+                  name="CC Net Premium"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
           <div className="mt-4 space-y-2">
             <div className="flex justify-between">
@@ -1585,19 +1766,64 @@ function PerformanceOverviewTab() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-2 px-2 text-sm font-semibold">Month</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">CSP Credits</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">CSP Debits</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">CSP Net</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">CC Credits</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">CC Debits</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">CC Net</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">Total Net</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">Trades</th>
+                <th 
+                  className="text-left py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleMonthlySort('monthName')}
+                >
+                  Month {monthlySortKey === 'monthName' && (monthlySortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleMonthlySort('cspCredits')}
+                >
+                  CSP Credits {monthlySortKey === 'cspCredits' && (monthlySortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleMonthlySort('cspDebits')}
+                >
+                  CSP Debits {monthlySortKey === 'cspDebits' && (monthlySortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleMonthlySort('cspNet')}
+                >
+                  CSP Net {monthlySortKey === 'cspNet' && (monthlySortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleMonthlySort('ccCredits')}
+                >
+                  CC Credits {monthlySortKey === 'ccCredits' && (monthlySortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleMonthlySort('ccDebits')}
+                >
+                  CC Debits {monthlySortKey === 'ccDebits' && (monthlySortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleMonthlySort('ccNet')}
+                >
+                  CC Net {monthlySortKey === 'ccNet' && (monthlySortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleMonthlySort('totalNet')}
+                >
+                  Total Net {monthlySortKey === 'totalNet' && (monthlySortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleMonthlySort('cspTrades')}
+                >
+                  Trades {monthlySortKey === 'cspTrades' && (monthlySortDir === 'asc' ? '↑' : '↓')}
+                </th>
               </tr>
             </thead>
             <tbody>
-              {monthlyData.map((month) => (
+              {sortedMonthlyData.map((month) => (
                 <tr key={month.monthKey} className="border-b border-border/50 hover:bg-accent/50">
                   <td className="py-2 px-2 text-sm">{month.monthName}</td>
                   <td className="py-2 px-2 text-sm text-right text-green-400">
@@ -1640,17 +1866,52 @@ function PerformanceOverviewTab() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-2 px-2 text-sm font-semibold">Symbol</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">Trades</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">Net Premium</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">Win Rate</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">Avg/Trade</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">CSP</th>
-                <th className="text-right py-2 px-2 text-sm font-semibold">CC</th>
+                <th 
+                  className="text-left py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleSymbolSort('symbol')}
+                >
+                  Symbol {symbolSortKey === 'symbol' && (symbolSortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleSymbolSort('trades')}
+                >
+                  Trades {symbolSortKey === 'trades' && (symbolSortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleSymbolSort('netPremium')}
+                >
+                  Net Premium {symbolSortKey === 'netPremium' && (symbolSortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleSymbolSort('winRate')}
+                >
+                  Win Rate {symbolSortKey === 'winRate' && (symbolSortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleSymbolSort('avgPremiumPerTrade')}
+                >
+                  Avg/Trade {symbolSortKey === 'avgPremiumPerTrade' && (symbolSortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleSymbolSort('cspTrades')}
+                >
+                  CSP {symbolSortKey === 'cspTrades' && (symbolSortDir === 'asc' ? '↑' : '↓')}
+                </th>
+                <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
+                  onClick={() => handleSymbolSort('ccTrades')}
+                >
+                  CC {symbolSortKey === 'ccTrades' && (symbolSortDir === 'asc' ? '↑' : '↓')}
+                </th>
               </tr>
             </thead>
             <tbody>
-              {symbolPerformance.slice(0, 20).map((symbol) => (
+              {sortedSymbolPerformance.slice(0, 20).map((symbol) => (
                 <tr key={symbol.symbol} className="border-b border-border/50 hover:bg-accent/50">
                   <td className="py-2 px-2 text-sm font-semibold">
                     {symbol.symbol}

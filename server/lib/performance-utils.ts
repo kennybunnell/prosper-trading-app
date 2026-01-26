@@ -416,3 +416,141 @@ export function calculatePerformanceMetrics(
     totalLossAmount,
   };
 }
+
+/**
+ * Assignment Impact Analysis
+ * Tracks CSP assignments and their recovery metrics
+ */
+export interface AssignmentImpact {
+  totalAssignments: number;
+  avgDaysHolding: number;
+  recoveryRate: number; // % of assignments that were called away profitably
+  successfulRecoveries: number;
+  failedRecoveries: number;
+  avgLossOnFailure: number;
+  capitalTiedUp: number; // Current capital in assigned positions
+  assignmentDetails: AssignmentDetail[];
+}
+
+export interface AssignmentDetail {
+  symbol: string;
+  assignedDate: string;
+  strikePrice: number;
+  quantity: number;
+  daysHolding: number;
+  status: 'holding' | 'called-away' | 'sold';
+  outcome: 'profitable' | 'loss' | 'pending';
+  netPremium: number;
+}
+
+/**
+ * Calculate assignment impact metrics from transactions
+ * Tracks PUT assignments (Receive Deliver) and subsequent CALL assignments (called away)
+ */
+export function calculateAssignmentImpact(
+  transactions: Transaction[],
+  currentPositions?: any[]
+): AssignmentImpact {
+  const assignments: AssignmentDetail[] = [];
+  const assignmentMap = new Map<string, AssignmentDetail>();
+
+  // Find all PUT assignments (Receive Deliver with PUT options)
+  const putAssignments = transactions.filter(t => 
+    t['transaction-type'] === 'Receive Deliver' && 
+    t.symbol && 
+    parseOptionType(t.symbol) === 'PUT'
+  );
+
+  // Find all CALL assignments (called away)
+  const callAssignments = transactions.filter(t =>
+    t['transaction-type'] === 'Receive Deliver' &&
+    t.symbol &&
+    parseOptionType(t.symbol) === 'CALL'
+  );
+
+  // Process PUT assignments
+  for (const assignment of putAssignments) {
+    const parsed = parseOptionSymbol(assignment.symbol || '');
+    if (!parsed) continue;
+
+    const assignedDate = assignment['executed-at'] || '';
+    const key = `${parsed.underlying}-${assignedDate}`;
+
+    const detail: AssignmentDetail = {
+      symbol: parsed.underlying,
+      assignedDate,
+      strikePrice: parsed.strike,
+      quantity: Math.abs(Number(assignment.value) / (parsed.strike * 100)) || 1,
+      daysHolding: 0,
+      status: 'holding',
+      outcome: 'pending',
+      netPremium: 0,
+    };
+
+    assignmentMap.set(key, detail);
+  }
+
+  // Check for called-away events (CALL assignments)
+  for (const callAssignment of callAssignments) {
+    const parsed = parseOptionSymbol(callAssignment.symbol || '');
+    if (!parsed) continue;
+
+    const calledDate = callAssignment['executed-at'] || '';
+    
+    // Find matching PUT assignment
+    assignmentMap.forEach((detail, key) => {
+      if (detail.symbol === parsed.underlying && detail.status === 'holding') {
+        const assignedTime = new Date(detail.assignedDate).getTime();
+        const calledTime = new Date(calledDate).getTime();
+        detail.daysHolding = Math.floor((calledTime - assignedTime) / (1000 * 60 * 60 * 24));
+        detail.status = 'called-away';
+        
+        // Determine if profitable (simplified: assume profitable if called away above strike)
+        detail.outcome = parsed.strike >= detail.strikePrice ? 'profitable' : 'loss';
+      }
+    });
+  }
+
+  // Calculate current holdings from positions (if provided)
+  let capitalTiedUp = 0;
+  if (currentPositions) {
+    for (const position of currentPositions) {
+      if (position['instrument-type'] === 'Equity') {
+        capitalTiedUp += Math.abs(Number(position.quantity)) * Number(position['close-price'] || 0);
+      }
+    }
+  }
+
+  // Calculate metrics
+  const allAssignments: AssignmentDetail[] = [];
+  assignmentMap.forEach(detail => allAssignments.push(detail));
+  const successfulRecoveries = allAssignments.filter(a => a.outcome === 'profitable').length;
+  const failedRecoveries = allAssignments.filter(a => a.outcome === 'loss').length;
+  const completedAssignments = successfulRecoveries + failedRecoveries;
+
+  const avgDaysHolding = completedAssignments > 0
+    ? allAssignments
+        .filter(a => a.daysHolding > 0)
+        .reduce((sum, a) => sum + a.daysHolding, 0) / completedAssignments
+    : 0;
+
+  const recoveryRate = completedAssignments > 0
+    ? (successfulRecoveries / completedAssignments) * 100
+    : 0;
+
+  const lossAssignments = allAssignments.filter(a => a.outcome === 'loss');
+  const avgLossOnFailure = lossAssignments.length > 0
+    ? lossAssignments.reduce((sum, a) => sum + Math.abs(a.netPremium), 0) / lossAssignments.length
+    : 0;
+
+  return {
+    totalAssignments: allAssignments.length,
+    avgDaysHolding: Math.round(avgDaysHolding),
+    recoveryRate: Math.round(recoveryRate * 10) / 10,
+    successfulRecoveries,
+    failedRecoveries,
+    avgLossOnFailure: Math.round(avgLossOnFailure * 100) / 100,
+    capitalTiedUp: Math.round(capitalTiedUp * 100) / 100,
+    assignmentDetails: allAssignments,
+  };
+}

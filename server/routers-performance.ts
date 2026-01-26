@@ -107,6 +107,16 @@ export const performanceRouter = router({
             totalWinAmount: 0,
             totalLossAmount: 0,
           },
+          assignmentImpact: {
+            totalAssignments: 0,
+            avgDaysHolding: 0,
+            recoveryRate: 0,
+            successfulRecoveries: 0,
+            failedRecoveries: 0,
+            avgLossOnFailure: 0,
+            capitalTiedUp: 0,
+            assignmentDetails: [],
+          },
           totals: {
             totalCredits: 0,
             totalDebits: 0,
@@ -133,12 +143,13 @@ export const performanceRouter = router({
       }
 
       // Import aggregation functions
-      const { aggregateMonthlyData, aggregateBySymbol, calculatePerformanceMetrics } = await import('./lib/performance-utils');
+      const { aggregateMonthlyData, aggregateBySymbol, calculatePerformanceMetrics, calculateAssignmentImpact } = await import('./lib/performance-utils');
 
       // Aggregate data
       const monthlyData = aggregateMonthlyData(allTransactions);
       const symbolPerformance = aggregateBySymbol(allTransactions);
       const performanceMetrics = calculatePerformanceMetrics(allTransactions, monthlyData);
+      const assignmentImpact = calculateAssignmentImpact(allTransactions);
 
       // Calculate totals
       const totals = {
@@ -172,6 +183,7 @@ export const performanceRouter = router({
         monthlyData,
         symbolPerformance,
         performanceMetrics,
+        assignmentImpact,
         totals,
         dateRange,
       };
