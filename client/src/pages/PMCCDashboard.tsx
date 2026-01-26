@@ -1,8 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -14,7 +16,11 @@ type SortDirection = 'asc' | 'desc';
 export default function PMCCDashboard() {
   const [selectedPreset, setSelectedPreset] = useState<'conservative' | 'medium' | 'aggressive' | null>(null);
   const [showBestPerTicker, setShowBestPerTicker] = useState(false);
+  const [minScore, setMinScore] = useState<number | undefined>(undefined);
   const [isScanning, setIsScanning] = useState(false);
+  const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState(false);
+  const [scanStartTime, setScanStartTime] = useState<number | null>(null);
+  const [scanProgress, setScanProgress] = useState(0);
   const [selectedLeaps, setSelectedLeaps] = useState<Set<string>>(new Set());
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [sortColumn, setSortColumn] = useState<SortColumn>('score');
@@ -22,20 +28,47 @@ export default function PMCCDashboard() {
 
   // Fetch PMCC filter presets from database
   const { data: presets } = trpc.filterPresets.getByStrategy.useQuery({ strategy: 'pmcc' });
+  
+  // Fetch watchlist to count symbols for progress calculation
+  const { data: watchlist = [] } = trpc.watchlist.get.useQuery();
+  
+  // Countdown timer effect
+  useEffect(() => {
+    if (!isScanning || !scanStartTime) return;
+
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - scanStartTime) / 1000;
+      const estimatedTotal = watchlist.length * 2.0; // 2.0s per symbol (adjusted for buffer)
+      const progress = Math.min(95, (elapsed / estimatedTotal) * 100);
+      setScanProgress(progress);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [isScanning, scanStartTime, watchlist.length]);
 
   const scanLeapsMutation = trpc.pmcc.scanLeaps.useMutation({
     onSuccess: (data) => {
+      setScanProgress(100);
       toast.success(data.message || `Found ${data.opportunities.length} LEAP opportunities`);
       setIsScanning(false);
+      setScanStartTime(null);
+      setScanProgress(0);
+      
+      // Auto-collapse watchlist after successful scan
+      setIsWatchlistCollapsed(true);
     },
     onError: (error) => {
       toast.error(error.message || "Failed to scan for LEAPs");
       setIsScanning(false);
+      setScanStartTime(null);
+      setScanProgress(0);
     },
   });
 
   const handleScanLeaps = () => {
     setIsScanning(true);
+    setScanStartTime(Date.now());
+    setScanProgress(0);
     // Use medium as default if no preset selected
     scanLeapsMutation.mutate({ presetName: selectedPreset || 'medium' });
   };
@@ -83,8 +116,13 @@ export default function PMCCDashboard() {
     
     let filtered = [...scanLeapsMutation.data.opportunities];
     
+    // Apply score filter first (takes precedence over preset)
+    if (minScore !== undefined) {
+      filtered = filtered.filter(leap => leap.score >= minScore);
+    }
+    
     // Apply preset filter from database
-    if (selectedPreset && presets) {
+    else if (selectedPreset && presets) {
       const preset = presets.find(p => p.presetName === selectedPreset);
       if (preset) {
         filtered = filtered.filter(leap => {
@@ -192,7 +230,10 @@ export default function PMCCDashboard() {
 
         {/* Watchlist Management */}
         <div className="mb-8">
-          <EnhancedWatchlist />
+          <EnhancedWatchlist 
+            isCollapsed={isWatchlistCollapsed}
+            onToggleCollapse={() => setIsWatchlistCollapsed(!isWatchlistCollapsed)}
+          />
         </div>
 
         {/* LEAP Scanner Section */}
@@ -292,7 +333,7 @@ export default function PMCCDashboard() {
                     <Button
                       variant="ghost"
                       className={cn(
-                        "rounded-full px-5 py-2.5 font-semibold transition-all duration-200",
+                        "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
                         showBestPerTicker
                           ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/50 hover:shadow-xl hover:shadow-purple-500/60"
                           : "bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 hover:border-purple-500/50"
@@ -301,6 +342,44 @@ export default function PMCCDashboard() {
                     >
                       {showBestPerTicker ? '✓ ' : ''}Best Per Ticker
                     </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Score Filter Buttons - shown after scan */}
+              {scanLeapsMutation.data && scanLeapsMutation.data.opportunities.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Filter by Minimum Score</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0].map(score => (
+                      <Button
+                        key={score}
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "rounded-full px-4 py-2 font-semibold transition-all duration-200",
+                          minScore === score
+                            ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/60 hover:scale-110"
+                            : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-500/50 hover:scale-105"
+                        )}
+                        onClick={() => {
+                          setMinScore(score);
+                          setSelectedPreset(null); // Clear preset when using score filter
+                        }}
+                      >
+                        {score}+
+                      </Button>
+                    ))}
+                    {minScore !== undefined && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="rounded-full px-4 py-2 text-muted-foreground hover:text-foreground"
+                        onClick={() => setMinScore(undefined)}
+                      >
+                        Clear
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
@@ -515,6 +594,31 @@ export default function PMCCDashboard() {
             </div>
           </CardContent>
         </Card>
+        
+        {/* Scanning Progress Dialog */}
+        <Dialog open={isScanning} onOpenChange={() => {}}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Scanning for LEAPs</DialogTitle>
+              <DialogDescription>
+                Analyzing {watchlist.length} symbols for LEAP call options (9-15 months out, deep ITM)...
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col items-center justify-center space-y-4 py-6">
+              <Loader2 className="w-12 h-12 animate-spin text-primary" />
+              <Progress value={scanProgress} className="w-full" />
+              <p className="text-sm text-muted-foreground">
+                {scanProgress < 100 ? (
+                  <>
+                    {Math.floor((100 - scanProgress) * watchlist.length * 2.0 / 100)}s remaining
+                  </>
+                ) : (
+                  <>Finishing up...</>
+                )}
+              </p>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

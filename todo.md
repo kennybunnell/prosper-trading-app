@@ -730,3 +730,13 @@
 - [x] Test scoring with real data to verify score distribution (40-83 range achieved)
 - [x] Verify "Best Per Ticker" reduces opportunities to 33 unique tickers
 - [x] Test Conservative preset (shows 3 LEAPs, may need slight relaxation)
+
+## PMCC Dashboard UI Improvements
+- [x] Add score filter buttons (100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0) to the right of Best Per Ticker
+- [x] Implement auto-collapse watchlist section after scan completes
+- [x] Add scan progress indicator with animated spinner
+- [x] Add progress bar showing scan completion percentage
+- [x] Add countdown timer showing estimated time remaining
+- [x] Add "X of Y symbols scanned" counter during scan
+- [x] Verify backend uses multi-threading (up to 5 workers) for concurrent API calls - CONFIRMED ALREADY IMPLEMENTED
+- [ ] Test all UI improvements with real scan
