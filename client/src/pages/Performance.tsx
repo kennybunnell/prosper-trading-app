@@ -30,7 +30,7 @@ export default function Performance() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="active-positions">Active Positions</TabsTrigger>
-          <TabsTrigger value="working-orders" disabled>Working Orders</TabsTrigger>
+          <TabsTrigger value="working-orders">Working Orders</TabsTrigger>
           <TabsTrigger value="overview" disabled>Overview</TabsTrigger>
           <TabsTrigger value="stock-basis" disabled>Stock Basis</TabsTrigger>
           <TabsTrigger value="projections" disabled>Projections</TabsTrigger>
@@ -41,11 +41,9 @@ export default function Performance() {
           <ActivePositionsTab />
         </TabsContent>
 
-        {/* Working Orders Tab - Coming Soon */}
-        <TabsContent value="working-orders">
-          <Card className="p-8 text-center text-muted-foreground">
-            Working Orders tab - Backend API ready, UI coming next...
-          </Card>
+        {/* Working Orders Tab */}
+        <TabsContent value="working-orders" className="space-y-6">
+          <WorkingOrdersTab />
         </TabsContent>
         <TabsContent value="overview">
           <Card className="p-8 text-center text-muted-foreground">
@@ -786,5 +784,534 @@ function ActionButton({ action, onClick }: { action: 'CLOSE' | 'WATCH' | 'HOLD';
       <Icon className="h-3 w-3 mr-1" />
       {label}
     </Button>
+  );
+}
+
+function WorkingOrdersTab() {
+  const { selectedAccountId } = useAccount();
+  const [aggressiveFillMode, setAggressiveFillMode] = useState(false);
+  const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showReplaceDialog, setShowReplaceDialog] = useState(false);
+  const [actionResults, setActionResults] = useState<any>(null);
+
+  // Fetch working orders
+  const { data, isLoading, refetch, error } = trpc.workingOrders.getWorkingOrders.useQuery(
+    {
+      accountId: selectedAccountId || '',
+      aggressiveFillMode,
+    },
+    {
+      enabled: !!selectedAccountId,
+      refetchOnWindowFocus: false,
+      retry: false,
+    }
+  );
+
+  // Cancel orders mutation
+  const cancelOrdersMutation = trpc.workingOrders.cancelOrders.useMutation({
+    onSuccess: (result) => {
+      setActionResults(result);
+      setSelectedOrders(new Set());
+      refetch();
+      toast.success(`Canceled ${result.successCount} of ${result.successCount + result.failedCount} orders`);
+    },
+    onError: (error) => {
+      toast.error(`Failed to cancel orders: ${error.message}`);
+    },
+  });
+
+  // Replace orders mutation
+  const replaceOrdersMutation = trpc.workingOrders.replaceOrders.useMutation({
+    onSuccess: (result) => {
+      setActionResults(result);
+      setSelectedOrders(new Set());
+      refetch();
+      toast.success(`Replaced ${result.successCount} of ${result.successCount + result.failedCount} orders`);
+    },
+    onError: (error) => {
+      toast.error(`Failed to replace orders: ${error.message}`);
+    },
+  });
+
+  const orders = data?.orders || [];
+  const summary = data?.summary || { totalOrders: 0, totalContracts: 0, needsReplacement: 0, needsReview: 0, avgMinutesWorking: 0 };
+  const marketStatus = data?.marketStatus || 'Unknown';
+  const safeToReplace = data?.safeToReplace !== false;
+
+  // Selection handlers
+  const toggleSelection = (idx: number) => {
+    const newSelection = new Set(selectedOrders);
+    if (newSelection.has(idx)) {
+      newSelection.delete(idx);
+    } else {
+      newSelection.add(idx);
+    }
+    setSelectedOrders(newSelection);
+  };
+
+  const selectAll = () => {
+    if (selectedOrders.size === orders.length) {
+      setSelectedOrders(new Set());
+    } else {
+      setSelectedOrders(new Set(orders.map((_, idx) => idx)));
+    }
+  };
+
+  // Action handlers
+  const handleCancelSelected = () => {
+    if (selectedOrders.size === 0) {
+      toast.error('Please select orders to cancel');
+      return;
+    }
+    setShowCancelDialog(true);
+  };
+
+  const handleReplaceAll = () => {
+    if (orders.length === 0) {
+      toast.error('No orders to replace');
+      return;
+    }
+    if (!safeToReplace) {
+      toast.error('Not safe to replace orders after 3:55 PM ET');
+      return;
+    }
+    setShowReplaceDialog(true);
+  };
+
+  const confirmCancel = () => {
+    const ordersToCancel = Array.from(selectedOrders).map(idx => ({
+      orderId: orders[idx].orderId,
+      accountNumber: orders[idx].accountNumber,
+      symbol: orders[idx].symbol,
+    }));
+
+    cancelOrdersMutation.mutate({ orders: ordersToCancel });
+    setShowCancelDialog(false);
+  };
+
+  const confirmReplace = () => {
+    const ordersToReplace = orders
+      .filter(order => order.needsReplacement)
+      .map(order => ({
+        orderId: order.orderId,
+        accountNumber: order.accountNumber,
+        symbol: order.symbol,
+        suggestedPrice: order.suggestedPrice,
+        originalOrder: order, // Pass full order object for replacement
+      }));
+
+    if (ordersToReplace.length === 0) {
+      toast.error('No orders need replacement');
+      setShowReplaceDialog(false);
+      return;
+    }
+
+    replaceOrdersMutation.mutate({ orders: ordersToReplace });
+    setShowReplaceDialog(false);
+  };
+
+  // Loading state
+  if (!selectedAccountId) {
+    return (
+      <Card className="p-8 text-center">
+        <p className="text-muted-foreground">
+          Please select a Tastytrade account from the sidebar to view working orders
+        </p>
+      </Card>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <Card className="p-8 text-center">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+        <p className="text-muted-foreground">Loading working orders...</p>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="p-8 text-center">
+        <XCircle className="h-8 w-8 mx-auto mb-4 text-red-500" />
+        <p className="text-red-500">Error loading working orders</p>
+        <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
+      </Card>
+    );
+  }
+
+  const selectedOrdersList = Array.from(selectedOrders).map(idx => orders[idx]);
+  const totalCostToClose = selectedOrdersList.reduce((sum, order) => sum + (order.suggestedPrice * order.quantity * 100), 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Market Status Banner */}
+      <Card className={`p-4 border-2 ${
+        marketStatus === 'Open' ? 'border-green-500/50 bg-green-500/10' :
+        marketStatus === 'Pre-Market' || marketStatus === 'After Hours' ? 'border-yellow-500/50 bg-yellow-500/10' :
+        'border-red-500/50 bg-red-500/10'
+      }`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`h-3 w-3 rounded-full ${
+              marketStatus === 'Open' ? 'bg-green-500' :
+              marketStatus === 'Pre-Market' || marketStatus === 'After Hours' ? 'bg-yellow-500' :
+              'bg-red-500'
+            } animate-pulse`} />
+            <div>
+              <p className="font-medium">Market Status: {marketStatus}</p>
+              {!safeToReplace && (
+                <p className="text-sm text-muted-foreground">Order replacement disabled after 3:55 PM ET</p>
+              )}
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </Card>
+
+      {/* Summary Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <Card className="p-4 bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+          <p className="text-sm text-muted-foreground mb-1">Total Orders</p>
+          <p className="text-3xl font-bold text-blue-400">{summary.totalOrders}</p>
+        </Card>
+        <Card className="p-4 bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
+          <p className="text-sm text-muted-foreground mb-1">Total Contracts</p>
+          <p className="text-3xl font-bold text-purple-400">{summary.totalContracts}</p>
+        </Card>
+        <Card className="p-4 bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 border-yellow-500/20">
+          <p className="text-sm text-muted-foreground mb-1">Needs Replacement</p>
+          <p className="text-3xl font-bold text-yellow-400">{summary.needsReplacement}</p>
+        </Card>
+        <Card className="p-4 bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20">
+          <p className="text-sm text-muted-foreground mb-1">Needs Review</p>
+          <p className="text-3xl font-bold text-red-400">{summary.needsReview}</p>
+        </Card>
+        <Card className="p-4 bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+          <p className="text-sm text-muted-foreground mb-1">Avg Time Working</p>
+          <p className="text-3xl font-bold text-green-400">{summary.avgMinutesWorking}m</p>
+        </Card>
+      </div>
+
+      {/* Aggressive Fill Mode & Actions */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox
+                checked={aggressiveFillMode}
+                onCheckedChange={(checked) => setAggressiveFillMode(checked as boolean)}
+                className="border-2 border-white/50 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+              />
+              <span className="text-sm font-medium">🚀 Aggressive Fill Mode</span>
+            </label>
+            {selectedOrders.size > 0 && (
+              <div className="text-sm text-muted-foreground">
+                {selectedOrders.size} order{selectedOrders.size > 1 ? 's' : ''} selected
+                {selectedOrders.size > 0 && ` • Cost to close: $${totalCostToClose.toFixed(2)}`}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCancelSelected}
+              disabled={selectedOrders.size === 0 || cancelOrdersMutation.isPending}
+              className="border-red-500/50 hover:bg-red-500/20 text-red-400"
+            >
+              {cancelOrdersMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <XCircle className="h-4 w-4 mr-2" />
+              )}
+              Cancel Selected ({selectedOrders.size})
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReplaceAll}
+              disabled={summary.needsReplacement === 0 || !safeToReplace || replaceOrdersMutation.isPending}
+              className="border-green-500/50 hover:bg-green-500/20 text-green-400"
+            >
+              {replaceOrdersMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+              )}
+              Replace All to Suggested ({summary.needsReplacement})
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Working Orders Table */}
+      {orders.length === 0 ? (
+        <Card className="p-8 text-center">
+          <p className="text-muted-foreground">No working orders found</p>
+        </Card>
+      ) : (
+        <Card className="p-4">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="p-3 text-left">
+                    <Checkbox
+                      checked={selectedOrders.size === orders.length && orders.length > 0}
+                      onCheckedChange={selectAll}
+                      aria-label="Select all"
+                      className="border-2 border-white/50 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                    />
+                  </th>
+                  <th className="p-3 text-left text-sm font-medium">Account</th>
+                  <th className="p-3 text-left text-sm font-medium">Symbol</th>
+                  <th className="p-3 text-right text-sm font-medium">Strike</th>
+                  <th className="p-3 text-left text-sm font-medium">Exp</th>
+                  <th className="p-3 text-right text-sm font-medium">Qty</th>
+                  <th className="p-3 text-left text-sm font-medium">TIF</th>
+                  <th className="p-3 text-right text-sm font-medium">Current</th>
+                  <th className="p-3 text-right text-sm font-medium">Bid</th>
+                  <th className="p-3 text-right text-sm font-medium">Ask</th>
+                  <th className="p-3 text-right text-sm font-medium">Mid</th>
+                  <th className="p-3 text-right text-sm font-medium">Spread</th>
+                  <th className="p-3 text-right text-sm font-medium">Suggested</th>
+                  <th className="p-3 text-left text-sm font-medium">Strategy</th>
+                  <th className="p-3 text-right text-sm font-medium">Time Working</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((order, idx) => (
+                  <tr key={idx} className="border-t border-border hover:bg-muted/30">
+                    <td className="p-3">
+                      <Checkbox
+                        checked={selectedOrders.has(idx)}
+                        onCheckedChange={() => toggleSelection(idx)}
+                        aria-label={`Select ${order.symbol}`}
+                        className="border-2 border-white/50 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                      />
+                    </td>
+                    <td className="p-3 text-sm">{order.accountNumber}</td>
+                    <td className="p-3 text-sm font-medium">
+                      <div>{order.underlyingSymbol}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {order.optionType} ${order.strike}
+                      </div>
+                    </td>
+                    <td className="p-3 text-sm text-right">${order.strike.toFixed(2)}</td>
+                    <td className="p-3 text-sm">{order.expiration}</td>
+                    <td className="p-3 text-sm text-right">{order.quantity}</td>
+                    <td className="p-3 text-sm">
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        order.timeInForce === 'GTC' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'
+                      }`}>
+                        {order.timeInForce}
+                      </span>
+                    </td>
+                    <td className="p-3 text-sm text-right">${order.currentPrice.toFixed(2)}</td>
+                    <td className="p-3 text-sm text-right">${order.bid.toFixed(2)}</td>
+                    <td className="p-3 text-sm text-right">${order.ask.toFixed(2)}</td>
+                    <td className="p-3 text-sm text-right">${order.mid.toFixed(2)}</td>
+                    <td className="p-3 text-sm text-right">
+                      <span className={`${
+                        order.spread > 0.30 ? 'text-red-400' :
+                        order.spread > 0.15 ? 'text-yellow-400' :
+                        'text-green-400'
+                      }`}>
+                        ${order.spread.toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="p-3 text-sm text-right">
+                      <span className={`font-medium ${
+                        order.needsReplacement ? 'text-yellow-400' : 'text-green-400'
+                      }`}>
+                        ${order.suggestedPrice.toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="p-3 text-sm text-muted-foreground max-w-xs truncate" title={order.strategy}>
+                      {order.strategy}
+                    </td>
+                    <td className="p-3 text-sm text-right">
+                      <span className={`${
+                        order.minutesWorking > 120 ? 'text-red-400' :
+                        order.minutesWorking > 60 ? 'text-yellow-400' :
+                        'text-green-400'
+                      }`}>
+                        {order.timeWorkingDisplay}
+                      </span>
+                      {order.needsReview && (
+                        <span className="ml-2 text-xs text-red-400" title="5+ replacements">⚠️</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Cancel Confirmation Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Selected Orders</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel {selectedOrders.size} order{selectedOrders.size > 1 ? 's' : ''}?
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {selectedOrdersList.map((order, idx) => (
+              <div key={idx} className="p-2 bg-muted rounded text-sm">
+                <span className="font-medium">{order.underlyingSymbol}</span> {order.optionType} ${order.strike} - {order.expiration}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmCancel} disabled={cancelOrdersMutation.isPending}>
+              {cancelOrdersMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Canceling...
+                </>
+              ) : (
+                'Confirm Cancel'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Replace Confirmation Dialog */}
+      <Dialog open={showReplaceDialog} onOpenChange={setShowReplaceDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Replace Orders to Suggested Prices</DialogTitle>
+            <DialogDescription>
+              Replace {summary.needsReplacement} order{summary.needsReplacement > 1 ? 's' : ''} with smart-suggested prices?
+              {aggressiveFillMode && ' (Aggressive Fill Mode enabled)'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {orders.filter(o => o.needsReplacement).map((order, idx) => (
+              <div key={idx} className="p-2 bg-muted rounded text-sm flex justify-between">
+                <span>
+                  <span className="font-medium">{order.underlyingSymbol}</span> {order.optionType} ${order.strike}
+                </span>
+                <span>
+                  ${order.currentPrice.toFixed(2)} → ${order.suggestedPrice.toFixed(2)}
+                </span>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReplaceDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmReplace} disabled={replaceOrdersMutation.isPending}>
+              {replaceOrdersMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Replacing...
+                </>
+              ) : (
+                'Confirm Replace'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Replacement Log Panel */}
+      {actionResults && actionResults.results && actionResults.results.length > 0 && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Replacement Log</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setActionResults(null)}
+            >
+              Clear
+            </Button>
+          </div>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {actionResults.results.map((result: any, idx: number) => (
+              <div
+                key={idx}
+                className={`p-3 rounded-lg border ${
+                  result.success
+                    ? 'bg-green-500/10 border-green-500/30'
+                    : 'bg-red-500/10 border-red-500/30'
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      {result.success ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-400" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-400" />
+                      )}
+                      <span className="font-medium">{result.symbol}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date().toLocaleTimeString()}
+                      </span>
+                    </div>
+                    {result.success ? (
+                      <div className="text-sm text-muted-foreground">
+                        Order replaced successfully
+                        {result.oldPrice && result.newPrice && (
+                          <span className="ml-2">
+                            ${result.oldPrice.toFixed(2)} → ${result.newPrice.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-red-400">
+                        {result.error || 'Failed to replace order'}
+                      </div>
+                    )}
+                  </div>
+                  {result.orderId && (
+                    <div className="text-xs text-muted-foreground">
+                      Order #{result.orderId.slice(0, 8)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 pt-4 border-t border-border">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Summary</span>
+              <div className="flex items-center gap-4">
+                <span className="text-green-400">
+                  ✓ {actionResults.successCount} succeeded
+                </span>
+                {actionResults.failedCount > 0 && (
+                  <span className="text-red-400">
+                    ✗ {actionResults.failedCount} failed
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+    </div>
   );
 }
