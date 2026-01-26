@@ -809,3 +809,14 @@
 - [x] Add "Sell Calls" button per position
 - [x] Add refresh button to reload positions
 - [ ] Test position fetching with real Tastytrade account
+
+## Performance Analytics - Active Positions Tab
+- [x] Create Performance page with sidebar navigation
+- [x] Add Active Positions tab structure with CSP/CC tabs
+- [x] Implement backend tRPC procedure to fetch short option positions
+- [x] Calculate premium realization % for each position
+- [x] Build summary cards (Open Positions, Total Premium at Risk, Avg Realized %, Ready to Close)
+- [x] Add quick profit filter buttons (80%+, 85%+, 90%+, 95%+, Clear All)
+- [x] Create positions table with all columns (Account, Symbol, Type, Qty, Strike, Exp, DTE, Premium, Current, Realized %, Action)
+- [x] Implement CLOSE/WATCH/HOLD action buttons with color coding
+- [x] Test Active Positions tracker with real data (5/5 tests passing)
