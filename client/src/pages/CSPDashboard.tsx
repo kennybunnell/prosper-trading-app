@@ -181,7 +181,7 @@ export default function CSPDashboard() {
   const [presetFilter, setPresetFilter] = useState<PresetFilter>(null);
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [minDte, setMinDte] = useState<number>(7);
-  const [maxDte, setMaxDte] = useState<number>(45);
+  const [maxDte, setMaxDte] = useState<number>(30);
   const [portfolioSizeFilter, setPortfolioSizeFilter] = useState<Array<'small' | 'medium' | 'large'>>(['small', 'medium', 'large']);
   const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
   const [isFullyCollapsed, setIsFullyCollapsed] = useState(false);

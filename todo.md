@@ -1101,3 +1101,11 @@
 
 ## Concurrency Optimization
 - [x] Reduce concurrency from 8 to 5 workers - this was the most consistent/reliable setting
+
+## Fetch Optimization (Speed & Flexibility)
+- [x] Change DTE range from 7-45 to 7-30 days (reduces expirations checked per symbol)
+- [x] Remove volume minimum filter from server-side (let client-side handle)
+- [x] Remove Open Interest minimum filter from server-side (let client-side handle)
+- [x] Keep delta range and basic validation on server-side
+- [x] Update client-side default maxDte to 30 days
+- [x] Test fetch speed improvement and verify filtering still works

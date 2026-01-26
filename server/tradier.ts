@@ -462,7 +462,7 @@ export class TradierAPI {
     minDelta: number = 0.15,
     maxDelta: number = 0.35,
     minDte: number = 7,
-    maxDte: number = 45,
+    maxDte: number = 30,
     minVolume: number = 5,
     minOI: number = 50
   ): Promise<CSPOpportunity[]> {
@@ -566,9 +566,7 @@ export class TradierAPI {
             // Apply delta filter
             if (delta < minDelta || delta > maxDelta) continue;
 
-            // Apply volume and OI filters
-            if (volume < minVolume) continue;
-            if (oi < minOI) continue;
+            // Volume and OI filters removed - let client-side handle these for flexibility
 
             // Handle bid = 0 (use mid-price)
             if (bid <= 0 && ask > 0) {
