@@ -475,15 +475,23 @@ export class TradierAPI {
       const batch = symbols.slice(i, i + CONCURRENCY);
       console.log(`[Tradier API] Processing batch ${Math.floor(i / CONCURRENCY) + 1}/${Math.ceil(symbols.length / CONCURRENCY)} (symbols: ${batch.join(', ')})`);
       
-      const batchPromises = batch.map(symbol => this.fetchSymbolOpportunities(
-        symbol,
-        minDelta,
-        maxDelta,
-        minDte,
-        maxDte,
-        minVolume,
-        minOI
-      ));
+      // Wrap each symbol fetch with a timeout to prevent hanging
+      const batchPromises = batch.map(symbol => 
+        Promise.race([
+          this.fetchSymbolOpportunities(
+            symbol,
+            minDelta,
+            maxDelta,
+            minDte,
+            maxDte,
+            minVolume,
+            minOI
+          ),
+          new Promise<CSPOpportunity[]>((_, reject) => 
+            setTimeout(() => reject(new Error(`Timeout after 15s`)), 15000)
+          )
+        ])
+      );
       
       const batchResults = await Promise.allSettled(batchPromises);
       

@@ -1045,3 +1045,4 @@
 - [x] Fix monthsBack validation error (capped at 24 months instead of 120 for "All Time")
 - [x] Fix "Account not found" error on CSP Dashboard (added validation to check account selection before fetching opportunities)
 - [x] Fix CSP opportunities fetch hanging at "Finishing up..." (added 30s timeout and graceful error handling)
+- [x] Add per-symbol timeout wrapper (15 seconds) to automatically skip hung symbols and continue processing
