@@ -829,3 +829,23 @@
 - [x] Test API call with real Tastytrade credentials (Main Cash Account: 71 positions, Individual-HELOC: 1 position)
 - [x] Verify position data is being returned correctly (0 short options found in both accounts)
 - [x] Fix any data parsing or display issues (Working correctly - accounts simply have no short option positions)
+
+## Performance Analytics - Fix Position Fetching
+- [ ] Analyze why API returns 71 positions but 0 short options when CSV shows 54 short options
+- [ ] Debug Tastytrade API position data structure vs CSV export structure
+- [ ] Fix position filtering logic to correctly identify short options
+- [ ] Verify quantity field parsing (negative values indicate short positions)
+- [ ] Test with real account data to confirm all 54 positions appear
+- [ ] Implement multi-account selection with checkboxes (like Tastytrade UI)
+- [ ] Allow selecting one, multiple, or all accounts simultaneously
+- [ ] Aggregate positions from multiple selected accounts
+- [ ] Test multi-account selection with all 3 accounts (5WZ77313, 5WI06812, 5WZ80418)
+
+## Performance Analytics - All Accounts Aggregation
+- [x] Add "All Accounts" option to account selector (special value for Performance page)
+- [x] Update Performance router to detect "All Accounts" and fetch from all configured accounts
+- [x] Implement parallel fetching from all 3 accounts in backend (fetched 89 total positions)
+- [x] Aggregate positions and calculate portfolio-wide metrics
+- [x] Update frontend to display combined positions with Account column
+- [x] Test aggregated view showing all 54 positions across 3 accounts (27 CSPs + 27 CCs)
+- [x] Verify summary cards show correct totals (CSPs: 27 positions, $7,230 premium, 30.7% avg; CCs: 27 positions, $8,927 premium, -15.2% avg, 6 ready to close)

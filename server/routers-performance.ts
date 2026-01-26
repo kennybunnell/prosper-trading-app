@@ -61,21 +61,54 @@ export const performanceRouter = router({
         };
       }
 
-      const accountNumber = accountId || accounts[0].account["account-number"];
-      console.log(`[Performance] Fetching positions for account: ${accountNumber}`);
+      // Determine which accounts to fetch from
+      let accountsToFetch: string[] = [];
+      if (accountId === 'ALL_ACCOUNTS') {
+        // Fetch from all accounts
+        accountsToFetch = accounts.map(acc => acc.account["account-number"]);
+        console.log(`[Performance] Fetching from all ${accountsToFetch.length} accounts:`, accountsToFetch);
+      } else {
+        // Fetch from single account
+        const accountNumber = accountId || accounts[0].account["account-number"];
+        accountsToFetch = [accountNumber];
+        console.log(`[Performance] Fetching positions for account: ${accountNumber}`);
+      }
 
       try {
-        // Fetch all positions from Tastytrade
-        const positions = await api.getPositions(accountNumber);
+        // Fetch positions from all selected accounts in parallel
+        const positionsArrays = await Promise.all(
+          accountsToFetch.map(async (accNum) => {
+            try {
+              const positions = await api.getPositions(accNum);
+              // Tag each position with its account number
+              return positions.map((pos: any) => ({ ...pos, _accountNumber: accNum }));
+            } catch (error) {
+              console.error(`[Performance] Error fetching positions for account ${accNum}:`, error);
+              return [];
+            }
+          })
+        );
+        const positions = positionsArrays.flat();
         console.log(`[Performance] Retrieved ${positions.length} total positions`);
+        
+        // Log first position for debugging
+        if (positions.length > 0) {
+          console.log('[Performance] Sample position:', JSON.stringify(positions[0], null, 2));
+        }
         
         // Filter for short option positions only
         const shortOptions = positions.filter((pos) => {
-          const isOption = pos.instrumentType === 'Equity Option';
-          const isShort = pos.quantityDirection === 'Short';
+          const isOption = pos['instrument-type'] === 'Equity Option';
+          const isShort = pos['quantity-direction'] === 'Short';
           return isOption && isShort;
         });
         console.log(`[Performance] Found ${shortOptions.length} short option positions`);
+        
+        // If no short options found, log all instrument types and quantity directions
+        if (shortOptions.length === 0 && positions.length > 0) {
+          const types = positions.map(p => `${p['instrument-type']}|${p['quantity-direction']}|qty:${p.quantity}`);
+          console.log('[Performance] All position types (first 10):', types.slice(0, 10));
+        }
 
         // Process each position
         const processedPositions: ProcessedPosition[] = [];
@@ -91,9 +124,9 @@ export const performanceRouter = router({
           }
 
           // Calculate premium received and current cost
-          const quantity = Math.abs(parseInt(pos.quantity));
-          const premiumReceived = Math.abs(parseFloat(pos.averageOpenPrice)) * quantity * pos.multiplier;
-          const currentCost = parseFloat(pos.closePrice) * quantity * pos.multiplier;
+          const quantity = Math.abs(pos.quantity);
+          const premiumReceived = Math.abs(parseFloat(pos['average-open-price'])) * quantity * pos.multiplier;
+          const currentCost = parseFloat(pos['close-price']) * quantity * pos.multiplier;
           
           // Calculate premium realization %
           const realizedPercent = premiumReceived > 0 
@@ -110,7 +143,7 @@ export const performanceRouter = router({
           const strike = strikeMatch ? parseFloat(strikeMatch[1]) / 1000 : 0;
 
           // Calculate DTE
-          const expirationDate = pos.expiresAt ? new Date(pos.expiresAt) : new Date();
+          const expirationDate = pos['expires-at'] ? new Date(pos['expires-at']) : new Date();
           const today = new Date();
           const dte = Math.max(0, Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
 
@@ -123,12 +156,12 @@ export const performanceRouter = router({
           }
 
           processedPositions.push({
-            account: accountNumber,
-            symbol: pos.underlyingSymbol,
+            account: pos._accountNumber || 'Unknown',
+            symbol: pos['underlying-symbol'],
             type: optionType,
             quantity,
             strike,
-            expiration: pos.expiresAt ? new Date(pos.expiresAt).toLocaleDateString() : 'N/A',
+            expiration: pos['expires-at'] ? new Date(pos['expires-at']).toLocaleDateString() : 'N/A',
             dte,
             premium: premiumReceived,
             current: currentCost,

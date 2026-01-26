@@ -127,6 +127,11 @@ export function Sidebar({ className }: SidebarProps) {
                   <SelectValue placeholder="Select account" />
                 </SelectTrigger>
                 <SelectContent>
+                  {/* All Accounts option for Performance Analytics */}
+                  <SelectItem value="ALL_ACCOUNTS">
+                    <span className="font-semibold">All Accounts</span>
+                  </SelectItem>
+                  <Separator className="my-1" />
                   {accounts.map((account: any) => (
                     <SelectItem key={account.id} value={account.accountId}>
                       {account.nickname || account.accountNumber}
@@ -134,7 +139,16 @@ export function Sidebar({ className }: SidebarProps) {
                   ))}
                 </SelectContent>
               </Select>
-              {selectedAccount && (
+              {selectedAccountId === 'ALL_ACCOUNTS' ? (
+                <Card className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/20">
+                  <CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground">Portfolio View</div>
+                    <div className="text-sm font-medium text-foreground">
+                      All Accounts ({accounts.length})
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : selectedAccount && (
                 <Card className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-500/20">
                   <CardContent className="p-3">
                     <div className="text-xs text-muted-foreground">{selectedAccount.accountType}</div>

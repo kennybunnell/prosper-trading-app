@@ -226,13 +226,13 @@ export const pmccRouter = router({
 
       // Filter for LEAP calls (long call options with 270+ DTE)
       const leapPositions = positions.filter(pos => {
-        if (pos.instrumentType !== "Equity Option") return false;
-        if (pos.quantityDirection !== "Long") return false;
+        if (pos['instrument-type'] !== "Equity Option") return false;
+        if (pos['quantity-direction'] !== "Long") return false;
         if (!pos.symbol.includes("C")) return false; // Must be a call
-        if (!pos.expiresAt) return false;
+        if (!pos['expires-at']) return false;
 
         // Calculate DTE
-        const expiration = new Date(pos.expiresAt);
+        const expiration = new Date(pos['expires-at']);
         const now = new Date();
         const dte = Math.floor((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -245,21 +245,21 @@ export const pmccRouter = router({
         leapPositions.map(async (pos) => {
           try {
             // Parse option symbol to get underlying and strike
-            const underlying = pos.underlyingSymbol;
+            const underlying = pos['underlying-symbol'];
             const strike = parseFloat(pos.symbol.match(/C(\d+)/)?.[1] || "0") / 1000;
-            const expiration = new Date(pos.expiresAt!);
+            const expiration = new Date(pos['expires-at']!);
             const dte = Math.floor((expiration.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
 
             // Get current option price from position data
-            const currentPrice = parseFloat(pos.closePrice);
+            const currentPrice = parseFloat(pos['close-price']) || 0;
 
-            // Get stock price
+            // Get current stock price
             const stockQuote = await tradierApi.getQuote(underlying);
             const stockPrice = stockQuote?.last || 0;
 
             // Calculate P/L
-            const costBasis = Math.abs(parseFloat(pos.averageOpenPrice)) * 100 * parseInt(pos.quantity); // *100 for multiplier
-            const currentValue = currentPrice * 100 * parseInt(pos.quantity);
+            const costBasis = Math.abs(parseFloat(pos['average-open-price'])) * 100 * pos.quantity; // *100 for multiplier
+            const currentValue = currentPrice * 100 * pos.quantity;
             const profitLoss = currentValue - costBasis;
             const profitLossPercent = (profitLoss / costBasis) * 100;
 
@@ -267,9 +267,9 @@ export const pmccRouter = router({
               symbol: underlying,
               optionSymbol: pos.symbol,
               strike,
-              expiration: pos.expiresAt!,
+              expiration: pos['expires-at']!,
               dte,
-              quantity: parseInt(pos.quantity),
+              quantity: pos.quantity,
               costBasis,
               currentValue,
               profitLoss,

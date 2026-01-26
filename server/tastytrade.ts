@@ -36,27 +36,29 @@ export interface TastytradeAccount {
 }
 
 export interface TastytradePosition {
+  'account-number': string;
+  'instrument-type': string;
+  'streamer-symbol': string;
   symbol: string;
-  instrumentType: string;
-  underlyingSymbol: string;
-  quantity: string;
-  quantityDirection: string;
-  closePrice: string;
-  averageOpenPrice: string;
-  averageYearlyMarketClosePrice: string;
-  averageDailyMarketClosePrice: string;
+  'underlying-symbol': string;
+  quantity: number;
+  'quantity-direction': string;
+  'close-price': string;
+  'average-open-price': string;
+  'average-yearly-market-close-price': string;
+  'average-daily-market-close-price': string;
   multiplier: number;
-  costEffect: string;
-  isSuppressed: boolean;
-  isFrozen: boolean;
-  restrictedQuantity: string;
-  expiresAt?: string;
-  realizedDayGain: string;
-  realizedDayGainEffect: string;
-  realizedDayGainDate: string;
-  realizedToday: string;
-  realizedTodayEffect: string;
-  realizedTodayDate: string;
+  'cost-effect': string;
+  'is-suppressed': boolean;
+  'is-frozen': boolean;
+  'restricted-quantity': number;
+  'expires-at'?: string;
+  'realized-day-gain': string;
+  'realized-day-gain-effect': string;
+  'realized-day-gain-date': string;
+  'realized-today': string;
+  'realized-today-effect': string;
+  'realized-today-date': string;
 }
 
 export interface OrderLeg {
