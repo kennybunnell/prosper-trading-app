@@ -1334,7 +1334,7 @@ function PerformanceOverviewTab() {
       const monthsDiff = (now.getFullYear() - yearStart.getFullYear()) * 12 + (now.getMonth() - yearStart.getMonth());
       return Math.max(1, monthsDiff + 1);
     }
-    return 120; // All time (10 years)
+    return 24; // All time (capped at 24 months per backend validation)
   };
 
   // Update monthsBack when time period changes

@@ -1042,3 +1042,4 @@
 
 ## Bug Fixes (User Reported)
 - [x] Fix React Hooks violation in PerformanceOverviewTab (moved useEffect before conditional returns)
+- [x] Fix monthsBack validation error (capped at 24 months instead of 120 for "All Time")
