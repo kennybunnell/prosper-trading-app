@@ -963,53 +963,6 @@ export default function CSPDashboard() {
               </>
             )}
           </Button>
-          
-          {/* Test Single Symbol Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              // Open a simple dialog to select a symbol
-              const symbol = prompt('Enter a symbol to test (e.g., AAPL):');
-              if (!symbol) return;
-              
-              const upperSymbol = symbol.trim().toUpperCase();
-              if (!upperSymbol) return;
-              
-              if (!selectedAccountId) {
-                toast.error('Please select an account first');
-                return;
-              }
-              
-              setFetchProgress({
-                isOpen: true,
-                current: 0,
-                total: 1,
-                completed: 0,
-                startTime: Date.now(),
-                endTime: null,
-              });
-              
-              // Use utils to fetch directly (utils is already declared at component level)
-              utils.csp.opportunities.fetch({ 
-                symbols: [upperSymbol],
-                minDte,
-                maxDte,
-              }).then(() => {
-                setFetchProgress(prev => ({ ...prev, isOpen: false, completed: 1 }));
-                refetchOpportunities();
-                toast.success(`Found opportunities for ${upperSymbol}`);
-              }).catch((err: any) => {
-                setFetchProgress(prev => ({ ...prev, isOpen: false }));
-                toast.error(`Failed to fetch ${upperSymbol}: ${err.message}`);
-              });
-            }}
-            disabled={loadingOpportunities || !selectedAccountId}
-            className="w-full mt-2 border-dashed hover:bg-primary/5"
-          >
-            <Target className="w-4 h-4 mr-2" />
-            Test Single Symbol
-          </Button>
         </CardContent>
       </Card>
         </>

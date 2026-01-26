@@ -1078,3 +1078,7 @@
 - [x] Add "Test Single Symbol" button to CSP Dashboard for quick 5-second testing
 - [x] Increase concurrency from 8 to 15 symbols per batch to cut full scan time in half
 - [x] Add symbol selector via prompt for single-symbol test mode
+
+## UI Cleanup
+- [x] Remove Test Single Symbol button - not working as expected, never finds tickers
+- [x] Verify concurrency is set to 15 workers for opportunity fetch
