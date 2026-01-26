@@ -73,8 +73,10 @@ function ActivePositionsTab() {
   const [profitFilter, setProfitFilter] = useState<number | null>(null);
   const [selectedPositions, setSelectedPositions] = useState<Set<number>>(new Set());
   const [dryRun, setDryRun] = useState(true);
-  const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [closeResults, setCloseResults] = useState<any>(null);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Fetch active positions
   const { data, isLoading, refetch, error } = trpc.performance.getActivePositions.useQuery(
@@ -122,12 +124,91 @@ function ActivePositionsTab() {
     }
   };
 
+  // Sort handler
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
   // Filter positions by profit threshold
   const filteredPositions = useMemo(() => {
     if (!data?.positions) return [];
-    if (!profitFilter) return data.positions;
-    return data.positions.filter(pos => pos.realizedPercent >= profitFilter);
-  }, [data?.positions, profitFilter]);
+    let positions = data.positions;
+    if (profitFilter) {
+      positions = positions.filter(pos => pos.realizedPercent >= profitFilter);
+    }
+    
+    // Sort positions
+    if (sortColumn) {
+      positions = [...positions].sort((a, b) => {
+        let aVal: any;
+        let bVal: any;
+        
+        switch (sortColumn) {
+          case 'account':
+            aVal = a.account;
+            bVal = b.account;
+            break;
+          case 'symbol':
+            aVal = a.symbol;
+            bVal = b.symbol;
+            break;
+          case 'type':
+            aVal = a.type;
+            bVal = b.type;
+            break;
+          case 'qty':
+            aVal = a.quantity;
+            bVal = b.quantity;
+            break;
+          case 'strike':
+            aVal = a.strike;
+            bVal = b.strike;
+            break;
+          case 'exp':
+            aVal = new Date(a.expiration).getTime();
+            bVal = new Date(b.expiration).getTime();
+            break;
+          case 'dte':
+            aVal = a.dte;
+            bVal = b.dte;
+            break;
+          case 'premium':
+            aVal = a.premium;
+            bVal = b.premium;
+            break;
+          case 'current':
+            aVal = a.current;
+            bVal = b.current;
+            break;
+          case 'realized':
+            aVal = a.realizedPercent;
+            bVal = b.realizedPercent;
+            break;
+          case 'action':
+            aVal = a.action;
+            bVal = b.action;
+            break;
+          default:
+            return 0;
+        }
+        
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          return sortDirection === 'asc' 
+            ? aVal.localeCompare(bVal)
+            : bVal.localeCompare(aVal);
+        }
+        
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+    }
+    
+    return positions;
+  }, [data?.positions, profitFilter, sortColumn, sortDirection]);
 
   // Get selected positions data
   const selectedPositionsData = useMemo(() => {
@@ -165,11 +246,11 @@ function ActivePositionsTab() {
       toast.error('Please select at least one position to close');
       return;
     }
-    setShowCloseDialog(true);
+    setShowConfirmDialog(true);
   };
 
   const handleConfirmClose = async () => {
-    setShowCloseDialog(false);
+    setShowConfirmDialog(false);
     setCloseResults(null);
 
     const positionsToClose = selectedPositionsData.map(pos => ({
@@ -401,6 +482,9 @@ function ActivePositionsTab() {
             selectedPositions={selectedPositions}
             onTogglePosition={handleTogglePosition}
             onSelectAll={handleSelectAll}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onSort={handleSort}
           />
         </TabsContent>
 
@@ -411,12 +495,15 @@ function ActivePositionsTab() {
             selectedPositions={selectedPositions}
             onTogglePosition={handleTogglePosition}
             onSelectAll={handleSelectAll}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onSort={handleSort}
           />
         </TabsContent>
       </Tabs>
 
       {/* Close Confirmation Dialog */}
-      <Dialog open={showCloseDialog} onOpenChange={setShowCloseDialog}>
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{dryRun ? 'Validate Close Orders' : 'Confirm Close Orders'}</DialogTitle>
@@ -450,7 +537,7 @@ function ActivePositionsTab() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCloseDialog(false)}>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
               Cancel
             </Button>
             <Button onClick={handleConfirmClose} className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/50">
@@ -538,9 +625,39 @@ interface PositionsTableProps {
   selectedPositions: Set<number>;
   onTogglePosition: (idx: number) => void;
   onSelectAll: () => void;
+  sortColumn: string | null;
+  sortDirection: 'asc' | 'desc';
+  onSort: (column: string) => void;
 }
 
-function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosition, onSelectAll }: PositionsTableProps) {
+interface SortableHeaderProps {
+  column: string;
+  label: string;
+  align: 'left' | 'right' | 'center';
+  sortColumn: string | null;
+  sortDirection: 'asc' | 'desc';
+  onSort: (column: string) => void;
+}
+
+function SortableHeader({ column, label, align, sortColumn, sortDirection, onSort }: SortableHeaderProps) {
+  const isActive = sortColumn === column;
+  const alignClass = align === 'left' ? 'text-left' : align === 'right' ? 'text-right' : 'text-center';
+  
+  return (
+    <th className={`${alignClass} p-3 text-sm font-medium cursor-pointer hover:bg-muted/30 select-none`} onClick={() => onSort(column)}>
+      <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : ''}`}>
+        <span>{label}</span>
+        {isActive && (
+          <span className="text-blue-400">
+            {sortDirection === 'asc' ? '↑' : '↓'}
+          </span>
+        )}
+      </div>
+    </th>
+  );
+}
+
+function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosition, onSelectAll, sortColumn, sortDirection, onSort }: PositionsTableProps) {
   if (isLoading) {
     return (
       <Card className="p-6">
@@ -578,17 +695,17 @@ function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosit
                   className="border-2 border-white/50 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
                 />
               </th>
-              <th className="text-left p-3 text-sm font-medium">Account</th>
-              <th className="text-left p-3 text-sm font-medium">Symbol</th>
-              <th className="text-left p-3 text-sm font-medium">Type</th>
-              <th className="text-right p-3 text-sm font-medium">Qty</th>
-              <th className="text-right p-3 text-sm font-medium">Strike</th>
-              <th className="text-left p-3 text-sm font-medium">Exp</th>
-              <th className="text-right p-3 text-sm font-medium">DTE</th>
-              <th className="text-right p-3 text-sm font-medium">Premium</th>
-              <th className="text-right p-3 text-sm font-medium">Current</th>
-              <th className="text-right p-3 text-sm font-medium">Realized %</th>
-              <th className="text-center p-3 text-sm font-medium">Action</th>
+              <SortableHeader column="account" label="Account" align="left" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="symbol" label="Symbol" align="left" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="type" label="Type" align="left" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="qty" label="Qty" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="strike" label="Strike" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="exp" label="Exp" align="left" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="dte" label="DTE" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="premium" label="Premium" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="current" label="Current" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="realized" label="Realized %" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="action" label="Action" align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
             </tr>
           </thead>
           <tbody>

@@ -882,3 +882,13 @@
 - [x] Ensure Select All button selects all currently filtered positions
 - [ ] Test checkbox visibility against dark background (ready for testing)
 - [ ] Test Select All functionality with filtered positions (ready for testing)
+
+## Performance Analytics - Column Sorting
+- [x] Add sorting state (column, direction) to ActivePositionsTab component
+- [x] Implement sort logic for all columns (Account, Symbol, Type, Qty, Strike, Exp, DTE, Premium, Current, Realized %, Action)
+- [x] Add clickable column headers with sort indicators (up/down arrows)
+- [x] Handle numeric sorting (Qty, Strike, DTE, Premium, Current, Realized %)
+- [x] Handle string sorting (Account, Symbol, Type, Action)
+- [x] Handle date sorting (Exp column)
+- [ ] Test sorting with filtered positions (ready for testing)
+- [ ] Ensure sorting persists when selecting/deselecting positions (ready for testing)
