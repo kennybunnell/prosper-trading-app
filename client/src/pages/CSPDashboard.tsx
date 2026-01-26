@@ -574,8 +574,7 @@ export default function CSPDashboard() {
         // Build option symbol in Tastytrade format: TICKER(6)YYMMDD(6)P(1)STRIKE(8)
         // Example: 'AAPL  260206P00150000' for AAPL Feb 6, 2026 Put $150
         optionSymbol: (() => {
-          if (opp?.optionSymbol) return opp.optionSymbol;
-          
+          // Always construct symbol with proper Tastytrade formatting
           // Format date as YYMMDD (2-digit year)
           const expFormatted = validatedOrder.expiration.replace(/-/g, ''); // YYYYMMDD
           const expShort = expFormatted.substring(2); // Remove century: YYMMDD
