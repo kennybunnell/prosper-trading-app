@@ -24,6 +24,8 @@ export default function PMCCDashboard() {
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [sortColumn, setSortColumn] = useState<SortColumn>('score');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [showOrderPreview, setShowOrderPreview] = useState(false);
+  const [isDryRun, setIsDryRun] = useState(true);
 
   // Fetch PMCC filter presets from database
   const { data: presets } = trpc.filterPresets.getByStrategy.useQuery({ strategy: 'pmcc' });
@@ -416,7 +418,7 @@ export default function PMCCDashboard() {
                       </div>
                       {selectedLeaps.size > 0 && (
                         <Button
-                          onClick={() => toast.info("Purchase workflow coming soon!")}
+                          onClick={() => setShowOrderPreview(true)}
                           className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold"
                           size="sm"
                         >
@@ -577,6 +579,109 @@ export default function PMCCDashboard() {
                   <>Finishing up...</>
                 )}
               </p>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Order Preview Dialog */}
+        <Dialog open={showOrderPreview} onOpenChange={setShowOrderPreview}>
+          <DialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Review LEAP Purchase Order</DialogTitle>
+              <DialogDescription>
+                Review your selected LEAPs before submitting orders
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Dry Run Toggle */}
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                <div>
+                  <p className="font-semibold">Dry Run Mode</p>
+                  <p className="text-sm text-muted-foreground">Test orders without executing them</p>
+                </div>
+                <Button
+                  variant={isDryRun ? "default" : "outline"}
+                  onClick={() => setIsDryRun(!isDryRun)}
+                >
+                  {isDryRun ? "Dry Run" : "Live Mode"}
+                </Button>
+              </div>
+
+              {/* Selected LEAPs Table */}
+              <div className="rounded-md border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="p-2 text-left">Symbol</th>
+                      <th className="p-2 text-right">Strike</th>
+                      <th className="p-2 text-left">Expiration</th>
+                      <th className="p-2 text-right">DTE</th>
+                      <th className="p-2 text-right">Delta</th>
+                      <th className="p-2 text-right">Premium</th>
+                      <th className="p-2 text-right">Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedLeaps
+                      .filter(leap => selectedLeaps.has(getLeapKey(leap)))
+                      .map(leap => (
+                        <tr key={getLeapKey(leap)} className="border-t">
+                          <td className="p-2 font-medium">{leap.symbol}</td>
+                          <td className="p-2 text-right">${leap.strike.toFixed(2)}</td>
+                          <td className="p-2">{leap.expiration}</td>
+                          <td className="p-2 text-right">{leap.dte}</td>
+                          <td className="p-2 text-right">{leap.delta.toFixed(2)}</td>
+                          <td className="p-2 text-right">${leap.premium.toFixed(2)}</td>
+                          <td className="p-2 text-right">
+                            <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs ${
+                              leap.score >= 80 ? 'bg-green-900/50 text-green-400' :
+                              leap.score >= 60 ? 'bg-amber-900/50 text-amber-400' :
+                              'bg-red-900/50 text-red-400'
+                            }`}>
+                              {Math.round(leap.score)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Order Summary */}
+              {orderSummary && (
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="p-4 bg-green-900/20 border border-green-700/50 rounded-lg">
+                    <p className="text-sm text-muted-foreground">Total Cost</p>
+                    <p className="text-2xl font-bold text-green-400">${orderSummary.totalCost.toFixed(2)}</p>
+                  </div>
+                  <div className="p-4 bg-amber-900/20 border border-amber-700/50 rounded-lg">
+                    <p className="text-sm text-muted-foreground">Contracts</p>
+                    <p className="text-2xl font-bold text-amber-400">{orderSummary.totalContracts}</p>
+                  </div>
+                  <div className="p-4 bg-blue-900/20 border border-blue-700/50 rounded-lg">
+                    <p className="text-sm text-muted-foreground">Avg Delta</p>
+                    <p className="text-2xl font-bold text-blue-400">{orderSummary.avgDelta.toFixed(2)}</p>
+                  </div>
+                  <div className="p-4 bg-purple-900/20 border border-purple-700/50 rounded-lg">
+                    <p className="text-sm text-muted-foreground">Avg Score</p>
+                    <p className="text-2xl font-bold text-purple-400">{Math.round(orderSummary.avgScore)}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowOrderPreview(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => toast.info("Order submission coming soon!")}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                >
+                  {isDryRun ? "Test Order" : "Submit Order"}
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

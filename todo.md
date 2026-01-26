@@ -773,3 +773,14 @@
 ## PMCC Checkbox Visibility Fix
 - [x] Add visible border and better styling to checkboxes in PMCC Dashboard Select column (border-2 border-muted-foreground, green when checked)
 - [ ] Test checkbox visibility against dark background
+
+## PMCC LEAP Purchase Workflow Implementation
+- [x] Create order preview dialog component showing selected LEAPs table
+- [x] Display order summary: total cost, number of contracts, average delta, average score
+- [x] Add dry run / live mode toggle switch in dialog
+- [ ] Add validation: check buying power, market hours, prevent duplicates
+- [ ] Implement backend tRPC procedure for BTO order submission via Tastytrade API
+- [ ] Add progress tracking during order submission (loading states, progress bar)
+- [ ] Show success/failure feedback with order confirmation numbers
+- [ ] Handle partial success (some orders succeed, some fail)
+- [ ] Test complete workflow: select LEAPs → preview → dry run → live submission
