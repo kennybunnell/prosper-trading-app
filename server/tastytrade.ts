@@ -261,6 +261,44 @@ export class TastytradeAPI {
   }
 
   /**
+   * Get live (unfilled) orders for an account
+   */
+  async getLiveOrders(accountNumber: string): Promise<any[]> {
+    try {
+      const response = await this.client.get(`/accounts/${accountNumber}/orders/live`);
+      return response.data.data?.items || [];
+    } catch (error: any) {
+      throw new Error(`Failed to fetch live orders: ${error.response?.data?.error?.message || error.message}`);
+    }
+  }
+
+  /**
+   * Get option quotes for multiple symbols
+   */
+  async getOptionQuotesBatch(symbols: string[]): Promise<Record<string, any>> {
+    try {
+      // Tastytrade API accepts comma-separated symbols
+      const symbolsParam = symbols.join(',');
+      const response = await this.client.get('/market-metrics', {
+        params: {
+          symbols: symbolsParam,
+        },
+      });
+      
+      // Convert array response to map keyed by symbol
+      const quotes: Record<string, any> = {};
+      const items = response.data.data?.items || [];
+      for (const item of items) {
+        quotes[item.symbol] = item;
+      }
+      return quotes;
+    } catch (error: any) {
+      console.error('[Tastytrade] Failed to fetch option quotes:', error.response?.data || error.message);
+      return {}; // Return empty object on error to allow graceful degradation
+    }
+  }
+
+  /**
    * Cancel an order
    */
   async cancelOrder(accountNumber: string, orderId: string): Promise<void> {
@@ -268,6 +306,68 @@ export class TastytradeAPI {
       await this.client.delete(`/accounts/${accountNumber}/orders/${orderId}`);
     } catch (error: any) {
       throw new Error(`Failed to cancel order: ${error.response?.data?.error?.message || error.message}`);
+    }
+  }
+
+  /**
+   * Cancel and replace an order with a new price
+   */
+  async cancelReplaceOrder(accountNumber: string, orderId: string, newPrice: number, originalOrder: any): Promise<{ success: boolean; orderId?: string; message: string }> {
+    try {
+      // First cancel the existing order
+      await this.cancelOrder(accountNumber, orderId);
+      
+      // Extract order details from original order
+      const legs = originalOrder.legs || [];
+      if (legs.length === 0) {
+        throw new Error('No legs found in original order');
+      }
+      
+      const leg = legs[0];
+      const symbol = leg.symbol;
+      const quantity = parseInt(leg.quantity);
+      const action = leg.action;
+      const underlyingSymbol = originalOrder['underlying-symbol'] || originalOrder.underlyingSymbol;
+      const timeInForce = originalOrder['time-in-force'] || originalOrder.timeInForce || 'Day';
+      
+      // Create new order with updated price
+      const orderPayload = {
+        'time-in-force': timeInForce,
+        'order-type': 'Limit',
+        'underlying-symbol': underlyingSymbol,
+        price: newPrice.toFixed(2),
+        'price-effect': action === 'Buy to Close' ? 'Debit' : 'Credit',
+        legs: [
+          {
+            'instrument-type': leg['instrument-type'] || 'Equity Option',
+            symbol: symbol,
+            quantity: quantity.toString(),
+            action: action,
+          },
+        ],
+      };
+      
+      console.log(`[Tastytrade] Replacing order ${orderId} with new price $${newPrice.toFixed(2)}`);
+      
+      const response = await this.client.post(
+        `/accounts/${accountNumber}/orders`,
+        orderPayload
+      );
+      
+      const newOrderId = response.data.data?.order?.id || response.data.data?.id;
+      
+      return {
+        success: true,
+        orderId: newOrderId,
+        message: `Order replaced successfully (New ID: ${newOrderId})`,
+      };
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error?.message || error.message;
+      console.error(`[Tastytrade] Cancel-replace error:`, errorMsg);
+      return {
+        success: false,
+        message: `Failed to replace order: ${errorMsg}`,
+      };
     }
   }
 

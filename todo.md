@@ -892,3 +892,18 @@
 - [x] Handle date sorting (Exp column)
 - [ ] Test sorting with filtered positions (ready for testing)
 - [ ] Ensure sorting persists when selecting/deselecting positions (ready for testing)
+
+## Performance Analytics - Working Orders Implementation
+- [x] Analyze Working Orders code from Streamlit repo (working_orders.py)
+- [x] Document all Working Orders features and UI components
+- [x] Implement backend Tastytrade API methods (getLiveOrders, getOptionQuotesBatch, cancelOrder, cancelReplaceOrder)
+- [x] Implement smart fill price calculation logic (spread-based + time-based in working-orders-utils.ts)
+- [x] Create backend tRPC procedures (getWorkingOrders, cancelOrders, replaceOrders in routers-working-orders.ts)
+- [ ] Build Working Orders tab UI with market status and summary metrics
+- [ ] Add working orders table with selection checkboxes
+- [ ] Implement Aggressive Fill Mode toggle
+- [ ] Add Cancel Selected and Replace All action buttons
+- [ ] Build replacement tracking and review flags (5+ replacements)
+- [ ] Add replacement log display
+- [ ] Test Working Orders with real Tastytrade data
+- [ ] Write unit tests for working orders procedures

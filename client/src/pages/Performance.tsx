@@ -41,10 +41,10 @@ export default function Performance() {
           <ActivePositionsTab />
         </TabsContent>
 
-        {/* Placeholder tabs */}
+        {/* Working Orders Tab - Coming Soon */}
         <TabsContent value="working-orders">
           <Card className="p-8 text-center text-muted-foreground">
-            Working Orders tab coming soon...
+            Working Orders tab - Backend API ready, UI coming next...
           </Card>
         </TabsContent>
         <TabsContent value="overview">
