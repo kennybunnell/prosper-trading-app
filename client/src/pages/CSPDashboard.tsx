@@ -991,8 +991,7 @@ export default function CSPDashboard() {
                 endTime: null,
               });
               
-              // Use utils to fetch directly
-              const utils = trpc.useUtils();
+              // Use utils to fetch directly (utils is already declared at component level)
               utils.csp.opportunities.fetch({ 
                 symbols: [upperSymbol],
                 minDte,
