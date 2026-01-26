@@ -1367,14 +1367,23 @@ export default function CSPDashboard() {
                   onClick={handleSubmitOrders}
                   disabled={submitOrders.isPending || overLimit > 0}
                   size="lg"
+                  className={cn(
+                    dryRun 
+                      ? "bg-blue-600 hover:bg-blue-700" 
+                      : "bg-red-600 hover:bg-red-700 font-bold"
+                  )}
                 >
                   {submitOrders.isPending ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {dryRun ? 'Testing...' : 'Submitting Orders...'}
+                      {dryRun ? 'Testing...' : 'Submitting LIVE Orders...'}
                     </>
                   ) : (
-                    `${dryRun ? 'Test' : 'Submit'} ${selectedOppsList.length} Order(s)`
+                    <>
+                      {!dryRun && '⚠️ '}
+                      {dryRun ? 'Test' : 'Submit LIVE'} {selectedOppsList.length} Order(s)
+                      {!dryRun && ' ⚠️'}
+                    </>
                   )}
                 </Button>
               </div>

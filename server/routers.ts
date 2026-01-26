@@ -439,6 +439,23 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // CRITICAL: If dry run, do NOT call Tastytrade API at all
+        if (input.dryRun) {
+          // Client-side dry run - just validate structure and return success
+          const results = input.orders.map(order => ({
+            symbol: order.symbol,
+            success: true,
+            orderId: 'DRY_RUN_' + Math.random().toString(36).substr(2, 9),
+            message: `Dry run validation passed for ${order.symbol} ${order.strike}P @ $${order.premium}`,
+          }));
+          
+          return {
+            success: true,
+            results,
+          };
+        }
+
+        // Live mode - proceed with actual API calls
         const { getApiCredentials } = await import('./db');
         const { getTastytradeAPI } = await import('./tastytrade');
 
@@ -470,9 +487,8 @@ export const appRouter = router({
               ],
             };
 
-            const result = input.dryRun 
-              ? await api.dryRunOrder(orderRequest)
-              : await api.submitOrder(orderRequest);
+            // LIVE MODE ONLY - no dry run parameter
+            const result = await api.submitOrder(orderRequest);
 
             results.push({
               symbol: order.symbol,

@@ -1116,3 +1116,11 @@
 - [x] Check if account selection validation is blocking the fetch
 - [x] Verify filteredWatchlist is being passed correctly to the query
 - [x] Test all fetch buttons and verify they return opportunities
+
+## CRITICAL BUG: Dry Run Submitting Real Orders
+- [x] Investigate why dry run mode is submitting real orders to Tastytrade
+- [x] Check if dryRun flag is being passed to submitOrders mutation
+- [x] Verify backend is respecting the dryRun flag
+- [x] Fix the logic to ensure dry run ONLY validates, never submits
+- [x] Add visual indicators (RED button for live, BLUE for dry run)
+- [x] Test dry run mode thoroughly before allowing user to test again
