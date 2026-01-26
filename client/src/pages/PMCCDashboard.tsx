@@ -116,16 +116,8 @@ export default function PMCCDashboard() {
     
     let filtered = [...scanLeapsMutation.data.opportunities];
     
-    // Apply score filter first (takes precedence over preset)
-    // Score buckets: 100 (95-100), 90 (85-94), 80 (75-84), etc.
-    if (minScore !== undefined) {
-      const minBucket = minScore === 100 ? 95 : minScore - 5;
-      const maxBucket = minScore === 0 ? 4 : minScore + 4;
-      filtered = filtered.filter(leap => leap.score >= minBucket && leap.score <= maxBucket);
-    }
-    
-    // Apply preset filter from database
-    else if (selectedPreset && presets) {
+    // Apply preset filter from database first
+    if (selectedPreset && presets) {
       const preset = presets.find(p => p.presetName === selectedPreset);
       if (preset) {
         filtered = filtered.filter(leap => {
@@ -156,6 +148,14 @@ export default function PMCCDashboard() {
           return true;
         });
       }
+    }
+    
+    // Apply score bucket filter (works cumulatively with preset filter)
+    // Score buckets: 100 (95-100), 90 (85-94), 80 (75-84), etc.
+    if (minScore !== undefined) {
+      const minBucket = minScore === 100 ? 95 : minScore - 5;
+      const maxBucket = minScore === 0 ? 4 : minScore + 4;
+      filtered = filtered.filter(leap => leap.score >= minBucket && leap.score <= maxBucket);
     }
     
     // Apply "Best Per Ticker" filter - show only top-scoring LEAP per symbol
@@ -327,10 +327,15 @@ export default function PMCCDashboard() {
                     </Button>
                     <Button
                       variant="ghost"
-                      className="rounded-full px-5 py-2.5 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200 hover:scale-105"
-                      onClick={() => setSelectedPreset(null)}
+                      className="rounded-full px-5 py-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/50 transition-all duration-200 hover:scale-105 font-semibold"
+                      onClick={() => {
+                        setSelectedPreset(null);
+                        setMinScore(undefined);
+                        setShowBestPerTicker(false);
+                        setSelectedLeaps(new Set());
+                      }}
                     >
-                      Clear Filters
+                      Clear All Filters
                     </Button>
                     <div className="h-6 w-px bg-border mx-2" />
                     <Button

@@ -745,3 +745,13 @@
 - [x] Fix watchlist Expand/Collapse button to toggle properly
 - [x] Change score filter logic from minimum score to exact score buckets (95-100, 85-94, 75-84, etc.)
 - [ ] Test both fixes with real scan data
+
+## PMCC Filter Logic Fixes
+- [x] Change filter logic from if/else to cumulative AND - score buckets and presets should work together
+- [x] Add "Clear All Filters" button that resets:
+  * Filter presets (Conservative/Medium/Aggressive)
+  * Score bucket filters
+  * Best Per Ticker toggle
+  * All checkbox selections
+- [ ] Test combined filtering: Aggressive + 75-84 score bucket should show subset
+- [ ] Verify Clear All Filters returns to full 160 LEAP list
