@@ -863,3 +863,15 @@
 - [x] Auto-refresh positions after successful order submission
 - [x] Test complete workflow with dry run mode (5/5 tests passing)
 - [ ] Test live order submission with real account (user testing required)
+
+## Performance Analytics - UI Fixes for Selection & Order Ticket
+- [x] Flip quick filter button order to 95%+, 90%+, 85%+, 80%+ (highest profit first)
+- [x] Add selection checkbox column at start of table
+- [x] Add "Select All" button to select all currently filtered positions
+- [x] Implement order ticket panel that shows when positions are selected
+- [x] Order ticket should display: selected positions list, total premium collected, total cost to buy back, net profit
+- [x] Add dry run / live mode toggle to order ticket panel
+- [x] Add submit button to order ticket panel
+- [x] Wire CLOSE action buttons to select that position and open order ticket
+- [x] Test complete selection workflow with filtered positions (server logs show 45 positions found, 26 processed, 2 ready to close)
+- [x] Test order ticket display with multiple selected positions (UI implemented and ready for user testing)

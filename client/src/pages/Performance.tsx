@@ -270,20 +270,12 @@ function ActivePositionsTab() {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium">Quick Filters:</span>
             <Button
-              variant={profitFilter === 80 ? 'default' : 'outline'}
+              variant={profitFilter === 95 ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setProfitFilter(profitFilter === 80 ? null : 80)}
-              className="bg-red-500/20 hover:bg-red-500/30 border-red-500/50"
+              onClick={() => setProfitFilter(profitFilter === 95 ? null : 95)}
+              className="bg-green-500/20 hover:bg-green-500/30 border-green-500/50"
             >
-              80%+ ({profitCounts.p80})
-            </Button>
-            <Button
-              variant={profitFilter === 85 ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setProfitFilter(profitFilter === 85 ? null : 85)}
-              className="bg-orange-500/20 hover:bg-orange-500/30 border-orange-500/50"
-            >
-              85%+ ({profitCounts.p85})
+              95%+ ({profitCounts.p95})
             </Button>
             <Button
               variant={profitFilter === 90 ? 'default' : 'outline'}
@@ -294,12 +286,20 @@ function ActivePositionsTab() {
               90%+ ({profitCounts.p90})
             </Button>
             <Button
-              variant={profitFilter === 95 ? 'default' : 'outline'}
+              variant={profitFilter === 85 ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setProfitFilter(profitFilter === 95 ? null : 95)}
-              className="bg-green-500/20 hover:bg-green-500/30 border-green-500/50"
+              onClick={() => setProfitFilter(profitFilter === 85 ? null : 85)}
+              className="bg-orange-500/20 hover:bg-orange-500/30 border-orange-500/50"
             >
-              95%+ ({profitCounts.p95})
+              85%+ ({profitCounts.p85})
+            </Button>
+            <Button
+              variant={profitFilter === 80 ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setProfitFilter(profitFilter === 80 ? null : 80)}
+              className="bg-red-500/20 hover:bg-red-500/30 border-red-500/50"
+            >
+              80%+ ({profitCounts.p80})
             </Button>
             {profitFilter && (
               <Button
@@ -616,7 +616,7 @@ function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosit
                   </span>
                 </td>
                 <td className="p-3 text-center">
-                  <ActionButton action={pos.action} />
+                  <ActionButton action={pos.action} onClick={() => onTogglePosition(idx)} />
                 </td>
               </tr>
             ))}
@@ -627,7 +627,7 @@ function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosit
   );
 }
 
-function ActionButton({ action }: { action: 'CLOSE' | 'WATCH' | 'HOLD' }) {
+function ActionButton({ action, onClick }: { action: 'CLOSE' | 'WATCH' | 'HOLD'; onClick?: () => void }) {
   const config = {
     CLOSE: {
       label: 'CLOSE',
@@ -649,9 +649,14 @@ function ActionButton({ action }: { action: 'CLOSE' | 'WATCH' | 'HOLD' }) {
   const { label, icon: Icon, className } = config[action];
 
   return (
-    <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium border ${className}`}>
+    <Button
+      variant="outline"
+      size="sm"
+      className={`inline-flex items-center px-2 py-1 h-auto text-xs font-medium ${className}`}
+      onClick={onClick}
+    >
       <Icon className="h-3 w-3 mr-1" />
       {label}
-    </div>
+    </Button>
   );
 }
