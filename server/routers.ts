@@ -351,8 +351,14 @@ export const appRouter = router({
 
         // Get account balances for buying power
         const accounts = await api.getAccounts();
-        const account = accounts.find((acc: any) => acc.accountId === input.accountId);
+        console.log('[validateOrders] Looking for accountId:', input.accountId);
+        console.log('[validateOrders] Available accounts:', accounts.map((a: any) => ({ accountId: a.accountId, accountNumber: a.account?.['account-number'] })));
+        
+        // Match by accountNumber (which is the actual account ID from database)
+        const account = accounts.find((acc: any) => acc.account?.['account-number'] === input.accountId);
         if (!account) {
+          console.error('[validateOrders] Account not found! Input accountId:', input.accountId);
+          console.error('[validateOrders] Available accountNumbers:', accounts.map((a: any) => a.account?.['account-number']));
           throw new Error('Account not found');
         }
 
@@ -474,10 +480,23 @@ export const appRouter = router({
               orderId: result.id,
             });
           } catch (error: any) {
+            // Log full error details for debugging
+            console.error('[submitOrders] Order submission failed:', {
+              symbol: order.symbol,
+              strike: order.strike,
+              expiration: order.expiration,
+              premium: order.premium,
+              optionSymbol: order.optionSymbol,
+              accountId: input.accountId,
+              dryRun: input.dryRun,
+              errorMessage: error.message,
+              errorStack: error.stack,
+              errorResponse: error.response?.data || error.response || 'No response data',
+            });
             results.push({
               symbol: order.symbol,
               success: false,
-              error: error.message,
+              error: error.message || 'Unknown error',
             });
           }
         }

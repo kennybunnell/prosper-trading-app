@@ -1046,3 +1046,22 @@
 - [x] Fix "Account not found" error on CSP Dashboard (added validation to check account selection before fetching opportunities)
 - [x] Fix CSP opportunities fetch hanging at "Finishing up..." (added 30s timeout and graceful error handling)
 - [x] Add per-symbol timeout wrapper (15 seconds) to automatically skip hung symbols and continue processing
+- [ ] Fix order submission credentials error (credentials are loaded but validation is failing)
+
+## Bug Fixes (Current Session)
+- [x] Fix order submission credentials error (credentials are loaded but validation is failing) - Root cause found: accountId mismatch
+- [x] Fix validateOrders to match accounts by accountNumber instead of accountId
+- [ ] Fix submitOrders to match accounts by accountNumber instead of accountId
+- [ ] Investigate Tradier API timeout issues (46/50 symbols timing out after 15s)
+
+## Order Submission Bug Fixes
+- [x] Fix toast messages to distinguish dry run validation ("X orders validated successfully") from live order failures ("X orders failed to submit")
+- [x] Improve error logging in submitOrders backend to capture full error details (currently truncated as "[Max Depth]")
+- [x] Investigate root cause of live order submission failure (returns success:false but error message is hidden)
+- [x] Add detailed error messages to order submission results for better debugging
+- [x] Fix option symbol format - Tastytrade requires 6-character ticker padded with spaces (e.g., "COIN  " not "COIN")
+
+## Performance Issues
+- [ ] Optimize opportunity fetch speed - currently taking 100+ seconds for 50 symbols (10 seconds per batch of 5)
+- [ ] Investigate why fetch performance degraded from 7-9 seconds back to slow speeds
+- [ ] Consider reducing batch processing time or increasing concurrency

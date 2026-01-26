@@ -432,36 +432,64 @@ export default function CSPDashboard() {
         toast.error(`Order submission failed: ${error.message}`);
       }
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       setShowProgressDialog(false);
+      const isDryRun = variables.dryRun;
+      
       if (data.success) {
-        toast.success(`Successfully submitted ${data.results.length} orders!`);
-        playSuccessSound();
-        confetti({
-          particleCount: 200,
-          spread: 100,
-          origin: { y: 0.6 },
-          colors: ['#10b981', '#3b82f6', '#8b5cf6'],
-        });
-        setTimeout(() => {
+        if (isDryRun) {
+          // Dry run validation success
+          toast.success(`✓ ${data.results.length} order(s) validated successfully (Dry Run)`);
+        } else {
+          // Live order submission success
+          toast.success(`Successfully submitted ${data.results.length} orders!`);
+          playSuccessSound();
           confetti({
-            particleCount: 100,
-            angle: 60,
-            spread: 55,
-            origin: { x: 0 },
+            particleCount: 200,
+            spread: 100,
+            origin: { y: 0.6 },
+            colors: ['#10b981', '#3b82f6', '#8b5cf6'],
           });
-          confetti({
-            particleCount: 100,
-            angle: 120,
-            spread: 55,
-            origin: { x: 1 },
-          });
-        }, 250);
-        setSelectedOpportunities(new Set());
-        utils.csp.opportunities.invalidate();
+          setTimeout(() => {
+            confetti({
+              particleCount: 100,
+              angle: 60,
+              spread: 55,
+              origin: { x: 0 },
+            });
+            confetti({
+              particleCount: 100,
+              angle: 120,
+              spread: 55,
+              origin: { x: 1 },
+            });
+          }, 250);
+          setSelectedOpportunities(new Set());
+          utils.csp.opportunities.invalidate();
+        }
       } else {
         const failedCount = data.results.filter(r => !r.success).length;
-        toast.error(`${failedCount} order(s) failed to submit`);
+        const successCount = data.results.filter(r => r.success).length;
+        
+        if (isDryRun) {
+          // Dry run validation failures
+          if (successCount > 0) {
+            toast.warning(`${successCount} order(s) validated, ${failedCount} failed validation (Dry Run)`);
+          } else {
+            toast.error(`${failedCount} order(s) failed validation (Dry Run)`);
+          }
+        } else {
+          // Live order submission failures
+          if (successCount > 0) {
+            toast.warning(`${successCount} order(s) submitted, ${failedCount} failed to submit`);
+          } else {
+            toast.error(`${failedCount} order(s) failed to submit`);
+          }
+        }
+        
+        // Log failed orders for debugging
+        const failedOrders = data.results.filter(r => !r.success);
+        console.error('[Order Submission] Failed orders:', JSON.stringify(failedOrders, null, 2));
       }
       setShowProgressDialog(false);
     },
@@ -543,7 +571,8 @@ export default function CSPDashboard() {
         strike: validatedOrder.strike,
         expiration: validatedOrder.expiration,
         premium: validatedOrder.premium / 100, // Convert back to per-share price
-        optionSymbol: `${validatedOrder.symbol}${validatedOrder.expiration.replace(/-/g, '')}P${(validatedOrder.strike * 1000).toString().padStart(8, '0')}`,
+        // Use the actual option symbol from Tradier API (already in correct format)
+        optionSymbol: opp?.optionSymbol || `${validatedOrder.symbol.padEnd(6, ' ')}${validatedOrder.expiration.replace(/-/g, '')}P${(validatedOrder.strike * 1000).toString().padStart(8, '0')}`,
       };
     });
 

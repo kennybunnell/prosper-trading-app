@@ -128,6 +128,7 @@ export interface TechnicalIndicators {
 
 export interface CSPOpportunity {
   symbol: string;
+  optionSymbol: string; // Actual option symbol from Tradier API
   strike: number;
   currentPrice: number;
   expiration: string;
@@ -467,8 +468,8 @@ export class TradierAPI {
   ): Promise<CSPOpportunity[]> {
     console.log(`[Tradier API] Fetching CSP opportunities for ${symbols.length} symbols with parallel processing...`);
     
-    // Process symbols in parallel with concurrency limit of 5
-    const CONCURRENCY = 5;
+    // Process symbols in parallel with concurrency limit of 8
+    const CONCURRENCY = 8;
     const allOpportunities: CSPOpportunity[] = [];
     
     for (let i = 0; i < symbols.length; i += CONCURRENCY) {
@@ -594,6 +595,7 @@ export class TradierAPI {
 
             opportunities.push({
               symbol,
+              optionSymbol: put.symbol, // Use actual option symbol from Tradier
               strike,
               currentPrice: underlyingPrice,
               expiration: put.expiration_date,

@@ -256,7 +256,27 @@ export class TastytradeAPI {
 
       return response.data.data;
     } catch (error: any) {
-      throw new Error(`Failed to dry run order: ${error.response?.data?.error?.message || error.message}`);
+      // Log full error response for debugging
+      console.error('[Tastytrade dryRunOrder] Full error response:', JSON.stringify({
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+      }, null, 2));
+      
+      // Extract detailed error message
+      const errorData = error.response?.data;
+      let errorMessage = 'One or more preflight checks failed';
+      
+      if (errorData?.error?.message) {
+        errorMessage = errorData.error.message;
+      } else if (errorData?.errors && Array.isArray(errorData.errors)) {
+        errorMessage = errorData.errors.map((e: any) => e.message || e).join(', ');
+      } else if (typeof errorData === 'string') {
+        errorMessage = errorData;
+      }
+      
+      throw new Error(`Failed to dry run order: ${errorMessage}`);
     }
   }
 
@@ -379,7 +399,27 @@ export class TastytradeAPI {
       const response = await this.client.get(`/accounts/${accountNumber}/balances`);
       return response.data.data;
     } catch (error: any) {
-      throw new Error(`Failed to fetch balances: ${error.response?.data?.error?.message || error.message}`);
+      // Log full error response for debugging
+      console.error('[Tastytrade submitOrder] Full error response:', JSON.stringify({
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+      }, null, 2));
+      
+      // Extract detailed error message
+      const errorData = error.response?.data;
+      let errorMessage = 'Order submission failed';
+      
+      if (errorData?.error?.message) {
+        errorMessage = errorData.error.message;
+      } else if (errorData?.errors && Array.isArray(errorData.errors)) {
+        errorMessage = errorData.errors.map((e: any) => e.message || e).join(', ');
+      } else if (typeof errorData === 'string') {
+        errorMessage = errorData;
+      }
+      
+      throw new Error(`Failed to submit order: ${errorMessage}`);
     }
   }
 
