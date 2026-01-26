@@ -688,5 +688,5 @@
 - [x] Add "Select All", "Clear All", "Show Selected Only" buttons above table
 - [x] Add Order Summary panel showing selected LEAPs (Total Cost, Total Contracts, Avg Delta, Avg Score)
 - [ ] Wire filter presets to filter displayed LEAP opportunities after scan
-- [ ] Add PMCC filter preset management UI to Settings page
+- [x] Add PMCC filter preset management UI to Settings page
 - [ ] Test complete workflow: Watchlist → Scan → Filter → Select → Purchase

@@ -580,7 +580,7 @@ export const appRouter = router({
     getRecommendedValues: protectedProcedure
       .input(
         z.object({
-          strategy: z.enum(['csp', 'cc']),
+          strategy: z.enum(['csp', 'cc', 'pmcc']),
           presetName: z.enum(['conservative', 'medium', 'aggressive']),
         })
       )
