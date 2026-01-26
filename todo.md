@@ -1109,3 +1109,10 @@
 - [x] Keep delta range and basic validation on server-side
 - [x] Update client-side default maxDte to 30 days
 - [x] Test fetch speed improvement and verify filtering still works
+
+## Bug Fix: Fetch Opportunities Button Not Working
+- [x] Diagnose why main "Fetch Opportunities" button is not working
+- [x] Fix portfolio size filter buttons (Small Only, Medium Only, Large Only) returning 0 results
+- [x] Check if account selection validation is blocking the fetch
+- [x] Verify filteredWatchlist is being passed correctly to the query
+- [x] Test all fetch buttons and verify they return opportunities

@@ -828,6 +828,10 @@ export default function CSPDashboard() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
+                  if (!selectedAccountId) {
+                    toast.error('Please select an account first');
+                    return;
+                  }
                   setPortfolioSizeFilter(['small']);
                   const symbolCount = watchlist.filter((w: any) => w.portfolioSize === 'small').length;
                   setFetchProgress({
@@ -838,10 +842,6 @@ export default function CSPDashboard() {
                     startTime: Date.now(),
                     endTime: null,
                   });
-                  if (!selectedAccountId) {
-                    toast.error('Please select an account first');
-                    return;
-                  }
                   setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
                 }}
                 disabled={loadingOpportunities}
@@ -856,6 +856,10 @@ export default function CSPDashboard() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
+                  if (!selectedAccountId) {
+                    toast.error('Please select an account first');
+                    return;
+                  }
                   setPortfolioSizeFilter(['medium']);
                   const symbolCount = watchlist.filter((w: any) => w.portfolioSize === 'medium').length;
                   setFetchProgress({
@@ -866,10 +870,6 @@ export default function CSPDashboard() {
                     startTime: Date.now(),
                     endTime: null,
                   });
-                  if (!selectedAccountId) {
-                    toast.error('Please select an account first');
-                    return;
-                  }
                   setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
                 }}
                 disabled={loadingOpportunities}
@@ -884,6 +884,10 @@ export default function CSPDashboard() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
+                  if (!selectedAccountId) {
+                    toast.error('Please select an account first');
+                    return;
+                  }
                   setPortfolioSizeFilter(['large']);
                   const symbolCount = watchlist.filter((w: any) => w.portfolioSize === 'large').length;
                   setFetchProgress({
@@ -894,10 +898,6 @@ export default function CSPDashboard() {
                     startTime: Date.now(),
                     endTime: null,
                   });
-                  if (!selectedAccountId) {
-                    toast.error('Please select an account first');
-                    return;
-                  }
                   setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
                 }}
                 disabled={loadingOpportunities}
@@ -936,6 +936,11 @@ export default function CSPDashboard() {
           {/* Fetch Button */}
           <Button 
             onClick={() => {
+              if (!selectedAccountId) {
+                toast.error('Please select an account first');
+                setFetchProgress(prev => ({ ...prev, isOpen: false }));
+                return;
+              }
               const symbolCount = filteredWatchlist.length;
               setFetchProgress({
                 isOpen: true,
@@ -945,10 +950,6 @@ export default function CSPDashboard() {
                 startTime: Date.now(),
                 endTime: null,
               });
-              if (!selectedAccountId) {
-                toast.error('Please select an account first');
-                return;
-              }
               refetchOpportunities();
             }} 
             disabled={loadingOpportunities || filteredWatchlist.length === 0 || !selectedAccountId}
