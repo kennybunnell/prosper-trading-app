@@ -6,17 +6,21 @@ import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign } from "lucide-reac
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type SortColumn = 'symbol' | 'strike' | 'expiration' | 'dte' | 'delta' | 'premium' | 'bidAskSpread' | 'openInterest' | 'volume' | 'score';
 type SortDirection = 'asc' | 'desc';
 
 export default function PMCCDashboard() {
-  const [selectedPreset, setSelectedPreset] = useState<"conservative" | "medium" | "aggressive">("medium");
+  const [selectedPreset, setSelectedPreset] = useState<"conservative" | "medium" | "aggressive" | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [selectedLeaps, setSelectedLeaps] = useState<Set<string>>(new Set());
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [sortColumn, setSortColumn] = useState<SortColumn>('score');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Fetch PMCC filter presets from database
+  const { data: presets } = trpc.filterPresets.getByStrategy.useQuery({ strategy: 'pmcc' });
 
   const scanLeapsMutation = trpc.pmcc.scanLeaps.useMutation({
     onSuccess: (data) => {
@@ -31,7 +35,8 @@ export default function PMCCDashboard() {
 
   const handleScanLeaps = () => {
     setIsScanning(true);
-    scanLeapsMutation.mutate({ presetName: selectedPreset });
+    // Use medium as default if no preset selected
+    scanLeapsMutation.mutate({ presetName: selectedPreset || 'medium' });
   };
 
   // Helper to create unique key for each LEAP
@@ -77,6 +82,39 @@ export default function PMCCDashboard() {
     
     let filtered = [...scanLeapsMutation.data.opportunities];
     
+    // Apply preset filter from database
+    if (selectedPreset && presets) {
+      const preset = presets.find(p => p.presetName === selectedPreset);
+      if (preset) {
+        filtered = filtered.filter(leap => {
+          const delta = Math.abs(leap.delta);
+          const minDelta = parseFloat(preset.minDelta);
+          const maxDelta = parseFloat(preset.maxDelta);
+          
+          // Delta filter (0.65-0.90 for LEAPs)
+          if (delta < minDelta || delta > maxDelta) return false;
+          
+          // DTE filter (270-450 days for LEAPs)
+          if (leap.dte < preset.minDte || leap.dte > preset.maxDte) return false;
+          
+          // Open Interest filter
+          if (leap.openInterest < preset.minOpenInterest) return false;
+          
+          // Volume filter
+          if (leap.volume < preset.minVolume) return false;
+          
+          // Spread % filter (if maxStrikePercent is used as max spread)
+          const spreadPercent = ((leap.ask - leap.bid) / leap.ask) * 100;
+          if (spreadPercent > 10) return false; // Max 10% spread for LEAPs
+          
+          // Score filter
+          if (leap.score < preset.minScore) return false;
+          
+          return true;
+        });
+      }
+    }
+    
     // Apply "Show Selected Only" filter
     if (showSelectedOnly) {
       filtered = filtered.filter(leap => selectedLeaps.has(getLeapKey(leap)));
@@ -98,7 +136,7 @@ export default function PMCCDashboard() {
     });
     
     return filtered;
-  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection]);
+  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection, selectedPreset, presets]);
 
   // Calculate order summary
   const orderSummary = useMemo(() => {
@@ -171,25 +209,68 @@ export default function PMCCDashboard() {
               {/* Preset Selection - shown after scan */}
               {scanLeapsMutation.data && scanLeapsMutation.data.opportunities.length > 0 && (
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Filter Preset</label>
-                  <div className="flex gap-2">
+                  <label className="text-sm font-medium mb-2 block">Filter Presets</label>
+                  <div className="flex flex-wrap gap-3">
                     <Button
-                      variant={selectedPreset === "conservative" ? "default" : "outline"}
+                      variant="ghost"
+                      className={cn(
+                        "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
+                        selectedPreset === 'conservative'
+                          ? "bg-gradient-to-r from-slate-600 via-gray-700 to-slate-800 text-white shadow-lg shadow-slate-500/50 hover:shadow-xl hover:shadow-slate-500/60 hover:scale-110"
+                          : "bg-slate-500/10 text-slate-400 border border-slate-500/30 hover:bg-slate-500/20 hover:border-slate-500/50 hover:scale-105"
+                      )}
                       onClick={() => setSelectedPreset("conservative")}
                     >
-                      Conservative
+                      <span className="relative z-10 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-300 animate-pulse" />
+                        Conservative
+                      </span>
+                      {selectedPreset === 'conservative' && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                      )}
                     </Button>
                     <Button
-                      variant={selectedPreset === "medium" ? "default" : "outline"}
+                      variant="ghost"
+                      className={cn(
+                        "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
+                        selectedPreset === 'medium'
+                          ? "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-white shadow-lg shadow-amber-500/50 hover:shadow-xl hover:shadow-amber-500/60 hover:scale-110"
+                          : "bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-105"
+                      )}
                       onClick={() => setSelectedPreset("medium")}
                     >
-                      Medium
+                      <span className="relative z-10 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse" />
+                        Medium
+                      </span>
+                      {selectedPreset === 'medium' && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                      )}
                     </Button>
                     <Button
-                      variant={selectedPreset === "aggressive" ? "default" : "outline"}
+                      variant="ghost"
+                      className={cn(
+                        "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
+                        selectedPreset === 'aggressive'
+                          ? "bg-gradient-to-r from-orange-600 via-amber-700 to-orange-800 text-white shadow-lg shadow-orange-500/50 hover:shadow-xl hover:shadow-orange-500/60 hover:scale-110"
+                          : "bg-orange-500/10 text-orange-400 border border-orange-500/30 hover:bg-orange-500/20 hover:border-orange-500/50 hover:scale-105"
+                      )}
                       onClick={() => setSelectedPreset("aggressive")}
                     >
-                      Aggressive
+                      <span className="relative z-10 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-red-300 animate-pulse" />
+                        Aggressive
+                      </span>
+                      {selectedPreset === 'aggressive' && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="rounded-full px-5 py-2.5 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200 hover:scale-105"
+                      onClick={() => setSelectedPreset(null)}
+                    >
+                      Clear Filters
                     </Button>
                   </div>
                 </div>
@@ -257,14 +338,23 @@ export default function PMCCDashboard() {
                       <Button
                         onClick={() => setShowSelectedOnly(!showSelectedOnly)}
                         variant={showSelectedOnly ? "default" : "outline"}
-                        size="sm"
-                        className={showSelectedOnly ? "bg-amber-600 hover:bg-amber-700" : ""}
-                      >
+                        size="sm">
                         {showSelectedOnly ? "Show All" : "Show Selected Only"}
                       </Button>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {selectedLeaps.size} of {sortedLeaps.length} selected
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm text-muted-foreground">
+                        {selectedLeaps.size} of {sortedLeaps.length} selected
+                      </div>
+                      {selectedLeaps.size > 0 && (
+                        <Button
+                          onClick={() => toast.info("Purchase workflow coming soon!")}
+                          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold"
+                          size="sm"
+                        >
+                          Purchase LEAPs ({selectedLeaps.size})
+                        </Button>
+                      )}
                     </div>
                   </div>
 

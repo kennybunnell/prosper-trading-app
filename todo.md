@@ -690,3 +690,30 @@
 - [ ] Wire filter presets to filter displayed LEAP opportunities after scan
 - [x] Add PMCC filter preset management UI to Settings page
 - [ ] Test complete workflow: Watchlist → Scan → Filter → Select → Purchase
+
+## PMCC Filter Preset Integration
+- [x] Fetch PMCC filter presets from database on PMCC Dashboard load
+- [x] Apply Conservative preset when Conservative button clicked
+- [x] Apply Medium preset when Medium button clicked
+- [x] Apply Aggressive preset when Aggressive button clicked
+- [x] Add Clear Filters button to reset to all opportunities
+- [x] Test filter preset buttons with 160 LEAP opportunities
+
+## PMCC LEAP Purchase Workflow
+- [x] Add "Purchase LEAPs" button to PMCC Dashboard
+- [ ] Add dry run/live mode toggle
+- [ ] Implement order validation (buying power, market hours, concentration)
+- [ ] Create order preview dialog
+- [ ] Add backend order submission logic
+- [ ] Implement progress tracking and status displaying LEAP calls
+- [ ] Add progress tracking for order submission
+- [ ] Display success/failure status per order
+- [ ] Test complete purchase workflow in dry run mode
+
+## PMCC Position Tracking
+- [ ] Create "Active PMCC Positions" section in PMCC Dashboard
+- [ ] Fetch owned LEAP positions from database
+- [ ] Display position details (symbol, strike, expiration, DTE, cost basis, current value, P/L)
+- [ ] Add "Sell Calls" button for each position
+- [ ] Implement short call scanning against owned LEAPs
+- [ ] Test position tracking with mock data
