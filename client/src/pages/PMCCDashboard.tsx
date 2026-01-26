@@ -16,7 +16,6 @@ type SortDirection = 'asc' | 'desc';
 export default function PMCCDashboard() {
   const [selectedPreset, setSelectedPreset] = useState<'conservative' | 'medium' | 'aggressive' | null>(null);
   const [showBestPerTicker, setShowBestPerTicker] = useState(false);
-  const [minScore, setMinScore] = useState<number | undefined>(undefined);
   const [isScanning, setIsScanning] = useState(false);
   const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState(false);
   const [scanStartTime, setScanStartTime] = useState<number | null>(null);
@@ -148,17 +147,9 @@ export default function PMCCDashboard() {
           return true;
         });
       }
-    }
+     }
     
-    // Apply score bucket filter (works cumulatively with preset filter)
-    // Score buckets: 100 (95-100), 90 (85-94), 80 (75-84), etc.
-    if (minScore !== undefined) {
-      const minBucket = minScore === 100 ? 95 : minScore - 5;
-      const maxBucket = minScore === 0 ? 4 : minScore + 4;
-      filtered = filtered.filter(leap => leap.score >= minBucket && leap.score <= maxBucket);
-    }
-    
-    // Apply "Best Per Ticker" filter - show only top-scoring LEAP per symbol
+    // Apply Best Per Ticker filterr - show only top-scoring LEAP per symbol
     if (showBestPerTicker) {
       const bestPerTicker = new Map<string, typeof filtered[0]>();
       
@@ -330,7 +321,6 @@ export default function PMCCDashboard() {
                       className="rounded-full px-5 py-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/50 transition-all duration-200 hover:scale-105 font-semibold"
                       onClick={() => {
                         setSelectedPreset(null);
-                        setMinScore(undefined);
                         setShowBestPerTicker(false);
                         setSelectedLeaps(new Set());
                       }}
@@ -350,47 +340,6 @@ export default function PMCCDashboard() {
                     >
                       {showBestPerTicker ? '✓ ' : ''}Best Per Ticker
                     </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Score Filter Buttons - shown after scan */}
-              {scanLeapsMutation.data && scanLeapsMutation.data.opportunities.length > 0 && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Filter by Score Bucket</label>
-                  <div className="flex flex-wrap gap-2">
-                    {[100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0].map(score => {
-                      const bucketLabel = score === 100 ? '95-100' : score === 0 ? '0-4' : `${score - 5}-${score + 4}`;
-                      return (
-                        <Button
-                          key={score}
-                          variant="ghost"
-                          size="sm"
-                          className={cn(
-                            "rounded-full px-4 py-2 font-semibold transition-all duration-200",
-                            minScore === score
-                              ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/60 hover:scale-110"
-                              : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-500/50 hover:scale-105"
-                          )}
-                          onClick={() => {
-                            setMinScore(score);
-                            // Don't clear preset - allow cumulative filtering
-                          }}
-                        >
-                          {bucketLabel}
-                        </Button>
-                      );
-                    })}
-                    {minScore !== undefined && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="rounded-full px-4 py-2 text-muted-foreground hover:text-foreground"
-                        onClick={() => setMinScore(undefined)}
-                      >
-                        Clear
-                      </Button>
-                    )}
                   </div>
                 </div>
               )}

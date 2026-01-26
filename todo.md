@@ -762,3 +762,10 @@
 - [ ] Add console.log debugging to verify minScore state updates when clicking score buckets
 - [x] Increase concurrent workers from 5 to 10 for faster LEAP scanning (Tradier rate limit: 120 req/min allows it)
 - [ ] Test combined filtering: Conservative → 85-94 bucket should show only high-scoring subset
+
+## PMCC Manual Selection UI Improvements
+- [x] Remove broken score bucket filter buttons (95-100, 85-94, etc.) from PMCC Dashboard
+- [x] Remove minScore state and related filter logic
+- [x] Add individual checkbox to each LEAP row in the Select column (already implemented)
+- [x] Keep "Select All" and "Clear All" buttons for bulk operations (already implemented)
+- [ ] Test manual selection: Conservative → check individual LEAPs → Purchase
