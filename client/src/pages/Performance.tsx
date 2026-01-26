@@ -310,6 +310,15 @@ function ActivePositionsTab() {
                 Clear Filter
               </Button>
             )}
+            <div className="h-4 w-px bg-border" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSelectAll}
+              className="bg-blue-500/20 hover:bg-blue-500/30 border-blue-500/50 text-blue-400"
+            >
+              {selectedPositions.size === filteredPositions.length && filteredPositions.length > 0 ? 'Deselect All' : 'Select All'}
+            </Button>
           </div>
           <Button
             variant="outline"
@@ -566,6 +575,7 @@ function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosit
                   checked={allSelected}
                   onCheckedChange={onSelectAll}
                   aria-label="Select all"
+                  className="border-2 border-white/50 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
                 />
               </th>
               <th className="text-left p-3 text-sm font-medium">Account</th>
@@ -589,6 +599,7 @@ function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosit
                     checked={selectedPositions.has(idx)}
                     onCheckedChange={() => onTogglePosition(idx)}
                     aria-label={`Select ${pos.symbol}`}
+                    className="border-2 border-white/50 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
                   />
                 </td>
                 <td className="p-3 text-sm">{pos.account}</td>

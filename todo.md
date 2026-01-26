@@ -875,3 +875,10 @@
 - [x] Wire CLOSE action buttons to select that position and open order ticket
 - [x] Test complete selection workflow with filtered positions (server logs show 45 positions found, 26 processed, 2 ready to close)
 - [x] Test order ticket display with multiple selected positions (UI implemented and ready for user testing)
+
+## Performance Analytics - Checkbox Visibility & Select All Button
+- [x] Style checkboxes with visible borders and background (white/light color for dark theme)
+- [x] Add Select All button near quick filters
+- [x] Ensure Select All button selects all currently filtered positions
+- [ ] Test checkbox visibility against dark background (ready for testing)
+- [ ] Test Select All functionality with filtered positions (ready for testing)
