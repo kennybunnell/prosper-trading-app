@@ -559,7 +559,10 @@ export default function CSPDashboard() {
     }
 
     // Use validated orders with midpoint pricing
-    const orders = validationData.orders.map((validatedOrder: any) => {
+      // Round premium to nearest $0.05 (Tastytrade requirement)
+      const roundToNickel = (price: number) => Math.round(price * 20) / 20;
+      
+      const orderLegs = validationData.orders.map((validatedOrder: any) => {
       const opp = selectedOppsList.find(
         o => o.symbol === validatedOrder.symbol && 
              o.strike === validatedOrder.strike && 
@@ -570,7 +573,7 @@ export default function CSPDashboard() {
         symbol: validatedOrder.symbol,
         strike: validatedOrder.strike,
         expiration: validatedOrder.expiration,
-        premium: validatedOrder.premium / 100, // Convert back to per-share price
+        premium: roundToNickel(validatedOrder.premium / 100), // Convert back to per-share price and round to $0.05
         // Build option symbol in Tastytrade format: TICKER(6)YYMMDD(6)P(1)STRIKE(8)
         // Example: 'AAPL  260206P00150000' for AAPL Feb 6, 2026 Put $150
         optionSymbol: (() => {
@@ -591,8 +594,8 @@ export default function CSPDashboard() {
 
     setOrderProgress({
       current: 0,
-      total: orders.length,
-      results: orders.map((o: any) => ({ symbol: o.symbol, status: 'pending' })),
+      total: orderLegs.length,
+      results: orderLegs.map((o: any) => ({ symbol: o.symbol, status: 'pending' })),
     });
 
     if (!selectedAccountId) {
@@ -601,7 +604,7 @@ export default function CSPDashboard() {
     }
 
     submitOrders.mutate({
-      orders,
+      orders: orderLegs,
       accountId: selectedAccountId,
       dryRun: dryRun,
     });

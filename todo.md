@@ -1082,3 +1082,22 @@
 ## UI Cleanup
 - [x] Remove Test Single Symbol button - not working as expected, never finds tickers
 - [x] Verify concurrency is set to 15 workers for opportunity fetch
+
+## Order Submission - Price Increment Fix
+- [x] Round premium prices to nearest $0.05 increment (Tastytrade requirement)
+- [ ] Display detailed Tastytrade error messages in toast notifications instead of generic "preflight checks failed"
+
+## CRITICAL BUG - Opportunity Fetch Returning 0 Results
+- [ ] Investigate why opportunity fetch scanned 50 symbols but found 0 opportunities
+- [ ] Check if filtering logic is too restrictive or broken
+- [ ] Compare with working Streamlit implementation to identify differences
+- [ ] Add debug logging to show how many opportunities are filtered out at each stage
+
+## UX Improvement - Opportunity Fetch Progress
+- [ ] Add real-time progress updates showing which batch is being processed
+- [ ] Display current symbols being analyzed in each batch
+- [ ] Show running count of opportunities found so far
+- [ ] Replace generic "Scanning..." message with detailed progress
+
+## Concurrency Optimization
+- [x] Reduce concurrency from 8 to 5 workers - this was the most consistent/reliable setting
