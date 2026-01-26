@@ -769,3 +769,7 @@
 - [x] Add individual checkbox to each LEAP row in the Select column (already implemented)
 - [x] Keep "Select All" and "Clear All" buttons for bulk operations (already implemented)
 - [ ] Test manual selection: Conservative → check individual LEAPs → Purchase
+
+## PMCC Checkbox Visibility Fix
+- [x] Add visible border and better styling to checkboxes in PMCC Dashboard Select column (border-2 border-muted-foreground, green when checked)
+- [ ] Test checkbox visibility against dark background

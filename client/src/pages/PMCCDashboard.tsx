@@ -506,6 +506,7 @@ export default function PMCCDashboard() {
                                 <Checkbox
                                   checked={isSelected}
                                   onCheckedChange={() => toggleLeapSelection(leap)}
+                                  className="border-2 border-muted-foreground data-[state=checked]:border-green-500 data-[state=checked]:bg-green-500"
                                 />
                               </td>
                               <td className="p-2 font-medium">{leap.symbol}</td>
