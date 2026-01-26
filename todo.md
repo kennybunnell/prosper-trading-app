@@ -740,3 +740,8 @@
 - [x] Add "X of Y symbols scanned" counter during scan
 - [x] Verify backend uses multi-threading (up to 5 workers) for concurrent API calls - CONFIRMED ALREADY IMPLEMENTED
 - [ ] Test all UI improvements with real scan
+
+## PMCC Dashboard Bug Fixes (Re-applied after sandbox reset)
+- [x] Fix watchlist Expand/Collapse button to toggle properly
+- [x] Change score filter logic from minimum score to exact score buckets (95-100, 85-94, 75-84, etc.)
+- [ ] Test both fixes with real scan data

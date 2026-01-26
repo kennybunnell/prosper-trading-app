@@ -117,8 +117,11 @@ export default function PMCCDashboard() {
     let filtered = [...scanLeapsMutation.data.opportunities];
     
     // Apply score filter first (takes precedence over preset)
+    // Score buckets: 100 (95-100), 90 (85-94), 80 (75-84), etc.
     if (minScore !== undefined) {
-      filtered = filtered.filter(leap => leap.score >= minScore);
+      const minBucket = minScore === 100 ? 95 : minScore - 5;
+      const maxBucket = minScore === 0 ? 4 : minScore + 4;
+      filtered = filtered.filter(leap => leap.score >= minBucket && leap.score <= maxBucket);
     }
     
     // Apply preset filter from database
@@ -349,27 +352,30 @@ export default function PMCCDashboard() {
               {/* Score Filter Buttons - shown after scan */}
               {scanLeapsMutation.data && scanLeapsMutation.data.opportunities.length > 0 && (
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Filter by Minimum Score</label>
+                  <label className="text-sm font-medium mb-2 block">Filter by Score Bucket</label>
                   <div className="flex flex-wrap gap-2">
-                    {[100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0].map(score => (
-                      <Button
-                        key={score}
-                        variant="ghost"
-                        size="sm"
-                        className={cn(
-                          "rounded-full px-4 py-2 font-semibold transition-all duration-200",
-                          minScore === score
-                            ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/60 hover:scale-110"
-                            : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-500/50 hover:scale-105"
-                        )}
-                        onClick={() => {
-                          setMinScore(score);
-                          setSelectedPreset(null); // Clear preset when using score filter
-                        }}
-                      >
-                        {score}+
-                      </Button>
-                    ))}
+                    {[100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0].map(score => {
+                      const bucketLabel = score === 100 ? '95-100' : score === 0 ? '0-4' : `${score - 5}-${score + 4}`;
+                      return (
+                        <Button
+                          key={score}
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "rounded-full px-4 py-2 font-semibold transition-all duration-200",
+                            minScore === score
+                              ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/60 hover:scale-110"
+                              : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-500/50 hover:scale-105"
+                          )}
+                          onClick={() => {
+                            setMinScore(score);
+                            setSelectedPreset(null); // Clear preset when using score filter
+                          }}
+                        >
+                          {bucketLabel}
+                        </Button>
+                      );
+                    })}
                     {minScore !== undefined && (
                       <Button
                         variant="ghost"

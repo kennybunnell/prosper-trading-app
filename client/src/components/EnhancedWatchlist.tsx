@@ -259,11 +259,11 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
             <CardTitle>Watchlist</CardTitle>
             <CardDescription>Add symbols to analyze trading opportunities</CardDescription>
           </div>
-          {onFullCollapse && (
+          {onToggleCollapse && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={onFullCollapse}
+              onClick={onToggleCollapse}
             >
               <ChevronUp className="w-4 h-4 mr-2" />
               Collapse
