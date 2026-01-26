@@ -635,6 +635,10 @@ export default function CSPDashboard() {
               variant="outline"
               size="sm"
               onClick={() => {
+                if (!selectedAccountId) {
+                  toast.error('Please select an account first');
+                  return;
+                }
                 setFetchProgress({ isOpen: true, current: 0, total: filteredWatchlist.length, completed: 0, startTime: Date.now(), endTime: null });
                 setTimeout(() => {
                   setFetchProgress(prev => ({ ...prev, isOpen: false, completed: filteredWatchlist.length }));
@@ -789,6 +793,10 @@ export default function CSPDashboard() {
                     startTime: Date.now(),
                     endTime: null,
                   });
+                  if (!selectedAccountId) {
+                    toast.error('Please select an account first');
+                    return;
+                  }
                   setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
                 }}
                 disabled={loadingOpportunities}
@@ -813,6 +821,10 @@ export default function CSPDashboard() {
                     startTime: Date.now(),
                     endTime: null,
                   });
+                  if (!selectedAccountId) {
+                    toast.error('Please select an account first');
+                    return;
+                  }
                   setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
                 }}
                 disabled={loadingOpportunities}
@@ -837,6 +849,10 @@ export default function CSPDashboard() {
                     startTime: Date.now(),
                     endTime: null,
                   });
+                  if (!selectedAccountId) {
+                    toast.error('Please select an account first');
+                    return;
+                  }
                   setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
                 }}
                 disabled={loadingOpportunities}
@@ -884,9 +900,13 @@ export default function CSPDashboard() {
                 startTime: Date.now(),
                 endTime: null,
               });
+              if (!selectedAccountId) {
+                toast.error('Please select an account first');
+                return;
+              }
               refetchOpportunities();
             }} 
-            disabled={loadingOpportunities || filteredWatchlist.length === 0}
+            disabled={loadingOpportunities || filteredWatchlist.length === 0 || !selectedAccountId}
             className="w-full bg-gradient-to-r from-amber-600 to-yellow-700 hover:from-amber-700 hover:to-yellow-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
           >
             {loadingOpportunities ? (
