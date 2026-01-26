@@ -468,8 +468,8 @@ export class TradierAPI {
   ): Promise<CSPOpportunity[]> {
     console.log(`[Tradier API] Fetching CSP opportunities for ${symbols.length} symbols with parallel processing...`);
     
-    // Process symbols in parallel with concurrency limit of 8
-    const CONCURRENCY = 8;
+    // Process symbols in parallel with concurrency limit of 15
+    const CONCURRENCY = 15;
     const allOpportunities: CSPOpportunity[] = [];
     
     for (let i = 0; i < symbols.length; i += CONCURRENCY) {

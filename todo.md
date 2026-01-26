@@ -1072,3 +1072,8 @@
   - Example: `AAPL  260206P00150000` (AAPL Feb 6, 2026 Put $150)
   - Current wrong format: `AAPL  20260206P00150000` (has 2026 instead of 26)
 - [x] Fix Zod schema trimming spaces from optionSymbol field - added .transform() to preserve spaces
+
+## Performance Improvements - Fast Testing
+- [x] Add "Test Single Symbol" button to CSP Dashboard for quick 5-second testing
+- [x] Increase concurrency from 8 to 15 symbols per batch to cut full scan time in half
+- [x] Add symbol selector via prompt for single-symbol test mode
