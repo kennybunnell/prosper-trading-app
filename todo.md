@@ -1124,3 +1124,10 @@
 - [x] Fix the logic to ensure dry run ONLY validates, never submits
 - [x] Add visual indicators (RED button for live, BLUE for dry run)
 - [x] Test dry run mode thoroughly before allowing user to test again
+
+## Bug: Working Orders Showing Stale Data
+- [x] Investigate why dashboard shows 28 orders when Tastytrade has 10
+- [x] Check if working orders are being fetched from Tastytrade API or local database
+- [x] Verify that filled/cancelled orders are being removed from the display
+- [x] Fix sync logic to only show active working orders (filter out Filled, Cancelled, Rejected, Expired)
+- [x] Test that working orders accurately reflect Tastytrade account status (6 orders match perfectly)

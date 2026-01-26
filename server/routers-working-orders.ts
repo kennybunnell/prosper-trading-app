@@ -71,8 +71,20 @@ export const workingOrdersRouter = router({
         const allOrders: any[] = [];
         for (const accNum of accountsToFetch) {
           const orders = await api.getLiveOrders(accNum);
-          console.log(`[WorkingOrders] Account ${accNum}: ${orders.length} live orders`);
-          allOrders.push(...orders);
+          console.log(`[WorkingOrders] Account ${accNum}: ${orders.length} total orders from API`);
+          
+          // Filter to ONLY active/working orders (exclude Filled, Cancelled, Rejected, Expired)
+          const activeOrders = orders.filter((order: any) => {
+            const status = order.status?.toLowerCase() || '';
+            const isActive = !['filled', 'cancelled', 'rejected', 'expired', 'replaced'].includes(status);
+            if (!isActive) {
+              console.log(`[WorkingOrders] Filtering out order ${order.id}: status=${order.status}`);
+            }
+            return isActive;
+          });
+          
+          console.log(`[WorkingOrders] Account ${accNum}: ${activeOrders.length} active working orders (filtered from ${orders.length})`);
+          allOrders.push(...activeOrders);
         }
 
         if (allOrders.length === 0) {
