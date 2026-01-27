@@ -44,8 +44,9 @@ export function MonthlyPremiumChart({ data }: MonthlyPremiumChartProps) {
         Monthly Premium Earnings - All Accounts Combined
       </h2>
       
-      <ResponsiveContainer width="100%" height={400}>
-        <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+      <div className="relative">
+      <ResponsiveContainer width="100%" height={450}>
+        <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
           {/* Dashed grid lines */}
           <CartesianGrid 
             strokeDasharray="5 5" 
@@ -95,17 +96,10 @@ export function MonthlyPremiumChart({ data }: MonthlyPremiumChartProps) {
             }}
           />
           
-          {/* Semi-transparent bars with glowing edges */}
+           {/* Semi-transparent bars with glowing edges */}
           <Bar 
             dataKey="netPremium" 
             radius={[4, 4, 0, 0]}
-            label={{
-              position: 'top',
-              fill: '#F1F5F9',
-              fontSize: 13,
-              fontWeight: 600,
-              formatter: formatCurrency,
-            }}
           >
             {chartData.map((entry, index) => (
               <Cell
@@ -114,6 +108,7 @@ export function MonthlyPremiumChart({ data }: MonthlyPremiumChartProps) {
                 stroke={entry.isProfit ? '#16A34A' : '#DC2626'}
                 strokeWidth={2}
                 filter={entry.isProfit ? 'drop-shadow(0 0 8px rgba(34, 197, 94, 0.6))' : 'drop-shadow(0 0 8px rgba(239, 68, 68, 0.6))'}
+
               />
             ))}
           </Bar>
@@ -139,6 +134,18 @@ export function MonthlyPremiumChart({ data }: MonthlyPremiumChartProps) {
           />
         </ComposedChart>
       </ResponsiveContainer>
+      
+      {/* Overlay labels */}
+      <div className="absolute inset-0 pointer-events-none flex items-start justify-around pt-6 px-12">
+        {chartData.map((entry, index) => (
+          <div key={index} className="flex-1 flex flex-col items-center">
+            <div className="text-lg font-bold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+              {formatCurrency(entry.netPremium)}
+            </div>
+          </div>
+        ))}
+      </div>
+      </div>
       
       {/* Legend with icons */}
       <div className="flex items-center justify-center gap-6 mt-4 text-sm">

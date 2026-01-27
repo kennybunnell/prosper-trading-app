@@ -1222,3 +1222,9 @@
 - [ ] Update backend to match Streamlit's correct calculation logic
 - [ ] Test with real data to match screenshot values (Sep: $8,837, Oct: $59,864, Nov: $150,184, Dec: -$68,026, Jan: $57,575)
 - [ ] Remove CSV file dependency and use Tastytrade API directly
+
+## Monthly Premium Chart Label Improvements
+- [x] Move value labels inside bars with black text for better readability
+- [x] Add white background boxes behind labels for small bars (like September) to ensure visibility
+- [x] Make labels crisp (remove glow effect), increase font size, and position above bars to avoid overlap with cumulative line
+- [x] Test label visibility across all bar sizes (positive and negative values)
