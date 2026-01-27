@@ -1323,3 +1323,16 @@
 - [ ] Test slider interactions and real-time updates
 - [ ] Verify account-level comparisons aggregate correctly
 - [ ] Save checkpoint with complete Projections dashboard
+
+
+## Projections Tab 1 & 2 Implementation
+- [ ] Create LockedInIncomeCards component with 4 metric cards (This Week, This Month, Next Month, Total)
+- [ ] Create ThetaDecayCards component with 3 metric cards (Daily, Weekly, Monthly)
+- [ ] Create Tab 1 layout combining Locked-In Income and Theta Decay sections
+- [ ] Create InteractiveROICalculator component with sliders (Investment Amount, Annual Deposit, Target Return, Time Horizon)
+- [ ] Create PortfolioGrowthChart component with Recharts showing projected growth
+- [ ] Create Tab 2 layout combining ROI calculator and growth chart
+- [ ] Update Performance page to add Projections tab with Tab 1 and Tab 2 content
+- [ ] Test Tab 1 with live data from projections.getLockedInIncome and projections.getThetaDecay
+- [ ] Test Tab 2 with interactive sliders and real-time chart updates
+- [ ] Save checkpoint with working Projections tabs

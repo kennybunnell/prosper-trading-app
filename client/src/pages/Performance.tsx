@@ -12,6 +12,9 @@ import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 import { RecoveryProgressChart } from '@/components/StockBasisRecoveryChart';
 import { StockPositionsTable } from '@/components/StockPositionsTable';
 import { UnderwaterPositionMetrics } from '@/components/UnderwaterPositionMetrics';
+import { LockedInIncomeCards } from '@/components/projections/LockedInIncomeCards';
+import { ThetaDecayCards } from '@/components/projections/ThetaDecayCards';
+import { InteractiveROICalculator } from '@/components/projections/InteractiveROICalculator';
 import { DollarSign, Package, TrendingUp as TrendingUpIcon, TrendingDown as TrendingDownIcon } from 'lucide-react';
 
 export default function Performance() {
@@ -38,7 +41,7 @@ export default function Performance() {
           <TabsTrigger value="working-orders">Working Orders</TabsTrigger>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="stock-basis">Stock Basis</TabsTrigger>
-          <TabsTrigger value="projections" disabled>Projections</TabsTrigger>
+          <TabsTrigger value="projections">Projections</TabsTrigger>
         </TabsList>
 
         {/* Active Positions Tab */}
@@ -56,10 +59,8 @@ export default function Performance() {
         <TabsContent value="stock-basis" className="space-y-6">
           <StockBasisTab />
         </TabsContent>
-        <TabsContent value="projections">
-          <Card className="p-8 text-center text-muted-foreground">
-            Projections tab coming soon...
-          </Card>
+        <TabsContent value="projections" className="space-y-6">
+          <ProjectionsTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -2311,6 +2312,61 @@ function StockBasisTab() {
           <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       )}
+    </div>
+  );
+}
+
+
+function ProjectionsTab() {
+  const [subTab, setSubTab] = useState('current-performance');
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-bold">Income Projections</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Forecast your premium income based on open positions and historical performance
+        </p>
+      </div>
+
+      {/* Sub-tabs */}
+      <Tabs value={subTab} onValueChange={setSubTab} className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="current-performance">Current Performance</TabsTrigger>
+          <TabsTrigger value="interactive-projections">Interactive Projections</TabsTrigger>
+        </TabsList>
+
+        {/* Tab 1: Current Performance & Locked-In Income */}
+        <TabsContent value="current-performance" className="space-y-6">
+          {/* Locked-In Income Section */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              🔒 Locked-In Income
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Premium from open positions that will be realized if they expire worthless
+            </p>
+            <LockedInIncomeCards />
+          </div>
+
+          {/* Theta Decay Section */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              ⏱️ Theta Decay Projection
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Estimated daily time decay working in your favor from short option positions
+            </p>
+            <ThetaDecayCards />
+          </div>
+        </TabsContent>
+
+        {/* Tab 2: Interactive ROI Projections */}
+        <TabsContent value="interactive-projections" className="space-y-6">
+          <InteractiveROICalculator />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
