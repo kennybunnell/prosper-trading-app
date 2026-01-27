@@ -810,6 +810,255 @@ export const appRouter = router({
 
   // Covered Calls Dashboard
   cc: ccRouter,
+
+  // Stock Basis & Returns
+  stockBasis: router({
+    // Get all stock positions with current prices
+    getStockPositions: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { getTastytradeAPI } = await import('./tastytrade');
+        const { getApiCredentials, getTastytradeAccounts } = await import('./db');
+        const { TRPCError } = await import('@trpc/server');
+        
+        const credentials = await getApiCredentials(ctx.user.id);
+        if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Tastytrade credentials not configured' });
+        }
+
+        const api = getTastytradeAPI();
+        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+
+        const accounts = await getTastytradeAccounts(ctx.user.id);
+        if (!accounts || accounts.length === 0) {
+          return { positions: [], summary: { totalCostBasis: 0, totalCurrentValue: 0, totalUnrealized: 0, totalCCPremium: 0 } };
+        }
+
+        const allPositions: any[] = [];
+
+        for (const account of accounts) {
+          const positions = await api.getPositions(account.accountNumber);
+          
+          for (const pos of positions) {
+            if (pos['instrument-type'] === 'Equity') {
+              const symbol = pos.symbol;
+              const quantity = typeof pos.quantity === 'number' ? pos.quantity : parseInt(String(pos.quantity || '0'));
+              const avgCost = parseFloat(pos['average-open-price'] || '0');
+              const currentPrice = parseFloat(pos['close-price'] || '0');
+              
+              allPositions.push({
+                symbol,
+                quantity,
+                avgCost,
+                currentPrice,
+                costBasis: quantity * avgCost,
+                marketValue: quantity * currentPrice,
+                unrealizedPL: (quantity * currentPrice) - (quantity * avgCost),
+                accountNumber: account.accountNumber,
+                accountNickname: account.nickname || account.accountNumber,
+              });
+            }
+          }
+        }
+
+        return { positions: allPositions };
+      }),
+
+    // Get CC premiums collected per symbol
+    getCCPremiums: protectedProcedure
+      .input(z.object({ lookbackDays: z.number().default(365) }))
+      .query(async ({ ctx, input }) => {
+        const { getTastytradeAPI } = await import('./tastytrade');
+        const { getApiCredentials, getTastytradeAccounts } = await import('./db');
+        const { TRPCError } = await import('@trpc/server');
+        
+        const credentials = await getApiCredentials(ctx.user.id);
+        if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Tastytrade credentials not configured' });
+        }
+
+        const api = getTastytradeAPI();
+        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+
+        const accounts = await getTastytradeAccounts(ctx.user.id);
+        if (!accounts || accounts.length === 0) {
+          return { premiums: {} };
+        }
+
+        const ccPremiums: Record<string, number> = {};
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - input.lookbackDays);
+
+        for (const account of accounts) {
+          const transactions = await api.getTransactionHistory(
+            account.accountNumber,
+            startDate.toISOString().split('T')[0],
+            new Date().toISOString().split('T')[0]
+          );
+
+          for (const txn of transactions) {
+            const txnType = txn['transaction-type'];
+            const action = txn.action;
+            const symbol = txn.symbol || '';
+            const value = parseFloat(txn.value || '0');
+
+            // Only process Trade and Receive Deliver transactions
+            if (!['Trade', 'Receive Deliver'].includes(txnType)) continue;
+
+            // Parse option symbol to get underlying
+            const match = symbol.match(/^([A-Z]+)\d{6}[CP]\d+$/);
+            if (!match) continue;
+
+            const underlying = match[1];
+            const instrumentType = txn['instrument-type'];
+
+            // Only track CALL options (covered calls)
+            if (instrumentType === 'Equity Option' && symbol.includes('C')) {
+              if (action === 'Sell to Open') {
+                // Credit from selling CC
+                ccPremiums[underlying] = (ccPremiums[underlying] || 0) + Math.abs(value);
+              } else if (action === 'Buy to Close') {
+                // Debit from closing CC
+                ccPremiums[underlying] = (ccPremiums[underlying] || 0) - Math.abs(value);
+              }
+            }
+          }
+        }
+
+        return { premiums: ccPremiums };
+      }),
+
+    // Calculate recovery metrics for underwater positions
+    getRecoveryMetrics: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { getTastytradeAPI } = await import('./tastytrade');
+        const { getApiCredentials, getTastytradeAccounts } = await import('./db');
+        const { TRPCError } = await import('@trpc/server');
+        
+        const credentials = await getApiCredentials(ctx.user.id);
+        if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Tastytrade credentials not configured' });
+        }
+
+        const api = getTastytradeAPI();
+        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+
+        const accounts = await getTastytradeAccounts(ctx.user.id);
+        if (!accounts || accounts.length === 0) {
+          return {
+            totalUnrealizedLoss: 0,
+            totalCCPremium: 0,
+            overallRecoveryPct: 0,
+            netPosition: 0,
+            underwaterPositions: [],
+            numUnderwater: 0,
+          };
+        }
+
+        // Get stock positions
+        const allPositions: any[] = [];
+        for (const account of accounts) {
+          const positions = await api.getPositions(account.accountNumber);
+          
+          for (const pos of positions) {
+            if (pos['instrument-type'] === 'Equity') {
+              const symbol = pos.symbol;
+              const quantity = typeof pos.quantity === 'number' ? pos.quantity : parseInt(String(pos.quantity || '0'));
+              const avgCost = parseFloat(pos['average-open-price'] || '0');
+              const currentPrice = parseFloat(pos['close-price'] || '0');
+              
+              allPositions.push({
+                symbol,
+                quantity,
+                avgCost,
+                currentPrice,
+                costBasis: quantity * avgCost,
+                marketValue: quantity * currentPrice,
+                unrealizedPL: (quantity * currentPrice) - (quantity * avgCost),
+              });
+            }
+          }
+        }
+
+        // Get CC premiums
+        const ccPremiums: Record<string, number> = {};
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 365);
+
+        for (const account of accounts) {
+          const transactions = await api.getTransactionHistory(
+            account.accountNumber,
+            startDate.toISOString().split('T')[0],
+            new Date().toISOString().split('T')[0]
+          );
+
+          for (const txn of transactions) {
+            const txnType = txn['transaction-type'];
+            const action = txn.action;
+            const symbol = txn.symbol || '';
+            const value = parseFloat(txn.value || '0');
+
+            if (!['Trade', 'Receive Deliver'].includes(txnType)) continue;
+
+            const match = symbol.match(/^([A-Z]+)\d{6}[CP]\d+$/);
+            if (!match) continue;
+
+            const underlying = match[1];
+            const instrumentType = txn['instrument-type'];
+
+            if (instrumentType === 'Equity Option' && symbol.includes('C')) {
+              if (action === 'Sell to Open') {
+                ccPremiums[underlying] = (ccPremiums[underlying] || 0) + Math.abs(value);
+              } else if (action === 'Buy to Close') {
+                ccPremiums[underlying] = (ccPremiums[underlying] || 0) - Math.abs(value);
+              }
+            }
+          }
+        }
+
+        // Calculate recovery metrics for underwater positions
+        const underwaterPositions: any[] = [];
+        let totalUnrealizedLoss = 0;
+        let totalCCPremium = 0;
+
+        for (const pos of allPositions) {
+          if (pos.unrealizedPL < 0) {
+            const ccPremium = ccPremiums[pos.symbol] || 0;
+            totalCCPremium += ccPremium;
+            totalUnrealizedLoss += pos.unrealizedPL;
+
+            const recoveryPct = pos.unrealizedPL !== 0 ? (ccPremium / Math.abs(pos.unrealizedPL)) * 100 : 0;
+            const adjustedBasis = pos.avgCost - (ccPremium / pos.quantity);
+            const remainingLoss = pos.unrealizedPL + ccPremium;
+
+            underwaterPositions.push({
+              symbol: pos.symbol,
+              quantity: pos.quantity,
+              costBasis: pos.avgCost,
+              currentPrice: pos.currentPrice,
+              totalCost: pos.costBasis,
+              marketValue: pos.marketValue,
+              unrealizedLoss: pos.unrealizedPL,
+              ccPremium,
+              recoveryPct,
+              adjustedBasis,
+              remainingLoss,
+            });
+          }
+        }
+
+        const overallRecoveryPct = totalUnrealizedLoss !== 0 ? (totalCCPremium / Math.abs(totalUnrealizedLoss)) * 100 : 0;
+        const netPosition = totalUnrealizedLoss + totalCCPremium;
+
+        return {
+          totalUnrealizedLoss,
+          totalCCPremium,
+          overallRecoveryPct,
+          netPosition,
+          underwaterPositions,
+          numUnderwater: underwaterPositions.length,
+        };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

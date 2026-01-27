@@ -1228,3 +1228,16 @@
 - [x] Add white background boxes behind labels for small bars (like September) to ensure visibility
 - [x] Make labels crisp (remove glow effect), increase font size, and position above bars to avoid overlap with cumulative line
 - [x] Test label visibility across all bar sizes (positive and negative values)
+
+## Stock Basis & Returns Page (Performance Analytics)
+- [x] Analyze Streamlit stock basis implementation and understand data calculations
+- [x] Create backend tRPC procedures to fetch and calculate stock basis data from Tastytrade API
+- [x] Build Recovery Progress by Position horizontal bar chart showing recovered vs remaining amounts
+- [x] Create position details table with columns: Symbol, Qty, Cost Basis, Current Price, Market Value, Unrealized P&L, Total P&L, Recovery %
+- [x] Build Underwater Position Recovery section with total underwater, net position, position count
+- [x] Add Recovery Timeline Estimates section
+- [x] Add Recovery Strategy Recommendations section
+- [x] Match the dark theme look and feel of the Streamlit version
+- [x] Add Stock Basis navigation to Sidebar
+- [x] Add Stock Basis route to App.tsx
+- [ ] Test all calculations against Streamlit data for accuracy

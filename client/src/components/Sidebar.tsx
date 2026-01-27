@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Home,
   Circle,
+  Package,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -73,6 +74,12 @@ export function Sidebar({ className }: SidebarProps) {
       path: '/performance',
       icon: BarChart3,
       description: 'Analytics & Tracking',
+    },
+    {
+      name: 'Stock Basis',
+      path: '/stock-basis',
+      icon: Package,
+      description: 'Position Recovery',
     },
   ];
 
