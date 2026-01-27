@@ -8,12 +8,249 @@ import { pmccRouter } from "./routers-pmcc";
 import { performanceRouter } from "./routers-performance";
 import { workingOrdersRouter } from "./routers-working-orders";
 
+// Helper function to parse OCC option symbols
+function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
+  try {
+    const cleanSymbol = symbol.replace(/\s/g, '');
+    const match = cleanSymbol.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);
+    if (match) {
+      const underlying = match[1];
+      const dateStr = match[2];
+      const optionType = match[3] === 'P' ? 'PUT' : 'CALL';
+      const strike = parseInt(match[4]) / 1000;
+      const year = 2000 + parseInt(dateStr.substring(0, 2));
+      const month = parseInt(dateStr.substring(2, 4));
+      const day = parseInt(dateStr.substring(4, 6));
+      const expiration = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      return { underlying, expiration, optionType, strike };
+    }
+  } catch (error) {
+    return null;
+  }
+  return null;
+}
+
+const projectionsRouter = router({
+  getLockedInIncome: protectedProcedure.query(async ({ ctx }) => {
+    const { getTastytradeAPI } = await import('./tastytrade');
+    const { getApiCredentials } = await import('./db');
+    
+    const credentials = await getApiCredentials(ctx.user.id);
+    if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
+      throw new Error('Tastytrade credentials not found');
+    }
+    
+    const api = getTastytradeAPI();
+    await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+    const accounts = await api.getAccounts();
+    const accountNumbers = accounts.map((acc: any) => acc['account-number']);
+
+    const now = new Date();
+    const thisWeekEnd = new Date(now);
+    thisWeekEnd.setDate(now.getDate() + (5 - now.getDay())); // Friday
+    const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+
+    const income = {
+      thisWeek: { premium: 0, positions: 0 },
+      thisMonth: { premium: 0, positions: 0 },
+      nextMonth: { premium: 0, positions: 0 },
+      totalOpen: { premium: 0, positions: 0 },
+    };
+
+    for (const accountNumber of accountNumbers) {
+      const positions = await api.getPositions(accountNumber);
+      if (!positions) continue;
+
+      for (const pos of positions) {
+        const instrumentType = pos['instrument-type'];
+        if (instrumentType !== 'Equity Option') continue;
+
+        const quantity = parseInt(String(pos.quantity || '0'));
+        const quantityDirection = pos['quantity-direction'];
+        const isShort = quantityDirection?.toLowerCase() === 'short' || quantity < 0;
+
+        if (!isShort) continue;
+
+        const symbol = pos.symbol || '';
+        const parsed = parseOptionSymbol(symbol);
+        if (!parsed) continue;
+
+        const openPrice = parseFloat(String(pos['average-open-price'] || '0'));
+        const multiplier = parseInt(String(pos.multiplier || '100'));
+        const qty = Math.abs(quantity);
+        const premium = openPrice * qty * multiplier;
+
+        const expDate = new Date(parsed.expiration);
+
+        income.totalOpen.premium += premium;
+        income.totalOpen.positions += 1;
+
+        if (expDate <= thisWeekEnd) {
+          income.thisWeek.premium += premium;
+          income.thisWeek.positions += 1;
+        } else if (expDate <= thisMonthEnd) {
+          income.thisMonth.premium += premium;
+          income.thisMonth.positions += 1;
+        } else if (expDate <= nextMonthEnd) {
+          income.nextMonth.premium += premium;
+          income.nextMonth.positions += 1;
+        }
+      }
+    }
+
+    return income;
+  }),
+
+  getThetaDecay: protectedProcedure.query(async ({ ctx }) => {
+    const { getTastytradeAPI } = await import('./tastytrade');
+    const { getApiCredentials } = await import('./db');
+    
+    const credentials = await getApiCredentials(ctx.user.id);
+    if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
+      throw new Error('Tastytrade credentials not found');
+    }
+    
+    const api = getTastytradeAPI();
+    await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+    const accounts = await api.getAccounts();
+    const accountNumbers = accounts.map((acc: any) => acc['account-number']);
+
+    let totalTheta = 0;
+    let positionCount = 0;
+
+    for (const accountNumber of accountNumbers) {
+      const positions = await api.getPositions(accountNumber);
+      if (!positions) continue;
+
+      for (const pos of positions) {
+        const instrumentType = pos['instrument-type'];
+        if (instrumentType !== 'Equity Option') continue;
+
+        const quantity = parseInt(String(pos.quantity || '0'));
+        const quantityDirection = pos['quantity-direction'];
+        const isShort = quantityDirection?.toLowerCase() === 'short' || quantity < 0;
+
+        if (!isShort) continue;
+
+        const symbol = pos.symbol || '';
+        const parsed = parseOptionSymbol(symbol);
+        if (!parsed) continue;
+
+        const currentPrice = parseFloat(String((pos as any)['close-price'] || '0'));
+        const multiplier = parseInt(String(pos.multiplier || '100'));
+        const qty = Math.abs(quantity);
+        const currentValue = currentPrice * qty * multiplier;
+
+        const expDate = new Date(parsed.expiration);
+        const now = new Date();
+        const dte = Math.max(0, Math.floor((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+
+        if (dte > 0) {
+          let acceleration = 1.0;
+          if (dte <= 7) acceleration = 2.0;
+          else if (dte <= 21) acceleration = 1.5;
+
+          const dailyTheta = (currentValue / dte) * acceleration;
+          totalTheta += dailyTheta;
+          positionCount += 1;
+        }
+      }
+    }
+
+    return {
+      dailyTheta: totalTheta,
+      weeklyTheta: totalTheta * 5,
+      monthlyTheta: totalTheta * 21,
+      positionCount,
+    };
+  }),
+
+  getHistoricalPerformance: protectedProcedure.query(async ({ ctx }) => {
+    const { getTastytradeAPI } = await import('./tastytrade');
+    const { getApiCredentials } = await import('./db');
+    
+    const credentials = await getApiCredentials(ctx.user.id);
+    if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
+      throw new Error('Tastytrade credentials not found');
+    }
+    
+    const api = getTastytradeAPI();
+    await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+    const accounts = await api.getAccounts();
+    const accountNumbers = accounts.map((acc: any) => acc['account-number']);
+
+    const now = new Date();
+    const sixMonthsAgo = new Date(now);
+    sixMonthsAgo.setMonth(now.getMonth() - 6);
+
+    const monthlyPremiums: Record<string, number> = {};
+    let totalCredits = 0;
+    let totalDebits = 0;
+
+    for (const accountNumber of accountNumbers) {
+      const transactions = await api.getTransactionHistory(
+        accountNumber,
+        sixMonthsAgo.toISOString().split('T')[0],
+        now.toISOString().split('T')[0]
+      );
+
+      for (const txn of transactions) {
+        const tType = txn['transaction-type'];
+        const action = txn.action || '';
+        const value = parseFloat(txn.value || '0');
+        const executedAt = txn['executed-at'];
+        const symbol = txn.symbol || '';
+
+        if (!['Trade', 'Receive Deliver'].includes(tType)) continue;
+
+        const parsed = parseOptionSymbol(symbol);
+        if (!parsed) continue;
+
+        if (!executedAt) continue;
+
+        const txnDate = new Date(executedAt);
+        const monthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
+
+        if (action === 'Sell to Open') {
+          totalCredits += Math.abs(value);
+          monthlyPremiums[monthKey] = (monthlyPremiums[monthKey] || 0) + Math.abs(value);
+        } else if (action === 'Buy to Close') {
+          totalDebits += Math.abs(value);
+          monthlyPremiums[monthKey] = (monthlyPremiums[monthKey] || 0) - Math.abs(value);
+        }
+      }
+    }
+
+    const netPremium = totalCredits - totalDebits;
+    const monthsWithData = Object.keys(monthlyPremiums).length;
+    const avgMonthlyPremium = monthsWithData > 0 ? netPremium / monthsWithData : 0;
+
+    const monthlyValues = Object.values(monthlyPremiums);
+    const positiveMonths = monthlyValues.filter(v => v > 0).length;
+    const winRate = monthsWithData > 0 ? (positiveMonths / monthsWithData) * 100 : 0;
+
+    return {
+      totalCredits,
+      totalDebits,
+      netPremium,
+      avgMonthlyPremium,
+      monthsAnalyzed: monthsWithData,
+      winRate,
+      monthlyBreakdown: monthlyPremiums,
+    };
+  }),
+});
+
+export type AppRouter = typeof appRouter;
+
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   pmcc: pmccRouter,
   performance: performanceRouter,
   workingOrders: workingOrdersRouter,
+  projections: projectionsRouter,
   dashboard: router({
     /**
      * Get monthly premium data across ALL accounts (account-independent)
@@ -1072,4 +1309,3 @@ export const appRouter = router({
   }),
 });
 
-export type AppRouter = typeof appRouter;

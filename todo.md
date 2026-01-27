@@ -1262,3 +1262,64 @@
 - [x] Update StockBasisRecoveryChart component to display horizontal stacked bars (green + red)
 - [x] Test calculations against Streamlit data to verify accuracy
 - [x] Ensure chart legend shows "CC Premium Recovered" (green) and "Remaining Underwater" (red)
+
+
+## Projections Tab - Analysis Phase
+- [ ] Analyze Streamlit projections_dashboard.py to understand all calculation logic
+- [ ] Document Locked-In Income calculation (premium from open positions that won't be needed if they expire worthless)
+- [ ] Document Theta Decay Projection calculation (daily, weekly, monthly theta decay estimates)
+- [ ] Document Historical-Based Forecast calculation (projections based on actual trading performance)
+- [ ] Document Scenario Modeling logic (Conservative, Expected, Optimistic projections with different growth rates)
+- [ ] Document Portfolio Value Projection calculation (cumulative income projections over time)
+- [ ] Document Portfolio Growth Visualization (multi-line chart showing different scenarios)
+- [ ] Create comprehensive implementation plan with component breakdown
+- [ ] Present plan to user for approval before starting implementation
+
+
+## Comprehensive Projections Dashboard - Full Implementation
+
+### Backend tRPC Procedures
+- [ ] Create projections.getLockedInIncome procedure (calculate premium by timeframe: this week, this month, next month, total)
+- [ ] Create projections.getThetaDecay procedure (calculate daily/weekly/monthly theta with acceleration factors)
+- [ ] Create projections.getHistoricalPerformance procedure (analyze past 6 months: monthly premiums, win rate, avg monthly return)
+- [ ] Create projections.calculateROIScenarios procedure (interactive projections with user inputs: capital, contribution, target return, time horizon, cost of capital, compounding)
+- [ ] Create projections.getAccountComparison procedure (compare performance across IRA/Cash/HELOC accounts)
+- [ ] Create projections.getStrategyBreakdown procedure (CSP vs CC premium comparison)
+
+### Tab 1: Current Performance & Locked-In Income
+- [ ] Create LockedInIncomeCards component (4 metric cards: This Week, This Month, Next Month, Total Open Premium)
+- [ ] Create ThetaDecayCards component (3 metric cards: Daily Theta, Weekly Projection, Monthly Projection)
+- [ ] Create LivePositionMetrics component (Open Position Count, Capital Deployed summary)
+- [ ] Integrate all Tab 1 components into ProjectionsTab with loading states
+
+### Tab 2: Interactive ROI Projections
+- [ ] Create ROIProjectionControls component with interactive sliders:
+  - Starting Capital (auto-populated from portfolio value)
+  - Monthly Contribution
+  - Target Monthly Return (auto-populated from historical average, range 1%-10%)
+  - Time Horizon (6mo, 12mo, 24mo, 36mo selector)
+  - Cost of Capital (default 7%, toggle to include/exclude)
+  - Compounding toggle (reinvest profits yes/no)
+- [ ] Create ROIFinancialBreakdown component (Gross Premium, Interest Costs, Net Profit, Effective Annual Return, Capital Efficiency)
+- [ ] Create InteractiveGrowthChart component (Recharts line chart with adjustable parameters, milestone markers, shaded interest cost area)
+- [ ] Add real-time calculation updates on slider changes
+- [ ] Integrate all Tab 2 components into ProjectionsTab
+
+### Tab 3: Historical Analysis & Benchmarking
+- [ ] Create MonthlyPremiumBreakdown component (bar chart showing 6-month history with best/worst/average)
+- [ ] Create AccountLevelComparison component (compare IRA vs Cash vs HELOC performance)
+- [ ] Create StrategyBreakdownChart component (CSP premium vs CC premium comparison)
+- [ ] Create BenchmarkingMetrics component (Your Avg Monthly Return vs Target Return with status indicator)
+- [ ] Create PerformanceMetricsCards component (Win Rate, Profit Factor, Best Month, Worst Month)
+- [ ] Integrate all Tab 3 components into ProjectionsTab
+
+### Integration & Testing
+- [ ] Add sub-tabs to ProjectionsTab (Tab 1, Tab 2, Tab 3 navigation)
+- [ ] Test all calculations with real Tastytrade data
+- [ ] Verify locked-in income matches open positions
+- [ ] Verify theta decay calculations with acceleration factors
+- [ ] Verify historical performance matches transaction history
+- [ ] Verify ROI projections calculate correctly with all parameter combinations
+- [ ] Test slider interactions and real-time updates
+- [ ] Verify account-level comparisons aggregate correctly
+- [ ] Save checkpoint with complete Projections dashboard
