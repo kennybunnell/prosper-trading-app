@@ -1241,3 +1241,10 @@
 - [x] Add Stock Basis navigation to Sidebar
 - [x] Add Stock Basis route to App.tsx
 - [ ] Test all calculations against Streamlit data for accuracy
+
+## Stock Basis Tab Integration Fix
+- [x] Read Performance page to understand tab structure
+- [x] Integrate Stock Basis content as a tab within Performance page
+- [x] Remove standalone /stock-basis route from App.tsx
+- [x] Remove Stock Basis sidebar link (keep only in Performance tabs)
+- [x] Test Stock Basis tab functionality within Performance page
