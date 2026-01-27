@@ -9,23 +9,25 @@ import { TrendingUp, DollarSign, Percent, Clock, AlertCircle } from 'lucide-reac
 export function InteractiveROICalculator() {
   const { data: historicalData } = trpc.projections.getHistoricalPerformance.useQuery();
 
-  // Default to historical average or 2% monthly if no data
+  // Default to historical average or 0.5% weekly if no data
   // Note: avgMonthlyPremium is absolute dollars, not a percentage
-  // We'll use 2% monthly as default and show historical premium for reference
-  const defaultMonthlyReturn = 2;
+  // We'll use 0.5% weekly as default and show historical premium for reference
+  const defaultWeeklyReturn = 0.5;
 
   const [investmentAmount, setInvestmentAmount] = useState(100000);
   const [annualDeposit, setAnnualDeposit] = useState(12000);
-  const [monthlyReturn, setMonthlyReturn] = useState(defaultMonthlyReturn);
+  const [weeklyReturn, setWeeklyReturn] = useState(defaultWeeklyReturn);
   const [timeHorizon, setTimeHorizon] = useState(24); // months
   const [compoundEnabled, setCompoundEnabled] = useState(true);
   const [interestRate, setInterestRate] = useState(7); // cost of capital (HELOC/margin)
 
-  // Calculate annualized return from monthly return
-  const annualizedReturn = ((1 + monthlyReturn / 100) ** 12 - 1) * 100;
+  // Calculate annualized return from weekly return (52 weeks per year)
+  const annualizedReturn = ((1 + weeklyReturn / 100) ** 52 - 1) * 100;
 
   const calculations = useMemo(() => {
-    const monthlyReturnDecimal = monthlyReturn / 100;
+    // Convert weekly return to monthly (approximately 4.33 weeks per month)
+    const weeksPerMonth = 52 / 12;
+    const monthlyReturnDecimal = ((1 + weeklyReturn / 100) ** weeksPerMonth - 1);
     const monthlyDeposit = annualDeposit / 12;
     const monthlyInterestRate = interestRate / 100 / 12;
 
@@ -64,7 +66,7 @@ export function InteractiveROICalculator() {
       netReturn,
       totalDeposits,
     };
-  }, [investmentAmount, annualDeposit, monthlyReturn, timeHorizon, compoundEnabled, interestRate]);
+  }, [investmentAmount, annualDeposit, weeklyReturn, timeHorizon, compoundEnabled, interestRate]);
 
   return (
     <div className="space-y-6">
@@ -112,13 +114,13 @@ export function InteractiveROICalculator() {
             />
           </div>
 
-          {/* Target Monthly Return */}
+          {/* Target Weekly Return */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <Label>Target Monthly Return</Label>
+              <Label>Target Weekly Return</Label>
               <div className="flex items-center gap-3">
                 <span className="text-sm font-medium">
-                  {monthlyReturn.toFixed(1)}%/month
+                  {weeklyReturn.toFixed(2)}%/week
                 </span>
                 <div className="px-3 py-1 rounded-md bg-primary/10 border border-primary/20">
                   <span className="text-xs text-muted-foreground">Annual: </span>
@@ -129,11 +131,11 @@ export function InteractiveROICalculator() {
               </div>
             </div>
             <Slider
-              value={[monthlyReturn]}
-              onValueChange={([value]) => setMonthlyReturn(value)}
-              min={0.5}
-              max={15}
-              step={0.5}
+              value={[weeklyReturn]}
+              onValueChange={([value]) => setWeeklyReturn(value)}
+              min={0.1}
+              max={5}
+              step={0.1}
               className="w-full"
             />
             {historicalData && (
