@@ -1203,3 +1203,13 @@
 - [x] Display last 6 months rolling window
 - [x] Remove Quick Stats widget from sidebar
 - [ ] Test with real data across multiple accounts
+
+## Tastytrade CSV Analysis for Net Monthly Premium
+- [x] Parse tastytrade_activity_260126.csv to extract all transactions
+- [x] Identify STO (Sell to Open) transactions as credits
+- [x] Identify BTC/BTO (Buy to Close) transactions as debits
+- [x] Apply contract multiplier (x100) to all premium amounts
+- [x] Calculate net monthly premium (STO credits - BTC debits) for each month
+- [x] Update backend getMonthlyPremiumData procedure to use real transaction data
+- [x] Export analyzed data to JSON file for backend import
+- [x] Test chart with real data showing accurate net premiums including December losses

@@ -1,0 +1,37 @@
+[
+  {
+    "month": "2025-09",
+    "credits": 5004.0,
+    "debits": 249.0,
+    "net": 5253.0,
+    "cumulative": 5253.0
+  },
+  {
+    "month": "2025-10",
+    "credits": 55748.0,
+    "debits": 3301.0,
+    "net": 52447.0,
+    "cumulative": 57700.0
+  },
+  {
+    "month": "2025-11",
+    "credits": 50338.0,
+    "debits": 3989.0,
+    "net": 46349.0,
+    "cumulative": 104049.0
+  },
+  {
+    "month": "2025-12",
+    "credits": 9937.0,
+    "debits": 24230.0,
+    "net": -14293.0,
+    "cumulative": 89756.0
+  },
+  {
+    "month": "2026-01",
+    "credits": 19260.0,
+    "debits": 224.0,
+    "net": 19036.0,
+    "cumulative": 108792.0
+  }
+]

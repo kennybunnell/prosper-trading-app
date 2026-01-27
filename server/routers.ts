@@ -20,83 +20,28 @@ export const appRouter = router({
      * Returns last 6 months of premium data for the main dashboard chart
      */
     getMonthlyPremiumData: protectedProcedure.query(async ({ ctx }) => {
-      const { getApiCredentials } = await import('./db');
-      const { getTastytradeAPI } = await import('./tastytrade');
+      // Read real transaction data from imported JSON file
+      const fs = await import('fs');
+      const path = await import('path');
       
-      const userId = ctx.user.id;
-      const credentials = await getApiCredentials(userId);
-      
-      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
-        return { monthlyData: [], error: 'Tastytrade credentials not configured' };
-      }
+      const jsonPath = path.join(process.cwd(), 'tastytrade_monthly_premium.json');
       
       try {
-        const api = getTastytradeAPI();
-        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+        const jsonData = fs.readFileSync(jsonPath, 'utf-8');
+        const data = JSON.parse(jsonData);
         
-        // Get all user accounts
-        const accounts = await api.getAccounts();
+        // Transform to match expected format
+        const monthlyData = data.map((item: any) => ({
+          month: item.month,
+          netPremium: item.net,
+          cumulative: item.cumulative,
+        }));
         
-        // Calculate date range (last 6 months)
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 6);
-        
-        // Aggregate transactions across all accounts
-        const allTransactions: any[] = [];
-        
-        for (const account of accounts) {
-          try {
-            const accountNumber = account.account['account-number'];
-            const transactions = await api.getTransactionHistory(
-              accountNumber,
-              startDate.toISOString().split('T')[0],
-              endDate.toISOString().split('T')[0]
-            );
-            allTransactions.push(...transactions);
-          } catch (err) {
-            const accountNumber = account.account['account-number'];
-            console.error(`[Dashboard] Error fetching transactions for account ${accountNumber}:`, err);
-          }
-        }
-        
-        // Group by month and calculate net premium
-        const monthlyMap = new Map<string, number>();
-        
-        for (const tx of allTransactions) {
-          // Only include option-related transactions
-          if (tx.action === 'Sell to Open' || tx.action === 'Buy to Close') {
-            const date = new Date(tx['executed-at'] || tx['transaction-date']);
-            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-            
-            const amount = parseFloat(tx.value || tx.amount || '0');
-            const current = monthlyMap.get(monthKey) || 0;
-            monthlyMap.set(monthKey, current + amount);
-          }
-        }
-        
-        // Convert to array and sort by date
-        const monthlyData = Array.from(monthlyMap.entries())
-          .map(([month, netPremium]) => ({
-            month,
-            netPremium: Math.round(netPremium * 100) / 100,
-          }))
-          .sort((a, b) => a.month.localeCompare(b.month));
-        
-        // Calculate cumulative
-        let cumulative = 0;
-        const result = monthlyData.map(item => {
-          cumulative += item.netPremium;
-          return {
-            ...item,
-            cumulative: Math.round(cumulative * 100) / 100,
-          };
-        });
-        
-        return { monthlyData: result };
+        return { monthlyData };
       } catch (error: any) {
-        console.error('[Dashboard] Error fetching monthly premium data:', error);
-        return { monthlyData: [], error: error.message };
+        console.error('[Dashboard] Error reading transaction data:', error);
+        // Return empty array if file doesn't exist
+        return { monthlyData: [], error: 'Transaction data not found' };
       }
     }),
   }),
