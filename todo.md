@@ -1336,3 +1336,20 @@
 - [ ] Test Tab 1 with live data from projections.getLockedInIncome and projections.getThetaDecay
 - [ ] Test Tab 2 with interactive sliders and real-time chart updates
 - [ ] Save checkpoint with working Projections tabs
+
+## ROI Calculator Updates
+- [ ] Update Starting Capital slider max from $500K to $5M
+- [ ] Update Annual Contribution slider max from $100K to $500K
+- [ ] Update Target Annual Return slider max from 50% to 100%
+- [ ] Update Time Horizon slider max from 36 months to 60 months (5 years)
+- [ ] Add new Loan Interest Rate slider (0% to 20%, default 7%)
+- [ ] Remove hardcoded 7% interest rate and use slider value
+- [ ] Test all calculations with new ranges
+
+## ROI Calculator Updates - COMPLETED
+- [x] Update Starting Capital slider max from $500K to $5M
+- [x] Update Annual Contribution slider max from $100K to $500K
+- [x] Update Target Annual Return slider max from 50% to 100%
+- [x] Update Time Horizon slider max from 36 months to 60 months (5 years)
+- [x] Add new Loan Interest Rate slider (0% to 20%, default 7%)
+- [x] Remove hardcoded 7% interest rate and use slider value

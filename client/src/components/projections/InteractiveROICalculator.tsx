@@ -19,7 +19,7 @@ export function InteractiveROICalculator() {
   const [targetReturn, setTargetReturn] = useState(defaultReturn);
   const [timeHorizon, setTimeHorizon] = useState(24); // months
   const [compoundEnabled, setCompoundEnabled] = useState(true);
-  const [interestRate] = useState(7); // 7% cost of capital (HELOC/margin)
+  const [interestRate, setInterestRate] = useState(7); // cost of capital (HELOC/margin)
 
   const calculations = useMemo(() => {
     const monthlyReturn = targetReturn / 100 / 12;
@@ -84,9 +84,9 @@ export function InteractiveROICalculator() {
             <Slider
               value={[investmentAmount]}
               onValueChange={([value]) => setInvestmentAmount(value)}
-              min={10000}
-              max={500000}
-              step={5000}
+              min={0}
+              max={5000000}
+              step={10000}
               className="w-full"
             />
           </div>
@@ -103,8 +103,8 @@ export function InteractiveROICalculator() {
               value={[annualDeposit]}
               onValueChange={([value]) => setAnnualDeposit(value)}
               min={0}
-              max={50000}
-              step={1000}
+              max={500000}
+              step={5000}
               className="w-full"
             />
           </div>
@@ -120,9 +120,9 @@ export function InteractiveROICalculator() {
             <Slider
               value={[targetReturn]}
               onValueChange={([value]) => setTargetReturn(value)}
-              min={5}
-              max={50}
-              step={0.5}
+              min={1}
+              max={100}
+              step={1}
               className="w-full"
             />
             {historicalData && (
@@ -148,6 +148,27 @@ export function InteractiveROICalculator() {
               step={6}
               className="w-full"
             />
+          </div>
+
+          {/* Loan Interest Rate */}
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <Label>Loan Interest Rate</Label>
+              <span className="text-sm font-medium">
+                {interestRate.toFixed(1)}%
+              </span>
+            </div>
+            <Slider
+              value={[interestRate]}
+              onValueChange={([value]) => setInterestRate(value)}
+              min={0}
+              max={20}
+              step={0.5}
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              Cost of capital (HELOC/margin interest)
+            </p>
           </div>
 
           {/* Compound Toggle */}
