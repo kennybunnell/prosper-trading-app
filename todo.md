@@ -1254,3 +1254,11 @@
 - [x] Verify stockBasis router is registered in the main appRouter
 - [x] Test Stock Basis API endpoints return JSON instead of HTML
 - [x] Restart dev server to clear cache and force fresh build
+
+## Fix Stock Basis Recovery Chart to Match Streamlit
+- [x] Analyze Streamlit recovery_tracker.py to understand CC premium calculation per stock
+- [x] Update backend getCCPremiums procedure to aggregate CC premiums by stock symbol (only STO, no BTC subtraction)
+- [x] Update backend getRecoveryMetrics to calculate green (recovered) vs red (remaining) amounts
+- [x] Update StockBasisRecoveryChart component to display horizontal stacked bars (green + red)
+- [x] Test calculations against Streamlit data to verify accuracy
+- [x] Ensure chart legend shows "CC Premium Recovered" (green) and "Remaining Underwater" (red)

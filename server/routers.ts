@@ -897,28 +897,32 @@ export const appRouter = router({
 
           for (const txn of transactions) {
             const txnType = txn['transaction-type'];
-            const action = txn.action;
+            const txnSubType = txn['transaction-sub-type'];
             const symbol = txn.symbol || '';
+            const instrumentType = txn['instrument-type'];
             const value = parseFloat(txn.value || '0');
 
-            // Only process Trade and Receive Deliver transactions
-            if (!['Trade', 'Receive Deliver'].includes(txnType)) continue;
+            // Only process Trade transactions with Sell to Open sub-type
+            if (txnType !== 'Trade' || txnSubType !== 'Sell to Open') continue;
 
-            // Parse option symbol to get underlying
-            const match = symbol.match(/^([A-Z]+)\d{6}[CP]\d+$/);
+            // Only process Equity Options
+            if (instrumentType !== 'Equity Option') continue;
+
+            // Parse option symbol to get underlying and option type
+            // Format: SYMBOL YYMMDD C/P STRIKE (e.g., AAPL 260117C00150000)
+            const cleanSymbol = symbol.replace(/\s+/g, '');
+            const match = cleanSymbol.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);
             if (!match) continue;
 
             const underlying = match[1];
-            const instrumentType = txn['instrument-type'];
+            const optionType = match[3]; // 'C' for CALL, 'P' for PUT
 
             // Only track CALL options (covered calls)
-            if (instrumentType === 'Equity Option' && symbol.includes('C')) {
-              if (action === 'Sell to Open') {
-                // Credit from selling CC
-                ccPremiums[underlying] = (ccPremiums[underlying] || 0) + Math.abs(value);
-              } else if (action === 'Buy to Close') {
-                // Debit from closing CC
-                ccPremiums[underlying] = (ccPremiums[underlying] || 0) - Math.abs(value);
+            if (optionType === 'C') {
+              // Premium is the credit received (positive value)
+              const premium = Math.abs(value);
+              if (premium > 0) {
+                ccPremiums[underlying] = (ccPremiums[underlying] || 0) + premium;
               }
             }
           }
@@ -979,7 +983,7 @@ export const appRouter = router({
           }
         }
 
-        // Get CC premiums
+        // Get CC premiums using the same logic as getCCPremiums
         const ccPremiums: Record<string, number> = {};
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 365);
@@ -993,23 +997,30 @@ export const appRouter = router({
 
           for (const txn of transactions) {
             const txnType = txn['transaction-type'];
-            const action = txn.action;
+            const txnSubType = txn['transaction-sub-type'];
             const symbol = txn.symbol || '';
+            const instrumentType = txn['instrument-type'];
             const value = parseFloat(txn.value || '0');
 
-            if (!['Trade', 'Receive Deliver'].includes(txnType)) continue;
+            // Only process Trade transactions with Sell to Open sub-type
+            if (txnType !== 'Trade' || txnSubType !== 'Sell to Open') continue;
 
-            const match = symbol.match(/^([A-Z]+)\d{6}[CP]\d+$/);
+            // Only process Equity Options
+            if (instrumentType !== 'Equity Option') continue;
+
+            // Parse option symbol to get underlying and option type
+            const cleanSymbol = symbol.replace(/\s+/g, '');
+            const match = cleanSymbol.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);
             if (!match) continue;
 
             const underlying = match[1];
-            const instrumentType = txn['instrument-type'];
+            const optionType = match[3]; // 'C' for CALL, 'P' for PUT
 
-            if (instrumentType === 'Equity Option' && symbol.includes('C')) {
-              if (action === 'Sell to Open') {
-                ccPremiums[underlying] = (ccPremiums[underlying] || 0) + Math.abs(value);
-              } else if (action === 'Buy to Close') {
-                ccPremiums[underlying] = (ccPremiums[underlying] || 0) - Math.abs(value);
+            // Only track CALL options (covered calls)
+            if (optionType === 'C') {
+              const premium = Math.abs(value);
+              if (premium > 0) {
+                ccPremiums[underlying] = (ccPremiums[underlying] || 0) + premium;
               }
             }
           }
