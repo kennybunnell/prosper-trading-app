@@ -1213,3 +1213,12 @@
 - [x] Update backend getMonthlyPremiumData procedure to use real transaction data
 - [x] Export analyzed data to JSON file for backend import
 - [x] Test chart with real data showing accurate net premiums including December losses
+
+## Fix Monthly Premium Calculation (Critical)
+- [ ] Clone and analyze Streamlit repo (https://github.com/kennybunnell/options-trading.git)
+- [ ] Examine premium_earnings_over_time calculation logic in Streamlit
+- [ ] Identify why my calculation is significantly lower than correct values
+- [ ] Understand correct Tastytrade API transaction processing
+- [ ] Update backend to match Streamlit's correct calculation logic
+- [ ] Test with real data to match screenshot values (Sep: $8,837, Oct: $59,864, Nov: $150,184, Dec: -$68,026, Jan: $57,575)
+- [ ] Remove CSV file dependency and use Tastytrade API directly

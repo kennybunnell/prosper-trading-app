@@ -18,30 +18,108 @@ export const appRouter = router({
     /**
      * Get monthly premium data across ALL accounts (account-independent)
      * Returns last 6 months of premium data for the main dashboard chart
+     * Uses Tastytrade API to fetch real transaction data
      */
     getMonthlyPremiumData: protectedProcedure.query(async ({ ctx }) => {
-      // Read real transaction data from imported JSON file
-      const fs = await import('fs');
-      const path = await import('path');
-      
-      const jsonPath = path.join(process.cwd(), 'tastytrade_monthly_premium.json');
+      const { getTastytradeAPI } = await import('./tastytrade');
+      const { getApiCredentials } = await import('./db');
       
       try {
-        const jsonData = fs.readFileSync(jsonPath, 'utf-8');
-        const data = JSON.parse(jsonData);
+        // Get Tastytrade credentials
+        const credentials = await getApiCredentials(ctx.user.id);
+        if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
+          return { monthlyData: [], error: 'Tastytrade credentials not configured' };
+        }
         
-        // Transform to match expected format
-        const monthlyData = data.map((item: any) => ({
-          month: item.month,
-          netPremium: item.net,
-          cumulative: item.cumulative,
-        }));
+        // Initialize API and login
+        const api = getTastytradeAPI();
+        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
         
-        return { monthlyData };
+        // Get all accounts
+        const accounts = await api.getAccounts();
+        if (!accounts || accounts.length === 0) {
+          return { monthlyData: [], error: 'No accounts found' };
+        }
+        
+        // Calculate date range (last 6 months)
+        const now = new Date();
+        const startMonth = now.getMonth() - 5; // 6 months including current
+        const startYear = now.getFullYear() + Math.floor(startMonth / 12);
+        const adjustedStartMonth = ((startMonth % 12) + 12) % 12;
+        const startDate = new Date(startYear, adjustedStartMonth, 1);
+        
+        const startDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = now.toISOString().split('T')[0];
+        
+        // Aggregate transactions from all accounts
+        const monthlyData: Record<string, { credits: number; debits: number }> = {};
+        
+        for (const account of accounts) {
+          const accountNumber = account.account['account-number'];
+          const transactions = await api.getTransactionHistory(
+            accountNumber,
+            startDateStr,
+            endDateStr
+          );
+          
+          // Process each transaction
+          for (const txn of transactions) {
+            const txnType = txn['transaction-type'];
+            if (!['Trade', 'Receive Deliver'].includes(txnType)) continue;
+            
+            const action = txn.action;
+            const value = Math.abs(parseFloat(txn.value || '0'));
+            const executedAt = txn['executed-at'];
+            
+            if (!executedAt || value === 0) continue;
+            
+            // Parse date and create month key
+            const txnDate = new Date(executedAt);
+            const monthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
+            
+            if (!monthlyData[monthKey]) {
+              monthlyData[monthKey] = { credits: 0, debits: 0 };
+            }
+            
+            // Categorize by action (value is already in dollars, no need to multiply)
+            // STO = credit received, BTC = debit paid to close
+            if (action === 'Sell to Open') {
+              monthlyData[monthKey].credits += value;
+            } else if (action === 'Buy to Close') {
+              monthlyData[monthKey].debits += value;
+            }
+          }
+        }
+        
+        // Generate last 6 months list
+        const months: string[] = [];
+        for (let i = 5; i >= 0; i--) {
+          const m = now.getMonth() - i;
+          const y = now.getFullYear() + Math.floor(m / 12);
+          const adjustedM = ((m % 12) + 12) % 12;
+          const monthKey = `${y}-${String(adjustedM + 1).padStart(2, '0')}`;
+          months.push(monthKey);
+        }
+        
+        // Build result with cumulative calculation
+        let cumulative = 0;
+        const result = months.map(month => {
+          const data = monthlyData[month] || { credits: 0, debits: 0 };
+          const netPremium = data.credits - data.debits;
+          cumulative += netPremium;
+          
+          return {
+            month,
+            netPremium: Math.round(netPremium * 100) / 100,
+            cumulative: Math.round(cumulative * 100) / 100,
+          };
+        });
+        
+        console.log('[Dashboard] Monthly premium data:', result);
+        return { monthlyData: result };
       } catch (error: any) {
-        console.error('[Dashboard] Error reading transaction data:', error);
-        // Return empty array if file doesn't exist
-        return { monthlyData: [], error: 'Transaction data not found' };
+        console.error('[Dashboard] Error fetching monthly premium data:', error);
+        return { monthlyData: [], error: error.message };
       }
     }),
   }),
