@@ -1248,3 +1248,9 @@
 - [x] Remove standalone /stock-basis route from App.tsx
 - [x] Remove Stock Basis sidebar link (keep only in Performance tabs)
 - [x] Test Stock Basis tab functionality within Performance page
+
+## Fix Stock Basis tRPC Router Error
+- [x] Check if stockBasis router is properly exported in routers.ts
+- [x] Verify stockBasis router is registered in the main appRouter
+- [x] Test Stock Basis API endpoints return JSON instead of HTML
+- [x] Restart dev server to clear cache and force fresh build
