@@ -1353,3 +1353,15 @@
 - [x] Update Time Horizon slider max from 36 months to 60 months (5 years)
 - [x] Add new Loan Interest Rate slider (0% to 20%, default 7%)
 - [x] Remove hardcoded 7% interest rate and use slider value
+
+## ROI Calculator Monthly Percentage Update
+- [ ] Change Target Return slider from annual percentage to monthly percentage (0% to 15%)
+- [ ] Add calculated annual percentage display box next to monthly slider
+- [ ] Update calculation logic to use monthly percentage directly
+- [ ] Test calculations with new monthly percentage input
+
+## ROI Calculator Monthly Percentage Update - COMPLETED
+- [x] Change Target Return slider from annual percentage to monthly percentage (0.5% to 15%)
+- [x] Add calculated annual percentage display box next to monthly slider
+- [x] Update calculation logic to use monthly percentage directly
+- [x] Use compound interest formula for annualized return calculation

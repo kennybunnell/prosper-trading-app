@@ -9,20 +9,23 @@ import { TrendingUp, DollarSign, Percent, Clock, AlertCircle } from 'lucide-reac
 export function InteractiveROICalculator() {
   const { data: historicalData } = trpc.projections.getHistoricalPerformance.useQuery();
 
-  // Default to historical average or 20% if no data
+  // Default to historical average or 2% monthly if no data
   // Note: avgMonthlyPremium is absolute dollars, not a percentage
-  // We'll use 20% as default and show historical premium for reference
-  const defaultReturn = 20;
+  // We'll use 2% monthly as default and show historical premium for reference
+  const defaultMonthlyReturn = 2;
 
   const [investmentAmount, setInvestmentAmount] = useState(100000);
   const [annualDeposit, setAnnualDeposit] = useState(12000);
-  const [targetReturn, setTargetReturn] = useState(defaultReturn);
+  const [monthlyReturn, setMonthlyReturn] = useState(defaultMonthlyReturn);
   const [timeHorizon, setTimeHorizon] = useState(24); // months
   const [compoundEnabled, setCompoundEnabled] = useState(true);
   const [interestRate, setInterestRate] = useState(7); // cost of capital (HELOC/margin)
 
+  // Calculate annualized return from monthly return
+  const annualizedReturn = ((1 + monthlyReturn / 100) ** 12 - 1) * 100;
+
   const calculations = useMemo(() => {
-    const monthlyReturn = targetReturn / 100 / 12;
+    const monthlyReturnDecimal = monthlyReturn / 100;
     const monthlyDeposit = annualDeposit / 12;
     const monthlyInterestRate = interestRate / 100 / 12;
 
@@ -37,8 +40,8 @@ export function InteractiveROICalculator() {
       totalDeposits += monthlyDeposit;
 
       // Calculate premium earned this month
-      const monthlyPremium = balance * monthlyReturn;
-      totalPremium += monthlyPremium;
+      const monthlyPremiumEarned = balance * monthlyReturnDecimal;
+      totalPremium += monthlyPremiumEarned;
 
       // Calculate interest cost on deployed capital
       const monthlyInterest = balance * monthlyInterestRate;
@@ -46,7 +49,7 @@ export function InteractiveROICalculator() {
 
       // Update balance
       if (compoundEnabled) {
-        balance += monthlyPremium - monthlyInterest;
+        balance += monthlyPremiumEarned - monthlyInterest;
       }
     }
 
@@ -61,7 +64,7 @@ export function InteractiveROICalculator() {
       netReturn,
       totalDeposits,
     };
-  }, [investmentAmount, annualDeposit, targetReturn, timeHorizon, compoundEnabled, interestRate]);
+  }, [investmentAmount, annualDeposit, monthlyReturn, timeHorizon, compoundEnabled, interestRate]);
 
   return (
     <div className="space-y-6">
@@ -109,20 +112,28 @@ export function InteractiveROICalculator() {
             />
           </div>
 
-          {/* Target Return */}
+          {/* Target Monthly Return */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <Label>Target Annual Return</Label>
-              <span className="text-sm font-medium">
-                {targetReturn.toFixed(1)}%
-              </span>
+              <Label>Target Monthly Return</Label>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium">
+                  {monthlyReturn.toFixed(1)}%/month
+                </span>
+                <div className="px-3 py-1 rounded-md bg-primary/10 border border-primary/20">
+                  <span className="text-xs text-muted-foreground">Annual: </span>
+                  <span className="text-sm font-semibold text-primary">
+                    {annualizedReturn.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
             </div>
             <Slider
-              value={[targetReturn]}
-              onValueChange={([value]) => setTargetReturn(value)}
-              min={1}
-              max={100}
-              step={1}
+              value={[monthlyReturn]}
+              onValueChange={([value]) => setMonthlyReturn(value)}
+              min={0.5}
+              max={15}
+              step={0.5}
               className="w-full"
             />
             {historicalData && (
