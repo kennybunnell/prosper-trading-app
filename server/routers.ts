@@ -33,7 +33,7 @@ function parseOptionSymbol(symbol: string): { underlying: string; expiration: st
 const projectionsRouter = router({
   getLockedInIncome: protectedProcedure.query(async ({ ctx }) => {
     const { getTastytradeAPI } = await import('./tastytrade');
-    const { getApiCredentials } = await import('./db');
+    const { getApiCredentials, getTastytradeAccounts } = await import('./db');
     
     const credentials = await getApiCredentials(ctx.user.id);
     if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
@@ -42,8 +42,18 @@ const projectionsRouter = router({
     
     const api = getTastytradeAPI();
     await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
-    const accounts = await api.getAccounts();
-    const accountNumbers = accounts.map((acc: any) => acc['account-number']);
+    
+    const accounts = await getTastytradeAccounts(ctx.user.id);
+    if (!accounts || accounts.length === 0) {
+      return {
+        thisWeek: { premium: 0, positions: 0 },
+        thisMonth: { premium: 0, positions: 0 },
+        nextMonth: { premium: 0, positions: 0 },
+        totalOpen: { premium: 0, positions: 0 },
+      };
+    }
+    
+    const accountNumbers = accounts.map((acc) => acc.accountNumber);
 
     const now = new Date();
     const thisWeekEnd = new Date(now);
@@ -104,7 +114,7 @@ const projectionsRouter = router({
 
   getThetaDecay: protectedProcedure.query(async ({ ctx }) => {
     const { getTastytradeAPI } = await import('./tastytrade');
-    const { getApiCredentials } = await import('./db');
+    const { getApiCredentials, getTastytradeAccounts } = await import('./db');
     
     const credentials = await getApiCredentials(ctx.user.id);
     if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
@@ -113,8 +123,18 @@ const projectionsRouter = router({
     
     const api = getTastytradeAPI();
     await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
-    const accounts = await api.getAccounts();
-    const accountNumbers = accounts.map((acc: any) => acc['account-number']);
+    
+    const accounts = await getTastytradeAccounts(ctx.user.id);
+    if (!accounts || accounts.length === 0) {
+      return {
+        daily: 0,
+        weekly: 0,
+        monthly: 0,
+        positionCount: 0,
+      };
+    }
+    
+    const accountNumbers = accounts.map((acc) => acc.accountNumber);
 
     let totalTheta = 0;
     let positionCount = 0;
@@ -168,7 +188,7 @@ const projectionsRouter = router({
 
   getHistoricalPerformance: protectedProcedure.query(async ({ ctx }) => {
     const { getTastytradeAPI } = await import('./tastytrade');
-    const { getApiCredentials } = await import('./db');
+    const { getApiCredentials, getTastytradeAccounts } = await import('./db');
     
     const credentials = await getApiCredentials(ctx.user.id);
     if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
@@ -177,8 +197,21 @@ const projectionsRouter = router({
     
     const api = getTastytradeAPI();
     await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
-    const accounts = await api.getAccounts();
-    const accountNumbers = accounts.map((acc: any) => acc['account-number']);
+    
+    const accounts = await getTastytradeAccounts(ctx.user.id);
+    if (!accounts || accounts.length === 0) {
+      return {
+        totalCredits: 0,
+        totalDebits: 0,
+        netPremium: 0,
+        avgMonthlyPremium: 0,
+        monthsAnalyzed: 0,
+        winRate: 0,
+        monthlyBreakdown: [],
+      };
+    }
+    
+    const accountNumbers = accounts.map((acc) => acc.accountNumber);
 
     const now = new Date();
     const sixMonthsAgo = new Date(now);
