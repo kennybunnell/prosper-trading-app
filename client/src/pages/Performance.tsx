@@ -8,6 +8,7 @@ import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Load
 import { trpc } from '@/lib/trpc';
 import { useAccount } from '@/contexts/AccountContext';
 import { toast } from 'sonner';
+import confetti from 'canvas-confetti';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Cell, LabelList } from 'recharts';
 import { RecoveryProgressChart } from '@/components/StockBasisRecoveryChart';
 import { StockPositionsTable } from '@/components/StockPositionsTable';
@@ -78,6 +79,12 @@ function ActivePositionsTab() {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
+  // Play success sound
+  const playSuccessSound = () => {
+    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZSA0PVqzn77BdGAg+ltryxnMpBSuBzvLZiTYIGWi77eefTRAMUKfj8LZjHAY4ktfyzHksBSR3x/DdkEAKFF606+uoVRQKRp/g8r5sIQUxh9Hz04IzBh5uwO/jmUgND1as5++wXRgIPpba8sZzKQUrgc7y2Yk2CBlou+3nn00QDFCn4/C2YxwGOJLX8sx5LAUkd8fw3ZBAC');
+    audio.play().catch(() => {});
+  };
+
   // Fetch active positions
   const { data, isLoading, refetch, error } = trpc.performance.getActivePositions.useQuery(
     {
@@ -98,7 +105,34 @@ function ActivePositionsTab() {
       setCloseResults(result);
       setSelectedPositions(new Set());
       refetch();
-      toast.success(`${result.summary.success} order(s) ${dryRun ? 'validated' : 'submitted'} successfully`);
+      
+      if (dryRun) {
+        toast.success(`✓ ${result.summary.success} order(s) validated successfully (Dry Run)`);
+      } else {
+        // Live order submission success - celebrate!
+        toast.success(`Successfully submitted ${result.summary.success} orders!`);
+        playSuccessSound();
+        confetti({
+          particleCount: 200,
+          spread: 100,
+          origin: { y: 0.6 },
+          colors: ['#10b981', '#3b82f6', '#8b5cf6'],
+        });
+        setTimeout(() => {
+          confetti({
+            particleCount: 100,
+            angle: 60,
+            spread: 55,
+            origin: { x: 0 },
+          });
+          confetti({
+            particleCount: 100,
+            angle: 120,
+            spread: 55,
+            origin: { x: 1 },
+          });
+        }, 250);
+      }
     },
     onError: (error) => {
       toast.error(`Failed to ${dryRun ? 'validate' : 'submit'} orders: ${error.message}`);
