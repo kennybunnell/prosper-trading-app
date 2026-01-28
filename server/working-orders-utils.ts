@@ -56,39 +56,38 @@ export function calculateSmartFillPrice(
   let strategy = '';
 
   // BUY-SIDE PRICING (Buy to Close, Buy to Open)
-  // Goal: Pay closer to ask to ensure fills
+  // Goal: Use ask price for guaranteed fills
   if (isBuySide) {
-    // For buy orders, add premium above mid to get fills
-    const premium = Math.max(mid * 0.10, 0.05); // 10% or $0.05, whichever is greater
-    suggestedPrice = mid + premium;
-    strategy = `Buy-side: Mid + ${(premium * 100 / mid).toFixed(0)}% (min $0.05)`;
+    // For buy orders, use ask price directly for immediate fills
+    suggestedPrice = ask;
+    strategy = `Buy-side: Using ask price`;
 
-    // Time-based adjustments - increase price for faster fills
+    // Time-based adjustments - add premium above ask for stuck orders
     if (minutesWorking >= 60) {
-      suggestedPrice += 0.02;
-      strategy += ' | Working >1hr: +$0.02';
+      suggestedPrice = ask + 0.02;
+      strategy = `Buy-side: Ask + $0.02 (working >1hr)`;
     } else if (minutesWorking >= 30) {
-      suggestedPrice += 0.01;
-      strategy += ' | Working >30min: +$0.01';
+      suggestedPrice = ask + 0.01;
+      strategy = `Buy-side: Ask + $0.01 (working >30min)`;
     }
 
-    // Aggressive mode: go closer to ask or above
+    // Aggressive mode: go above ask for faster fills
     if (aggressiveFillMode) {
       if (minutesWorking >= 120) {
-        // Orders working >2 hours: go above ask
-        suggestedPrice = ask + 0.05;
-        strategy += ' | 🚀 Aggressive: Ask + $0.05 (>2hrs)';
+        // Orders working >2 hours: go well above ask
+        suggestedPrice = ask + 0.10;
+        strategy = `Buy-side: Ask + $0.10 🚀 (>2hrs, aggressive)`;
       } else if (minutesWorking >= 60) {
-        suggestedPrice = ask;
-        strategy += ' | 🚀 Aggressive: Using ask price';
+        suggestedPrice = ask + 0.05;
+        strategy = `Buy-side: Ask + $0.05 🚀 (>1hr, aggressive)`;
       } else {
-        suggestedPrice += 0.02;
-        strategy += ' | 🚀 Aggressive: +$0.02';
+        suggestedPrice = ask + 0.02;
+        strategy = `Buy-side: Ask + $0.02 🚀 (aggressive)`;
       }
     }
 
-    // Ensure we don't go below mid or above ask + $0.10
-    suggestedPrice = Math.max(mid, Math.min(ask + 0.10, suggestedPrice));
+    // Ensure we don't go below ask (we're buying, need to pay ask or more)
+    suggestedPrice = Math.max(ask, suggestedPrice);
   }
   // SELL-SIDE PRICING (Sell to Open, Sell to Close)
   // Goal: Receive closer to bid while still getting fills

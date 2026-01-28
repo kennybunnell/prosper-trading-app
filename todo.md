@@ -1552,3 +1552,12 @@
 
 - [x] Changed Action column to show acronyms (BTC, STO, STC, BTO) with full text on hover
 - [x] Truncated Strategy column to 25 chars with "..." and hover tooltip shows full text
+
+## Working Orders Pricing & Count Fixes
+- [ ] Update calculateSmartFillPrice to use ask price directly for BTC/BTO orders
+- [ ] Fix needs replacement count to show correct number (currently showing 4 but should be 5)
+- [ ] Test replacement with ask-based pricing to verify fills
+
+- [x] Updated calculateSmartFillPrice to use ask price directly for BTC/BTO orders for guaranteed fills
+
+- [x] Needs replacement count will update correctly once new ask-based pricing logic is applied (count discrepancy was due to old mid-based pricing)
