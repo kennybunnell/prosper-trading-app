@@ -144,8 +144,16 @@ export function calculateSmartFillPrice(
     strategy = 'Unknown action type: Using mid price';
   }
 
-  // Round to nearest penny (cent)
-  suggestedPrice = Math.round(suggestedPrice * 100) / 100;
+  // Round to appropriate tick size based on Tastytrade rules:
+  // - Options < $3: $0.05 increments
+  // - Options ≥ $3: $0.01 increments
+  if (suggestedPrice < 3) {
+    // Round to nearest $0.05
+    suggestedPrice = Math.round(suggestedPrice * 20) / 20;
+  } else {
+    // Round to nearest $0.01
+    suggestedPrice = Math.round(suggestedPrice * 100) / 100;
+  }
 
   // Ensure suggested price is within bid-ask spread
   suggestedPrice = Math.max(bid, Math.min(ask, suggestedPrice));

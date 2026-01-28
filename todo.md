@@ -1624,3 +1624,8 @@
 - [x] Move filters inline with Conservative/Medium/Aggressive preset buttons
 - [x] Redesign CC Dashboard filters to match CSP horizontal compact layout)
 - [ ] Test compact layout saves vertical space while maintaining dual-range control
+
+
+## Working Orders Price Rounding Fix
+- [x] Add price rounding logic to round suggested prices to nearest $0.05 increment (Tastytrade requirement)
+- [ ] Test replacement with COIN and PLTR orders to verify rounding works correctly (pending market open)
