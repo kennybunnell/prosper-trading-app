@@ -37,6 +37,56 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 
+// Color-coding helper functions for technical indicators
+function getRSIColor(rsi: number | null, strategy: 'csp' | 'cc'): string {
+  if (rsi === null) return "bg-gray-500/20 text-gray-500 border-gray-500/50";
+  
+  if (strategy === 'csp') {
+    // CSP: Green for oversold (20-35), Yellow for caution, Red for avoid
+    if (rsi >= 20 && rsi <= 35) return "bg-green-500/20 text-green-500 border-green-500/50";
+    if ((rsi >= 15 && rsi < 20) || (rsi > 35 && rsi <= 45)) return "bg-yellow-500/20 text-yellow-500 border-yellow-500/50";
+    return "bg-red-500/20 text-red-500 border-red-500/50";
+  } else {
+    // CC: Green for overbought (65-80), Yellow for caution, Red for avoid
+    if (rsi >= 65 && rsi <= 80) return "bg-green-500/20 text-green-500 border-green-500/50";
+    if ((rsi >= 55 && rsi < 65) || (rsi > 80 && rsi <= 85)) return "bg-yellow-500/20 text-yellow-500 border-yellow-500/50";
+    return "bg-red-500/20 text-red-500 border-red-500/50";
+  }
+}
+
+function getBBColor(bbPctB: number | null, strategy: 'csp' | 'cc'): string {
+  if (bbPctB === null) return "bg-gray-500/20 text-gray-500 border-gray-500/50";
+  
+  if (strategy === 'csp') {
+    // CSP: Green for near lower band (0-0.20), Yellow moderate, Red near upper
+    if (bbPctB >= 0 && bbPctB <= 0.20) return "bg-green-500/20 text-green-500 border-green-500/50";
+    if (bbPctB > 0.20 && bbPctB <= 0.40) return "bg-yellow-500/20 text-yellow-500 border-yellow-500/50";
+    return "bg-red-500/20 text-red-500 border-red-500/50";
+  } else {
+    // CC: Green for near upper band (0.80-1.0), Yellow moderate, Red near lower
+    if (bbPctB >= 0.80 && bbPctB <= 1.0) return "bg-green-500/20 text-green-500 border-green-500/50";
+    if (bbPctB >= 0.60 && bbPctB < 0.80) return "bg-yellow-500/20 text-yellow-500 border-yellow-500/50";
+    return "bg-red-500/20 text-red-500 border-red-500/50";
+  }
+}
+
+function getROCColor(roc: number): string {
+  // Green for excellent (>1.5%), Yellow for good (1.0-1.5%), Red for marginal (<1.0%)
+  if (roc > 1.5) return "bg-green-500/20 text-green-500 border-green-500/50";
+  if (roc >= 1.0) return "bg-yellow-500/20 text-yellow-500 border-yellow-500/50";
+  return "bg-red-500/20 text-red-500 border-red-500/50";
+}
+
+function getLiquidityColor(value: number, type: 'oi' | 'vol'): string {
+  // OI: Green >500, Yellow 200-500, Red <200
+  // Vol: Green >100, Yellow 50-100, Red <50
+  const thresholds = type === 'oi' ? { high: 500, medium: 200 } : { high: 100, medium: 50 };
+  
+  if (value >= thresholds.high) return "bg-green-500/20 text-green-500 border-green-500/50";
+  if (value >= thresholds.medium) return "bg-yellow-500/20 text-yellow-500 border-yellow-500/50";
+  return "bg-red-500/20 text-red-500 border-red-500/50";
+}
+
 type StockPosition = {
   symbol: string;
   quantity: number;
@@ -1276,23 +1326,35 @@ export default function CCDashboard() {
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <span className={getScoreColor(opp.weeklyReturn * 10)}>
+                          <Badge className={cn("font-bold", getROCColor(opp.weeklyReturn))}>
                             {opp.weeklyReturn.toFixed(2)}%
-                          </span>
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-right">{opp.distanceOtm.toFixed(1)}%</TableCell>
                         <TableCell className="text-right">
-                          {opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}
+                          <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'cc'))}>
+                            {opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-right">
                           {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
                         </TableCell>
                         <TableCell className="text-right">
-                          {opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}
+                          <Badge className={cn("font-bold", getBBColor(opp.bbPctB, 'cc'))}>
+                            {opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-right">{opp.spreadPct.toFixed(1)}%</TableCell>
-                        <TableCell className="text-right">{opp.volume.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{opp.openInterest.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge className={cn("font-bold", getLiquidityColor(opp.volume, 'vol'))}>
+                            {opp.volume.toLocaleString()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge className={cn("font-bold", getLiquidityColor(opp.openInterest, 'oi'))}>
+                            {opp.openInterest.toLocaleString()}
+                          </Badge>
+                        </TableCell>
                       </TableRow>
                       );
                     })}

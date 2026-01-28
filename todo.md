@@ -1586,3 +1586,12 @@
 
 ## Buying Power Visibility
 - [x] Increase buying power dollar amount font size to match percentage (39.9%)
+
+## Color-Coded Technical Indicators
+- [x] Add color-coding helper functions for RSI (CSP: green 20-35, CC: green 65-80)
+- [x] Add color-coding helper functions for BB %B (CSP: green 0-0.20, CC: green 0.80-1.0)
+- [x] Add color-coding helper functions for OI/Vol (green high liquidity, yellow moderate, red low)
+- [x] Add color-coding helper functions for ROC % (green >1.5%, yellow 1.0-1.5%, red <1.0%)
+- [x] Update CSP Dashboard table with color-coded badges for RSI, BB %B, OI, Vol, ROC
+- [x] Update CC Dashboard table with color-coded badges for RSI, BB %B, OI, Vol, ROC)
+- [ ] Test color-coded indicators in both dashboards
