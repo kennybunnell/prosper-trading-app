@@ -1651,3 +1651,20 @@
 - [x] Apply to both CSP and CC dashboards for consistency
 - [x] Maintain compact design without increasing screen footprint
 - [x] Preserve live filtering behavior (updates apply immediately on click)
+
+## Enhanced ROI Calculator with Spread Modeling
+- [x] Design calculator UI with allocation sliders (CSP, Bull Put Spread, Bear Call Spread, CC, PMCC)
+- [x] Implement bull put spread ROI calculations
+- [x] Implement bear call spread ROI calculations
+- [x] Add 12-month projection table with compounding
+- [x] Add strategy breakdown charts
+- [x] Add position count projections
+- [x] Add risk metrics (win rate calculations)
+- [x] Add capital addition modeling (mid-year injection)
+- [x] Add close profit target slider (50-90%)
+- [x] Add reinvest profits toggle
+- [x] Add allocation total validation (must equal 100%)
+- [x] Add individual strategy parameter inputs
+- [x] Add route and sidebar navigation
+- [ ] Add actual vs projected comparison tracking (future enhancement)
+- [ ] Test calculator with various allocation scenarios

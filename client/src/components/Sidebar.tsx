@@ -8,6 +8,7 @@ import {
   TrendingUp,
   Layers,
   Settings,
+  Calculator,
   ChevronLeft,
   ChevronRight,
   Home,
@@ -73,6 +74,12 @@ export function Sidebar({ className }: SidebarProps) {
       path: '/performance',
       icon: BarChart3,
       description: 'Analytics & Tracking',
+    },
+    {
+      name: 'ROI Calculator',
+      path: '/roi-calculator',
+      icon: Calculator,
+      description: 'Project Returns',
     },
   ];
 
