@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -159,6 +160,10 @@ export default function CCDashboard() {
   const [sortColumn, setSortColumn] = useState<keyof CCOpportunity | null>('score');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+  // Live range filters
+  const [deltaRange, setDeltaRange] = useState<[number, number]>([0, 1]);
+  const [dteRange, setDteRange] = useState<[number, number]>([0, 90]);
+  const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
   
   const filtersRef = useRef<HTMLDivElement>(null);
 
@@ -436,8 +441,24 @@ export default function CCDashboard() {
       filtered = filtered.filter(opp => opp.score >= minScore);
     }
 
+    // Apply live range filters
+    filtered = filtered.filter(opp => {
+      const delta = Math.abs(opp.delta);
+      
+      // Delta range filter
+      if (delta < deltaRange[0] || delta > deltaRange[1]) return false;
+      
+      // DTE range filter
+      if (opp.dte < dteRange[0] || opp.dte > dteRange[1]) return false;
+      
+      // Score range filter
+      if (opp.score < scoreRange[0] || opp.score > scoreRange[1]) return false;
+      
+      return true;
+    });
+
     return filtered;
-  }, [opportunities, presetFilter, presets, minScore]);
+  }, [opportunities, presetFilter, presets, minScore, deltaRange, dteRange, scoreRange]);
 
   // Handle sorting
   const handleSort = (column: keyof CCOpportunity) => {
@@ -976,32 +997,153 @@ export default function CCDashboard() {
               </CardContent>
             </Card>
 
-            {/* Score Threshold Filters */}
+            {/* Live Range Filters */}
             <Card className="bg-card/50 backdrop-blur border-amber-500/20">
               <CardHeader>
-                <CardTitle className="text-xl">Score Threshold</CardTitle>
+                <CardTitle className="text-xl">Live Filters</CardTitle>
                 <CardDescription>
-                  Filter opportunities by minimum composite score
+                  Adjust ranges to filter opportunities in real-time
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {[100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40].map(score => (
-                    <Button
-                      key={score}
-                      variant="ghost"
-                      size="sm"
-                      className={cn(
-                        "rounded-full px-4 py-2 font-semibold transition-all duration-200",
-                        minScore === score
-                          ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/50 hover:shadow-xl hover:shadow-amber-500/60 hover:scale-110"
-                          : "bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-105"
-                      )}
-                      onClick={() => handleScoreFilter(score)}
-                    >
-                      {score}+
-                    </Button>
-                  ))}
+              <CardContent className="space-y-4">
+                {/* Delta Range Filter */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Delta Range</Label>
+                    <span className="text-xs text-muted-foreground">
+                      {deltaRange[0].toFixed(2)} - {deltaRange[1].toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      value={deltaRange[0]}
+                      onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
+                      className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                      step="0.01"
+                      min="0"
+                      max="1"
+                    />
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={deltaRange[0]}
+                      onChange={(e) => setDeltaRange([parseFloat(e.target.value), deltaRange[1]])}
+                      className="flex-1"
+                    />
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={deltaRange[1]}
+                      onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value)])}
+                      className="flex-1"
+                    />
+                    <input
+                      type="number"
+                      value={deltaRange[1]}
+                      onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
+                      className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                      step="0.01"
+                      min="0"
+                      max="1"
+                    />
+                  </div>
+                </div>
+
+                {/* DTE Range Filter */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">DTE Range (Days)</Label>
+                    <span className="text-xs text-muted-foreground">
+                      {dteRange[0]} - {dteRange[1]} days
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      value={dteRange[0]}
+                      onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
+                      className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                      min="0"
+                      max="90"
+                    />
+                    <input
+                      type="range"
+                      min="0"
+                      max="90"
+                      step="1"
+                      value={dteRange[0]}
+                      onChange={(e) => setDteRange([parseInt(e.target.value), dteRange[1]])}
+                      className="flex-1"
+                    />
+                    <input
+                      type="range"
+                      min="0"
+                      max="90"
+                      step="1"
+                      value={dteRange[1]}
+                      onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value)])}
+                      className="flex-1"
+                    />
+                    <input
+                      type="number"
+                      value={dteRange[1]}
+                      onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])}
+                      className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                      min="0"
+                      max="90"
+                    />
+                  </div>
+                </div>
+
+                {/* Score Range Filter */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Score Range</Label>
+                    <span className="text-xs text-muted-foreground">
+                      {scoreRange[0]} - {scoreRange[1]}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      value={scoreRange[0]}
+                      onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])}
+                      className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                      min="0"
+                      max="100"
+                    />
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={scoreRange[0]}
+                      onChange={(e) => setScoreRange([parseInt(e.target.value), scoreRange[1]])}
+                      className="flex-1"
+                    />
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={scoreRange[1]}
+                      onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value)])}
+                      className="flex-1"
+                    />
+                    <input
+                      type="number"
+                      value={scoreRange[1]}
+                      onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])}
+                      className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>

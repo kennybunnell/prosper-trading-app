@@ -1595,3 +1595,25 @@
 - [x] Update CSP Dashboard table with color-coded badges for RSI, BB %B, OI, Vol, ROC
 - [x] Update CC Dashboard table with color-coded badges for RSI, BB %B, OI, Vol, ROC)
 - [ ] Test color-coded indicators in both dashboards
+
+## Live Range Filters (Delta, DTE, Score)
+- [ ] Remove score filter buttons (100+, 90+, 80+, etc.) from CSP Dashboard
+- [ ] Remove score filter buttons from CC Dashboard
+- [ ] Add Delta range filter UI component with min/max sliders
+- [ ] Add DTE range filter UI component with min/max sliders
+- [ ] Add Score range filter UI component with min/max sliders
+- [ ] Implement live filtering logic for Delta range in CSP Dashboard
+- [ ] Implement live filtering logic for DTE range in CSP Dashboard
+- [ ] Implement live filtering logic for Score range in CSP Dashboard
+- [ ] Implement live filtering logic for Delta range in CC Dashboard
+- [ ] Implement live filtering logic for DTE range in CC Dashboard
+- [ ] Implement live filtering logic for Score range in CC Dashboard
+- [ ] Test live filtering on both dashboards
+
+## Live Range Filters (Delta, DTE, Score)
+- [x] Remove score filter buttons from both CSP and CC dashboards
+- [x] Add Delta range filter (0-1) with dual sliders and input fields
+- [x] Add DTE range filter (0-90 days) with dual sliders and input fields
+- [x] Add Score range filter (0-100) with dual sliders and input fields
+- [x] Implement live filtering logic in CSP Dashboard (instant updates)
+- [x] Implement live filtering logic in CC Dashboard (instant updates)
