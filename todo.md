@@ -1446,3 +1446,18 @@
 - [x] Fixed buyToCloseOption to use /orders/dry-run endpoint when dryRun=true
 - [x] Fixed submitOrder to use /orders endpoint (live orders)
 - [x] Fixed dryRunOrder to use /orders/dry-run endpoint
+
+## Fix Preflight Error and Confetti on Failure
+- [ ] Check logs for MSFT preflight error details
+- [ ] Verify symbol formatting fix is still applied in buyToCloseOption
+- [ ] Verify price formatting fix is still applied
+- [ ] Fix confetti to only trigger when result.summary.success > 0 AND not dryRun
+- [ ] Test dry run validation (should NOT trigger confetti)
+- [ ] Test live submission success (should trigger confetti)
+- [ ] Test live submission failure (should NOT trigger confetti)
+
+- [x] Checked logs - MSFT error is "already have closing order" (from previous accidental submission)
+- [x] Verified symbol formatting is correct: 'MSFT  260130P00435000'
+- [x] Verified price formatting is correct: 0.79
+- [x] Fixed confetti to only trigger when result.summary.success > 0 AND not dryRun
+- [x] Added error toast when all orders fail (result.summary.failed > 0)

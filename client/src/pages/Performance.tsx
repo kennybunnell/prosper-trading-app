@@ -108,7 +108,7 @@ function ActivePositionsTab() {
       
       if (dryRun) {
         toast.success(`✓ ${result.summary.success} order(s) validated successfully (Dry Run)`);
-      } else {
+      } else if (result.summary.success > 0) {
         // Live order submission success - celebrate!
         toast.success(`Successfully submitted ${result.summary.success} orders!`);
         playSuccessSound();
@@ -132,6 +132,9 @@ function ActivePositionsTab() {
             origin: { x: 1 },
           });
         }, 250);
+      } else if (result.summary.failed > 0) {
+        // All orders failed
+        toast.error(`Failed to submit ${result.summary.failed} order(s). Check the results dialog for details.`);
       }
     },
     onError: (error) => {
