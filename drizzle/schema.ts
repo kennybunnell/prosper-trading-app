@@ -246,3 +246,46 @@ export const pmccLeapPositions = mysqlTable("pmccLeapPositions", {
 
 export type PmccLeapPosition = typeof pmccLeapPositions.$inferSelect;
 export type InsertPmccLeapPosition = typeof pmccLeapPositions.$inferInsert;
+
+/**
+ * Order history tracking for fill rate analytics and order lifecycle management
+ * Tracks when orders are submitted, replaced, filled, or canceled
+ */
+export const orderHistory = mysqlTable("orderHistory", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  accountId: varchar("accountId", { length: 64 }).notNull(),
+  
+  // Order identification
+  orderId: varchar("orderId", { length: 64 }).notNull(),
+  symbol: varchar("symbol", { length: 10 }).notNull(),
+  underlyingSymbol: varchar("underlyingSymbol", { length: 10 }).notNull(),
+  action: varchar("action", { length: 20 }).notNull(), // "Buy to Close", "Sell to Open", etc.
+  strategy: varchar("strategy", { length: 50 }), // e.g., "Buy-side: Ask + $0.01 (working order)"
+  
+  // Order details
+  strike: varchar("strike", { length: 20 }).notNull(),
+  expiration: varchar("expiration", { length: 20 }).notNull(),
+  quantity: int("quantity").notNull(),
+  submittedPrice: varchar("submittedPrice", { length: 20 }).notNull(),
+  finalPrice: varchar("finalPrice", { length: 20 }), // Price at which order filled
+  
+  // Lifecycle tracking
+  submittedAt: timestamp("submittedAt").notNull(),
+  filledAt: timestamp("filledAt"),
+  canceledAt: timestamp("canceledAt"),
+  replacementCount: int("replacementCount").notNull().default(0), // How many times this order was replaced
+  
+  // Fill rate metrics
+  fillDurationMinutes: int("fillDurationMinutes"), // Time from submission to fill
+  wasAutoCanceled: int("wasAutoCanceled").default(0).notNull(), // 1 if auto-canceled for being stuck
+  
+  // Status
+  status: mysqlEnum("status", ["working", "filled", "canceled", "rejected"]).default("working").notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type OrderHistory = typeof orderHistory.$inferSelect;
+export type InsertOrderHistory = typeof orderHistory.$inferInsert;

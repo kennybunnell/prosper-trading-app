@@ -850,6 +850,8 @@ function WorkingOrdersTab() {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showReplaceDialog, setShowReplaceDialog] = useState(false);
   const [actionResults, setActionResults] = useState<any>(null);
+  const [showFillRateAnalytics, setShowFillRateAnalytics] = useState(false);
+  const [groupBySymbol, setGroupBySymbol] = useState(true);
 
   // Fetch working orders
   const { data, isLoading, refetch, error } = trpc.workingOrders.getWorkingOrders.useQuery(
@@ -891,6 +893,24 @@ function WorkingOrdersTab() {
       toast.error(`Failed to replace orders: ${error.message}`);
     },
   });
+
+  // Auto-cancel stuck orders mutation
+  const autoCancelMutation = trpc.workingOrders.autoCancelStuckOrders.useMutation({
+    onSuccess: (result) => {
+      refetch();
+      toast.success(`Auto-canceled ${result.canceledCount} stuck orders, resubmitted ${result.resubmittedCount}`);
+      setActionResults({ ...result, action: 'auto-cancel' });
+    },
+    onError: (error) => {
+      toast.error(`Failed to auto-cancel stuck orders: ${error.message}`);
+    },
+  });
+
+  // Fetch fill rate analytics
+  const { data: fillRateData } = trpc.workingOrders.getFillRateAnalytics.useQuery(
+    { daysBack: 30 },
+    { enabled: showFillRateAnalytics }
+  );
 
   const orders = data?.orders || [];
   const summary = data?.summary || { totalOrders: 0, totalContracts: 0, needsReplacement: 0, needsReview: 0, avgMinutesWorking: 0 };
@@ -1069,6 +1089,80 @@ function WorkingOrdersTab() {
         </Card>
       </div>
 
+      {/* Fill Rate Analytics */}
+      {showFillRateAnalytics && fillRateData && fillRateData.totalOrders > 0 && (
+        <Card className="p-6 bg-gradient-to-br from-blue-500/10 to-purple-600/5 border-blue-500/20">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Fill Rate Analytics (Last 30 Days)</h3>
+            <Button variant="ghost" size="sm" onClick={() => setShowFillRateAnalytics(false)}>
+              <XCircle className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-muted/30 rounded-lg p-4">
+              <p className="text-sm text-muted-foreground mb-1">Total Filled Orders</p>
+              <p className="text-2xl font-bold">{fillRateData.totalOrders}</p>
+            </div>
+            <div className="bg-green-500/10 rounded-lg p-4 border border-green-500/20">
+              <p className="text-sm text-muted-foreground mb-1">Filled Within 5 Min</p>
+              <p className="text-2xl font-bold text-green-400">{fillRateData.fillRate5Min.toFixed(1)}%</p>
+              <p className="text-xs text-muted-foreground">{fillRateData.filledWithin5Min} orders</p>
+            </div>
+            <div className="bg-yellow-500/10 rounded-lg p-4 border border-yellow-500/20">
+              <p className="text-sm text-muted-foreground mb-1">Filled Within 15 Min</p>
+              <p className="text-2xl font-bold text-yellow-400">{fillRateData.fillRate15Min.toFixed(1)}%</p>
+              <p className="text-xs text-muted-foreground">{fillRateData.filledWithin15Min} orders</p>
+            </div>
+            <div className="bg-blue-500/10 rounded-lg p-4 border border-blue-500/20">
+              <p className="text-sm text-muted-foreground mb-1">Filled Within 30 Min</p>
+              <p className="text-2xl font-bold text-blue-400">{fillRateData.fillRate30Min.toFixed(1)}%</p>
+              <p className="text-xs text-muted-foreground">{fillRateData.filledWithin30Min} orders</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h4 className="text-sm font-medium mb-2">By Strategy</h4>
+              <div className="space-y-2">
+                {Object.entries(fillRateData.byStrategy).map(([strategy, stats]: [string, any]) => (
+                  <div key={strategy} className="bg-muted/30 rounded p-2 text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">{strategy}</span>
+                      <span className="text-muted-foreground">{stats.total} orders</span>
+                    </div>
+                    <div className="flex gap-2 mt-1 text-xs">
+                      <span className="text-green-400">≤5min: {((stats.within5 / stats.total) * 100).toFixed(0)}%</span>
+                      <span className="text-yellow-400">≤15min: {((stats.within15 / stats.total) * 100).toFixed(0)}%</span>
+                      <span className="text-blue-400">≤30min: {((stats.within30 / stats.total) * 100).toFixed(0)}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium mb-2">By Symbol (Top 10)</h4>
+              <div className="space-y-2">
+                {Object.entries(fillRateData.bySymbol)
+                  .sort(([, a]: [string, any], [, b]: [string, any]) => b.total - a.total)
+                  .slice(0, 10)
+                  .map(([symbol, stats]: [string, any]) => (
+                    <div key={symbol} className="bg-muted/30 rounded p-2 text-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">{symbol}</span>
+                        <span className="text-muted-foreground">{stats.total} orders</span>
+                      </div>
+                      <div className="flex gap-2 mt-1 text-xs">
+                        <span className="text-green-400">≤5min: {((stats.within5 / stats.total) * 100).toFixed(0)}%</span>
+                        <span className="text-yellow-400">≤15min: {((stats.within15 / stats.total) * 100).toFixed(0)}%</span>
+                        <span className="text-blue-400">≤30min: {((stats.within30 / stats.total) * 100).toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Aggressive Fill Mode & Actions */}
       <Card className="p-4">
         <div className="flex items-center justify-between">
@@ -1081,6 +1175,14 @@ function WorkingOrdersTab() {
               />
               <span className="text-sm font-medium">🚀 Aggressive Fill Mode</span>
             </label>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setGroupBySymbol(!groupBySymbol)}
+              className="text-sm"
+            >
+              {groupBySymbol ? '📋 Table View' : '📊 Group by Symbol'}
+            </Button>
             {selectedOrders.size > 0 && (
               <div className="text-sm text-muted-foreground">
                 {selectedOrders.size} order{selectedOrders.size > 1 ? 's' : ''} selected
@@ -1141,12 +1243,140 @@ function WorkingOrdersTab() {
               )}
               Replace All to Suggested ({summary.needsReplacement})
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (summary.avgMinutesWorking < 120) {
+                  toast.error('No orders have been working for >2 hours');
+                  return;
+                }
+                autoCancelMutation.mutate({ accountId: selectedAccountId || '', minutesThreshold: 120 });
+              }}
+              disabled={autoCancelMutation.isPending}
+              className="border-orange-500/50 hover:bg-orange-500/20 text-orange-400"
+              title="Auto-cancel orders working >2 hours and resubmit at ask price"
+            >
+              {autoCancelMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <span className="mr-2">⏱️</span>
+              )}
+              Auto-Cancel Stuck Orders
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFillRateAnalytics(!showFillRateAnalytics)}
+              className="border-blue-500/50 hover:bg-blue-500/20 text-blue-400"
+            >
+              <TrendingUp className="h-4 w-4 mr-2" />
+              {showFillRateAnalytics ? 'Hide' : 'Show'} Fill Rate Analytics
+            </Button>
           </div>
         </div>
       </Card>
 
+      {/* Batch Actions by Symbol */}
+      {groupBySymbol && orders.length > 0 && (() => {
+        // Group orders by underlying symbol
+        const ordersBySymbol = orders.reduce((acc: Record<string, typeof orders>, order) => {
+          if (!acc[order.underlyingSymbol]) acc[order.underlyingSymbol] = [];
+          acc[order.underlyingSymbol].push(order);
+          return acc;
+        }, {});
+
+        return (
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Batch Actions by Symbol</h3>
+              <Button variant="ghost" size="sm" onClick={() => setGroupBySymbol(false)}>
+                Show Table View
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(ordersBySymbol)
+                .sort(([, a], [, b]) => b.length - a.length)
+                .map(([symbol, symbolOrders]) => {
+                  const totalValue = symbolOrders.reduce((sum, o) => sum + (o.suggestedPrice * o.quantity * 100), 0);
+                  const needsReplacement = symbolOrders.filter(o => o.needsReplacement).length;
+                  const avgMinutes = Math.round(symbolOrders.reduce((sum, o) => sum + o.minutesWorking, 0) / symbolOrders.length);
+
+                  return (
+                    <Card key={symbol} className="p-4 bg-gradient-to-br from-muted/50 to-muted/20 border-muted">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="text-lg font-bold">{symbol}</h4>
+                          <p className="text-sm text-muted-foreground">{symbolOrders.length} order{symbolOrders.length > 1 ? 's' : ''}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-muted-foreground">Total Value</p>
+                          <p className="text-lg font-bold">${totalValue.toFixed(2)}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
+                        <div className="bg-muted/30 rounded p-2">
+                          <p className="text-muted-foreground">Needs Replace</p>
+                          <p className="font-medium">{needsReplacement}</p>
+                        </div>
+                        <div className="bg-muted/30 rounded p-2">
+                          <p className="text-muted-foreground">Avg Time</p>
+                          <p className="font-medium">{avgMinutes}m</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 border-green-500/50 hover:bg-green-500/20 text-green-400"
+                          onClick={() => {
+                            if (!safeToReplace) {
+                              toast.error('Not safe to replace orders after 3:55 PM ET');
+                              return;
+                            }
+                            const ordersToReplace = symbolOrders.map(order => ({
+                              orderId: String(order.orderId),
+                              accountNumber: String(order.accountNumber),
+                              symbol: order.symbol,
+                              suggestedPrice: order.suggestedPrice,
+                              rawOrder: order.rawOrder,
+                            }));
+                            replaceOrdersMutation.mutate({ orders: ordersToReplace });
+                          }}
+                          disabled={!safeToReplace || replaceOrdersMutation.isPending}
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                          Replace All
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 border-red-500/50 hover:bg-red-500/20 text-red-400"
+                          onClick={() => {
+                            const ordersToCancel = symbolOrders.map(order => ({
+                              orderId: String(order.orderId),
+                              accountNumber: String(order.accountNumber),
+                              symbol: order.symbol,
+                            }));
+                            cancelOrdersMutation.mutate({ orders: ordersToCancel });
+                          }}
+                          disabled={cancelOrdersMutation.isPending}
+                        >
+                          <XCircle className="h-4 w-4 mr-1" />
+                          Cancel All
+                        </Button>
+                      </div>
+                    </Card>
+                  );
+                })}
+            </div>
+          </Card>
+        );
+      })()}
+
       {/* Working Orders Table */}
-      {orders.length === 0 ? (
+      {!groupBySymbol && (
+        orders.length === 0 ? (
         <Card className="p-8 text-center">
           <p className="text-muted-foreground">No working orders found</p>
         </Card>
@@ -1261,6 +1491,7 @@ function WorkingOrdersTab() {
             </table>
           </div>
         </Card>
+      )
       )}
 
       {/* Cancel Confirmation Dialog */}

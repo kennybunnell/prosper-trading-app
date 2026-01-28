@@ -1569,3 +1569,14 @@
 - [x] BTC/BTO orders now use ask price directly for guaranteed fills
 - [x] Add price transparency display showing bid/ask/suggested before submission
 - [ ] Write vitest test to validate ask price logic and price-effect logic
+
+## Working Orders Advanced Features
+- [x] Add database schema for order history tracking (orderHistory table with orderId, symbol, action, submittedAt, filledAt, canceledAt, replacementCount, finalPrice, fillDurationMinutes)
+- [x] Add backend procedure to track order lifecycle events (submitted, replaced, filled, canceled)
+- [x] Implement auto-cancel stuck orders logic (>2 hours working, auto-resubmit at ask price)
+- [x] Add fill rate analytics calculation (filled within 5/15/30 minutes per strategy/symbol)
+- [x] Create fill rate analytics display component showing success rates
+- [x] Add batch actions UI - group orders by symbol with "Replace All" and "Cancel All" buttons
+- [x] Add symbol-level summary cards showing order count and total value per underlying
+- [ ] Write vitest tests for auto-cancel logic and fill rate calculations
+- [ ] Test all three features end-to-end with real orders

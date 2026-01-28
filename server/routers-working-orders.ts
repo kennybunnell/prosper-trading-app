@@ -43,6 +43,163 @@ export interface ProcessedWorkingOrder {
 
 export const workingOrdersRouter = router({
   /**
+   * Auto-cancel and resubmit stuck orders (>2 hours working)
+   */
+  autoCancelStuckOrders: protectedProcedure
+    .input(z.object({
+      accountId: z.string(),
+      minutesThreshold: z.number().default(120), // 2 hours
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { accountId, minutesThreshold } = input;
+      const userId = ctx.user.id;
+
+      console.log(`[WorkingOrders] Auto-canceling stuck orders (>${minutesThreshold} minutes)`);
+
+      const api = getTastytradeAPI();
+      const { getStuckOrders, recordOrderCanceled } = await import('./db');
+
+      // Get stuck orders from database
+      const stuckOrders = await getStuckOrders(userId, minutesThreshold);
+      
+      if (stuckOrders.length === 0) {
+        console.log(`[WorkingOrders] No stuck orders found`);
+        return {
+          canceledCount: 0,
+          resubmittedCount: 0,
+          results: [],
+        };
+      }
+
+      console.log(`[WorkingOrders] Found ${stuckOrders.length} stuck orders`);
+
+      const results: Array<{
+        orderId: string;
+        symbol: string;
+        action: string;
+        canceled: boolean;
+        resubmitted: boolean;
+        newOrderId?: string;
+        message: string;
+      }> = [];
+
+      for (const order of stuckOrders) {
+        try {
+          // Cancel the stuck order
+          try {
+            await api.cancelOrder(order.accountId, order.orderId);
+            
+            // Record cancellation in database
+            await recordOrderCanceled(order.orderId, true); // wasAutoCanceled = true
+
+            // Fetch current quote to get ask price
+            const quotes = await api.getOptionQuotesBatch([order.symbol]);
+            const quote = quotes[order.symbol];
+
+            if (quote && quote.ask) {
+              // Resubmit at ask price for immediate fill
+              const isBuyOrder = order.action.toLowerCase().includes('buy');
+              const priceEffect = isBuyOrder ? 'Debit' : 'Credit';
+
+              try {
+                const resubmittedOrder = await api.submitOrder({
+                  accountNumber: order.accountId,
+                  timeInForce: 'Day',
+                  orderType: 'Limit',
+                  price: quote.ask.toFixed(2),
+                  priceEffect,
+                  legs: [{
+                    instrumentType: 'Equity Option',
+                    symbol: order.symbol,
+                    quantity: String(order.quantity),
+                    action: order.action as any,
+                  }],
+                });
+
+                // Record new order submission
+                const { recordOrderSubmission } = await import('./db');
+                await recordOrderSubmission({
+                  userId,
+                  accountId: order.accountId,
+                  orderId: resubmittedOrder.id,
+                  symbol: order.symbol,
+                  underlyingSymbol: order.underlyingSymbol,
+                  action: order.action,
+                  strategy: `Auto-resubmit: Ask price (was stuck ${minutesThreshold}+ min)`,
+                  strike: order.strike,
+                  expiration: order.expiration,
+                  quantity: order.quantity,
+                  submittedPrice: quote.ask.toFixed(2),
+                  submittedAt: new Date(),
+                });
+
+                results.push({
+                  orderId: order.orderId,
+                  symbol: order.underlyingSymbol,
+                  action: order.action,
+                  canceled: true,
+                  resubmitted: true,
+                  newOrderId: resubmittedOrder.id,
+                  message: `Canceled and resubmitted at ask price $${quote.ask.toFixed(2)}`,
+                });
+              } catch (resubmitError: any) {
+                results.push({
+                  orderId: order.orderId,
+                  symbol: order.underlyingSymbol,
+                  action: order.action,
+                  canceled: true,
+                  resubmitted: false,
+                  message: `Canceled but resubmit failed: ${resubmitError.message}`,
+                });
+              }
+            } else {
+              results.push({
+                orderId: order.orderId,
+                symbol: order.underlyingSymbol,
+                action: order.action,
+                canceled: true,
+                resubmitted: false,
+                message: 'Canceled but no quote available for resubmit',
+              });
+            }
+          } catch (cancelError: any) {
+            results.push({
+              orderId: order.orderId,
+              symbol: order.underlyingSymbol,
+              action: order.action,
+              canceled: false,
+              resubmitted: false,
+              message: `Cancel failed: ${cancelError.message}`,
+            });
+          }
+        } catch (error: any) {
+          results.push({
+            orderId: order.orderId,
+            symbol: order.underlyingSymbol,
+            action: order.action,
+            canceled: false,
+            resubmitted: false,
+            message: `Error: ${error.message}`,
+          });
+        }
+
+        // Rate limit buffer
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      const canceledCount = results.filter(r => r.canceled).length;
+      const resubmittedCount = results.filter(r => r.resubmitted).length;
+
+      console.log(`[WorkingOrders] Auto-cancel complete: ${canceledCount} canceled, ${resubmittedCount} resubmitted`);
+
+      return {
+        canceledCount,
+        resubmittedCount,
+        results,
+      };
+    }),
+
+  /**
    * Get all working orders with smart price suggestions
    */
   getWorkingOrders: protectedProcedure
@@ -343,5 +500,39 @@ export const workingOrdersRouter = router({
         successCount,
         failedCount: orders.length - successCount,
       };
+    }),
+
+  /**
+   * Get fill rate analytics
+   */
+  getFillRateAnalytics: protectedProcedure
+    .input(z.object({
+      daysBack: z.number().default(30),
+    }))
+    .query(async ({ input, ctx }) => {
+      const { daysBack } = input;
+      const userId = ctx.user.id;
+
+      console.log(`[WorkingOrders] Fetching fill rate analytics for last ${daysBack} days`);
+
+      const { getFillRateAnalytics } = await import('./db');
+      const analytics = await getFillRateAnalytics(userId, daysBack);
+
+      if (!analytics) {
+        return {
+          totalOrders: 0,
+          filledWithin5Min: 0,
+          filledWithin15Min: 0,
+          filledWithin30Min: 0,
+          fillRate5Min: 0,
+          fillRate15Min: 0,
+          fillRate30Min: 0,
+          avgFillTime: 0,
+          byStrategy: {},
+          bySymbol: {},
+        };
+      }
+
+      return analytics;
     }),
 });

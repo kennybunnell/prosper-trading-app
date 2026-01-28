@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, and, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, orderHistory, InsertOrderHistory } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -653,4 +653,290 @@ export async function upsertUserPreferences(
   }
   
   return getUserPreferences(userId);
+}
+
+/**
+ * Order History Tracking Functions
+ * Used for fill rate analytics and order lifecycle management
+ */
+
+/**
+ * Record a new order submission
+ */
+export async function recordOrderSubmission(data: {
+  userId: number;
+  accountId: string;
+  orderId: string;
+  symbol: string;
+  underlyingSymbol: string;
+  action: string;
+  strategy: string;
+  strike: string;
+  expiration: string;
+  quantity: number;
+  submittedPrice: string;
+  submittedAt: Date;
+}) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot record order submission: database not available");
+    return;
+  }
+
+  try {
+    await db.insert(orderHistory).values({
+      userId: data.userId,
+      accountId: data.accountId,
+      orderId: data.orderId,
+      symbol: data.symbol,
+      underlyingSymbol: data.underlyingSymbol,
+      action: data.action,
+      strategy: data.strategy,
+      strike: data.strike,
+      expiration: data.expiration,
+      quantity: data.quantity,
+      submittedPrice: data.submittedPrice,
+      finalPrice: null,
+      submittedAt: data.submittedAt,
+      filledAt: null,
+      canceledAt: null,
+      replacementCount: 0,
+      fillDurationMinutes: null,
+      wasAutoCanceled: 0,
+      status: 'working',
+    });
+    console.log(`[OrderHistory] Recorded submission for order ${data.orderId}`);
+  } catch (error) {
+    console.error("[OrderHistory] Failed to record order submission:", error);
+  }
+}
+
+/**
+ * Update order when it's replaced
+ */
+export async function recordOrderReplacement(orderId: string, newOrderId: string, newPrice: string) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    // Increment replacement count for old order
+    await db
+      .update(orderHistory)
+      .set({
+        replacementCount: sql`${orderHistory.replacementCount} + 1`,
+        status: 'canceled',
+        canceledAt: new Date(),
+      })
+      .where(eq(orderHistory.orderId, orderId));
+
+    // Copy old order data to new order with incremented replacement count
+    const oldOrder = await db
+      .select()
+      .from(orderHistory)
+      .where(eq(orderHistory.orderId, orderId))
+      .limit(1);
+
+    if (oldOrder.length > 0) {
+      const old = oldOrder[0];
+      await db.insert(orderHistory).values({
+        userId: old.userId,
+        accountId: old.accountId,
+        orderId: newOrderId,
+        symbol: old.symbol,
+        underlyingSymbol: old.underlyingSymbol,
+        action: old.action,
+        strategy: old.strategy,
+        strike: old.strike,
+        expiration: old.expiration,
+        quantity: old.quantity,
+        submittedPrice: newPrice,
+        finalPrice: null,
+        submittedAt: new Date(),
+        filledAt: null,
+        canceledAt: null,
+        replacementCount: old.replacementCount + 1,
+        fillDurationMinutes: null,
+        wasAutoCanceled: 0,
+        status: 'working',
+      });
+      console.log(`[OrderHistory] Recorded replacement ${orderId} → ${newOrderId}`);
+    }
+  } catch (error) {
+    console.error("[OrderHistory] Failed to record order replacement:", error);
+  }
+}
+
+/**
+ * Update order when it's filled
+ */
+export async function recordOrderFilled(orderId: string, finalPrice: string) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    const order = await db
+      .select()
+      .from(orderHistory)
+      .where(eq(orderHistory.orderId, orderId))
+      .limit(1);
+
+    if (order.length > 0) {
+      const fillDuration = Math.floor((Date.now() - order[0].submittedAt.getTime()) / 60000);
+      
+      await db
+        .update(orderHistory)
+        .set({
+          status: 'filled',
+          filledAt: new Date(),
+          finalPrice,
+          fillDurationMinutes: fillDuration,
+        })
+        .where(eq(orderHistory.orderId, orderId));
+      
+      console.log(`[OrderHistory] Recorded fill for order ${orderId} in ${fillDuration} minutes`);
+    }
+  } catch (error) {
+    console.error("[OrderHistory] Failed to record order fill:", error);
+  }
+}
+
+/**
+ * Update order when it's canceled
+ */
+export async function recordOrderCanceled(orderId: string, wasAutoCanceled: boolean = false) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db
+      .update(orderHistory)
+      .set({
+        status: 'canceled',
+        canceledAt: new Date(),
+        wasAutoCanceled: wasAutoCanceled ? 1 : 0,
+      })
+      .where(eq(orderHistory.orderId, orderId));
+    
+    console.log(`[OrderHistory] Recorded cancellation for order ${orderId}`);
+  } catch (error) {
+    console.error("[OrderHistory] Failed to record order cancellation:", error);
+  }
+}
+
+/**
+ * Get fill rate analytics for a user
+ * Returns success rates for orders filled within 5, 15, and 30 minutes
+ */
+export async function getFillRateAnalytics(userId: number, daysBack: number = 30) {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+
+    // Get all filled orders in the time period
+    const filledOrders = await db
+      .select()
+      .from(orderHistory)
+      .where(
+        and(
+          eq(orderHistory.userId, userId),
+          eq(orderHistory.status, 'filled'),
+          gte(orderHistory.submittedAt, cutoffDate)
+        )
+      );
+
+    if (filledOrders.length === 0) {
+      return {
+        totalOrders: 0,
+        filledWithin5Min: 0,
+        filledWithin15Min: 0,
+        filledWithin30Min: 0,
+        fillRate5Min: 0,
+        fillRate15Min: 0,
+        fillRate30Min: 0,
+        avgFillTime: 0,
+        byStrategy: {},
+        bySymbol: {},
+      };
+    }
+
+    const within5 = filledOrders.filter(o => (o.fillDurationMinutes ?? 999) <= 5).length;
+    const within15 = filledOrders.filter(o => (o.fillDurationMinutes ?? 999) <= 15).length;
+    const within30 = filledOrders.filter(o => (o.fillDurationMinutes ?? 999) <= 30).length;
+    
+    const avgFillTime = filledOrders.reduce((sum, o) => sum + (o.fillDurationMinutes ?? 0), 0) / filledOrders.length;
+
+    // Group by strategy
+    const byStrategy: Record<string, { total: number; within5: number; within15: number; within30: number }> = {};
+    for (const order of filledOrders) {
+      const strat = order.strategy || 'Unknown';
+      if (!byStrategy[strat]) {
+        byStrategy[strat] = { total: 0, within5: 0, within15: 0, within30: 0 };
+      }
+      byStrategy[strat].total++;
+      if ((order.fillDurationMinutes ?? 999) <= 5) byStrategy[strat].within5++;
+      if ((order.fillDurationMinutes ?? 999) <= 15) byStrategy[strat].within15++;
+      if ((order.fillDurationMinutes ?? 999) <= 30) byStrategy[strat].within30++;
+    }
+
+    // Group by underlying symbol
+    const bySymbol: Record<string, { total: number; within5: number; within15: number; within30: number }> = {};
+    for (const order of filledOrders) {
+      const sym = order.underlyingSymbol;
+      if (!bySymbol[sym]) {
+        bySymbol[sym] = { total: 0, within5: 0, within15: 0, within30: 0 };
+      }
+      bySymbol[sym].total++;
+      if ((order.fillDurationMinutes ?? 999) <= 5) bySymbol[sym].within5++;
+      if ((order.fillDurationMinutes ?? 999) <= 15) bySymbol[sym].within15++;
+      if ((order.fillDurationMinutes ?? 999) <= 30) bySymbol[sym].within30++;
+    }
+
+    return {
+      totalOrders: filledOrders.length,
+      filledWithin5Min: within5,
+      filledWithin15Min: within15,
+      filledWithin30Min: within30,
+      fillRate5Min: (within5 / filledOrders.length) * 100,
+      fillRate15Min: (within15 / filledOrders.length) * 100,
+      fillRate30Min: (within30 / filledOrders.length) * 100,
+      avgFillTime: Math.round(avgFillTime),
+      byStrategy,
+      bySymbol,
+    };
+  } catch (error) {
+    console.error("[OrderHistory] Failed to get fill rate analytics:", error);
+    return null;
+  }
+}
+
+/**
+ * Get orders that have been working for more than X minutes
+ */
+export async function getStuckOrders(userId: number, minutesThreshold: number = 120) {
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    const cutoffTime = new Date();
+    cutoffTime.setMinutes(cutoffTime.getMinutes() - minutesThreshold);
+
+    const stuckOrders = await db
+      .select()
+      .from(orderHistory)
+      .where(
+        and(
+          eq(orderHistory.userId, userId),
+          eq(orderHistory.status, 'working'),
+          sql`${orderHistory.submittedAt} <= ${cutoffTime.toISOString()}`
+        )
+      );
+
+    return stuckOrders;
+  } catch (error) {
+    console.error("[OrderHistory] Failed to get stuck orders:", error);
+    return [];
+  }
 }
