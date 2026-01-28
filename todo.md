@@ -1629,3 +1629,25 @@
 ## Working Orders Price Rounding Fix
 - [x] Add price rounding logic to round suggested prices to nearest $0.05 increment (Tastytrade requirement)
 - [ ] Test replacement with COIN and PLTR orders to verify rounding works correctly (pending market open)
+
+
+## Active Positions Working Status Fix
+- [x] Investigate how 'Working' status is determined in Active Positions
+- [x] Fix logic to clear 'Working' status when working orders are filled/cancelled/expired
+- [ ] Show actual realized % instead of 'Working' badge when orders resolve
+
+
+## Range Filter Increment/Decrement Arrows
+- [ ] Add up/down arrow buttons next to Delta input fields (±0.01 increments)
+- [ ] Add up/down arrow buttons next to DTE input fields (±1 day increments)
+- [ ] Add up/down arrow buttons next to Score input fields (±1 point increments)
+- [ ] Apply to both CSP and CC dashboards
+
+## Filter Input Enhancement
+- [x] Add up/down arrow buttons next to all filter inputs (Delta, DTE, Score) for precise value tuning
+- [x] Delta arrows increment/decrement by ±0.01 (e.g., 0.15 → 0.16)
+- [x] DTE arrows increment/decrement by ±1 day
+- [x] Score arrows increment/decrement by ±1 point
+- [x] Apply to both CSP and CC dashboards for consistency
+- [x] Maintain compact design without increasing screen footprint
+- [x] Preserve live filtering behavior (updates apply immediately on click)

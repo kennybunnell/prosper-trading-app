@@ -279,12 +279,14 @@ export const performanceRouter = router({
         }
 
         // Fetch working orders for all accounts to mark positions
+        // Only include LIVE orders (exclude Filled, Cancelled, Rejected, Expired)
         const workingOrderSymbols = new Set<string>();
         for (const accNum of accountsToFetch) {
           try {
             const workingOrders = await api.getWorkingOrders(accNum);
             for (const order of workingOrders) {
-              if (order.legs) {
+              // Only count orders with Live status
+              if (order.status === 'Live' && order.legs) {
                 for (const leg of order.legs) {
                   if (leg.symbol) {
                     workingOrderSymbols.add(leg.symbol);
