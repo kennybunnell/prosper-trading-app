@@ -1478,3 +1478,26 @@
 - [x] Updated frontend to display warning toast for excluded positions
 - [x] Show excluded symbols in warning message
 - [x] Set longer duration (6s) for warning toast
+
+## Mark Positions with Working Orders in UI
+- [ ] Update getActivePositions backend to fetch working orders
+- [ ] Add hasWorkingOrder flag to position data
+- [ ] Update frontend to show "Working" badge instead of percentage
+- [ ] Disable checkbox for positions with working orders
+- [ ] Exclude working order positions from ≥80% and ≥90% filters
+- [ ] Update "Ready to Close" count to exclude working orders
+- [ ] Test with AAL, MSFT, TEM that have working orders
+
+- [x] Updated getActivePositions to fetch working orders for all accounts
+- [x] Added hasWorkingOrder field to ProcessedPosition interface
+- [x] Set hasWorkingOrder flag for positions matching working order symbols
+- [x] Updated readyToClose count to exclude positions with working orders
+
+- [x] Added hasWorkingOrder field to Position interface
+- [x] Updated table row to show "Working" badge instead of percentage
+- [x] Disabled checkbox for positions with working orders
+- [x] Added opacity to rows with working orders for visual distinction
+
+- [x] Updated profit filter to exclude positions with working orders
+- [x] Updated profit count badges (≥80%, ≥85%, ≥90%, ≥95%) to exclude working orders
+- [x] Backend already excludes working orders from readyToClose count

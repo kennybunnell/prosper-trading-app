@@ -22,6 +22,7 @@ interface ProcessedPosition {
   currentPrice: number;
   realizedPercent: number;
   action: 'CLOSE' | 'WATCH' | 'HOLD';
+  hasWorkingOrder: boolean;
 }
 
 export const performanceRouter = router({
@@ -277,6 +278,26 @@ export const performanceRouter = router({
           console.log('[Performance] All position types (first 10):', types.slice(0, 10));
         }
 
+        // Fetch working orders for all accounts to mark positions
+        const workingOrderSymbols = new Set<string>();
+        for (const accNum of accountsToFetch) {
+          try {
+            const workingOrders = await api.getWorkingOrders(accNum);
+            for (const order of workingOrders) {
+              if (order.legs) {
+                for (const leg of order.legs) {
+                  if (leg.symbol) {
+                    workingOrderSymbols.add(leg.symbol);
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.warn(`[Performance] Failed to fetch working orders for ${accNum}:`, error);
+          }
+        }
+        console.log(`[Performance] Found ${workingOrderSymbols.size} symbols with working orders`);
+
         // Process each position
         const processedPositions: ProcessedPosition[] = [];
         
@@ -322,6 +343,9 @@ export const performanceRouter = router({
             action = 'WATCH';
           }
 
+          // Check if this position has a working order
+          const hasWorkingOrder = workingOrderSymbols.has(pos.symbol);
+
           processedPositions.push({
             account: pos._accountNumber || 'Unknown',
             accountId: pos['account-number'],
@@ -337,6 +361,7 @@ export const performanceRouter = router({
             currentPrice: parseFloat(pos['close-price']),
             realizedPercent: Math.round(realizedPercent * 100) / 100, // Round to 2 decimals
             action,
+            hasWorkingOrder,
           });
         }
 
@@ -346,7 +371,7 @@ export const performanceRouter = router({
         const avgRealizedPercent = openPositions > 0
           ? processedPositions.reduce((sum, pos) => sum + pos.realizedPercent, 0) / openPositions
           : 0;
-        const readyToClose = processedPositions.filter(pos => pos.action === 'CLOSE').length;
+        const readyToClose = processedPositions.filter(pos => pos.action === 'CLOSE' && !pos.hasWorkingOrder).length;
 
         console.log(`[Performance] Processed ${processedPositions.length} positions, ${readyToClose} ready to close`);
 

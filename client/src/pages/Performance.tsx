@@ -185,7 +185,7 @@ function ActivePositionsTab() {
     if (!data?.positions) return [];
     let positions = data.positions;
     if (profitFilter) {
-      positions = positions.filter(pos => pos.realizedPercent >= profitFilter);
+      positions = positions.filter(pos => pos.realizedPercent >= profitFilter && !pos.hasWorkingOrder);
     }
     
     // Sort positions
@@ -325,10 +325,10 @@ function ActivePositionsTab() {
   const profitCounts = useMemo(() => {
     if (!data?.positions) return { p80: 0, p85: 0, p90: 0, p95: 0 };
     return {
-      p80: data.positions.filter(p => p.realizedPercent >= 80).length,
-      p85: data.positions.filter(p => p.realizedPercent >= 85).length,
-      p90: data.positions.filter(p => p.realizedPercent >= 90).length,
-      p95: data.positions.filter(p => p.realizedPercent >= 95).length,
+      p80: data.positions.filter(p => p.realizedPercent >= 80 && !p.hasWorkingOrder).length,
+      p85: data.positions.filter(p => p.realizedPercent >= 85 && !p.hasWorkingOrder).length,
+      p90: data.positions.filter(p => p.realizedPercent >= 90 && !p.hasWorkingOrder).length,
+      p95: data.positions.filter(p => p.realizedPercent >= 95 && !p.hasWorkingOrder).length,
     };
   }, [data?.positions]);
 
@@ -663,6 +663,7 @@ interface Position {
   currentPrice: number;
   realizedPercent: number;
   action: 'CLOSE' | 'WATCH' | 'HOLD';
+  hasWorkingOrder: boolean;
 }
 
 interface PositionsTableProps {
@@ -756,11 +757,12 @@ function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosit
           </thead>
           <tbody>
             {positions.map((pos, idx) => (
-              <tr key={idx} className="border-t border-border hover:bg-muted/30">
+              <tr key={idx} className={`border-t border-border hover:bg-muted/30 ${pos.hasWorkingOrder ? 'opacity-60' : ''}`}>
                 <td className="p-3">
                   <Checkbox
                     checked={selectedPositions.has(idx)}
                     onCheckedChange={() => onTogglePosition(idx)}
+                    disabled={pos.hasWorkingOrder}
                     aria-label={`Select ${pos.symbol}`}
                     className="border-2 border-white/50 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
                   />
@@ -781,13 +783,19 @@ function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosit
                 <td className="p-3 text-sm text-right">${pos.premium.toFixed(2)}</td>
                 <td className="p-3 text-sm text-right">${pos.current.toFixed(2)}</td>
                 <td className="p-3 text-sm text-right">
-                  <span className={`font-medium ${
-                    pos.realizedPercent >= 80 ? 'text-green-400' :
-                    pos.realizedPercent >= 60 ? 'text-yellow-400' :
-                    'text-red-400'
-                  }`}>
-                    {pos.realizedPercent.toFixed(1)}%
-                  </span>
+                  {pos.hasWorkingOrder ? (
+                    <span className="px-2 py-1 rounded text-xs bg-amber-500/20 text-amber-400 font-medium">
+                      Working
+                    </span>
+                  ) : (
+                    <span className={`font-medium ${
+                      pos.realizedPercent >= 80 ? 'text-green-400' :
+                      pos.realizedPercent >= 60 ? 'text-yellow-400' :
+                      'text-red-400'
+                    }`}>
+                      {pos.realizedPercent.toFixed(1)}%
+                    </span>
+                  )}
                 </td>
                 <td className="p-3 text-center">
                   <ActionButton action={pos.action} onClick={() => onTogglePosition(idx)} />
