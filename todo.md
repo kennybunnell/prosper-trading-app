@@ -1389,3 +1389,18 @@
 - [x] Update calculation logic to use monthly percentage directly (no weekly conversion)
 - [x] Keep calculated annual percentage display box (using 12 months per year)
 - [x] Use compound interest formula for annualized return calculation
+
+## Fix Active Positions Close Order Preflight Error
+- [ ] Review previous fixes for CSP/CC dashboards (price increments, ticker padding)
+- [ ] Check Active Positions close order submission logic
+- [ ] Apply price increment validation (must be in $0.05 increments)
+- [ ] Apply ticker symbol padding (6 characters with spaces)
+- [ ] Test order validation with real position data
+- [ ] Verify preflight checks pass successfully
+
+## Fix Active Positions Close Order Preflight Error - COMPLETED
+- [x] Review previous fixes for CSP/CC dashboards (price increments, ticker padding)
+- [x] Check Active Positions close order submission logic
+- [x] Apply price formatting using formatPriceForSubmission (penny rounding)
+- [x] Fix ticker symbol padding - replace ALL spaces, not just first one
+- [x] Add fallback symbol formatting for edge cases

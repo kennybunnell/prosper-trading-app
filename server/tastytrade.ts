@@ -491,25 +491,40 @@ export class TastytradeAPI {
    * @param dryRun - If true, only validate without submitting
    */
   async buyToCloseOption(accountNumber: string, optionSymbol: string, quantity: number, price: number, dryRun: boolean = false): Promise<{ success: boolean; orderId?: string; message: string }> {
+    // Import price formatting utility
+    const { formatPriceForSubmission } = await import('../shared/orderUtils');
     // Parse option symbol to extract underlying
     const underlyingMatch = optionSymbol.match(/^([A-Z]+)/);
     const underlyingSymbol = underlyingMatch ? underlyingMatch[1] : optionSymbol.substring(0, 6).trim();
 
     // Ensure option symbol has proper spacing for Tastytrade API
     // OCC format requires 6-char ticker padded with spaces
-    let formattedSymbol = optionSymbol.replace(' ', '');
+    // Remove ALL spaces first, then re-format properly
+    let formattedSymbol = optionSymbol.replace(/\s+/g, '');
     const match = formattedSymbol.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);
     if (match) {
       const ticker = match[1].padEnd(6, ' ');
       const rest = match[2] + match[3] + match[4];
       formattedSymbol = ticker + rest;
+    } else {
+      // If symbol doesn't match expected format, try to pad it anyway
+      // This handles cases where symbol might already be partially formatted
+      const tickerMatch = optionSymbol.match(/^([A-Z]+)/);
+      if (tickerMatch) {
+        const ticker = tickerMatch[1].padEnd(6, ' ');
+        const rest = optionSymbol.substring(tickerMatch[1].length).replace(/\s+/g, '');
+        formattedSymbol = ticker + rest;
+      }
     }
+
+    // Format price to nearest penny (Tastytrade requires proper increments)
+    const formattedPrice = formatPriceForSubmission(price);
 
     const orderPayload = {
       'time-in-force': 'Day',
       'order-type': 'Limit',
       'underlying-symbol': underlyingSymbol,
-      price: price.toFixed(2),
+      price: formattedPrice,
       'price-effect': 'Debit', // We pay to buy back
       legs: [
         {
@@ -545,7 +560,7 @@ export class TastytradeAPI {
         success: true,
         orderId: dryRun ? undefined : orderId,
         message: dryRun 
-          ? `Dry run successful for ${quantity} contract(s) at $${price.toFixed(2)}`
+          ? `Dry run successful for ${quantity} contract(s) at $${formattedPrice}`
           : `Order submitted successfully (ID: ${orderId})`,
       };
     } catch (error: any) {
