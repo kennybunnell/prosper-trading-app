@@ -949,18 +949,27 @@ function WorkingOrdersTab() {
   };
 
   const confirmReplace = () => {
-    const ordersToReplace = orders
-      .filter(order => order.needsReplacement)
-      .map(order => ({
-        orderId: String(order.orderId), // Convert to string to match schema
-        accountNumber: String(order.accountNumber),
-        symbol: order.symbol,
-        suggestedPrice: order.suggestedPrice,
-        originalOrder: order, // Pass full order object for replacement
-      }));
+    // If there are selected orders, replace only those; otherwise replace all that need replacement
+    const ordersToReplace = selectedOrders.size > 0
+      ? Array.from(selectedOrders).map(idx => orders[idx]).map(order => ({
+          orderId: String(order.orderId),
+          accountNumber: String(order.accountNumber),
+          symbol: order.symbol,
+          suggestedPrice: order.suggestedPrice,
+          originalOrder: order,
+        }))
+      : orders
+          .filter(order => order.needsReplacement)
+          .map(order => ({
+            orderId: String(order.orderId),
+            accountNumber: String(order.accountNumber),
+            symbol: order.symbol,
+            suggestedPrice: order.suggestedPrice,
+            originalOrder: order,
+          }));
 
     if (ordersToReplace.length === 0) {
-      toast.error('No orders need replacement');
+      toast.error('No orders to replace');
       setShowReplaceDialog(false);
       return;
     }
@@ -1097,6 +1106,30 @@ function WorkingOrdersTab() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => {
+                if (selectedOrders.size === 0) {
+                  toast.error('Please select orders to replace');
+                  return;
+                }
+                if (!safeToReplace) {
+                  toast.error('Not safe to replace orders after 3:55 PM ET');
+                  return;
+                }
+                setShowReplaceDialog(true);
+              }}
+              disabled={selectedOrders.size === 0 || !safeToReplace || replaceOrdersMutation.isPending}
+              className="border-green-500/50 hover:bg-green-500/20 text-green-400"
+            >
+              {replaceOrdersMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+              )}
+              Replace Selected ({selectedOrders.size})
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleReplaceAll}
               disabled={summary.needsReplacement === 0 || !safeToReplace || replaceOrdersMutation.isPending}
               className="border-green-500/50 hover:bg-green-500/20 text-green-400"
@@ -1133,6 +1166,7 @@ function WorkingOrdersTab() {
                   </th>
                   <th className="p-3 text-left text-sm font-medium">Account</th>
                   <th className="p-3 text-left text-sm font-medium">Symbol</th>
+                  <th className="p-3 text-left text-sm font-medium">Action</th>
                   <th className="p-3 text-right text-sm font-medium">Strike</th>
                   <th className="p-3 text-left text-sm font-medium">Exp</th>
                   <th className="p-3 text-right text-sm font-medium">Qty</th>
@@ -1164,6 +1198,15 @@ function WorkingOrdersTab() {
                       <div className="text-xs text-muted-foreground">
                         {order.optionType} ${order.strike}
                       </div>
+                    </td>
+                    <td className="p-3 text-sm">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        order.action.toLowerCase().includes('buy') 
+                          ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                          : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                      }`}>
+                        {order.action}
+                      </span>
                     </td>
                     <td className="p-3 text-sm text-right">${order.strike.toFixed(2)}</td>
                     <td className="p-3 text-sm">{order.expiration}</td>

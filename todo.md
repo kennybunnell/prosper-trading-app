@@ -1531,3 +1531,17 @@
 - [x] Implemented sell-side pricing (bid-based) for STO/STC: spread-aware pricing
 - [x] Updated router to pass leg.action to pricing function
 - [ ] Test with BTC, STO, STC, BTO orders
+
+## Working Orders UI Fixes
+- [ ] Fix replacement count mismatch (shows 4 but table has 5 orders)
+- [ ] Add Action column to show order type (Buy to Close, Sell to Open, etc.)
+- [ ] Add checkbox selection for individual orders
+- [ ] Add "Replace Selected" button alongside "Replace All"
+- [ ] Update button text to show selected count (e.g., "Replace Selected (2)")
+- [ ] Test individual and bulk replacement workflows
+
+- [x] Added Action column to show order type (Buy to Close, Sell to Open, etc.)
+- [x] Added "Replace Selected" button alongside "Replace All"
+- [x] Updated confirmReplace to handle both selected and all orders
+- [x] Action column shows green badge for buy-side, blue for sell-side
+- [ ] Test individual and bulk replacement workflows
