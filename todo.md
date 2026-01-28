@@ -1377,3 +1377,15 @@
 - [x] Update calculation logic to use weekly percentage and convert to monthly for calculations
 - [x] Keep calculated annual percentage display box (using 52 weeks per year)
 - [x] Use compound interest formula to convert weekly to monthly returns
+
+## ROI Calculator Revert to Monthly Percentage
+- [ ] Change Target Return slider from weekly percentage back to monthly percentage (0.5% to 15%)
+- [ ] Update calculation logic to use monthly percentage directly (no weekly conversion)
+- [ ] Keep calculated annual percentage display box
+- [ ] Test calculations with monthly percentage input
+
+## ROI Calculator Revert to Monthly Percentage - COMPLETED
+- [x] Change Target Return slider from weekly percentage back to monthly percentage (0.5% to 15%)
+- [x] Update calculation logic to use monthly percentage directly (no weekly conversion)
+- [x] Keep calculated annual percentage display box (using 12 months per year)
+- [x] Use compound interest formula for annualized return calculation
