@@ -1501,3 +1501,14 @@
 - [x] Updated profit filter to exclude positions with working orders
 - [x] Updated profit count badges (≥80%, ≥85%, ≥90%, ≥95%) to exclude working orders
 - [x] Backend already excludes working orders from readyToClose count
+
+## Adjust Close Order Pricing for Immediate Fills
+- [ ] Investigate current pricing logic in buyToCloseOption method
+- [ ] Check if using mid-price, bid, or ask for close orders
+- [ ] Adjust to use ask price or closer to ask (e.g., ask + $0.01) for faster fills
+- [ ] Test with working orders to verify immediate fills
+
+- [x] Investigated pricing logic - was using close-price (mark/mid)
+- [x] Position data doesn't include bid/ask, only close-price
+- [x] Added 10% premium above mark (or +$0.05 minimum) for aggressive fills
+- [x] Added logging to show mark price vs aggressive price

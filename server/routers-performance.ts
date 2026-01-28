@@ -469,11 +469,18 @@ export const performanceRouter = router({
       for (const pos of validPositions) {
         console.log(`[Performance] Processing ${pos.underlying} $${pos.strike} (${pos.quantity} contracts)`);
         
+        // Add premium to close price for immediate fills
+        // Use 10% above mark or +$0.05, whichever is greater
+        const pricePremium = Math.max(pos.currentPrice * 0.10, 0.05);
+        const aggressivePrice = pos.currentPrice + pricePremium;
+        
+        console.log(`[Performance] Pricing: mark=$${pos.currentPrice.toFixed(2)}, aggressive=$${aggressivePrice.toFixed(2)} (+${pricePremium.toFixed(2)})`);
+        
         const result = await api.buyToCloseOption(
           pos.accountId,
           pos.optionSymbol,
           pos.quantity,
-          pos.currentPrice,
+          aggressivePrice,
           dryRun
         );
 
