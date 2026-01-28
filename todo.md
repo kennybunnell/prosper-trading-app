@@ -1433,3 +1433,16 @@
 - [x] Added confetti trigger to Active Positions close success handler
 - [x] Added sound effect to Active Positions close success handler
 - [x] Only triggers on live order submission (not dry run)
+
+## CRITICAL: Dry Run Still Submitting Live Orders
+- [ ] Check how dryRun state is passed from frontend checkbox
+- [ ] Verify dryRun parameter in closePositionsMutation call
+- [ ] Check backend closePositions procedure receives correct dryRun value
+- [ ] Add logging to track dryRun value through the flow
+- [ ] Test with dry run enabled - should NOT submit to Tastytrade
+- [ ] Test with dry run disabled - should submit to Tastytrade
+
+- [x] Found root cause: Tastytrade API requires separate endpoint /orders/dry-run not query parameter
+- [x] Fixed buyToCloseOption to use /orders/dry-run endpoint when dryRun=true
+- [x] Fixed submitOrder to use /orders endpoint (live orders)
+- [x] Fixed dryRunOrder to use /orders/dry-run endpoint

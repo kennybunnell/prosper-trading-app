@@ -255,11 +255,6 @@ export class TastytradeAPI {
             quantity: leg.quantity,
             action: leg.action,
           })),
-        },
-        {
-          params: {
-            'dry-run': 'false',
-          },
         }
       );
 
@@ -275,7 +270,7 @@ export class TastytradeAPI {
   async dryRunOrder(order: CreateOrderRequest): Promise<any> {
     try {
       const response = await this.client.post(
-        `/accounts/${order.accountNumber}/orders`,
+        `/accounts/${order.accountNumber}/orders/dry-run`,
         {
           'time-in-force': order.timeInForce,
           'order-type': order.orderType,
@@ -287,11 +282,6 @@ export class TastytradeAPI {
             quantity: leg.quantity,
             action: leg.action,
           })),
-        },
-        {
-          params: {
-            'dry-run': 'true',
-          },
         }
       );
 
@@ -544,15 +534,12 @@ export class TastytradeAPI {
         price,
       });
 
-      const response = await this.client.post(
-        `/accounts/${accountNumber}/orders`,
-        orderPayload,
-        {
-          params: {
-            'dry-run': dryRun ? 'true' : 'false',
-          },
-        }
-      );
+      // Use separate endpoint for dry-run vs live orders
+      const endpoint = dryRun 
+        ? `/accounts/${accountNumber}/orders/dry-run`
+        : `/accounts/${accountNumber}/orders`;
+      
+      const response = await this.client.post(endpoint, orderPayload);
 
       const orderId = response.data.data?.order?.id || response.data.data?.id;
       
