@@ -1204,8 +1204,8 @@ function WorkingOrdersTab() {
                         order.action.toLowerCase().includes('buy') 
                           ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
                           : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                      }`}>
-                        {order.action}
+                      }`} title={order.action}>
+                        {order.action.replace('Buy to Close', 'BTC').replace('Sell to Open', 'STO').replace('Sell to Close', 'STC').replace('Buy to Open', 'BTO')}
                       </span>
                     </td>
                     <td className="p-3 text-sm text-right">${order.strike.toFixed(2)}</td>
@@ -1238,8 +1238,10 @@ function WorkingOrdersTab() {
                         ${order.suggestedPrice.toFixed(2)}
                       </span>
                     </td>
-                    <td className="p-3 text-sm text-muted-foreground max-w-xs truncate" title={order.strategy}>
-                      {order.strategy}
+                    <td className="p-3 text-sm text-muted-foreground" title={order.strategy}>
+                      <div className="max-w-[200px] truncate">
+                        {order.strategy.length > 25 ? order.strategy.substring(0, 25) + '...' : order.strategy}
+                      </div>
                     </td>
                     <td className="p-3 text-sm text-right">
                       <span className={`${

@@ -1545,3 +1545,10 @@
 - [x] Updated confirmReplace to handle both selected and all orders
 - [x] Action column shows green badge for buy-side, blue for sell-side
 - [ ] Test individual and bulk replacement workflows
+
+## Working Orders Table Formatting
+- [ ] Change Action column to show acronyms (BTC, STO, STC, BTO)
+- [ ] Truncate Strategy column to 20 chars with "..." and add hover tooltip
+
+- [x] Changed Action column to show acronyms (BTC, STO, STC, BTO) with full text on hover
+- [x] Truncated Strategy column to 25 chars with "..." and hover tooltip shows full text
