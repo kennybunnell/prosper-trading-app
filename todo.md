@@ -1404,3 +1404,18 @@
 - [x] Apply price formatting using formatPriceForSubmission (penny rounding)
 - [x] Fix ticker symbol padding - replace ALL spaces, not just first one
 - [x] Add fallback symbol formatting for edge cases
+
+## CRITICAL: Fix Dry Run Submitting Real Orders
+- [ ] Investigate why dry-run flag is not being respected
+- [ ] Check how dryRun parameter is passed to buyToCloseOption
+- [ ] Verify Tastytrade API dry-run query parameter format
+- [ ] Test dry run validation without submitting real orders
+- [ ] Verify real order submission works after validation
+
+## CRITICAL: Fix Dry Run Submitting Real Orders - COMPLETED
+- [x] Investigated why dry-run flag is not being respected
+- [x] Found issue: Tastytrade API requires string "true"/"false" not boolean
+- [x] Fixed buyToCloseOption to use string 'true'/'false' for dry-run parameter
+- [x] Fixed submitOrder and dryRunOrder methods to use string values
+- [ ] Test dry run validation without submitting real orders
+- [ ] Verify real order submission works after validation

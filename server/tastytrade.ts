@@ -258,7 +258,7 @@ export class TastytradeAPI {
         },
         {
           params: {
-            'dry-run': false,
+            'dry-run': 'false',
           },
         }
       );
@@ -290,7 +290,7 @@ export class TastytradeAPI {
         },
         {
           params: {
-            'dry-run': true,
+            'dry-run': 'true',
           },
         }
       );
@@ -549,7 +549,7 @@ export class TastytradeAPI {
         orderPayload,
         {
           params: {
-            'dry-run': dryRun,
+            'dry-run': dryRun ? 'true' : 'false',
           },
         }
       );
