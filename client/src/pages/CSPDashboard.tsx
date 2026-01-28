@@ -1126,148 +1126,127 @@ export default function CSPDashboard() {
             </div>
           </div>
 
-          {/* Live Range Filters */}
-          <div className="space-y-4">
-            <Label className="mb-2 block text-base font-semibold">Live Filters</Label>
+          {/* Compact Horizontal Live Filters */}
+          <div className="flex flex-wrap items-center gap-4 py-2">
+            <Label className="text-sm font-semibold">Filters:</Label>
             
-            {/* Delta Range Filter */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Delta Range</Label>
-                <span className="text-xs text-muted-foreground">
-                  {deltaRange[0].toFixed(2)} - {deltaRange[1].toFixed(2)}
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  value={deltaRange[0]}
-                  onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                />
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={deltaRange[0]}
-                  onChange={(e) => setDeltaRange([parseFloat(e.target.value), deltaRange[1]])}
-                  className="flex-1"
-                />
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={deltaRange[1]}
-                  onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value)])}
-                  className="flex-1"
-                />
-                <input
-                  type="number"
-                  value={deltaRange[1]}
-                  onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                />
-              </div>
+            {/* Delta Range */}
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">Δ</Label>
+              <input
+                type="number"
+                value={deltaRange[0]}
+                onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
+                className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
+                step="0.01"
+                min="0"
+                max="1"
+              />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={deltaRange[0]}
+                onChange={(e) => setDeltaRange([parseFloat(e.target.value), deltaRange[1]])}
+                className="w-16"
+              />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={deltaRange[1]}
+                onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value)])}
+                className="w-16"
+              />
+              <input
+                type="number"
+                value={deltaRange[1]}
+                onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
+                className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
+                step="0.01"
+                min="0"
+                max="1"
+              />
             </div>
 
-            {/* DTE Range Filter */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">DTE Range (Days)</Label>
-                <span className="text-xs text-muted-foreground">
-                  {dteRange[0]} - {dteRange[1]} days
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  value={dteRange[0]}
-                  onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="90"
-                />
-                <input
-                  type="range"
-                  min="0"
-                  max="90"
-                  step="1"
-                  value={dteRange[0]}
-                  onChange={(e) => setDteRange([parseInt(e.target.value), dteRange[1]])}
-                  className="flex-1"
-                />
-                <input
-                  type="range"
-                  min="0"
-                  max="90"
-                  step="1"
-                  value={dteRange[1]}
-                  onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value)])}
-                  className="flex-1"
-                />
-                <input
-                  type="number"
-                  value={dteRange[1]}
-                  onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="90"
-                />
-              </div>
+            {/* DTE Range */}
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">DTE</Label>
+              <input
+                type="number"
+                value={dteRange[0]}
+                onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
+                className="w-12 px-1 py-0.5 text-xs border rounded bg-background"
+                min="0"
+                max="90"
+              />
+              <input
+                type="range"
+                min="0"
+                max="90"
+                step="1"
+                value={dteRange[0]}
+                onChange={(e) => setDteRange([parseInt(e.target.value), dteRange[1]])}
+                className="w-16"
+              />
+              <input
+                type="range"
+                min="0"
+                max="90"
+                step="1"
+                value={dteRange[1]}
+                onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value)])}
+                className="w-16"
+              />
+              <input
+                type="number"
+                value={dteRange[1]}
+                onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])}
+                className="w-12 px-1 py-0.5 text-xs border rounded bg-background"
+                min="0"
+                max="90"
+              />
             </div>
 
-            {/* Score Range Filter */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Score Range</Label>
-                <span className="text-xs text-muted-foreground">
-                  {scoreRange[0]} - {scoreRange[1]}
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  value={scoreRange[0]}
-                  onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="100"
-                />
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={scoreRange[0]}
-                  onChange={(e) => setScoreRange([parseInt(e.target.value), scoreRange[1]])}
-                  className="flex-1"
-                />
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={scoreRange[1]}
-                  onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value)])}
-                  className="flex-1"
-                />
-                <input
-                  type="number"
-                  value={scoreRange[1]}
-                  onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="100"
-                />
-              </div>
+            {/* Score Range */}
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">Score</Label>
+              <input
+                type="number"
+                value={scoreRange[0]}
+                onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])}
+                className="w-12 px-1 py-0.5 text-xs border rounded bg-background"
+                min="0"
+                max="100"
+              />
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={scoreRange[0]}
+                onChange={(e) => setScoreRange([parseInt(e.target.value), scoreRange[1]])}
+                className="w-16"
+              />
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={scoreRange[1]}
+                onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value)])}
+                className="w-16"
+              />
+              <input
+                type="number"
+                value={scoreRange[1]}
+                onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])}
+                className="w-12 px-1 py-0.5 text-xs border rounded bg-background"
+                min="0"
+                max="100"
+              />
             </div>
           </div>
 

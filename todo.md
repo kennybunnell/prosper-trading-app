@@ -1617,3 +1617,10 @@
 - [x] Add Score range filter (0-100) with dual sliders and input fields
 - [x] Implement live filtering logic in CSP Dashboard (instant updates)
 - [x] Implement live filtering logic in CC Dashboard (instant updates)
+
+
+## Compact Horizontal Inline Filters
+- [x] Redesign CSP Dashboard filters to horizontal compact layout (all 3 filters in one row)
+- [x] Move filters inline with Conservative/Medium/Aggressive preset buttons
+- [x] Redesign CC Dashboard filters to match CSP horizontal compact layout)
+- [ ] Test compact layout saves vertical space while maintaining dual-range control
