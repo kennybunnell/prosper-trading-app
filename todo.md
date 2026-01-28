@@ -1580,3 +1580,9 @@
 - [x] Add symbol-level summary cards showing order count and total value per underlying
 - [ ] Write vitest tests for auto-cancel logic and fill rate calculations
 - [ ] Test all three features end-to-end with real orders
+
+## Buying Power Visibility
+- [x] Increase buying power dollar amount font size to match percentage (39.9%)
+
+## Buying Power Visibility
+- [x] Increase buying power dollar amount font size to match percentage (39.9%)

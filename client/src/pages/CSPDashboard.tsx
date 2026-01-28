@@ -1221,8 +1221,14 @@ export default function CSPDashboard() {
             )}>
               {buyingPowerUsedPct.toFixed(1)}%
             </div>
+            <div className={cn(
+              "text-3xl font-bold mt-2",
+              buyingPowerUsedPct > 80 ? "text-red-400" : "text-emerald-400"
+            )}>
+              ${availableBuyingPower.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
             <div className="text-xs text-muted-foreground mt-1">
-              ${availableBuyingPower.toFixed(0)} available
+              available
             </div>
             {overLimit > 0 && (
               <div className="text-xs text-red-400 font-semibold mt-1 flex items-center gap-1">
