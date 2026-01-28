@@ -155,12 +155,13 @@ export const workingOrdersRouter = router({
           const minutesWorking = calculateMinutesWorking(order['received-at'] || order.receivedAt);
           totalMinutesWorking += minutesWorking;
 
-          // Calculate smart fill price
+          // Calculate smart fill price with order action awareness
           const priceSuggestion = calculateSmartFillPrice(
             { bid, ask, mid },
             currentPrice,
             minutesWorking,
-            aggressiveFillMode
+            aggressiveFillMode,
+            leg.action // Pass order action (e.g., 'Buy to Close', 'Sell to Open')
           );
 
           // Track replacement count (would need to be stored in DB for persistence)

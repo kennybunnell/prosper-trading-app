@@ -1512,3 +1512,22 @@
 - [x] Position data doesn't include bid/ask, only close-price
 - [x] Added 10% premium above mark (or +$0.05 minimum) for aggressive fills
 - [x] Added logging to show mark price vs aggressive price
+
+## Fix Working Orders "Replace to Suggested" Pricing
+- [ ] Find where suggested prices are calculated for working orders
+- [ ] Current logic is too aggressive (33-1600% increases)
+- [ ] Should match Active Positions logic: current price + 10% (or +$0.05 min)
+- [ ] Test replace functionality to ensure orders fill without excessive cost
+
+- [x] Found the issue: calculateSmartFillPrice uses sell-side logic for all orders
+- [ ] Add orderAction parameter to calculateSmartFillPrice function
+- [ ] Implement buy-side pricing (ask-based) for BTC/BTO: mid + 10% or ask
+- [ ] Implement sell-side pricing (bid-based) for STO/STC: mid - adjustments or bid
+- [ ] Update router to pass order action to pricing function
+- [ ] Test with BTC, STO, STC, BTO orders
+
+- [x] Added orderAction parameter to calculateSmartFillPrice function
+- [x] Implemented buy-side pricing (ask-based) for BTC/BTO: mid + 10% (min $0.05)
+- [x] Implemented sell-side pricing (bid-based) for STO/STC: spread-aware pricing
+- [x] Updated router to pass leg.action to pricing function
+- [ ] Test with BTC, STO, STC, BTO orders

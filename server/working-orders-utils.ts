@@ -18,18 +18,20 @@ export interface PriceSuggestion {
 }
 
 /**
- * Calculate smart fill price based on spread width and time working
+ * Calculate smart fill price based on spread width, time working, and order action
  * @param quote - Current quote data (bid, ask, mid)
  * @param currentPrice - Current order price
  * @param minutesWorking - How long the order has been working
  * @param aggressiveFillMode - If true, prioritize fills over best price
+ * @param orderAction - Order action type (e.g., 'Buy to Close', 'Sell to Open')
  * @returns Price suggestion with strategy explanation
  */
 export function calculateSmartFillPrice(
   quote: QuoteData,
   currentPrice: number,
   minutesWorking: number,
-  aggressiveFillMode: boolean = false
+  aggressiveFillMode: boolean = false,
+  orderAction: string = ''
 ): PriceSuggestion {
   const bid = quote.bid || 0;
   const ask = quote.ask || 0;
@@ -46,50 +48,101 @@ export function calculateSmartFillPrice(
   const mid = quote.mid || (bid + ask) / 2;
   const spread = ask - bid;
 
+  // Determine if this is a buy-side or sell-side order
+  const isBuySide = orderAction.toLowerCase().includes('buy');
+  const isSellSide = orderAction.toLowerCase().includes('sell');
+
   let suggestedPrice = mid;
   let strategy = '';
 
-  // Base pricing strategy based on spread width
-  if (spread <= 0.05) {
-    // Tight spread: use mid price
-    suggestedPrice = mid;
-    strategy = 'Tight spread (≤$0.05): Using mid price';
-  } else if (spread <= 0.15) {
-    // Medium spread: mid - $0.01
-    suggestedPrice = mid - 0.01;
-    strategy = 'Medium spread (≤$0.15): Mid - $0.01';
-  } else if (spread <= 0.30) {
-    // Wide spread: 60% of spread from bid
-    suggestedPrice = bid + (spread * 0.6);
-    strategy = 'Wide spread (≤$0.30): 60% of spread';
-  } else {
-    // Very wide spread: 50% of spread from bid
-    suggestedPrice = bid + (spread * 0.5);
-    strategy = 'Very wide spread (>$0.30): 50% of spread';
-  }
+  // BUY-SIDE PRICING (Buy to Close, Buy to Open)
+  // Goal: Pay closer to ask to ensure fills
+  if (isBuySide) {
+    // For buy orders, add premium above mid to get fills
+    const premium = Math.max(mid * 0.10, 0.05); // 10% or $0.05, whichever is greater
+    suggestedPrice = mid + premium;
+    strategy = `Buy-side: Mid + ${(premium * 100 / mid).toFixed(0)}% (min $0.05)`;
 
-  // Time-based adjustments
-  if (minutesWorking >= 60) {
-    suggestedPrice -= 0.02;
-    strategy += ' | Working >1hr: -$0.02';
-  } else if (minutesWorking >= 30) {
-    suggestedPrice -= 0.01;
-    strategy += ' | Working >30min: -$0.01';
-  }
-
-  // Aggressive fill mode adjustments
-  if (aggressiveFillMode) {
-    if (minutesWorking >= 120) {
-      // Orders working >2 hours: go straight to ask
-      suggestedPrice = ask;
-      strategy += ' | 🚀 Aggressive: Using ask price (>2hrs)';
-    } else if (minutesWorking >= 60) {
-      suggestedPrice -= 0.02;
-      strategy += ' | 🚀 Aggressive: -$0.02';
-    } else {
-      suggestedPrice -= 0.01;
-      strategy += ' | 🚀 Aggressive: -$0.01';
+    // Time-based adjustments - increase price for faster fills
+    if (minutesWorking >= 60) {
+      suggestedPrice += 0.02;
+      strategy += ' | Working >1hr: +$0.02';
+    } else if (minutesWorking >= 30) {
+      suggestedPrice += 0.01;
+      strategy += ' | Working >30min: +$0.01';
     }
+
+    // Aggressive mode: go closer to ask or above
+    if (aggressiveFillMode) {
+      if (minutesWorking >= 120) {
+        // Orders working >2 hours: go above ask
+        suggestedPrice = ask + 0.05;
+        strategy += ' | 🚀 Aggressive: Ask + $0.05 (>2hrs)';
+      } else if (minutesWorking >= 60) {
+        suggestedPrice = ask;
+        strategy += ' | 🚀 Aggressive: Using ask price';
+      } else {
+        suggestedPrice += 0.02;
+        strategy += ' | 🚀 Aggressive: +$0.02';
+      }
+    }
+
+    // Ensure we don't go below mid or above ask + $0.10
+    suggestedPrice = Math.max(mid, Math.min(ask + 0.10, suggestedPrice));
+  }
+  // SELL-SIDE PRICING (Sell to Open, Sell to Close)
+  // Goal: Receive closer to bid while still getting fills
+  else if (isSellSide) {
+    // Base pricing strategy based on spread width
+    if (spread <= 0.05) {
+      // Tight spread: use mid price
+      suggestedPrice = mid;
+      strategy = 'Sell-side: Tight spread (≤$0.05): Mid';
+    } else if (spread <= 0.15) {
+      // Medium spread: mid - $0.01
+      suggestedPrice = mid - 0.01;
+      strategy = 'Sell-side: Medium spread (≤$0.15): Mid - $0.01';
+    } else if (spread <= 0.30) {
+      // Wide spread: 60% of spread from bid
+      suggestedPrice = bid + (spread * 0.6);
+      strategy = 'Sell-side: Wide spread (≤$0.30): 60% from bid';
+    } else {
+      // Very wide spread: 50% of spread from bid
+      suggestedPrice = bid + (spread * 0.5);
+      strategy = 'Sell-side: Very wide spread: 50% from bid';
+    }
+
+    // Time-based adjustments - decrease price for faster fills
+    if (minutesWorking >= 60) {
+      suggestedPrice -= 0.02;
+      strategy += ' | Working >1hr: -$0.02';
+    } else if (minutesWorking >= 30) {
+      suggestedPrice -= 0.01;
+      strategy += ' | Working >30min: -$0.01';
+    }
+
+    // Aggressive fill mode adjustments
+    if (aggressiveFillMode) {
+      if (minutesWorking >= 120) {
+        // Orders working >2 hours: go to bid
+        suggestedPrice = bid;
+        strategy += ' | 🚀 Aggressive: Using bid price (>2hrs)';
+      } else if (minutesWorking >= 60) {
+        suggestedPrice -= 0.02;
+        strategy += ' | 🚀 Aggressive: -$0.02';
+      } else {
+        suggestedPrice -= 0.01;
+        strategy += ' | 🚀 Aggressive: -$0.01';
+      }
+    }
+
+    // Ensure suggested price is within bid-ask spread
+    suggestedPrice = Math.max(bid, Math.min(ask, suggestedPrice));
+  }
+  // UNKNOWN ACTION TYPE - use conservative mid price
+  else {
+    suggestedPrice = mid;
+    strategy = 'Unknown action type: Using mid price';
   }
 
   // Round to nearest penny (cent)
