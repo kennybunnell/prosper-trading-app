@@ -956,7 +956,7 @@ function WorkingOrdersTab() {
           accountNumber: String(order.accountNumber),
           symbol: order.symbol,
           suggestedPrice: order.suggestedPrice,
-          originalOrder: order,
+          rawOrder: order.rawOrder,
         }))
       : orders
           .filter(order => order.needsReplacement)
@@ -965,7 +965,7 @@ function WorkingOrdersTab() {
             accountNumber: String(order.accountNumber),
             symbol: order.symbol,
             suggestedPrice: order.suggestedPrice,
-            originalOrder: order,
+            rawOrder: order.rawOrder,
           }));
 
     if (ordersToReplace.length === 0) {
@@ -1298,28 +1298,113 @@ function WorkingOrdersTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Replace Confirmation Dialog */}
+      {/* Replace Confirmation Dialog with Detailed Pricing */}
       <Dialog open={showReplaceDialog} onOpenChange={setShowReplaceDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Replace Orders to Suggested Prices</DialogTitle>
+            <DialogTitle>Confirm Order Replacement</DialogTitle>
             <DialogDescription>
-              Replace {summary.needsReplacement} order{summary.needsReplacement > 1 ? 's' : ''} with smart-suggested prices?
+              Review pricing details before replacing {selectedOrders.size > 0 ? selectedOrders.size : summary.needsReplacement} order{(selectedOrders.size > 0 ? selectedOrders.size : summary.needsReplacement) > 1 ? 's' : ''}.
               {aggressiveFillMode && ' (Aggressive Fill Mode enabled)'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {orders.filter(o => o.needsReplacement).map((order, idx) => (
-              <div key={idx} className="p-2 bg-muted rounded text-sm flex justify-between">
-                <span>
-                  <span className="font-medium">{order.underlyingSymbol}</span> {order.optionType} ${order.strike}
-                </span>
-                <span>
-                  ${order.currentPrice.toFixed(2)} → ${order.suggestedPrice.toFixed(2)}
+          
+          <div className="space-y-4">
+            {/* Pricing Details Table */}
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="p-2 text-left font-medium">Symbol</th>
+                    <th className="p-2 text-left font-medium">Action</th>
+                    <th className="p-2 text-right font-medium">Current</th>
+                    <th className="p-2 text-right font-medium">Bid</th>
+                    <th className="p-2 text-right font-medium">Ask</th>
+                    <th className="p-2 text-right font-medium">Mid</th>
+                    <th className="p-2 text-right font-medium">Suggested</th>
+                    <th className="p-2 text-left font-medium">Price Effect</th>
+                    <th className="p-2 text-right font-medium">Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(selectedOrders.size > 0 
+                    ? Array.from(selectedOrders).map(idx => orders[idx])
+                    : orders.filter(o => o.needsReplacement)
+                  ).map((order, idx) => {
+                    const isBuyOrder = order.action.toLowerCase().includes('buy');
+                    const priceEffect = isBuyOrder ? 'Debit' : 'Credit';
+                    const cost = order.suggestedPrice * order.quantity * 100;
+                    
+                    return (
+                      <tr key={idx} className="border-t">
+                        <td className="p-2">
+                          <div className="font-medium">{order.underlyingSymbol}</div>
+                          <div className="text-xs text-muted-foreground">{order.optionType} ${order.strike}</div>
+                        </td>
+                        <td className="p-2">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            isBuyOrder
+                              ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                              : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                          }`}>
+                            {order.action.replace('Buy to Close', 'BTC').replace('Sell to Open', 'STO').replace('Sell to Close', 'STC').replace('Buy to Open', 'BTO')}
+                          </span>
+                        </td>
+                        <td className="p-2 text-right text-muted-foreground">${order.currentPrice.toFixed(2)}</td>
+                        <td className="p-2 text-right">${order.bid.toFixed(2)}</td>
+                        <td className="p-2 text-right font-medium text-yellow-400">${order.ask.toFixed(2)}</td>
+                        <td className="p-2 text-right">${order.mid.toFixed(2)}</td>
+                        <td className="p-2 text-right">
+                          <div className="font-bold text-green-400">${order.suggestedPrice.toFixed(2)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {order.currentPrice !== order.suggestedPrice && (
+                              <span className={order.suggestedPrice > order.currentPrice ? 'text-red-400' : 'text-green-400'}>
+                                {order.suggestedPrice > order.currentPrice ? '+' : ''}
+                                ${(order.suggestedPrice - order.currentPrice).toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            priceEffect === 'Debit'
+                              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                              : 'bg-green-500/20 text-green-400 border border-green-500/30'
+                          }`}>
+                            {priceEffect}
+                          </span>
+                        </td>
+                        <td className="p-2 text-right font-medium">
+                          ${cost.toFixed(2)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Summary */}
+            <div className="bg-muted/30 rounded-lg p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Total Orders:</span>
+                <span className="font-medium">{selectedOrders.size > 0 ? selectedOrders.size : summary.needsReplacement}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Total Cost to Close:</span>
+                <span className="font-bold text-lg">
+                  ${(selectedOrders.size > 0 
+                    ? Array.from(selectedOrders).map(idx => orders[idx]).reduce((sum, o) => sum + (o.suggestedPrice * o.quantity * 100), 0)
+                    : orders.filter(o => o.needsReplacement).reduce((sum, o) => sum + (o.suggestedPrice * o.quantity * 100), 0)
+                  ).toFixed(2)}
                 </span>
               </div>
-            ))}
+              <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">
+                💡 <strong>Price Strategy:</strong> BTC orders use ASK price for immediate fills. Debit = you pay money.
+              </div>
+            </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowReplaceDialog(false)}>
               Cancel

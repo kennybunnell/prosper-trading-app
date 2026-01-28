@@ -400,13 +400,21 @@ export class TastytradeAPI {
    */
   async cancelReplaceOrder(accountNumber: string, orderId: string, newPrice: number, originalOrder: any): Promise<{ success: boolean; orderId?: string; message: string }> {
     try {
+      // Determine price-effect based on order action
+      // BUY orders (Buy to Close, Buy to Open) = Debit (you pay money)
+      // SELL orders (Sell to Open, Sell to Close) = Credit (you receive money)
+      const firstLeg = originalOrder.legs?.[0];
+      const action = firstLeg?.action || '';
+      const isBuyOrder = action.toLowerCase().includes('buy');
+      const priceEffect = isBuyOrder ? 'Debit' : 'Credit';
+      
       // Build the replacement order payload
       // Must include: time-in-force, order-type, price, price-effect, legs
       const payload = {
         'time-in-force': originalOrder['time-in-force'] || originalOrder.timeInForce || 'Day',
         'order-type': originalOrder['order-type'] || originalOrder.orderType || 'Limit',
         'price': newPrice.toFixed(2),
-        'price-effect': originalOrder['price-effect'] || originalOrder.priceEffect || 'Credit',
+        'price-effect': priceEffect,
         'legs': originalOrder.legs || [],
       };
       

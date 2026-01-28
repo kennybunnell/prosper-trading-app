@@ -1561,3 +1561,11 @@
 - [x] Updated calculateSmartFillPrice to use ask price directly for BTC/BTO orders for guaranteed fills
 
 - [x] Needs replacement count will update correctly once new ask-based pricing logic is applied (count discrepancy was due to old mid-based pricing)
+
+## Working Orders Replacement Fixes
+- [x] Fixed price-effect being wrong for BTC orders (was Credit, should be Debit)
+- [x] Added rawOrder field to pass full Tastytrade API order structure (includes legs array)
+- [x] Updated cancelReplaceOrder to detect order action and set correct price-effect
+- [x] BTC/BTO orders now use ask price directly for guaranteed fills
+- [x] Add price transparency display showing bid/ask/suggested before submission
+- [ ] Write vitest test to validate ask price logic and price-effect logic

@@ -38,6 +38,7 @@ export interface ProcessedWorkingOrder {
   receivedAt: string;
   replacementCount: number;
   needsReview: boolean; // 5+ replacements
+  rawOrder: any; // Full original order from Tastytrade API (includes legs)
 }
 
 export const workingOrdersRouter = router({
@@ -72,6 +73,9 @@ export const workingOrdersRouter = router({
         for (const accNum of accountsToFetch) {
           const orders = await api.getLiveOrders(accNum);
           console.log(`[WorkingOrders] Account ${accNum}: ${orders.length} total orders from API`);
+          if (orders.length > 0) {
+            console.log(`[WorkingOrders] Sample raw order structure:`, JSON.stringify(orders[0], null, 2));
+          }
           
           // Filter to ONLY active/working orders (exclude Filled, Cancelled, Rejected, Expired)
           const activeOrders = orders.filter((order: any) => {
@@ -192,6 +196,7 @@ export const workingOrdersRouter = router({
             receivedAt: order['received-at'] || order.receivedAt,
             replacementCount,
             needsReview,
+            rawOrder: order, // Store full original order from Tastytrade API
           });
         }
 
@@ -278,7 +283,7 @@ export const workingOrdersRouter = router({
         accountNumber: z.string(),
         symbol: z.string(),
         suggestedPrice: z.number(),
-        originalOrder: z.any(), // Full original order object for replacement
+        rawOrder: z.any(), // Full original order object from Tastytrade API
       })),
     }))
     .mutation(async ({ input }) => {
@@ -303,13 +308,13 @@ export const workingOrdersRouter = router({
             order.accountNumber,
             order.orderId,
             order.suggestedPrice,
-            order.originalOrder
+            order.rawOrder
           );
 
           results.push({
             orderId: order.orderId,
             symbol: order.symbol,
-            oldPrice: parseFloat(order.originalOrder.price || '0'),
+            oldPrice: parseFloat(order.rawOrder.price || '0'),
             newPrice: order.suggestedPrice,
             success: result.success,
             message: result.message,
@@ -319,7 +324,7 @@ export const workingOrdersRouter = router({
           results.push({
             orderId: order.orderId,
             symbol: order.symbol,
-            oldPrice: parseFloat(order.originalOrder.price || '0'),
+            oldPrice: parseFloat(order.rawOrder.price || '0'),
             newPrice: order.suggestedPrice,
             success: false,
             message: error.message,
