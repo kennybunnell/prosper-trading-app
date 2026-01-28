@@ -1461,3 +1461,20 @@
 - [x] Verified price formatting is correct: 0.79
 - [x] Fixed confetti to only trigger when result.summary.success > 0 AND not dryRun
 - [x] Added error toast when all orders fail (result.summary.failed > 0)
+
+## Add Working Order Check to Prevent Duplicate Submissions
+- [ ] Add getWorkingOrders method to tastytrade.ts (if not exists)
+- [ ] Update closePositions procedure to fetch working orders first
+- [ ] Filter out positions that match working order symbols
+- [ ] Return excluded positions list in response
+- [ ] Update frontend to display warning for excluded positions
+- [ ] Test with AAL, MSFT, TEM that have working orders
+
+- [x] getWorkingOrders method already exists in tastytrade.ts
+- [x] Updated closePositions to fetch working orders for all accounts
+- [x] Filter out positions matching working order symbols
+- [x] Return excluded positions list in response with count
+
+- [x] Updated frontend to display warning toast for excluded positions
+- [x] Show excluded symbols in warning message
+- [x] Set longer duration (6s) for warning toast

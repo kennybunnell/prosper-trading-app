@@ -106,6 +106,15 @@ function ActivePositionsTab() {
       setSelectedPositions(new Set());
       refetch();
       
+      // Show warning if positions were excluded due to existing working orders
+      if (result.summary.excluded > 0) {
+        const excludedSymbols = result.excluded.map((p: any) => p.underlying).join(', ');
+        toast.warning(
+          `${result.summary.excluded} position(s) skipped: ${excludedSymbols}. Already have working orders.`,
+          { duration: 6000 }
+        );
+      }
+      
       if (dryRun) {
         toast.success(`✓ ${result.summary.success} order(s) validated successfully (Dry Run)`);
       } else if (result.summary.success > 0) {

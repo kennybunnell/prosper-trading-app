@@ -401,9 +401,47 @@ export const performanceRouter = router({
 
       console.log(`[Performance] ${dryRun ? 'Dry run' : 'Submitting'} close orders for ${positions.length} position(s)`);
 
-      // Submit orders for each position
+      // Get unique account IDs from positions
+      const accountIds = Array.from(new Set(positions.map(p => p.accountId)));
+      
+      // Fetch working orders for all accounts and build a set of symbols
+      const workingOrderSymbols = new Set<string>();
+      for (const accountId of accountIds) {
+        try {
+          const workingOrders = await api.getWorkingOrders(accountId);
+          for (const order of workingOrders) {
+            // Extract symbols from order legs
+            if (order.legs) {
+              for (const leg of order.legs) {
+                if (leg.symbol) {
+                  workingOrderSymbols.add(leg.symbol);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.warn(`[Performance] Failed to fetch working orders for ${accountId}:`, error);
+        }
+      }
+
+      // Filter out positions that already have working orders
+      const excludedPositions: typeof positions = [];
+      const validPositions = positions.filter(pos => {
+        if (workingOrderSymbols.has(pos.optionSymbol)) {
+          excludedPositions.push(pos);
+          console.log(`[Performance] Excluding ${pos.underlying} $${pos.strike} - already has working order`);
+          return false;
+        }
+        return true;
+      });
+
+      if (excludedPositions.length > 0) {
+        console.log(`[Performance] Excluded ${excludedPositions.length} position(s) with existing working orders`);
+      }
+
+      // Submit orders for each valid position
       const results = [];
-      for (const pos of positions) {
+      for (const pos of validPositions) {
         console.log(`[Performance] Processing ${pos.underlying} $${pos.strike} (${pos.quantity} contracts)`);
         
         const result = await api.buyToCloseOption(
@@ -433,7 +471,13 @@ export const performanceRouter = router({
           total: results.length,
           success: successCount,
           failed: failCount,
+          excluded: excludedPositions.length,
         },
+        excluded: excludedPositions.map(pos => ({
+          underlying: pos.underlying,
+          strike: pos.strike,
+          optionSymbol: pos.optionSymbol,
+        })),
       };
     }),
 
