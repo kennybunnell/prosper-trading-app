@@ -2039,3 +2039,11 @@
 - [x] Update progress tracking to show parallel processing status (batch logging)
 - [x] Add error handling for failed parallel requests (returns null, continues processing)
 - [ ] Test performance improvement (should reduce scan time by 5x with 5 workers)
+
+## Bug Fix: Remove Contract Availability Validation for Bear Call Spreads
+- [x] Find where "contract availability limits" validation occurs (selectAllOpportunities and toggleOpportunitySelection)
+- [x] Identify the stock ownership check that's preventing selection (holding.maxContracts validation)
+- [x] Remove or bypass this validation when strategyType === 'spread'
+- [x] Added separate logic paths for spread vs CC mode in both functions
+- [ ] Test Select All button - should select all 26 opportunities without skipping any
+- [ ] Verify toast message shows success instead of "Skipped X due to contract availability limits"
