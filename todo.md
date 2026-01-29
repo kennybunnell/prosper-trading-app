@@ -2200,3 +2200,15 @@
 - [x] Optimize scanning performance
 - [x] Test bear call spread scanner
 - [x] Save checkpoint
+
+## Implement Persistent Ticker Selection System
+- [x] Create watchlist_selections database table schema
+- [x] Add backend procedures for saving/loading ticker selections
+- [x] Update watchlist UI component with checkbox badges
+- [x] Add selection state management (toggle, select all, clear)
+- [x] Add sticky action bar with selection count and actions
+- [ ] Update CSP scanner to use selected tickers only
+- [ ] Update CC scanner to use selected tickers only
+- [ ] Update PMCC scanner to use selected tickers only
+- [ ] Test selection persistence across dashboards
+- [ ] Save checkpoint

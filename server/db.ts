@@ -940,3 +940,123 @@ export async function getStuckOrders(userId: number, minutesThreshold: number = 
     return [];
   }
 }
+
+/**
+ * Get watchlist ticker selections for a user
+ */
+export async function getWatchlistSelections(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  try {
+    const { watchlistSelections } = await import('../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+    
+    const selections = await db
+      .select()
+      .from(watchlistSelections)
+      .where(eq(watchlistSelections.userId, userId));
+    
+    return selections;
+  } catch (error) {
+    console.error("[Database] Failed to get watchlist selections:", error);
+    return [];
+  }
+}
+
+/**
+ * Toggle ticker selection state
+ */
+export async function toggleWatchlistSelection(userId: number, symbol: string) {
+  const db = await getDb();
+  if (!db) return;
+  
+  try {
+    const { watchlistSelections } = await import('../drizzle/schema');
+    const { eq, and } = await import('drizzle-orm');
+    
+    // Check if selection exists
+    const existing = await db
+      .select()
+      .from(watchlistSelections)
+      .where(
+        and(
+          eq(watchlistSelections.userId, userId),
+          eq(watchlistSelections.symbol, symbol)
+        )
+      );
+    
+    if (existing.length > 0) {
+      // Toggle existing selection
+      const newState = existing[0].isSelected === 1 ? 0 : 1;
+      await db
+        .update(watchlistSelections)
+        .set({ isSelected: newState, updatedAt: new Date() })
+        .where(
+          and(
+            eq(watchlistSelections.userId, userId),
+            eq(watchlistSelections.symbol, symbol)
+          )
+        );
+    } else {
+      // Create new selection (default selected)
+      await db.insert(watchlistSelections).values({
+        userId,
+        symbol,
+        isSelected: 1,
+      });
+    }
+  } catch (error) {
+    console.error("[Database] Failed to toggle watchlist selection:", error);
+  }
+}
+
+/**
+ * Set all ticker selections to a specific state
+ */
+export async function setAllWatchlistSelections(userId: number, symbols: string[], isSelected: boolean) {
+  const db = await getDb();
+  if (!db) return;
+  
+  try {
+    const { watchlistSelections } = await import('../drizzle/schema');
+    const { eq, and } = await import('drizzle-orm');
+    
+    const selectedValue = isSelected ? 1 : 0;
+    
+    for (const symbol of symbols) {
+      // Check if selection exists
+      const existing = await db
+        .select()
+        .from(watchlistSelections)
+        .where(
+          and(
+            eq(watchlistSelections.userId, userId),
+            eq(watchlistSelections.symbol, symbol)
+          )
+        );
+      
+      if (existing.length > 0) {
+        // Update existing selection
+        await db
+          .update(watchlistSelections)
+          .set({ isSelected: selectedValue, updatedAt: new Date() })
+          .where(
+            and(
+              eq(watchlistSelections.userId, userId),
+              eq(watchlistSelections.symbol, symbol)
+            )
+          );
+      } else {
+        // Create new selection
+        await db.insert(watchlistSelections).values({
+          userId,
+          symbol,
+          isSelected: selectedValue,
+        });
+      }
+    }
+  } catch (error) {
+    console.error("[Database] Failed to set all watchlist selections:", error);
+  }
+}

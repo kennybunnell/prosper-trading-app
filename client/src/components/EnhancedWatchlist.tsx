@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,23 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
 
   // Fetch watchlist
   const { data: watchlist = [], isLoading: loadingWatchlist } = trpc.watchlist.get.useQuery();
+  
+  // Fetch ticker selections
+  const { data: selections = [], isLoading: loadingSelections } = trpc.watchlist.getSelections.useQuery();
+  
+  // Create selection map for quick lookup
+  const selectionMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    selections.forEach((sel: any) => {
+      map.set(sel.symbol, sel.isSelected === 1);
+    });
+    return map;
+  }, [selections]);
+  
+  // Count selected tickers
+  const selectedCount = useMemo(() => {
+    return watchlist.filter((item: WatchlistItem) => selectionMap.get(item.symbol) === true).length;
+  }, [watchlist, selectionMap]);
 
   // Add to watchlist
   const addToWatchlist = trpc.watchlist.add.useMutation({
@@ -91,6 +108,38 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
     },
     onError: (error: any) => {
       toast.error(`Failed to remove symbol: ${error.message}`);
+    },
+  });
+  
+  // Toggle ticker selection
+  const toggleSelection = trpc.watchlist.toggleSelection.useMutation({
+    onSuccess: () => {
+      utils.watchlist.getSelections.invalidate();
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to toggle selection: ${error.message}`);
+    },
+  });
+  
+  // Select all tickers
+  const selectAll = trpc.watchlist.selectAll.useMutation({
+    onSuccess: () => {
+      utils.watchlist.getSelections.invalidate();
+      toast.success("All tickers selected");
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to select all: ${error.message}`);
+    },
+  });
+  
+  // Clear all selections
+  const clearAll = trpc.watchlist.clearAll.useMutation({
+    onSuccess: () => {
+      utils.watchlist.getSelections.invalidate();
+      toast.success("All selections cleared");
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to clear selections: ${error.message}`);
     },
   });
 
@@ -386,17 +435,42 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
             ) : watchlist.length === 0 ? (
               <p className="text-sm text-muted-foreground">No symbols in watchlist. Add some above or import a CSV.</p>
             ) : (
-              watchlist.map((item: WatchlistItem) => (
-                <Badge key={item.id} variant="secondary" className="px-3 py-1 flex items-center gap-2">
-                  {item.symbol}
-                  <button
-                    onClick={() => removeFromWatchlist.mutate({ symbol: item.symbol })}
-                    className="hover:text-destructive"
+              watchlist.map((item: WatchlistItem) => {
+                const isSelected = selectionMap.get(item.symbol) === true;
+                return (
+                  <Badge 
+                    key={item.id} 
+                    variant="secondary" 
+                    className={cn(
+                      "px-3 py-1 flex items-center gap-2 cursor-pointer transition-all relative",
+                      isSelected && "ring-2 ring-primary bg-primary/10 border-primary"
+                    )}
+                    onClick={() => toggleSelection.mutate({ symbol: item.symbol })}
                   >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </Badge>
-              ))
+                    {/* Checkbox indicator */}
+                    <div className={cn(
+                      "w-3 h-3 rounded-sm border flex items-center justify-center",
+                      isSelected ? "bg-primary border-primary" : "border-muted-foreground"
+                    )}>
+                      {isSelected && (
+                        <svg className="w-2 h-2 text-primary-foreground" fill="currentColor" viewBox="0 0 12 12">
+                          <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" fill="none" />
+                        </svg>
+                      )}
+                    </div>
+                    {item.symbol}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFromWatchlist.mutate({ symbol: item.symbol });
+                      }}
+                      className="hover:text-destructive"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                );
+              })
             )}
           </div>
         )}
@@ -483,9 +557,45 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
               </TableBody>
             </Table>
           </div>
+          )}
+        
+        {/* Sticky Action Bar for Selection */}
+        {watchlist.length > 0 && (
+          <div className="mt-4 p-3 bg-muted/50 rounded-lg border border-border flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium">
+                {selectedCount} of {watchlist.length} selected
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => selectAll.mutate({ symbols: watchlist.map((w: WatchlistItem) => w.symbol) })}
+                  disabled={selectedCount === watchlist.length || selectAll.isPending}
+                >
+                  {selectAll.isPending ? (
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  ) : null}
+                  Select All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => clearAll.mutate({ symbols: watchlist.map((w: WatchlistItem) => w.symbol) })}
+                  disabled={selectedCount === 0 || clearAll.isPending}
+                >
+                  {clearAll.isPending ? (
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  ) : null}
+                  Clear Selection
+                </Button>
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Click tickers to toggle selection • Selections persist across dashboards
+            </div>
+          </div>
         )}
-
-
       </CardContent>
     </Card>
   );

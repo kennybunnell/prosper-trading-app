@@ -653,6 +653,34 @@ export const appRouter = router({
         await removeFromWatchlist(ctx.user.id, input.symbol);
         return { success: true };
       }),
+    
+    // Ticker selection procedures for persistent selection across dashboards
+    getSelections: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { getWatchlistSelections } = await import('./db');
+        return getWatchlistSelections(ctx.user.id);
+      }),
+    toggleSelection: protectedProcedure
+      .input(z.object({ symbol: z.string().min(1).max(10) }))
+      .mutation(async ({ ctx, input }) => {
+        const { toggleWatchlistSelection } = await import('./db');
+        await toggleWatchlistSelection(ctx.user.id, input.symbol);
+        return { success: true };
+      }),
+    selectAll: protectedProcedure
+      .input(z.object({ symbols: z.array(z.string()) }))
+      .mutation(async ({ ctx, input }) => {
+        const { setAllWatchlistSelections } = await import('./db');
+        await setAllWatchlistSelections(ctx.user.id, input.symbols, true);
+        return { success: true };
+      }),
+    clearAll: protectedProcedure
+      .input(z.object({ symbols: z.array(z.string()) }))
+      .mutation(async ({ ctx, input }) => {
+        const { setAllWatchlistSelections } = await import('./db');
+        await setAllWatchlistSelections(ctx.user.id, input.symbols, false);
+        return { success: true };
+      }),
   }),
 
   csp: router({

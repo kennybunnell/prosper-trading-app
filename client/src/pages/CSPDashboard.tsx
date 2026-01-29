@@ -307,14 +307,32 @@ export default function CSPDashboard() {
     { enabled: !!user }
   );
 
+  // Fetch ticker selections
+  const { data: selections = [] } = trpc.watchlist.getSelections.useQuery(undefined, { enabled: !!user });
+  
   // Fetch opportunities (only when user clicks "Fetch Opportunities")
-  // Filter watchlist by selected portfolio sizes
+  // Filter watchlist by selected portfolio sizes AND ticker selections
   const filteredWatchlist = useMemo(() => {
-    if (portfolioSizeFilter.length === 3) return watchlist; // All selected
-    return watchlist.filter((w: any) => 
-      !w.portfolioSize || portfolioSizeFilter.includes(w.portfolioSize)
-    );
-  }, [watchlist, portfolioSizeFilter]);
+    let filtered = watchlist;
+    
+    // Filter by portfolio size
+    if (portfolioSizeFilter.length < 3) {
+      filtered = filtered.filter((w: any) => 
+        !w.portfolioSize || portfolioSizeFilter.includes(w.portfolioSize)
+      );
+    }
+    
+    // Filter by selected tickers (if any are selected)
+    const selectedSymbols = selections
+      .filter((s: any) => s.isSelected === 1)
+      .map((s: any) => s.symbol);
+    
+    if (selectedSymbols.length > 0) {
+      filtered = filtered.filter((w: any) => selectedSymbols.includes(w.symbol));
+    }
+    
+    return filtered;
+  }, [watchlist, portfolioSizeFilter, selections]);
 
   // Fetch CSP opportunities
   const { data: cspOpportunities = [], isLoading: loadingCSP, refetch: refetchCSP, error: cspError } = trpc.csp.opportunities.useQuery(

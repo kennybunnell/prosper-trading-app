@@ -294,3 +294,18 @@ export const orderHistory = mysqlTable("orderHistory", {
 
 export type OrderHistory = typeof orderHistory.$inferSelect;
 export type InsertOrderHistory = typeof orderHistory.$inferInsert;
+
+/**
+ * Watchlist ticker selections
+ * Stores which tickers are selected for scanning across all dashboards
+ */
+export const watchlistSelections = mysqlTable("watchlistSelections", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  symbol: varchar("symbol", { length: 10 }).notNull(),
+  isSelected: int("isSelected").default(1).notNull(), // 1 = selected, 0 = not selected
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type WatchlistSelection = typeof watchlistSelections.$inferSelect;
+export type InsertWatchlistSelection = typeof watchlistSelections.$inferInsert;

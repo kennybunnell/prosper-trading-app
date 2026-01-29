@@ -364,13 +364,27 @@ export default function CCDashboard() {
       if (strategyType === 'spread') {
         // Bear Call Spread mode: scan watchlist symbols
         const watchlistResult = await utils.client.watchlist.get.query();
-        const watchlistSymbols = watchlistResult.map((item: any) => item.symbol);
+        const selectionsResult = await utils.client.watchlist.getSelections.query();
+        
+        // Filter to only selected tickers
+        const selectedSymbols = watchlistResult
+          .filter((item: any) => {
+            const selection = selectionsResult.find((s: any) => s.symbol === item.symbol);
+            return selection && selection.isSelected === 1;
+          })
+          .map((item: any) => item.symbol);
+        
+        const watchlistSymbols = selectedSymbols.length > 0 ? selectedSymbols : watchlistResult.map((item: any) => item.symbol);
         setWatchlistSymbolCount(watchlistSymbols.length);
 
         if (watchlistSymbols.length === 0) {
           toast.error("No symbols in watchlist. Please add symbols to scan for bear call spreads.");
           setIsScanning(false);
           return;
+        }
+        
+        if (selectedSymbols.length > 0 && selectedSymbols.length < watchlistResult.length) {
+          toast.info(`Scanning ${selectedSymbols.length} selected tickers (${watchlistResult.length - selectedSymbols.length} not selected)`);
         }
 
         // Scan watchlist for call opportunities first
