@@ -2030,3 +2030,12 @@
 - [x] Add proper TypeScript types for bear call spread opportunities (longStrike, capitalAtRisk, etc.)
 - [ ] Test dry run submission workflow
 - [ ] Test live order submission workflow (requires user testing during market hours)
+
+## Performance Optimization: Parallel Processing for Bear Call Spread Scanning
+- [x] Analyze current sequential scanning bottleneck (2 API calls per symbol)
+- [x] Measure current scan time for 40 symbols (estimated 80+ API calls sequentially)
+- [x] Implement parallel processing using Promise.all() for concurrent API calls
+- [x] Add configurable concurrency limit (5 workers) to avoid rate limiting
+- [x] Update progress tracking to show parallel processing status (batch logging)
+- [x] Add error handling for failed parallel requests (returns null, continues processing)
+- [ ] Test performance improvement (should reduce scan time by 5x with 5 workers)

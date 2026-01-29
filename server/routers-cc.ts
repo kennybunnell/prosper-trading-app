@@ -307,10 +307,13 @@ export const ccRouter = router({
       }
 
       const api = createTradierAPI(credentials.tradierApiKey);
-      const spreadOpportunities = [];
+      const spreadOpportunities: any[] = [];
 
-      // For each CC opportunity, calculate the spread pricing
-      for (const ccOpp of input.ccOpportunities) {
+      // Parallel processing with concurrency limit to avoid rate limiting
+      const CONCURRENCY_LIMIT = 5; // Process 5 opportunities at a time
+      
+      // Helper function to process a single CC opportunity
+      const processOpportunity = async (ccOpp: any) => {
         try {
           // Calculate long strike (protective call)
           const longStrike = ccOpp.strike + input.spreadWidth;
@@ -329,7 +332,7 @@ export const ccRouter = router({
 
           if (!longCall || !longCall.bid || !longCall.ask) {
             // Skip if we can't find the long call or it has no quotes
-            continue;
+            return null;
           }
 
           // Calculate spread pricing
@@ -347,13 +350,26 @@ export const ccRouter = router({
           if (spreadOpp.netCredit > 0) {
             // Recalculate score for spread
             spreadOpp.score = calculateCCScore(spreadOpp);
-            spreadOpportunities.push(spreadOpp);
+            return spreadOpp;
           }
+          return null;
         } catch (error) {
           console.error(`[BearCallSpread] Error calculating spread for ${ccOpp.symbol}:`, error);
-          // Skip this opportunity and continue
-          continue;
+          return null;
         }
+      };
+
+      // Process opportunities in batches with concurrency limit
+      for (let i = 0; i < input.ccOpportunities.length; i += CONCURRENCY_LIMIT) {
+        const batch = input.ccOpportunities.slice(i, i + CONCURRENCY_LIMIT);
+        const results = await Promise.all(batch.map(processOpportunity));
+        
+        // Add successful results to spreadOpportunities
+        results.forEach(result => {
+          if (result) spreadOpportunities.push(result);
+        });
+        
+        console.log(`[BearCallSpread] Processed batch ${Math.floor(i / CONCURRENCY_LIMIT) + 1}/${Math.ceil(input.ccOpportunities.length / CONCURRENCY_LIMIT)}: ${results.filter(r => r).length} spreads found`);
       }
 
       // Sort by score descending
