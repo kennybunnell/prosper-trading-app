@@ -1730,3 +1730,9 @@
 - [x] Hide CardContent when collapsed
 - [x] Show compact summary when collapsed (e.g., "CSP Mode" or "Bull Put Spread - 5pt")
 - [x] Smooth transition animation with rotate-180 on chevron
+
+## Fix Buying Power Calculations for Spreads
+- [x] Update totalCollateral calculation to use capitalAtRisk for spreads
+- [x] Update buying power percentage calculation for spread mode (automatic via totalCollateral)
+- [ ] Verify Total Collateral card shows correct values for spreads vs CSP
+- [ ] Verify Buying Power card shows correct percentage for spreads

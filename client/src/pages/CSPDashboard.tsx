@@ -466,7 +466,12 @@ export default function CSPDashboard() {
     selectedOpportunities.has(`${opp.symbol}-${opp.strike}-${opp.expiration}`)
   );
   const totalPremium = selectedOppsList.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-  const totalCollateral = selectedOppsList.reduce((sum, opp) => sum + opp.collateral, 0);
+  
+  // For spreads, use capitalAtRisk instead of full collateral
+  const totalCollateral = strategyType === 'spread'
+    ? selectedOppsList.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
+    : selectedOppsList.reduce((sum, opp) => sum + opp.collateral, 0);
+  
   const roc = totalCollateral > 0 ? (totalPremium / totalCollateral) * 100 : 0;
 
   // Calculate buying power metrics
