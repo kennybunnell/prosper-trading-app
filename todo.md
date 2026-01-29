@@ -1806,3 +1806,11 @@
 - [x] Use live quotes (mark/mid/last) instead of stale close prices
 - [ ] Verify P&L displays correctly for spread positions when market opens
 - [ ] Test with real spread positions when market opens
+
+## Active Positions Summary Cards - Spread Breakdown
+- [x] Update backend summary calculation to separate spreads vs single-leg positions
+- [x] Add spreadCount and singleLegCount to summary response
+- [x] Add totalSpreadPremium and totalSingleLegPremium to summary response
+- [x] Update frontend to display spread breakdown in summary cards
+- [x] Fix TypeScript errors with optional chaining
+- [ ] Test summary cards display correct counts and totals when market opens

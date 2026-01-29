@@ -323,6 +323,10 @@ function ActivePositionsTab() {
     totalPremiumAtRisk: 0,
     avgRealizedPercent: 0,
     readyToClose: 0,
+    spreadCount: 0,
+    singleLegCount: 0,
+    totalSpreadPremium: 0,
+    totalSingleLegPremium: 0,
   };
 
   // Count positions by profit threshold
@@ -378,12 +382,33 @@ function ActivePositionsTab() {
         <Card className="p-6 bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20">
           <div className="text-sm text-muted-foreground mb-1">Open Positions</div>
           <div className="text-3xl font-bold text-blue-400">{summary.openPositions}</div>
+          {((summary.spreadCount ?? 0) > 0 || (summary.singleLegCount ?? 0) > 0) && (
+            <div className="text-xs text-muted-foreground mt-2">
+              {(summary.spreadCount ?? 0) > 0 && <span className="text-emerald-400">{summary.spreadCount} spread{(summary.spreadCount ?? 0) !== 1 ? 's' : ''}</span>}
+              {(summary.spreadCount ?? 0) > 0 && (summary.singleLegCount ?? 0) > 0 && <span className="mx-1">•</span>}
+              {(summary.singleLegCount ?? 0) > 0 && <span>{summary.singleLegCount} single-leg</span>}
+            </div>
+          )}
         </Card>
         <Card className="p-6 bg-gradient-to-br from-purple-500/10 to-purple-600/10 border-purple-500/20">
           <div className="text-sm text-muted-foreground mb-1">Total Premium at Risk</div>
           <div className="text-3xl font-bold text-purple-400">
             ${summary.totalPremiumAtRisk.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
+          {((summary.totalSpreadPremium ?? 0) > 0 || (summary.totalSingleLegPremium ?? 0) > 0) && (
+            <div className="text-xs text-muted-foreground mt-2">
+              {(summary.totalSpreadPremium ?? 0) > 0 && (
+                <div className="text-emerald-400">
+                  ${(summary.totalSpreadPremium ?? 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} spreads
+                </div>
+              )}
+              {(summary.totalSingleLegPremium ?? 0) > 0 && (
+                <div>
+                  ${(summary.totalSingleLegPremium ?? 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} single-leg
+                </div>
+              )}
+            </div>
+          )}
         </Card>
         <Card className="p-6 bg-gradient-to-br from-green-500/10 to-green-600/10 border-green-500/20">
           <div className="text-sm text-muted-foreground mb-1">Avg Premium Realized</div>

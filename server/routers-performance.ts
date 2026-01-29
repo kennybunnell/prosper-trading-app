@@ -475,13 +475,24 @@ export const performanceRouter = router({
 
         // Calculate summary statistics
         const openPositions = processedPositions.length;
-        const totalPremiumAtRisk = processedPositions.reduce((sum, pos) => sum + pos.premium, 0);
+        
+        // Separate spreads from single-leg positions
+        const spreadPositions = processedPositions.filter(pos => pos.spreadType);
+        const singleLegPositions = processedPositions.filter(pos => !pos.spreadType);
+        
+        const spreadCount = spreadPositions.length;
+        const singleLegCount = singleLegPositions.length;
+        
+        const totalSpreadPremium = spreadPositions.reduce((sum, pos) => sum + pos.premium, 0);
+        const totalSingleLegPremium = singleLegPositions.reduce((sum, pos) => sum + pos.premium, 0);
+        const totalPremiumAtRisk = totalSpreadPremium + totalSingleLegPremium;
+        
         const avgRealizedPercent = openPositions > 0
           ? processedPositions.reduce((sum, pos) => sum + pos.realizedPercent, 0) / openPositions
           : 0;
         const readyToClose = processedPositions.filter(pos => pos.action === 'CLOSE' && !pos.hasWorkingOrder).length;
 
-        console.log(`[Performance] Processed ${processedPositions.length} positions, ${readyToClose} ready to close`);
+        console.log(`[Performance] Processed ${processedPositions.length} positions (${spreadCount} spreads, ${singleLegCount} single-leg), ${readyToClose} ready to close`);
 
         return {
           positions: processedPositions,
@@ -490,6 +501,11 @@ export const performanceRouter = router({
             totalPremiumAtRisk,
             avgRealizedPercent: Math.round(avgRealizedPercent * 100) / 100,
             readyToClose,
+            // Spread breakdown
+            spreadCount,
+            singleLegCount,
+            totalSpreadPremium,
+            totalSingleLegPremium,
           },
         };
       } catch (error: any) {
