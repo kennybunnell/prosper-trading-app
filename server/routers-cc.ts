@@ -338,67 +338,70 @@ export const ccRouter = router({
       const api = createTradierAPI(credentials.tradierApiKey);
       const spreadOpportunities: any[] = [];
 
-      // Parallel processing with concurrency limit to avoid rate limiting
-      const CONCURRENCY_LIMIT = 5; // Process 5 opportunities at a time
+      // OPTIMIZATION: Group opportunities by symbol+expiration to batch API calls
+      // Instead of fetching option chain for each opportunity (485 calls),
+      // fetch once per unique symbol+expiration combo (~30 calls)
+      const groupedOpps: Record<string, any[]> = {};
+      for (const opp of input.ccOpportunities) {
+        const key = `${opp.symbol}|${opp.expiration}`;
+        if (!groupedOpps[key]) groupedOpps[key] = [];
+        groupedOpps[key].push(opp);
+      }
+
+      console.log(`[BearCallSpread] Processing ${input.ccOpportunities.length} opportunities grouped into ${Object.keys(groupedOpps).length} unique symbol+expiration combos`);
+
+      // Process each group (fetch option chain once, process all strikes)
+      const CONCURRENCY_LIMIT = 5; // Process 5 groups at a time
+      const groups = Object.entries(groupedOpps);
       
-      // Helper function to process a single CC opportunity
-      const processOpportunity = async (ccOpp: any) => {
-        try {
-          // Calculate long strike (protective call)
-          const longStrike = ccOpp.strike + input.spreadWidth;
-
-          // Fetch option chain for this expiration to get long call quote
-          const options = await api.getOptionChain(
-            ccOpp.symbol,
-            ccOpp.expiration,
-            true // with Greeks
-          );
-
-          // Find the long call at our target strike
-          const longCall = options.find(
-            opt => opt.option_type === 'call' && opt.strike === longStrike
-          );
-
-          if (!longCall || !longCall.bid || !longCall.ask) {
-            // Skip if we can't find the long call or it has no quotes
-            return null;
-          }
-
-          // Calculate spread pricing
-          const spreadOpp = calculateBearCallSpread(
-            ccOpp,
-            input.spreadWidth,
-            {
-              bid: longCall.bid,
-              ask: longCall.ask,
-              delta: Math.abs(longCall.greeks?.delta || 0),
+      for (let i = 0; i < groups.length; i += CONCURRENCY_LIMIT) {
+        const batch = groups.slice(i, i + CONCURRENCY_LIMIT);
+        
+        await Promise.all(batch.map(async ([key, opps]) => {
+          try {
+            const [symbol, expiration] = key.split('|');
+            
+            // Fetch option chain ONCE for this symbol+expiration
+            const options = await api.getOptionChain(symbol, expiration, true);
+            
+            // Process all opportunities for this expiration
+            for (const ccOpp of opps) {
+              try {
+                const longStrike = ccOpp.strike + input.spreadWidth;
+                
+                // Find the long call from cached option chain
+                const longCall = options.find(
+                  opt => opt.option_type === 'call' && opt.strike === longStrike
+                );
+                
+                if (!longCall || !longCall.bid || !longCall.ask) continue;
+                
+                // Calculate spread pricing
+                const spreadOpp = calculateBearCallSpread(
+                  ccOpp,
+                  input.spreadWidth,
+                  {
+                    bid: longCall.bid,
+                    ask: longCall.ask,
+                    delta: Math.abs(longCall.greeks?.delta || 0),
+                  }
+                );
+                
+                // Only include if net credit is positive
+                if (spreadOpp.netCredit > 0) {
+                  spreadOpp.score = calculateCCScore(spreadOpp);
+                  spreadOpportunities.push(spreadOpp);
+                }
+              } catch (error) {
+                console.error(`[BearCallSpread] Error calculating spread for ${ccOpp.symbol} ${ccOpp.strike}:`, error);
+              }
             }
-          );
-
-          // Only include if net credit is positive
-          if (spreadOpp.netCredit > 0) {
-            // Recalculate score for spread
-            spreadOpp.score = calculateCCScore(spreadOpp);
-            return spreadOpp;
+          } catch (error) {
+            console.error(`[BearCallSpread] Error fetching option chain for ${key}:`, error);
           }
-          return null;
-        } catch (error) {
-          console.error(`[BearCallSpread] Error calculating spread for ${ccOpp.symbol}:`, error);
-          return null;
-        }
-      };
-
-      // Process opportunities in batches with concurrency limit
-      for (let i = 0; i < input.ccOpportunities.length; i += CONCURRENCY_LIMIT) {
-        const batch = input.ccOpportunities.slice(i, i + CONCURRENCY_LIMIT);
-        const results = await Promise.all(batch.map(processOpportunity));
+        }));
         
-        // Add successful results to spreadOpportunities
-        results.forEach(result => {
-          if (result) spreadOpportunities.push(result);
-        });
-        
-        console.log(`[BearCallSpread] Processed batch ${Math.floor(i / CONCURRENCY_LIMIT) + 1}/${Math.ceil(input.ccOpportunities.length / CONCURRENCY_LIMIT)}: ${results.filter(r => r).length} spreads found`);
+        console.log(`[BearCallSpread] Processed ${Math.min((i + CONCURRENCY_LIMIT), groups.length)}/${groups.length} groups: ${spreadOpportunities.length} spreads found`);
       }
 
       // Sort by score descending

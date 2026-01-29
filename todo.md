@@ -2212,3 +2212,12 @@
 - [ ] Update PMCC scanner to use selected tickers only
 - [ ] Test selection persistence across dashboards
 - [ ] Save checkpoint
+
+## Fix Bear Call Spread Scanner Performance
+
+- [x] Analyze scanner logs to identify bottlenecks in Tradier API calls
+- [x] Optimize Tradier API request logic to reduce redundant calls
+- [x] Improve concurrency and parallel processing for option chain fetching
+- [x] Add request caching to avoid duplicate API calls
+- [x] Test scanner with 7 symbols and verify completion under 30 seconds
+- [x] Save checkpoint with performance optimizations
