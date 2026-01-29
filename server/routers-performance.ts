@@ -319,6 +319,20 @@ export const performanceRouter = router({
         }
         console.log(`[Performance] Found ${workingOrderSymbols.size} symbols with working orders`);
 
+        // Collect all option symbols for batch quote fetching
+        const allOptionSymbols = new Set<string>();
+        for (const pos of shortOptions) {
+          allOptionSymbols.add(pos.symbol);
+        }
+        for (const pos of longOptions) {
+          allOptionSymbols.add(pos.symbol);
+        }
+        
+        // Fetch current quotes for all options
+        console.log(`[Performance] Fetching quotes for ${allOptionSymbols.size} option symbols`);
+        const quotes = await api.getOptionQuotesBatch(Array.from(allOptionSymbols));
+        console.log(`[Performance] Retrieved ${Object.keys(quotes).length} quotes`);
+
         // Process each position
         const processedPositions: ProcessedPosition[] = [];
         
@@ -332,10 +346,14 @@ export const performanceRouter = router({
             continue;
           }
 
-          // Calculate premium received and current cost
+          // Calculate premium received
           const quantity = Math.abs(pos.quantity);
           const premiumReceived = Math.abs(parseFloat(pos['average-open-price'])) * quantity * pos.multiplier;
-          const currentCost = parseFloat(pos['close-price']) * quantity * pos.multiplier;
+          
+          // Get current price from live quote (fallback to close-price if quote unavailable)
+          const quote = quotes[pos.symbol];
+          const currentPrice = quote ? quote.mark || quote.mid || quote.last : parseFloat(pos['close-price']);
+          let currentCost = currentPrice * quantity * pos.multiplier;
           
           // Calculate premium realization %
           const realizedPercent = premiumReceived > 0 
@@ -385,7 +403,15 @@ export const performanceRouter = router({
                   const netCredit = premiumReceived - longCost;
                   capitalAtRisk = (spreadWidth * 100 * quantity) - netCredit;
                   
-                  console.log(`[Performance] Detected bull put spread: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt width, $${capitalAtRisk.toFixed(2)} at risk)`);
+                  // Recalculate current cost for spread using both legs' current prices
+                  const longQuote = quotes[longPos.symbol];
+                  const longCurrentPrice = longQuote ? longQuote.mark || longQuote.mid || longQuote.last : parseFloat(longPos['close-price']);
+                  const shortCurrentCost = currentPrice * quantity * pos.multiplier;
+                  const longCurrentCost = longCurrentPrice * quantity * longPos.multiplier;
+                  // For spread: current cost = (short leg cost - long leg cost) because we pay to close short and receive to close long
+                  currentCost = shortCurrentCost - longCurrentCost;
+                  
+                  console.log(`[Performance] Detected bull put spread: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt width, $${capitalAtRisk.toFixed(2)} at risk, current spread value: $${currentCost.toFixed(2)})`);
                 } else if (!isPut && longStrikeValue > strike) {
                   // Bear call spread: short lower strike, long higher strike
                   spreadType = 'bear_call';
@@ -397,7 +423,15 @@ export const performanceRouter = router({
                   const netCredit = premiumReceived - longCost;
                   capitalAtRisk = (spreadWidth * 100 * quantity) - netCredit;
                   
-                  console.log(`[Performance] Detected bear call spread: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt width, $${capitalAtRisk.toFixed(2)} at risk)`);
+                  // Recalculate current cost for spread using both legs' current prices
+                  const longQuote = quotes[longPos.symbol];
+                  const longCurrentPrice = longQuote ? longQuote.mark || longQuote.mid || longQuote.last : parseFloat(longPos['close-price']);
+                  const shortCurrentCost = currentPrice * quantity * pos.multiplier;
+                  const longCurrentCost = longCurrentPrice * quantity * longPos.multiplier;
+                  // For spread: current cost = (short leg cost - long leg cost)
+                  currentCost = shortCurrentCost - longCurrentCost;
+                  
+                  console.log(`[Performance] Detected bear call spread: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt width, $${capitalAtRisk.toFixed(2)} at risk, current spread value: $${currentCost.toFixed(2)})`);
                 }
                 break;
               }
@@ -552,17 +586,99 @@ export const performanceRouter = router({
           // Spread position - need to close both legs
           console.log(`[Performance] Detected ${pos.spreadType} spread: ${pos.strike}/${pos.longStrike}`);
           
-          // For spreads, we need to submit a two-leg buy-to-close order
-          // TODO: Implement spread closing logic
-          // For now, log a warning and skip
-          console.warn(`[Performance] Spread closing not yet implemented for ${pos.underlying}`);
-          results.push({
-            success: false,
-            message: 'Spread closing not yet implemented - please close manually in Tastytrade',
-            underlying: pos.underlying,
-            strike: pos.strike,
-            quantity: pos.quantity,
-          });
+          try {
+            // Import price formatting utility
+            const { formatPriceForSubmission } = await import('../shared/orderUtils');
+            
+            // Construct option symbols for both legs
+            // Parse the short leg symbol to extract components
+            const shortSymbol = pos.optionSymbol;
+            const match = shortSymbol.match(/^([A-Z\s]+)(\d{6})([CP])(\d+)$/);
+            
+            if (!match) {
+              throw new Error(`Invalid option symbol format: ${shortSymbol}`);
+            }
+            
+            const ticker = match[1].trim();
+            const dateStr = match[2];
+            const optionType = match[3];
+            const shortStrikeStr = match[4];
+            
+            // Build long leg symbol with same format
+            const longStrikeStr = (pos.longStrike * 1000).toString().padStart(8, '0');
+            const longSymbol = `${ticker.padEnd(6, ' ')}${dateStr}${optionType}${longStrikeStr}`;
+            const formattedShortSymbol = `${ticker.padEnd(6, ' ')}${dateStr}${optionType}${shortStrikeStr}`;
+            
+            // Calculate aggressive close price (10% above current or +$0.05 min)
+            // For spreads, current price represents the net credit/debit
+            const pricePremium = Math.max(pos.currentPrice * 0.10, 0.05);
+            const netDebitPrice = pos.currentPrice + pricePremium;
+            const formattedPrice = formatPriceForSubmission(netDebitPrice);
+            
+            console.log(`[Performance] Closing spread: Short=${formattedShortSymbol}, Long=${longSymbol}`);
+            console.log(`[Performance] Net debit price: $${formattedPrice} (mark=$${pos.currentPrice.toFixed(2)} + $${pricePremium.toFixed(2)})`);
+            
+            // Build two-leg order payload
+            const orderPayload = {
+              'time-in-force': 'Day',
+              'order-type': 'Limit',
+              'underlying-symbol': pos.underlying,
+              price: formattedPrice,
+              'price-effect': 'Debit', // We pay to close the spread
+              legs: [
+                {
+                  'instrument-type': 'Equity Option',
+                  symbol: formattedShortSymbol,
+                  quantity: pos.quantity.toString(),
+                  action: 'Buy to Close',
+                },
+                {
+                  'instrument-type': 'Equity Option',
+                  symbol: longSymbol,
+                  quantity: pos.quantity.toString(),
+                  action: 'Sell to Close', // We sell back the long leg
+                },
+              ],
+            };
+            
+            // Submit or dry-run the order
+            const endpoint = dryRun 
+              ? `/accounts/${pos.accountId}/orders/dry-run`
+              : `/accounts/${pos.accountId}/orders`;
+            
+            const response = await api['client'].post(endpoint, orderPayload);
+            
+            if (dryRun) {
+              console.log(`[Performance] Spread close order validated successfully`);
+              results.push({
+                success: true,
+                message: `Spread close order validated (dry run)`,
+                underlying: pos.underlying,
+                strike: pos.strike,
+                quantity: pos.quantity,
+              });
+            } else {
+              const orderId = response.data?.data?.order?.id;
+              console.log(`[Performance] Spread close order submitted: ${orderId}`);
+              results.push({
+                success: true,
+                orderId,
+                message: `Spread close order submitted successfully`,
+                underlying: pos.underlying,
+                strike: pos.strike,
+                quantity: pos.quantity,
+              });
+            }
+          } catch (error: any) {
+            console.error(`[Performance] Failed to close spread for ${pos.underlying}:`, error);
+            results.push({
+              success: false,
+              message: `Failed to close spread: ${error.message}`,
+              underlying: pos.underlying,
+              strike: pos.strike,
+              quantity: pos.quantity,
+            });
+          }
         } else {
           // Single-leg position - use existing logic
           // Add premium to close price for immediate fills

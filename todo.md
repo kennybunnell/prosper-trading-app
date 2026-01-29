@@ -1786,3 +1786,23 @@
 - [x] Add conditional rendering based on spreadType field
 - [ ] Test with real spread position data when market opens
 - [x] Verify CSP positions still display correctly
+
+## Two-Leg Close Orders for Spread Positions
+- [x] Examine Tastytrade API submitOrder method for multi-leg order structure
+- [x] Create buildSpreadCloseOrderLegs function to construct two-leg BTC orders
+- [x] Update closePositions procedure to detect spread positions
+- [x] Build two-leg order payload (BTC short put + STC long put)
+- [x] Calculate net debit price for closing spread (10% above mark or +$0.05 min)
+- [x] Parse option symbols to construct both leg symbols
+- [x] Submit multi-leg order via Tastytrade API
+- [ ] Test dry run with spread close orders when market opens
+- [ ] Test live submission when market opens
+
+## P&L Tracking for Spread Positions
+- [x] Update getActivePositions to fetch current prices for both legs
+- [x] Batch fetch live quotes for all option symbols using getOptionQuotesBatch
+- [x] Calculate spread current value (short leg cost - long leg cost)
+- [x] Update premium realization calculation for spreads
+- [x] Use live quotes (mark/mid/last) instead of stale close prices
+- [ ] Verify P&L displays correctly for spread positions when market opens
+- [ ] Test with real spread positions when market opens
