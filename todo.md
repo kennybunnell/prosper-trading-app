@@ -2254,3 +2254,43 @@
 - [x] Ensure consistent order preview across all strategies (CSP, BPS, CC, BCS)
 - [x] Test order preview for bear call spreads
 - [x] Save checkpoint
+
+## Bug Fix: Column Alignment in Opportunities Table
+- [ ] Investigate Score and IV Rank column misalignment in opportunities table
+- [ ] Fix column headers so Score column shows actual scores (not empty)
+- [ ] Verify IV Rank column shows IV Rank values (not score values)
+- [ ] Test column alignment across all dashboards (CSP, CC, PMCC)
+
+## Bug Fix: Replace Order Logic for Spreads
+- [ ] Investigate why "Replace All" only closes positions without opening new ones
+- [ ] Fix replace logic to simultaneously close old position AND open new position
+- [ ] Ensure new position uses appropriate price point (between bid-ask spread)
+- [ ] Test replace functionality for bull put spreads
+- [ ] Test replace functionality for bear call spreads
+- [ ] Verify replacement log shows both close and open actions
+- [ ] Save checkpoint after fixes
+
+## Bug Fix: Bear Call Spread Scanning Failure
+- [x] Check logs to identify why bear call spread scanning fails to process even 3 symbols
+- [x] Fix the scanning issue causing failures - increased timeout from 5s to 45s
+- [ ] Test bear call spread scanning with small symbol set (3-5 symbols)
+- [ ] Verify scanning works with full watchlist
+
+## Bug Fix: Progress Dialog Not Closing After Scan Completes
+- [x] Find where progress dialog state is managed in CSP Dashboard
+- [x] Fix progress dialog to close automatically when scan completes successfully
+- [ ] Test that opportunities table displays after scan completes
+
+## Layout Improvement: Move Strategy Type to Top
+- [x] Move Strategy Type section from below Fetch Options to top of page (right after page title)
+- [x] Reorder sections: Strategy Type → Watchlist → Fetch Options → Filters → Opportunities
+- [x] Test that all functionality still works after reordering
+
+
+## Bug Fix: Replace All Logic for Spread Orders
+- [ ] Investigate why Replace All for bull put spreads only closes positions without reopening
+- [ ] Check Tastytrade API PUT endpoint behavior for spread orders (atomic replace might not work)
+- [ ] Implement fallback two-step process: 1) Cancel old order, 2) Create new order with updated price
+- [ ] Add error logging to capture Tastytrade API responses during replace operations
+- [ ] Test with real bull put spread orders to verify fix
+- [ ] Apply same fix to bear call spreads if needed

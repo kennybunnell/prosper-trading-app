@@ -807,6 +807,148 @@ export default function CSPDashboard() {
       
       <div className="container mx-auto py-8 space-y-8 relative z-10">
 
+      {/* Strategy Type Selection (Phase 1: UI Only) */}
+      {ENABLE_SPREADS && (
+        <Card className="bg-card/50 backdrop-blur border-border/50 border-primary/30">
+          <CardHeader className="cursor-pointer" onClick={() => setStrategyPanelCollapsed(!strategyPanelCollapsed)}>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  Strategy Type
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 ml-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowSpreadHelp(true);
+                    }}
+                  >
+                    <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                  </Button>
+                  {strategyPanelCollapsed && (
+                    <Badge variant="secondary" className="ml-2">
+                      {strategyType === 'csp' ? 'CSP Mode' : `Bull Put Spread - ${spreadWidth}pt`}
+                    </Badge>
+                  )}
+                </CardTitle>
+                {!strategyPanelCollapsed && (
+                  <CardDescription>
+                    Choose between Cash-Secured Puts or Bull Put Spreads
+                  </CardDescription>
+                )}
+              </div>
+              <ChevronDown className={cn(
+                "w-5 h-5 text-muted-foreground transition-transform duration-200",
+                strategyPanelCollapsed && "rotate-180"
+              )} />
+            </div>
+          </CardHeader>
+          {!strategyPanelCollapsed && (
+            <CardContent className="space-y-6">
+            {/* Strategy Toggle */}
+            <div className="flex gap-3">
+              <Button
+                variant={strategyType === 'csp' ? 'default' : 'outline'}
+                onClick={() => setStrategyType('csp')}
+                className={cn(
+                  "flex-1 relative overflow-hidden transition-all duration-300",
+                  strategyType === 'csp'
+                    ? "bg-gradient-to-r from-amber-600 to-yellow-700 hover:from-amber-700 hover:to-yellow-800 text-white shadow-lg"
+                    : "hover:bg-amber-500/10 hover:border-amber-500/50"
+                )}
+              >
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-current" />
+                  Cash-Secured Put
+                </span>
+              </Button>
+              <Button
+                variant={strategyType === 'spread' ? 'default' : 'outline'}
+                onClick={() => setStrategyType('spread')}
+                className={cn(
+                  "flex-1 relative overflow-hidden transition-all duration-300",
+                  strategyType === 'spread'
+                    ? "bg-gradient-to-r from-blue-600 to-cyan-700 hover:from-blue-700 hover:to-cyan-800 text-white shadow-lg"
+                    : "hover:bg-blue-500/10 hover:border-blue-500/50"
+                )}
+              >
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-current" />
+                  Bull Put Spread
+                </span>
+              </Button>
+            </div>
+
+            {/* Spread Width Selector (only show when spread selected) */}
+            {strategyType === 'spread' && (
+              <div className="space-y-3 p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
+                <Label className="text-sm font-semibold">Spread Width</Label>
+                <div className="flex gap-3">
+                  <Button
+                    variant={spreadWidth === 2 ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSpreadWidth(2)}
+                    className={cn(
+                      "flex-1",
+                      spreadWidth === 2
+                        ? "bg-blue-600 hover:bg-blue-700"
+                        : "hover:bg-blue-500/10 hover:border-blue-500/50"
+                    )}
+                  >
+                    2 points
+                  </Button>
+                  <Button
+                    variant={spreadWidth === 5 ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSpreadWidth(5)}
+                    className={cn(
+                      "flex-1",
+                      spreadWidth === 5
+                        ? "bg-blue-600 hover:bg-blue-700"
+                        : "hover:bg-blue-500/10 hover:border-blue-500/50"
+                    )}
+                  >
+                    5 points
+                  </Button>
+                  <Button
+                    variant={spreadWidth === 10 ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSpreadWidth(10)}
+                    className={cn(
+                      "flex-1",
+                      spreadWidth === 10
+                        ? "bg-blue-600 hover:bg-blue-700"
+                        : "hover:bg-blue-500/10 hover:border-blue-500/50"
+                    )}
+                  >
+                    10 points
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {spreadWidth === 2 && "Narrow spread - Lower capital efficiency, higher win rate"}
+                  {spreadWidth === 5 && "Balanced spread - Good capital efficiency and win rate"}
+                  {spreadWidth === 10 && "Wide spread - Maximum capital efficiency, lower win rate"}
+                </p>
+              </div>
+            )}
+
+            {/* Info banner */}
+            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                {strategyType === 'csp' ? (
+                  <>💰 <strong>CSP Mode:</strong> Requires full collateral ($15,000 for $150 strike). Can be assigned stock if ITM at expiration.</>
+                ) : (
+                  <>🎯 <strong>Spread Mode:</strong> Defined risk ($425 for 5pt spread). Capital efficient - 97% less collateral than CSP. Both legs execute simultaneously.</>
+                )}
+              </p>
+            </div>
+          </CardContent>
+          )}
+        </Card>
+      )}
+
       {/* Watchlist Management - Full Collapse Mode */}
       {isFullyCollapsed ? (
         <div className="flex items-center justify-between p-6 bg-card/50 backdrop-blur border border-border/50 rounded-lg shadow-sm hover:shadow-md transition-shadow">
@@ -1126,147 +1268,6 @@ export default function CSPDashboard() {
         </>
       )}
 
-      {/* Strategy Type Selection (Phase 1: UI Only) */}
-      {ENABLE_SPREADS && (
-        <Card className="bg-card/50 backdrop-blur border-border/50 border-primary/30">
-          <CardHeader className="cursor-pointer" onClick={() => setStrategyPanelCollapsed(!strategyPanelCollapsed)}>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-primary" />
-                  Strategy Type
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 ml-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowSpreadHelp(true);
-                    }}
-                  >
-                    <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-primary" />
-                  </Button>
-                  {strategyPanelCollapsed && (
-                    <Badge variant="secondary" className="ml-2">
-                      {strategyType === 'csp' ? 'CSP Mode' : `Bull Put Spread - ${spreadWidth}pt`}
-                    </Badge>
-                  )}
-                </CardTitle>
-                {!strategyPanelCollapsed && (
-                  <CardDescription>
-                    Choose between Cash-Secured Puts or Bull Put Spreads
-                  </CardDescription>
-                )}
-              </div>
-              <ChevronDown className={cn(
-                "w-5 h-5 text-muted-foreground transition-transform duration-200",
-                strategyPanelCollapsed && "rotate-180"
-              )} />
-            </div>
-          </CardHeader>
-          {!strategyPanelCollapsed && (
-            <CardContent className="space-y-6">
-            {/* Strategy Toggle */}
-            <div className="flex gap-3">
-              <Button
-                variant={strategyType === 'csp' ? 'default' : 'outline'}
-                onClick={() => setStrategyType('csp')}
-                className={cn(
-                  "flex-1 relative overflow-hidden transition-all duration-300",
-                  strategyType === 'csp'
-                    ? "bg-gradient-to-r from-amber-600 to-yellow-700 hover:from-amber-700 hover:to-yellow-800 text-white shadow-lg"
-                    : "hover:bg-amber-500/10 hover:border-amber-500/50"
-                )}
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-current" />
-                  Cash-Secured Put
-                </span>
-              </Button>
-              <Button
-                variant={strategyType === 'spread' ? 'default' : 'outline'}
-                onClick={() => setStrategyType('spread')}
-                className={cn(
-                  "flex-1 relative overflow-hidden transition-all duration-300",
-                  strategyType === 'spread'
-                    ? "bg-gradient-to-r from-blue-600 to-cyan-700 hover:from-blue-700 hover:to-cyan-800 text-white shadow-lg"
-                    : "hover:bg-blue-500/10 hover:border-blue-500/50"
-                )}
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-current" />
-                  Bull Put Spread
-                </span>
-              </Button>
-            </div>
-
-            {/* Spread Width Selector (only show when spread selected) */}
-            {strategyType === 'spread' && (
-              <div className="space-y-3 p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-                <Label className="text-sm font-semibold">Spread Width</Label>
-                <div className="flex gap-3">
-                  <Button
-                    variant={spreadWidth === 2 ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setSpreadWidth(2)}
-                    className={cn(
-                      "flex-1",
-                      spreadWidth === 2
-                        ? "bg-blue-600 hover:bg-blue-700"
-                        : "hover:bg-blue-500/10 hover:border-blue-500/50"
-                    )}
-                  >
-                    2 points
-                  </Button>
-                  <Button
-                    variant={spreadWidth === 5 ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setSpreadWidth(5)}
-                    className={cn(
-                      "flex-1",
-                      spreadWidth === 5
-                        ? "bg-blue-600 hover:bg-blue-700"
-                        : "hover:bg-blue-500/10 hover:border-blue-500/50"
-                    )}
-                  >
-                    5 points
-                  </Button>
-                  <Button
-                    variant={spreadWidth === 10 ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setSpreadWidth(10)}
-                    className={cn(
-                      "flex-1",
-                      spreadWidth === 10
-                        ? "bg-blue-600 hover:bg-blue-700"
-                        : "hover:bg-blue-500/10 hover:border-blue-500/50"
-                    )}
-                  >
-                    10 points
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {spreadWidth === 2 && "Narrow spread - Lower capital efficiency, higher win rate"}
-                  {spreadWidth === 5 && "Balanced spread - Good capital efficiency and win rate"}
-                  {spreadWidth === 10 && "Wide spread - Maximum capital efficiency, lower win rate"}
-                </p>
-              </div>
-            )}
-
-            {/* Info banner */}
-            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
-              <p className="text-sm text-muted-foreground">
-                {strategyType === 'csp' ? (
-                  <>💰 <strong>CSP Mode:</strong> Requires full collateral ($15,000 for $150 strike). Can be assigned stock if ITM at expiration.</>
-                ) : (
-                  <>🎯 <strong>Spread Mode:</strong> Defined risk ($425 for 5pt spread). Capital efficient - 97% less collateral than CSP. Both legs execute simultaneously.</>
-                )}
-              </p>
-            </div>
-          </CardContent>
-          )}
-        </Card>
-      )}
 
       {/* Filters */}
       <Card className="bg-card/50 backdrop-blur border-border/50" data-section="filters">
