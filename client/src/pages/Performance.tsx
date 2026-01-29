@@ -72,6 +72,7 @@ function ActivePositionsTab() {
   const { selectedAccountId } = useAccount();
   const [positionType, setPositionType] = useState<'csp' | 'cc'>('csp');
   const [profitFilter, setProfitFilter] = useState<number | null>(null);
+  const [spreadFilter, setSpreadFilter] = useState<'all' | 'spreads' | 'single-leg'>('all');
   const [selectedPositions, setSelectedPositions] = useState<Set<number>>(new Set());
   const [dryRun, setDryRun] = useState(true);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -188,6 +189,13 @@ function ActivePositionsTab() {
       positions = positions.filter(pos => pos.realizedPercent >= profitFilter && !pos.hasWorkingOrder);
     }
     
+    // Filter by spread type
+    if (spreadFilter === 'spreads') {
+      positions = positions.filter(pos => pos.spreadType);
+    } else if (spreadFilter === 'single-leg') {
+      positions = positions.filter(pos => !pos.spreadType);
+    }
+    
     // Sort positions
     if (sortColumn) {
       positions = [...positions].sort((a, b) => {
@@ -254,7 +262,7 @@ function ActivePositionsTab() {
     }
     
     return positions;
-  }, [data?.positions, profitFilter, sortColumn, sortDirection]);
+  }, [data?.positions, profitFilter, spreadFilter, sortColumn, sortDirection]);
 
   // Get selected positions data
   const selectedPositionsData = useMemo(() => {
@@ -327,6 +335,10 @@ function ActivePositionsTab() {
     singleLegCount: 0,
     totalSpreadPremium: 0,
     totalSingleLegPremium: 0,
+    totalCapitalAtRisk: 0,
+    overallCapitalEfficiency: 0,
+    spreadCapitalEfficiency: 0,
+    singleLegCapitalEfficiency: 0,
   };
 
   // Count positions by profit threshold
@@ -378,7 +390,7 @@ function ActivePositionsTab() {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className="p-6 bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20">
           <div className="text-sm text-muted-foreground mb-1">Open Positions</div>
           <div className="text-3xl font-bold text-blue-400">{summary.openPositions}</div>
@@ -417,6 +429,24 @@ function ActivePositionsTab() {
         <Card className="p-6 bg-gradient-to-br from-amber-500/10 to-amber-600/10 border-amber-500/20">
           <div className="text-sm text-muted-foreground mb-1">Ready to Close</div>
           <div className="text-3xl font-bold text-amber-400">{summary.readyToClose}</div>
+        </Card>
+        <Card className="p-6 bg-gradient-to-br from-cyan-500/10 to-cyan-600/10 border-cyan-500/20">
+          <div className="text-sm text-muted-foreground mb-1">Capital Efficiency</div>
+          <div className="text-3xl font-bold text-cyan-400">{(summary.overallCapitalEfficiency ?? 0).toFixed(1)}%</div>
+          {((summary.spreadCapitalEfficiency ?? 0) > 0 || (summary.singleLegCapitalEfficiency ?? 0) > 0) && (
+            <div className="text-xs text-muted-foreground mt-2">
+              {(summary.spreadCapitalEfficiency ?? 0) > 0 && (
+                <div className="text-emerald-400">
+                  {(summary.spreadCapitalEfficiency ?? 0).toFixed(1)}% spreads
+                </div>
+              )}
+              {(summary.singleLegCapitalEfficiency ?? 0) > 0 && (
+                <div>
+                  {(summary.singleLegCapitalEfficiency ?? 0).toFixed(1)}% single-leg
+                </div>
+              )}
+            </div>
+          )}
         </Card>
       </div>
 
@@ -466,6 +496,30 @@ function ActivePositionsTab() {
                 Clear Filter
               </Button>
             )}
+            <div className="h-4 w-px bg-border" />
+            <span className="text-sm font-medium">Position Type:</span>
+            <Button
+              variant={spreadFilter === 'all' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSpreadFilter('all')}
+            >
+              All
+            </Button>
+            <Button
+              variant={spreadFilter === 'spreads' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSpreadFilter('spreads')}
+              className="bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/50"
+            >
+              Spreads Only
+            </Button>
+            <Button
+              variant={spreadFilter === 'single-leg' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSpreadFilter('single-leg')}
+            >
+              Single-Leg Only
+            </Button>
             <div className="h-4 w-px bg-border" />
             <Button
               variant="outline"

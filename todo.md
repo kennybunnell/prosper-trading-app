@@ -1814,3 +1814,23 @@
 - [x] Update frontend to display spread breakdown in summary cards
 - [x] Fix TypeScript errors with optional chaining
 - [ ] Test summary cards display correct counts and totals when market opens
+
+## Spread Filter Toggle for Active Positions
+- [x] Add filter state to ActivePositionsTab component (all/spreads/single-leg)
+- [x] Add filter button group above positions table (Position Type: All / Spreads Only / Single-Leg Only)
+- [x] Filter positions array based on selected filter in filteredPositions useMemo
+- [x] Update dependency array to include spreadFilter
+- [x] Add emerald styling to "Spreads Only" button for consistency
+- [ ] Test filter toggle with mixed positions when market opens
+
+## Capital Efficiency Summary Card
+- [x] Calculate total premium received (sum of all position premiums)
+- [x] Calculate total capital at risk (spreads use capitalAtRisk, single-leg use premium)
+- [x] Calculate capital efficiency percentage (premium / capital * 100)
+- [x] Add separate calculations for spreads vs single-leg
+- [x] Create new summary card showing capital efficiency metric (cyan gradient)
+- [x] Add breakdown showing spread efficiency vs single-leg efficiency
+- [x] Add backend logging for capital efficiency metrics
+- [x] Update summary cards grid from 4 to 5 columns
+- [x] Add default values for capital efficiency fields in frontend
+- [ ] Test calculations with real position data when market opens

@@ -487,12 +487,32 @@ export const performanceRouter = router({
         const totalSingleLegPremium = singleLegPositions.reduce((sum, pos) => sum + pos.premium, 0);
         const totalPremiumAtRisk = totalSpreadPremium + totalSingleLegPremium;
         
+        // Calculate capital at risk
+        // For spreads: use capitalAtRisk (spread width - net credit)
+        // For single-leg: use premium (since premium = capital for CSP/CC)
+        const totalSpreadCapital = spreadPositions.reduce((sum, pos) => sum + (pos.capitalAtRisk || 0), 0);
+        const totalSingleLegCapital = totalSingleLegPremium; // For CSP/CC, capital = premium
+        const totalCapitalAtRisk = totalSpreadCapital + totalSingleLegCapital;
+        
+        // Calculate capital efficiency (premium / capital * 100)
+        const spreadCapitalEfficiency = totalSpreadCapital > 0
+          ? (totalSpreadPremium / totalSpreadCapital) * 100
+          : 0;
+        const singleLegCapitalEfficiency = totalSingleLegCapital > 0
+          ? (totalSingleLegPremium / totalSingleLegCapital) * 100
+          : 0;
+        const overallCapitalEfficiency = totalCapitalAtRisk > 0
+          ? (totalPremiumAtRisk / totalCapitalAtRisk) * 100
+          : 0;
+        
         const avgRealizedPercent = openPositions > 0
           ? processedPositions.reduce((sum, pos) => sum + pos.realizedPercent, 0) / openPositions
           : 0;
         const readyToClose = processedPositions.filter(pos => pos.action === 'CLOSE' && !pos.hasWorkingOrder).length;
 
         console.log(`[Performance] Processed ${processedPositions.length} positions (${spreadCount} spreads, ${singleLegCount} single-leg), ${readyToClose} ready to close`);
+        console.log(`[Performance] Capital efficiency: Overall ${overallCapitalEfficiency.toFixed(1)}% (Spreads: ${spreadCapitalEfficiency.toFixed(1)}%, Single-leg: ${singleLegCapitalEfficiency.toFixed(1)}%)`);
+        console.log(`[Performance] Total capital at risk: $${totalCapitalAtRisk.toFixed(2)} (Spreads: $${totalSpreadCapital.toFixed(2)}, Single-leg: $${totalSingleLegCapital.toFixed(2)})`)
 
         return {
           positions: processedPositions,
@@ -506,6 +526,11 @@ export const performanceRouter = router({
             singleLegCount,
             totalSpreadPremium,
             totalSingleLegPremium,
+            // Capital efficiency
+            totalCapitalAtRisk,
+            overallCapitalEfficiency: Math.round(overallCapitalEfficiency * 10) / 10,
+            spreadCapitalEfficiency: Math.round(spreadCapitalEfficiency * 10) / 10,
+            singleLegCapitalEfficiency: Math.round(singleLegCapitalEfficiency * 10) / 10,
           },
         };
       } catch (error: any) {
