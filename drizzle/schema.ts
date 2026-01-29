@@ -88,6 +88,11 @@ export const positions = mysqlTable("positions", {
   unrealizedPnL: varchar("unrealizedPnL", { length: 20 }),
   realizedPnL: varchar("realizedPnL", { length: 20 }),
   status: mysqlEnum("status", ["open", "closed"]).default("open").notNull(),
+  // Spread-specific fields (nullable for backward compatibility)
+  spreadType: mysqlEnum("spreadType", ["bull_put", "bear_call", "iron_condor"]),
+  longStrike: varchar("longStrike", { length: 20 }), // For spreads: the protective leg strike
+  spreadWidth: int("spreadWidth"), // Spread width in points (e.g., 5 for 5-point spread)
+  capitalAtRisk: varchar("capitalAtRisk", { length: 20 }), // For spreads: max loss amount
   openedAt: timestamp("openedAt").defaultNow().notNull(),
   closedAt: timestamp("closedAt"),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

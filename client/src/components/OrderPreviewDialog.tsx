@@ -27,6 +27,11 @@ interface OrderPreviewItem {
   collateral: number;
   status: 'valid' | 'warning' | 'error';
   message?: string;
+  // Spread-specific fields
+  isSpread?: boolean;
+  spreadType?: 'bull_put' | 'bear_call';
+  longStrike?: number;
+  spreadWidth?: number;
 }
 
 interface OrderPreviewDialogProps {
@@ -137,11 +142,12 @@ export function OrderPreviewDialog({
               <TableRow>
                 <TableHead>Status</TableHead>
                 <TableHead>Symbol</TableHead>
-                <TableHead className="text-right">Strike</TableHead>
+                <TableHead>Strategy</TableHead>
+                <TableHead className="text-right">Strikes</TableHead>
                 <TableHead>Expiration</TableHead>
                 <TableHead className="text-right">Qty</TableHead>
                 <TableHead className="text-right">Premium</TableHead>
-                <TableHead className="text-right">Collateral</TableHead>
+                <TableHead className="text-right">Capital Risk</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -159,7 +165,25 @@ export function OrderPreviewDialog({
                     )}
                   </TableCell>
                   <TableCell className="font-semibold">{order.symbol}</TableCell>
-                  <TableCell className="text-right">${order.strike.toFixed(2)}</TableCell>
+                  <TableCell>
+                    {order.isSpread ? (
+                      <Badge variant="secondary" className="bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                        {order.spreadType === 'bull_put' ? 'Bull Put Spread' : 'Bear Call Spread'}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">CSP</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {order.isSpread && order.longStrike ? (
+                      <div className="flex flex-col items-end">
+                        <span className="font-semibold">${order.strike.toFixed(2)}/${order.longStrike.toFixed(2)}</span>
+                        <span className="text-xs text-muted-foreground">{order.spreadWidth}pt spread</span>
+                      </div>
+                    ) : (
+                      <span>${order.strike.toFixed(2)}</span>
+                    )}
+                  </TableCell>
                   <TableCell>{new Date(order.expiration).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right">{order.quantity}</TableCell>
                   <TableCell className="text-right text-green-600 font-semibold">

@@ -712,6 +712,12 @@ export const appRouter = router({
             bid: z.number(),
             ask: z.number(),
             currentPrice: z.number(),
+            // Spread-specific fields
+            isSpread: z.boolean().optional(),
+            spreadType: z.enum(['bull_put', 'bear_call']).optional(),
+            longStrike: z.number().optional(),
+            spreadWidth: z.number().optional(),
+            capitalAtRisk: z.number().optional(),
           })),
           accountId: z.string(),
         })
@@ -752,7 +758,10 @@ export const appRouter = router({
 
         // Validate each order
         const validatedOrders = input.orders.map(order => {
-          const collateral = order.strike * 100; // Collateral per contract
+          // For spreads, use capital at risk; for CSP, use full collateral
+          const collateral = order.isSpread && order.capitalAtRisk 
+            ? order.capitalAtRisk 
+            : order.strike * 100;
           const midpoint = (order.bid + order.ask) / 2;
           
           // Validation checks
@@ -782,6 +791,11 @@ export const appRouter = router({
             collateral,
             status,
             message,
+            // Pass through spread details
+            isSpread: order.isSpread,
+            spreadType: order.spreadType,
+            longStrike: order.longStrike,
+            spreadWidth: order.spreadWidth,
           };
         });
 

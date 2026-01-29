@@ -1748,3 +1748,26 @@
 - [ ] Test dry run with spread orders
 - [ ] Verify order preview shows both legs correctly
 - [ ] Test live submission when market opens
+
+## Phase 4: Database Tracking and Order Preview Enhancement
+### Database Schema
+- [ ] Add nullable columns to positions table: spread_type, long_strike, spread_width, capital_at_risk
+- [ ] Run database migration with `pnpm db:push`
+- [ ] Update position tracking to store spread details when orders are filled
+
+### Order Preview Dialog Enhancement
+- [x] Read OrderPreviewDialog component
+- [x] Add spread badge display ("Bull Put Spread" or "Cash-Secured Put")
+- [x] Show both strikes for spreads (e.g., "TSLA 407.50/402.50")
+- [x] Display capital at risk vs collateral for spreads
+- [x] Update validateOrders input schema to accept spread details
+- [x] Update validateOrders to pass through spread details in response
+- [x] Update validateOrders to use capitalAtRisk for spreads
+- [ ] Test order preview with spread orders tomorrow when market opens
+
+### Active Positions Dashboard
+- [ ] Update positions display to show spread type badge
+- [ ] Show both strikes for spread positions
+- [ ] Display capital at risk instead of collateral for spreads
+- [ ] Ensure P&L calculations work for spreads
+- [ ] Test close functionality for spread positions

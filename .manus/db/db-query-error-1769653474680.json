@@ -1,0 +1,8 @@
+{
+  "query": "ALTER TABLE positions \nADD COLUMN spreadType ENUM('bull_put', 'bear_call', 'iron_condor') NULL AFTER status,\nADD COLUMN longStrike VARCHAR(20) NULL AFTER spreadType,\nADD COLUMN spreadWidth INT NULL AFTER longStrike,\nADD COLUMN capitalAtRisk VARCHAR(20) NULL AFTER spreadWidth;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute ALTER TABLE positions \nADD COLUMN spreadType ENUM('bull_put', 'bear_call', 'iron_condor') NULL AFTER status,\nADD COLUMN longStrike VARCHAR(20) NULL AFTER spreadType,\nADD COLUMN spreadWidth INT NULL AFTER longStrike,\nADD COLUMN capitalAtRisk VARCHAR(20) NULL AFTER spreadWidth;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'spreadtype' in 'positions'"
+  ]
+}
