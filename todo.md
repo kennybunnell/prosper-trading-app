@@ -1683,3 +1683,43 @@
 - [x] Show expected ROC next to each strategy slider
 - [x] Add expand/collapse functionality for Strategy Mix section
 - [ ] Test calculator with various allocations and portfolio sizes
+
+## Bull Put Spread Implementation - CSP Dashboard
+
+### Phase 1: UI Toggle and Spread Width Selector (Frontend Mock)
+- [x] Add feature flag `ENABLE_SPREADS` at top of CSPDashboard component
+- [x] Add strategy type toggle (CSP / Bull Put Spread) above filters
+- [x] Add spread width selector (2pt, 5pt, 10pt) - shows only when spread selected
+- [x] Set default to CSP mode
+- [x] Add state management for strategy type and spread width
+- [x] Add info banners explaining each strategy
+- [x] Add descriptive text for each spread width option
+- [ ] Test toggle switches between modes correctly
+- [ ] Verify all existing CSP functionality unchanged
+
+### Phase 2: Backend Spread Pricing (Read-Only)
+- [ ] Create new tRPC procedure `csp.getSpreadOpportunities`
+- [ ] Implement spread pricing calculation (short put bid - long put ask)
+- [ ] Calculate max risk (spread width - net credit)
+- [ ] Calculate ROC on capital at risk
+- [ ] Add comparison row showing capital savings vs CSP
+- [ ] Display both strikes in opportunities table (145/150)
+- [ ] Test spread opportunities load correctly
+- [ ] Verify pricing calculations accurate
+
+### Phase 3: Multi-Leg Order Submission
+- [ ] Create new function `submitSpreadOrder()` in tastytrade service
+- [ ] Build two-leg order structure (sell put + buy put)
+- [ ] Create new tRPC mutation `csp.submitSpreadOrder`
+- [ ] Add conditional in submit handler (if spread use new function, else use existing)
+- [ ] Test spread order submission on paper account
+- [ ] Verify both legs execute simultaneously
+- [ ] Confirm existing CSP orders still work
+
+### Phase 4: Database Tracking
+- [ ] Add nullable columns to schema: spread_type, long_strike, spread_width, max_risk
+- [ ] Run `pnpm db:push` to apply schema changes
+- [ ] Update queries to handle nullable spread fields
+- [ ] Test existing CSP queries return correct data
+- [ ] Test spread orders save with all fields populated
+- [ ] Verify Active Positions dashboard shows spreads correctly
