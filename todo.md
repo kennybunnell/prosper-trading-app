@@ -2100,3 +2100,10 @@
 - [ ] Test with 230 orders to verify no 429 rate limit errors
 - [ ] Measure performance improvement (should be 4-6x faster than sequential)
 - [ ] Note: CC orders already process sequentially (typically low volume, no batch processing needed)
+
+## Add Spread Width Help Badge to Strategy Type Section
+- [x] Add help icon (ℹ️) next to "Strategy Type" label in CC Dashboard
+- [x] Create dialog component with spread width recommendations (by stock price, account size, strategy)
+- [x] Add help icon and dialog to CSP Dashboard strategy type section
+- [x] Style dialog to match existing UI theme
+- [ ] Test dialog opens/closes correctly on both dashboards

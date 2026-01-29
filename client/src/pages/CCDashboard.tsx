@@ -24,6 +24,7 @@ import {
   Target,
   ArrowUp,
   ArrowDown,
+  HelpCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
@@ -231,6 +232,7 @@ export default function CCDashboard() {
   const [strategyType, setStrategyType] = useState<StrategyType>('cc');
   const [spreadWidth, setSpreadWidth] = useState<SpreadWidth>(5);
   const [strategyPanelCollapsed, setStrategyPanelCollapsed] = useState(false);
+  const [showSpreadHelp, setShowSpreadHelp] = useState(false);
   const [watchlistSymbolCount, setWatchlistSymbolCount] = useState(0);
   // Live range filters
   const [deltaRange, setDeltaRange] = useState<[number, number]>([0, 1]);
@@ -753,6 +755,17 @@ export default function CCDashboard() {
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-primary" />
                 Strategy Type
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 ml-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowSpreadHelp(true);
+                  }}
+                >
+                  <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                </Button>
                 {strategyPanelCollapsed && (
                   <Badge variant="secondary" className="ml-2">
                     {strategyType === 'cc' ? 'CC Mode' : `Bear Call Spread - ${spreadWidth}pt`}
@@ -2109,6 +2122,88 @@ export default function CCDashboard() {
           </div>
         )}
       </div>
+
+      {/* Spread Width Help Dialog */}
+      <Dialog open={showSpreadHelp} onOpenChange={setShowSpreadHelp}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Recommended Spread Widths</DialogTitle>
+            <DialogDescription>
+              Choose the right spread width based on your stock price, account size, and strategy
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 mt-4">
+            {/* By Stock Price */}
+            <div>
+              <h3 className="font-semibold text-lg mb-3">By Stock Price</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">Under $100</span>
+                  <span className="font-medium">2-point spreads</span>
+                </div>
+                <div className="flex justify-between p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">$100-$200</span>
+                  <span className="font-medium">2-5 point spreads</span>
+                </div>
+                <div className="flex justify-between p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">$200-$400</span>
+                  <span className="font-medium">5-10 point spreads</span>
+                </div>
+                <div className="flex justify-between p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">$400-$800</span>
+                  <span className="font-medium">10-15 point spreads</span>
+                </div>
+                <div className="flex justify-between p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">$800+</span>
+                  <span className="font-medium">15-20 point spreads</span>
+                </div>
+              </div>
+            </div>
+
+            {/* By Account Size */}
+            <div>
+              <h3 className="font-semibold text-lg mb-3">By Account Size</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">Under $25K</span>
+                  <span className="font-medium">Focus on 2-point (capital efficiency)</span>
+                </div>
+                <div className="flex justify-between p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">$25K-$100K</span>
+                  <span className="font-medium">Mix of 2-point and 5-point</span>
+                </div>
+                <div className="flex justify-between p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">$100K-$250K</span>
+                  <span className="font-medium">Mix of 5-point and 10-point</span>
+                </div>
+                <div className="flex justify-between p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">$250K+</span>
+                  <span className="font-medium">All widths available, optimize for ROC</span>
+                </div>
+              </div>
+            </div>
+
+            {/* By Strategy */}
+            <div>
+              <h3 className="font-semibold text-lg mb-3">By Strategy</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">Aggressive income</span>
+                  <span className="font-medium">2-point spreads (higher ROC, more contracts)</span>
+                </div>
+                <div className="flex justify-between p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">Balanced income</span>
+                  <span className="font-medium">5-point spreads (best risk/reward)</span>
+                </div>
+                <div className="flex justify-between p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">Conservative income</span>
+                  <span className="font-medium">10-point spreads (lower stress, more buffer)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
