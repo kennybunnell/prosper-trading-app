@@ -572,13 +572,15 @@ function FilterPresetsSection() {
   return (
     <>
       <StrategyFilterPresetsSection strategy="csp" title="Cash-Secured Puts (CSP) Filter Presets" />
+      <StrategyFilterPresetsSection strategy="bps" title="Bull Put Spreads (BPS) Filter Presets" />
       <StrategyFilterPresetsSection strategy="cc" title="Covered Calls (CC) Filter Presets" />
+      <StrategyFilterPresetsSection strategy="bcs" title="Bear Call Spreads (BCS) Filter Presets" />
       <StrategyFilterPresetsSection strategy="pmcc" title="Poor Man's Covered Calls (PMCC) Filter Presets" />
     </>
   );
 }
 
-function StrategyFilterPresetsSection({ strategy, title }: { strategy: 'csp' | 'cc' | 'pmcc', title: string }) {
+function StrategyFilterPresetsSection({ strategy, title }: { strategy: 'csp' | 'cc' | 'pmcc' | 'bps' | 'bcs', title: string }) {
   const { data: presets, isLoading } = trpc.filterPresets.getByStrategy.useQuery({ strategy });
   const [isLoadingAll, setIsLoadingAll] = useState(false);
   const updatePreset = trpc.filterPresets.update.useMutation({
@@ -696,7 +698,7 @@ function PresetEditor({
   isPending,
 }: {
   preset: any;
-  strategy: 'csp' | 'cc' | 'pmcc';
+  strategy: 'csp' | 'cc' | 'pmcc' | 'bps' | 'bcs';
   label: string;
   onSave: (updates: any) => void;
   isPending: boolean;

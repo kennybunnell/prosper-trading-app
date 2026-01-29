@@ -8,7 +8,7 @@ import { getDb } from "./db";
  * Get recommended values for a specific strategy and preset combination
  */
 export function getRecommendedFilterValues(
-  strategy: "csp" | "cc" | "pmcc",
+  strategy: "csp" | "cc" | "pmcc" | "bps" | "bcs",
   presetName: "conservative" | "medium" | "aggressive"
 ) {
   const recommendations = {
@@ -99,6 +99,106 @@ export function getRecommendedFilterValues(
         minDte: 7,
         maxDte: 21,
         minDelta: "0.25",
+        maxDelta: "0.35",
+        minOpenInterest: 50,
+        minVolume: 30,
+        minRsi: 50,
+        maxRsi: 70,
+        minIvRank: 20,
+        maxIvRank: 100,
+        minBbPercent: "0.3",
+        maxBbPercent: "1.0",
+        minScore: 40,
+        maxStrikePercent: 115,
+      },
+    },
+    bps: {
+      conservative: {
+        minDte: 14,
+        maxDte: 45,
+        minDelta: "0.10",
+        maxDelta: "0.25",
+        minOpenInterest: 50,
+        minVolume: 50,
+        minRsi: 10,
+        maxRsi: 35,
+        minIvRank: 40,
+        maxIvRank: 100,
+        minBbPercent: "0",
+        maxBbPercent: "0.3",
+        minScore: 60,
+        maxStrikePercent: 100,
+      },
+      medium: {
+        minDte: 10,
+        maxDte: 30,
+        minDelta: "0.15",
+        maxDelta: "0.30",
+        minOpenInterest: 75,
+        minVolume: 40,
+        minRsi: 25,
+        maxRsi: 45,
+        minIvRank: 30,
+        maxIvRank: 100,
+        minBbPercent: "0",
+        maxBbPercent: "0.5",
+        minScore: 50,
+        maxStrikePercent: 105,
+      },
+      aggressive: {
+        minDte: 7,
+        maxDte: 21,
+        minDelta: "0.20",
+        maxDelta: "0.35",
+        minOpenInterest: 50,
+        minVolume: 30,
+        minRsi: 30,
+        maxRsi: 50,
+        minIvRank: 20,
+        maxIvRank: 100,
+        minBbPercent: "0",
+        maxBbPercent: "0.7",
+        minScore: 40,
+        maxStrikePercent: 110,
+      },
+    },
+    bcs: {
+      conservative: {
+        minDte: 14,
+        maxDte: 45,
+        minDelta: "0.10",
+        maxDelta: "0.25",
+        minOpenInterest: 50,
+        minVolume: 50,
+        minRsi: 65,
+        maxRsi: 90,
+        minIvRank: 40,
+        maxIvRank: 100,
+        minBbPercent: "0.7",
+        maxBbPercent: "1.0",
+        minScore: 60,
+        maxStrikePercent: 105,
+      },
+      medium: {
+        minDte: 10,
+        maxDte: 30,
+        minDelta: "0.15",
+        maxDelta: "0.30",
+        minOpenInterest: 75,
+        minVolume: 40,
+        minRsi: 55,
+        maxRsi: 75,
+        minIvRank: 30,
+        maxIvRank: 100,
+        minBbPercent: "0.5",
+        maxBbPercent: "1.0",
+        minScore: 50,
+        maxStrikePercent: 110,
+      },
+      aggressive: {
+        minDte: 7,
+        maxDte: 21,
+        minDelta: "0.20",
         maxDelta: "0.35",
         minOpenInterest: 50,
         minVolume: 30,
@@ -284,7 +384,7 @@ export async function seedPmccFilterPresets(userId: number): Promise<void> {
  */
 export async function getFilterPresetsByStrategy(
   userId: number,
-  strategy: "csp" | "cc" | "pmcc"
+  strategy: "csp" | "cc" | "pmcc" | "bps" | "bcs"
 ) {
   const db = await getDb();
   if (!db) {
@@ -307,7 +407,7 @@ export async function getFilterPresetsByStrategy(
  */
 export async function updateFilterPreset(
   userId: number,
-  strategy: "csp" | "cc" | "pmcc",
+  strategy: "csp" | "cc" | "pmcc" | "bps" | "bcs",
   presetName: "conservative" | "medium" | "aggressive",
   updates: Partial<{
     minDte: number;

@@ -254,10 +254,9 @@ export default function CCDashboard() {
   const filtersRef = useRef<HTMLDivElement>(null);
 
   // Fetch filter presets from database
-  // Use CSP presets for bear call spreads (both are bearish strategies)
-  // Use CC presets for covered calls
+  // Use BCS presets for bear call spreads, CC presets for covered calls
   const { data: presets } = strategyType === 'spread' 
-    ? trpc.cspFilters.getPresets.useQuery()
+    ? trpc.bcsFilters.getPresets.useQuery()
     : trpc.ccFilters.getPresets.useQuery();
 
   // Fetch account balances for buying power

@@ -276,8 +276,8 @@ export default function CSPDashboard() {
 
   const utils = trpc.useUtils();
 
-  // Fetch filter presets from database
-  const { data: presets } = trpc.cspFilters.getPresets.useQuery(undefined, { enabled: !!user });
+  // Fetch filter presets from database (use BPS presets for spread mode, CSP presets for single-leg mode)
+  const { data: presets } = trpc[strategyType === 'spread' ? 'bpsFilters' : 'cspFilters'].getPresets.useQuery(undefined, { enabled: !!user });
 
   // Fetch accounts
   const { data: accounts = [] } = trpc.accounts.list.useQuery(undefined, { enabled: !!user });

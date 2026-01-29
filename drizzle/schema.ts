@@ -32,7 +32,7 @@ export const watchlists = mysqlTable("watchlists", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   symbol: varchar("symbol", { length: 10 }).notNull(),
-  strategy: mysqlEnum("strategy", ["csp", "cc", "pmcc"]).notNull(),
+  strategy: mysqlEnum("strategy", ["csp", "cc", "pmcc", "bps", "bcs"]).notNull(),
   // Metadata columns for enhanced watchlist management
   company: text("company"),
   type: varchar("type", { length: 20 }), // Growth, Value, Blend
@@ -55,7 +55,7 @@ export const trades = mysqlTable("trades", {
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   accountId: varchar("accountId", { length: 64 }).notNull(),
   symbol: varchar("symbol", { length: 10 }).notNull(),
-  strategy: mysqlEnum("strategy", ["csp", "cc", "pmcc"]).notNull(),
+  strategy: mysqlEnum("strategy", ["csp", "cc", "pmcc", "bps", "bcs"]).notNull(),
   action: mysqlEnum("action", ["STO", "BTC", "BTO", "STC"]).notNull(),
   strike: varchar("strike", { length: 20 }).notNull(),
   expiration: varchar("expiration", { length: 20 }).notNull(),
@@ -111,7 +111,7 @@ export const premiumTracking = mysqlTable("premiumTracking", {
   tradeId: int("tradeId").references(() => trades.id, { onDelete: "set null" }),
   amount: varchar("amount", { length: 20 }).notNull(),
   type: mysqlEnum("type", ["collected", "paid"]).notNull(),
-  strategy: mysqlEnum("strategy", ["csp", "cc", "pmcc"]).notNull(),
+  strategy: mysqlEnum("strategy", ["csp", "cc", "pmcc", "bps", "bcs"]).notNull(),
   recordedAt: timestamp("recordedAt").defaultNow().notNull(),
 });
 
@@ -161,7 +161,7 @@ export type InsertTastytradeAccount = typeof tastytradeAccounts.$inferInsert;
 export const filterPresets = mysqlTable("filterPresets", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
-  strategy: mysqlEnum("strategy", ["csp", "cc", "pmcc"]).notNull(),
+  strategy: mysqlEnum("strategy", ["csp", "cc", "pmcc", "bps", "bcs"]).notNull(),
   presetName: mysqlEnum("presetName", ["conservative", "medium", "aggressive"]).notNull(),
   
   // DTE (Days to Expiration) range

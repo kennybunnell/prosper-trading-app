@@ -561,7 +561,7 @@ export const appRouter = router({
     add: protectedProcedure
       .input(z.object({ 
         symbol: z.string().min(1).max(10), 
-        strategy: z.enum(['csp', 'cc', 'pmcc']).optional(),
+        strategy: z.enum(['csp', 'cc', 'pmcc', 'bps', 'bcs']).optional(),
         company: z.string().optional(),
         type: z.string().optional(),
         sector: z.string().optional(),
@@ -1191,7 +1191,7 @@ export const appRouter = router({
 
   filterPresets: router({
     getByStrategy: protectedProcedure
-      .input(z.object({ strategy: z.enum(['csp', 'cc', 'pmcc']) }))
+      .input(z.object({ strategy: z.enum(['csp', 'cc', 'pmcc', 'bps', 'bcs']) }))
       .query(async ({ ctx, input }) => {
         const { getFilterPresetsByStrategy } = await import('./db-filter-presets');
         const { seedCspFilterPresets } = await import('./db');
@@ -1211,7 +1211,7 @@ export const appRouter = router({
     getRecommendedValues: protectedProcedure
       .input(
         z.object({
-          strategy: z.enum(['csp', 'cc', 'pmcc']),
+          strategy: z.enum(['csp', 'cc', 'pmcc', 'bps', 'bcs']),
           presetName: z.enum(['conservative', 'medium', 'aggressive']),
         })
       )
@@ -1222,7 +1222,7 @@ export const appRouter = router({
     update: protectedProcedure
       .input(
         z.object({
-          strategy: z.enum(['csp', 'cc', 'pmcc']),
+          strategy: z.enum(['csp', 'cc', 'pmcc', 'bps', 'bcs']),
           presetName: z.enum(['conservative', 'medium', 'aggressive']),
           minDte: z.number().optional(),
           maxDte: z.number().optional(),
@@ -1287,6 +1287,72 @@ export const appRouter = router({
         };
         
         await updateFilterPreset(ctx.user.id, 'cc', presetName, { ...updates, ...deltaUpdates });
+        return { success: true };
+      }),
+  }),
+
+  bpsFilters: router({
+    getPresets: protectedProcedure.query(async ({ ctx }) => {
+      const { getFilterPresetsByStrategy } = await import('./db-filter-presets');
+      return getFilterPresetsByStrategy(ctx.user.id, 'bps');
+    }),
+    updatePreset: protectedProcedure
+      .input(
+        z.object({
+          presetName: z.enum(['conservative', 'medium', 'aggressive']),
+          minDte: z.number().optional(),
+          maxDte: z.number().optional(),
+          minDelta: z.string().optional(),
+          maxDelta: z.string().optional(),
+          minOpenInterest: z.number().optional(),
+          minVolume: z.number().optional(),
+          minRsi: z.number().nullable().optional(),
+          maxRsi: z.number().nullable().optional(),
+          minIvRank: z.number().nullable().optional(),
+          maxIvRank: z.number().nullable().optional(),
+          minBbPercent: z.string().nullable().optional(),
+          maxBbPercent: z.string().nullable().optional(),
+          minScore: z.number().optional(),
+          maxStrikePercent: z.number().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { updateFilterPreset } = await import('./db-filter-presets');
+        const { presetName, ...updates } = input;
+        await updateFilterPreset(ctx.user.id, 'bps', presetName, updates);
+        return { success: true };
+      }),
+  }),
+
+  bcsFilters: router({
+    getPresets: protectedProcedure.query(async ({ ctx }) => {
+      const { getFilterPresetsByStrategy } = await import('./db-filter-presets');
+      return getFilterPresetsByStrategy(ctx.user.id, 'bcs');
+    }),
+    updatePreset: protectedProcedure
+      .input(
+        z.object({
+          presetName: z.enum(['conservative', 'medium', 'aggressive']),
+          minDte: z.number().optional(),
+          maxDte: z.number().optional(),
+          minDelta: z.string().optional(),
+          maxDelta: z.string().optional(),
+          minOpenInterest: z.number().optional(),
+          minVolume: z.number().optional(),
+          minRsi: z.number().nullable().optional(),
+          maxRsi: z.number().nullable().optional(),
+          minIvRank: z.number().nullable().optional(),
+          maxIvRank: z.number().nullable().optional(),
+          minBbPercent: z.string().nullable().optional(),
+          maxBbPercent: z.string().nullable().optional(),
+          minScore: z.number().optional(),
+          maxStrikePercent: z.number().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { updateFilterPreset } = await import('./db-filter-presets');
+        const { presetName, ...updates } = input;
+        await updateFilterPreset(ctx.user.id, 'bcs', presetName, updates);
         return { success: true };
       }),
   }),

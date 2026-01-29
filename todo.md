@@ -2230,3 +2230,13 @@
 - [ ] Fix slider filter logic to filter opportunities in real-time
 - [ ] Test all filters with 224 bear call spread opportunities
 - [ ] Save checkpoint with filter fixes
+
+## Fix Spread Strategy Preset Filters
+- [x] Create bull-put-spread (bps) presets in database (Conservative/Medium/Aggressive)
+- [x] Update Settings page to display and edit BPS and BCS presets
+- [x] Create bear-call-spread (bcs) presets in database (Conservative/Medium/Aggressive)
+- [x] Update CSP Dashboard to load BPS presets when in spread mode
+- [x] Update CC Dashboard to load BCS presets when in spread mode
+- [x] Test BPS preset filters (Conservative/Medium/Aggressive) return filtered results
+- [x] Test BCS preset filters (Conservative/Medium/Aggressive) return filtered results
+- [x] Save checkpoint for spread preset filter fixes

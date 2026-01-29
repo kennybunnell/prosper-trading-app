@@ -98,7 +98,7 @@ export async function getWatchlist(userId: number) {
   return db.select().from(watchlists).where(eq(watchlists.userId, userId));
 }
 
-export async function addToWatchlist(userId: number, symbol: string, strategy: 'csp' | 'cc' | 'pmcc' = 'csp') {
+export async function addToWatchlist(userId: number, symbol: string, strategy: 'csp' | 'cc' | 'pmcc' | 'bps' | 'bcs' = 'csp') {
   const db = await getDb();
   if (!db) return;
   const { watchlists } = await import('../drizzle/schema');
@@ -109,7 +109,7 @@ export async function addToWatchlistWithMetadata(
   userId: number, 
   data: { 
     symbol: string;
-    strategy?: 'csp' | 'cc' | 'pmcc';
+    strategy?: 'csp' | 'cc' | 'pmcc' | 'bps' | 'bcs';
     company?: string;
     type?: string;
     sector?: string;
