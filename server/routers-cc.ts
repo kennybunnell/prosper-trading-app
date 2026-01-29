@@ -145,7 +145,18 @@ export const ccRouter = router({
 
       // Process symbols in parallel with concurrency limit of 5 (matches CSP Dashboard)
       const CONCURRENCY = 5;
+      const API_TIMEOUT_MS = 5000; // 5 second timeout per API call
       console.log(`[CC Scanner] Processing ${input.symbols.length} symbols with ${CONCURRENCY} concurrent workers...`);
+      
+      // Helper function to add timeout to promises
+      const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+        return Promise.race([
+          promise,
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error('API call timeout')), timeoutMs)
+          ),
+        ]);
+      };
       
       for (let i = 0; i < input.symbols.length; i += CONCURRENCY) {
         const batch = input.symbols.slice(i, i + CONCURRENCY);
@@ -177,14 +188,20 @@ export const ccRouter = router({
           const symbolOpportunities: any[] = [];
 
           try {
-            // Fetch indicators (RSI, IV Rank, BB %B)
-            const indicators = await api.getTechnicalIndicators(symbol);
+            // Fetch indicators (RSI, IV Rank, BB %B) with timeout
+            const indicators = await withTimeout(
+              api.getTechnicalIndicators(symbol),
+              API_TIMEOUT_MS
+            ).catch(() => ({ rsi: null, ivRank: null, bollingerBands: { percentB: null } }));
             const rsi = indicators?.rsi || null;
             const ivRank = indicators?.ivRank || null;
             const bbPctB = indicators?.bollingerBands?.percentB || null;
 
-            // Fetch expirations and filter by DTE
-            const expirations = await api.getExpirations(symbol);
+            // Fetch expirations and filter by DTE with timeout
+            const expirations = await withTimeout(
+              api.getExpirations(symbol),
+              API_TIMEOUT_MS
+            ).catch(() => []);
             const today = new Date();
             const filteredExpirations = expirations.filter(exp => {
               const expDate = new Date(exp);
@@ -194,14 +211,20 @@ export const ccRouter = router({
 
             if (filteredExpirations.length === 0) return [];
 
-            // Process each expiration
-            for (const expiration of filteredExpirations) {
-              const options = await api.getOptionChain(symbol, expiration, true);
+            // Process expirations in parallel (up to 3 at a time to avoid overwhelming API)
+            const EXP_CONCURRENCY = 3;
+            for (let j = 0; j < filteredExpirations.length; j += EXP_CONCURRENCY) {
+              const expBatch = filteredExpirations.slice(j, j + EXP_CONCURRENCY);
+              const expPromises = expBatch.map(async (expiration) => {
+                try {
+                  const options = await withTimeout(
+                    api.getOptionChain(symbol, expiration, true),
+                    API_TIMEOUT_MS
+                  );
               const calls = options.filter(opt => opt.option_type === 'call');
 
-              for (const option of calls) {
-
-                const strike = option.strike || 0;
+                  for (const option of calls) {
+                    const strike = option.strike || 0;
                 const delta = Math.abs(option.greeks?.delta || 0);
                 const bid = option.bid || 0;
                 const ask = option.ask || 0;
@@ -222,37 +245,43 @@ export const ccRouter = router({
                 const expDate = new Date(expiration);
                 const dte = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-                // Calculate metrics
-                const premiumPerShare = mid;
-                const returnPct = (premiumPerShare / holding.currentPrice) * 100;
-                const weeklyReturn = dte > 0 ? (returnPct / dte) * 7 : 0;
-                const spreadPct = mid > 0 ? ((ask - bid) / mid) * 100 : 999;
-                const distanceOtmPct = ((strike - holding.currentPrice) / holding.currentPrice) * 100;
+                    // Calculate metrics
+                    const premiumPerShare = mid;
+                    const returnPct = (premiumPerShare / holding.currentPrice) * 100;
+                    const weeklyReturn = dte > 0 ? (returnPct / dte) * 7 : 0;
+                    const spreadPct = mid > 0 ? ((ask - bid) / mid) * 100 : 999;
+                    const distanceOtmPct = ((strike - holding.currentPrice) / holding.currentPrice) * 100;
 
-                symbolOpportunities.push({
-                  symbol,
-                  currentPrice: holding.currentPrice,
-                  strike,
-                  expiration,
-                  dte,
-                  delta,
-                  bid,
-                  ask,
-                  mid,
-                  premium: mid * 100, // Per contract
-                  returnPct,
-                  weeklyReturn,
-                  volume,
-                  openInterest,
-                  spreadPct,
-                  rsi,
-                  ivRank,
-                  bbPctB,
-                  sharesOwned: holding.quantity,
-                  maxContracts: holding.maxContracts,
-                  distanceOtm: distanceOtmPct,
-                });
-              }
+                    symbolOpportunities.push({
+                      symbol,
+                      currentPrice: holding.currentPrice,
+                      strike,
+                      expiration,
+                      dte,
+                      delta,
+                      bid,
+                      ask,
+                      mid,
+                      premium: mid * 100, // Per contract
+                      returnPct,
+                      weeklyReturn,
+                      volume,
+                      openInterest,
+                      spreadPct,
+                      rsi,
+                      ivRank,
+                      bbPctB,
+                      sharesOwned: holding.quantity,
+                      maxContracts: holding.maxContracts,
+                      distanceOtm: distanceOtmPct,
+                    });
+                  }
+                } catch (error: any) {
+                  console.error(`[CC Scanner] Error processing expiration ${expiration} for ${symbol}: ${error.message}`);
+                }
+              });
+              
+              await Promise.allSettled(expPromises);
             }
             console.log(`[CC Scanner] ✓ ${symbol}: found ${symbolOpportunities.length} opportunities`);
           } catch (error: any) {
