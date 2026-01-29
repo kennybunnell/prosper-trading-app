@@ -903,6 +903,104 @@ export const appRouter = router({
       }),
   }),
 
+  // Bull Put Spreads (Phase 2: Backend Pricing)
+  spread: router({
+    opportunities: protectedProcedure
+      .input(
+        z.object({
+          symbols: z.array(z.string()).optional(),
+          minDelta: z.number().optional(),
+          maxDelta: z.number().optional(),
+          minDte: z.number().optional(),
+          maxDte: z.number().optional(),
+          minVolume: z.number().optional(),
+          minOI: z.number().optional(),
+          spreadWidth: z.number(), // 2, 5, or 10
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        const { getApiCredentials } = await import('./db');
+        const { createTradierAPI } = await import('./tradier');
+        const { scoreOpportunities } = await import('./scoring');
+        const { calculateBullPutSpread } = await import('./spread-pricing');
+
+        const credentials = await getApiCredentials(ctx.user.id);
+        if (!credentials?.tradierApiKey) {
+          throw new Error('Tradier API key not configured');
+        }
+
+        const api = createTradierAPI(credentials.tradierApiKey);
+        const symbols = input.symbols || [];
+        
+        if (symbols.length === 0) {
+          return [];
+        }
+
+        // Fetch CSP opportunities first (these are the short puts)
+        const cspOpportunities = await api.fetchCSPOpportunities(
+          symbols,
+          input.minDelta || 0.15,
+          input.maxDelta || 0.35,
+          input.minDte || 7,
+          input.maxDte || 45,
+          input.minVolume || 5,
+          input.minOI || 50
+        );
+
+        // For each CSP opportunity, calculate the spread pricing
+        const spreadOpportunities = [];
+        
+        for (const cspOpp of cspOpportunities) {
+          try {
+            // Calculate long strike (protective put)
+            const longStrike = cspOpp.strike - input.spreadWidth;
+            
+            // Fetch option chain for this expiration to get long put quote
+            const options = await api.getOptionChain(
+              cspOpp.symbol,
+              cspOpp.expiration,
+              true // with Greeks
+            );
+            
+            // Find the long put at our target strike
+            const longPut = options.find(
+              opt => opt.option_type === 'put' && opt.strike === longStrike
+            );
+            
+            if (!longPut || !longPut.bid || !longPut.ask) {
+              // Skip if we can't find the long put or it has no quotes
+              continue;
+            }
+            
+            // Calculate spread pricing
+            const spreadOpp = calculateBullPutSpread(
+              cspOpp,
+              input.spreadWidth,
+              {
+                bid: longPut.bid,
+                ask: longPut.ask,
+                delta: Math.abs(longPut.greeks?.delta || 0),
+              }
+            );
+            
+            // Only include if net credit is positive
+            if (spreadOpp.netCredit > 0) {
+              spreadOpportunities.push(spreadOpp);
+            }
+          } catch (error) {
+            console.error(`[Spread] Error calculating spread for ${cspOpp.symbol}:`, error);
+            // Skip this opportunity and continue
+            continue;
+          }
+        }
+
+        // Score spread opportunities (reuse CSP scoring logic)
+        const scored = scoreOpportunities(spreadOpportunities);
+
+        return scored;
+      }),
+  }),
+
   userPreferences: router({
     get: protectedProcedure.query(async ({ ctx }) => {
       const { getUserPreferences } = await import('./db');

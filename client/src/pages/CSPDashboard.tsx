@@ -311,7 +311,8 @@ export default function CSPDashboard() {
     );
   }, [watchlist, portfolioSizeFilter]);
 
-  const { data: opportunities = [], isLoading: loadingOpportunities, refetch: refetchOpportunities, error: opportunitiesError } = trpc.csp.opportunities.useQuery(
+  // Fetch CSP opportunities
+  const { data: cspOpportunities = [], isLoading: loadingCSP, refetch: refetchCSP, error: cspError } = trpc.csp.opportunities.useQuery(
     { 
       symbols: filteredWatchlist.map((w: any) => w.symbol),
       minDte,
@@ -319,6 +320,23 @@ export default function CSPDashboard() {
     },
     { enabled: false } // Disabled by default, only fetch when user clicks button
   );
+
+  // Fetch spread opportunities (Phase 2)
+  const { data: spreadOpportunities = [], isLoading: loadingSpread, refetch: refetchSpread, error: spreadError } = trpc.spread.opportunities.useQuery(
+    { 
+      symbols: filteredWatchlist.map((w: any) => w.symbol),
+      minDte,
+      maxDte,
+      spreadWidth,
+    },
+    { enabled: false } // Disabled by default, only fetch when user clicks button
+  );
+
+  // Use appropriate data based on strategy type
+  const opportunities = strategyType === 'spread' ? spreadOpportunities : cspOpportunities;
+  const loadingOpportunities = strategyType === 'spread' ? loadingSpread : loadingCSP;
+  const refetchOpportunities = strategyType === 'spread' ? refetchSpread : refetchCSP;
+  const opportunitiesError = strategyType === 'spread' ? spreadError : cspError;
 
   // Handle opportunities fetch errors
   useEffect(() => {
@@ -1667,7 +1685,23 @@ export default function CSPDashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12">Select</TableHead>
-                  {[
+                  {(strategyType === 'spread' ? [
+                    { key: 'symbol', label: 'Symbol' },
+                    { key: 'strike', label: 'Strikes' }, // Show both strikes for spreads
+                    { key: 'currentPrice', label: 'Current' },
+                    { key: 'netCredit', label: 'Net Credit' },
+                    { key: 'capitalAtRisk', label: 'Capital Risk' },
+                    { key: 'spreadROC', label: 'ROC %' },
+                    { key: 'delta', label: 'Delta' },
+                    { key: 'dte', label: 'DTE' },
+                    { key: 'weeklyPct', label: 'Weekly %' },
+                    { key: 'breakeven', label: 'Breakeven' },
+                    { key: 'openInterest', label: 'OI' },
+                    { key: 'volume', label: 'Vol' },
+                    { key: 'rsi', label: 'RSI' },
+                    { key: 'bbPctB', label: 'BB %B' },
+                    { key: 'score', label: 'Score' },
+                  ] : [
                     { key: 'symbol', label: 'Symbol' },
                     { key: 'strike', label: 'Strike' },
                     { key: 'currentPrice', label: 'Current' },
@@ -1685,7 +1719,7 @@ export default function CSPDashboard() {
                     { key: 'rsi', label: 'RSI' },
                     { key: 'bbPctB', label: 'BB %B' },
                     { key: 'score', label: 'Score' },
-                  ].map(({ key, label }) => (
+                  ]).map(({ key, label }) => (
                     <TableHead 
                       key={key}
                       className="cursor-pointer hover:bg-accent/50 transition-colors"
@@ -1728,21 +1762,46 @@ export default function CSPDashboard() {
                           />
                         </TableCell>
                         <TableCell className="font-medium">{opp.symbol}</TableCell>
-                        <TableCell>${opp.strike.toFixed(2)}</TableCell>
-                        <TableCell>${opp.currentPrice.toFixed(2)}</TableCell>
-                        <TableCell>${opp.bid.toFixed(2)}</TableCell>
-                        <TableCell>${opp.ask.toFixed(2)}</TableCell>
-                        <TableCell>{opp.spreadPct.toFixed(1)}%</TableCell>
-                        <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>
-                        <TableCell>{opp.dte}</TableCell>
-                        <TableCell className="font-medium text-green-500">${opp.premium.toFixed(2)}</TableCell>
-                        <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
-                        <TableCell>${opp.collateral.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <Badge className={cn("font-bold", getROCColor(opp.roc))}>
-                            {opp.roc.toFixed(2)}%
-                          </Badge>
-                        </TableCell>
+                        {strategyType === 'spread' ? (
+                          <>
+                            <TableCell>
+                              <div className="flex flex-col text-xs">
+                                <span className="text-blue-400 font-semibold">${opp.strike.toFixed(2)}</span>
+                                <span className="text-muted-foreground">${(opp as any).longStrike?.toFixed(2)}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>${opp.currentPrice.toFixed(2)}</TableCell>
+                            <TableCell className="font-medium text-green-500">${(opp as any).netCredit?.toFixed(2)}</TableCell>
+                            <TableCell className="text-amber-400">${(opp as any).capitalAtRisk?.toFixed(2)}</TableCell>
+                            <TableCell>
+                              <Badge className={cn("font-bold", getROCColor((opp as any).spreadROC || 0))}>
+                                {((opp as any).spreadROC || 0).toFixed(2)}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>
+                            <TableCell>{opp.dte}</TableCell>
+                            <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
+                            <TableCell className="text-blue-300">${(opp as any).breakeven?.toFixed(2)}</TableCell>
+                          </>
+                        ) : (
+                          <>
+                            <TableCell>${opp.strike.toFixed(2)}</TableCell>
+                            <TableCell>${opp.currentPrice.toFixed(2)}</TableCell>
+                            <TableCell>${opp.bid.toFixed(2)}</TableCell>
+                            <TableCell>${opp.ask.toFixed(2)}</TableCell>
+                            <TableCell>{opp.spreadPct.toFixed(1)}%</TableCell>
+                            <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>
+                            <TableCell>{opp.dte}</TableCell>
+                            <TableCell className="font-medium text-green-500">${opp.premium.toFixed(2)}</TableCell>
+                            <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
+                            <TableCell>${opp.collateral.toFixed(2)}</TableCell>
+                            <TableCell>
+                              <Badge className={cn("font-bold", getROCColor(opp.roc))}>
+                                {opp.roc.toFixed(2)}%
+                              </Badge>
+                            </TableCell>
+                          </>
+                        )}
                         <TableCell>
                           <Badge className={cn("font-bold", getLiquidityColor(opp.openInterest, 'oi'))}>
                             {opp.openInterest}
