@@ -2107,3 +2107,9 @@
 - [x] Add help icon and dialog to CSP Dashboard strategy type section
 - [x] Style dialog to match existing UI theme
 - [ ] Test dialog opens/closes correctly on both dashboards
+
+## Fix Buying Power Calculation for Spreads
+- [x] Add capitalAtRisk field to CSP Dashboard validateOrders payload
+- [x] Add console logging to validateOrders backend to debug collateral calculation
+- [x] Verify CC Dashboard already uses capitalAtRisk in summary cards
+- [ ] Test buying power calculation with real spread orders (should show correct percentage, not 1338%)

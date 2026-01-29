@@ -762,6 +762,8 @@ export const appRouter = router({
           const collateral = order.isSpread && order.capitalAtRisk 
             ? order.capitalAtRisk 
             : order.strike * 100;
+          
+          console.log(`[validateOrders] ${order.symbol} - isSpread: ${order.isSpread}, capitalAtRisk: ${order.capitalAtRisk}, strike: ${order.strike}, calculated collateral: ${collateral}`);
           const midpoint = (order.bid + order.ask) / 2;
           
           // Validation checks
@@ -803,6 +805,8 @@ export const appRouter = router({
         const totalPremium = validatedOrders.reduce((sum, o) => sum + o.premium, 0);
         const totalCollateral = validatedOrders.reduce((sum, o) => sum + o.collateral, 0);
         const remainingBuyingPower = availableBuyingPower - totalCollateral;
+        
+        console.log(`[validateOrders] Total collateral: $${totalCollateral.toFixed(2)}, Available buying power: $${availableBuyingPower.toFixed(2)}, Percentage: ${((totalCollateral / availableBuyingPower) * 100).toFixed(1)}%`);
 
         // Check if total collateral exceeds buying power
         const hasInsufficientBP = totalCollateral > availableBuyingPower;

@@ -648,6 +648,7 @@ export default function CSPDashboard() {
       isSpread: strategyType === 'spread',
       longStrike: strategyType === 'spread' ? (opp as any).longStrike : undefined,
       spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
+      capitalAtRisk: strategyType === 'spread' ? (opp as any).capitalAtRisk : undefined,
     }));
 
     validateOrders.mutate({
