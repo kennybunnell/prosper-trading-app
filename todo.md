@@ -1943,3 +1943,68 @@
 - [x] Ensure Portfolio Positions section only shows when strategyType === 'cc'
 - [x] Ensure Watchlist section only shows when strategyType === 'spread'
 - [ ] Test workflow when market opens: Load page → See strategy selector → Choose mode → See appropriate section
+
+## CC Dashboard - Add Complete Scan & Filter System (Mirror CSP Dashboard)
+### Phase 1: Scan Button & Fetch Workflow
+- [ ] Add "Scan for Opportunities" button after watchlist section (both CC and Bear Call Spread modes)
+- [ ] Button should be disabled until watchlist has symbols (Bear Call Spread) or portfolio has eligible stocks (CC)
+- [ ] Update scan button text based on mode: "Scan for Covered Calls" vs "Scan for Bear Call Spreads"
+- [ ] Add loading state during scan
+- [ ] Show opportunities count after scan completes
+
+### Phase 2: Preset Filters & Fine-Tuning Sliders
+- [x] Add Filters section with collapsible header (like CSP Dashboard)
+- [x] Add Preset Filters: Conservative / Medium / Aggressive buttons
+- [x] Add Fine-tuning sliders section with up/down arrows:
+  * Delta slider (0-1 range)
+  * DTE slider (days to expiration)
+  * Spread % slider (for bear call spreads)
+  * Score slider (0-100 range)
+- [x] Add "Clear Filters" button
+- [x] Wire preset filters to update slider values
+- [x] Wire sliders to filter opportunities in real-time
+
+### Phase 3: Selection Controls & Summary Cards
+- [x] Add Selection Controls section:
+  * "Select All Filtered" button (green)
+  * "Clear Selection" button (red)
+  * "Show Selected Only" toggle
+- [x] Add Summary Cards row (5 cards):
+  * Total Premium (yellow/amber gradient)
+  * Total Collateral (blue gradient)
+  * ROC % (red/pink gradient)
+  * Opportunities count (amber gradient)
+  * Buying Power (green gradient)
+- [x] Update summary cards when selection changes
+
+### Phase 4: Reorganize Opportunity Table Columns
+- [ ] Review CSP Dashboard column order from screenshot
+- [ ] Reorder CC Dashboard columns to match CSP exactly:
+  * Select checkbox
+  * Symbol
+  * Strike
+  * Current price
+  * Bid
+  * Ask
+  * Spread %
+  * Delta
+  * DTE
+  * Premium
+  * Weekly %
+  * Collateral
+  * ROC %
+  * OI (Open Interest)
+  * Vol (Volume)
+  * RSI
+  * BB %B
+  * Score
+- [ ] Ensure column widths and styling match CSP Dashboard
+- [ ] Add color coding for metrics (green/red/yellow badges)
+
+### Phase 5: Testing & Delivery
+- [ ] Test complete workflow: Select strategy → Add watchlist → Click scan → Apply filters → Select opportunities → Submit orders
+- [ ] Test preset filters apply correct values
+- [ ] Test fine-tuning sliders filter correctly
+- [ ] Test selection controls work properly
+- [ ] Test summary cards calculate correctly
+- [ ] Verify column order matches CSP Dashboard exactly
