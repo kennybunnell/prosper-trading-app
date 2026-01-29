@@ -2221,3 +2221,12 @@
 - [x] Add request caching to avoid duplicate API calls
 - [x] Test scanner with 7 symbols and verify completion under 30 seconds
 - [x] Save checkpoint with performance optimizations
+
+## Fix CC Dashboard Filters for Bear Call Spreads
+
+- [x] Investigate why preset filters (Conservative/Medium/Aggressive) return no results
+- [ ] Investigate why slider filters (Delta, DTE, Score) don't filter opportunities
+- [x] Fix preset filter logic to apply correct thresholds to bear call spread opportunities
+- [ ] Fix slider filter logic to filter opportunities in real-time
+- [ ] Test all filters with 224 bear call spread opportunities
+- [ ] Save checkpoint with filter fixes
