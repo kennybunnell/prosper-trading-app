@@ -1723,3 +1723,10 @@
 - [ ] Test existing CSP queries return correct data
 - [ ] Test spread orders save with all fields populated
 - [ ] Verify Active Positions dashboard shows spreads correctly
+
+### UI Enhancement: Collapsible Strategy Type Panel
+- [x] Add state for strategy panel collapsed/expanded
+- [x] Add chevron icon to CardHeader that toggles collapse state
+- [x] Hide CardContent when collapsed
+- [x] Show compact summary when collapsed (e.g., "CSP Mode" or "Bull Put Spread - 5pt")
+- [x] Smooth transition animation with rotate-180 on chevron

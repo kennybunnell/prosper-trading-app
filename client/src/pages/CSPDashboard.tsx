@@ -239,6 +239,7 @@ export default function CSPDashboard() {
   // Strategy type and spread width (Phase 1: UI only)
   const [strategyType, setStrategyType] = useState<StrategyType>('csp');
   const [spreadWidth, setSpreadWidth] = useState<SpreadWidth>(5);
+  const [strategyPanelCollapsed, setStrategyPanelCollapsed] = useState(false);
   // Live range filters
   const [deltaRange, setDeltaRange] = useState<[number, number]>([0, 1]);
   const [dteRange, setDteRange] = useState<[number, number]>([0, 90]);
@@ -1053,16 +1054,32 @@ export default function CSPDashboard() {
       {/* Strategy Type Selection (Phase 1: UI Only) */}
       {ENABLE_SPREADS && (
         <Card className="bg-card/50 backdrop-blur border-border/50 border-primary/30">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-primary" />
-              Strategy Type
-            </CardTitle>
-            <CardDescription>
-              Choose between Cash-Secured Puts or Bull Put Spreads
-            </CardDescription>
+          <CardHeader className="cursor-pointer" onClick={() => setStrategyPanelCollapsed(!strategyPanelCollapsed)}>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  Strategy Type
+                  {strategyPanelCollapsed && (
+                    <Badge variant="secondary" className="ml-2">
+                      {strategyType === 'csp' ? 'CSP Mode' : `Bull Put Spread - ${spreadWidth}pt`}
+                    </Badge>
+                  )}
+                </CardTitle>
+                {!strategyPanelCollapsed && (
+                  <CardDescription>
+                    Choose between Cash-Secured Puts or Bull Put Spreads
+                  </CardDescription>
+                )}
+              </div>
+              <ChevronDown className={cn(
+                "w-5 h-5 text-muted-foreground transition-transform duration-200",
+                strategyPanelCollapsed && "rotate-180"
+              )} />
+            </div>
           </CardHeader>
-          <CardContent className="space-y-6">
+          {!strategyPanelCollapsed && (
+            <CardContent className="space-y-6">
             {/* Strategy Toggle */}
             <div className="flex gap-3">
               <Button
@@ -1161,6 +1178,7 @@ export default function CSPDashboard() {
               </p>
             </div>
           </CardContent>
+          )}
         </Card>
       )}
 
