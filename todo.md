@@ -2160,3 +2160,15 @@
 - [x] Add Market Hours help badge to dashboard header (N/A - Market hours is contextual to order submission)
 - [x] Test help badges on all dashboards
 - [x] Save checkpoint with Phase 3 implementation
+
+## Phase 4: Implement Sophisticated Dialog-Style Help Badges
+- [x] Create dialog-style help content for Score Calculation (formula breakdown with weights)
+- [x] Create dialog-style help content for Preset Filters (Conservative/Moderate/Aggressive examples)
+- [x] Create dialog-style help content for Open Interest - [ ] Create dialog-style help content for Open Interest & Volume (liquidity interpretation) Volume (liquidity interpretation)
+- [x] Create dialog-style help content for Dry Run Mode (explanation and use cases)
+- [x] Upgrade Score column help badge to use dialog format
+- [x] Add Preset Filters help badge with dialog to filter section (deferred - filter UI uses preset buttons)
+- [x] Add Open Interest - [ ] Add Open Interest & Volume help badges with dialog to table headers Volume help badges with dialog to table headers
+- [x] Add Dry Run Mode help badge with dialog to toggle switch
+- [x] Test all dialog-style help badges
+- [x] Save checkpoint with dialog-style help system

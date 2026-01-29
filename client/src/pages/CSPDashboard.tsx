@@ -141,6 +141,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { OrderPreviewDialog } from "@/components/OrderPreviewDialog";
 import { HelpBadge } from "@/components/HelpBadge";
+import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
 
 type ScoredOpportunity = {
@@ -1745,12 +1746,12 @@ export default function CSPDashboard() {
                     { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE },
                     { key: 'weeklyPct', label: 'Weekly %', help: null },
                     { key: 'breakeven', label: 'Breakeven', help: HELP_CONTENT.BREAKEVEN_BULL_PUT },
-                    { key: 'openInterest', label: 'OI', help: null },
-                    { key: 'volume', label: 'Vol', help: null },
+                    { key: 'openInterest', label: 'OI', help: 'dialog-oi-vol' },
+                    { key: 'volume', label: 'Vol', help: 'dialog-oi-vol' },
                     { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP },
                     { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP },
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK },
-                    { key: 'score', label: 'Score', help: null },
+                    { key: 'score', label: 'Score', help: 'dialog-score' },
                   ] : [
                     { key: 'symbol', label: 'Symbol', help: null },
                     { key: 'strike', label: 'Strike', help: null },
@@ -1764,12 +1765,12 @@ export default function CSPDashboard() {
                     { key: 'weeklyPct', label: 'Weekly %', help: null },
                     { key: 'collateral', label: 'Collateral', help: null },
                     { key: 'roc', label: 'ROC %', help: null },
-                    { key: 'openInterest', label: 'OI', help: null },
-                    { key: 'volume', label: 'Vol', help: null },
+                    { key: 'openInterest', label: 'OI', help: 'dialog-oi-vol' },
+                    { key: 'volume', label: 'Vol', help: 'dialog-oi-vol' },
                     { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP },
                     { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP },
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK },
-                    { key: 'score', label: 'Score', help: null },
+                    { key: 'score', label: 'Score', help: 'dialog-score' },
                   ]).map(({ key, label, help }) => (
                     <TableHead 
                       key={key}
@@ -1785,7 +1786,15 @@ export default function CSPDashboard() {
                     >
                       <div className="flex items-center gap-1">
                         {label}
-                        {help && <HelpBadge content={help} />}
+                        {help && (
+                          help === 'dialog-score' ? (
+                            <HelpDialog title="Score Calculation" content={HELP_CONTENT.SCORE_CALCULATION_DIALOG} />
+                          ) : help === 'dialog-oi-vol' ? (
+                            <HelpDialog title="Open Interest & Volume" content={HELP_CONTENT.OPEN_INTEREST_VOLUME_DIALOG} />
+                          ) : (
+                            <HelpBadge content={help} />
+                          )
+                        )}
                         {sortColumn === key && (
                           <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                         )}
@@ -1903,8 +1912,9 @@ export default function CSPDashboard() {
                   checked={dryRun}
                   onCheckedChange={(checked) => setDryRun(checked as boolean)}
                 />
-                <Label htmlFor="dry-run" className="cursor-pointer text-sm">
+                <Label htmlFor="dry-run" className="cursor-pointer text-sm flex items-center gap-1">
                   Dry Run (test without submitting real orders)
+                  <HelpDialog title="Dry Run Mode" content={HELP_CONTENT.DRY_RUN_MODE_DIALOG} />
                 </Label>
               </div>
               <div className="flex flex-col items-end gap-2">

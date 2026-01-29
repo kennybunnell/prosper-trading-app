@@ -419,4 +419,249 @@ export const HELP_CONTENT = {
       </div>
     </div>
   ),
+
+  // Dialog-style help content for complex topics
+  SCORE_CALCULATION_DIALOG: (
+    <div className="space-y-4">
+      <div className="p-4 bg-primary/10 rounded-lg">
+        <p className="font-semibold text-base mb-2">Composite Score Formula</p>
+        <p className="text-sm">The Score is a weighted combination of multiple factors that identifies the best risk/reward opportunities:</p>
+      </div>
+
+      <div className="space-y-3">
+        <div className="border-l-4 border-blue-500 pl-4">
+          <p className="font-semibold">30% - Weekly Return %</p>
+          <p className="text-xs text-muted-foreground">Premium as % of collateral, annualized to weekly basis. Higher = more income potential.</p>
+        </div>
+
+        <div className="border-l-4 border-green-500 pl-4">
+          <p className="font-semibold">20% - Delta</p>
+          <p className="text-xs text-muted-foreground">Probability of expiring ITM. Lower delta = safer (less likely to be assigned).</p>
+        </div>
+
+        <div className="border-l-4 border-purple-500 pl-4">
+          <p className="font-semibold">15% - RSI (Relative Strength Index)</p>
+          <p className="text-xs text-muted-foreground">Momentum indicator. Lower RSI = oversold = better for puts. Higher RSI = overbought = better for calls.</p>
+        </div>
+
+        <div className="border-l-4 border-orange-500 pl-4">
+          <p className="font-semibold">15% - Bollinger Bands %B</p>
+          <p className="text-xs text-muted-foreground">Price position in BB range. Low %B = near lower band = good for puts. High %B = near upper band = good for calls.</p>
+        </div>
+
+        <div className="border-l-4 border-yellow-500 pl-4">
+          <p className="font-semibold">10% - IV Rank</p>
+          <p className="text-xs text-muted-foreground">Current volatility vs historical range. Higher IV Rank = higher premiums available.</p>
+        </div>
+
+        <div className="border-l-4 border-red-500 pl-4">
+          <p className="font-semibold">10% - Spread (Open Interest + Volume)</p>
+          <p className="text-xs text-muted-foreground">Liquidity indicator. Higher OI/Vol = tighter bid/ask spreads = better fills.</p>
+        </div>
+      </div>
+
+      <div className="p-4 bg-muted rounded-lg">
+        <p className="font-semibold mb-2">Example Calculation</p>
+        <div className="space-y-1 text-xs font-mono">
+          <p>Weekly Return: 2.5% → Score: 95/100 → Weighted: 95 × 0.30 = 28.5</p>
+          <p>Delta: 0.15 → Score: 85/100 → Weighted: 85 × 0.20 = 17.0</p>
+          <p>RSI: 28 → Score: 92/100 → Weighted: 92 × 0.15 = 13.8</p>
+          <p>BB %B: 0.12 → Score: 88/100 → Weighted: 88 × 0.15 = 13.2</p>
+          <p>IV Rank: 65 → Score: 65/100 → Weighted: 65 × 0.10 = 6.5</p>
+          <p>Spread: High OI/Vol → Score: 90/100 → Weighted: 90 × 0.10 = 9.0</p>
+          <p className="font-bold mt-2 pt-2 border-t border-border">Total Score: 88.0 / 100</p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-semibold">Score Interpretation:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>🟢 80-100: Excellent opportunity - strong technical setup + good premium</li>
+          <li>🟡 60-79: Good opportunity - decent balance of risk/reward</li>
+          <li>🟠 40-59: Fair opportunity - acceptable but not ideal</li>
+          <li>🔴 &lt;40: Poor opportunity - avoid unless you have specific conviction</li>
+        </ul>
+      </div>
+    </div>
+  ),
+
+  PRESET_FILTERS_DIALOG: (
+    <div className="space-y-4">
+      <div className="p-4 bg-primary/10 rounded-lg">
+        <p className="font-semibold text-base mb-2">Preset Filter Profiles</p>
+        <p className="text-sm">Quick-apply filter combinations optimized for different risk tolerances and trading styles.</p>
+      </div>
+
+      <div className="space-y-4">
+        <div className="border border-green-500/30 rounded-lg p-4 bg-green-500/5">
+          <p className="font-bold text-green-400 mb-2">🟢 Conservative</p>
+          <p className="text-xs mb-3">Focus on safety and high probability of profit. Lower returns but much lower risk.</p>
+          <div className="space-y-1 text-xs">
+            <p><span className="font-semibold">Delta:</span> 0.05 - 0.15 (5-15% chance ITM)</p>
+            <p><span className="font-semibold">DTE:</span> 30-45 days (more time decay cushion)</p>
+            <p><span className="font-semibold">RSI:</span> &lt;25 for puts, &gt;75 for calls (extreme oversold/overbought)</p>
+            <p><span className="font-semibold">Weekly %:</span> &gt;0.5% (lower premium but safer)</p>
+            <p><span className="font-semibold">Min Score:</span> 70 (only high-quality setups)</p>
+          </div>
+          <p className="text-xs mt-2 italic text-muted-foreground">Best for: Beginners, small accounts, risk-averse traders</p>
+        </div>
+
+        <div className="border border-yellow-500/30 rounded-lg p-4 bg-yellow-500/5">
+          <p className="font-bold text-yellow-400 mb-2">🟡 Moderate (Default)</p>
+          <p className="text-xs mb-3">Balanced approach between income and safety. Most popular for consistent returns.</p>
+          <div className="space-y-1 text-xs">
+            <p><span className="font-semibold">Delta:</span> 0.10 - 0.25 (10-25% chance ITM)</p>
+            <p><span className="font-semibold">DTE:</span> 21-45 days (standard theta decay window)</p>
+            <p><span className="font-semibold">RSI:</span> &lt;35 for puts, &gt;65 for calls (moderately oversold/overbought)</p>
+            <p><span className="font-semibold">Weekly %:</span> &gt;1.0% (decent premium)</p>
+            <p><span className="font-semibold">Min Score:</span> 60 (good quality setups)</p>
+          </div>
+          <p className="text-xs mt-2 italic text-muted-foreground">Best for: Experienced traders, medium accounts, balanced portfolios</p>
+        </div>
+
+        <div className="border border-red-500/30 rounded-lg p-4 bg-red-500/5">
+          <p className="font-bold text-red-400 mb-2">🔴 Aggressive</p>
+          <p className="text-xs mb-3">Maximize premium income with higher risk. Requires active monitoring and adjustment skills.</p>
+          <div className="space-y-1 text-xs">
+            <p><span className="font-semibold">Delta:</span> 0.20 - 0.40 (20-40% chance ITM)</p>
+            <p><span className="font-semibold">DTE:</span> 7-30 days (faster theta decay)</p>
+            <p><span className="font-semibold">RSI:</span> &lt;45 for puts, &gt;55 for calls (any pullback)</p>
+            <p><span className="font-semibold">Weekly %:</span> &gt;2.0% (high premium)</p>
+            <p><span className="font-semibold">Min Score:</span> 50 (accept more opportunities)</p>
+          </div>
+          <p className="text-xs mt-2 italic text-muted-foreground">Best for: Advanced traders, large accounts, high-conviction plays</p>
+        </div>
+      </div>
+
+      <div className="p-4 bg-muted rounded-lg">
+        <p className="font-semibold mb-2">Customization Tip</p>
+        <p className="text-xs">Start with a preset, then fine-tune individual filters based on market conditions and your specific goals. Save your custom settings for future use.</p>
+      </div>
+    </div>
+  ),
+
+  OPEN_INTEREST_VOLUME_DIALOG: (
+    <div className="space-y-4">
+      <div className="p-4 bg-primary/10 rounded-lg">
+        <p className="font-semibold text-base mb-2">Open Interest & Volume</p>
+        <p className="text-sm">Liquidity indicators that determine how easy it is to enter and exit positions at fair prices.</p>
+      </div>
+
+      <div className="space-y-3">
+        <div className="border-l-4 border-blue-500 pl-4">
+          <p className="font-semibold">Open Interest (OI)</p>
+          <p className="text-xs text-muted-foreground mb-2">Total number of outstanding option contracts that have not been closed or exercised.</p>
+          <ul className="list-disc list-inside space-y-1 text-xs">
+            <li>Higher OI = more traders holding positions = more liquidity</li>
+            <li>OI increases when new positions are opened</li>
+            <li>OI decreases when positions are closed or exercised</li>
+          </ul>
+        </div>
+
+        <div className="border-l-4 border-green-500 pl-4">
+          <p className="font-semibold">Volume (Vol)</p>
+          <p className="text-xs text-muted-foreground mb-2">Number of contracts traded today. Resets to zero at market open each day.</p>
+          <ul className="list-disc list-inside space-y-1 text-xs">
+            <li>Higher volume = more active trading = tighter spreads</li>
+            <li>Volume shows current market interest</li>
+            <li>Volume &gt; OI means many traders are opening new positions</li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-semibold">Liquidity Thresholds:</p>
+        <div className="space-y-2">
+          <div className="p-3 bg-green-500/10 border border-green-500/30 rounded">
+            <p className="font-semibold text-green-400 text-xs">🟢 Excellent Liquidity</p>
+            <ul className="list-disc list-inside space-y-1 text-xs mt-1">
+              <li>OI &gt; 1,000 contracts</li>
+              <li>Volume &gt; 500 contracts</li>
+              <li>Bid/Ask spread &lt; $0.10</li>
+              <li>Result: Easy fills at mid-price or better</li>
+            </ul>
+          </div>
+
+          <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded">
+            <p className="font-semibold text-yellow-400 text-xs">🟡 Acceptable Liquidity</p>
+            <ul className="list-disc list-inside space-y-1 text-xs mt-1">
+              <li>OI: 100-1,000 contracts</li>
+              <li>Volume: 50-500 contracts</li>
+              <li>Bid/Ask spread: $0.10-$0.25</li>
+              <li>Result: Use limit orders, may need to wait for fills</li>
+            </ul>
+          </div>
+
+          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded">
+            <p className="font-semibold text-red-400 text-xs">🔴 Poor Liquidity</p>
+            <ul className="list-disc list-inside space-y-1 text-xs mt-1">
+              <li>OI &lt; 100 contracts</li>
+              <li>Volume &lt; 50 contracts</li>
+              <li>Bid/Ask spread &gt; $0.25</li>
+              <li>Result: Avoid - wide spreads eat into profits</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4 bg-muted rounded-lg">
+        <p className="font-semibold mb-2">Pro Tip: Bid/Ask Spread</p>
+        <p className="text-xs mb-2">The difference between bid and ask prices is the "hidden cost" of trading illiquid options.</p>
+        <p className="text-xs font-mono">Example: Bid $1.80, Ask $2.20 → Spread: $0.40 (20% of mid-price!)</p>
+        <p className="text-xs mt-2">Always check the spread before trading. High OI/Volume = tighter spreads = more profit in your pocket.</p>
+      </div>
+    </div>
+  ),
+
+  DRY_RUN_MODE_DIALOG: (
+    <div className="space-y-4">
+      <div className="p-4 bg-primary/10 rounded-lg">
+        <p className="font-semibold text-base mb-2">Dry Run Mode</p>
+        <p className="text-sm">Test your order submission workflow without sending real orders to your broker.</p>
+      </div>
+
+      <div className="space-y-3">
+        <div className="border-l-4 border-green-500 pl-4">
+          <p className="font-semibold text-green-400">What Happens in Dry Run Mode?</p>
+          <ul className="list-disc list-inside space-y-1 text-xs mt-2">
+            <li>Orders are validated and previewed exactly as if they were real</li>
+            <li>Buying power calculations are performed</li>
+            <li>Concentration risk warnings are shown</li>
+            <li>Market hours are checked</li>
+            <li><span className="font-bold">BUT: No orders are sent to your broker</span></li>
+          </ul>
+        </div>
+
+        <div className="border-l-4 border-blue-500 pl-4">
+          <p className="font-semibold text-blue-400">When to Use Dry Run Mode</p>
+          <ul className="list-disc list-inside space-y-1 text-xs mt-2">
+            <li><span className="font-semibold">Learning:</span> Practice the order flow without risk</li>
+            <li><span className="font-semibold">Testing:</span> Verify filter settings and opportunity selection</li>
+            <li><span className="font-semibold">After Hours:</span> Review opportunities when market is closed</li>
+            <li><span className="font-semibold">Sanity Check:</span> Double-check orders before going live</li>
+          </ul>
+        </div>
+
+        <div className="border-l-4 border-orange-500 pl-4">
+          <p className="font-semibold text-orange-400">Automatic Dry Run Triggers</p>
+          <ul className="list-disc list-inside space-y-1 text-xs mt-2">
+            <li><span className="font-semibold">Outside Market Hours:</span> Automatically enabled 4:00 PM - 9:30 AM ET</li>
+            <li><span className="font-semibold">Weekends:</span> Always enabled Saturday-Sunday</li>
+            <li><span className="font-semibold">Market Holidays:</span> Enabled on exchange holidays</li>
+          </ul>
+          <p className="text-xs mt-2 italic">This prevents accidental submissions with stale pricing or wide spreads.</p>
+        </div>
+      </div>
+
+      <div className="p-4 bg-muted rounded-lg">
+        <p className="font-semibold mb-2">Transitioning to Live Trading</p>
+        <div className="space-y-2 text-xs">
+          <p><span className="font-bold">Step 1:</span> Practice with Dry Run until you're comfortable with the workflow</p>
+          <p><span className="font-bold">Step 2:</span> Start with 1-2 contracts in live mode to verify execution</p>
+          <p><span className="font-bold">Step 3:</span> Gradually increase position sizes as you gain confidence</p>
+          <p className="mt-2 p-2 bg-yellow-500/20 border border-yellow-500/50 rounded"><span className="font-bold">⚠️ Important:</span> Always review the dry run preview carefully before toggling to live mode. Check buying power, concentration risk, and individual order details.</p>
+        </div>
+      </div>
+    </div>
+  ),
 };
