@@ -2019,3 +2019,14 @@
 - [x] Added quote fetching for watchlist symbols to get current price without stock ownership
 - [x] Added logging to debug the scanning flow
 - [ ] Test with real watchlist symbols during market hours and verify opportunities are returned
+
+## Bear Call Spread Order Submission Implementation
+- [x] Fix scanning progress countdown to show accurate time estimate (currently shows "0s remaining")
+- [x] Add dry run toggle checkbox above opportunities table (matches CSP/CC pattern)
+- [x] Add "Submit Orders" button with conditional styling (green for dry run, red for live)
+- [x] Implement order submission logic calling submitBearCallSpreadOrders procedure
+- [x] Add success/failure status display for each order
+- [x] Add confetti animation for successful submissions
+- [x] Add proper TypeScript types for bear call spread opportunities (longStrike, capitalAtRisk, etc.)
+- [ ] Test dry run submission workflow
+- [ ] Test live order submission workflow (requires user testing during market hours)

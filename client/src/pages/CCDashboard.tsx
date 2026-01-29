@@ -46,6 +46,43 @@ type SpreadWidth = 2 | 5 | 10;
 // Feature flag for Bear Call Spreads (set to false to disable)
 const ENABLE_BEAR_CALL_SPREADS = true;
 
+// Live countdown component for progress dialog
+function LiveCountdown({ startTime, totalSymbols }: { startTime: number; totalSymbols: number }) {
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  
+  useEffect(() => {
+    // Use actual performance: 1.32 seconds per symbol (based on 66s for 50 symbols)
+    const estimatedTotalSeconds = totalSymbols * 1.32;
+    
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      const remaining = Math.max(0, estimatedTotalSeconds - elapsed);
+      setRemainingSeconds(remaining);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [startTime, totalSymbols]);
+  
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = Math.floor(remainingSeconds % 60);
+  
+  return (
+    <div className="flex flex-col items-center justify-center space-y-4">
+      <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      <p className="text-sm text-muted-foreground">
+        Processing {totalSymbols} symbols...
+      </p>
+      <p className="text-lg font-semibold text-primary">
+        {remainingSeconds > 0 ? (
+          <>{minutes}:{seconds.toString().padStart(2, '0')} remaining</>
+        ) : (
+          <>Finishing up...</>
+        )}
+      </p>
+    </div>
+  );
+}
+
 // Color-coding helper functions for technical indicators
 function getRSIColor(rsi: number | null, strategy: 'csp' | 'cc'): string {
   if (rsi === null) return "bg-gray-500/20 text-gray-500 border-gray-500/50";
@@ -141,6 +178,28 @@ type CCOpportunity = {
   maxContracts: number;
   distanceOtm: number;
   score: number;
+  // Spread-specific fields (optional, only present for bear call spreads)
+  spreadType?: 'bear-call';
+  spreadWidth?: number;
+  longStrike?: number;
+  longPremium?: number;
+  longBid?: number;
+  longAsk?: number;
+  longDelta?: number;
+  netCredit?: number;
+  capitalAtRisk?: number;
+  maxProfit?: number;
+  maxLoss?: number;
+  spreadROC?: number;
+  breakeven?: number;
+  profitZoneWidth?: number;
+  comparisonCC?: {
+    collateral: number;
+    premium: number;
+    roc: number;
+    capitalSavings: number;
+    capitalSavingsPct: number;
+  };
 };
 
 export default function CCDashboard() {
@@ -172,6 +231,7 @@ export default function CCDashboard() {
   const [strategyType, setStrategyType] = useState<StrategyType>('cc');
   const [spreadWidth, setSpreadWidth] = useState<SpreadWidth>(5);
   const [strategyPanelCollapsed, setStrategyPanelCollapsed] = useState(false);
+  const [watchlistSymbolCount, setWatchlistSymbolCount] = useState(0);
   // Live range filters
   const [deltaRange, setDeltaRange] = useState<[number, number]>([0, 1]);
   const [dteRange, setDteRange] = useState<[number, number]>([0, 90]);
@@ -275,19 +335,7 @@ export default function CCDashboard() {
     setSelectedStocks([]);
   };
 
-  // Countdown timer effect
-  useEffect(() => {
-    if (!isScanning || !scanStartTime) return;
-
-    const interval = setInterval(() => {
-      const elapsed = (Date.now() - scanStartTime) / 1000;
-      const estimatedTotal = selectedStocks.length * 2.0; // 2.0s per symbol (adjusted for buffer)
-      const progress = Math.min(95, (elapsed / estimatedTotal) * 100);
-      setScanProgress(progress);
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [isScanning, scanStartTime, selectedStocks.length]);
+  // Countdown timer effect - removed, using LiveCountdown component instead
 
   // Scan for opportunities (CC mode uses stock positions, spread mode uses watchlist)
   const scanOpportunities = async () => {
@@ -302,6 +350,7 @@ export default function CCDashboard() {
         // Bear Call Spread mode: scan watchlist symbols
         const watchlistResult = await utils.client.watchlist.get.query();
         const watchlistSymbols = watchlistResult.map((item: any) => item.symbol);
+        setWatchlistSymbolCount(watchlistSymbols.length);
 
         if (watchlistSymbols.length === 0) {
           toast.error("No symbols in watchlist. Please add symbols to scan for bear call spreads.");
@@ -550,10 +599,13 @@ export default function CCDashboard() {
       const aVal = a[sortColumn];
       const bVal = b[sortColumn];
 
-      // Handle null values
+      // Handle null/undefined values
       if (aVal === null && bVal === null) return 0;
       if (aVal === null) return 1;
       if (bVal === null) return -1;
+      if (aVal === undefined && bVal === undefined) return 0;
+      if (aVal === undefined) return 1;
+      if (bVal === undefined) return -1;
 
       // Compare values
       if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
@@ -588,7 +640,7 @@ export default function CCDashboard() {
         const spreadOrders = selectedOpps.map(opp => ({
           symbol: opp.symbol,
           shortStrike: opp.strike,
-          longStrike: (opp as any).longStrike,
+          longStrike: opp.longStrike!, // Non-null assertion safe because spread mode guarantees this field
           expiration: opp.expiration,
           quantity: 1, // Default to 1 contract per opportunity
           netCredit: opp.premium, // Net credit for the spread
@@ -1165,18 +1217,13 @@ export default function CCDashboard() {
                   Analyzing watchlist symbols for bear call spread opportunities...
                 </DialogDescription>
               </DialogHeader>
-              <div className="flex flex-col items-center justify-center space-y-4 py-6">
-                <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                <Progress value={scanProgress} className="w-full" />
-                <p className="text-sm text-muted-foreground">
-                  {scanProgress < 100 ? (
-                    <>
-                      {Math.floor((100 - scanProgress) * 2.0 / 100)}s remaining
-                    </>
-                  ) : (
-                    <>Finishing up...</>
-                  )}
-                </p>
+              <div className="py-6">
+                {scanStartTime && (
+                  <LiveCountdown 
+                    startTime={scanStartTime} 
+                    totalSymbols={watchlistSymbolCount || 50} 
+                  />
+                )}
               </div>
             </DialogContent>
           </Dialog>
@@ -1668,7 +1715,7 @@ export default function CCDashboard() {
                 <CardHeader>
                   <CardTitle className="text-xl">Order Summary</CardTitle>
                   <CardDescription>
-                    Review your selected covered calls
+                    {strategyType === 'cc' ? 'Review your selected covered calls' : 'Review your selected bear call spreads'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1769,18 +1816,23 @@ export default function CCDashboard() {
                     <Button
                       onClick={handleSubmitOrders}
                       disabled={isSubmitting || selectedOpportunities.size === 0}
-                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700"
+                      className={cn(
+                        dryRun 
+                          ? "bg-blue-600 hover:bg-blue-700" 
+                          : "bg-red-600 hover:bg-red-700 font-bold"
+                      )}
                       size="lg"
                     >
                       {isSubmitting ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Submitting...
+                          {dryRun ? 'Testing...' : 'Submitting LIVE Orders...'}
                         </>
                       ) : (
                         <>
-                          <DollarSign className="w-4 h-4 mr-2" />
-                          {dryRun ? 'Test Orders (Dry Run)' : 'Submit Orders'}
+                          {!dryRun && '⚠️ '}
+                          {dryRun ? 'Test' : 'Submit LIVE'} {selectedOpportunities.size} Order(s)
+                          {!dryRun && ' ⚠️'}
                         </>
                       )}
                     </Button>
@@ -1972,9 +2024,9 @@ export default function CCDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          {strategyType === 'spread' && (opp as any).longStrike ? (
+                          {strategyType === 'spread' && opp.longStrike ? (
                             <span className="text-orange-400">
-                              ${opp.strike.toFixed(2)} / ${(opp as any).longStrike.toFixed(2)}
+                              ${opp.strike.toFixed(2)} / ${opp.longStrike.toFixed(2)}
                             </span>
                           ) : (
                             `$${opp.strike.toFixed(2)}`
