@@ -11,7 +11,6 @@ import CSPDashboard from "./pages/CSPDashboard";
 import CCDashboard from "./pages/CCDashboard";
 import PMCCDashboard from "./pages/PMCCDashboard";
 import Performance from "./pages/Performance";
-import ROICalculator from "./pages/ROICalculator";
 import { Sidebar } from "./components/Sidebar";
 
 function Router() {
@@ -26,7 +25,6 @@ function Router() {
           <Route path={"/cc"} component={CCDashboard} />
           <Route path={"/pmcc"} component={PMCCDashboard} />
           <Route path={"/performance"} component={Performance} />
-          <Route path={"/roi-calculator"} component={ROICalculator} />
           <Route path={"/404"} component={NotFound} />
           {/* Final fallback route */}
           <Route component={NotFound} />

@@ -1668,3 +1668,18 @@
 - [x] Add route and sidebar navigation
 - [ ] Add actual vs projected comparison tracking (future enhancement)
 - [ ] Test calculator with various allocation scenarios
+
+## Enhance Interactive ROI Calculator with Spread Allocations
+- [x] Remove standalone ROI Calculator page (/roi-calculator route)
+- [x] Remove ROI Calculator from sidebar navigation
+- [x] Delete /client/src/pages/ROICalculator.tsx file
+- [x] Add collapsible Strategy Mix section to InteractiveROICalculator component
+- [x] Add 5 percentage sliders (CSP, Bull Put Spread, Bear Call Spread, CC, PMCC)
+- [x] Add allocation total validation (must equal 100%)
+- [x] Add "Load Recommended Allocation" button with portfolio-size-based defaults
+- [x] Implement weighted monthly return calculation based on strategy mix
+- [x] Update Target Monthly Return display to show blended rate
+- [x] Add strategy-specific expected ROC constants
+- [x] Show expected ROC next to each strategy slider
+- [x] Add expand/collapse functionality for Strategy Mix section
+- [ ] Test calculator with various allocations and portfolio sizes
