@@ -1934,3 +1934,12 @@
 - [ ] Test watchlist Add/Import/Remove from CC Dashboard in spread mode when market opens
 - [ ] Verify watchlist changes reflect across CSP, PMCC, and CC dashboards
 - [ ] Test complete workflow: toggle to spread mode → add tickers → scan → select → submit orders
+
+## CC Dashboard - Move Strategy Selector to Top
+- [x] Move strategy panel from bottom (after opportunities) to top of page (after header)
+- [x] Make strategy panel always visible (not conditional on opportunities.length > 0)
+- [x] Remove ENABLE_BEAR_CALL_SPREADS feature flag check from strategy panel
+- [x] Update page description to mention both CC and Bear Call Spreads
+- [x] Ensure Portfolio Positions section only shows when strategyType === 'cc'
+- [x] Ensure Watchlist section only shows when strategyType === 'spread'
+- [ ] Test workflow when market opens: Load page → See strategy selector → Choose mode → See appropriate section
