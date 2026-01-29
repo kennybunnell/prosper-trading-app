@@ -2304,3 +2304,13 @@
 - [x] Add caching layer for option chain data (in-memory cache per request)
 - [x] Test performance improvements with unit tests (5/5 passing)
 - [x] Document optimization results and trade-offs (see OPTIMIZATION_REPORT.md)
+
+
+## Progress Tracking & Time Estimation for Opportunity Fetching
+- [x] Calculate estimated completion time based on symbol count (CSP: 1.32s/symbol, Spread: 4.8s/symbol)
+- [x] Show estimated time in fetch dialog with countdown timer
+- [x] Add real-time progress updates with visual progress bar and percentage
+- [x] Add countdown timer showing remaining time (minutes:seconds format)
+- [x] Show strategy-specific messaging ("Fetching option chains" vs "Fetching spread chains")
+- [ ] Track actual fetch times in database for historical analysis (future enhancement)
+- [ ] Improve estimates over time using historical data (future enhancement)

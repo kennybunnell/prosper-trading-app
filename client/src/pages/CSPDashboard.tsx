@@ -83,12 +83,17 @@ function getLiquidityColor(value: number, type: 'oi' | 'vol'): string {
 }
 
 // Live countdown component for progress dialog
-function LiveCountdown({ startTime, totalSymbols }: { startTime: number; totalSymbols: number }) {
+function LiveCountdown({ startTime, totalSymbols, strategyType }: { startTime: number; totalSymbols: number; strategyType?: 'csp' | 'spread' }) {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [estimatedTotal, setEstimatedTotal] = useState(0);
   
   useEffect(() => {
-    // Use actual performance: 1.32 seconds per symbol (based on 66s for 50 symbols)
-    const estimatedTotalSeconds = totalSymbols * 1.32;
+    // Time estimates based on real performance data:
+    // CSP: 1.32 seconds per symbol (single-leg options)
+    // Spread: 4.8 seconds per symbol (two-leg options with optimization)
+    const secondsPerSymbol = strategyType === 'spread' ? 4.8 : 1.32;
+    const estimatedTotalSeconds = totalSymbols * secondsPerSymbol;
+    setEstimatedTotal(estimatedTotalSeconds);
     
     const interval = setInterval(() => {
       const elapsed = (Date.now() - startTime) / 1000;
@@ -97,23 +102,37 @@ function LiveCountdown({ startTime, totalSymbols }: { startTime: number; totalSy
     }, 1000);
     
     return () => clearInterval(interval);
-  }, [startTime, totalSymbols]);
+  }, [startTime, totalSymbols, strategyType]);
   
   const minutes = Math.floor(remainingSeconds / 60);
   const seconds = Math.floor(remainingSeconds % 60);
+  const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+  const progressPercent = estimatedTotal > 0 ? Math.min(100, (elapsedSeconds / estimatedTotal) * 100) : 0;
   
   return (
     <div className="flex flex-col items-center justify-center space-y-4">
       <Loader2 className="w-12 h-12 animate-spin text-primary" />
-      <p className="text-sm text-muted-foreground">
-        Processing {totalSymbols} symbols...
-      </p>
+      <div className="w-full space-y-2">
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>Processing {totalSymbols} symbols...</span>
+          <span>{Math.round(progressPercent)}%</span>
+        </div>
+        <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+          <div 
+            className="h-full bg-primary transition-all duration-1000 ease-linear"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
       <p className="text-lg font-semibold text-primary">
         {remainingSeconds > 0 ? (
           <>{minutes}:{seconds.toString().padStart(2, '0')} remaining</>
         ) : (
           <>Finishing up...</>
         )}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {strategyType === 'spread' ? 'Fetching spread chains...' : 'Fetching option chains...'}
       </p>
     </div>
   );
@@ -1995,6 +2014,7 @@ export default function CSPDashboard() {
               <LiveCountdown 
                 startTime={fetchProgress.startTime || Date.now()} 
                 totalSymbols={fetchProgress.total}
+                strategyType={strategyType}
               />
             ) : (
               <div className="text-center space-y-4">
