@@ -1062,7 +1062,43 @@ export const appRouter = router({
           input.minOI || 50
         );
 
-        // For each CSP opportunity, calculate the spread pricing
+        // OPTIMIZATION: Group opportunities by symbol+expiration to batch API calls
+        // Instead of fetching option chain for each opportunity, fetch once per unique symbol+expiration combo
+        const chainCache = new Map<string, any[]>();
+        
+        // Pre-fetch all unique option chains in parallel
+        const uniqueChains = new Map<string, { symbol: string; expiration: string }>();
+        for (const cspOpp of cspOpportunities) {
+          const key = `${cspOpp.symbol}|${cspOpp.expiration}`;
+          if (!uniqueChains.has(key)) {
+            uniqueChains.set(key, { symbol: cspOpp.symbol, expiration: cspOpp.expiration });
+          }
+        }
+        
+        console.log(`[Spread] Fetching ${uniqueChains.size} unique option chains for ${cspOpportunities.length} opportunities`);
+        
+        // Fetch all chains in parallel (with concurrency limit)
+        const CONCURRENT_CHAINS = 5;
+        const chainEntries = Array.from(uniqueChains.entries());
+        
+        for (let i = 0; i < chainEntries.length; i += CONCURRENT_CHAINS) {
+          const batch = chainEntries.slice(i, i + CONCURRENT_CHAINS);
+          const batchPromises = batch.map(async ([key, { symbol, expiration }]) => {
+            try {
+              const options = await api.getOptionChain(symbol, expiration, true);
+              chainCache.set(key, options);
+              console.log(`[Spread] Cached chain for ${symbol} ${expiration} (${options.length} contracts)`);
+            } catch (error) {
+              console.error(`[Spread] Failed to fetch chain for ${symbol} ${expiration}:`, error);
+              chainCache.set(key, []); // Cache empty array to avoid retry
+            }
+          });
+          await Promise.all(batchPromises);
+        }
+        
+        console.log(`[Spread] Cached ${chainCache.size} option chains, now calculating spreads...`);
+        
+        // Now calculate spreads using cached chains
         const spreadOpportunities = [];
         
         for (const cspOpp of cspOpportunities) {
@@ -1070,12 +1106,14 @@ export const appRouter = router({
             // Calculate long strike (protective put)
             const longStrike = cspOpp.strike - input.spreadWidth;
             
-            // Fetch option chain for this expiration to get long put quote
-            const options = await api.getOptionChain(
-              cspOpp.symbol,
-              cspOpp.expiration,
-              true // with Greeks
-            );
+            // Get cached option chain
+            const key = `${cspOpp.symbol}|${cspOpp.expiration}`;
+            const options = chainCache.get(key) || [];
+            
+            if (options.length === 0) {
+              // Skip if chain fetch failed
+              continue;
+            }
             
             // Find the long put at our target strike
             const longPut = options.find(
