@@ -1743,7 +1743,7 @@ export default function CCDashboard() {
                           ${Array.from(selectedOpportunities)
                             .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
                             .filter((opp): opp is CCOpportunity => opp !== undefined)
-                            .reduce((sum, opp) => sum + opp.premium, 0)
+                            .reduce((sum, opp) => sum + (opp.premium * 100), 0)
                             .toFixed(2)}
                         </p>
                       </div>

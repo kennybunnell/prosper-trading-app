@@ -2047,3 +2047,10 @@
 - [x] Added separate logic paths for spread vs CC mode in both functions
 - [ ] Test Select All button - should select all 26 opportunities without skipping any
 - [ ] Verify toast message shows success instead of "Skipped X due to contract availability limits"
+
+## Bug Fix: Order Summary Shows Per-Contract Premium Instead of Total Premium
+- [x] Find where Order Summary calculates Total Premium for selected opportunities (line 1746)
+- [x] Identify why it's showing $9.01 for 14 contracts instead of ~$126 (missing * 100 multiplier)
+- [x] Fix calculation to sum all net credits (multiply each by 100 for dollars per contract)
+- [x] Verified other metrics (Avg Weekly Return, Avg Delta, Avg Score) are correct
+- [ ] Test with 14 selected contracts - should show ~$126 total premium instead of $9.01
