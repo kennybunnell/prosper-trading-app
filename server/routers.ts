@@ -811,7 +811,16 @@ export const appRouter = router({
             strike: z.number(),
             expiration: z.string(),
             premium: z.number(),
-            optionSymbol: z.string().transform(val => val), // Preserve spaces - don't trim
+            isSpread: z.boolean().optional(),
+            optionSymbol: z.string().transform(val => val).optional(), // CSP: single leg
+            shortLeg: z.object({
+              optionSymbol: z.string(),
+              action: z.enum(['Sell to Open', 'Buy to Close', 'Buy to Open', 'Sell to Close']),
+            }).optional(), // Spread: short leg
+            longLeg: z.object({
+              optionSymbol: z.string(),
+              action: z.enum(['Sell to Open', 'Buy to Close', 'Buy to Open', 'Sell to Close']),
+            }).optional(), // Spread: long leg
           })),
           accountId: z.string(),
           dryRun: z.boolean().optional(),
@@ -850,20 +859,41 @@ export const appRouter = router({
 
         for (const order of input.orders) {
           try {
+            // Build legs based on order type
+            const legs = order.isSpread && order.shortLeg && order.longLeg
+              ? [
+                  // Bull Put Spread: Leg 1 - Sell to Open (short put)
+                  {
+                    instrumentType: 'Equity Option' as const,
+                    symbol: order.shortLeg.optionSymbol,
+                    quantity: '1',
+                    action: order.shortLeg.action,
+                  },
+                  // Bull Put Spread: Leg 2 - Buy to Open (long put)
+                  {
+                    instrumentType: 'Equity Option' as const,
+                    symbol: order.longLeg.optionSymbol,
+                    quantity: '1',
+                    action: order.longLeg.action,
+                  },
+                ]
+              : [
+                  // Regular CSP: Single leg
+                  {
+                    instrumentType: 'Equity Option' as const,
+                    symbol: order.optionSymbol!,
+                    quantity: '1',
+                    action: 'Sell to Open' as const,
+                  },
+                ];
+            
             const orderRequest = {
               accountNumber: input.accountId,
               timeInForce: 'Day' as const,
               orderType: 'Limit' as const,
               price: order.premium.toFixed(2),
               priceEffect: 'Credit' as const,
-              legs: [
-                {
-                  instrumentType: 'Equity Option' as const,
-                  symbol: order.optionSymbol,
-                  quantity: '1',
-                  action: 'Sell to Open' as const,
-                },
-              ],
+              legs,
             };
 
             // LIVE MODE ONLY - no dry run parameter

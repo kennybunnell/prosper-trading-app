@@ -1736,3 +1736,15 @@
 - [x] Update buying power percentage calculation for spread mode (automatic via totalCollateral)
 - [ ] Verify Total Collateral card shows correct values for spreads vs CSP
 - [ ] Verify Buying Power card shows correct percentage for spreads
+
+## Phase 3: Multi-Leg Spread Order Submission
+- [x] Create buildSpreadOrderLegs() function to construct two-leg orders
+- [x] Update validateOrders handler to support spread orders (added isSpread, longStrike, spreadWidth fields)
+- [x] Update submitOrders input schema to support spread orders (shortLeg, longLeg)
+- [x] Update submitOrders handler to support multi-leg spread orders
+- [x] Add spread order structure: sell short put + buy long put
+- [x] Set order type to "Limit" with net credit price
+- [x] Add conditional logic: if spread mode, build two legs, else use existing CSP logic
+- [ ] Test dry run with spread orders
+- [ ] Verify order preview shows both legs correctly
+- [ ] Test live submission when market opens

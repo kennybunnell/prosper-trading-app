@@ -642,6 +642,10 @@ export default function CSPDashboard() {
       bid: opp.bid,
       ask: opp.ask,
       currentPrice: opp.currentPrice,
+      // Spread-specific fields
+      isSpread: strategyType === 'spread',
+      longStrike: strategyType === 'spread' ? (opp as any).longStrike : undefined,
+      spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
     }));
 
     validateOrders.mutate({
@@ -664,6 +668,15 @@ export default function CSPDashboard() {
       // Round premium to nearest $0.05 (Tastytrade requirement)
       const roundToNickel = (price: number) => Math.round(price * 20) / 20;
       
+      // Helper function to build option symbol
+      const buildOptionSymbol = (symbol: string, expiration: string, strike: number) => {
+        const expFormatted = expiration.replace(/-/g, ''); // YYYYMMDD
+        const expShort = expFormatted.substring(2); // YYMMDD
+        const strikeFormatted = (strike * 1000).toString().padStart(8, '0');
+        const ticker = symbol.padEnd(6, ' ');
+        return `${ticker}${expShort}P${strikeFormatted}`;
+      };
+      
       const orderLegs = validationData.orders.map((validatedOrder: any) => {
       const opp = selectedOppsList.find(
         o => o.symbol === validatedOrder.symbol && 
@@ -671,27 +684,39 @@ export default function CSPDashboard() {
              o.expiration === validatedOrder.expiration
       );
       
-      return {
-        symbol: validatedOrder.symbol,
-        strike: validatedOrder.strike,
-        expiration: validatedOrder.expiration,
-        premium: roundToNickel(validatedOrder.premium / 100), // Convert back to per-share price and round to $0.05
-        // Build option symbol in Tastytrade format: TICKER(6)YYMMDD(6)P(1)STRIKE(8)
-        // Example: 'AAPL  260206P00150000' for AAPL Feb 6, 2026 Put $150
-        optionSymbol: (() => {
-          // Always construct symbol with proper Tastytrade formatting
-          // Format date as YYMMDD (2-digit year)
-          const expFormatted = validatedOrder.expiration.replace(/-/g, ''); // YYYYMMDD
-          const expShort = expFormatted.substring(2); // Remove century: YYMMDD
-          
-          // Format strike as 8-digit cents
-          const strikeFormatted = (validatedOrder.strike * 1000).toString().padStart(8, '0');
-          
-          // Build symbol: TICKER(6) + YYMMDD(6) + P(1) + STRIKE(8)
-          const ticker = validatedOrder.symbol.padEnd(6, ' ');
-          return `${ticker}${expShort}P${strikeFormatted}`;
-        })(),
-      };
+      // Check if this is a spread order
+      const isSpread = validatedOrder.isSpread || strategyType === 'spread';
+      
+      if (isSpread) {
+        // Bull Put Spread: Two legs
+        return {
+          symbol: validatedOrder.symbol,
+          strike: validatedOrder.strike,
+          expiration: validatedOrder.expiration,
+          premium: roundToNickel(validatedOrder.premium / 100),
+          isSpread: true,
+          // Leg 1: Sell to Open (short put at higher strike)
+          shortLeg: {
+            optionSymbol: buildOptionSymbol(validatedOrder.symbol, validatedOrder.expiration, validatedOrder.strike),
+            action: 'Sell to Open' as const,
+          },
+          // Leg 2: Buy to Open (long put at lower strike)
+          longLeg: {
+            optionSymbol: buildOptionSymbol(validatedOrder.symbol, validatedOrder.expiration, validatedOrder.longStrike || (validatedOrder.strike - (validatedOrder.spreadWidth || spreadWidth))),
+            action: 'Buy to Open' as const,
+          },
+        };
+      } else {
+        // Regular CSP: Single leg
+        return {
+          symbol: validatedOrder.symbol,
+          strike: validatedOrder.strike,
+          expiration: validatedOrder.expiration,
+          premium: roundToNickel(validatedOrder.premium / 100),
+          isSpread: false,
+          optionSymbol: buildOptionSymbol(validatedOrder.symbol, validatedOrder.expiration, validatedOrder.strike),
+        };
+      }
     });
 
     setOrderProgress({
