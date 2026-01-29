@@ -2000,6 +2000,7 @@ export default function CCDashboard() {
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('weeklyReturn')}>
                         <div className="flex items-center justify-end gap-1">
                           Weekly %
+                          <HelpBadge content={HELP_CONTENT.WEEKLY_RETURN} />
                           {sortColumn === 'weeklyReturn' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>

@@ -2172,3 +2172,17 @@
 - [x] Add Dry Run Mode help badge with dialog to toggle switch
 - [x] Test all dialog-style help badges
 - [x] Save checkpoint with dialog-style help system
+
+## Additional Help Badge Enhancements
+
+- [x] Add Portfolio Size help content (Small/Mid/Large Cap definitions)
+- [x] Add Preset Filter help content (Conservative/Moderate/Aggressive comparison table)
+- [x] Add Weekly Return % help content (annualized return formula explanation)
+- [x] Add Portfolio Size help dialog to filter controls in CSP Dashboard
+- [x] Add Portfolio Size help dialog to filter controls in CC Dashboard (CC Dashboard does not have portfolio size filter)
+- [x] Add Preset Filter help dialog to preset filter section in CSP Dashboard
+- [x] Add Preset Filter help dialog to preset filter section in CC Dashboard (CC Dashboard does not have preset filters)
+- [x] Add Weekly Return % help badge to CSP Dashboard table headers
+- [x] Add Weekly Return % help badge to CC Dashboard table headers
+- [x] Test all new help badges
+- [x] Save checkpoint with additional help badges

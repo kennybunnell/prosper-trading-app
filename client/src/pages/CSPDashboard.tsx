@@ -864,7 +864,10 @@ export default function CSPDashboard() {
         <CardContent className="space-y-4">
           {/* Portfolio Size Filter */}
           <div>
-            <Label className="mb-2 block">Portfolio Size</Label>
+            <Label className="mb-2 block flex items-center gap-1">
+              Portfolio Size
+              <HelpDialog title="Portfolio Size Filter" content={HELP_CONTENT.PORTFOLIO_SIZE_DIALOG} />
+            </Label>
             {/* Option 1: Gradient Pills with Icon Badges */}
             <div className="flex flex-wrap gap-3">
               <Button
@@ -1258,7 +1261,10 @@ export default function CSPDashboard() {
         <CardContent className="space-y-4">
           {/* Preset Filters */}
           <div>
-            <Label className="mb-2 block text-base font-semibold">Preset Filters</Label>
+            <Label className="mb-2 block text-base font-semibold flex items-center gap-1">
+              Preset Filters
+              <HelpDialog title="Preset Filter Profiles" content={HELP_CONTENT.PRESET_FILTER_DIALOG} />
+            </Label>
             <div className="flex flex-wrap gap-3">
               <Button
                 variant="ghost"
@@ -1744,7 +1750,7 @@ export default function CSPDashboard() {
                     { key: 'spreadROC', label: 'ROC %', help: HELP_CONTENT.SPREAD_ROC },
                     { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP },
                     { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE },
-                    { key: 'weeklyPct', label: 'Weekly %', help: null },
+                    { key: 'weeklyPct', label: 'Weekly %', help: HELP_CONTENT.WEEKLY_RETURN },
                     { key: 'breakeven', label: 'Breakeven', help: HELP_CONTENT.BREAKEVEN_BULL_PUT },
                     { key: 'openInterest', label: 'OI', help: 'dialog-oi-vol' },
                     { key: 'volume', label: 'Vol', help: 'dialog-oi-vol' },
@@ -1762,7 +1768,7 @@ export default function CSPDashboard() {
                     { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP },
                     { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE },
                     { key: 'premium', label: 'Premium', help: null },
-                    { key: 'weeklyPct', label: 'Weekly %', help: null },
+                    { key: 'weeklyPct', label: 'Weekly %', help: HELP_CONTENT.WEEKLY_RETURN },
                     { key: 'collateral', label: 'Collateral', help: null },
                     { key: 'roc', label: 'ROC %', help: null },
                     { key: 'openInterest', label: 'OI', help: 'dialog-oi-vol' },

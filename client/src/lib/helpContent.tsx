@@ -664,4 +664,192 @@ export const HELP_CONTENT = {
       </div>
     </div>
   ),
+
+  PORTFOLIO_SIZE_DIALOG: (
+    <div className="space-y-4">
+      <div className="p-4 bg-primary/10 rounded-lg">
+        <p className="font-semibold text-base mb-2">Portfolio Size Filter</p>
+        <p className="text-sm">Filter opportunities by company market capitalization to match your risk tolerance and liquidity needs.</p>
+      </div>
+
+      <div className="space-y-3">
+        <div className="border-l-4 border-green-500 pl-4">
+          <p className="font-semibold text-green-400">🏢 Large Cap (&gt;$50B)</p>
+          <ul className="list-disc list-inside space-y-1 text-xs mt-2">
+            <li><span className="font-bold">Examples:</span> AAPL, MSFT, GOOGL, AMZN, TSLA</li>
+            <li><span className="font-bold">Liquidity:</span> Excellent - tight bid/ask spreads, high volume</li>
+            <li><span className="font-bold">Volatility:</span> Lower - more stable price movements</li>
+            <li><span className="font-bold">Best For:</span> Conservative traders, larger positions</li>
+          </ul>
+        </div>
+
+        <div className="border-l-4 border-blue-500 pl-4">
+          <p className="font-semibold text-blue-400">🏭 Mid Cap ($10B - $50B)</p>
+          <ul className="list-disc list-inside space-y-1 text-xs mt-2">
+            <li><span className="font-bold">Examples:</span> SNAP, PINS, RBLX, COIN, DKNG</li>
+            <li><span className="font-bold">Liquidity:</span> Good - acceptable spreads on popular strikes</li>
+            <li><span className="font-bold">Volatility:</span> Moderate - balanced risk/reward</li>
+            <li><span className="font-bold">Best For:</span> Moderate traders seeking higher premiums</li>
+          </ul>
+        </div>
+
+        <div className="border-l-4 border-orange-500 pl-4">
+          <p className="font-semibold text-orange-400">🏪 Small Cap (&lt;$10B)</p>
+          <ul className="list-disc list-inside space-y-1 text-xs mt-2">
+            <li><span className="font-bold">Examples:</span> Smaller tech, biotech, regional companies</li>
+            <li><span className="font-bold">Liquidity:</span> Variable - check OI/Volume carefully</li>
+            <li><span className="font-bold">Volatility:</span> Higher - larger price swings</li>
+            <li><span className="font-bold">Best For:</span> Aggressive traders, smaller positions</li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="p-4 bg-muted rounded-lg">
+        <p className="font-semibold mb-2">How Market Cap Affects Options Trading</p>
+        <div className="space-y-2 text-xs">
+          <p><span className="font-bold">Liquidity Impact:</span> Larger companies = more option traders = tighter spreads = easier to enter/exit positions</p>
+          <p><span className="font-bold">Premium Quality:</span> Small caps often have higher IV Rank (more premium), but with higher risk</p>
+          <p><span className="font-bold">Diversification:</span> Mix large/mid/small caps to balance stability and premium income</p>
+          <p className="mt-2 p-2 bg-blue-500/20 border border-blue-500/50 rounded"><span className="font-bold">💡 Pro Tip:</span> Start with large caps to learn, then gradually add mid/small caps as you gain experience. Always verify Open Interest &gt; 100 and Volume &gt; 50 regardless of market cap.</p>
+        </div>
+      </div>
+    </div>
+  ),
+
+  PRESET_FILTER_DIALOG: (
+    <div className="space-y-4">
+      <div className="p-4 bg-primary/10 rounded-lg">
+        <p className="font-semibold text-base mb-2">Preset Filter Profiles</p>
+        <p className="text-sm">Pre-configured filter combinations designed for different risk tolerance levels.</p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="border-b-2 border-primary">
+              <th className="text-left p-2 font-semibold">Metric</th>
+              <th className="text-center p-2 font-semibold text-green-400">🟢 Conservative</th>
+              <th className="text-center p-2 font-semibold text-yellow-400">🟡 Moderate</th>
+              <th className="text-center p-2 font-semibold text-red-400">🔴 Aggressive</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            <tr>
+              <td className="p-2 font-medium">Delta</td>
+              <td className="text-center p-2">0.15 - 0.25</td>
+              <td className="text-center p-2">0.25 - 0.35</td>
+              <td className="text-center p-2">0.35 - 0.45</td>
+            </tr>
+            <tr>
+              <td className="p-2 font-medium">DTE</td>
+              <td className="text-center p-2">30 - 45</td>
+              <td className="text-center p-2">21 - 35</td>
+              <td className="text-center p-2">14 - 28</td>
+            </tr>
+            <tr>
+              <td className="p-2 font-medium">Min Score</td>
+              <td className="text-center p-2">80</td>
+              <td className="text-center p-2">70</td>
+              <td className="text-center p-2">60</td>
+            </tr>
+            <tr>
+              <td className="p-2 font-medium">Open Interest</td>
+              <td className="text-center p-2">&gt; 500</td>
+              <td className="text-center p-2">&gt; 200</td>
+              <td className="text-center p-2">&gt; 100</td>
+            </tr>
+            <tr>
+              <td className="p-2 font-medium">Volume</td>
+              <td className="text-center p-2">&gt; 100</td>
+              <td className="text-center p-2">&gt; 50</td>
+              <td className="text-center p-2">&gt; 25</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="space-y-3 mt-4">
+        <div className="border-l-4 border-green-500 pl-4">
+          <p className="font-semibold text-green-400">🟢 Conservative Profile</p>
+          <ul className="list-disc list-inside space-y-1 text-xs mt-2">
+            <li><span className="font-bold">Goal:</span> Maximize safety, minimize assignment risk</li>
+            <li><span className="font-bold">Best For:</span> New traders, large accounts, retirement funds</li>
+            <li><span className="font-bold">Expected Win Rate:</span> 85-95%</li>
+            <li><span className="font-bold">Trade-off:</span> Lower premiums, longer holding periods</li>
+          </ul>
+        </div>
+
+        <div className="border-l-4 border-yellow-500 pl-4">
+          <p className="font-semibold text-yellow-400">🟡 Moderate Profile</p>
+          <ul className="list-disc list-inside space-y-1 text-xs mt-2">
+            <li><span className="font-bold">Goal:</span> Balance safety and premium income</li>
+            <li><span className="font-bold">Best For:</span> Experienced traders, most account sizes</li>
+            <li><span className="font-bold">Expected Win Rate:</span> 75-85%</li>
+            <li><span className="font-bold">Trade-off:</span> Moderate premiums, acceptable risk</li>
+          </ul>
+        </div>
+
+        <div className="border-l-4 border-red-500 pl-4">
+          <p className="font-semibold text-red-400">🔴 Aggressive Profile</p>
+          <ul className="list-disc list-inside space-y-1 text-xs mt-2">
+            <li><span className="font-bold">Goal:</span> Maximize premium income, accept higher risk</li>
+            <li><span className="font-bold">Best For:</span> Expert traders, smaller positions, active management</li>
+            <li><span className="font-bold">Expected Win Rate:</span> 65-75%</li>
+            <li><span className="font-bold">Trade-off:</span> Higher premiums, more assignments</li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="p-4 bg-muted rounded-lg">
+        <p className="font-semibold mb-2">Choosing Your Profile</p>
+        <div className="space-y-2 text-xs">
+          <p><span className="font-bold">Start Conservative:</span> Build confidence and understand the workflow before increasing risk</p>
+          <p><span className="font-bold">Mix Profiles:</span> Use conservative for 70% of capital, aggressive for 30% to balance risk/reward</p>
+          <p><span className="font-bold">Adjust by Market:</span> Switch to conservative during high volatility or uncertain markets</p>
+          <p className="mt-2 p-2 bg-yellow-500/20 border border-yellow-500/50 rounded"><span className="font-bold">⚠️ Remember:</span> Presets are starting points. You can further refine with live range filters (Delta, DTE, Score sliders) to fine-tune your selections.</p>
+        </div>
+      </div>
+    </div>
+  ),
+
+  WEEKLY_RETURN: (
+    <div className="space-y-3">
+      <p className="font-semibold">Weekly Return % = Annualized return based on premium and time.</p>
+      
+      <div className="space-y-2">
+        <p className="font-medium">Formula:</p>
+        <p className="text-xs font-mono bg-muted p-2 rounded">
+          (Premium / Collateral) × (52 weeks / DTE × 7) × 100
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Example:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Premium: $200, Collateral: $10,000, DTE: 30</li>
+          <li>($200 / $10,000) × (52 / 4.29) × 100 = 24.3% annual</li>
+          <li>Weekly: 24.3% / 52 = 0.47% per week</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Why It Matters:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Normalizes returns across different DTEs for comparison</li>
+          <li>Higher Weekly % = Better capital efficiency</li>
+          <li>Target: 0.5-1.0% weekly (26-52% annualized)</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Trade-offs:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>🟢 Higher Weekly %: More income, but often higher risk (closer delta, shorter DTE)</li>
+          <li>🟡 Moderate Weekly %: Balanced risk/reward</li>
+          <li>🔴 Lower Weekly %: Safer strikes, but lower returns</li>
+        </ul>
+      </div>
+    </div>
+  ),
 };
+
