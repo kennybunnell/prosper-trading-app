@@ -1979,12 +1979,16 @@ export default function CCDashboard() {
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('premium')}>
                         <div className="flex items-center justify-end gap-1">
                           {strategyType === 'spread' ? 'Net Credit' : 'Premium'}
+                          {strategyType === 'spread' && <HelpBadge content={HELP_CONTENT.NET_CREDIT} />}
                           {sortColumn === 'premium' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
                       {strategyType === 'spread' && (
                         <TableHead className="text-right">
-                          Capital at Risk
+                          <div className="flex items-center justify-end gap-1">
+                            Capital at Risk
+                            <HelpBadge content={HELP_CONTENT.CAPITAL_AT_RISK} />
+                          </div>
                         </TableHead>
                       )}
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('weeklyReturn')}>

@@ -2133,3 +2133,19 @@
 - [x] Add IV Rank help badge to PMCC Dashboard table header (N/A - PMCC uses calls, no IV Rank in table)
 - [x] Test help badges on all dashboards
 - [x] Save checkpoint with Phase 1 implementation
+
+## Phase 2: Implement Spread-Specific Help Badges
+- [x] Add Net Credit help content to helpContent.tsx
+- [x] Add Capital at Risk help content to helpContent.tsx
+- [x] Add Spread ROC help content to helpContent.tsx
+- [x] Add Breakeven Price help content to helpContent.tsx
+- [x] Add Net Credit help badge to CSP Dashboard (spread mode)
+- [x] Add Capital at Risk help badge to CSP Dashboard (spread mode)
+- [x] Add Spread ROC help badge to CSP Dashboard (spread mode)
+- [x] Add Breakeven Price help badge to CSP Dashboard (spread mode)
+- [x] Add Net Credit help badge to CC Dashboard (spread mode)
+- [x] Add Capital at Risk help badge to CC Dashboard (spread mode)
+- [x] Add Spread ROC help badge to CC Dashboard (spread mode) (N/A - CC uses Weekly % not ROC)
+- [x] Add Breakeven Price help badge to CC Dashboard (spread mode) (N/A - CC doesn't show breakeven in table)
+- [x] Test help badges in spread mode on both dashboards
+- [x] Save checkpoint with Phase 2 implementation

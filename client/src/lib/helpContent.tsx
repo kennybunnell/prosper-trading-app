@@ -209,4 +209,126 @@ export const HELP_CONTENT = {
       </div>
     </div>
   ),
+
+  NET_CREDIT: (
+    <div className="space-y-3">
+      <p className="font-semibold">Net Credit = Premium received from short leg - Premium paid for long leg</p>
+      
+      <div className="space-y-2">
+        <p className="font-medium">Example Bull Put Spread:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Sell $400 put for $2.50 (receive $250)</li>
+          <li>Buy $395 put for $0.50 (pay $50)</li>
+          <li>Net Credit: $2.00 ($200 per contract)</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">This is the maximum profit you can make on the spread.</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Higher Net Credit = More profit potential</li>
+          <li>Lower Net Credit = Less profit, but safer strikes</li>
+        </ul>
+      </div>
+    </div>
+  ),
+
+  CAPITAL_AT_RISK: (
+    <div className="space-y-3">
+      <p className="font-semibold">Capital at Risk = Spread Width - Net Credit</p>
+      
+      <div className="space-y-2">
+        <p className="font-medium">Example Bull Put Spread:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Spread Width: $5.00 ($400 - $395)</li>
+          <li>Net Credit: $2.00</li>
+          <li>Capital at Risk: $3.00 ($300 per contract)</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">This is the maximum loss if both strikes expire ITM.</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Determines buying power required</li>
+          <li>Lower capital risk = More contracts possible</li>
+          <li>Spread ROC = Net Credit / Capital at Risk</li>
+        </ul>
+      </div>
+    </div>
+  ),
+
+  SPREAD_ROC: (
+    <div className="space-y-3">
+      <p className="font-semibold">Spread ROC = (Net Credit / Capital at Risk) × 100</p>
+      
+      <div className="space-y-2">
+        <p className="font-medium">Example Bull Put Spread:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Net Credit: $2.00</li>
+          <li>Capital at Risk: $3.00</li>
+          <li>Spread ROC: 66.7%</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Target Ranges:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>🟢 &gt;50%: Excellent return on capital</li>
+          <li>🟡 30-50%: Good return</li>
+          <li>🔴 &lt;30%: Consider wider spread or different strike</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Compare to CSP:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>CSP ROC: ~2-5% (premium / full collateral)</li>
+          <li>Spread ROC: ~40-80% (premium / capital at risk)</li>
+          <li>Spreads are more capital efficient!</li>
+        </ul>
+      </div>
+    </div>
+  ),
+
+  BREAKEVEN_BULL_PUT: (
+    <div className="space-y-3">
+      <p className="font-semibold">Breakeven = Short Strike - Net Credit</p>
+      
+      <div className="space-y-2">
+        <p className="font-medium">For Bull Put Spreads:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Example: $400 short - $2.00 credit = $398 breakeven</li>
+          <li>Stock can drop to $398 before you lose money</li>
+          <li>Below $398: Start losing money</li>
+          <li>Below $395 (long strike): Max loss reached</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Profit Zone:</p>
+        <p className="text-xs">Stock stays above $398 at expiration = Keep full net credit as profit</p>
+      </div>
+    </div>
+  ),
+
+  BREAKEVEN_BEAR_CALL: (
+    <div className="space-y-3">
+      <p className="font-semibold">Breakeven = Short Strike + Net Credit</p>
+      
+      <div className="space-y-2">
+        <p className="font-medium">For Bear Call Spreads:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Example: $400 short + $2.00 credit = $402 breakeven</li>
+          <li>Stock can rise to $402 before you lose money</li>
+          <li>Above $402: Start losing money</li>
+          <li>Above $405 (long strike): Max loss reached</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Profit Zone:</p>
+        <p className="text-xs">Stock stays below $402 at expiration = Keep full net credit as profit</p>
+      </div>
+    </div>
+  ),
 };
