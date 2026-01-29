@@ -85,7 +85,7 @@ export function OrderPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">
             {isDryRun ? "Dry Run Preview" : "Order Confirmation"}
@@ -140,14 +140,14 @@ export function OrderPreviewDialog({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Status</TableHead>
-                <TableHead>Symbol</TableHead>
-                <TableHead>Strategy</TableHead>
-                <TableHead className="text-right">Strikes</TableHead>
-                <TableHead>Expiration</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Premium</TableHead>
-                <TableHead className="text-right">Capital Risk</TableHead>
+                <TableHead className="w-16">Status</TableHead>
+                <TableHead className="w-20">Symbol</TableHead>
+                <TableHead className="w-40">Strategy</TableHead>
+                <TableHead className="text-right w-32">Strikes</TableHead>
+                <TableHead className="w-24">Expiration</TableHead>
+                <TableHead className="text-right w-16">Qty</TableHead>
+                <TableHead className="text-right w-24">Premium</TableHead>
+                <TableHead className="text-right w-28">Capital Risk</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -196,7 +196,7 @@ export function OrderPreviewDialog({
               ))}
               {/* Totals Row */}
               <TableRow className="bg-muted/50 font-bold">
-                <TableCell colSpan={5} className="text-right">TOTALS</TableCell>
+                <TableCell colSpan={6} className="text-right">TOTALS</TableCell>
                 <TableCell className="text-right text-green-600">
                   ${totalPremium.toFixed(2)}
                 </TableCell>

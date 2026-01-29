@@ -649,7 +649,7 @@
 - [ ] Write unit tests for LEAP purchase validation
 - [ ] Write unit tests for CC selling against LEAP positions
 - [ ] Run all tests and verify passing
-- [ ] Save checkpoint and deliver to user
+- [x] Save checkpoint and deliver to user
 
 ## 🐛 Dashboard Navigation Issues
 
@@ -1322,7 +1322,7 @@
 - [ ] Verify ROI projections calculate correctly with all parameter combinations
 - [ ] Test slider interactions and real-time updates
 - [ ] Verify account-level comparisons aggregate correctly
-- [ ] Save checkpoint with complete Projections dashboard
+- [x] Save checkpoint with complete Projections dashboard
 
 
 ## Projections Tab 1 & 2 Implementation
@@ -1335,7 +1335,7 @@
 - [ ] Update Performance page to add Projections tab with Tab 1 and Tab 2 content
 - [ ] Test Tab 1 with live data from projections.getLockedInIncome and projections.getThetaDecay
 - [ ] Test Tab 2 with interactive sliders and real-time chart updates
-- [ ] Save checkpoint with working Projections tabs
+- [x] Save checkpoint with working Projections tabs
 
 ## ROI Calculator Updates
 - [ ] Update Starting Capital slider max from $500K to $5M
@@ -2186,3 +2186,10 @@
 - [x] Add Weekly Return % help badge to CC Dashboard table headers
 - [x] Test all new help badges
 - [x] Save checkpoint with additional help badges
+
+## Fix Order Confirmation Dialog Horizontal Scrolling
+- [x] Locate Order Confirmation dialog component
+- [x] Widen dialog container (increase max-width)
+- [x] Optimize table column widths to fit all content
+- [x] Test with bull put spreads and bear call spreads
+- [x] Save checkpoint
