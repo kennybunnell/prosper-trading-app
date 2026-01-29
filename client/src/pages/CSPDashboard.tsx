@@ -1686,7 +1686,10 @@ export default function CSPDashboard() {
                   buyingPowerUsedPct > 80 ? "text-red-400" : "text-emerald-400"
                 )} />
               </div>
-              <span className="text-muted-foreground">Buying Power</span>
+              <span className="text-muted-foreground flex items-center gap-1">
+                Buying Power
+                <HelpBadge content={HELP_CONTENT.BUYING_POWER_USAGE} />
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="relative">

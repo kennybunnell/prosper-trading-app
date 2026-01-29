@@ -331,4 +331,92 @@ export const HELP_CONTENT = {
       </div>
     </div>
   ),
+
+  BUYING_POWER_USAGE: (
+    <div className="space-y-3">
+      <p className="font-semibold">Buying Power Usage = (Total Collateral Required / Available Buying Power) × 100</p>
+      
+      <div className="space-y-2">
+        <p className="font-medium">Risk Thresholds:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>🟢 &lt;50%: Conservative - Plenty of cushion for adjustments</li>
+          <li>🟡 50-80%: Moderate - Normal usage, monitor closely</li>
+          <li>🔴 &gt;80%: Aggressive - High risk, limited adjustment capacity</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Why It Matters:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Leaving 20-30% buying power free allows you to adjust losing positions</li>
+          <li>Over-leveraging (&gt;80%) can force you to take max loss on bad trades</li>
+          <li>Market volatility can trigger margin calls if you're maxed out</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Best Practice:</p>
+        <p className="text-xs">Target 50-70% usage to balance capital efficiency with risk management flexibility.</p>
+      </div>
+    </div>
+  ),
+
+  CONCENTRATION_RISK: (
+    <div className="space-y-3">
+      <p className="font-semibold">Concentration Risk = Exposure to a single ticker or correlated group</p>
+      
+      <div className="space-y-2">
+        <p className="font-medium">Diversification Guidelines:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>🟢 &lt;10% per ticker: Well diversified</li>
+          <li>🟡 10-20% per ticker: Moderate concentration</li>
+          <li>🔴 &gt;20% per ticker: High concentration risk</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Why It Matters:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>A single bad earnings report can wipe out a large portion of your portfolio</li>
+          <li>Sector correlation (e.g., all tech stocks) amplifies risk during market rotations</li>
+          <li>Diversification reduces portfolio volatility and drawdown risk</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Example:</p>
+        <p className="text-xs">With $10,000 buying power, limit each ticker to $1,000-1,500 collateral (10-15%). Spread across 7-10 different tickers in different sectors.</p>
+      </div>
+    </div>
+  ),
+
+  MARKET_HOURS: (
+    <div className="space-y-3">
+      <p className="font-semibold">Market Hours: 9:30 AM - 4:00 PM ET (Regular Trading)</p>
+      
+      <div className="space-y-2">
+        <p className="font-medium">Best Times to Trade Options:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>🟢 9:30-10:30 AM ET: High volume, best liquidity, tighter spreads</li>
+          <li>🟢 3:00-4:00 PM ET: Closing rush, good liquidity</li>
+          <li>🟡 10:30 AM-3:00 PM ET: Moderate activity, acceptable spreads</li>
+          <li>🔴 Pre-market/After-hours: Wide spreads, low liquidity, avoid</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Why It Matters:</p>
+        <ul className="list-disc list-inside space-y-1 text-xs">
+          <li>Low liquidity = wider bid/ask spreads = worse fill prices</li>
+          <li>Opening hour volatility can provide better entry prices</li>
+          <li>Avoid submitting orders outside regular hours unless using limit orders</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <p className="font-medium">Dry Run Mode:</p>
+        <p className="text-xs">Always enabled outside market hours to prevent accidental submissions with poor pricing.</p>
+      </div>
+    </div>
+  ),
 };

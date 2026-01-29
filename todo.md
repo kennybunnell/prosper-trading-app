@@ -2149,3 +2149,14 @@
 - [x] Add Breakeven Price help badge to CC Dashboard (spread mode) (N/A - CC doesn't show breakeven in table)
 - [x] Test help badges in spread mode on both dashboards
 - [x] Save checkpoint with Phase 2 implementation
+
+## Phase 3: Implement Risk Management Help Badges
+- [x] Add Buying Power Usage help content to helpContent.tsx
+- [x] Add Concentration Risk help content to helpContent.tsx
+- [x] Add Market Hours help content to helpContent.tsx
+- [x] Add Buying Power help badge to CSP Dashboard summary card
+- [x] Add Buying Power help badge to CC Dashboard summary card
+- [x] Add Buying Power help badge to PMCC Dashboard summary card (N/A - PMCC does not have buying power card)
+- [x] Add Market Hours help badge to dashboard header (N/A - Market hours is contextual to order submission)
+- [x] Test help badges on all dashboards
+- [x] Save checkpoint with Phase 3 implementation
