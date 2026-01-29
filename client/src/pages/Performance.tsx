@@ -306,6 +306,10 @@ function ActivePositionsTab() {
       quantity: pos.quantity,
       strike: pos.strike,
       currentPrice: pos.currentPrice,
+      // Include spread fields if present
+      spreadType: pos.spreadType,
+      longStrike: pos.longStrike,
+      spreadWidth: pos.spreadWidth,
     }));
 
     await closePositionsMutation.mutateAsync({
@@ -664,6 +668,11 @@ interface Position {
   realizedPercent: number;
   action: 'CLOSE' | 'WATCH' | 'HOLD';
   hasWorkingOrder: boolean;
+  // Spread-specific fields
+  spreadType?: 'bull_put' | 'bear_call';
+  longStrike?: number;
+  spreadWidth?: number;
+  capitalAtRisk?: number;
 }
 
 interface PositionsTableProps {
@@ -745,6 +754,7 @@ function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosit
               <SortableHeader column="account" label="Account" align="left" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="symbol" label="Symbol" align="left" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="type" label="Type" align="left" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="strategy" label="Strategy" align="left" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="qty" label="Qty" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="strike" label="Strike" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="exp" label="Exp" align="left" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
@@ -776,8 +786,28 @@ function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosit
                     {pos.type}
                   </span>
                 </td>
+                <td className="p-3 text-sm">
+                  {pos.spreadType ? (
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      pos.spreadType === 'bull_put' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                      'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                    }`}>
+                      {pos.spreadType === 'bull_put' ? 'Bull Put Spread' : 'Bear Call Spread'}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">Single Leg</span>
+                  )}
+                </td>
                 <td className="p-3 text-sm text-right">{pos.quantity}</td>
-                <td className="p-3 text-sm text-right">${pos.strike.toFixed(2)}</td>
+                <td className="p-3 text-sm text-right">
+                  {pos.spreadType && pos.longStrike ? (
+                    <span className="font-medium">
+                      ${pos.strike.toFixed(2)}<span className="text-muted-foreground">/</span>${pos.longStrike.toFixed(2)}
+                    </span>
+                  ) : (
+                    <span>${pos.strike.toFixed(2)}</span>
+                  )}
+                </td>
                 <td className="p-3 text-sm">{pos.expiration}</td>
                 <td className="p-3 text-sm text-right">{pos.dte}</td>
                 <td className="p-3 text-sm text-right">${pos.premium.toFixed(2)}</td>

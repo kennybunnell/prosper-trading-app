@@ -23,6 +23,11 @@ interface ProcessedPosition {
   realizedPercent: number;
   action: 'CLOSE' | 'WATCH' | 'HOLD';
   hasWorkingOrder: boolean;
+  // Spread-specific fields
+  spreadType?: 'bull_put' | 'bear_call';
+  longStrike?: number;
+  spreadWidth?: number;
+  capitalAtRisk?: number;
 }
 
 export const performanceRouter = router({
@@ -264,13 +269,27 @@ export const performanceRouter = router({
           console.log('[Performance] Sample position:', JSON.stringify(positions[0], null, 2));
         }
         
-        // Filter for short option positions only
-        const shortOptions = positions.filter((pos) => {
-          const isOption = pos['instrument-type'] === 'Equity Option';
-          const isShort = pos['quantity-direction'] === 'Short';
-          return isOption && isShort;
+        // Filter for option positions (both short and long)
+        const optionPositions = positions.filter((pos) => {
+          return pos['instrument-type'] === 'Equity Option';
         });
-        console.log(`[Performance] Found ${shortOptions.length} short option positions`);
+        console.log(`[Performance] Found ${optionPositions.length} option positions`);
+        
+        // Separate short and long positions
+        const shortOptions = optionPositions.filter(pos => pos['quantity-direction'] === 'Short');
+        const longOptions = optionPositions.filter(pos => pos['quantity-direction'] === 'Long');
+        console.log(`[Performance] ${shortOptions.length} short, ${longOptions.length} long`);
+        
+        // Build a map of long positions by key (underlying + expiration + strike + type)
+        const longPositionMap = new Map<string, any>();
+        for (const longPos of longOptions) {
+          const isPut = longPos.symbol.includes('P');
+          const strikeMatch = longPos.symbol.match(/[CP](\d+)/);
+          const strike = strikeMatch ? parseFloat(strikeMatch[1]) / 1000 : 0;
+          const key = `${longPos['underlying-symbol']}_${longPos['expires-at']}_${strike}_${isPut ? 'P' : 'C'}`;
+          longPositionMap.set(key, longPos);
+        }
+        console.log(`[Performance] Built map of ${longPositionMap.size} long positions`);
         
         // If no short options found, log all instrument types and quantity directions
         if (shortOptions.length === 0 && positions.length > 0) {
@@ -337,6 +356,54 @@ export const performanceRouter = router({
           const today = new Date();
           const dte = Math.max(0, Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
 
+          // Check for matching long position (spread detection)
+          let spreadType: 'bull_put' | 'bear_call' | undefined;
+          let longStrike: number | undefined;
+          let spreadWidth: number | undefined;
+          let capitalAtRisk: number | undefined;
+          
+          // Look for a long position with same underlying, expiration, and option type
+          // For bull put spread: short put at higher strike + long put at lower strike
+          // For bear call spread: short call at lower strike + long call at higher strike
+          for (const [key, longPos] of Array.from(longPositionMap.entries())) {
+            if (longPos['underlying-symbol'] === pos['underlying-symbol'] &&
+                longPos['expires-at'] === pos['expires-at']) {
+              const longIsPut = longPos.symbol.includes('P');
+              if (longIsPut === isPut) {
+                // Same option type - potential spread
+                const longStrikeMatch = longPos.symbol.match(/[CP](\d+)/);
+                const longStrikeValue = longStrikeMatch ? parseFloat(longStrikeMatch[1]) / 1000 : 0;
+                
+                if (isPut && longStrikeValue < strike) {
+                  // Bull put spread: short higher strike, long lower strike
+                  spreadType = 'bull_put';
+                  longStrike = longStrikeValue;
+                  spreadWidth = strike - longStrikeValue;
+                  
+                  // Capital at risk = spread width - net credit
+                  const longCost = Math.abs(parseFloat(longPos['average-open-price'])) * quantity * longPos.multiplier;
+                  const netCredit = premiumReceived - longCost;
+                  capitalAtRisk = (spreadWidth * 100 * quantity) - netCredit;
+                  
+                  console.log(`[Performance] Detected bull put spread: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt width, $${capitalAtRisk.toFixed(2)} at risk)`);
+                } else if (!isPut && longStrikeValue > strike) {
+                  // Bear call spread: short lower strike, long higher strike
+                  spreadType = 'bear_call';
+                  longStrike = longStrikeValue;
+                  spreadWidth = longStrikeValue - strike;
+                  
+                  // Capital at risk = spread width - net credit
+                  const longCost = Math.abs(parseFloat(longPos['average-open-price'])) * quantity * longPos.multiplier;
+                  const netCredit = premiumReceived - longCost;
+                  capitalAtRisk = (spreadWidth * 100 * quantity) - netCredit;
+                  
+                  console.log(`[Performance] Detected bear call spread: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt width, $${capitalAtRisk.toFixed(2)} at risk)`);
+                }
+                break;
+              }
+            }
+          }
+
           // Determine action recommendation
           let action: 'CLOSE' | 'WATCH' | 'HOLD' = 'HOLD';
           if (realizedPercent >= 80) {
@@ -364,6 +431,11 @@ export const performanceRouter = router({
             realizedPercent: Math.round(realizedPercent * 100) / 100, // Round to 2 decimals
             action,
             hasWorkingOrder,
+            // Spread fields (only populated if spread detected)
+            spreadType,
+            longStrike,
+            spreadWidth,
+            capitalAtRisk,
           });
         }
 
@@ -407,6 +479,10 @@ export const performanceRouter = router({
         quantity: z.number(),
         strike: z.number(),
         currentPrice: z.number(),
+        // Spread-specific fields
+        spreadType: z.enum(['bull_put', 'bear_call']).optional(),
+        longStrike: z.number().optional(),
+        spreadWidth: z.number().optional(),
       })),
       dryRun: z.boolean().default(true),
     }))
@@ -471,27 +547,46 @@ export const performanceRouter = router({
       for (const pos of validPositions) {
         console.log(`[Performance] Processing ${pos.underlying} $${pos.strike} (${pos.quantity} contracts)`);
         
-        // Add premium to close price for immediate fills
-        // Use 10% above mark or +$0.05, whichever is greater
-        const pricePremium = Math.max(pos.currentPrice * 0.10, 0.05);
-        const aggressivePrice = pos.currentPrice + pricePremium;
-        
-        console.log(`[Performance] Pricing: mark=$${pos.currentPrice.toFixed(2)}, aggressive=$${aggressivePrice.toFixed(2)} (+${pricePremium.toFixed(2)})`);
-        
-        const result = await api.buyToCloseOption(
-          pos.accountId,
-          pos.optionSymbol,
-          pos.quantity,
-          aggressivePrice,
-          dryRun
-        );
+        // Check if this is a spread position
+        if (pos.spreadType && pos.longStrike) {
+          // Spread position - need to close both legs
+          console.log(`[Performance] Detected ${pos.spreadType} spread: ${pos.strike}/${pos.longStrike}`);
+          
+          // For spreads, we need to submit a two-leg buy-to-close order
+          // TODO: Implement spread closing logic
+          // For now, log a warning and skip
+          console.warn(`[Performance] Spread closing not yet implemented for ${pos.underlying}`);
+          results.push({
+            success: false,
+            message: 'Spread closing not yet implemented - please close manually in Tastytrade',
+            underlying: pos.underlying,
+            strike: pos.strike,
+            quantity: pos.quantity,
+          });
+        } else {
+          // Single-leg position - use existing logic
+          // Add premium to close price for immediate fills
+          // Use 10% above mark or +$0.05, whichever is greater
+          const pricePremium = Math.max(pos.currentPrice * 0.10, 0.05);
+          const aggressivePrice = pos.currentPrice + pricePremium;
+          
+          console.log(`[Performance] Pricing: mark=$${pos.currentPrice.toFixed(2)}, aggressive=$${aggressivePrice.toFixed(2)} (+${pricePremium.toFixed(2)})`);
+          
+          const result = await api.buyToCloseOption(
+            pos.accountId,
+            pos.optionSymbol,
+            pos.quantity,
+            aggressivePrice,
+            dryRun
+          );
 
-        results.push({
-          ...result,
-          underlying: pos.underlying,
-          strike: pos.strike,
-          quantity: pos.quantity,
-        });
+          results.push({
+            ...result,
+            underlying: pos.underlying,
+            strike: pos.strike,
+            quantity: pos.quantity,
+          });
+        }
       }
 
       const successCount = results.filter(r => r.success).length;

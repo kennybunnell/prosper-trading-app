@@ -1771,3 +1771,18 @@
 - [ ] Display capital at risk instead of collateral for spreads
 - [ ] Ensure P&L calculations work for spreads
 - [ ] Test close functionality for spread positions
+
+## Active Positions Dashboard - Spread Support
+- [x] Read Active Positions dashboard component
+- [x] Find positions table rendering section
+- [x] Add Strategy column with spread type badges (Bull Put Spread / Bear Call Spread / Single Leg)
+- [x] Update Strikes column to show both strikes for spreads (e.g., "407.50/402.50")
+- [x] Update backend to detect spread positions by matching short and long legs
+- [x] Calculate capital at risk for spreads (spread width - net credit)
+- [x] Add spread fields to ProcessedPosition interface (spreadType, longStrike, spreadWidth, capitalAtRisk)
+- [x] Update closePositions input schema to accept spread fields
+- [x] Add spread detection in close logic (shows warning for now - full implementation later)
+- [x] Update frontend Position interface to include spread fields
+- [x] Add conditional rendering based on spreadType field
+- [ ] Test with real spread position data when market opens
+- [x] Verify CSP positions still display correctly
