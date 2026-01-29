@@ -2246,3 +2246,11 @@
 - [x] Make order preview table responsive
 - [x] Test with bull put spread and bear call spread orders
 - [x] Save checkpoint
+
+## Bug Fix: Bear Call Spread Missing Order Preview Dialog
+- [x] Investigate why CC Dashboard (bear call spread) doesn't show order preview dialog
+- [x] Compare CSP Dashboard (bull put spread) order submission flow
+- [x] Add OrderPreviewDialog to CC Dashboard bear call spread submission
+- [x] Ensure consistent order preview across all strategies (CSP, BPS, CC, BCS)
+- [x] Test order preview for bear call spreads
+- [x] Save checkpoint

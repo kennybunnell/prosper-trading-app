@@ -39,6 +39,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { OrderPreviewDialog } from "@/components/OrderPreviewDialog";
 import { HelpBadge } from "@/components/HelpBadge";
 import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
@@ -241,6 +242,10 @@ export default function CCDashboard() {
   const [deltaRange, setDeltaRange] = useState<[number, number]>([0, 1]);
   const [dteRange, setDteRange] = useState<[number, number]>([0, 90]);
   const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
+  
+  // Order preview dialog state
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [validationData, setValidationData] = useState<any>(null);
   
   // Fetch progress dialog state
   const [fetchProgress, setFetchProgress] = useState<{
@@ -651,8 +656,8 @@ export default function CCDashboard() {
     });
   }, [filteredOpportunities, sortColumn, sortDirection, showSelectedOnly, selectedOpportunities]);
 
-  // Handle order submission
-  const handleSubmitOrders = async () => {
+  // Handle order submission - shows preview dialog first
+  const handleSubmitOrders = () => {
     if (selectedOpportunities.size === 0) {
       toast.error("Please select at least one opportunity");
       return;
@@ -663,43 +668,86 @@ export default function CCDashboard() {
       return;
     }
 
+    // Map selected keys back to opportunity objects
+    const selectedOpps = Array.from(selectedOpportunities)
+      .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
+      .filter((opp): opp is CCOpportunity => opp !== undefined);
+
+    // Build order preview data
+    const orders = selectedOpps.map(opp => ({
+      symbol: opp.symbol,
+      strike: opp.strike,
+      expiration: opp.expiration,
+      quantity: 1,
+      premium: opp.premium,
+      collateral: strategyType === 'spread' ? (opp.capitalAtRisk || 0) : (opp.currentPrice * 100),
+      status: 'valid' as const,
+      // Spread-specific fields
+      isSpread: strategyType === 'spread',
+      spreadType: strategyType === 'spread' ? ('bear_call' as const) : undefined,
+      longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
+      spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
+    }));
+
+    const totalPremium = orders.reduce((sum, o) => sum + o.premium, 0);
+    const totalCollateral = orders.reduce((sum, o) => sum + o.collateral, 0);
+
+    // Set validation data for preview dialog
+    const availableBuyingPower = 100000; // Placeholder - will be fetched from account in future
+    setValidationData({
+      orders,
+      totalPremium,
+      totalCollateral,
+      availableBuyingPower,
+      remainingBuyingPower: availableBuyingPower - totalCollateral,
+      isMarketOpen: true, // Assume market is open for now
+    });
+
+    setShowPreviewDialog(true);
+  };
+
+  // Execute order submission after preview confirmation
+  const executeOrderSubmission = async () => {
+    setShowPreviewDialog(false);
     setIsSubmitting(true);
+
+    if (!validationData) {
+      toast.error("Validation data not available");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      // Map selected keys back to opportunity objects
-      const selectedOpps = Array.from(selectedOpportunities)
-        .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
-        .filter((opp): opp is CCOpportunity => opp !== undefined);
-      
       let results;
       
       if (strategyType === 'spread') {
         // Bear call spread orders
-        const spreadOrders = selectedOpps.map(opp => ({
-          symbol: opp.symbol,
-          shortStrike: opp.strike,
-          longStrike: opp.longStrike!, // Non-null assertion safe because spread mode guarantees this field
-          expiration: opp.expiration,
-          quantity: 1, // Default to 1 contract per opportunity
-          netCredit: opp.premium, // Net credit for the spread
+        const spreadOrders = validationData.orders.map((order: any) => ({
+          symbol: order.symbol,
+          shortStrike: order.strike,
+          longStrike: order.longStrike,
+          expiration: order.expiration,
+          quantity: 1,
+          netCredit: order.premium / 100, // Convert cents to dollars
         }));
 
         results = await utils.client.cc.submitBearCallSpreadOrders.mutate({
-          accountNumber: selectedAccountId,
+          accountNumber: selectedAccountId!,
           orders: spreadOrders,
           dryRun,
         });
       } else {
         // Regular CC orders
-        const orders = selectedOpps.map(opp => ({
-          symbol: opp.symbol,
-          strike: opp.strike,
-          expiration: opp.expiration,
-          quantity: 1, // Default to 1 contract per opportunity
-          price: opp.bid, // Use bid price for limit orders
+        const orders = validationData.orders.map((order: any) => ({
+          symbol: order.symbol,
+          strike: order.strike,
+          expiration: order.expiration,
+          quantity: 1,
+          price: order.bid,
         }));
 
         results = await utils.client.cc.submitOrders.mutate({
-          accountNumber: selectedAccountId,
+          accountNumber: selectedAccountId!,
           orders,
           dryRun,
         });
@@ -2241,6 +2289,22 @@ export default function CCDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Order Preview Dialog */}
+      {validationData && (
+        <OrderPreviewDialog
+          open={showPreviewDialog}
+          onOpenChange={setShowPreviewDialog}
+          orders={validationData.orders}
+          totalPremium={validationData.totalPremium}
+          totalCollateral={validationData.totalCollateral}
+          availableBuyingPower={validationData.availableBuyingPower}
+          remainingBuyingPower={validationData.remainingBuyingPower}
+          isMarketOpen={validationData.isMarketOpen}
+          onSubmit={executeOrderSubmission}
+          isDryRun={dryRun}
+        />
+      )}
     </div>
   );
 }
