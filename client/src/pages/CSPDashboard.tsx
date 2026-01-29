@@ -140,6 +140,8 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { OrderPreviewDialog } from "@/components/OrderPreviewDialog";
+import { HelpBadge } from "@/components/HelpBadge";
+import { HELP_CONTENT } from "@/lib/helpContent";
 
 type ScoredOpportunity = {
   symbol: string;
@@ -1730,40 +1732,42 @@ export default function CSPDashboard() {
                 <TableRow>
                   <TableHead className="w-12">Select</TableHead>
                   {(strategyType === 'spread' ? [
-                    { key: 'symbol', label: 'Symbol' },
-                    { key: 'strike', label: 'Strikes' }, // Show both strikes for spreads
-                    { key: 'currentPrice', label: 'Current' },
-                    { key: 'netCredit', label: 'Net Credit' },
-                    { key: 'capitalAtRisk', label: 'Capital Risk' },
-                    { key: 'spreadROC', label: 'ROC %' },
-                    { key: 'delta', label: 'Delta' },
-                    { key: 'dte', label: 'DTE' },
-                    { key: 'weeklyPct', label: 'Weekly %' },
-                    { key: 'breakeven', label: 'Breakeven' },
-                    { key: 'openInterest', label: 'OI' },
-                    { key: 'volume', label: 'Vol' },
-                    { key: 'rsi', label: 'RSI' },
-                    { key: 'bbPctB', label: 'BB %B' },
-                    { key: 'score', label: 'Score' },
+                    { key: 'symbol', label: 'Symbol', help: null },
+                    { key: 'strike', label: 'Strikes', help: null },
+                    { key: 'currentPrice', label: 'Current', help: null },
+                    { key: 'netCredit', label: 'Net Credit', help: null },
+                    { key: 'capitalAtRisk', label: 'Capital Risk', help: null },
+                    { key: 'spreadROC', label: 'ROC %', help: null },
+                    { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP },
+                    { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE },
+                    { key: 'weeklyPct', label: 'Weekly %', help: null },
+                    { key: 'breakeven', label: 'Breakeven', help: null },
+                    { key: 'openInterest', label: 'OI', help: null },
+                    { key: 'volume', label: 'Vol', help: null },
+                    { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP },
+                    { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP },
+                    { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK },
+                    { key: 'score', label: 'Score', help: null },
                   ] : [
-                    { key: 'symbol', label: 'Symbol' },
-                    { key: 'strike', label: 'Strike' },
-                    { key: 'currentPrice', label: 'Current' },
-                    { key: 'bid', label: 'Bid' },
-                    { key: 'ask', label: 'Ask' },
-                    { key: 'spreadPct', label: 'Spread %' },
-                    { key: 'delta', label: 'Delta' },
-                    { key: 'dte', label: 'DTE' },
-                    { key: 'premium', label: 'Premium' },
-                    { key: 'weeklyPct', label: 'Weekly %' },
-                    { key: 'collateral', label: 'Collateral' },
-                    { key: 'roc', label: 'ROC %' },
-                    { key: 'openInterest', label: 'OI' },
-                    { key: 'volume', label: 'Vol' },
-                    { key: 'rsi', label: 'RSI' },
-                    { key: 'bbPctB', label: 'BB %B' },
-                    { key: 'score', label: 'Score' },
-                  ]).map(({ key, label }) => (
+                    { key: 'symbol', label: 'Symbol', help: null },
+                    { key: 'strike', label: 'Strike', help: null },
+                    { key: 'currentPrice', label: 'Current', help: null },
+                    { key: 'bid', label: 'Bid', help: null },
+                    { key: 'ask', label: 'Ask', help: null },
+                    { key: 'spreadPct', label: 'Spread %', help: null },
+                    { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP },
+                    { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE },
+                    { key: 'premium', label: 'Premium', help: null },
+                    { key: 'weeklyPct', label: 'Weekly %', help: null },
+                    { key: 'collateral', label: 'Collateral', help: null },
+                    { key: 'roc', label: 'ROC %', help: null },
+                    { key: 'openInterest', label: 'OI', help: null },
+                    { key: 'volume', label: 'Vol', help: null },
+                    { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP },
+                    { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP },
+                    { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK },
+                    { key: 'score', label: 'Score', help: null },
+                  ]).map(({ key, label, help }) => (
                     <TableHead 
                       key={key}
                       className="cursor-pointer hover:bg-accent/50 transition-colors"
@@ -1778,6 +1782,7 @@ export default function CSPDashboard() {
                     >
                       <div className="flex items-center gap-1">
                         {label}
+                        {help && <HelpBadge content={help} />}
                         {sortColumn === key && (
                           <span className="text-xs">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                         )}

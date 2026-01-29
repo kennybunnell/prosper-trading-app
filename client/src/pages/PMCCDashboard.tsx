@@ -5,6 +5,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { HelpBadge } from "@/components/HelpBadge";
+import { HELP_CONTENT } from "@/lib/helpContent";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -588,12 +590,14 @@ export default function PMCCDashboard() {
                           <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('dte')}>
                             <div className="flex items-center justify-end gap-1">
                               DTE
+                              <HelpBadge content={HELP_CONTENT.DTE} />
                               {sortColumn === 'dte' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                             </div>
                           </th>
                           <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('delta')}>
                             <div className="flex items-center justify-end gap-1">
                               Delta
+                              <HelpBadge content={HELP_CONTENT.DELTA_CC} />
                               {sortColumn === 'delta' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                             </div>
                           </th>

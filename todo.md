@@ -2113,3 +2113,23 @@
 - [x] Add console logging to validateOrders backend to debug collateral calculation
 - [x] Verify CC Dashboard already uses capitalAtRisk in summary cards
 - [ ] Test buying power calculation with real spread orders (should show correct percentage, not 1338%)
+
+## Phase 1: Implement Critical Trading Concept Help Badges
+- [x] Create reusable HelpBadge component with tooltip functionality
+- [x] Add Delta help badge to CSP Dashboard table header
+- [x] Add DTE help badge to CSP Dashboard table header
+- [x] Add RSI help badge to CSP Dashboard table header
+- [x] Add BB %B help badge to CSP Dashboard table header
+- [x] Add IV Rank help badge to CSP Dashboard table header
+- [x] Add Delta help badge to CC Dashboard table header
+- [x] Add DTE help badge to CC Dashboard table header
+- [x] Add RSI help badge to CC Dashboard table header
+- [x] Add BB %B help badge to CC Dashboard table header
+- [x] Add IV Rank help badge to CC Dashboard table header
+- [x] Add Delta help badge to PMCC Dashboard table header
+- [x] Add DTE help badge to PMCC Dashboard table header
+- [x] Add RSI help badge to PMCC Dashboard table header (N/A - PMCC uses calls, no RSI in table)
+- [x] Add BB %B help badge to PMCC Dashboard table header (N/A - PMCC uses calls, no BB %B in table)
+- [x] Add IV Rank help badge to PMCC Dashboard table header (N/A - PMCC uses calls, no IV Rank in table)
+- [x] Test help badges on all dashboards
+- [x] Save checkpoint with Phase 1 implementation

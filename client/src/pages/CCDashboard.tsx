@@ -39,6 +39,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { HelpBadge } from "@/components/HelpBadge";
+import { HELP_CONTENT } from "@/lib/helpContent";
 
 // Strategy types
 type StrategyType = 'cc' | 'spread';
@@ -1945,12 +1947,14 @@ export default function CCDashboard() {
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('dte')}>
                         <div className="flex items-center justify-end gap-1">
                           DTE
+                          <HelpBadge content={HELP_CONTENT.DTE} />
                           {sortColumn === 'dte' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('delta')}>
                         <div className="flex items-center justify-end gap-1">
                           Delta
+                          <HelpBadge content={HELP_CONTENT.DELTA_CC} />
                           {sortColumn === 'delta' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
@@ -1998,18 +2002,21 @@ export default function CCDashboard() {
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('rsi')}>
                         <div className="flex items-center justify-end gap-1">
                           RSI
+                          <HelpBadge content={HELP_CONTENT.RSI_CC} />
                           {sortColumn === 'rsi' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('ivRank')}>
                         <div className="flex items-center justify-end gap-1">
                           IV Rank
+                          <HelpBadge content={HELP_CONTENT.IV_RANK} />
                           {sortColumn === 'ivRank' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('bbPctB')}>
                         <div className="flex items-center justify-end gap-1">
                           BB %B
+                          <HelpBadge content={HELP_CONTENT.BB_PCTB_CC} />
                           {sortColumn === 'bbPctB' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
