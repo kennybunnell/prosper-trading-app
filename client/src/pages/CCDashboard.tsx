@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
+import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -273,61 +274,78 @@ export default function CCDashboard() {
     return () => clearInterval(interval);
   }, [isScanning, scanStartTime, selectedStocks.length]);
 
-  // Scan selected stocks for opportunities
+  // Scan for opportunities (CC mode uses stock positions, spread mode uses watchlist)
   const scanOpportunities = async () => {
-    // Filter out stocks that are fully covered (maxContracts = 0)
-    const eligibleStocks = selectedStocks.filter(symbol => {
-      const holding = holdings.find(h => h.symbol === symbol);
-      return holding && holding.maxContracts > 0;
-    });
-
-    if (eligibleStocks.length === 0) {
-      toast.error("No eligible stocks selected. Selected stocks are fully covered by existing calls.");
-      return;
-    }
-
-    const skippedCount = selectedStocks.length - eligibleStocks.length;
-    if (skippedCount > 0) {
-      toast.info(`Skipping ${skippedCount} stock(s) with existing covered calls`);
-    }
-
     setIsScanning(true);
     setScanStartTime(Date.now());
     setScanProgress(0);
     
     try {
-      // Build holdings data for eligible stocks only
-      const selectedHoldings = holdings
-        .filter(h => eligibleStocks.includes(h.symbol))
-        .map(h => ({
-          symbol: h.symbol,
-          quantity: h.quantity,
-          currentPrice: h.currentPrice,
-          maxContracts: h.maxContracts,
-        }));
+      let finalOpportunities = [];
 
-      const result = await utils.client.cc.scanOpportunities.mutate({
-        symbols: eligibleStocks,
-        holdings: selectedHoldings,
-        minDte: 7,
-        maxDte: 45,
-        minDelta: 0.05,
-        maxDelta: 0.99,
-      });
-
-      // If spread mode, calculate bear call spreads
-      let finalOpportunities = result;
       if (strategyType === 'spread') {
-        try {
-          const spreadResult = await utils.client.cc.bearCallSpreadOpportunities.mutate({
-            ccOpportunities: result,
-            spreadWidth,
-          });
-          finalOpportunities = spreadResult;
-        } catch (error: any) {
-          console.error('Failed to calculate bear call spreads:', error);
-          toast.error('Failed to calculate spreads, showing CC opportunities instead');
+        // Bear Call Spread mode: scan watchlist symbols
+        const watchlistResult = await utils.client.watchlist.get.query();
+        const watchlistSymbols = watchlistResult.map((item: any) => item.symbol);
+
+        if (watchlistSymbols.length === 0) {
+          toast.error("No symbols in watchlist. Please add symbols to scan for bear call spreads.");
+          setIsScanning(false);
+          return;
         }
+
+        // Scan watchlist for call opportunities first
+        const ccOpportunities = await utils.client.cc.scanOpportunities.mutate({
+          symbols: watchlistSymbols,
+          holdings: [], // No holdings needed for bear call spreads
+          minDte: 7,
+          maxDte: 45,
+          minDelta: 0.05,
+          maxDelta: 0.99,
+        });
+
+        // Calculate bear call spreads
+        const spreadResult = await utils.client.cc.bearCallSpreadOpportunities.mutate({
+          ccOpportunities,
+          spreadWidth,
+        });
+        finalOpportunities = spreadResult;
+      } else {
+        // CC mode: scan stock positions
+        const eligibleStocks = selectedStocks.filter(symbol => {
+          const holding = holdings.find(h => h.symbol === symbol);
+          return holding && holding.maxContracts > 0;
+        });
+
+        if (eligibleStocks.length === 0) {
+          toast.error("No eligible stocks selected. Selected stocks are fully covered by existing calls.");
+          setIsScanning(false);
+          return;
+        }
+
+        const skippedCount = selectedStocks.length - eligibleStocks.length;
+        if (skippedCount > 0) {
+          toast.info(`Skipping ${skippedCount} stock(s) with existing covered calls`);
+        }
+
+        // Build holdings data for eligible stocks only
+        const selectedHoldings = holdings
+          .filter(h => eligibleStocks.includes(h.symbol))
+          .map(h => ({
+            symbol: h.symbol,
+            quantity: h.quantity,
+            currentPrice: h.currentPrice,
+            maxContracts: h.maxContracts,
+          }));
+
+        finalOpportunities = await utils.client.cc.scanOpportunities.mutate({
+          symbols: eligibleStocks,
+          holdings: selectedHoldings,
+          minDte: 7,
+          maxDte: 45,
+          minDelta: 0.05,
+          maxDelta: 0.99,
+        });
       }
 
       setOpportunities(finalOpportunities);
@@ -342,7 +360,7 @@ export default function CCDashboard() {
       }, 100);
 
       setScanProgress(100);
-      toast.success(`Found ${result.length} opportunities`);
+      toast.success(`Found ${finalOpportunities.length} opportunities`);
     } catch (error: any) {
       toast.error(error.message || "Failed to scan opportunities");
     } finally {
@@ -645,7 +663,8 @@ export default function CCDashboard() {
         <ConnectionStatusIndicator />
       </div>
 
-      {/* Position Summary Section */}
+      {/* Portfolio Positions Section - Only show in CC mode */}
+      {strategyType === 'cc' && (
       <div>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -958,6 +977,12 @@ export default function CCDashboard() {
           </div>
         )}
       </div>
+      )}
+
+      {/* Watchlist Section - Only show in Bear Call Spread mode */}
+      {strategyType === 'spread' && (
+        <EnhancedWatchlist />
+      )}
 
       {/* Strategy Type Selection */}
       {ENABLE_BEAR_CALL_SPREADS && opportunities.length > 0 && (

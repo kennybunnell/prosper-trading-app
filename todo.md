@@ -1923,3 +1923,14 @@
 - [ ] Verify working orders display for unfilled bear call spreads
 - [ ] Verify capital efficiency calculation for bear calls
 - [ ] Test mixed portfolio (CSP + CC + Bull Put + Bear Call spreads)
+
+## CC Dashboard - Unified Watchlist Integration for Bear Call Spreads
+- [x] Import EnhancedWatchlist component into CC Dashboard
+- [x] Add conditional rendering: show Portfolio Positions when strategyType === 'cc'
+- [x] Add conditional rendering: show EnhancedWatchlist when strategyType === 'spread'
+- [x] Update scan button logic to detect spread mode
+- [x] When in spread mode, fetch watchlist symbols and scan for bear call spread opportunities
+- [x] When in CC mode, keep existing stock position scanning logic
+- [ ] Test watchlist Add/Import/Remove from CC Dashboard in spread mode when market opens
+- [ ] Verify watchlist changes reflect across CSP, PMCC, and CC dashboards
+- [ ] Test complete workflow: toggle to spread mode → add tickers → scan → select → submit orders
