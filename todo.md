@@ -2054,3 +2054,40 @@
 - [x] Fix calculation to sum all net credits (multiply each by 100 for dollars per contract)
 - [x] Verified other metrics (Avg Weekly Return, Avg Delta, Avg Score) are correct
 - [ ] Test with 14 selected contracts - should show ~$126 total premium instead of $9.01
+
+## Fix Net Delta Calculation for Bear Call Spreads
+- [ ] Update calculateBearCallSpread to calculate net Delta (|shortDelta| - |longDelta|)
+- [ ] Store net Delta in the delta field instead of copying short call Delta
+- [ ] Keep longDelta field for reference
+- [ ] Test that Delta filter now works correctly with net Delta values
+- [ ] Verify Delta column shows net Delta (should be much lower than short call Delta)
+
+## Audit Technical Indicators for Bear Call Spreads
+- [ ] Review which indicators are stock-based vs option-based
+- [ ] Verify RSI, BB %B, IV Rank are still valid for spreads (stock indicators)
+- [ ] Check if bid/ask spread % calculation is appropriate for net credit
+- [ ] Verify volume and open interest are using short call data (correct)
+- [ ] Check if distance OTM calculation is appropriate for spreads
+- [ ] Verify score calculation weights are appropriate for spread strategy
+- [ ] Document which indicators need adjustment vs which are correct as-is
+
+## Fix Bid/Ask Spread Calculation for Bear Call Spreads
+- [x] Calculate combined bid/ask spread for both legs
+- [x] Formula: (shortSpread + longSpread) / netCredit * 100
+- [x] Update bear-call-pricing.ts to override spreadPct field
+- [ ] Test that spread % reflects actual fill probability
+
+## Audit and Fix Bull Put Spreads Technical Indicators
+- [x] Read spread-pricing.ts (contains bull put spread logic)
+- [x] Check if Delta calculation uses net Delta (|shortPutDelta| - |longPutDelta|) - FIXED
+- [x] Check if bid/ask spread accounts for both legs - FIXED
+- [x] Review all other technical indicators (RSI, BB, IV, volume, OI, etc.) - All correct
+- [x] Apply same fixes as bear call spreads
+- [x] Document any bull-put-specific considerations - Same calculation logic as bear call
+
+## Verify Working Orders View for Spread Orders
+- [x] Check if working orders view can display spread orders correctly - YES (detects 2-leg orders)
+- [x] Verify resubmission logic handles two-leg spread orders - YES (uses rawOrder with all legs)
+- [x] Identified issue: autoCancelStuckOrders only handles single-leg orders (needs fix for spreads)
+- [ ] Test that unfilled spread orders can be resubmitted
+- [x] Ensure spread order status tracking works properly - YES (isSpread, longStrike, spreadType fields)

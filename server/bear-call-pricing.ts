@@ -102,12 +102,30 @@ export function calculateBearCallSpread(
   const capitalSavings = ccCollateral - capitalAtRisk;
   const capitalSavingsPct = (capitalSavings / ccCollateral) * 100;
   
+  // Calculate net Delta for the spread
+  // Net Delta = |short call Delta| - |long call Delta|
+  // Both are negative for calls, so we take absolute values and subtract
+  const netDelta = Math.abs(Math.abs(ccOpp.delta) - Math.abs(longCallQuote.delta));
+  
+  // Calculate combined bid/ask spread for both legs
+  // Short call spread: (ask - bid) for what we're selling
+  // Long call spread: (ask - bid) for what we're buying
+  // Total spread as % of net credit
+  const shortSpread = ccOpp.ask - ccOpp.bid;
+  const longSpread = longCallQuote.ask - longCallQuote.bid;
+  const combinedSpread = shortSpread + longSpread;
+  const spreadPct = netCredit > 0 ? (combinedSpread / netCredit) * 100 : 0;
+  
   return {
     ...ccOpp,
+    // Override delta to show net Delta for the spread
+    delta: netDelta,
     // Override premium to show net credit
     premium: netCredit,
     bid: shortPremium,
     ask: ccOpp.ask,
+    // Override spreadPct to show combined spread for both legs
+    spreadPct,
     // Spread-specific fields
     spreadType: 'bear-call',
     spreadWidth,

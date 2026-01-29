@@ -79,12 +79,30 @@ export function calculateBullPutSpread(
   const capitalSavings = cspCollateral - capitalAtRisk;
   const capitalSavingsPct = (capitalSavings / cspCollateral) * 100;
   
+  // Calculate net Delta for the spread
+  // Net Delta = |short put Delta| - |long put Delta|
+  // Both are negative for puts, so we take absolute values and subtract
+  const netDelta = Math.abs(Math.abs(cspOpp.delta) - Math.abs(longPutQuote.delta));
+  
+  // Calculate combined bid/ask spread for both legs
+  // Short put spread: (ask - bid) for what we're selling
+  // Long put spread: (ask - bid) for what we're buying
+  // Total spread as % of net credit
+  const shortSpread = cspOpp.ask - cspOpp.bid;
+  const longSpread = longPutQuote.ask - longPutQuote.bid;
+  const combinedSpread = shortSpread + longSpread;
+  const spreadPct = netCredit > 0 ? (combinedSpread / netCredit) * 100 : 0;
+  
   return {
     ...cspOpp,
+    // Override delta to show net Delta for the spread
+    delta: netDelta,
     // Override premium to show net credit
     premium: netCredit,
     bid: shortPremium,
     ask: cspOpp.ask,
+    // Override spreadPct to show combined spread for both legs
+    spreadPct,
     // Spread-specific fields
     spreadType: 'bull-put',
     spreadWidth,
