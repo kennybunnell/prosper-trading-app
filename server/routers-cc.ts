@@ -263,6 +263,83 @@ export const ccRouter = router({
     }),
 
   /**
+   * Calculate bear call spread opportunities from CC opportunities
+   * Takes CC opportunities and adds protective long calls at higher strikes
+   */
+  bearCallSpreadOpportunities: protectedProcedure
+    .input(
+      z.object({
+        ccOpportunities: z.array(z.any()), // CC opportunities from scanOpportunities
+        spreadWidth: z.number(), // 2, 5, or 10
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const { createTradierAPI } = await import('./tradier');
+      const { calculateBearCallSpread } = await import('./bear-call-pricing');
+
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tradierApiKey) {
+        throw new Error('Tradier API key not configured');
+      }
+
+      const api = createTradierAPI(credentials.tradierApiKey);
+      const spreadOpportunities = [];
+
+      // For each CC opportunity, calculate the spread pricing
+      for (const ccOpp of input.ccOpportunities) {
+        try {
+          // Calculate long strike (protective call)
+          const longStrike = ccOpp.strike + input.spreadWidth;
+
+          // Fetch option chain for this expiration to get long call quote
+          const options = await api.getOptionChain(
+            ccOpp.symbol,
+            ccOpp.expiration,
+            true // with Greeks
+          );
+
+          // Find the long call at our target strike
+          const longCall = options.find(
+            opt => opt.option_type === 'call' && opt.strike === longStrike
+          );
+
+          if (!longCall || !longCall.bid || !longCall.ask) {
+            // Skip if we can't find the long call or it has no quotes
+            continue;
+          }
+
+          // Calculate spread pricing
+          const spreadOpp = calculateBearCallSpread(
+            ccOpp,
+            input.spreadWidth,
+            {
+              bid: longCall.bid,
+              ask: longCall.ask,
+              delta: Math.abs(longCall.greeks?.delta || 0),
+            }
+          );
+
+          // Only include if net credit is positive
+          if (spreadOpp.netCredit > 0) {
+            // Recalculate score for spread
+            spreadOpp.score = calculateCCScore(spreadOpp);
+            spreadOpportunities.push(spreadOpp);
+          }
+        } catch (error) {
+          console.error(`[BearCallSpread] Error calculating spread for ${ccOpp.symbol}:`, error);
+          // Skip this opportunity and continue
+          continue;
+        }
+      }
+
+      // Sort by score descending
+      spreadOpportunities.sort((a, b) => b.score - a.score);
+
+      return spreadOpportunities;
+    }),
+
+  /**
    * Submit covered call orders (with dry run support)
    */
   submitOrders: protectedProcedure
@@ -398,6 +475,117 @@ export const ccRouter = router({
             success: false,
             symbol: order.symbol,
             strike: order.strike,
+            quantity: order.quantity,
+            message: error.message,
+          });
+        }
+      }
+
+      return results;
+    }),
+
+  /**
+   * Submit bear call spread orders (two-leg: STO short call + BTO long call)
+   */
+  submitBearCallSpreadOrders: protectedProcedure
+    .input(
+      z.object({
+        accountNumber: z.string(),
+        orders: z.array(
+          z.object({
+            symbol: z.string(),
+            shortStrike: z.number(),
+            longStrike: z.number(),
+            expiration: z.string(),
+            quantity: z.number(),
+            netCredit: z.number(), // Net credit for the spread
+          })
+        ),
+        dryRun: z.boolean().default(false),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const { getTastytradeAPI } = await import('./tastytrade');
+
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+        throw new Error('Tastytrade credentials not configured');
+      }
+
+      const api = getTastytradeAPI();
+      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+
+      if (input.dryRun) {
+        // Dry run - return success without submitting
+        return input.orders.map(order => ({
+          success: true,
+          symbol: order.symbol,
+          shortStrike: order.shortStrike,
+          longStrike: order.longStrike,
+          quantity: order.quantity,
+          message: 'Dry run - validation passed, order not submitted',
+          orderId: 'DRY_RUN',
+        }));
+      }
+
+      // Live mode - submit real two-leg orders
+      const results = [];
+
+      for (const order of input.orders) {
+        try {
+          // Format option symbols
+          const expDate = new Date(order.expiration);
+          const expStr = expDate.toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
+          
+          const shortStrikeStr = (order.shortStrike * 1000).toFixed(0).padStart(8, '0');
+          const longStrikeStr = (order.longStrike * 1000).toFixed(0).padStart(8, '0');
+          
+          const shortCallSymbol = `${order.symbol.padEnd(6)}${expStr}C${shortStrikeStr}`;
+          const longCallSymbol = `${order.symbol.padEnd(6)}${expStr}C${longStrikeStr}`;
+
+          // Calculate limit price (10% above net credit or +$0.05, whichever is greater)
+          const buffer = Math.max(order.netCredit * 0.10, 0.05);
+          const limitPrice = order.netCredit + buffer;
+
+          // Submit two-leg spread order
+          const result = await api.submitOrder({
+            accountNumber: input.accountNumber,
+            timeInForce: 'Day',
+            orderType: 'Limit',
+            price: limitPrice.toFixed(2),
+            priceEffect: 'Credit',
+            legs: [
+              {
+                instrumentType: 'Equity Option',
+                symbol: shortCallSymbol,
+                quantity: order.quantity.toString(),
+                action: 'Sell to Open',
+              },
+              {
+                instrumentType: 'Equity Option',
+                symbol: longCallSymbol,
+                quantity: order.quantity.toString(),
+                action: 'Buy to Open',
+              },
+            ],
+          });
+
+          results.push({
+            success: true,
+            symbol: order.symbol,
+            shortStrike: order.shortStrike,
+            longStrike: order.longStrike,
+            quantity: order.quantity,
+            orderId: result.id,
+            message: 'Bear call spread order submitted successfully',
+          });
+        } catch (error: any) {
+          results.push({
+            success: false,
+            symbol: order.symbol,
+            shortStrike: order.shortStrike,
+            longStrike: order.longStrike,
             quantity: order.quantity,
             message: error.message,
           });

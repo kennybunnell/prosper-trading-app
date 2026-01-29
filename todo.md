@@ -1834,3 +1834,92 @@
 - [x] Update summary cards grid from 4 to 5 columns
 - [x] Add default values for capital efficiency fields in frontend
 - [ ] Test calculations with real position data when market opens
+
+## Bear Call Spread Implementation - Complete Feature Parity
+
+### Phase 1: CC Dashboard - Strategy Toggle & UI
+- [x] Read current CC Dashboard structure and identify differences from CSP Dashboard
+- [x] Add strategy toggle (CC vs Bear Call Spread) matching CSP Dashboard pattern
+- [x] Add spread width selector (2pt, 5pt, 10pt) with same UI as CSP Dashboard
+- [x] Add strategy panel with collapsible design
+- [x] Update page title/description to reflect spread capability
+- [x] Add feature flag ENABLE_BEAR_CALL_SPREADS (set to true)
+
+### Phase 2: Bear Call Spread Pricing Logic
+- [x] Create bear-call-pricing.ts file mirroring spread-pricing.ts structure
+- [x] Implement BearCallSpreadOpportunity interface
+- [x] Calculate bear call spread metrics (net credit, capital at risk, ROI)
+- [x] Find protective long call at higher strike (2pt/5pt/10pt above short)
+- [x] Validate long call has sufficient liquidity (OI, volume)
+- [x] Calculate spread width and capital efficiency
+- [x] Add tRPC procedure: cc.bearCallSpreadOpportunities
+
+### Phase 3: CC Dashboard - Opportunity Display
+- [x] Update opportunities query to fetch bear call spreads when strategy === 'spread'
+- [x] Display bear call spread opportunities in table with both strikes
+- [x] Show net credit, capital at risk, and ROI for spreads
+- [x] Add conditional columns when in bear call spread mode
+- [x] Update opportunity selection to include spread fields
+- [ ] Test with real bear call spread opportunities when market opens
+
+### Phase 4: Bear Call Spread Order Submission
+- [x] Create submitBearCallSpreadOrders tRPC procedure
+- [x] Build two-leg order structure: STO short call + BTO long call
+- [x] Calculate net credit limit price (10% buffer or +$0.05 min)
+- [x] Set price-effect to 'Credit' for bear call spreads
+- [x] Add order validation for bear call spread legs
+- [x] Update frontend submission logic to detect spread mode
+- [ ] Test dry-run submission for bear call spreads when market opens
+- [ ] Test live submission when market opens
+
+### Phase 5: Performance Dashboard - Bear Call Detection
+- [x] Update spread detection logic in getActivePositions (already implemented)
+- [x] Detect bear call spreads: short call + long call at higher strike (already implemented)
+- [x] Calculate bear call spread width (long strike - short strike) (already implemented)
+- [x] Calculate capital at risk for bear calls (spread width - net credit) (already implemented)
+- [x] Add bear call spread badge (orange) to Strategy column (already implemented)
+- [x] Display both strikes for bear call spreads (e.g., "$410/$415") (already implemented)
+- [x] Update P&L calculation to use both legs for bear calls (already implemented)
+- [ ] Test with real bear call spread positions when market opens
+
+### Phase 6: Performance Dashboard - Bear Call Close Orders
+- [x] Update closePositions to detect bear call spread positions (already implemented)
+- [x] Build two-leg close order: BTC short call + STC long call (already implemented)
+- [x] Calculate net debit limit price for closing bear calls (already implemented)
+- [x] Parse bear call option symbols for both legs (already implemented)
+- [x] Submit multi-leg close order via Tastytrade API (already implemented)
+- [x] Add bear call spread close logging (already implemented)
+- [ ] Test dry-run close for bear call spreads when market opens
+- [ ] Test live close when market opens
+
+### Phase 7: Working Orders - Bear Call Spread Support
+- [x] Update getWorkingOrders to recognize bear call spread orders
+- [x] Display bear call spread orders with both strikes
+- [x] Show spread type with color coding (orange for bear call)
+- [x] Add isSpread, longStrike, spreadType fields to ProcessedWorkingOrder
+- [ ] Test working order display for unfilled bear call spreads when market opens
+- [ ] Test cancel order functionality for bear call spreads
+
+### Phase 8: Database Schema Updates
+- [x] Verify positions table has spreadType enum includes 'bear_call' (already exists)
+- [x] Database schema already supports bear call spreads
+- [x] All spread fields (spreadType, longStrike, spreadWidth, capitalAtRisk) already exist
+
+### Phase 9: Summary Cards & Metrics
+- [x] Verify spread count includes bear call spreads (uses generic spreadType detection)
+- [x] Verify capital efficiency calculation works for bear calls (uses spreadType field)
+- [x] Verify spread filter toggle shows bear call spreads (filters on spreadType existence)
+- [ ] Test "Spreads Only" filter with mixed bull put and bear call spreads when market opens
+- [ ] Verify P&L tracking accuracy for bear call spreads with real positions
+
+### Phase 10: End-to-End Testing
+- [ ] Test CC Dashboard: toggle to bear call spread mode
+- [ ] Test opportunity generation for bear call spreads
+- [ ] Test order submission (dry-run) for bear call spread
+- [ ] Test order submission (live) for bear call spread when market opens
+- [ ] Verify bear call spread appears in Active Positions with correct data
+- [ ] Test spread filter toggle isolates bear call spreads
+- [ ] Test closing bear call spread with two-leg order
+- [ ] Verify working orders display for unfilled bear call spreads
+- [ ] Verify capital efficiency calculation for bear calls
+- [ ] Test mixed portfolio (CSP + CC + Bull Put + Bear Call spreads)

@@ -38,6 +38,13 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 
+// Strategy types
+type StrategyType = 'cc' | 'spread';
+type SpreadWidth = 2 | 5 | 10;
+
+// Feature flag for Bear Call Spreads (set to false to disable)
+const ENABLE_BEAR_CALL_SPREADS = true;
+
 // Color-coding helper functions for technical indicators
 function getRSIColor(rsi: number | null, strategy: 'csp' | 'cc'): string {
   if (rsi === null) return "bg-gray-500/20 text-gray-500 border-gray-500/50";
@@ -160,6 +167,10 @@ export default function CCDashboard() {
   const [sortColumn, setSortColumn] = useState<keyof CCOpportunity | null>('score');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+  // Strategy type and spread width
+  const [strategyType, setStrategyType] = useState<StrategyType>('cc');
+  const [spreadWidth, setSpreadWidth] = useState<SpreadWidth>(5);
+  const [strategyPanelCollapsed, setStrategyPanelCollapsed] = useState(false);
   // Live range filters
   const [deltaRange, setDeltaRange] = useState<[number, number]>([0, 1]);
   const [dteRange, setDteRange] = useState<[number, number]>([0, 90]);
@@ -304,7 +315,22 @@ export default function CCDashboard() {
         maxDelta: 0.99,
       });
 
-      setOpportunities(result);
+      // If spread mode, calculate bear call spreads
+      let finalOpportunities = result;
+      if (strategyType === 'spread') {
+        try {
+          const spreadResult = await utils.client.cc.bearCallSpreadOpportunities.mutate({
+            ccOpportunities: result,
+            spreadWidth,
+          });
+          finalOpportunities = spreadResult;
+        } catch (error: any) {
+          console.error('Failed to calculate bear call spreads:', error);
+          toast.error('Failed to calculate spreads, showing CC opportunities instead');
+        }
+      }
+
+      setOpportunities(finalOpportunities);
       setSelectedOpportunities(new Set());
       
       // Collapse positions section and scroll to opportunities
@@ -522,19 +548,40 @@ export default function CCDashboard() {
         .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
         .filter((opp): opp is CCOpportunity => opp !== undefined);
       
-      const orders = selectedOpps.map(opp => ({
-        symbol: opp.symbol,
-        strike: opp.strike,
-        expiration: opp.expiration,
-        quantity: 1, // Default to 1 contract per opportunity
-        price: opp.bid, // Use bid price for limit orders
-      }));
+      let results;
+      
+      if (strategyType === 'spread') {
+        // Bear call spread orders
+        const spreadOrders = selectedOpps.map(opp => ({
+          symbol: opp.symbol,
+          shortStrike: opp.strike,
+          longStrike: (opp as any).longStrike,
+          expiration: opp.expiration,
+          quantity: 1, // Default to 1 contract per opportunity
+          netCredit: opp.premium, // Net credit for the spread
+        }));
 
-      const results = await utils.client.cc.submitOrders.mutate({
-        accountNumber: selectedAccountId,
-        orders,
-        dryRun,
-      });
+        results = await utils.client.cc.submitBearCallSpreadOrders.mutate({
+          accountNumber: selectedAccountId,
+          orders: spreadOrders,
+          dryRun,
+        });
+      } else {
+        // Regular CC orders
+        const orders = selectedOpps.map(opp => ({
+          symbol: opp.symbol,
+          strike: opp.strike,
+          expiration: opp.expiration,
+          quantity: 1, // Default to 1 contract per opportunity
+          price: opp.bid, // Use bid price for limit orders
+        }));
+
+        results = await utils.client.cc.submitOrders.mutate({
+          accountNumber: selectedAccountId,
+          orders,
+          dryRun,
+        });
+      }
 
       const successCount = results.filter((r: any) => r.success).length;
       const failedCount = results.filter((r: any) => !r.success).length;
@@ -911,6 +958,137 @@ export default function CCDashboard() {
           </div>
         )}
       </div>
+
+      {/* Strategy Type Selection */}
+      {ENABLE_BEAR_CALL_SPREADS && opportunities.length > 0 && (
+        <Card className="bg-card/50 backdrop-blur border-border/50 border-primary/30">
+          <CardHeader className="cursor-pointer" onClick={() => setStrategyPanelCollapsed(!strategyPanelCollapsed)}>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  Strategy Type
+                  {strategyPanelCollapsed && (
+                    <Badge variant="secondary" className="ml-2">
+                      {strategyType === 'cc' ? 'CC Mode' : `Bear Call Spread - ${spreadWidth}pt`}
+                    </Badge>
+                  )}
+                </CardTitle>
+                {!strategyPanelCollapsed && (
+                  <CardDescription>
+                    Choose between Covered Calls or Bear Call Spreads
+                  </CardDescription>
+                )}
+              </div>
+              <ChevronDown className={cn(
+                "w-5 h-5 text-muted-foreground transition-transform duration-200",
+                strategyPanelCollapsed && "rotate-180"
+              )} />
+            </div>
+          </CardHeader>
+          {!strategyPanelCollapsed && (
+            <CardContent className="space-y-6">
+            {/* Strategy Toggle */}
+            <div className="flex gap-3">
+              <Button
+                variant={strategyType === 'cc' ? 'default' : 'outline'}
+                onClick={() => setStrategyType('cc')}
+                className={cn(
+                  "flex-1 relative overflow-hidden transition-all duration-300",
+                  strategyType === 'cc'
+                    ? "bg-gradient-to-r from-amber-600 to-yellow-700 hover:from-amber-700 hover:to-yellow-800 text-white shadow-lg"
+                    : "hover:bg-amber-500/10 hover:border-amber-500/50"
+                )}
+              >
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-current" />
+                  Covered Call
+                </span>
+              </Button>
+              <Button
+                variant={strategyType === 'spread' ? 'default' : 'outline'}
+                onClick={() => setStrategyType('spread')}
+                className={cn(
+                  "flex-1 relative overflow-hidden transition-all duration-300",
+                  strategyType === 'spread'
+                    ? "bg-gradient-to-r from-orange-600 to-red-700 hover:from-orange-700 hover:to-red-800 text-white shadow-lg"
+                    : "hover:bg-orange-500/10 hover:border-orange-500/50"
+                )}
+              >
+                <span className="relative z-10 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-current" />
+                  Bear Call Spread
+                </span>
+              </Button>
+            </div>
+
+            {/* Spread Width Selector (only show when spread selected) */}
+            {strategyType === 'spread' && (
+              <div className="space-y-3 p-4 bg-orange-500/5 border border-orange-500/20 rounded-lg">
+                <Label className="text-sm font-semibold">Spread Width</Label>
+                <div className="flex gap-3">
+                  <Button
+                    variant={spreadWidth === 2 ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSpreadWidth(2)}
+                    className={cn(
+                      "flex-1",
+                      spreadWidth === 2
+                        ? "bg-orange-600 hover:bg-orange-700"
+                        : "hover:bg-orange-500/10 hover:border-orange-500/50"
+                    )}
+                  >
+                    2 points
+                  </Button>
+                  <Button
+                    variant={spreadWidth === 5 ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSpreadWidth(5)}
+                    className={cn(
+                      "flex-1",
+                      spreadWidth === 5
+                        ? "bg-orange-600 hover:bg-orange-700"
+                        : "hover:bg-orange-500/10 hover:border-orange-500/50"
+                    )}
+                  >
+                    5 points
+                  </Button>
+                  <Button
+                    variant={spreadWidth === 10 ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSpreadWidth(10)}
+                    className={cn(
+                      "flex-1",
+                      spreadWidth === 10
+                        ? "bg-orange-600 hover:bg-orange-700"
+                        : "hover:bg-orange-500/10 hover:border-orange-500/50"
+                    )}
+                  >
+                    10 points
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {spreadWidth === 2 && "Narrow spread - Lower capital efficiency, higher win rate"}
+                  {spreadWidth === 5 && "Balanced spread - Good capital efficiency and win rate"}
+                  {spreadWidth === 10 && "Wide spread - Maximum capital efficiency, lower win rate"}
+                </p>
+              </div>
+            )}
+
+            {/* Info banner */}
+            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                {strategyType === 'cc' ? (
+                  <>Covered calls generate income from stocks you own by selling call options above current price</>
+                ) : (
+                  <>Bear call spreads limit risk by buying a protective call at a higher strike ({spreadWidth} points above)</>  
+                )}
+              </p>
+            </div>
+          </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* Opportunities Section */}
       <div ref={filtersRef}>
@@ -1410,7 +1588,7 @@ export default function CCDashboard() {
                       </TableHead>
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('strike')}>
                         <div className="flex items-center justify-end gap-1">
-                          Strike
+                          {strategyType === 'spread' ? 'Strikes (Short/Long)' : 'Strike'}
                           {sortColumn === 'strike' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
@@ -1453,10 +1631,15 @@ export default function CCDashboard() {
                       </TableHead>
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('premium')}>
                         <div className="flex items-center justify-end gap-1">
-                          Premium
+                          {strategyType === 'spread' ? 'Net Credit' : 'Premium'}
                           {sortColumn === 'premium' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
+                      {strategyType === 'spread' && (
+                        <TableHead className="text-right">
+                          Capital at Risk
+                        </TableHead>
+                      )}
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('weeklyReturn')}>
                         <div className="flex items-center justify-end gap-1">
                           Weekly %
@@ -1525,7 +1708,15 @@ export default function CCDashboard() {
                             {opp.score}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">${opp.strike.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">
+                          {strategyType === 'spread' && (opp as any).longStrike ? (
+                            <span className="text-orange-400">
+                              ${opp.strike.toFixed(2)} / ${(opp as any).longStrike.toFixed(2)}
+                            </span>
+                          ) : (
+                            `$${opp.strike.toFixed(2)}`
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
                           <span className="text-muted-foreground">${opp.currentPrice.toFixed(2)}</span>
                         </TableCell>
@@ -1540,6 +1731,13 @@ export default function CCDashboard() {
                             ${opp.premium.toFixed(2)}
                           </span>
                         </TableCell>
+                        {strategyType === 'spread' && (
+                          <TableCell className="text-right">
+                            <span className="text-orange-400 font-semibold">
+                              ${((opp as any).capitalAtRisk || 0).toFixed(0)}
+                            </span>
+                          </TableCell>
+                        )}
                         <TableCell className="text-right">
                           <Badge className={cn("font-bold", getROCColor(opp.weeklyReturn))}>
                             {opp.weeklyReturn.toFixed(2)}%

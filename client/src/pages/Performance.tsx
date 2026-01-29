@@ -1547,7 +1547,17 @@ function WorkingOrdersTab() {
                         {order.action.replace('Buy to Close', 'BTC').replace('Sell to Open', 'STO').replace('Sell to Close', 'STC').replace('Buy to Open', 'BTO')}
                       </span>
                     </td>
-                    <td className="p-3 text-sm text-right">${order.strike.toFixed(2)}</td>
+                    <td className="p-3 text-sm text-right">
+                      {(order as any).isSpread && (order as any).longStrike ? (
+                        <span className={`${
+                          (order as any).spreadType === 'bull_put' ? 'text-emerald-400' : 'text-orange-400'
+                        }`}>
+                          ${order.strike.toFixed(2)} / ${(order as any).longStrike.toFixed(2)}
+                        </span>
+                      ) : (
+                        `$${order.strike.toFixed(2)}`
+                      )}
+                    </td>
                     <td className="p-3 text-sm">{order.expiration}</td>
                     <td className="p-3 text-sm text-right">{order.quantity}</td>
                     <td className="p-3 text-sm">

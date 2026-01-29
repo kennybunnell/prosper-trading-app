@@ -39,6 +39,10 @@ export interface ProcessedWorkingOrder {
   replacementCount: number;
   needsReview: boolean; // 5+ replacements
   rawOrder: any; // Full original order from Tastytrade API (includes legs)
+  // Spread-specific fields
+  isSpread?: boolean;
+  longStrike?: number;
+  spreadType?: 'bull_put' | 'bear_call';
 }
 
 export const workingOrdersRouter = router({
@@ -316,6 +320,36 @@ export const workingOrdersRouter = router({
           const minutesWorking = calculateMinutesWorking(order['received-at'] || order.receivedAt);
           totalMinutesWorking += minutesWorking;
 
+          // Detect if this is a spread order (2 legs)
+          let isSpread = false;
+          let longStrike: number | undefined;
+          let spreadType: 'bull_put' | 'bear_call' | undefined;
+          
+          if (order.legs.length === 2) {
+            const leg1 = order.legs[0];
+            const leg2 = order.legs[1];
+            
+            // Parse second leg
+            const leg2Match = leg2.symbol.match(/^([A-Z]+)\s+(\d{6})([CP])(\d+)$/);
+            if (leg2Match) {
+              const leg2OptionType = leg2Match[3];
+              const leg2Strike = parseInt(leg2Match[4]) / 1000;
+              
+              // Check if both legs are same type (both puts or both calls)
+              if (leg2OptionType === symbolMatch[3]) {
+                isSpread = true;
+                longStrike = leg2Strike;
+                
+                // Determine spread type
+                if (optionType === 'PUT' && leg2Strike < strike) {
+                  spreadType = 'bull_put'; // Short higher strike, long lower strike
+                } else if (optionType === 'CALL' && leg2Strike > strike) {
+                  spreadType = 'bear_call'; // Short lower strike, long higher strike
+                }
+              }
+            }
+          }
+
           // Calculate smart fill price with order action awareness
           const priceSuggestion = calculateSmartFillPrice(
             { bid, ask, mid },
@@ -354,6 +388,10 @@ export const workingOrdersRouter = router({
             replacementCount,
             needsReview,
             rawOrder: order, // Store full original order from Tastytrade API
+            // Spread fields
+            isSpread,
+            longStrike,
+            spreadType,
           });
         }
 
