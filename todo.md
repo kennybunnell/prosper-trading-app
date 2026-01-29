@@ -2211,7 +2211,7 @@
 - [ ] Update CC scanner to use selected tickers only
 - [ ] Update PMCC scanner to use selected tickers only
 - [ ] Test selection persistence across dashboards
-- [ ] Save checkpoint
+- [x] Save checkpoint
 
 ## Fix Bear Call Spread Scanner Performance
 
@@ -2229,7 +2229,7 @@
 - [x] Fix preset filter logic to apply correct thresholds to bear call spread opportunities
 - [ ] Fix slider filter logic to filter opportunities in real-time
 - [ ] Test all filters with 224 bear call spread opportunities
-- [ ] Save checkpoint with filter fixes
+- [x] Save checkpoint with filter fixes
 
 ## Fix Spread Strategy Preset Filters
 - [x] Create bull-put-spread (bps) presets in database (Conservative/Medium/Aggressive)
@@ -2240,3 +2240,9 @@
 - [x] Test BPS preset filters (Conservative/Medium/Aggressive) return filtered results
 - [x] Test BCS preset filters (Conservative/Medium/Aggressive) return filtered results
 - [x] Save checkpoint for spread preset filter fixes
+
+## Bug Fix: Order Preview Dialog Content Overflow
+- [x] Fix order preview dialog width to accommodate all content without horizontal scrolling
+- [x] Make order preview table responsive
+- [x] Test with bull put spread and bear call spread orders
+- [x] Save checkpoint

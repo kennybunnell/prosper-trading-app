@@ -85,7 +85,7 @@ export function OrderPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">
             {isDryRun ? "Dry Run Preview" : "Order Confirmation"}
@@ -136,16 +136,16 @@ export function OrderPreviewDialog({
         )}
 
         {/* Orders Table */}
-        <div className="border rounded-lg">
+        <div className="border rounded-lg overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-16">Status</TableHead>
+                <TableHead className="w-12">Status</TableHead>
                 <TableHead className="w-20">Symbol</TableHead>
-                <TableHead className="w-40">Strategy</TableHead>
-                <TableHead className="text-right w-32">Strikes</TableHead>
+                <TableHead className="w-36">Strategy</TableHead>
+                <TableHead className="text-right w-28">Strikes</TableHead>
                 <TableHead className="w-24">Expiration</TableHead>
-                <TableHead className="text-right w-16">Qty</TableHead>
+                <TableHead className="text-right w-12">Qty</TableHead>
                 <TableHead className="text-right w-24">Premium</TableHead>
                 <TableHead className="text-right w-28">Capital Risk</TableHead>
               </TableRow>
@@ -209,7 +209,7 @@ export function OrderPreviewDialog({
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="border rounded-lg p-4">
             <p className="text-sm text-muted-foreground mb-1">Available Buying Power</p>
             <p className="text-2xl font-bold">${availableBuyingPower.toLocaleString()}</p>
