@@ -869,76 +869,115 @@ export const appRouter = router({
         const api = getTastytradeAPI();
         await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
 
-        const results = [];
+        const results: Array<{ symbol: string; success: boolean; orderId?: string; error?: string }> = [];
+        const BATCH_SIZE = 10; // Process 10 orders per batch
+        const BATCH_DELAY_MS = 2000; // 2 second delay between batches
+        const totalBatches = Math.ceil(input.orders.length / BATCH_SIZE);
 
-        for (const order of input.orders) {
-          try {
-            // Build legs based on order type
-            const legs = order.isSpread && order.shortLeg && order.longLeg
+        console.log(`[CSP/BullPut] Submitting ${input.orders.length} orders in ${totalBatches} batches`);
+
+        for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+          const batchStart = batchIndex * BATCH_SIZE;
+          const batchEnd = Math.min(batchStart + BATCH_SIZE, input.orders.length);
+          const batch = input.orders.slice(batchStart, batchEnd);
+
+          console.log(`[CSP/BullPut] Processing batch ${batchIndex + 1}/${totalBatches} (${batch.length} orders)`);
+
+          // Process batch concurrently
+          const batchPromises = batch.map(async (order) => {
+            try {
+              // Build legs based on order type
+              const legs = order.isSpread && order.shortLeg && order.longLeg
               ? [
-                  // Bull Put Spread: Leg 1 - Sell to Open (short put)
-                  {
-                    instrumentType: 'Equity Option' as const,
-                    symbol: order.shortLeg.optionSymbol,
-                    quantity: '1',
-                    action: order.shortLeg.action,
-                  },
-                  // Bull Put Spread: Leg 2 - Buy to Open (long put)
-                  {
-                    instrumentType: 'Equity Option' as const,
-                    symbol: order.longLeg.optionSymbol,
-                    quantity: '1',
-                    action: order.longLeg.action,
-                  },
-                ]
-              : [
-                  // Regular CSP: Single leg
-                  {
-                    instrumentType: 'Equity Option' as const,
-                    symbol: order.optionSymbol!,
-                    quantity: '1',
-                    action: 'Sell to Open' as const,
-                  },
-                ];
-            
-            const orderRequest = {
-              accountNumber: input.accountId,
-              timeInForce: 'Day' as const,
-              orderType: 'Limit' as const,
-              price: order.premium.toFixed(2),
-              priceEffect: 'Credit' as const,
-              legs,
-            };
+                    // Bull Put Spread: Leg 1 - Sell to Open (short put)
+                    {
+                      instrumentType: 'Equity Option' as const,
+                      symbol: order.shortLeg.optionSymbol,
+                      quantity: '1',
+                      action: order.shortLeg.action,
+                    },
+                    // Bull Put Spread: Leg 2 - Buy to Open (long put)
+                    {
+                      instrumentType: 'Equity Option' as const,
+                      symbol: order.longLeg.optionSymbol,
+                      quantity: '1',
+                      action: order.longLeg.action,
+                    },
+                  ]
+                : [
+                    // Regular CSP: Single leg
+                    {
+                      instrumentType: 'Equity Option' as const,
+                      symbol: order.optionSymbol!,
+                      quantity: '1',
+                      action: 'Sell to Open' as const,
+                    },
+                  ];
+              
+              const orderRequest = {
+                accountNumber: input.accountId,
+                timeInForce: 'Day' as const,
+                orderType: 'Limit' as const,
+                price: order.premium.toFixed(2),
+                priceEffect: 'Credit' as const,
+                legs,
+              };
 
-            // LIVE MODE ONLY - no dry run parameter
-            const result = await api.submitOrder(orderRequest);
+              // LIVE MODE ONLY - no dry run parameter
+              const result = await api.submitOrder(orderRequest);
 
-            results.push({
-              symbol: order.symbol,
-              success: true,
-              orderId: result.id,
-            });
-          } catch (error: any) {
-            // Log full error details for debugging
-            console.error('[submitOrders] Order submission failed:', {
-              symbol: order.symbol,
-              strike: order.strike,
-              expiration: order.expiration,
-              premium: order.premium,
-              optionSymbol: order.optionSymbol,
-              accountId: input.accountId,
-              dryRun: input.dryRun,
-              errorMessage: error.message,
-              errorStack: error.stack,
-              errorResponse: error.response?.data || error.response || 'No response data',
-            });
-            results.push({
-              symbol: order.symbol,
-              success: false,
-              error: error.message || 'Unknown error',
-            });
+              return {
+                symbol: order.symbol,
+                success: true,
+                orderId: result.id,
+              };
+            } catch (error: any) {
+              // Log full error details for debugging
+              console.error('[submitOrders] Order submission failed:', {
+                symbol: order.symbol,
+                strike: order.strike,
+                expiration: order.expiration,
+                premium: order.premium,
+                optionSymbol: order.optionSymbol,
+                accountId: input.accountId,
+                dryRun: input.dryRun,
+                errorMessage: error.message,
+                errorStack: error.stack,
+                errorResponse: error.response?.data || error.response || 'No response data',
+              });
+              return {
+                symbol: order.symbol,
+                success: false,
+                error: error.message || 'Unknown error',
+              };
+            }
+          });
+
+          // Wait for batch to complete
+          const batchResults = await Promise.allSettled(batchPromises);
+          
+          // Collect results
+          batchResults.forEach((result) => {
+            if (result.status === 'fulfilled') {
+              results.push(result.value);
+            } else {
+              // Should not happen since we catch errors in the promise
+              console.error(`[CSP/BullPut] Unexpected batch error:`, result.reason);
+            }
+          });
+
+          const successCount = results.filter(r => r.success).length;
+          console.log(`[CSP/BullPut] Batch ${batchIndex + 1}/${totalBatches} complete: ${successCount}/${results.length} successful`);
+
+          // Delay between batches (except after last batch)
+          if (batchIndex < totalBatches - 1) {
+            console.log(`[CSP/BullPut] Waiting ${BATCH_DELAY_MS}ms before next batch...`);
+            await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
           }
         }
+
+        const finalSuccessCount = results.filter(r => r.success).length;
+        console.log(`[CSP/BullPut] All batches complete: ${finalSuccessCount}/${results.length} orders submitted successfully`);
 
         return {
           success: results.every(r => r.success),

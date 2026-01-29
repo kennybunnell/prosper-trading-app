@@ -568,68 +568,107 @@ export const ccRouter = router({
         }));
       }
 
-      // Live mode - submit real two-leg orders
-      const results = [];
+      // Live mode - submit real two-leg orders with batch processing and rate limiting
+      const results: Array<{ success: boolean; symbol: string; shortStrike: number; longStrike: number; quantity: number; orderId?: string; message: string }> = [];
+      const BATCH_SIZE = 10; // Process 10 orders per batch
+      const BATCH_DELAY_MS = 2000; // 2 second delay between batches
+      const totalBatches = Math.ceil(input.orders.length / BATCH_SIZE);
 
-      for (const order of input.orders) {
-        try {
-          // Format option symbols
-          const expDate = new Date(order.expiration);
-          const expStr = expDate.toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
-          
-          const shortStrikeStr = (order.shortStrike * 1000).toFixed(0).padStart(8, '0');
-          const longStrikeStr = (order.longStrike * 1000).toFixed(0).padStart(8, '0');
-          
-          const shortCallSymbol = `${order.symbol.padEnd(6)}${expStr}C${shortStrikeStr}`;
-          const longCallSymbol = `${order.symbol.padEnd(6)}${expStr}C${longStrikeStr}`;
+      console.log(`[BearCallSpread] Submitting ${input.orders.length} orders in ${totalBatches} batches`);
 
-          // Calculate limit price (10% above net credit or +$0.05, whichever is greater)
-          const buffer = Math.max(order.netCredit * 0.10, 0.05);
-          const limitPrice = order.netCredit + buffer;
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        const batchStart = batchIndex * BATCH_SIZE;
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, input.orders.length);
+        const batch = input.orders.slice(batchStart, batchEnd);
 
-          // Submit two-leg spread order
-          const result = await api.submitOrder({
-            accountNumber: input.accountNumber,
-            timeInForce: 'Day',
-            orderType: 'Limit',
-            price: limitPrice.toFixed(2),
-            priceEffect: 'Credit',
-            legs: [
-              {
-                instrumentType: 'Equity Option',
-                symbol: shortCallSymbol,
-                quantity: order.quantity.toString(),
-                action: 'Sell to Open',
-              },
-              {
-                instrumentType: 'Equity Option',
-                symbol: longCallSymbol,
-                quantity: order.quantity.toString(),
-                action: 'Buy to Open',
-              },
-            ],
-          });
+        console.log(`[BearCallSpread] Processing batch ${batchIndex + 1}/${totalBatches} (${batch.length} orders)`);
 
-          results.push({
-            success: true,
-            symbol: order.symbol,
-            shortStrike: order.shortStrike,
-            longStrike: order.longStrike,
-            quantity: order.quantity,
-            orderId: result.id,
-            message: 'Bear call spread order submitted successfully',
-          });
-        } catch (error: any) {
-          results.push({
-            success: false,
-            symbol: order.symbol,
-            shortStrike: order.shortStrike,
-            longStrike: order.longStrike,
-            quantity: order.quantity,
-            message: error.message,
-          });
+        // Process batch concurrently
+        const batchPromises = batch.map(async (order) => {
+          try {
+            // Format option symbols
+            const expDate = new Date(order.expiration);
+            const expStr = expDate.toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
+            
+            const shortStrikeStr = (order.shortStrike * 1000).toFixed(0).padStart(8, '0');
+            const longStrikeStr = (order.longStrike * 1000).toFixed(0).padStart(8, '0');
+            
+            const shortCallSymbol = `${order.symbol.padEnd(6)}${expStr}C${shortStrikeStr}`;
+            const longCallSymbol = `${order.symbol.padEnd(6)}${expStr}C${longStrikeStr}`;
+
+            // Calculate limit price (10% above net credit or +$0.05, whichever is greater)
+            const buffer = Math.max(order.netCredit * 0.10, 0.05);
+            const limitPrice = order.netCredit + buffer;
+
+            // Submit two-leg spread order
+            const result = await api.submitOrder({
+              accountNumber: input.accountNumber,
+              timeInForce: 'Day',
+              orderType: 'Limit',
+              price: limitPrice.toFixed(2),
+              priceEffect: 'Credit',
+              legs: [
+                {
+                  instrumentType: 'Equity Option',
+                  symbol: shortCallSymbol,
+                  quantity: order.quantity.toString(),
+                  action: 'Sell to Open',
+                },
+                {
+                  instrumentType: 'Equity Option',
+                  symbol: longCallSymbol,
+                  quantity: order.quantity.toString(),
+                  action: 'Buy to Open',
+                },
+              ],
+            });
+
+            return {
+              success: true,
+              symbol: order.symbol,
+              shortStrike: order.shortStrike,
+              longStrike: order.longStrike,
+              quantity: order.quantity,
+              orderId: result.id,
+              message: 'Bear call spread order submitted successfully',
+            };
+          } catch (error: any) {
+            return {
+              success: false,
+              symbol: order.symbol,
+              shortStrike: order.shortStrike,
+              longStrike: order.longStrike,
+              quantity: order.quantity,
+              message: error.message,
+            };
+          }
+        });
+
+        // Wait for batch to complete
+        const batchResults = await Promise.allSettled(batchPromises);
+        
+        // Collect results
+        batchResults.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            results.push(result.value);
+          } else {
+            // Should not happen since we catch errors in the promise
+            console.error(`[BearCallSpread] Unexpected batch error:`, result.reason);
+          }
+        });
+
+        const successCount = results.filter(r => r.success).length;
+        console.log(`[BearCallSpread] Batch ${batchIndex + 1}/${totalBatches} complete: ${successCount}/${results.length} successful`);
+
+        // Delay between batches (except after last batch)
+        if (batchIndex < totalBatches - 1) {
+          console.log(`[BearCallSpread] Waiting ${BATCH_DELAY_MS}ms before next batch...`);
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
         }
       }
+
+      const finalSuccessCount = results.filter(r => r.success).length;
+      console.log(`[BearCallSpread] All batches complete: ${finalSuccessCount}/${results.length} orders submitted successfully`);
 
       return results;
     }),

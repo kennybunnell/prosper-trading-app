@@ -2091,3 +2091,12 @@
 - [x] Identified issue: autoCancelStuckOrders only handles single-leg orders (needs fix for spreads)
 - [ ] Test that unfilled spread orders can be resubmitted
 - [x] Ensure spread order status tracking works properly - YES (isSpread, longStrike, spreadType fields)
+
+## Implement Rate-Limited Batch Processing for Order Submissions
+- [x] Add batch processing with rate limiting to submitBearCallSpreadOrders (10 orders per batch, 2s delay)
+- [x] Add batch processing with rate limiting to CSP/bull put spread order submission (10 orders per batch, 2s delay)
+- [x] Add progress logging for each batch (e.g., "Batch 1/23 complete: 10/10 successful")
+- [x] Add error handling to continue processing even if some orders fail
+- [ ] Test with 230 orders to verify no 429 rate limit errors
+- [ ] Measure performance improvement (should be 4-6x faster than sequential)
+- [ ] Note: CC orders already process sequentially (typically low volume, no batch processing needed)
