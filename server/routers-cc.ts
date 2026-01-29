@@ -139,6 +139,10 @@ export const ccRouter = router({
         input.holdings.map(h => [h.symbol, h])
       );
 
+      // Determine if we're in bear call spread mode (no holdings provided)
+      const isBearCallSpreadMode = input.holdings.length === 0;
+      console.log(`[CC Scanner] Mode: ${isBearCallSpreadMode ? 'Bear Call Spread (no holdings required)' : 'Covered Call (requires holdings)'}`);
+
       // Process symbols in parallel with concurrency limit of 5 (matches CSP Dashboard)
       const CONCURRENCY = 5;
       console.log(`[CC Scanner] Processing ${input.symbols.length} symbols with ${CONCURRENCY} concurrent workers...`);
@@ -148,7 +152,26 @@ export const ccRouter = router({
         console.log(`[CC Scanner] Batch ${Math.floor(i / CONCURRENCY) + 1}/${Math.ceil(input.symbols.length / CONCURRENCY)}: ${batch.join(', ')}`);
         
         const batchPromises = batch.map(async (symbol) => {
-          const holding = holdingsMap.get(symbol);
+          // For bear call spreads, fetch current price from quote instead of holdings
+          let holding = holdingsMap.get(symbol);
+          
+          if (!holding && isBearCallSpreadMode) {
+            // Fetch current price from Tradier quote API
+            try {
+              const quote = await api.getQuote(symbol);
+              holding = {
+                symbol,
+                quantity: 0, // No stock ownership required for bear call spreads
+                currentPrice: quote.last || quote.close || 0,
+                maxContracts: 999, // Unlimited contracts for spreads (no stock requirement)
+              };
+              console.log(`[CC Scanner] Fetched quote for ${symbol}: $${holding.currentPrice}`);
+            } catch (error: any) {
+              console.error(`[CC Scanner] Failed to fetch quote for ${symbol}: ${error.message}`);
+              return [];
+            }
+          }
+          
           if (!holding) return [];
 
           const symbolOpportunities: any[] = [];

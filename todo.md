@@ -2008,3 +2008,14 @@
 - [ ] Test selection controls work properly
 - [ ] Test summary cards calculate correctly
 - [ ] Verify column order matches CSP Dashboard exactly
+
+## Bug Fix: Bear Call Spread Scanning Returns Zero Opportunities
+- [x] Investigate backend cc.scanOpportunities procedure for bear call spread mode
+- [x] Check if Tradier API is being called correctly for call options (not puts)
+- [x] Verify option type parameter is set to 'call' when scanning for bear call spreads
+- [x] Check if bearCallSpreadOpportunities receives valid call opportunities as input
+- [x] Fixed root cause: scanOpportunities required holdings, but bear call spreads pass empty holdings array
+- [x] Added logic to detect bear call spread mode (holdings.length === 0)
+- [x] Added quote fetching for watchlist symbols to get current price without stock ownership
+- [x] Added logging to debug the scanning flow
+- [ ] Test with real watchlist symbols during market hours and verify opportunities are returned
