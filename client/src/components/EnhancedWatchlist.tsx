@@ -42,11 +42,25 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
   const fileInputRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
 
-  // Fetch watchlist
-  const { data: watchlist = [], isLoading: loadingWatchlist } = trpc.watchlist.get.useQuery();
+  // Fetch watchlist with caching and retry
+  const { data: watchlist = [], isLoading: loadingWatchlist, error: watchlistError } = trpc.watchlist.get.useQuery(
+    undefined,
+    {
+      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+      retry: 3, // Retry 3 times on failure
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    }
+  );
   
-  // Fetch ticker selections
-  const { data: selections = [], isLoading: loadingSelections } = trpc.watchlist.getSelections.useQuery();
+  // Fetch ticker selections with caching and retry
+  const { data: selections = [], isLoading: loadingSelections, error: selectionsError } = trpc.watchlist.getSelections.useQuery(
+    undefined,
+    {
+      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+      retry: 3, // Retry 3 times on failure
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    }
+  );
   
   // Create selection map for quick lookup
   const selectionMap = useMemo(() => {
@@ -427,10 +441,26 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
         {/* Compact View (Badges) */}
         {!isExpanded && (
           <div className="flex flex-wrap gap-2">
-            {loadingWatchlist ? (
+            {watchlistError ? (
+              <div className="flex flex-col gap-2 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <p className="text-sm text-destructive font-medium">⚠️ Database Connection Timeout</p>
+                <p className="text-xs text-muted-foreground">
+                  The database is taking too long to respond. This is a known infrastructure issue.
+                  Your data is safe. Try refreshing the page or wait a moment.
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => utils.watchlist.get.invalidate()}
+                  className="w-fit"
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : loadingWatchlist ? (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Loading...
+                Loading watchlist... (this may take 10-30 seconds)
               </div>
             ) : watchlist.length === 0 ? (
               <p className="text-sm text-muted-foreground">No symbols in watchlist. Add some above or import a CSV.</p>

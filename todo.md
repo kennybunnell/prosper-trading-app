@@ -2375,3 +2375,38 @@
 - [x] Fix the handler to use setData([]) instead of invalidate() to immediately clear cached data
 - [x] Convert to destructive variant Button for better visibility
 - [ ] Test that clicking the button clears all opportunities from the table
+
+## Performance Issue: Slow Watchlist Loading
+- [x] Investigate watchlist query in tRPC router (found database connection timeout)
+- [x] Add client-side caching (5 minutes) to both CSPDashboard and EnhancedWatchlist
+- [x] Add retry logic with exponential backoff (3 retries)
+- [x] Add database indexes on userId columns (migration generated, pending apply)
+- [x] Add better error messaging for database timeouts
+- [ ] Contact Manus support about database connection performance
+- [ ] Test loading time improvement after infrastructure fix
+
+## Investigation: BCS Presets Work Well, BPS Presets Filter Everything
+- [x] Compare BCS preset values vs BPS preset values in db-filter-presets.ts
+- [x] Compare BCS scoring logic vs BPS scoring logic (BPS reuses CSP scoring, which is correct)
+- [x] Identify why BCS returns many opportunities while BPS returns zero (BPS had no technical filters, only score)
+- [x] Align BPS presets with BCS successful approach (added RSI 10-50, IV Rank 20-100, BB %B 0-0.7)
+- [ ] Test BPS presets with real data to verify improvements
+
+## Iterative BPS Preset Threshold Reduction
+- [x] Lower all BPS preset thresholds by 20% (scores: 48/40/32, RSI widened, IV Rank: 30/24/16, OI/Vol reduced)
+- [x] Test with real 116 BPS opportunities - still filtering everything out
+- [x] Get actual score distribution from user: 22-63 range
+- [x] Set data-driven presets: Conservative 50+, Medium 40+, Aggressive 30+
+- [x] Remove all RSI/IV/BB/DTE/Delta filters (full ranges) - ONLY filter by score and minimal liquidity
+- [ ] Test and verify presets return useful filtered results
+
+## Feature: CSV Export for All Tables
+- [x] Create reusable CSV export utility function in client/src/lib/utils.ts
+- [x] Add export button to CSP opportunities table (CSPDashboard.tsx)
+- [x] Add export button to Bull Put Spread opportunities table (CSPDashboard.tsx)
+- [x] Add export button to Covered Call opportunities table (CCDashboard.tsx)
+- [x] Add export button to Bear Call Spread opportunities table (CCDashboard.tsx)
+- [x] Add export button to PMCC opportunities table (PMCCDashboard.tsx)
+- [x] Add export button to Active Positions table (Performance.tsx)
+- [x] Add export button to Working Orders table (Performance.tsx)
+- [ ] Test all exports with real data

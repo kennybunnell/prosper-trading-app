@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { index, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -42,7 +42,9 @@ export const watchlists = mysqlTable("watchlists", {
   portfolioSize: mysqlEnum("portfolioSize", ["small", "medium", "large"]), // Portfolio size category
   price: varchar("price", { length: 20 }), // Current stock price
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("watchlists_userId_idx").on(table.userId),
+}));
 
 export type Watchlist = typeof watchlists.$inferSelect;
 export type InsertWatchlist = typeof watchlists.$inferInsert;
@@ -305,7 +307,9 @@ export const watchlistSelections = mysqlTable("watchlistSelections", {
   symbol: varchar("symbol", { length: 10 }).notNull(),
   isSelected: int("isSelected").default(1).notNull(), // 1 = selected, 0 = not selected
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("watchlistSelections_userId_idx").on(table.userId),
+}));
 
 export type WatchlistSelection = typeof watchlistSelections.$inferSelect;
 export type InsertWatchlistSelection = typeof watchlistSelections.$inferInsert;

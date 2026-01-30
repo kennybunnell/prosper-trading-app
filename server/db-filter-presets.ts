@@ -114,51 +114,51 @@ export function getRecommendedFilterValues(
     },
     bps: {
       conservative: {
-        minDte: 21,
-        maxDte: 45,
-        minDelta: "0.10",
-        maxDelta: "0.25",
-        minOpenInterest: 10,
+        minDte: 7,  // Allow all DTE ranges
+        maxDte: 60,
+        minDelta: "0.05",  // Allow all delta ranges
+        maxDelta: "0.40",
+        minOpenInterest: 10,  // Minimal liquidity requirement
         minVolume: 10,
-        minRsi: 0,  // Allow full RSI range
+        minRsi: 0,  // Full RSI range - no filtering
         maxRsi: 100,
-        minIvRank: 0,  // Allow full IV Rank range
+        minIvRank: 0,  // Full IV Rank range - no filtering
         maxIvRank: 100,
-        minBbPercent: "0",
-        maxBbPercent: "1.0",  // Allow full BB %B range
-        minScore: 40,  // Target ~30-40% of opportunities
-        maxStrikePercent: 100,
+        minBbPercent: "0",  // Full BB %B range - no filtering
+        maxBbPercent: "1.0",
+        minScore: 50,  // Top ~20% (scores 50-63 based on user's 22-63 range)
+        maxStrikePercent: 110,
       },
       medium: {
-        minDte: 14,
-        maxDte: 35,
-        minDelta: "0.15",
-        maxDelta: "0.28",
-        minOpenInterest: 20,
-        minVolume: 15,
-        minRsi: 0,  // Allow full RSI range
+        minDte: 7,
+        maxDte: 60,
+        minDelta: "0.05",
+        maxDelta: "0.40",
+        minOpenInterest: 10,
+        minVolume: 10,
+        minRsi: 0,  // Full range
         maxRsi: 100,
-        minIvRank: 0,  // Allow full IV Rank range
+        minIvRank: 0,  // Full range
         maxIvRank: 100,
-        minBbPercent: "0",
-        maxBbPercent: "1.0",  // Allow full BB %B range
-        minScore: 50,  // Target ~20-30% of opportunities
-        maxStrikePercent: 105,
+        minBbPercent: "0",  // Full range
+        maxBbPercent: "1.0",
+        minScore: 40,  // Top ~40% (scores 40-63)
+        maxStrikePercent: 110,
       },
       aggressive: {
         minDte: 7,
-        maxDte: 21,
-        minDelta: "0.18",
-        maxDelta: "0.32",
-        minOpenInterest: 25,
-        minVolume: 20,
-        minRsi: 0,  // Allow full RSI range
+        maxDte: 60,
+        minDelta: "0.05",
+        maxDelta: "0.40",
+        minOpenInterest: 10,
+        minVolume: 10,
+        minRsi: 0,  // Full range
         maxRsi: 100,
-        minIvRank: 0,  // Allow full IV Rank range
+        minIvRank: 0,  // Full range
         maxIvRank: 100,
-        minBbPercent: "0",
-        maxBbPercent: "1.0",  // Allow full BB %B range
-        minScore: 60,  // Target ~10-15% top opportunities
+        minBbPercent: "0",  // Full range
+        maxBbPercent: "1.0",
+        minScore: 30,  // Top ~60% (scores 30-63)
         maxStrikePercent: 110,
       },
     },

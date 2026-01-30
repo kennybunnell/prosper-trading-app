@@ -25,12 +25,13 @@ import {
   ArrowUp,
   ArrowDown,
   HelpCircle,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
-import { cn } from "@/lib/utils";
+import { cn, exportToCSV } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -1954,6 +1955,20 @@ export default function CCDashboard() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const timestamp = new Date().toISOString().split('T')[0];
+                      const strategyName = strategyType === 'cc' ? 'CoveredCall' : 'BearCallSpread';
+                      exportToCSV(filteredOpportunities, `${strategyName}_Opportunities_${timestamp}`);
+                      toast.success(`Exported ${filteredOpportunities.length} opportunities to CSV`);
+                    }}
+                    disabled={filteredOpportunities.length === 0}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export CSV
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"

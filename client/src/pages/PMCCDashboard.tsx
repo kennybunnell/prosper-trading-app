@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign } from "lucide-react";
+import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { HelpBadge } from "@/components/HelpBadge";
@@ -10,7 +10,7 @@ import { HELP_CONTENT } from "@/lib/helpContent";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, exportToCSV } from "@/lib/utils";
 
 type SortColumn = 'symbol' | 'strike' | 'expiration' | 'dte' | 'delta' | 'premium' | 'bidAskSpread' | 'openInterest' | 'volume' | 'score';
 type SortDirection = 'asc' | 'desc';
@@ -534,6 +534,19 @@ export default function PMCCDashboard() {
                   {/* Table Controls */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => {
+                          const timestamp = new Date().toISOString().split('T')[0];
+                          exportToCSV(sortedLeaps, `PMCC_Opportunities_${timestamp}`);
+                          toast.success(`Exported ${sortedLeaps.length} LEAP opportunities to CSV`);
+                        }}
+                        variant="outline"
+                        size="sm"
+                        disabled={sortedLeaps.length === 0}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Export CSV
+                      </Button>
                       <Button onClick={selectAllLeaps} variant="outline" size="sm">
                         Select All
                       </Button>

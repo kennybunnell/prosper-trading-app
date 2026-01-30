@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
+import { exportToCSV } from "@/lib/utils";
 import { useAccount } from "@/contexts/AccountContext";
 import {
   Loader2,
@@ -30,6 +31,7 @@ import {
   ChevronDown,
   HelpCircle,
   X,
+  Download,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 
@@ -332,14 +334,27 @@ export default function CSPDashboard() {
     { enabled: !!selectedAccount?.accountNumber }
   );
 
-  // Fetch watchlist
+  // Fetch watchlist with 5-minute cache
   const { data: watchlist = [], isLoading: loadingWatchlist } = trpc.watchlist.get.useQuery(
     undefined,
-    { enabled: !!user }
+    { 
+      enabled: !!user,
+      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+      retry: 3, // Retry 3 times on failure
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    }
   );
 
-  // Fetch ticker selections
-  const { data: selections = [] } = trpc.watchlist.getSelections.useQuery(undefined, { enabled: !!user });
+  // Fetch ticker selections with 5-minute cache
+  const { data: selections = [] } = trpc.watchlist.getSelections.useQuery(
+    undefined, 
+    { 
+      enabled: !!user,
+      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+      retry: 3, // Retry 3 times on failure
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    }
+  );
   
   // Fetch opportunities (only when user clicks "Fetch Opportunities")
   // Filter watchlist by selected portfolio sizes AND ticker selections
@@ -913,13 +928,28 @@ export default function CSPDashboard() {
                 </Button>
               </div>
               
-              {/* Clear Opportunities Button */}
+              {/* Clear Opportunities and Export Buttons */}
               {opportunities.length > 0 && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    // Clear cached data for both CSP and spread queries
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const timestamp = new Date().toISOString().split('T')[0];
+                      const strategyName = strategyType === 'csp' ? 'CSP' : 'BullPutSpread';
+                      exportToCSV(opportunities, `${strategyName}_Opportunities_${timestamp}`);
+                      toast.success(`Exported ${opportunities.length} opportunities to CSV`);
+                    }}
+                    className="flex-1"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      // Clear cached data for both CSP and spread queries
                     utils.csp.opportunities.setData(
                       { 
                         symbols: filteredWatchlist.map((w: any) => w.symbol),
@@ -937,14 +967,14 @@ export default function CSPDashboard() {
                       },
                       []
                     );
-                    setSelectedOpportunities(new Set());
-                    toast.success("Cleared all opportunities. Click Fetch to load new data.");
-                  }}
-                  className="w-full"
-                >
-                  <X className="w-4 h-4 mr-2" />
-                  Clear Opportunities ({opportunities.length})
-                </Button>
+                      toast.success("Cleared all opportunities. Click Fetch to load new data.");
+                    }}
+                    className="flex-1"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Clear ({opportunities.length})
+                  </Button>
+                </div>
               )}
             </div>
 

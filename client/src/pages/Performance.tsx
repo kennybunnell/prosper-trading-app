@@ -4,8 +4,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Loader2, Download } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
+import { exportToCSV } from '@/lib/utils';
 import { useAccount } from '@/contexts/AccountContext';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
@@ -530,15 +531,30 @@ function ActivePositionsTab() {
               {selectedPositions.size === filteredPositions.length && filteredPositions.length > 0 ? 'Deselect All' : 'Select All'}
             </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const timestamp = new Date().toISOString().split('T')[0];
+                exportToCSV(filteredPositions, `ActivePositions_${positionType.toUpperCase()}_${timestamp}`);
+                toast.success(`Exported ${filteredPositions.length} positions to CSV`);
+              }}
+              disabled={filteredPositions.length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
       </Card>
 
@@ -1162,15 +1178,31 @@ function WorkingOrdersTab() {
               )}
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const timestamp = new Date().toISOString().split('T')[0];
+                const orders = data?.orders || [];
+                exportToCSV(orders, `WorkingOrders_${timestamp}`);
+                toast.success(`Exported ${orders.length} working orders to CSV`);
+              }}
+              disabled={!data?.orders || data.orders.length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
       </Card>
 
