@@ -2457,3 +2457,30 @@
 - [x] Add "Working Orders" tab showing full Working Orders content
 - [x] Remove route-based tab switching from Performance.tsx (no longer needed)
 - [x] Test navigation flow and save checkpoint
+
+## Phase 2: Roll Detection Logic Research & Implementation
+- [x] Research Tastytrade API documentation for order types and roll mechanics
+- [x] Investigate multi-leg order handling capabilities (spreads, verticals, BPS)
+- [x] Document roll possibilities for CSP strategy
+- [x] Document roll possibilities for CC strategy
+- [x] Document roll possibilities for PMCC strategy (including assigned covered calls)
+- [x] Analyze roll-up vs roll-down mechanics for different strategies
+- [x] Understand simultaneous close + open order requirements
+- [x] Create summary report of API capabilities and limitations
+- [x] Present findings to user for review before implementation
+
+## Phase 1A: Roll Detection for CSP & CC (7/14 DTE)
+- [x] Create rollDetection.ts utility file with roll criteria functions
+- [x] Implement calculateRollUrgency() for CSP positions
+- [x] Implement calculateRollUrgency() for CC positions
+- [x] Add multi-factor scoring (DTE, ITM depth, profit %, delta)
+- [ ] Create getRollCandidates() function to fetch option chains
+- [ ] Implement roll candidate scoring algorithm (top 5 + close option)
+- [x] Add tRPC procedure: rolls.getRollsNeeded
+- [x] Add tRPC procedure: rolls.getRollCandidates (placeholder for Phase 1B)
+- [x] Update ActionItems.tsx Daily Tasks tab to show rolls section
+- [x] Display positions grouped by urgency (Red/Yellow/Green)
+- [ ] Create RollCandidateModal component for showing roll options
+- [ ] Add "View Roll Options" button for each flagged position
+- [x] Test with current CSP and CC positions (67 positions detected, scoring working correctly)
+- [ ] Save checkpoint after testing

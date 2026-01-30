@@ -28,8 +28,16 @@ export default function ActionItems() {
     return profitPercent >= 80;
   }) || [];
 
-  // Placeholder for rolls (to be implemented after research)
-  const rollsNeeded = [];
+  // Fetch rolls data
+  const { data: rollsData, isLoading: rollsLoading } = trpc.rolls.getRollsNeeded.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 3,
+  });
+
+  const rollsRed = rollsData?.red || [];
+  const rollsYellow = rollsData?.yellow || [];
+  const rollsGreen = rollsData?.green || [];
+  const rollsTotal = rollsData?.total || 0;
 
   return (
     <div className="container py-6 space-y-6">
@@ -71,7 +79,7 @@ export default function ActionItems() {
                 <RefreshCw className="h-4 w-4 text-yellow-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{rollsNeeded.length}</div>
+                <div className="text-2xl font-bold">{rollsTotal}</div>
                 <p className="text-xs text-muted-foreground">
                   Positions to roll
                 </p>
@@ -84,7 +92,7 @@ export default function ActionItems() {
                 <TrendingUp className="h-4 w-4 text-blue-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{readyToClose.length + rollsNeeded.length}</div>
+                <div className="text-2xl font-bold">{readyToClose.length + rollsTotal}</div>
                 <p className="text-xs text-muted-foreground">
                   Items requiring attention
                 </p>
@@ -150,30 +158,141 @@ export default function ActionItems() {
             </CardContent>
           </Card>
 
-          {/* Rolls Needed - Placeholder */}
+          {/* Rolls Needed */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Rolls Needed</CardTitle>
+                  <CardTitle>Positions Needing Rolls</CardTitle>
                   <CardDescription>
-                    Positions that may need to be rolled (coming soon)
+                    Based on 7/14 DTE thresholds and 80% profit rule
                   </CardDescription>
                 </div>
-                <Button
-                  variant="outline"
-                  disabled
-                >
-                  View Rolls
-                </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <AlertCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>Roll detection criteria under development</p>
-                <p className="text-sm mt-1">Research phase in progress</p>
-              </div>
+              {rollsLoading ? (
+                <div className="text-center py-8 text-muted-foreground">Loading roll analysis...</div>
+              ) : rollsTotal === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CheckCircle2 className="h-12 w-12 mx-auto mb-2 opacity-50 text-green-500" />
+                  <p>No positions need rolling at this time</p>
+                  <p className="text-sm mt-1">All positions are within healthy parameters</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Red (Urgent) Positions */}
+                  {rollsRed.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="h-3 w-3 rounded-full bg-red-500" />
+                        <h3 className="font-semibold text-red-600">Urgent ({rollsRed.length})</h3>
+                        <span className="text-sm text-muted-foreground">- Act today</span>
+                      </div>
+                      <div className="space-y-2">
+                        {rollsRed.map((roll: any) => (
+                          <div
+                            key={roll.positionId}
+                            className="flex items-center justify-between p-4 border border-red-200 bg-red-50/50 rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
+                          >
+                            <div className="flex-1">
+                              <div className="font-semibold">{roll.symbol} {roll.strategy.toUpperCase()}</div>
+                              <div className="text-sm text-muted-foreground">
+                                ${roll.metrics.strikePrice} strike • {roll.metrics.dte} DTE
+                              </div>
+                              <div className="text-xs text-red-600 mt-1 space-y-0.5">
+                                {roll.reasons.map((reason: string, idx: number) => (
+                                  <div key={idx}>{reason}</div>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="text-right mr-4">
+                              <div className="text-sm font-medium">{roll.metrics.profitCaptured.toFixed(0)}% profit</div>
+                              <div className="text-xs text-muted-foreground">Score: {roll.score}</div>
+                            </div>
+                            <Button size="sm" variant="outline">
+                              View Options
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Yellow (Watch) Positions */}
+                  {rollsYellow.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="h-3 w-3 rounded-full bg-yellow-500" />
+                        <h3 className="font-semibold text-yellow-600">Watch ({rollsYellow.length})</h3>
+                        <span className="text-sm text-muted-foreground">- Plan action</span>
+                      </div>
+                      <div className="space-y-2">
+                        {rollsYellow.map((roll: any) => (
+                          <div
+                            key={roll.positionId}
+                            className="flex items-center justify-between p-4 border border-yellow-200 bg-yellow-50/50 rounded-lg hover:bg-yellow-50 cursor-pointer transition-colors"
+                          >
+                            <div className="flex-1">
+                              <div className="font-semibold">{roll.symbol} {roll.strategy.toUpperCase()}</div>
+                              <div className="text-sm text-muted-foreground">
+                                ${roll.metrics.strikePrice} strike • {roll.metrics.dte} DTE
+                              </div>
+                              <div className="text-xs text-yellow-600 mt-1 space-y-0.5">
+                                {roll.reasons.map((reason: string, idx: number) => (
+                                  <div key={idx}>{reason}</div>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="text-right mr-4">
+                              <div className="text-sm font-medium">{roll.metrics.profitCaptured.toFixed(0)}% profit</div>
+                              <div className="text-xs text-muted-foreground">Score: {roll.score}</div>
+                            </div>
+                            <Button size="sm" variant="outline">
+                              View Options
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Green (Healthy) Positions - Only show if no red/yellow */}
+                  {rollsRed.length === 0 && rollsYellow.length === 0 && rollsGreen.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="h-3 w-3 rounded-full bg-green-500" />
+                        <h3 className="font-semibold text-green-600">Healthy ({rollsGreen.length})</h3>
+                        <span className="text-sm text-muted-foreground">- Monitor</span>
+                      </div>
+                      <div className="space-y-2">
+                        {rollsGreen.slice(0, 5).map((roll: any) => (
+                          <div
+                            key={roll.positionId}
+                            className="flex items-center justify-between p-4 border border-green-200 bg-green-50/50 rounded-lg"
+                          >
+                            <div className="flex-1">
+                              <div className="font-semibold">{roll.symbol} {roll.strategy.toUpperCase()}</div>
+                              <div className="text-sm text-muted-foreground">
+                                ${roll.metrics.strikePrice} strike • {roll.metrics.dte} DTE
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-medium">{roll.metrics.profitCaptured.toFixed(0)}% profit</div>
+                              <div className="text-xs text-muted-foreground">Score: {roll.score}</div>
+                            </div>
+                          </div>
+                        ))}
+                        {rollsGreen.length > 5 && (
+                          <div className="text-center text-sm text-muted-foreground pt-2">
+                            +{rollsGreen.length - 5} more healthy positions
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
