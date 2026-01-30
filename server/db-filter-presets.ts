@@ -117,48 +117,48 @@ export function getRecommendedFilterValues(
         minDte: 14,
         maxDte: 45,
         minDelta: "0.10",
-        maxDelta: "0.25",
-        minOpenInterest: 50,
-        minVolume: 50,
-        minRsi: 20,  // Widened from 10 to be more realistic
-        maxRsi: 50,  // Widened from 35 to be more realistic
-        minIvRank: 30,  // Lowered from 40 to be less restrictive
+        maxDelta: "0.30",
+        minOpenInterest: 25,
+        minVolume: 25,
+        minRsi: 0,  // Allow full RSI range
+        maxRsi: 100,
+        minIvRank: 0,  // Allow full IV Rank range
         maxIvRank: 100,
         minBbPercent: "0",
-        maxBbPercent: "0.5",  // Widened from 0.3
-        minScore: 50,  // Lowered from 60 to be less restrictive
+        maxBbPercent: "1.0",  // Allow full BB %B range
+        minScore: 30,  // Much lower threshold
         maxStrikePercent: 100,
       },
       medium: {
         minDte: 10,
         maxDte: 30,
         minDelta: "0.15",
-        maxDelta: "0.30",
-        minOpenInterest: 75,
-        minVolume: 40,
-        minRsi: 25,
-        maxRsi: 55,  // Widened from 45
-        minIvRank: 25,  // Lowered from 30
+        maxDelta: "0.35",
+        minOpenInterest: 50,
+        minVolume: 30,
+        minRsi: 0,  // Allow full RSI range
+        maxRsi: 100,
+        minIvRank: 0,  // Allow full IV Rank range
         maxIvRank: 100,
         minBbPercent: "0",
-        maxBbPercent: "0.6",  // Widened from 0.5
-        minScore: 45,  // Lowered from 50
+        maxBbPercent: "1.0",  // Allow full BB %B range
+        minScore: 40,  // Moderate threshold
         maxStrikePercent: 105,
       },
       aggressive: {
         minDte: 7,
         maxDte: 21,
         minDelta: "0.20",
-        maxDelta: "0.35",
-        minOpenInterest: 50,
-        minVolume: 30,
-        minRsi: 30,
-        maxRsi: 60,  // Widened from 50
-        minIvRank: 15,  // Lowered from 20
+        maxDelta: "0.40",
+        minOpenInterest: 25,
+        minVolume: 20,
+        minRsi: 0,  // Allow full RSI range
+        maxRsi: 100,
+        minIvRank: 0,  // Allow full IV Rank range
         maxIvRank: 100,
         minBbPercent: "0",
-        maxBbPercent: "0.8",  // Widened from 0.7
-        minScore: 35,  // Lowered from 40
+        maxBbPercent: "1.0",  // Allow full BB %B range
+        minScore: 50,  // Higher threshold for aggressive = higher quality
         maxStrikePercent: 110,
       },
     },

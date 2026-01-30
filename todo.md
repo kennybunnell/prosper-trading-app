@@ -2350,4 +2350,5 @@
 - [x] Verify frontend is loading BPS presets (not BCS) when in Bull Put Spread mode (correct)
 - [x] Check preset filter criteria values are appropriate for spreads (adjusted RSI, IV Rank, Score, BB %B)
 - [x] Ensure filter logic correctly applies to spread opportunity data structure (correct)
+- [x] Update BPS preset values to be realistic: full RSI/IV Rank/BB %B ranges (0-100), lower score thresholds (30/40/50)
 - [ ] Test each preset (Conservative/Medium/Aggressive) with real spread data
