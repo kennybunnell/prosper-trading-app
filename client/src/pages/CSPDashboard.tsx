@@ -452,6 +452,9 @@ export default function CSPDashboard() {
           // Delta filter
           if (delta < minDelta || delta > maxDelta) return false;
           
+          // DTE filter
+          if (opp.dte < preset.minDte || opp.dte > preset.maxDte) return false;
+          
           // Open Interest filter
           if (opp.openInterest < preset.minOpenInterest) return false;
           

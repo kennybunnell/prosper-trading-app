@@ -2410,3 +2410,12 @@
 - [x] Add export button to Active Positions table (Performance.tsx)
 - [x] Add export button to Working Orders table (Performance.tsx)
 - [ ] Test all exports with real data
+
+## BPS Preset Fix Based on Real CSV Data Analysis (230 opportunities)
+- [x] Analyze CSV export to find actual data ranges
+- [x] Identified root cause: Missing DTE filter in preset filtering logic!
+- [x] Score distribution: 22-63 (median 42), 54.3% >= 40, 32.6% >= 50, 24.3% >= 60
+- [x] RSI range: 33.6-73.8 (median 59.8), IV Rank: 0-16 (median 3)
+- [x] Added missing DTE filter to preset filtering logic in CSPDashboard.tsx
+- [x] Verified presets are loading correctly from bpsFilters.getPresets
+- [ ] Test presets return expected counts: Conservative ~75, Medium ~125, Aggressive ~224
