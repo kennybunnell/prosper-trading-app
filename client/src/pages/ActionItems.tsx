@@ -102,9 +102,13 @@ export default function ActionItems() {
       return date.toISOString().split('T')[0];
     };
     
-    const orderDetailsPayload = {
+    // Check if this is a close-only order or a roll
+    const isCloseOnly = candidate.action === 'close';
+    
+    const orderDetailsPayload: any = {
       symbol: selectedRollPosition.symbol,
       strategy: strategy,
+      isCloseOnly: isCloseOnly,
       closeLeg: {
         action: closeAction,
         quantity: 1,
@@ -113,30 +117,56 @@ export default function ActionItems() {
         optionType: optionType,
         price: Math.abs(selectedRollPosition.metrics.currentValue || 0),
       },
-      openLeg: {
+      netCost: candidate.netCredit || 0,
+      currentProfit: (selectedRollPosition.metrics.openPremium || 0) - (selectedRollPosition.metrics.currentValue || 0),
+    };
+    
+    // Only add openLeg if this is a roll (not a close)
+    if (!isCloseOnly) {
+      orderDetailsPayload.openLeg = {
         action: openAction,
         quantity: 1,
         strike: Number(candidate.strike) || 0,
         expiration: formatExpiration(candidate.expiration),
         optionType: optionType,
         price: candidate.newPremium || 0,
-      },
-      netCost: candidate.netCredit || 0,
-      currentProfit: (selectedRollPosition.metrics.openPremium || 0) - (selectedRollPosition.metrics.currentValue || 0),
-      projectedProfit: (selectedRollPosition.metrics.openPremium || 0) - (selectedRollPosition.metrics.currentValue || 0) + (candidate.netCredit || 0) + (candidate.newPremium || 0),
-    };
+      };
+      orderDetailsPayload.projectedProfit = (selectedRollPosition.metrics.openPremium || 0) - (selectedRollPosition.metrics.currentValue || 0) + (candidate.netCredit || 0) + (candidate.newPremium || 0);
+    } else {
+      orderDetailsPayload.projectedProfit = orderDetailsPayload.currentProfit;
+    }
     
     setOrderDetails(orderDetailsPayload);
     setRollModalOpen(false);
     setOrderPreviewOpen(true);
   };
   
-  // Order submission mutation
-  const submitOrderMutation = trpc.orders.submitRoll.useMutation({
+  // Order submission mutations
+  const submitRollMutation = trpc.orders.submitRoll.useMutation({
     onSuccess: (data) => {
       toast({
         title: "Order Submitted Successfully",
         description: `Roll order ${data.orderId} has been submitted to Tastytrade.`,
+      });
+      setOrderPreviewOpen(false);
+      setOrderDetails(null);
+      // Refresh positions
+      // TODO: Add refetch logic
+    },
+    onError: (error) => {
+      toast({
+        title: "Order Submission Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  const submitCloseMutation = trpc.orders.submitClose.useMutation({
+    onSuccess: (data) => {
+      toast({
+        title: "Order Submitted Successfully",
+        description: `Close order ${data.orderId} has been submitted to Tastytrade.`,
       });
       setOrderPreviewOpen(false);
       setOrderDetails(null);
@@ -167,12 +197,23 @@ export default function ActionItems() {
     
     const accountNumber = selectedAccountId;
     
-    submitOrderMutation.mutate({
-      accountNumber,
-      symbol: orderDetails.symbol,
-      closeLeg: orderDetails.closeLeg,
-      openLeg: orderDetails.openLeg,
-    });
+    // Check if this is a close-only order or a roll
+    if (orderDetails.isCloseOnly) {
+      // Submit close order (1-leg)
+      submitCloseMutation.mutate({
+        accountNumber,
+        symbol: orderDetails.symbol,
+        closeLeg: orderDetails.closeLeg,
+      });
+    } else {
+      // Submit roll order (2-leg)
+      submitRollMutation.mutate({
+        accountNumber,
+        symbol: orderDetails.symbol,
+        closeLeg: orderDetails.closeLeg,
+        openLeg: orderDetails.openLeg,
+      });
+    }
   };
 
   return (
@@ -494,7 +535,7 @@ export default function ActionItems() {
         onOpenChange={setOrderPreviewOpen}
         orderDetails={orderDetails}
         onConfirm={handleConfirmOrder}
-        isSubmitting={submitOrderMutation.isPending}
+        isSubmitting={submitRollMutation.isPending || submitCloseMutation.isPending}
       />
     </div>
   );

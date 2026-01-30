@@ -729,6 +729,58 @@ export class TastytradeAPI {
   }
 
   /**
+   * Submit a close order (1-leg: close existing position)
+   */
+  async submitCloseOrder(params: {
+    accountNumber: string;
+    symbol: string;
+    closeLeg: {
+      action: 'BTC' | 'STC';
+      quantity: number;
+      strike: number;
+      expiration: string;
+      optionType: 'PUT' | 'CALL';
+    };
+  }): Promise<{ orderId: string }> {
+    try {
+      // Format option symbol for Tastytrade
+      const expDate = new Date(params.closeLeg.expiration).toISOString().split('T')[0].replace(/-/g, '');
+      const optType = params.closeLeg.optionType === 'PUT' ? 'P' : 'C';
+      const strikeFormatted = (params.closeLeg.strike * 1000).toString().padStart(8, '0');
+      const optionSymbol = `${params.symbol}${expDate}${optType}${strikeFormatted}`;
+
+      // Build 1-leg close order
+      const orderPayload = {
+        'time-in-force': 'Day',
+        'order-type': 'Market', // Use market order for closes
+        legs: [
+          {
+            'instrument-type': 'Equity Option',
+            symbol: optionSymbol,
+            action: params.closeLeg.action,
+            quantity: params.closeLeg.quantity,
+          },
+        ],
+      };
+
+      console.log('[Tastytrade] Submitting close order:', JSON.stringify(orderPayload, null, 2));
+
+      const response = await this.retryWithBackoff(() =>
+        this.client.post(`/accounts/${params.accountNumber}/orders`, orderPayload)
+      );
+
+      const orderId = response.data.data.order.id;
+      console.log('[Tastytrade] Close order submitted successfully:', orderId);
+
+      return { orderId };
+    } catch (error: any) {
+      console.error('[Tastytrade] Failed to submit close order:', error.message);
+      console.error('[Tastytrade] Error details:', error.response?.data);
+      throw new Error(`Failed to submit close order: ${error.response?.data?.error?.message || error.message}`);
+    }
+  }
+
+  /**
    * Logout and destroy session
    */
   async logout(): Promise<void> {
@@ -777,4 +829,22 @@ export async function submitRollOrder(params: {
 }): Promise<{ orderId: string }> {
   const api = getTastytradeAPI();
   return api.submitRollOrder(params);
+}
+
+/**
+ * Helper function to submit close orders (1-leg)
+ */
+export async function submitCloseOrder(params: {
+  accountNumber: string;
+  symbol: string;
+  closeLeg: {
+    action: 'BTC' | 'STC';
+    quantity: number;
+    strike: number;
+    expiration: string;
+    optionType: 'PUT' | 'CALL';
+  };
+}): Promise<{ orderId: string }> {
+  const api = getTastytradeAPI();
+  return api.submitCloseOrder(params);
 }

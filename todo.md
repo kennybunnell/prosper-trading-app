@@ -2659,3 +2659,22 @@
 - [x] Verify roll candidate data structure matches order submission schema (removed extra symbol field from legs)
 - [ ] Test roll order submission with real positions (V CSP, TSLA CSP, AAPL CSP)
 - [ ] Save checkpoint after fixes
+
+
+## Close Position Bug (URGENT)
+- [ ] Fix "Close Position" button trying to submit as roll order with missing openLeg data
+- [ ] Create separate tRPC endpoint for close-only orders (orders.submitClose)
+- [ ] Update RollCandidateModal to detect "close" action and call correct endpoint
+- [ ] Update OrderPreviewModal to handle close-only orders (hide Leg 2 section)
+- [ ] Test close position flow end-to-end
+- [ ] Test roll position flow end-to-end
+- [ ] Save checkpoint after fixes
+
+## Close Position Bug Fix (January 30, 2026)
+- [x] Fixed critical bug where "Close Position" button was submitting 2-leg roll orders instead of 1-leg close orders
+- [x] Created separate submitCloseMutation and submitRollMutation in ActionItems.tsx
+- [x] Updated handleConfirmOrder to check orderDetails.isCloseOnly flag
+- [x] Modified handleSelectCandidate to set isCloseOnly: true when candidate.action === 'close'
+- [x] Added comprehensive test suite (6 tests) verifying close vs roll order differentiation
+- [x] Verified submitClose endpoint only calls submitCloseOrder (never submitRollOrder)
+- [x] Verified submitRoll endpoint only calls submitRollOrder (never submitCloseOrder)
