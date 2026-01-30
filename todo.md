@@ -2369,3 +2369,9 @@
 - [x] Create getIVRankColor() function with thresholds (red: 0-29, yellow: 30-59, green: 60-100)
 - [x] Update IV Rank badge to use getIVRankColor() instead of hardcoded purple
 - [ ] Test all indicator colors with real bull put spread data
+
+## Bug Fix: Clear Opportunities Button Not Working
+- [x] Find the Clear Opportunities click handler in CSP Dashboard
+- [x] Fix the handler to use setData([]) instead of invalidate() to immediately clear cached data
+- [x] Convert to destructive variant Button for better visibility
+- [ ] Test that clicking the button clears all opportunities from the table

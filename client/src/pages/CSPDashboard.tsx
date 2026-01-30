@@ -916,16 +916,31 @@ export default function CSPDashboard() {
               {/* Clear Opportunities Button */}
               {opportunities.length > 0 && (
                 <Button
-                  variant="outline"
+                  variant="destructive"
                   size="sm"
                   onClick={() => {
-                    // Invalidate both CSP and spread queries to clear opportunities
-                    utils.csp.opportunities.invalidate();
-                    utils.spread.opportunities.invalidate();
+                    // Clear cached data for both CSP and spread queries
+                    utils.csp.opportunities.setData(
+                      { 
+                        symbols: filteredWatchlist.map((w: any) => w.symbol),
+                        minDte,
+                        maxDte,
+                      },
+                      []
+                    );
+                    utils.spread.opportunities.setData(
+                      { 
+                        symbols: filteredWatchlist.map((w: any) => w.symbol),
+                        minDte,
+                        maxDte,
+                        spreadWidth,
+                      },
+                      []
+                    );
                     setSelectedOpportunities(new Set());
                     toast.success("Cleared all opportunities. Click Fetch to load new data.");
                   }}
-                  className="w-full border-dashed hover:bg-destructive/10 hover:border-destructive/50 hover:text-destructive"
+                  className="w-full"
                 >
                   <X className="w-4 h-4 mr-2" />
                   Clear Opportunities ({opportunities.length})
