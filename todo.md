@@ -2446,3 +2446,14 @@
 - [x] Move Active Positions and Working Orders as sub-tabs under Action Items
 - [x] Update Sidebar to show Action Items at top with expandable sub-items
 - [x] Test navigation flow and save checkpoint
+
+## Fix: Restructure Action Items Navigation (Single Page with Tabs)
+- [x] Update App.tsx to remove /action-items/active-positions and /action-items/working-orders routes
+- [x] Keep only /action-items route pointing to ActionItems.tsx
+- [x] Update Sidebar to remove subItems from Action Items nav item
+- [x] Restructure ActionItems.tsx to use Tabs component with three tabs
+- [x] Add "Daily Tasks" tab (default) showing summary cards
+- [x] Add "Active Positions" tab showing full Active Positions content
+- [x] Add "Working Orders" tab showing full Working Orders content
+- [x] Remove route-based tab switching from Performance.tsx (no longer needed)
+- [x] Test navigation flow and save checkpoint

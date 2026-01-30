@@ -22,9 +22,7 @@ function Router() {
         <Switch>
           <Route path={"/"} component={Home} />
           <Route path={"/settings"} component={Settings} />
-          <Route path={"/action-items"} component={ActionItems} />
-          <Route path={"/action-items/active-positions"} component={Performance} />
-          <Route path={"/action-items/working-orders"} component={Performance} />
+          <Route path="/action-items" component={ActionItems} />
           <Route path={"/csp"} component={CSPDashboard} />
           <Route path={"/cc"} component={CCDashboard} />
           <Route path={"/pmcc"} component={PMCCDashboard} />

@@ -80,7 +80,7 @@ export default function Performance() {
   );
 }
 
-function ActivePositionsTab() {
+export function ActivePositionsTab() {
   const { selectedAccountId } = useAccount();
   const [positionType, setPositionType] = useState<'csp' | 'cc'>('csp');
   const [profitFilter, setProfitFilter] = useState<number | null>(null);
@@ -979,7 +979,7 @@ function ActionButton({ action, onClick }: { action: 'CLOSE' | 'WATCH' | 'HOLD';
   );
 }
 
-function WorkingOrdersTab() {
+export function WorkingOrdersTab() {
   const { selectedAccountId } = useAccount();
   const [aggressiveFillMode, setAggressiveFillMode] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
