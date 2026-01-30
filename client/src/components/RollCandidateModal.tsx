@@ -36,6 +36,7 @@ interface RollCandidateModalProps {
     openPremium?: number;
   };
   candidates: RollCandidate[];
+  isLoading?: boolean;
   onSelectCandidate: (candidate: RollCandidate) => void;
 }
 
@@ -44,6 +45,7 @@ export function RollCandidateModal({
   onOpenChange,
   position,
   candidates,
+  isLoading = false,
   onSelectCandidate,
 }: RollCandidateModalProps) {
   const closeCandidate = candidates.find(c => c.action === 'close');
@@ -73,7 +75,8 @@ export function RollCandidateModal({
   });
   
   const handleGetRecommendation = () => {
-    if (!position.profitCaptured || !position.itmDepth || !position.delta || !position.currentValue || !position.openPremium) {
+    // Check for null/undefined (allow 0 as valid value for itmDepth)
+    if (position.profitCaptured == null || position.itmDepth == null || position.delta == null || position.currentValue == null || position.openPremium == null) {
       setRecommendation('Error: Missing position data required for recommendation');
       setShowRecommendation(true);
       return;
@@ -160,8 +163,19 @@ export function RollCandidateModal({
               </p>
             )}
           </div>
+          {/* Loading State */}
+          {isLoading && (
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+              <Loader2 className="w-12 h-12 animate-spin text-primary" />
+              <div className="text-center">
+                <p className="text-lg font-medium">Analyzing roll options...</p>
+                <p className="text-sm text-muted-foreground mt-1">Fetching option chains and calculating candidates</p>
+              </div>
+            </div>
+          )}
+
           {/* Close Option */}
-          {closeCandidate && (
+          {!isLoading && closeCandidate && (
             <div className="border border-border rounded-lg p-4 bg-card">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold text-lg">Close Without Rolling</h3>
@@ -179,7 +193,7 @@ export function RollCandidateModal({
           )}
 
           {/* Roll Candidates */}
-          {rollCandidates.length > 0 && (
+          {!isLoading && rollCandidates.length > 0 && (
             <div className="space-y-4">
               <h3 className="font-semibold text-lg">Roll Candidates (Top {rollCandidates.length})</h3>
               
@@ -282,7 +296,7 @@ export function RollCandidateModal({
             </div>
           )}
 
-          {rollCandidates.length === 0 && (
+          {!isLoading && rollCandidates.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               <XCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
               <p>No suitable roll candidates found in the 7-14 DTE range.</p>

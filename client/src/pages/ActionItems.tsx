@@ -11,8 +11,10 @@ import { Button } from "@/components/ui/button";
 import { ActivePositionsTab } from "./Performance";
 import { WorkingOrdersTab } from "./Performance";
 
-// Import RollCandidateModal
+// Import RollCandidateModal and OrderPreviewModal
 import { RollCandidateModal } from "@/components/RollCandidateModal";
+import { OrderPreviewModal } from "@/components/OrderPreviewModal";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ActionItems() {
   const [activeTab, setActiveTab] = useState('daily-tasks');
@@ -21,6 +23,12 @@ export default function ActionItems() {
   // Roll candidate modal state
   const [rollModalOpen, setRollModalOpen] = useState(false);
   const [selectedRollPosition, setSelectedRollPosition] = useState<any>(null);
+  
+  // Order preview modal state
+  const [orderPreviewOpen, setOrderPreviewOpen] = useState(false);
+  const [orderDetails, setOrderDetails] = useState<any>(null);
+  
+  const { toast } = useToast();
   
   const { data: positionsData, isLoading: positionsLoading } = trpc.stockBasis.getStockPositions.useQuery(undefined, {
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -71,9 +79,78 @@ export default function ActionItems() {
   };
   
   const handleSelectCandidate = (candidate: any) => {
-    console.log('Selected candidate:', candidate);
-    // TODO: Implement order submission in Phase 1C
+    if (!selectedRollPosition) return;
+    
+    // Build order details for preview modal
+    const strategy = selectedRollPosition.strategy;
+    const optionType = strategy === 'CSP' ? 'PUT' : 'CALL';
+    const closeAction = strategy === 'CSP' ? 'BTC' : 'BTC'; // Buy to close for both
+    const openAction = strategy === 'CSP' ? 'STO' : 'STO'; // Sell to open for both
+    
+    const orderDetailsPayload = {
+      symbol: selectedRollPosition.symbol,
+      strategy: strategy,
+      closeLeg: {
+        action: closeAction,
+        quantity: 1,
+        symbol: selectedRollPosition.symbol,
+        strike: selectedRollPosition.metrics.strikePrice,
+        expiration: selectedRollPosition.metrics.expiration,
+        optionType: optionType,
+        price: Math.abs(selectedRollPosition.metrics.currentValue || 0),
+      },
+      openLeg: {
+        action: openAction,
+        quantity: 1,
+        symbol: selectedRollPosition.symbol,
+        strike: candidate.strike,
+        expiration: candidate.expiration,
+        optionType: optionType,
+        price: candidate.newPremium || 0,
+      },
+      netCost: candidate.netCredit || 0,
+      currentProfit: (selectedRollPosition.metrics.openPremium || 0) - (selectedRollPosition.metrics.currentValue || 0),
+      projectedProfit: (selectedRollPosition.metrics.openPremium || 0) - (selectedRollPosition.metrics.currentValue || 0) + (candidate.netCredit || 0) + (candidate.newPremium || 0),
+    };
+    
+    setOrderDetails(orderDetailsPayload);
     setRollModalOpen(false);
+    setOrderPreviewOpen(true);
+  };
+  
+  // Order submission mutation
+  const submitOrderMutation = trpc.orders.submitRoll.useMutation({
+    onSuccess: (data) => {
+      toast({
+        title: "Order Submitted Successfully",
+        description: `Roll order ${data.orderId} has been submitted to Tastytrade.`,
+      });
+      setOrderPreviewOpen(false);
+      setOrderDetails(null);
+      // Refresh positions
+      // TODO: Add refetch logic
+    },
+    onError: (error) => {
+      toast({
+        title: "Order Submission Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  const handleConfirmOrder = () => {
+    if (!orderDetails) return;
+    
+    // TODO: Get account number from settings/context
+    const accountNumber = 'ACCOUNT_NUMBER_PLACEHOLDER';
+    
+    submitOrderMutation.mutate({
+      accountNumber,
+      symbol: orderDetails.symbol,
+      closeLeg: orderDetails.closeLeg,
+      openLeg: orderDetails.openLeg,
+    });
   };
 
   return (
@@ -347,25 +424,35 @@ export default function ActionItems() {
       
       {/* Roll Candidate Modal */}
       {selectedRollPosition && (
-        <RollCandidateModal
-          open={rollModalOpen}
-          onOpenChange={setRollModalOpen}
-          position={{
-            symbol: selectedRollPosition.symbol,
-            strategy: selectedRollPosition.strategy,
-            strikePrice: selectedRollPosition.metrics.strikePrice,
-            expiration: selectedRollPosition.metrics.expiration || new Date().toISOString(),
-            dte: selectedRollPosition.metrics.dte,
-            profitCaptured: selectedRollPosition.metrics.profitCaptured,
-            itmDepth: selectedRollPosition.metrics.itmDepth,
-            delta: selectedRollPosition.metrics.delta,
-            currentValue: selectedRollPosition.metrics.currentValue,
-            openPremium: selectedRollPosition.metrics.openPremium,
-          }}
-          candidates={rollCandidatesData?.candidates || []}
-          onSelectCandidate={handleSelectCandidate}
-        />
+      <RollCandidateModal
+        open={rollModalOpen}
+        onOpenChange={setRollModalOpen}
+        position={{
+          symbol: selectedRollPosition?.symbol || '',
+          strategy: selectedRollPosition?.strategy || '',
+          strikePrice: selectedRollPosition?.metrics?.strikePrice || 0,
+          expiration: selectedRollPosition?.metrics?.expiration || new Date().toISOString(),
+          dte: selectedRollPosition?.metrics?.dte || 0,
+          profitCaptured: selectedRollPosition?.metrics?.profitCaptured,
+          itmDepth: selectedRollPosition?.metrics?.itmDepth,
+          delta: selectedRollPosition?.metrics?.delta,
+          currentValue: selectedRollPosition?.metrics?.currentValue,
+          openPremium: selectedRollPosition?.metrics?.openPremium,
+        }}
+        candidates={rollCandidatesData?.candidates || []}
+        isLoading={candidatesLoading}
+        onSelectCandidate={handleSelectCandidate}
+      />
       )}
+      
+      {/* Order Preview Modal */}
+      <OrderPreviewModal
+        open={orderPreviewOpen}
+        onOpenChange={setOrderPreviewOpen}
+        orderDetails={orderDetails}
+        onConfirm={handleConfirmOrder}
+        isSubmitting={submitOrderMutation.isPending}
+      />
     </div>
   );
 }

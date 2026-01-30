@@ -2603,3 +2603,25 @@
 - [x] Test with multiple position types (UBER CC 7 DTE tested successfully)
 - [x] Fix modal state reset bug (recommendation persisting across positions)
 - [x] Save checkpoint after testing
+
+
+## Phase 1C Fixes: AI Recommendation Error + Loading States ✅ COMPLETED
+- [x] Fix "Missing position data required for recommendation" error (was checking falsy values instead of null/undefined)
+- [x] Pass profitCaptured, itmDepth, delta, currentValue, openPremium to recommendation mutation
+- [x] Add loading spinner/skeleton when clicking "View Options" button
+- [x] Show loading state while roll candidates are being generated
+- [x] Test AI recommendation with all required data (NFLX CSP tested successfully)
+
+## Phase 1D: Order Submission Flow (Roll Execution) ✅ BACKEND COMPLETE, NEEDS TESTING
+- [x] Create OrderPreviewModal component with 2-leg order display
+- [x] Display 2-leg order details (Leg 1: Close BTC, Leg 2: Open STO)
+- [x] Show net cost/credit for the complete roll
+- [x] Add "Submit Roll Order" confirmation button
+- [x] Implement tRPC procedure: orders.submitRoll
+- [x] Add submitRollOrder method to TastytradeAPI class
+- [x] Call Tastytrade API to execute 2-leg roll order
+- [x] Add success/error toast notifications (using browser alerts temporarily)
+- [ ] Get account number from settings/context (currently using placeholder)
+- [ ] Refresh positions list after successful order submission
+- [ ] Test complete flow: View Options → Select → Preview → Submit → Confirm
+- [ ] Save checkpoint after testing

@@ -658,6 +658,77 @@ export class TastytradeAPI {
   }
 
   /**
+   * Submit a roll order (2-leg: close existing + open new)
+   */
+  async submitRollOrder(params: {
+    accountNumber: string;
+    symbol: string;
+    closeLeg: {
+      action: 'BTC' | 'STC';
+      quantity: number;
+      strike: number;
+      expiration: string;
+      optionType: 'PUT' | 'CALL';
+    };
+    openLeg: {
+      action: 'STO' | 'BTO';
+      quantity: number;
+      strike: number;
+      expiration: string;
+      optionType: 'PUT' | 'CALL';
+    };
+  }): Promise<{ orderId: string }> {
+    try {
+      // Format option symbols for Tastytrade
+      const formatOptionSymbol = (leg: any) => {
+        const expDate = new Date(leg.expiration).toISOString().split('T')[0].replace(/-/g, '');
+        const optType = leg.optionType === 'PUT' ? 'P' : 'C';
+        const strikeFormatted = (leg.strike * 1000).toString().padStart(8, '0');
+        return `${params.symbol}${expDate}${optType}${strikeFormatted}`;
+      };
+
+      const closeSymbol = formatOptionSymbol(params.closeLeg);
+      const openSymbol = formatOptionSymbol(params.openLeg);
+
+      // Build 2-leg order
+      const orderPayload = {
+        'time-in-force': 'Day',
+        'order-type': 'Limit',
+        'price-effect': 'Debit', // Will be calculated by Tastytrade based on legs
+        legs: [
+          {
+            'instrument-type': 'Equity Option',
+            symbol: closeSymbol,
+            action: params.closeLeg.action,
+            quantity: params.closeLeg.quantity,
+          },
+          {
+            'instrument-type': 'Equity Option',
+            symbol: openSymbol,
+            action: params.openLeg.action,
+            quantity: params.openLeg.quantity,
+          },
+        ],
+      };
+
+      console.log('[Tastytrade] Submitting roll order:', JSON.stringify(orderPayload, null, 2));
+
+      const response = await this.retryWithBackoff(() =>
+        this.client.post(`/accounts/${params.accountNumber}/orders`, orderPayload)
+      );
+
+      const orderId = response.data.data.order.id;
+      console.log('[Tastytrade] Roll order submitted successfully:', orderId);
+
+      return { orderId };
+    } catch (error: any) {
+      console.error('[Tastytrade] Failed to submit roll order:', error.message);
+      console.error('[Tastytrade] Error details:', error.response?.data);
+      throw new Error(`Failed to submit roll order: ${error.response?.data?.error?.message || error.message}`);
+    }
+  }
+
+  /**
    * Logout and destroy session
    */
   async logout(): Promise<void> {
@@ -681,4 +752,29 @@ export function getTastytradeAPI(): TastytradeAPI {
     tastytradeInstance = new TastytradeAPI();
   }
   return tastytradeInstance;
+}
+
+/**
+ * Helper function to submit roll orders
+ */
+export async function submitRollOrder(params: {
+  accountNumber: string;
+  symbol: string;
+  closeLeg: {
+    action: 'BTC' | 'STC';
+    quantity: number;
+    strike: number;
+    expiration: string;
+    optionType: 'PUT' | 'CALL';
+  };
+  openLeg: {
+    action: 'STO' | 'BTO';
+    quantity: number;
+    strike: number;
+    expiration: string;
+    optionType: 'PUT' | 'CALL';
+  };
+}): Promise<{ orderId: string }> {
+  const api = getTastytradeAPI();
+  return api.submitRollOrder(params);
 }
