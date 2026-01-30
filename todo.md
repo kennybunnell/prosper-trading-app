@@ -2625,3 +2625,17 @@
 - [ ] Refresh positions list after successful order submission
 - [ ] Test complete flow: View Options → Select → Preview → Submit → Confirm
 - [ ] Save checkpoint after testing
+
+
+## Account Selector Integration for Roll Detection & Order Submission ✅ COMPLETED
+- [x] Analyze existing account selector in DashboardLayout sidebar (uses AccountContext + localStorage)
+- [x] Understand how selected account is stored (context/state/localStorage)
+- [x] Pass selected account number to rolls.getRollsNeeded query (added accountId parameter)
+- [x] Pass selected account number to rolls.getRollCandidates query (uses existing positionId)
+- [x] Update handleConfirmOrder to use selected account instead of placeholder
+- [x] Filter roll detection results by selected account (backend filters by accountId)
+- [x] Add UI prompt when no account selected ("Select an Account" card)
+- [ ] Test account switching: Individual Main Cash → Traditional IRA → Individual HELOC
+- [ ] Verify rolls update when switching accounts
+- [ ] Verify orders submit to correct account
+- [ ] Save checkpoint after testing

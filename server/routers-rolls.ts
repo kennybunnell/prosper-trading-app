@@ -12,8 +12,15 @@ export const rollsRouter = router({
   /**
    * Get positions that need rolling based on 7/14 DTE thresholds and 80% profit rule
    * Returns positions grouped by urgency (red/yellow/green)
+   * Optionally filter by accountId
    */
-  getRollsNeeded: protectedProcedure.query(async ({ ctx }) => {
+  getRollsNeeded: protectedProcedure
+    .input(
+      z.object({
+        accountId: z.string().optional(),
+      }).optional()
+    )
+    .query(async ({ ctx, input }) => {
     const { getTastytradeAPI } = await import('./tastytrade');
     const { getApiCredentials, getTastytradeAccounts } = await import('./db');
     
@@ -37,7 +44,22 @@ export const rollsRouter = router({
       };
     }
     
-    const accountNumbers = accounts.map((acc) => acc.accountNumber);
+    // Filter by accountId if provided
+    let accountNumbers = accounts.map((acc) => acc.accountNumber);
+    if (input?.accountId) {
+      const selectedAccount = accounts.find(acc => acc.accountId === input.accountId);
+      if (selectedAccount) {
+        accountNumbers = [selectedAccount.accountNumber];
+      } else {
+        // Account not found, return empty results
+        return {
+          red: [],
+          yellow: [],
+          green: [],
+          total: 0,
+        };
+      }
+    }
     
     // Fetch positions from all accounts
     const allPositions: PositionWithMetrics[] = [];

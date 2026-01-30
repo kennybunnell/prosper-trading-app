@@ -15,10 +15,12 @@ import { WorkingOrdersTab } from "./Performance";
 import { RollCandidateModal } from "@/components/RollCandidateModal";
 import { OrderPreviewModal } from "@/components/OrderPreviewModal";
 import { useToast } from "@/hooks/use-toast";
+import { useAccount } from "@/contexts/AccountContext";
 
 export default function ActionItems() {
   const [activeTab, setActiveTab] = useState('daily-tasks');
   const [, setLocation] = useLocation();
+  const { selectedAccountId } = useAccount();
   
   // Roll candidate modal state
   const [rollModalOpen, setRollModalOpen] = useState(false);
@@ -44,11 +46,16 @@ export default function ActionItems() {
     return profitPercent >= 80;
   }) || [];
 
-  // Fetch rolls data
-  const { data: rollsData, isLoading: rollsLoading } = trpc.rolls.getRollsNeeded.useQuery(undefined, {
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: 3,
-  });
+  // Fetch rolls data (filtered by selected account)
+  const { data: rollsData, isLoading: rollsLoading } = trpc.rolls.getRollsNeeded.useQuery(
+    selectedAccountId && selectedAccountId !== 'ALL_ACCOUNTS' 
+      ? { accountId: selectedAccountId }
+      : skipToken,
+    {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: 3,
+    }
+  );
 
   const rollsRed = rollsData?.red || [];
   const rollsYellow = rollsData?.yellow || [];
@@ -142,8 +149,17 @@ export default function ActionItems() {
   const handleConfirmOrder = () => {
     if (!orderDetails) return;
     
-    // TODO: Get account number from settings/context
-    const accountNumber = 'ACCOUNT_NUMBER_PLACEHOLDER';
+    // Get account number from selected account
+    if (!selectedAccountId || selectedAccountId === 'ALL_ACCOUNTS') {
+      toast({
+        title: "No Account Selected",
+        description: "Please select a specific account from the sidebar before submitting orders.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const accountNumber = selectedAccountId;
     
     submitOrderMutation.mutate({
       accountNumber,
@@ -172,6 +188,25 @@ export default function ActionItems() {
 
         {/* Daily Tasks Tab */}
         <TabsContent value="daily-tasks" className="space-y-6">
+          {/* Account Selection Prompt */}
+          {(!selectedAccountId || selectedAccountId === 'ALL_ACCOUNTS') && (
+            <Card className="border-amber-500/50 bg-amber-500/5">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <AlertCircle className="h-8 w-8 text-amber-500 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold text-lg mb-1">Select an Account</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Please select a specific account from the sidebar to view roll opportunities and action items for that account.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {selectedAccountId && selectedAccountId !== 'ALL_ACCOUNTS' && (
+            <>
           {/* Summary Cards */}
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
@@ -409,6 +444,8 @@ export default function ActionItems() {
               )}
             </CardContent>
           </Card>
+          </>
+          )}
         </TabsContent>
 
         {/* Active Positions Tab */}
