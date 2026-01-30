@@ -2419,3 +2419,20 @@
 - [x] Added missing DTE filter to preset filtering logic in CSPDashboard.tsx
 - [x] Verified presets are loading correctly from bpsFilters.getPresets
 - [ ] Test presets return expected counts: Conservative ~75, Medium ~125, Aggressive ~224
+
+## Debug: BPS Presets Still Filtering Everything Out
+- [ ] Add comprehensive console logging to preset filtering logic
+- [ ] Log preset values loaded from database
+- [ ] Log each filter check (Delta, DTE, OI, Volume, Score, RSI, IV Rank, BB %B, Strike %)
+- [ ] Log how many opportunities pass/fail each filter
+- [ ] Test with user and analyze console output to identify failing filter
+- [ ] Fix identified issue
+
+## Fix: BPS Preset Delta Ranges Filtering Out All Opportunities
+- [x] Debug logging revealed delta filter is eliminating 212-229 out of 230 opportunities
+- [x] Checked current delta ranges in BPS presets code (0.05-0.40) - CORRECT
+- [x] Discovered database had OLD preset values (minDte: 14 vs code: 7)
+- [x] Deleted existing BPS presets from database (userId=1)
+- [x] Server restart recreated presets with correct values from code
+- [x] Test presets - WORKING! Conservative/Medium/Aggressive now return filtered results
+- [x] Removed debug logging from CSPDashboard.tsx
