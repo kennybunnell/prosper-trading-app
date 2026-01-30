@@ -1233,7 +1233,7 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         const { getFilterPresetsByStrategy } = await import('./db-filter-presets');
         const { seedCspFilterPresets } = await import('./db');
-        const { seedCcFilterPresets, seedPmccFilterPresets } = await import('./db-filter-presets');
+        const { seedCcFilterPresets, seedPmccFilterPresets, seedBpsFilterPresets, seedBcsFilterPresets } = await import('./db-filter-presets');
         
         // Ensure presets exist for this strategy
         if (input.strategy === 'csp') {
@@ -1242,6 +1242,10 @@ export const appRouter = router({
           await seedCcFilterPresets(ctx.user.id);
         } else if (input.strategy === 'pmcc') {
           await seedPmccFilterPresets(ctx.user.id);
+        } else if (input.strategy === 'bps') {
+          await seedBpsFilterPresets(ctx.user.id);
+        } else if (input.strategy === 'bcs') {
+          await seedBcsFilterPresets(ctx.user.id);
         }
         
         return getFilterPresetsByStrategy(ctx.user.id, input.strategy);
@@ -1331,7 +1335,11 @@ export const appRouter = router({
 
   bpsFilters: router({
     getPresets: protectedProcedure.query(async ({ ctx }) => {
-      const { getFilterPresetsByStrategy } = await import('./db-filter-presets');
+      const { getFilterPresetsByStrategy, seedBpsFilterPresets } = await import('./db-filter-presets');
+      
+      // Ensure BPS presets exist for this user
+      await seedBpsFilterPresets(ctx.user.id);
+      
       return getFilterPresetsByStrategy(ctx.user.id, 'bps');
     }),
     updatePreset: protectedProcedure
@@ -1364,7 +1372,11 @@ export const appRouter = router({
 
   bcsFilters: router({
     getPresets: protectedProcedure.query(async ({ ctx }) => {
-      const { getFilterPresetsByStrategy } = await import('./db-filter-presets');
+      const { getFilterPresetsByStrategy, seedBcsFilterPresets } = await import('./db-filter-presets');
+      
+      // Ensure BCS presets exist for this user
+      await seedBcsFilterPresets(ctx.user.id);
+      
       return getFilterPresetsByStrategy(ctx.user.id, 'bcs');
     }),
     updatePreset: protectedProcedure

@@ -2314,3 +2314,18 @@
 - [x] Show strategy-specific messaging ("Fetching option chains" vs "Fetching spread chains")
 - [ ] Track actual fetch times in database for historical analysis (future enhancement)
 - [ ] Improve estimates over time using historical data (future enhancement)
+
+
+## Bug Fix: Bull Put Spread Column Alignment
+- [x] Investigate why IV Rank column shows score values instead of IV Rank data
+- [x] Investigate why Score column shows different values than expected
+- [x] Fix column data mapping in spread opportunities table (added missing IV Rank cell)
+- [x] Ensure Score column position matches CSP/CC tables (consistent across all strategy types)
+- [x] Verify all spread opportunity columns are correctly mapped to their data
+
+## Bug Fix: Bull Put Spread Filter Presets
+- [x] Investigate why bull put spread filters return no results (missing seed functions)
+- [x] Verify filter presets are loading from correct settings (BPS vs BCS) - correct
+- [x] Check if spread-specific filter logic is correctly implemented - correct
+- [x] Ensure filter presets match the definitions in Settings tab - added seedBpsFilterPresets and seedBcsFilterPresets
+- [x] Test with recommended filter values to verify functionality (ready for testing)

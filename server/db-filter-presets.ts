@@ -380,6 +380,118 @@ export async function seedPmccFilterPresets(userId: number): Promise<void> {
 }
 
 /**
+ * Seed default BPS filter presets for a user if they don't exist
+ */
+export async function seedBpsFilterPresets(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot seed BPS filter presets: database not available");
+    return;
+  }
+
+  const { filterPresets } = await import("../drizzle/schema");
+  const { eq, and } = await import("drizzle-orm");
+
+  try {
+    // Check if BPS presets already exist for this user
+    const existing = await db
+      .select()
+      .from(filterPresets)
+      .where(and(eq(filterPresets.userId, userId), eq(filterPresets.strategy, "bps")))
+      .limit(1);
+
+    if (existing.length > 0) {
+      console.log(`[Database] BPS filter presets already exist for user ${userId}`);
+      return;
+    }
+
+    // Use recommended values for BPS strategy
+    const defaults = [
+      {
+        userId,
+        strategy: "bps" as const,
+        presetName: "conservative" as const,
+        ...getRecommendedFilterValues("bps", "conservative"),
+      },
+      {
+        userId,
+        strategy: "bps" as const,
+        presetName: "medium" as const,
+        ...getRecommendedFilterValues("bps", "medium"),
+      },
+      {
+        userId,
+        strategy: "bps" as const,
+        presetName: "aggressive" as const,
+        ...getRecommendedFilterValues("bps", "aggressive"),
+      },
+    ];
+
+    await db.insert(filterPresets).values(defaults);
+    console.log(`[Database] Seeded ${defaults.length} BPS filter presets for user ${userId}`);
+  } catch (error) {
+    console.error("[Database] Failed to seed BPS filter presets:", error);
+    throw error;
+  }
+}
+
+/**
+ * Seed default BCS filter presets for a user if they don't exist
+ */
+export async function seedBcsFilterPresets(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot seed BCS filter presets: database not available");
+    return;
+  }
+
+  const { filterPresets } = await import("../drizzle/schema");
+  const { eq, and } = await import("drizzle-orm");
+
+  try {
+    // Check if BCS presets already exist for this user
+    const existing = await db
+      .select()
+      .from(filterPresets)
+      .where(and(eq(filterPresets.userId, userId), eq(filterPresets.strategy, "bcs")))
+      .limit(1);
+
+    if (existing.length > 0) {
+      console.log(`[Database] BCS filter presets already exist for user ${userId}`);
+      return;
+    }
+
+    // Use recommended values for BCS strategy
+    const defaults = [
+      {
+        userId,
+        strategy: "bcs" as const,
+        presetName: "conservative" as const,
+        ...getRecommendedFilterValues("bcs", "conservative"),
+      },
+      {
+        userId,
+        strategy: "bcs" as const,
+        presetName: "medium" as const,
+        ...getRecommendedFilterValues("bcs", "medium"),
+      },
+      {
+        userId,
+        strategy: "bcs" as const,
+        presetName: "aggressive" as const,
+        ...getRecommendedFilterValues("bcs", "aggressive"),
+      },
+    ];
+
+    await db.insert(filterPresets).values(defaults);
+    console.log(`[Database] Seeded ${defaults.length} BCS filter presets for user ${userId}`);
+  } catch (error) {
+    console.error("[Database] Failed to seed BCS filter presets:", error);
+    throw error;
+  }
+}
+
+/**
  * Get all filter presets for a specific strategy
  */
 export async function getFilterPresetsByStrategy(

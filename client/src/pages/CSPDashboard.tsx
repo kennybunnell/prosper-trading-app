@@ -1928,6 +1928,11 @@ export default function CSPDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell>
+                          <Badge className="font-bold bg-purple-500/20 text-purple-400 border-purple-500/50">
+                            {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
                           <Badge 
                             className={cn(
                               "font-bold",
