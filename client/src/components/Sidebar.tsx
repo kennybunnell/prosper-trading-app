@@ -12,6 +12,9 @@ import {
   ChevronRight,
   Home,
   Circle,
+  CheckSquare,
+  ListChecks,
+  ClipboardList,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -51,6 +54,24 @@ export function Sidebar({ className }: SidebarProps) {
       description: 'Overview',
     },
     {
+      name: 'Action Items',
+      path: '/action-items',
+      icon: CheckSquare,
+      description: 'Daily Tasks',
+      subItems: [
+        {
+          name: 'Active Positions',
+          path: '/action-items/active-positions',
+          icon: ListChecks,
+        },
+        {
+          name: 'Working Orders',
+          path: '/action-items/working-orders',
+          icon: ClipboardList,
+        },
+      ],
+    },
+    {
       name: 'CSP Dashboard',
       path: '/csp',
       icon: TrendingDown,
@@ -67,12 +88,6 @@ export function Sidebar({ className }: SidebarProps) {
       path: '/pmcc',
       icon: Layers,
       description: 'Poor Man\'s Covered Call',
-    },
-    {
-      name: 'Performance',
-      path: '/performance',
-      icon: BarChart3,
-      description: 'Analytics & Tracking',
     },
   ];
 
@@ -172,17 +187,26 @@ export function Sidebar({ className }: SidebarProps) {
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location === item.path;
+          const hasSubItems = item.subItems && item.subItems.length > 0;
+          const isSubItemActive = hasSubItems && item.subItems.some((sub: any) => location === sub.path);
+          const [expanded, setExpanded] = useState(isActive || isSubItemActive);
 
           return (
-            <Link
-              key={item.path}
-              href={item.path}
-              className={cn(
-                'relative overflow-hidden flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group',
-                isActive && 'bg-gradient-to-r from-amber-900/30 via-yellow-900/20 to-amber-800/30 text-amber-100 shadow-xl shadow-amber-500/30 border border-amber-500/40',
-                !isActive && 'text-muted-foreground hover:text-foreground hover:bg-accent/30 hover:shadow-lg hover:shadow-amber-500/10 hover:scale-[1.02]'
-              )}
-            >
+            <div key={item.path}>
+              <Link
+                href={item.path}
+                onClick={(e) => {
+                  if (hasSubItems) {
+                    e.preventDefault();
+                    setExpanded(!expanded);
+                  }
+                }}
+                className={cn(
+                  'relative overflow-hidden flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group',
+                  (isActive || isSubItemActive) && 'bg-gradient-to-r from-amber-900/30 via-yellow-900/20 to-amber-800/30 text-amber-100 shadow-xl shadow-amber-500/30 border border-amber-500/40',
+                  !(isActive || isSubItemActive) && 'text-muted-foreground hover:text-foreground hover:bg-accent/30 hover:shadow-lg hover:shadow-amber-500/10 hover:scale-[1.02]'
+                )}
+              >
               {/* Gradient Border Effect */}
               {isActive && (
                 <div className="absolute inset-0 bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-amber-600/20 rounded-xl blur-md -z-10" />
@@ -216,10 +240,35 @@ export function Sidebar({ className }: SidebarProps) {
               )}
               
               {/* Shimmer effect for active item */}
-              {isActive && (
+              {(isActive || isSubItemActive) && (
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
               )}
             </Link>
+            
+            {/* Sub-items */}
+            {hasSubItems && expanded && !collapsed && (
+              <div className="ml-6 mt-1 space-y-1">
+                {item.subItems.map((subItem: any) => {
+                  const SubIcon = subItem.icon;
+                  const isSubActive = location === subItem.path;
+                  return (
+                    <Link
+                      key={subItem.path}
+                      href={subItem.path}
+                      className={cn(
+                        'flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200',
+                        isSubActive && 'bg-amber-500/20 text-amber-100',
+                        !isSubActive && 'text-muted-foreground hover:text-foreground hover:bg-accent/20'
+                      )}
+                    >
+                      <SubIcon className="w-4 h-4" />
+                      <span className="text-sm">{subItem.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           );
         })}
       </nav>

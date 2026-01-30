@@ -11,6 +11,7 @@ import CSPDashboard from "./pages/CSPDashboard";
 import CCDashboard from "./pages/CCDashboard";
 import PMCCDashboard from "./pages/PMCCDashboard";
 import Performance from "./pages/Performance";
+import ActionItems from "./pages/ActionItems";
 import { Sidebar } from "./components/Sidebar";
 
 function Router() {
@@ -21,6 +22,9 @@ function Router() {
         <Switch>
           <Route path={"/"} component={Home} />
           <Route path={"/settings"} component={Settings} />
+          <Route path={"/action-items"} component={ActionItems} />
+          <Route path={"/action-items/active-positions"} component={Performance} />
+          <Route path={"/action-items/working-orders"} component={Performance} />
           <Route path={"/csp"} component={CSPDashboard} />
           <Route path={"/cc"} component={CCDashboard} />
           <Route path={"/pmcc"} component={PMCCDashboard} />

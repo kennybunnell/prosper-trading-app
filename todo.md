@@ -2436,3 +2436,13 @@
 - [x] Server restart recreated presets with correct values from code
 - [x] Test presets - WORKING! Conservative/Medium/Aggressive now return filtered results
 - [x] Removed debug logging from CSPDashboard.tsx
+
+## Feature: Action Items Navigation & Summary Dashboard
+- [x] Create ActionItems.tsx page component with summary dashboard
+- [x] Add "Positions Ready to Close" section (80%+ profit) pulling from Active Positions data
+- [x] Add "Rolls Needed" placeholder section (to be implemented after research)
+- [x] Make action items clickable to navigate to detail pages
+- [x] Update App.tsx to add "Action Items" nav routes
+- [x] Move Active Positions and Working Orders as sub-tabs under Action Items
+- [x] Update Sidebar to show Action Items at top with expandable sub-items
+- [x] Test navigation flow and save checkpoint

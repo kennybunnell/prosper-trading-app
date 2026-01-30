@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -18,9 +18,20 @@ import { LockedInIncomeCards } from '@/components/projections/LockedInIncomeCard
 import { ThetaDecayCards } from '@/components/projections/ThetaDecayCards';
 import { InteractiveROICalculator } from '@/components/projections/InteractiveROICalculator';
 import { DollarSign, Package, TrendingUp as TrendingUpIcon, TrendingDown as TrendingDownIcon } from 'lucide-react';
+import { useLocation } from 'wouter';
 
 export default function Performance() {
+  const [location] = useLocation();
   const [activeTab, setActiveTab] = useState('active-positions');
+
+  // Handle route-based tab switching for Action Items sub-navigation
+  useEffect(() => {
+    if (location === '/action-items/active-positions') {
+      setActiveTab('active-positions');
+    } else if (location === '/action-items/working-orders') {
+      setActiveTab('working-orders');
+    }
+  }, [location]);
 
   return (
     <div className="container mx-auto py-8 space-y-6">
