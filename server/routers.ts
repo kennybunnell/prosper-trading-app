@@ -8,6 +8,7 @@ import { pmccRouter } from "./routers-pmcc";
 import { performanceRouter } from "./routers-performance";
 import { workingOrdersRouter } from "./routers-working-orders";
 import { rollsRouter } from "./routers-rolls";
+import { rollRecommendationsRouter } from "./routers-roll-recommendations";
 
 // Helper function to parse OCC option symbols
 function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
@@ -286,6 +287,7 @@ export const appRouter = router({
   workingOrders: workingOrdersRouter,
   projections: projectionsRouter,
   rolls: rollsRouter,
+  rollRecommendations: rollRecommendationsRouter,
   dashboard: router({
     /**
      * Get monthly premium data across ALL accounts (account-independent)

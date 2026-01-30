@@ -2583,3 +2583,23 @@
 - [ ] Test roll candidate generation with corrected data
 - [ ] Verify candidates display in modal
 - [ ] Save checkpoint with fix
+
+
+## Phase 1C: AI-Powered Roll Recommendations with Net Profit Analysis ✅ COMPLETED
+- [x] Design recommendation system architecture
+- [x] Add "Get Recommendation" button to each position in ActionItems.tsx
+- [x] Create tRPC procedure rolls.getRecommendation that calls Manus LLM API
+- [x] Build prompt template with position context (strike, DTE, profit %, ITM depth, delta, candidates)
+- [x] Include strategy-specific logic (CSP: consider assignment + CCs, CC: consider letting shares be called away)
+- [x] Generate plain English recommendations (e.g., "Let it assign and sell covered calls" vs "Roll out to $X strike")
+- [x] Add net profit calculation logic:
+  - Current P/L if closed now
+  - Roll cost (debit) or credit received
+  - New premium from rolled position
+  - Final net profit after roll
+- [x] Display net result prominently in modal for each candidate (Roll Cost + Net Result columns)
+- [x] Add recommendation section to RollCandidateModal showing AI analysis
+- [x] Add loading state for recommendation generation ("Analyzing..." with spinner)
+- [x] Test with multiple position types (UBER CC 7 DTE tested successfully)
+- [x] Fix modal state reset bug (recommendation persisting across positions)
+- [x] Save checkpoint after testing

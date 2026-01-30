@@ -356,6 +356,11 @@ export default function ActionItems() {
             strikePrice: selectedRollPosition.metrics.strikePrice,
             expiration: selectedRollPosition.metrics.expiration || new Date().toISOString(),
             dte: selectedRollPosition.metrics.dte,
+            profitCaptured: selectedRollPosition.metrics.profitCaptured,
+            itmDepth: selectedRollPosition.metrics.itmDepth,
+            delta: selectedRollPosition.metrics.delta,
+            currentValue: selectedRollPosition.metrics.currentValue,
+            openPremium: selectedRollPosition.metrics.openPremium,
           }}
           candidates={rollCandidatesData?.candidates || []}
           onSelectCandidate={handleSelectCandidate}

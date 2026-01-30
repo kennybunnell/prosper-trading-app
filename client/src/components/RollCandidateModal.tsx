@@ -1,7 +1,10 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, XCircle, TrendingUp, TrendingDown, Calendar, DollarSign } from 'lucide-react';
+import { CheckCircle2, XCircle, TrendingUp, TrendingDown, Calendar, DollarSign, Sparkles, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { trpc } from '@/lib/trpc';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface RollCandidate {
   action: 'close' | 'roll';
@@ -26,6 +29,11 @@ interface RollCandidateModalProps {
     strikePrice: number;
     expiration: string;
     dte: number;
+    profitCaptured?: number;
+    itmDepth?: number;
+    delta?: number;
+    currentValue?: number;
+    openPremium?: number;
   };
   candidates: RollCandidate[];
   onSelectCandidate: (candidate: RollCandidate) => void;
@@ -40,6 +48,65 @@ export function RollCandidateModal({
 }: RollCandidateModalProps) {
   const closeCandidate = candidates.find(c => c.action === 'close');
   const rollCandidates = candidates.filter(c => c.action === 'roll');
+  
+  const [showRecommendation, setShowRecommendation] = useState(false);
+  const [recommendation, setRecommendation] = useState<string | null>(null);
+  
+  // Reset recommendation when modal opens with new position
+  useEffect(() => {
+    if (open) {
+      setShowRecommendation(false);
+      setRecommendation(null);
+    }
+  }, [open, position.symbol, position.strikePrice]);
+  
+  const getRecommendationMutation = trpc.rollRecommendations.getRecommendation.useMutation({
+    onSuccess: (data) => {
+      setRecommendation(data.recommendation);
+      setShowRecommendation(true);
+    },
+    onError: (error) => {
+      console.error('Failed to get recommendation:', error);
+      setRecommendation(`Error: ${error.message}`);
+      setShowRecommendation(true);
+    },
+  });
+  
+  const handleGetRecommendation = () => {
+    if (!position.profitCaptured || !position.itmDepth || !position.delta || !position.currentValue || !position.openPremium) {
+      setRecommendation('Error: Missing position data required for recommendation');
+      setShowRecommendation(true);
+      return;
+    }
+    
+    getRecommendationMutation.mutate({
+      position: {
+        symbol: position.symbol,
+        strategy: position.strategy as 'CSP' | 'CC',
+        strikePrice: position.strikePrice,
+        expiration: position.expiration,
+        dte: position.dte,
+        profitCaptured: position.profitCaptured,
+        itmDepth: position.itmDepth,
+        delta: position.delta,
+        currentValue: position.currentValue,
+        openPremium: position.openPremium,
+      },
+      candidates: candidates.map(c => ({
+        action: c.action,
+        strike: c.strike,
+        expiration: c.expiration,
+        dte: c.dte,
+        netCredit: c.netCredit,
+        newPremium: c.newPremium,
+        annualizedReturn: c.annualizedReturn,
+        meets3XRule: c.meets3XRule,
+        delta: c.delta,
+        score: c.score,
+        description: c.description,
+      })),
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -52,6 +119,47 @@ export function RollCandidateModal({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* AI Recommendation Section */}
+          <div className="border-2 border-primary/20 rounded-lg p-4 bg-primary/5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold text-lg">AI Recommendation</h3>
+              </div>
+              <Button 
+                onClick={handleGetRecommendation}
+                disabled={getRecommendationMutation.isPending}
+                size="sm"
+                variant="default"
+              >
+                {getRecommendationMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Get Recommendation
+                  </>
+                )}
+              </Button>
+            </div>
+            
+            {showRecommendation && recommendation && (
+              <Alert className="mt-3">
+                <AlertDescription className="whitespace-pre-wrap text-sm leading-relaxed">
+                  {recommendation}
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {!showRecommendation && (
+              <p className="text-sm text-muted-foreground">
+                Click "Get Recommendation" to receive AI-powered analysis and actionable advice for this position.
+              </p>
+            )}
+          </div>
           {/* Close Option */}
           {closeCandidate && (
             <div className="border border-border rounded-lg p-4 bg-card">
@@ -111,9 +219,19 @@ export function RollCandidateModal({
                       <div className="flex items-center gap-2">
                         <DollarSign className="w-4 h-4 text-muted-foreground" />
                         <div>
-                          <div className="text-xs text-muted-foreground">Net</div>
+                          <div className="text-xs text-muted-foreground">Roll Cost</div>
                           <div className={`text-sm font-medium ${(candidate.netCredit || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
                             ${Math.abs(candidate.netCredit || 0).toFixed(2)} {(candidate.netCredit || 0) > 0 ? 'Credit' : 'Debit'}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
+                        <div>
+                          <div className="text-xs text-muted-foreground">Net Result</div>
+                          <div className="text-sm font-medium text-green-600">
+                            ${((position.openPremium || 0) - (position.currentValue || 0) + (candidate.netCredit || 0)).toFixed(2)}
                           </div>
                         </div>
                       </div>
