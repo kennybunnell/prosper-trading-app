@@ -20,8 +20,9 @@ interface OrderPreviewModalProps {
   orderDetails: {
     symbol: string;
     strategy: string;
+    isCloseOnly?: boolean;
     closeLeg: OrderLeg;
-    openLeg: OrderLeg;
+    openLeg?: OrderLeg; // Optional for close-only orders
     netCost: number;
     currentProfit: number;
     projectedProfit: number;
@@ -39,15 +40,20 @@ export function OrderPreviewModal({
 }: OrderPreviewModalProps) {
   if (!orderDetails) return null;
 
-  const { symbol, strategy, closeLeg, openLeg, netCost, currentProfit, projectedProfit } = orderDetails;
+  const { symbol, strategy, isCloseOnly, closeLeg, openLeg, netCost, currentProfit, projectedProfit } = orderDetails;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Confirm Roll Order for {symbol}</DialogTitle>
+          <DialogTitle>
+            {isCloseOnly ? `Confirm Close Order for ${symbol}` : `Confirm Roll Order for ${symbol}`}
+          </DialogTitle>
           <DialogDescription>
-            Review the 2-leg order details before submission
+            {isCloseOnly 
+              ? 'Review the close order details before submission'
+              : 'Review the 2-leg order details before submission'
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -56,7 +62,10 @@ export function OrderPreviewModal({
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              This will execute a 2-leg order to close your current position and open a new one. Please review carefully before confirming.
+              {isCloseOnly
+                ? 'This will close your current position. Please review carefully before confirming.'
+                : 'This will execute a 2-leg order to close your current position and open a new one. Please review carefully before confirming.'
+              }
             </AlertDescription>
           </Alert>
 
@@ -66,7 +75,7 @@ export function OrderPreviewModal({
             <div className="border border-border rounded-lg p-4 bg-card">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Badge variant="destructive">Leg 1: Close</Badge>
+                  <Badge variant="destructive">{isCloseOnly ? 'Close Position' : 'Leg 1: Close'}</Badge>
                   <span className="text-sm font-medium">{closeLeg.action}</span>
                 </div>
                 <TrendingDown className="w-5 h-5 text-red-600" />
@@ -87,30 +96,32 @@ export function OrderPreviewModal({
               </div>
             </div>
 
-            {/* Leg 2: Open */}
-            <div className="border border-border rounded-lg p-4 bg-card">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="default">Leg 2: Open</Badge>
-                  <span className="text-sm font-medium">{openLeg.action}</span>
+            {/* Leg 2: Open (only for roll orders) */}
+            {!isCloseOnly && openLeg && (
+              <div className="border border-border rounded-lg p-4 bg-card">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default">Leg 2: Open</Badge>
+                    <span className="text-sm font-medium">{openLeg.action}</span>
+                  </div>
+                  <TrendingUp className="w-5 h-5 text-green-600" />
                 </div>
-                <TrendingUp className="w-5 h-5 text-green-600" />
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Position:</span>
+                    <span className="font-medium">{openLeg.quantity} {symbol} ${openLeg.strike} {openLeg.optionType}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Expiration:</span>
+                    <span className="font-medium">{new Date(openLeg.expiration).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Price:</span>
+                    <span className="font-medium text-green-600">${openLeg.price.toFixed(2)} credit</span>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Position:</span>
-                  <span className="font-medium">{openLeg.quantity} {symbol} ${openLeg.strike} {openLeg.optionType}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Expiration:</span>
-                  <span className="font-medium">{new Date(openLeg.expiration).toLocaleDateString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Price:</span>
-                  <span className="font-medium text-green-600">${openLeg.price.toFixed(2)} credit</span>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Net Cost Summary */}
@@ -123,19 +134,29 @@ export function OrderPreviewModal({
                   ${Math.abs(currentProfit).toFixed(2)}
                 </span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Roll Cost:</span>
-                <span className={`font-medium ${netCost >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ${Math.abs(netCost).toFixed(2)} {netCost >= 0 ? 'credit' : 'debit'}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">New Premium Collected:</span>
-                <span className="font-medium text-green-600">${openLeg.price.toFixed(2)}</span>
-              </div>
+              
+              {!isCloseOnly && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Roll Cost:</span>
+                    <span className={`font-medium ${netCost >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      ${Math.abs(netCost).toFixed(2)} {netCost >= 0 ? 'credit' : 'debit'}
+                    </span>
+                  </div>
+                  {openLeg && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">New Premium Collected:</span>
+                      <span className="font-medium text-green-600">${openLeg.price.toFixed(2)}</span>
+                    </div>
+                  )}
+                </>
+              )}
+              
               <div className="border-t border-border pt-2 mt-2">
                 <div className="flex justify-between">
-                  <span className="font-semibold">Projected Total Profit:</span>
+                  <span className="font-semibold">
+                    {isCloseOnly ? 'Total Profit:' : 'Projected Total Profit:'}
+                  </span>
                   <span className={`font-bold text-lg ${projectedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     ${Math.abs(projectedProfit).toFixed(2)}
                   </span>
@@ -165,7 +186,7 @@ export function OrderPreviewModal({
                   Submitting Order...
                 </>
               ) : (
-                'Submit Roll Order'
+                isCloseOnly ? 'Submit Close Order' : 'Submit Roll Order'
               )}
             </Button>
           </div>

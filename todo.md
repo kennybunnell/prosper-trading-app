@@ -2678,3 +2678,13 @@
 - [x] Added comprehensive test suite (6 tests) verifying close vs roll order differentiation
 - [x] Verified submitClose endpoint only calls submitCloseOrder (never submitRollOrder)
 - [x] Verified submitRoll endpoint only calls submitRollOrder (never submitCloseOrder)
+
+## OrderPreviewModal Error Fix (January 30, 2026)
+- [x] Fix TypeError: Cannot read properties of undefined (reading 'action') in OrderPreviewModal
+- [x] Diagnose prop mismatch between orderDetails passed from ActionItems and expected props in OrderPreviewModal
+- [x] Update OrderPreviewModal to correctly handle orderDetails prop structure
+- [x] Made openLeg optional in OrderPreviewModalProps interface
+- [x] Added conditional rendering for Leg 2 (only shows for roll orders)
+- [x] Updated modal title/description based on isCloseOnly flag
+- [x] Adjusted button text: "Submit Close Order" vs "Submit Roll Order"
+- [x] Fixed summary calculations to handle both close-only and roll orders
