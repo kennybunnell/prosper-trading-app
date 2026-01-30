@@ -756,9 +756,18 @@ export class TastytradeAPI {
       const ticker = params.symbol.padEnd(6, ' ');
       const optionSymbol = `${ticker}${expDate}${optType}${strikeFormatted}`;
 
-      // Calculate aggressive close price (10% above mark or +$0.05, whichever is greater)
-      const pricePremium = Math.max(params.closeLeg.price * 0.10, 0.05);
-      const aggressivePrice = params.closeLeg.price + pricePremium;
+      // Calculate aggressive close price with realistic caps
+      // For options worth < $1, cap at $0.50 to avoid unrealistic prices on near-worthless options
+      // For options worth >= $1, use 10% above mark or +$0.05 (whichever is greater)
+      let aggressivePrice;
+      if (params.closeLeg.price < 1.0) {
+        // For cheap options, use a small fixed premium (max $0.50 total)
+        aggressivePrice = Math.min(params.closeLeg.price + 0.10, 0.50);
+      } else {
+        // For normal options, use 10% premium or +$0.05
+        const pricePremium = Math.max(params.closeLeg.price * 0.10, 0.05);
+        aggressivePrice = params.closeLeg.price + pricePremium;
+      }
       const formattedPrice = formatPriceForSubmission(aggressivePrice);
 
       // Determine action text based on BTC/STC

@@ -2701,3 +2701,13 @@
 - [x] Changed quantity from number to string
 - [x] Added price field to schema and interface
 - [x] Updated all tests to include price field (6/6 passing)
+
+## Close Order Preflight Check Failure (January 30, 2026)
+- [x] Check server logs for specific Tastytrade preflight error details
+- [x] Analyze preflight error message from Tastytrade API
+- [x] Identified root cause: Unrealistic pricing for low-value options
+- [x] Problem: Option worth $28 was being priced at $30.80 (110% markup)
+- [x] Real issue: Mark price data showed $28 but option expired today (worthless)
+- [x] Implemented fix: Cap close prices at $0.50 for options < $1
+- [x] For options >= $1, continue using 10% premium strategy
+- [x] All tests passing (6/6)
