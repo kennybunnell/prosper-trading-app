@@ -2688,3 +2688,16 @@
 - [x] Updated modal title/description based on isCloseOnly flag
 - [x] Adjusted button text: "Submit Close Order" vs "Submit Roll Order"
 - [x] Fixed summary calculations to handle both close-only and roll orders
+
+## Close Order Validation Error (January 30, 2026)
+- [x] Fix "Failed to submit close order: Request validation failed" error
+- [x] Compare close order implementation in Action Items vs Active Positions
+- [x] Check backend submitCloseOrder validation requirements
+- [x] Verify Tastytrade API parameters for close orders
+- [x] Updated submitCloseOrder to use Limit orders (not Market)
+- [x] Added required fields: underlying-symbol, price, price-effect
+- [x] Changed action from "BTC" to "Buy to Close" (full text)
+- [x] Added proper OCC symbol formatting with 6-character ticker padding
+- [x] Changed quantity from number to string
+- [x] Added price field to schema and interface
+- [x] Updated all tests to include price field (6/6 passing)

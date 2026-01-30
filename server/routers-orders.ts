@@ -65,6 +65,7 @@ export const ordersRouter = router({
           strike: z.number(),
           expiration: z.string(),
           optionType: z.enum(['PUT', 'CALL']),
+          price: z.number(),
         }),
       })
     )

@@ -45,6 +45,7 @@ describe('Orders Router', () => {
           strike: 84,
           expiration: '2026-02-07',
           optionType: 'CALL' as const,
+          price: 1.57,
         },
       };
 
@@ -99,6 +100,7 @@ describe('Orders Router', () => {
           strike: 84,
           expiration: '2026-02-07',
           optionType: 'CALL' as const,
+          price: 1.57,
         },
       };
 
@@ -244,6 +246,7 @@ describe('Orders Router', () => {
           strike: 84,
           expiration: '2026-02-07',
           optionType: 'CALL' as const,
+          price: 1.57,
         },
       });
 

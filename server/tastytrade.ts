@@ -740,25 +740,44 @@ export class TastytradeAPI {
       strike: number;
       expiration: string;
       optionType: 'PUT' | 'CALL';
+      price: number; // Current market price for the option
     };
   }): Promise<{ orderId: string }> {
     try {
-      // Format option symbol for Tastytrade
+      // Import price formatting utility
+      const { formatPriceForSubmission } = await import('../shared/orderUtils');
+      
+      // Format option symbol for Tastytrade (OCC format with 6-char ticker)
       const expDate = new Date(params.closeLeg.expiration).toISOString().split('T')[0].replace(/-/g, '');
       const optType = params.closeLeg.optionType === 'PUT' ? 'P' : 'C';
       const strikeFormatted = (params.closeLeg.strike * 1000).toString().padStart(8, '0');
-      const optionSymbol = `${params.symbol}${expDate}${optType}${strikeFormatted}`;
+      
+      // Pad ticker to 6 characters with spaces (OCC format requirement)
+      const ticker = params.symbol.padEnd(6, ' ');
+      const optionSymbol = `${ticker}${expDate}${optType}${strikeFormatted}`;
 
-      // Build 1-leg close order
+      // Calculate aggressive close price (10% above mark or +$0.05, whichever is greater)
+      const pricePremium = Math.max(params.closeLeg.price * 0.10, 0.05);
+      const aggressivePrice = params.closeLeg.price + pricePremium;
+      const formattedPrice = formatPriceForSubmission(aggressivePrice);
+
+      // Determine action text based on BTC/STC
+      const actionText = params.closeLeg.action === 'BTC' ? 'Buy to Close' : 'Sell to Close';
+      const priceEffect = params.closeLeg.action === 'BTC' ? 'Debit' : 'Credit';
+
+      // Build 1-leg close order (matching buyToCloseOption format)
       const orderPayload = {
         'time-in-force': 'Day',
-        'order-type': 'Market', // Use market order for closes
+        'order-type': 'Limit',
+        'underlying-symbol': params.symbol,
+        price: formattedPrice,
+        'price-effect': priceEffect,
         legs: [
           {
             'instrument-type': 'Equity Option',
             symbol: optionSymbol,
-            action: params.closeLeg.action,
-            quantity: params.closeLeg.quantity,
+            quantity: params.closeLeg.quantity.toString(),
+            action: actionText,
           },
         ],
       };
@@ -843,6 +862,7 @@ export async function submitCloseOrder(params: {
     strike: number;
     expiration: string;
     optionType: 'PUT' | 'CALL';
+    price: number;
   };
 }): Promise<{ orderId: string }> {
   const api = getTastytradeAPI();
