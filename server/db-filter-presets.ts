@@ -114,42 +114,42 @@ export function getRecommendedFilterValues(
     },
     bps: {
       conservative: {
-        minDte: 14,
+        minDte: 21,
         maxDte: 45,
         minDelta: "0.10",
-        maxDelta: "0.30",
-        minOpenInterest: 25,
-        minVolume: 25,
+        maxDelta: "0.25",
+        minOpenInterest: 10,
+        minVolume: 10,
         minRsi: 0,  // Allow full RSI range
         maxRsi: 100,
         minIvRank: 0,  // Allow full IV Rank range
         maxIvRank: 100,
         minBbPercent: "0",
         maxBbPercent: "1.0",  // Allow full BB %B range
-        minScore: 30,  // Much lower threshold
+        minScore: 40,  // Target ~30-40% of opportunities
         maxStrikePercent: 100,
       },
       medium: {
-        minDte: 10,
-        maxDte: 30,
+        minDte: 14,
+        maxDte: 35,
         minDelta: "0.15",
-        maxDelta: "0.35",
-        minOpenInterest: 50,
-        minVolume: 30,
+        maxDelta: "0.28",
+        minOpenInterest: 20,
+        minVolume: 15,
         minRsi: 0,  // Allow full RSI range
         maxRsi: 100,
         minIvRank: 0,  // Allow full IV Rank range
         maxIvRank: 100,
         minBbPercent: "0",
         maxBbPercent: "1.0",  // Allow full BB %B range
-        minScore: 40,  // Moderate threshold
+        minScore: 50,  // Target ~20-30% of opportunities
         maxStrikePercent: 105,
       },
       aggressive: {
         minDte: 7,
         maxDte: 21,
-        minDelta: "0.20",
-        maxDelta: "0.40",
+        minDelta: "0.18",
+        maxDelta: "0.32",
         minOpenInterest: 25,
         minVolume: 20,
         minRsi: 0,  // Allow full RSI range
@@ -158,7 +158,7 @@ export function getRecommendedFilterValues(
         maxIvRank: 100,
         minBbPercent: "0",
         maxBbPercent: "1.0",  // Allow full BB %B range
-        minScore: 50,  // Higher threshold for aggressive = higher quality
+        minScore: 60,  // Target ~10-15% top opportunities
         maxStrikePercent: 110,
       },
     },

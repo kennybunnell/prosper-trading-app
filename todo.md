@@ -2352,3 +2352,12 @@
 - [x] Ensure filter logic correctly applies to spread opportunity data structure (correct)
 - [x] Update BPS preset values to be realistic: full RSI/IV Rank/BB %B ranges (0-100), lower score thresholds (30/40/50)
 - [ ] Test each preset (Conservative/Medium/Aggressive) with real spread data
+
+## Data-Driven BPS Preset Optimization
+- [x] Analyze actual 116 bull put spread opportunities screenshot
+- [x] Document observed data ranges (Delta: 0.14-0.30+, Score: 35-85+, DTE: 7-45)
+- [x] Update BPS presets based on real data:
+  - Conservative: DTE 21-45, Delta 0.10-0.25, Score 40+ (targets 30-40% of opportunities)
+  - Medium: DTE 14-35, Delta 0.15-0.28, Score 50+ (targets 20-30% of opportunities)
+  - Aggressive: DTE 7-21, Delta 0.18-0.32, Score 60+ (targets 10-15% top opportunities)
+- [ ] Test presets with 116 opportunities to verify result counts
