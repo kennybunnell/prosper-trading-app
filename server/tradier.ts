@@ -422,7 +422,7 @@ export class TradierAPI {
           current: currentPrice,
           percentInRange,
         },
-        ivRank: null, // TODO: Implement IV Rank calculation
+        ivRank: null, // Calculated per-opportunity from option chain data
       };
     } catch (error: any) {
       console.error(`Failed to calculate technical indicators for ${symbol}:`, error.message);
@@ -547,9 +547,19 @@ export class TradierAPI {
         // Get technical indicators
         const indicators = await this.getTechnicalIndicators(symbol);
 
+        // Collect IV values from all options to calculate IV Rank
+        const allIVValues: number[] = [];
+
         // Fetch option chains for each expiration
         for (const expiration of filteredExpirations) {
           const options = await this.getOptionChain(symbol, expiration, true);
+
+          // Collect IV values from all options (puts and calls)
+          for (const opt of options) {
+            if (opt.greeks?.mid_iv && opt.greeks.mid_iv > 0) {
+              allIVValues.push(opt.greeks.mid_iv);
+            }
+          }
 
           // Filter for put options
           const puts = options.filter((opt) => opt.option_type === 'put');
@@ -591,6 +601,18 @@ export class TradierAPI {
             const collateral = strike * 100; // Per contract
             const roc = (bid * 100 / collateral) * 100; // Return on collateral %
 
+            // Calculate IV Rank for this option
+            let ivRank: number | null = null;
+            if (allIVValues.length >= 10 && put.greeks?.mid_iv && put.greeks.mid_iv > 0) {
+              const currentIV = put.greeks.mid_iv;
+              const minIV = Math.min(...allIVValues);
+              const maxIV = Math.max(...allIVValues);
+              
+              if (maxIV > minIV) {
+                ivRank = Math.round(((currentIV - minIV) / (maxIV - minIV)) * 100);
+              }
+            }
+
             opportunities.push({
               symbol,
               optionSymbol: put.symbol, // Use actual option symbol from Tradier
@@ -610,7 +632,7 @@ export class TradierAPI {
               volume,
               openInterest: oi,
               rsi: indicators.rsi ? Math.round(indicators.rsi * 10) / 10 : null,
-              ivRank: indicators.ivRank,
+              ivRank,
               bbPctB: indicators.bollingerBands ? Math.round(indicators.bollingerBands.percentB * 100) / 100 : null,
               spreadPct: Math.round(spreadPct * 10) / 10,
               collateral,

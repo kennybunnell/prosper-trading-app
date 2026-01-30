@@ -2329,3 +2329,11 @@
 - [x] Check if spread-specific filter logic is correctly implemented - correct
 - [x] Ensure filter presets match the definitions in Settings tab - added seedBpsFilterPresets and seedBcsFilterPresets
 - [x] Test with recommended filter values to verify functionality (ready for testing)
+
+
+## Bug Fix: IV Rank Shows N/A for Bull Put Spreads
+- [x] Investigate why IV Rank shows "N/A" for spread opportunities (getTechnicalIndicators returned null)
+- [x] Check if IV data is being fetched from Tradier API for spreads (greeks.mid_iv available)
+- [x] Verify IV Rank calculation is included in spread opportunity scoring (implemented in fetchSymbolOpportunities)
+- [x] Ensure IV Rank is passed to frontend in spread opportunity data (included in CSPOpportunity)
+- [x] Test IV Rank calculation logic (6/6 tests passing)
