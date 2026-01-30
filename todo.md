@@ -2483,4 +2483,29 @@
 - [ ] Create RollCandidateModal component for showing roll options
 - [ ] Add "View Roll Options" button for each flagged position
 - [x] Test with current CSP and CC positions (67 positions detected, scoring working correctly)
-- [ ] Save checkpoint after testing
+- [x] Save checkpoint after testing (version: 8e5a2fec)
+
+## Phase 1B: Roll Candidate Generation + Delta/Greeks + Underlying Prices
+- [x] Research Tastytrade API endpoints for option chains
+- [x] Research Tastytrade API endpoints for greeks (delta)
+- [x] Research Tastytrade API endpoints for underlying quotes
+- [x] Add getUnderlyingQuote() method to tastytrade.ts
+- [ ] Add getGreeks() method to tastytrade.ts (deferred - will use approximation)
+- [x] Add getOptionChain() method to tastytrade.ts
+- [ ] Update roll detection to fetch real underlying prices (will be done in routers-rolls.ts)
+- [x] Update roll detection to use delta approximation when real delta unavailable
+- [x] Implement generateRollCandidates() function in rollDetection.ts
+- [x] Calculate roll scenarios: roll out (same strike), roll up and out, roll down and out
+- [x] Implement 3X premium rule validation
+- [x] Calculate annualized returns for each roll candidate
+- [x] Score and rank roll candidates (top 5)
+- [x] Update rolls.getRollCandidates tRPC procedure with real implementation
+- [x] Create RollCandidateModal.tsx component
+- [x] Display "Close without rolling" option with current P/L
+- [x] Display top 5 roll candidates with all metrics
+- [x] Wire up "View Options" buttons in ActionItems.tsx to open modal
+- [x] Test complete roll workflow with real positions (Modal UI working, backend needs debugging)
+- [ ] Debug roll candidate generation - API may not be returning option chain data
+- [ ] Add "Close without rolling" option that always shows
+- [ ] Add logging to generateRollCandidates() to debug filtering
+- [ ] Save checkpoint after fixes

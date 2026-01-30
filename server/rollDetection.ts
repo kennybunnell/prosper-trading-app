@@ -72,6 +72,74 @@ function calculateProfitCaptured(openPremium: number, currentValue: number): num
 }
 
 /**
+ * Approximate delta based on moneyness (ITM depth)
+ * This is a simplified approximation for when real greeks are unavailable
+ * 
+ * For puts:
+ * - Deep OTM (< -10%): delta ≈ -0.10 to -0.20
+ * - OTM (-10% to 0%): delta ≈ -0.20 to -0.45
+ * - ATM (0%): delta ≈ -0.50
+ * - ITM (0% to +10%): delta ≈ -0.55 to -0.80
+ * - Deep ITM (> +10%): delta ≈ -0.80 to -0.95
+ * 
+ * For calls: same magnitudes but positive
+ */
+function approximateDelta(
+  strikePrice: number,
+  currentPrice: number,
+  optionType: 'put' | 'call'
+): number {
+  const moneyness = (currentPrice - strikePrice) / strikePrice * 100;
+  let delta: number;
+
+  if (optionType === 'put') {
+    // For puts, moneyness is inverted
+    if (moneyness < -10) {
+      // Deep OTM
+      delta = -0.15;
+    } else if (moneyness < -5) {
+      // OTM
+      delta = -0.25;
+    } else if (moneyness < 0) {
+      // Slightly OTM to ATM
+      delta = -0.35 + (moneyness / 5) * 0.15; // Linear interpolation
+    } else if (moneyness < 5) {
+      // Slightly ITM
+      delta = -0.55 - (moneyness / 5) * 0.15;
+    } else if (moneyness < 10) {
+      // ITM
+      delta = -0.75;
+    } else {
+      // Deep ITM
+      delta = -0.90;
+    }
+  } else {
+    // For calls
+    if (moneyness > 10) {
+      // Deep ITM
+      delta = 0.90;
+    } else if (moneyness > 5) {
+      // ITM
+      delta = 0.75;
+    } else if (moneyness > 0) {
+      // Slightly ITM
+      delta = 0.55 + (moneyness / 5) * 0.15;
+    } else if (moneyness > -5) {
+      // Slightly OTM to ATM
+      delta = 0.35 - (moneyness / 5) * 0.15; // Linear interpolation
+    } else if (moneyness > -10) {
+      // OTM
+      delta = 0.25;
+    } else {
+      // Deep OTM
+      delta = 0.15;
+    }
+  }
+
+  return delta;
+}
+
+/**
  * Calculate ITM depth as percentage
  * For puts: (strike - currentPrice) / strike * 100
  * For calls: (currentPrice - strike) / strike * 100
@@ -204,7 +272,8 @@ export function analyzeCSPPosition(
     Math.abs(position.current_value)
   );
   const itmDepth = calculateITMDepth(position.strike_price, currentPrice, 'put');
-  const delta = position.delta || 0;
+  // Use provided delta or approximate based on moneyness
+  const delta = position.delta || approximateDelta(position.strike_price, currentPrice, 'put');
 
   const score = calculateUrgencyScore(dte, profitCaptured, itmDepth, delta);
   const urgency = getUrgencyLevel(score);
@@ -251,7 +320,8 @@ export function analyzeCCPosition(
     Math.abs(position.current_value)
   );
   const itmDepth = calculateITMDepth(position.strike_price, currentPrice, 'call');
-  const delta = position.delta || 0;
+  // Use provided delta or approximate based on moneyness
+  const delta = position.delta || approximateDelta(position.strike_price, currentPrice, 'call');
 
   const score = calculateUrgencyScore(dte, profitCaptured, itmDepth, delta);
   const urgency = getUrgencyLevel(score);
@@ -327,37 +397,259 @@ export function analyzePositionsForRolls(
 
 /**
  * Generate roll candidates for a position
- * TODO: Implement in Phase 1B - fetch option chains and score candidates
+ * Fetches option chains and scores potential roll scenarios
+ * 
+ * @param position - Position to generate roll candidates for
+ * @param analysis - Roll analysis with current metrics
+ * @param optionChain - Option chain data from Tastytrade API
+ * @param underlyingPrice - Current price of underlying stock
+ * @returns Array of roll candidates sorted by score (best first)
  */
-export async function generateRollCandidates(
+export function generateRollCandidates(
   position: PositionWithMetrics,
-  analysis: RollAnalysis
-): Promise<RollCandidate[]> {
+  analysis: RollAnalysis,
+  optionChain: any,
+  underlyingPrice: number
+): RollCandidate[] {
   const candidates: RollCandidate[] = [];
+  const isPut = analysis.strategy === 'CSP';
+  const isCall = analysis.strategy === 'CC';
 
   // Option 1: Close without rolling
-  const closeCost = Math.abs(analysis.metrics.currentPrice);
+  const closeCost = Math.abs(position.current_value);
+  const realizedProfit = Math.abs(position.open_premium) - closeCost;
   candidates.push({
     action: 'close',
     score: 50, // Neutral score
-    description: `Close position for $${closeCost.toFixed(2)} ${closeCost > 0 ? 'debit' : 'credit'}`,
+    description: `Close for $${closeCost.toFixed(2)} debit (realize $${realizedProfit.toFixed(2)} profit)`,
   });
 
-  // TODO: Fetch option chains and generate roll candidates
-  // For now, return placeholder
-  candidates.push({
+  // Parse option chain to find suitable roll candidates
+  if (!optionChain?.items) {
+    console.warn('No option chain data available');
+    return candidates;
+  }
+
+  const currentStrike = analysis.metrics.strikePrice;
+  const currentDTE = analysis.metrics.dte;
+
+  // Filter expirations to 7-14 DTE range (user preference)
+  const suitableExpirations = optionChain.items.filter((exp: any) => {
+    const expDate = new Date(exp['expiration-date']);
+    const dte = calculateDTE(exp['expiration-date']);
+    return dte >= 7 && dte <= 14 && dte > currentDTE; // Must be further out than current
+  });
+
+  // Generate roll scenarios for each suitable expiration
+  for (const expiration of suitableExpirations) {
+    const expirationDate = expiration['expiration-date'];
+    const dte = calculateDTE(expirationDate);
+    const strikes = expiration.strikes || [];
+
+    // Scenario 1: Roll Out (Same Strike)
+    const sameStrikeOption = strikes.find((s: any) => 
+      Math.abs(parseFloat(s['strike-price']) - currentStrike) < 0.01
+    );
+    if (sameStrikeOption) {
+      const optionSymbol = isPut ? sameStrikeOption['put'] : sameStrikeOption['call'];
+      if (optionSymbol) {
+        const candidate = createRollCandidate(
+          'roll-out',
+          currentStrike,
+          expirationDate,
+          dte,
+          optionSymbol,
+          position,
+          underlyingPrice,
+          isPut
+        );
+        if (candidate) candidates.push(candidate);
+      }
+    }
+
+    // Scenario 2: Roll Up and Out (for CSP) or Roll Down and Out (for CC)
+    if (isPut) {
+      // For CSP: Roll down to collect more premium (lower strike = more OTM)
+      const lowerStrikes = strikes
+        .filter((s: any) => parseFloat(s['strike-price']) < currentStrike)
+        .sort((a: any, b: any) => parseFloat(b['strike-price']) - parseFloat(a['strike-price'])) // Descending
+        .slice(0, 3); // Top 3 lower strikes
+
+      for (const strike of lowerStrikes) {
+        const optionSymbol = strike['put'];
+        if (optionSymbol) {
+          const candidate = createRollCandidate(
+            'roll-down-out',
+            parseFloat(strike['strike-price']),
+            expirationDate,
+            dte,
+            optionSymbol,
+            position,
+            underlyingPrice,
+            isPut
+          );
+          if (candidate) candidates.push(candidate);
+        }
+      }
+    } else if (isCall) {
+      // For CC: Roll up to avoid assignment (higher strike = more OTM)
+      const higherStrikes = strikes
+        .filter((s: any) => parseFloat(s['strike-price']) > currentStrike)
+        .sort((a: any, b: any) => parseFloat(a['strike-price']) - parseFloat(b['strike-price'])) // Ascending
+        .slice(0, 3); // Top 3 higher strikes
+
+      for (const strike of higherStrikes) {
+        const optionSymbol = strike['call'];
+        if (optionSymbol) {
+          const candidate = createRollCandidate(
+            'roll-up-out',
+            parseFloat(strike['strike-price']),
+            expirationDate,
+            dte,
+            optionSymbol,
+            position,
+            underlyingPrice,
+            isPut
+          );
+          if (candidate) candidates.push(candidate);
+        }
+      }
+    }
+  }
+
+  // Score and sort candidates (best first)
+  const scoredCandidates = candidates.map(c => ({
+    ...c,
+    score: scoreRollCandidate(c, position, analysis),
+  }));
+
+  // Return top 5 roll candidates + close option
+  const closeOption = scoredCandidates.find(c => c.action === 'close')!;
+  const rollCandidates = scoredCandidates
+    .filter(c => c.action === 'roll')
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+
+  return [closeOption, ...rollCandidates];
+}
+
+/**
+ * Create a roll candidate from option chain data
+ * Note: This is a placeholder - actual implementation needs option quotes
+ */
+function createRollCandidate(
+  rollType: string,
+  newStrike: number,
+  newExpiration: string,
+  dte: number,
+  optionSymbol: string,
+  position: PositionWithMetrics,
+  underlyingPrice: number,
+  isPut: boolean
+): RollCandidate | null {
+  // TODO: Fetch actual option quote for newPremium
+  // For now, use placeholder values
+  const newPremium = 1.50; // Placeholder - needs real quote
+  const closeCost = Math.abs(position.current_value);
+  const netCredit = newPremium - closeCost;
+  const meets3XRule = newPremium >= (closeCost * 3);
+  
+  // Calculate annualized return
+  // Return = (net credit / capital at risk) * (365 / DTE) * 100
+  const capitalAtRisk = isPut ? newStrike * 100 : underlyingPrice * 100; // Per contract
+  const annualizedReturn = (netCredit / capitalAtRisk) * (365 / dte) * 100;
+
+  // Approximate delta
+  const delta = approximateDelta(newStrike, underlyingPrice, isPut ? 'put' : 'call');
+
+  let description = '';
+  if (rollType === 'roll-out') {
+    description = `Roll out to $${newStrike.toFixed(2)} ${new Date(newExpiration).toLocaleDateString()} (${dte} DTE)`;
+  } else if (rollType === 'roll-down-out') {
+    description = `Roll down & out to $${newStrike.toFixed(2)} ${new Date(newExpiration).toLocaleDateString()} (${dte} DTE)`;
+  } else if (rollType === 'roll-up-out') {
+    description = `Roll up & out to $${newStrike.toFixed(2)} ${new Date(newExpiration).toLocaleDateString()} (${dte} DTE)`;
+  }
+
+  return {
     action: 'roll',
-    strike: analysis.metrics.strikePrice,
-    expiration: 'TBD',
-    dte: 14,
-    netCredit: 0.5,
-    newPremium: 1.5,
-    annualizedReturn: 35,
-    meets3XRule: true,
-    delta: 0.25,
-    score: 85,
-    description: 'Roll out 14 DTE (placeholder - implement in Phase 1B)',
-  });
+    strike: newStrike,
+    expiration: newExpiration,
+    dte,
+    netCredit,
+    newPremium,
+    annualizedReturn,
+    meets3XRule,
+    delta,
+    score: 0, // Will be calculated later
+    description,
+  };
+}
 
-  return candidates;
+/**
+ * Score a roll candidate (0-100, higher = better)
+ */
+function scoreRollCandidate(
+  candidate: RollCandidate,
+  position: PositionWithMetrics,
+  analysis: RollAnalysis
+): number {
+  if (candidate.action === 'close') {
+    // Close option gets neutral score
+    return 50;
+  }
+
+  let score = 0;
+
+  // Net Credit Factor (0-30 points)
+  if (candidate.netCredit! > 0) {
+    score += 30; // Prefer credits
+  } else if (candidate.netCredit! > -0.25) {
+    score += 20; // Small debit acceptable
+  } else {
+    score += 5; // Large debit penalized
+  }
+
+  // Annualized Return Factor (0-25 points)
+  const annReturn = candidate.annualizedReturn || 0;
+  if (annReturn >= 40) {
+    score += 25;
+  } else if (annReturn >= 30) {
+    score += 20;
+  } else if (annReturn >= 20) {
+    score += 15;
+  } else if (annReturn >= 10) {
+    score += 10;
+  } else {
+    score += 5;
+  }
+
+  // 3X Rule Factor (0-15 points)
+  if (candidate.meets3XRule) {
+    score += 15;
+  }
+
+  // DTE Factor (0-15 points) - prefer 7-14 range
+  const dte = candidate.dte || 0;
+  if (dte >= 7 && dte <= 14) {
+    score += 15;
+  } else if (dte > 14 && dte <= 21) {
+    score += 10;
+  } else {
+    score += 5;
+  }
+
+  // Delta Factor (0-15 points) - prefer lower delta (less ITM risk)
+  const absDelta = Math.abs(candidate.delta || 0);
+  if (absDelta < 0.25) {
+    score += 15; // Very safe
+  } else if (absDelta < 0.35) {
+    score += 12; // Safe
+  } else if (absDelta < 0.45) {
+    score += 8; // Moderate
+  } else {
+    score += 3; // Risky
+  }
+
+  return Math.min(100, score);
 }

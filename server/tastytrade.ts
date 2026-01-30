@@ -603,6 +603,54 @@ export class TastytradeAPI {
   }
 
   /**
+   * Get underlying stock quote (current price)
+   * @param symbol - Stock symbol (e.g., 'AAPL', 'TSLA')
+   * @returns Current stock price (last trade or mid price)
+   */
+  async getUnderlyingQuote(symbol: string): Promise<number> {
+    try {
+      const params = new URLSearchParams();
+      params.append('equity', symbol);
+      
+      const response = await this.client.get('/market-data/by-type', {
+        params,
+        paramsSerializer: (params) => params.toString(),
+      });
+      
+      const item = response.data.data?.items?.[0];
+      if (!item) {
+        throw new Error(`No market data found for ${symbol}`);
+      }
+      
+      // Prefer last trade price, fall back to mid price
+      const price = parseFloat(item.last || item.mid || item.mark || '0');
+      if (price === 0) {
+        throw new Error(`Invalid price data for ${symbol}`);
+      }
+      
+      return price;
+    } catch (error: any) {
+      console.error(`[Tastytrade] Failed to fetch underlying quote for ${symbol}:`, error.message);
+      throw new Error(`Failed to fetch underlying quote: ${error.response?.data?.error?.message || error.message}`);
+    }
+  }
+
+  /**
+   * Get option chain for an underlying symbol
+   * @param underlyingSymbol - Stock symbol (e.g., 'AAPL', 'TSLA')
+   * @returns Nested option chain data grouped by expiration
+   */
+  async getOptionChain(underlyingSymbol: string): Promise<any> {
+    try {
+      const response = await this.client.get(`/option-chains/${underlyingSymbol}/nested`);
+      return response.data.data;
+    } catch (error: any) {
+      console.error(`[Tastytrade] Failed to fetch option chain for ${underlyingSymbol}:`, error.message);
+      throw new Error(`Failed to fetch option chain: ${error.response?.data?.error?.message || error.message}`);
+    }
+  }
+
+  /**
    * Logout and destroy session
    */
   async logout(): Promise<void> {

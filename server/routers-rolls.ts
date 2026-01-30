@@ -156,32 +156,104 @@ export const rollsRouter = router({
       strategy: z.enum(['csp', 'cc']),
       strikePrice: z.number(),
       expirationDate: z.string(),
+      currentValue: z.number(),
+      openPremium: z.number(),
     }))
     .query(async ({ input, ctx }) => {
-      // TODO: Implement in Phase 1B
-      // For now, return placeholder data
-      return {
-        candidates: [
-          {
-            action: 'close' as const,
-            score: 50,
-            description: 'Close position without rolling',
+      const { getTastytradeAPI } = await import('./tastytrade');
+      const { getApiCredentials } = await import('./db');
+      
+      // Get Tastytrade credentials
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
+        throw new Error('Tastytrade credentials not found');
+      }
+      
+      const api = getTastytradeAPI();
+      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+      
+      try {
+        // Fetch underlying price
+        const underlyingPrice = await api.getUnderlyingQuote(input.symbol);
+        
+        // Fetch option chain
+        const optionChain = await api.getOptionChain(input.symbol);
+        
+        // Calculate DTE for current position
+        const currentDTE = Math.ceil(
+          (new Date(input.expirationDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+        );
+        
+        // Create mock position and analysis for generateRollCandidates
+        const mockPosition: PositionWithMetrics = {
+          id: parseInt(input.positionId),
+          userId: ctx.user.id,
+          accountId: 'mock',
+          symbol: input.symbol,
+          positionType: 'option',
+          strategy: input.strategy,
+          strike: input.strikePrice.toString(),
+          expiration: input.expirationDate,
+          quantity: 1,
+          costBasis: input.openPremium.toString(),
+          currentValue: input.currentValue.toString(),
+          unrealizedPnL: (input.openPremium - input.currentValue).toString(),
+          realizedPnL: '0',
+          status: 'open',
+          spreadType: null,
+          longStrike: null,
+          spreadWidth: null,
+          capitalAtRisk: null,
+          openedAt: new Date(),
+          closedAt: null,
+          updatedAt: new Date(),
+          open_premium: input.openPremium,
+          current_value: input.currentValue,
+          expiration_date: input.expirationDate,
+          strike_price: input.strikePrice,
+          delta: 0,
+        };
+        
+        const mockAnalysis = {
+          positionId: input.positionId,
+          symbol: input.symbol,
+          strategy: input.strategy.toUpperCase() as 'CSP' | 'CC',
+          urgency: 'yellow' as const,
+          shouldRoll: true,
+          reasons: [],
+          metrics: {
+            dte: currentDTE,
+            profitCaptured: ((input.openPremium - input.currentValue) / input.openPremium) * 100,
+            itmDepth: 0,
+            delta: 0,
+            currentPrice: underlyingPrice,
+            strikePrice: input.strikePrice,
           },
-          {
-            action: 'roll' as const,
-            strike: input.strikePrice,
-            expiration: '2026-02-14',
-            dte: 14,
-            netCredit: 0.50,
-            newPremium: 1.50,
-            annualizedReturn: 35,
-            meets3XRule: true,
-            delta: 0.25,
-            score: 85,
-            description: 'Roll out 14 DTE (placeholder)',
-          },
-        ],
-      };
+          score: 50,
+        };
+        
+        // Generate roll candidates
+        const candidates = generateRollCandidates(
+          mockPosition,
+          mockAnalysis,
+          optionChain,
+          underlyingPrice
+        );
+        
+        return { candidates };
+      } catch (error: any) {
+        console.error('[getRollCandidates] Error:', error.message);
+        // Return close option only on error
+        return {
+          candidates: [
+            {
+              action: 'close' as const,
+              score: 50,
+              description: `Close for $${input.currentValue.toFixed(2)} debit (Error fetching roll options: ${error.message})`,
+            },
+          ],
+        };
+      }
     }),
 });
 

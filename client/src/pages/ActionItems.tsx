@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
+import { skipToken } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, TrendingUp, RefreshCw } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -10,9 +11,16 @@ import { Button } from "@/components/ui/button";
 import { ActivePositionsTab } from "./Performance";
 import { WorkingOrdersTab } from "./Performance";
 
+// Import RollCandidateModal
+import { RollCandidateModal } from "@/components/RollCandidateModal";
+
 export default function ActionItems() {
   const [activeTab, setActiveTab] = useState('daily-tasks');
   const [, setLocation] = useLocation();
+  
+  // Roll candidate modal state
+  const [rollModalOpen, setRollModalOpen] = useState(false);
+  const [selectedRollPosition, setSelectedRollPosition] = useState<any>(null);
   
   const { data: positionsData, isLoading: positionsLoading } = trpc.stockBasis.getStockPositions.useQuery(undefined, {
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -38,6 +46,35 @@ export default function ActionItems() {
   const rollsYellow = rollsData?.yellow || [];
   const rollsGreen = rollsData?.green || [];
   const rollsTotal = rollsData?.total || 0;
+  
+  // Fetch roll candidates when a position is selected
+  const { data: rollCandidatesData, isLoading: candidatesLoading } = trpc.rolls.getRollCandidates.useQuery(
+    selectedRollPosition && rollModalOpen
+      ? {
+          positionId: selectedRollPosition.positionId,
+          symbol: selectedRollPosition.symbol,
+          strategy: selectedRollPosition.strategy.toLowerCase() as 'csp' | 'cc',
+          strikePrice: selectedRollPosition.metrics.strikePrice,
+          expirationDate: selectedRollPosition.metrics.expiration || new Date().toISOString(),
+          currentValue: Math.abs(selectedRollPosition.metrics.currentPrice || 0),
+          openPremium: Math.abs(selectedRollPosition.metrics.strikePrice || 0),
+        }
+      : skipToken,
+    {
+      staleTime: 1 * 60 * 1000, // 1 minute
+    }
+  );
+  
+  const handleViewOptions = (roll: any) => {
+    setSelectedRollPosition(roll);
+    setRollModalOpen(true);
+  };
+  
+  const handleSelectCandidate = (candidate: any) => {
+    console.log('Selected candidate:', candidate);
+    // TODO: Implement order submission in Phase 1C
+    setRollModalOpen(false);
+  };
 
   return (
     <div className="container py-6 space-y-6">
@@ -210,7 +247,7 @@ export default function ActionItems() {
                               <div className="text-sm font-medium">{roll.metrics.profitCaptured.toFixed(0)}% profit</div>
                               <div className="text-xs text-muted-foreground">Score: {roll.score}</div>
                             </div>
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" onClick={() => handleViewOptions(roll)}>
                               View Options
                             </Button>
                           </div>
@@ -248,7 +285,7 @@ export default function ActionItems() {
                               <div className="text-sm font-medium">{roll.metrics.profitCaptured.toFixed(0)}% profit</div>
                               <div className="text-xs text-muted-foreground">Score: {roll.score}</div>
                             </div>
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" onClick={() => handleViewOptions(roll)}>
                               View Options
                             </Button>
                           </div>
@@ -307,6 +344,23 @@ export default function ActionItems() {
           <WorkingOrdersTab />
         </TabsContent>
       </Tabs>
+      
+      {/* Roll Candidate Modal */}
+      {selectedRollPosition && (
+        <RollCandidateModal
+          open={rollModalOpen}
+          onOpenChange={setRollModalOpen}
+          position={{
+            symbol: selectedRollPosition.symbol,
+            strategy: selectedRollPosition.strategy,
+            strikePrice: selectedRollPosition.metrics.strikePrice,
+            expiration: selectedRollPosition.metrics.expiration || new Date().toISOString(),
+            dte: selectedRollPosition.metrics.dte,
+          }}
+          candidates={rollCandidatesData?.candidates || []}
+          onSelectCandidate={handleSelectCandidate}
+        />
+      )}
     </div>
   );
 }
