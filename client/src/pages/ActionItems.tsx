@@ -116,6 +116,7 @@ export default function ActionItems() {
         expiration: formatExpiration(selectedRollPosition.metrics.expiration),
         optionType: optionType,
         price: Math.abs(selectedRollPosition.metrics.currentValue || 0),
+        optionSymbol: selectedRollPosition.optionSymbol, // Pass the actual Tastytrade option symbol
       },
       netCost: candidate.netCredit || 0,
       currentProfit: (selectedRollPosition.metrics.openPremium || 0) - (selectedRollPosition.metrics.currentValue || 0),

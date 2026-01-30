@@ -9,6 +9,7 @@ import type { Position } from '../shared/types';
 
 // Extended position type with computed fields for roll analysis
 export interface PositionWithMetrics extends Position {
+  option_symbol: string; // Full OCC option symbol from Tastytrade
   open_premium: number;
   current_value: number;
   expiration_date: string;
@@ -20,7 +21,8 @@ export type RollUrgency = 'red' | 'yellow' | 'green';
 
 export interface RollAnalysis {
   positionId: string;
-  symbol: string;
+  symbol: string; // Underlying ticker (e.g., "V")
+  optionSymbol: string; // Full OCC option symbol from Tastytrade (e.g., "V     20260130P00310000")
   strategy: 'CSP' | 'CC' | 'PMCC' | 'BPS' | 'BCS';
   urgency: RollUrgency;
   shouldRoll: boolean;
@@ -294,6 +296,7 @@ export function analyzeCSPPosition(
   return {
     positionId: position.id.toString(),
     symbol: position.symbol,
+    optionSymbol: position.option_symbol, // Store the full option symbol from Tastytrade
     strategy: 'CSP',
     urgency,
     shouldRoll,
@@ -345,6 +348,7 @@ export function analyzeCCPosition(
   return {
     positionId: position.id.toString(),
     symbol: position.symbol,
+    optionSymbol: position.option_symbol, // Store the full option symbol from Tastytrade
     strategy: 'CC',
     urgency,
     shouldRoll,

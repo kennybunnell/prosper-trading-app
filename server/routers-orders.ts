@@ -66,6 +66,7 @@ export const ordersRouter = router({
           expiration: z.string(),
           optionType: z.enum(['PUT', 'CALL']),
           price: z.number(),
+          optionSymbol: z.string().optional(), // Full OCC option symbol from Tastytrade
         }),
       })
     )

@@ -140,11 +140,12 @@ export const rollsRouter = router({
           closedAt: null,
           updatedAt: new Date(),
           // Extended fields for roll analysis
+          option_symbol: symbol, // Store the full OCC option symbol from Tastytrade
           open_premium: openPremium,
           current_value: currentValue,
           expiration_date: parsed.expiration,
           strike_price: parsed.strike,
-          delta,
+          delta: delta,
         };
         
         allPositions.push(positionWithMetrics);
@@ -246,6 +247,7 @@ export const rollsRouter = router({
           openedAt: new Date(),
           closedAt: null,
           updatedAt: new Date(),
+          option_symbol: `${input.symbol}     ${input.expirationDate.replace(/-/g, '')}${input.strategy === 'csp' ? 'P' : 'C'}${(input.strikePrice * 1000).toString().padStart(8, '0')}`, // Construct OCC symbol as placeholder
           open_premium: input.openPremium,
           current_value: input.currentValue,
           expiration_date: input.expirationDate,
@@ -256,6 +258,7 @@ export const rollsRouter = router({
         const mockAnalysis = {
           positionId: input.positionId,
           symbol: input.symbol,
+          optionSymbol: mockPosition.option_symbol,
           strategy: input.strategy.toUpperCase() as 'CSP' | 'CC',
           urgency: 'yellow' as const,
           shouldRoll: true,

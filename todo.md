@@ -2711,3 +2711,18 @@
 - [x] Implemented fix: Cap close prices at $0.50 for options < $1
 - [x] For options >= $1, continue using 10% premium strategy
 - [x] All tests passing (6/6)
+
+## Detailed Error Logging Investigation (January 30, 2026)
+- [x] Add comprehensive error logging to submitCloseOrder to capture full error.response.data
+- [x] Log the errors array specifically: error.response?.data?.error?.errors
+- [x] Trigger the error by attempting to close the V position
+- [x] Examine the detailed error messages from Tastytrade API
+- [x] Identified the specific preflight check failure: "invalid_symbol"
+- [x] Root cause: Reconstructing OCC symbol instead of using actual Tastytrade symbol
+- [x] Implemented fix: Added optionSymbol field throughout the flow
+- [x] Updated PositionWithMetrics interface to include option_symbol
+- [x] Updated routers-rolls to store full OCC symbol from Tastytrade position data
+- [x] Updated rollDetection to pass option_symbol in RollAnalysis
+- [x] Updated ActionItems frontend to pass optionSymbol in closeLeg
+- [x] Updated routers-orders schema to accept optionSymbol
+- [x] Updated tastytrade.ts submitCloseOrder to use actual symbol when provided

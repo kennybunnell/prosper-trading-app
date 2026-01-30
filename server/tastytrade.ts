@@ -741,20 +741,29 @@ export class TastytradeAPI {
       expiration: string;
       optionType: 'PUT' | 'CALL';
       price: number; // Current market price for the option
+      optionSymbol?: string; // Full OCC option symbol from Tastytrade (if available)
     };
   }): Promise<{ orderId: string }> {
     try {
       // Import price formatting utility
       const { formatPriceForSubmission } = await import('../shared/orderUtils');
       
-      // Format option symbol for Tastytrade (OCC format with 6-char ticker)
-      const expDate = new Date(params.closeLeg.expiration).toISOString().split('T')[0].replace(/-/g, '');
-      const optType = params.closeLeg.optionType === 'PUT' ? 'P' : 'C';
-      const strikeFormatted = (params.closeLeg.strike * 1000).toString().padStart(8, '0');
-      
-      // Pad ticker to 6 characters with spaces (OCC format requirement)
-      const ticker = params.symbol.padEnd(6, ' ');
-      const optionSymbol = `${ticker}${expDate}${optType}${strikeFormatted}`;
+      // Use the actual option symbol from Tastytrade if provided, otherwise construct it
+      let optionSymbol: string;
+      if (params.closeLeg.optionSymbol) {
+        optionSymbol = params.closeLeg.optionSymbol;
+        console.log('[Tastytrade] Using actual option symbol from Tastytrade:', optionSymbol);
+      } else {
+        // Fallback: Format option symbol for Tastytrade (OCC format with 6-char ticker)
+        const expDate = new Date(params.closeLeg.expiration).toISOString().split('T')[0].replace(/-/g, '');
+        const optType = params.closeLeg.optionType === 'PUT' ? 'P' : 'C';
+        const strikeFormatted = (params.closeLeg.strike * 1000).toString().padStart(8, '0');
+        
+        // Pad ticker to 6 characters with spaces (OCC format requirement)
+        const ticker = params.symbol.padEnd(6, ' ');
+        optionSymbol = `${ticker}${expDate}${optType}${strikeFormatted}`;
+        console.log('[Tastytrade] Constructed option symbol:', optionSymbol);
+      }
 
       // Calculate aggressive close price with realistic caps
       // For options worth < $1, cap at $0.50 to avoid unrealistic prices on near-worthless options
@@ -803,7 +812,17 @@ export class TastytradeAPI {
       return { orderId };
     } catch (error: any) {
       console.error('[Tastytrade] Failed to submit close order:', error.message);
-      console.error('[Tastytrade] Error details:', error.response?.data);
+      console.error('[Tastytrade] Error response status:', error.response?.status);
+      console.error('[Tastytrade] Error response data:', JSON.stringify(error.response?.data, null, 2));
+      
+      // Log the specific errors array if it exists
+      if (error.response?.data?.error?.errors) {
+        console.error('[Tastytrade] Detailed errors array:');
+        error.response.data.error.errors.forEach((err: any, index: number) => {
+          console.error(`  Error ${index + 1}:`, JSON.stringify(err, null, 2));
+        });
+      }
+      
       throw new Error(`Failed to submit close order: ${error.response?.data?.error?.message || error.message}`);
     }
   }
