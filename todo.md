@@ -2639,3 +2639,23 @@
 - [ ] Verify rolls update when switching accounts
 - [ ] Verify orders submit to correct account
 - [ ] Save checkpoint after testing
+
+
+## Paper Trading Mode for Students - Comprehensive Analysis
+- [ ] Analyze all API touchpoints in current codebase (Tastytrade, Tradier)
+- [ ] Identify all trading operations that need paper trading simulation
+- [ ] Design mode toggle UI in sidebar (Live Trading / Paper Trading)
+- [ ] Document API requirements for students (Tradier for option chains/Greeks)
+- [ ] Evaluate API key sharing strategy (instructor's Tradier key vs student keys)
+- [ ] Design paper trading database schema (simulated positions, orders, fills)
+- [ ] Plan paper trading order execution simulation
+- [ ] Create comprehensive report with implementation roadmap
+- [ ] Deliver report to user for review
+
+
+## Roll Order Submission Bugs (URGENT) ✅ FIXED
+- [x] Fix "Invalid input: expected number, received undefined" error at path openLeg.strike (added Number() coercion)
+- [x] Fix "Invalid Date" error in roll order preview modal for Leg 2 expiration (added formatExpiration helper)
+- [x] Verify roll candidate data structure matches order submission schema (removed extra symbol field from legs)
+- [ ] Test roll order submission with real positions (V CSP, TSLA CSP, AAPL CSP)
+- [ ] Save checkpoint after fixes

@@ -94,24 +94,30 @@ export default function ActionItems() {
     const closeAction = strategy === 'CSP' ? 'BTC' : 'BTC'; // Buy to close for both
     const openAction = strategy === 'CSP' ? 'STO' : 'STO'; // Sell to open for both
     
+    // Format expiration dates to YYYY-MM-DD format
+    const formatExpiration = (dateStr: string): string => {
+      if (!dateStr) return new Date().toISOString().split('T')[0];
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return new Date().toISOString().split('T')[0];
+      return date.toISOString().split('T')[0];
+    };
+    
     const orderDetailsPayload = {
       symbol: selectedRollPosition.symbol,
       strategy: strategy,
       closeLeg: {
         action: closeAction,
         quantity: 1,
-        symbol: selectedRollPosition.symbol,
-        strike: selectedRollPosition.metrics.strikePrice,
-        expiration: selectedRollPosition.metrics.expiration,
+        strike: Number(selectedRollPosition.metrics.strikePrice) || 0,
+        expiration: formatExpiration(selectedRollPosition.metrics.expiration),
         optionType: optionType,
         price: Math.abs(selectedRollPosition.metrics.currentValue || 0),
       },
       openLeg: {
         action: openAction,
         quantity: 1,
-        symbol: selectedRollPosition.symbol,
-        strike: candidate.strike,
-        expiration: candidate.expiration,
+        strike: Number(candidate.strike) || 0,
+        expiration: formatExpiration(candidate.expiration),
         optionType: optionType,
         price: candidate.newPremium || 0,
       },
