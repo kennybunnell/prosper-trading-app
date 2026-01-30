@@ -2361,3 +2361,11 @@
   - Medium: DTE 14-35, Delta 0.15-0.28, Score 50+ (targets 20-30% of opportunities)
   - Aggressive: DTE 7-21, Delta 0.18-0.32, Score 60+ (targets 10-15% top opportunities)
 - [ ] Test presets with 116 opportunities to verify result counts
+
+## Bug Fix: Indicator Calculations and IV Rank Color Coding
+- [x] Verify RSI calculation is correct (Wilder smoothing method, 14-period, 0-100 scale) ✅
+- [x] Verify Bollinger Band %B calculation is correct (20-period SMA, 2 std dev, 0-1 scale) ✅
+- [x] Fix IV Rank color coding from purple to red/yellow/green bands
+- [x] Create getIVRankColor() function with thresholds (red: 0-29, yellow: 30-59, green: 60-100)
+- [x] Update IV Rank badge to use getIVRankColor() instead of hardcoded purple
+- [ ] Test all indicator colors with real bull put spread data

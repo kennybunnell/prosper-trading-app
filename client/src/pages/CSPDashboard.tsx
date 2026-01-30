@@ -66,6 +66,17 @@ function getBBColor(bbPctB: number | null, strategy: 'csp' | 'cc'): string {
   }
 }
 
+function getIVRankColor(ivRank: number | null): string {
+  if (ivRank === null) return "bg-gray-500/20 text-gray-500 border-gray-500/50";
+  
+  // High IV Rank (60-100) = Green = Good for selling options
+  if (ivRank >= 60) return "bg-green-500/20 text-green-500 border-green-500/50";
+  // Medium IV Rank (30-59) = Yellow = Moderate
+  if (ivRank >= 30) return "bg-yellow-500/20 text-yellow-500 border-yellow-500/50";
+  // Low IV Rank (0-29) = Red = Avoid selling options
+  return "bg-red-500/20 text-red-500 border-red-500/50";
+}
+
 function getROCColor(roc: number): string {
   // Green for excellent (>1.5%), Yellow for good (1.0-1.5%), Red for marginal (<1.0%)
   if (roc > 1.5) return "bg-green-500/20 text-green-500 border-green-500/50";
@@ -1950,7 +1961,7 @@ export default function CSPDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge className="font-bold bg-purple-500/20 text-purple-400 border-purple-500/50">
+                          <Badge className={cn("font-bold", getIVRankColor(opp.ivRank))}>
                             {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
                           </Badge>
                         </TableCell>
