@@ -32,6 +32,9 @@ export interface RollAnalysis {
     delta: number;
     currentPrice: number;
     strikePrice: number;
+    currentValue: number; // Position's current value (for closing cost)
+    openPremium: number; // Premium received when opening position
+    expiration: string; // Expiration date string
   };
   score: number; // 0-100, higher = more urgent
 }
@@ -302,6 +305,9 @@ export function analyzeCSPPosition(
       delta,
       currentPrice,
       strikePrice: position.strike_price,
+      currentValue: position.current_value,
+      openPremium: position.open_premium,
+      expiration: position.expiration_date,
     },
     score,
   };
@@ -350,6 +356,9 @@ export function analyzeCCPosition(
       delta,
       currentPrice,
       strikePrice: position.strike_price,
+      currentValue: position.current_value,
+      openPremium: position.open_premium,
+      expiration: position.expiration_date,
     },
     score,
   };
@@ -414,14 +423,7 @@ export async function generateRollCandidates(
   underlyingPrice: number,
   tradierClient: any
 ): Promise<RollCandidate[]> {
-  console.log('[generateRollCandidates] Starting with:', {
-    symbol: position.symbol,
-    strategy: analysis.strategy,
-    currentStrike: analysis.metrics.strikePrice,
-    currentDTE: analysis.metrics.dte,
-    underlyingPrice,
-    optionChainHasItems: !!optionChain?.items,
-  });
+  // Generate roll candidates for position
   
   const candidates: RollCandidate[] = [];
   const isPut = analysis.strategy === 'CSP';
@@ -436,95 +438,89 @@ export async function generateRollCandidates(
     description: `Close for $${closeCost.toFixed(2)} debit (realize $${realizedProfit.toFixed(2)} profit)`,
   });
 
-  // Parse option chain to find suitable roll candidates
-  if (!optionChain?.expirations) {
-    console.warn('[generateRollCandidates] No option chain data available');
+  if (!expirations || expirations.length === 0) {
+    console.warn('[generateRollCandidates] No expirations available');
     return candidates;
   }
-  
-  console.log('[generateRollCandidates] Option chain has', optionChain.expirations.length, 'expirations');
+
 
   const currentStrike = analysis.metrics.strikePrice;
   const currentDTE = analysis.metrics.dte;
 
-  // Filter expirations to 7-14 DTE range (user preference)
-  const suitableExpirations = optionChain.expirations.filter((exp: any) => {
-    const expDate = new Date(exp['expiration-date']);
-    const dte = calculateDTE(exp['expiration-date']);
-    const suitable = dte >= 7 && dte <= 14 && dte > currentDTE; // Must be further out than current
-    console.log('[generateRollCandidates] Expiration', exp['expiration-date'], 'DTE:', dte, 'Suitable:', suitable);
+  // Filter expirations to 7-14 DTE range (or 0-21 for 0 DTE positions)
+  const minDTE = currentDTE === 0 ? 0 : 7;
+  const maxDTE = currentDTE === 0 ? 21 : 14;
+  
+  const suitableExpirations = expirations.filter((expDate: string) => {
+    const dte = calculateDTE(expDate);
+    const suitable = dte >= minDTE && dte <= maxDTE && dte > currentDTE;
     return suitable;
   });
-  
-  console.log('[generateRollCandidates] Found', suitableExpirations.length, 'suitable expirations in 7-14 DTE range');
 
-  // Generate roll scenarios for each suitable expiration
-  for (const expiration of suitableExpirations) {
-    const expirationDate = expiration['expiration-date'];
+
+  // Fetch option chains for each suitable expiration and generate candidates
+  for (const expirationDate of suitableExpirations) {
     const dte = calculateDTE(expirationDate);
-    const strikes = expiration.strikes || [];
-
-    // Scenario 1: Roll Out (Same Strike)
-    const sameStrikeOption = strikes.find((s: any) => 
-      Math.abs(parseFloat(s['strike-price']) - currentStrike) < 0.01
-    );
-    if (sameStrikeOption) {
-      const optionSymbol = isPut ? sameStrikeOption['put'] : sameStrikeOption['call'];
-      if (optionSymbol) {
-        const candidate = createRollCandidate(
+    
+    try {
+      // Fetch option chain from Tradier for this expiration
+      const options = await tradierClient.getOptionChain(position.symbol, expirationDate, true);
+      
+      // Filter to correct option type
+      const relevantOptions = options.filter((opt: any) => 
+        opt.option_type === (isPut ? 'put' : 'call')
+      );
+      
+      // Scenario 1: Roll Out (Same Strike)
+      const sameStrikeOption = relevantOptions.find((opt: any) => 
+        Math.abs(opt.strike - currentStrike) < 0.01
+      );
+      if (sameStrikeOption) {
+        const candidate = await createRollCandidateFromTradier(
           'roll-out',
-          currentStrike,
+          sameStrikeOption,
           expirationDate,
           dte,
-          optionSymbol,
           position,
           underlyingPrice,
           isPut
         );
         if (candidate) candidates.push(candidate);
       }
-    }
 
-    // Scenario 2: Roll Up and Out (for CSP) or Roll Down and Out (for CC)
-    if (isPut) {
-      // For CSP: Roll down to collect more premium (lower strike = more OTM)
-      const lowerStrikes = strikes
-        .filter((s: any) => parseFloat(s['strike-price']) < currentStrike)
-        .sort((a: any, b: any) => parseFloat(b['strike-price']) - parseFloat(a['strike-price'])) // Descending
-        .slice(0, 3); // Top 3 lower strikes
+      // Scenario 2: Roll Up/Down and Out
+      if (isPut) {
+        // For CSP: Roll down (lower strike = more OTM)
+        const lowerStrikes = relevantOptions
+          .filter((opt: any) => opt.strike < currentStrike)
+          .sort((a: any, b: any) => b.strike - a.strike) // Descending
+          .slice(0, 3);
 
-      for (const strike of lowerStrikes) {
-        const optionSymbol = strike['put'];
-        if (optionSymbol) {
-          const candidate = createRollCandidate(
+        for (const opt of lowerStrikes) {
+          const candidate = await createRollCandidateFromTradier(
             'roll-down-out',
-            parseFloat(strike['strike-price']),
+            opt,
             expirationDate,
             dte,
-            optionSymbol,
             position,
             underlyingPrice,
             isPut
           );
           if (candidate) candidates.push(candidate);
         }
-      }
-    } else if (isCall) {
-      // For CC: Roll up to avoid assignment (higher strike = more OTM)
-      const higherStrikes = strikes
-        .filter((s: any) => parseFloat(s['strike-price']) > currentStrike)
-        .sort((a: any, b: any) => parseFloat(a['strike-price']) - parseFloat(b['strike-price'])) // Ascending
-        .slice(0, 3); // Top 3 higher strikes
+      } else if (isCall) {
+        // For CC: Roll up (higher strike = more OTM)
+        const higherStrikes = relevantOptions
+          .filter((opt: any) => opt.strike > currentStrike)
+          .sort((a: any, b: any) => a.strike - b.strike) // Ascending
+          .slice(0, 3);
 
-      for (const strike of higherStrikes) {
-        const optionSymbol = strike['call'];
-        if (optionSymbol) {
-          const candidate = createRollCandidate(
+        for (const opt of higherStrikes) {
+          const candidate = await createRollCandidateFromTradier(
             'roll-up-out',
-            parseFloat(strike['strike-price']),
+            opt,
             expirationDate,
             dte,
-            optionSymbol,
             position,
             underlyingPrice,
             isPut
@@ -532,6 +528,8 @@ export async function generateRollCandidates(
           if (candidate) candidates.push(candidate);
         }
       }
+    } catch (error) {
+      console.error('[generateRollCandidates] Error fetching option chain for', expirationDate, error);
     }
   }
 
@@ -552,22 +550,28 @@ export async function generateRollCandidates(
 }
 
 /**
- * Create a roll candidate from option chain data
- * Note: This is a placeholder - actual implementation needs option quotes
+ * Create a roll candidate from Tradier option data with real pricing
  */
-function createRollCandidate(
+async function createRollCandidateFromTradier(
   rollType: string,
-  newStrike: number,
+  option: any, // Tradier option object with bid, ask, strike, greeks, etc.
   newExpiration: string,
   dte: number,
-  optionSymbol: string,
   position: PositionWithMetrics,
   underlyingPrice: number,
   isPut: boolean
-): RollCandidate | null {
-  // TODO: Fetch actual option quote for newPremium
-  // For now, use placeholder values
-  const newPremium = 1.50; // Placeholder - needs real quote
+): Promise<RollCandidate | null> {
+  // Use mid-price for new premium (average of bid/ask)
+  const bid = option.bid || 0;
+  const ask = option.ask || 0;
+  const newPremium = (bid + ask) / 2;
+  
+  if (newPremium <= 0) {
+    console.warn('[createRollCandidateFromTradier] Invalid premium:', newPremium);
+    return null;
+  }
+  
+  const newStrike = option.strike;
   const closeCost = Math.abs(position.current_value);
   const netCredit = newPremium - closeCost;
   const meets3XRule = newPremium >= (closeCost * 3);
@@ -577,8 +581,8 @@ function createRollCandidate(
   const capitalAtRisk = isPut ? newStrike * 100 : underlyingPrice * 100; // Per contract
   const annualizedReturn = (netCredit / capitalAtRisk) * (365 / dte) * 100;
 
-  // Approximate delta
-  const delta = approximateDelta(newStrike, underlyingPrice, isPut ? 'put' : 'call');
+  // Use real delta from Tradier greeks if available, otherwise approximate
+  const delta = option.greeks?.delta || approximateDelta(newStrike, underlyingPrice, isPut ? 'put' : 'call');
 
   let description = '';
   if (rollType === 'roll-out') {

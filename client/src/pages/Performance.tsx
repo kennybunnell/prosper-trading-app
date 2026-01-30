@@ -355,8 +355,10 @@ export function ActivePositionsTab() {
 
   // Count positions by profit threshold
   const profitCounts = useMemo(() => {
-    if (!data?.positions) return { p80: 0, p85: 0, p90: 0, p95: 0 };
+    if (!data?.positions) return { p70: 0, p75: 0, p80: 0, p85: 0, p90: 0, p95: 0 };
     return {
+      p70: data.positions.filter(p => p.realizedPercent >= 70 && !p.hasWorkingOrder).length,
+      p75: data.positions.filter(p => p.realizedPercent >= 75 && !p.hasWorkingOrder).length,
       p80: data.positions.filter(p => p.realizedPercent >= 80 && !p.hasWorkingOrder).length,
       p85: data.positions.filter(p => p.realizedPercent >= 85 && !p.hasWorkingOrder).length,
       p90: data.positions.filter(p => p.realizedPercent >= 90 && !p.hasWorkingOrder).length,
@@ -498,6 +500,22 @@ export function ActivePositionsTab() {
               className="bg-red-500/20 hover:bg-red-500/30 border-red-500/50"
             >
               80%+ ({profitCounts.p80})
+            </Button>
+            <Button
+              variant={profitFilter === 75 ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setProfitFilter(profitFilter === 75 ? null : 75)}
+              className="bg-purple-500/20 hover:bg-purple-500/30 border-purple-500/50"
+            >
+              75%+ ({profitCounts.p75})
+            </Button>
+            <Button
+              variant={profitFilter === 70 ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setProfitFilter(profitFilter === 70 ? null : 70)}
+              className="bg-pink-500/20 hover:bg-pink-500/30 border-pink-500/50"
+            >
+              70%+ ({profitCounts.p70})
             </Button>
             {profitFilter && (
               <Button

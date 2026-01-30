@@ -56,8 +56,8 @@ export default function ActionItems() {
           strategy: selectedRollPosition.strategy.toLowerCase() as 'csp' | 'cc',
           strikePrice: selectedRollPosition.metrics.strikePrice,
           expirationDate: selectedRollPosition.metrics.expiration || new Date().toISOString(),
-          currentValue: Math.abs(selectedRollPosition.metrics.currentPrice || 0),
-          openPremium: Math.abs(selectedRollPosition.metrics.strikePrice || 0),
+          currentValue: Math.abs(selectedRollPosition.metrics.currentValue || 0),
+          openPremium: Math.abs(selectedRollPosition.metrics.openPremium || 0),
         }
       : skipToken,
     {
