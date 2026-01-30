@@ -2337,3 +2337,17 @@
 - [x] Verify IV Rank calculation is included in spread opportunity scoring (implemented in fetchSymbolOpportunities)
 - [x] Ensure IV Rank is passed to frontend in spread opportunity data (included in CSPOpportunity)
 - [x] Test IV Rank calculation logic (6/6 tests passing)
+
+
+## Bug Fix: Strategy Reset/Clear Functionality
+- [x] Add "Clear Opportunities" or "Reset" button next to strategy type selector
+- [x] Clear all displayed opportunities when button is clicked (invalidates queries)
+- [x] Reset selection state and metrics
+- [x] Allow user to fetch fresh opportunities for new strategy without page refresh
+
+## Bug Fix: Preset Filters Filtering All Opportunities to Zero
+- [x] Investigate why Conservative/Medium/Aggressive presets filter 116 opportunities to 0 (RSI range too narrow)
+- [x] Verify frontend is loading BPS presets (not BCS) when in Bull Put Spread mode (correct)
+- [x] Check preset filter criteria values are appropriate for spreads (adjusted RSI, IV Rank, Score, BB %B)
+- [x] Ensure filter logic correctly applies to spread opportunity data structure (correct)
+- [ ] Test each preset (Conservative/Medium/Aggressive) with real spread data

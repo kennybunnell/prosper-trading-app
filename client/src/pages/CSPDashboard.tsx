@@ -29,6 +29,7 @@ import {
   Filter,
   ChevronDown,
   HelpCircle,
+  X,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 
@@ -866,38 +867,59 @@ export default function CSPDashboard() {
           </CardHeader>
           {!strategyPanelCollapsed && (
             <CardContent className="space-y-6">
-            {/* Strategy Toggle */}
-            <div className="flex gap-3">
-              <Button
-                variant={strategyType === 'csp' ? 'default' : 'outline'}
-                onClick={() => setStrategyType('csp')}
-                className={cn(
-                  "flex-1 relative overflow-hidden transition-all duration-300",
-                  strategyType === 'csp'
-                    ? "bg-gradient-to-r from-amber-600 to-yellow-700 hover:from-amber-700 hover:to-yellow-800 text-white shadow-lg"
-                    : "hover:bg-amber-500/10 hover:border-amber-500/50"
-                )}
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-current" />
-                  Cash-Secured Put
-                </span>
-              </Button>
-              <Button
-                variant={strategyType === 'spread' ? 'default' : 'outline'}
-                onClick={() => setStrategyType('spread')}
-                className={cn(
-                  "flex-1 relative overflow-hidden transition-all duration-300",
-                  strategyType === 'spread'
-                    ? "bg-gradient-to-r from-blue-600 to-cyan-700 hover:from-blue-700 hover:to-cyan-800 text-white shadow-lg"
-                    : "hover:bg-blue-500/10 hover:border-blue-500/50"
-                )}
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-current" />
-                  Bull Put Spread
-                </span>
-              </Button>
+            {/* Strategy Toggle with Clear Button */}
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <Button
+                  variant={strategyType === 'csp' ? 'default' : 'outline'}
+                  onClick={() => setStrategyType('csp')}
+                  className={cn(
+                    "flex-1 relative overflow-hidden transition-all duration-300",
+                    strategyType === 'csp'
+                      ? "bg-gradient-to-r from-amber-600 to-yellow-700 hover:from-amber-700 hover:to-yellow-800 text-white shadow-lg"
+                      : "hover:bg-amber-500/10 hover:border-amber-500/50"
+                  )}
+                >
+                  <span className="relative z-10 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-current" />
+                    Cash-Secured Put
+                  </span>
+                </Button>
+                <Button
+                  variant={strategyType === 'spread' ? 'default' : 'outline'}
+                  onClick={() => setStrategyType('spread')}
+                  className={cn(
+                    "flex-1 relative overflow-hidden transition-all duration-300",
+                    strategyType === 'spread'
+                      ? "bg-gradient-to-r from-blue-600 to-cyan-700 hover:from-blue-700 hover:to-cyan-800 text-white shadow-lg"
+                      : "hover:bg-blue-500/10 hover:border-blue-500/50"
+                  )}
+                >
+                  <span className="relative z-10 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-current" />
+                    Bull Put Spread
+                  </span>
+                </Button>
+              </div>
+              
+              {/* Clear Opportunities Button */}
+              {opportunities.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Invalidate both CSP and spread queries to clear opportunities
+                    utils.csp.opportunities.invalidate();
+                    utils.spread.opportunities.invalidate();
+                    setSelectedOpportunities(new Set());
+                    toast.success("Cleared all opportunities. Click Fetch to load new data.");
+                  }}
+                  className="w-full border-dashed hover:bg-destructive/10 hover:border-destructive/50 hover:text-destructive"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Clear Opportunities ({opportunities.length})
+                </Button>
+              )}
             </div>
 
             {/* Spread Width Selector (only show when spread selected) */}

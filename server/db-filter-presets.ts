@@ -120,13 +120,13 @@ export function getRecommendedFilterValues(
         maxDelta: "0.25",
         minOpenInterest: 50,
         minVolume: 50,
-        minRsi: 10,
-        maxRsi: 35,
-        minIvRank: 40,
+        minRsi: 20,  // Widened from 10 to be more realistic
+        maxRsi: 50,  // Widened from 35 to be more realistic
+        minIvRank: 30,  // Lowered from 40 to be less restrictive
         maxIvRank: 100,
         minBbPercent: "0",
-        maxBbPercent: "0.3",
-        minScore: 60,
+        maxBbPercent: "0.5",  // Widened from 0.3
+        minScore: 50,  // Lowered from 60 to be less restrictive
         maxStrikePercent: 100,
       },
       medium: {
@@ -137,12 +137,12 @@ export function getRecommendedFilterValues(
         minOpenInterest: 75,
         minVolume: 40,
         minRsi: 25,
-        maxRsi: 45,
-        minIvRank: 30,
+        maxRsi: 55,  // Widened from 45
+        minIvRank: 25,  // Lowered from 30
         maxIvRank: 100,
         minBbPercent: "0",
-        maxBbPercent: "0.5",
-        minScore: 50,
+        maxBbPercent: "0.6",  // Widened from 0.5
+        minScore: 45,  // Lowered from 50
         maxStrikePercent: 105,
       },
       aggressive: {
@@ -153,12 +153,12 @@ export function getRecommendedFilterValues(
         minOpenInterest: 50,
         minVolume: 30,
         minRsi: 30,
-        maxRsi: 50,
-        minIvRank: 20,
+        maxRsi: 60,  // Widened from 50
+        minIvRank: 15,  // Lowered from 20
         maxIvRank: 100,
         minBbPercent: "0",
-        maxBbPercent: "0.7",
-        minScore: 40,
+        maxBbPercent: "0.8",  // Widened from 0.7
+        minScore: 35,  // Lowered from 40
         maxStrikePercent: 110,
       },
     },
