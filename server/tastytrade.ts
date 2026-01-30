@@ -641,11 +641,18 @@ export class TastytradeAPI {
    * @returns Nested option chain data grouped by expiration
    */
   async getOptionChain(underlyingSymbol: string): Promise<any> {
+    console.log(`[Tastytrade] Fetching option chain for ${underlyingSymbol}`);
     try {
       const response = await this.client.get(`/option-chains/${underlyingSymbol}/nested`);
+      console.log(`[Tastytrade] Option chain response for ${underlyingSymbol}:`, {
+        hasData: !!response.data?.data,
+        itemsCount: response.data?.data?.items?.length || 0,
+        firstItem: response.data?.data?.items?.[0],
+      });
       return response.data.data;
     } catch (error: any) {
       console.error(`[Tastytrade] Failed to fetch option chain for ${underlyingSymbol}:`, error.message);
+      console.error(`[Tastytrade] Error details:`, error.response?.data);
       throw new Error(`Failed to fetch option chain: ${error.response?.data?.error?.message || error.message}`);
     }
   }

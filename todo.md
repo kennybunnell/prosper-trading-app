@@ -2509,3 +2509,37 @@
 - [ ] Add "Close without rolling" option that always shows
 - [ ] Add logging to generateRollCandidates() to debug filtering
 - [ ] Save checkpoint after fixes
+
+## URGENT: Debug & Fix Roll Candidate Generation (Expiration Day Tomorrow)
+- [x] Add console.log debugging to routers-rolls.ts getRollCandidates procedure
+- [x] Add console.log debugging to rollDetection.ts generateRollCandidates function
+- [x] Add console.log debugging to tastytrade.ts getOptionChain method
+- [x] Test option chain API with real symbol to see raw response
+- [x] Fix field name issue: API returns 'expirations' not 'items'
+- [ ] Implement always-visible "Close without rolling" option in RollCandidateModal
+- [ ] Expand 0 DTE handling: widen search to next available expirations (1-21 DTE)
+- [ ] Update RollCandidateModal to show "Close Now" for 0 DTE positions
+- [ ] End-to-end test with multiple position types (CSP, CC, 0 DTE, 7 DTE, 14 DTE)
+- [ ] Save checkpoint after all fixes verified working
+
+## Enhanced Close Option Display Requirements
+- [ ] Show current P/L with percentage captured (e.g., "$45 profit, 82% of max")
+- [ ] Show exact close cost/debit needed (e.g., "$8.50 to close")
+- [ ] Show net result after closing (e.g., "$36.50 net profit")
+- [ ] For each roll candidate, show profit comparison vs closing now
+- [ ] Add visual indicator showing which option retains most profit
+
+## CRITICAL FIX: Replace Tastytrade with Tradier API for Option Chains & Greeks
+- [x] Research Tradier API documentation for option chains endpoint
+- [x] Research Tradier API documentation for Greeks endpoint (included in option chains with greeks=true)
+- [x] Research Tradier API documentation for underlying quotes endpoint
+- [x] Create tradier.ts API client file with authentication (already exists!)
+- [x] Implement getOptionChain() method using Tradier API (already exists!)
+- [x] Implement getGreeks() method using Tradier API (included in getOptionChain with greeks=true)
+- [x] Implement getUnderlyingQuote() method using Tradier API (getQuote method exists)
+- [x] Write vitest test to validate TRADIER_API_KEY (test passed!)
+- [ ] Update routers-rolls.ts to use Tradier for option chains
+- [ ] Update rollDetection.ts to use real Greeks from Tradier
+- [ ] Keep tastytrade.ts only for order submission (future use)
+- [ ] Test end-to-end with Tradier data
+- [ ] Save checkpoint after Tradier integration working

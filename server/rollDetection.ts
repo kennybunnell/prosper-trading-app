@@ -397,20 +397,32 @@ export function analyzePositionsForRolls(
 
 /**
  * Generate roll candidates for a position
- * Fetches option chains and scores potential roll scenarios
+ * Fetches opt/**
+ * Generate roll candidates for a position
  * 
  * @param position - Position to generate roll candidates for
  * @param analysis - Roll analysis with current metrics
- * @param optionChain - Option chain data from Tastytrade API
+ * @param expirations - Array of available expiration dates from Tradier API
  * @param underlyingPrice - Current price of underlying stock
+ * @param tradierClient - Tradier API client instance for fetching option chains
  * @returns Array of roll candidates sorted by score (best first)
  */
-export function generateRollCandidates(
+export async function generateRollCandidates(
   position: PositionWithMetrics,
   analysis: RollAnalysis,
-  optionChain: any,
-  underlyingPrice: number
-): RollCandidate[] {
+  expirations: string[],
+  underlyingPrice: number,
+  tradierClient: any
+): Promise<RollCandidate[]> {
+  console.log('[generateRollCandidates] Starting with:', {
+    symbol: position.symbol,
+    strategy: analysis.strategy,
+    currentStrike: analysis.metrics.strikePrice,
+    currentDTE: analysis.metrics.dte,
+    underlyingPrice,
+    optionChainHasItems: !!optionChain?.items,
+  });
+  
   const candidates: RollCandidate[] = [];
   const isPut = analysis.strategy === 'CSP';
   const isCall = analysis.strategy === 'CC';
@@ -425,20 +437,26 @@ export function generateRollCandidates(
   });
 
   // Parse option chain to find suitable roll candidates
-  if (!optionChain?.items) {
-    console.warn('No option chain data available');
+  if (!optionChain?.expirations) {
+    console.warn('[generateRollCandidates] No option chain data available');
     return candidates;
   }
+  
+  console.log('[generateRollCandidates] Option chain has', optionChain.expirations.length, 'expirations');
 
   const currentStrike = analysis.metrics.strikePrice;
   const currentDTE = analysis.metrics.dte;
 
   // Filter expirations to 7-14 DTE range (user preference)
-  const suitableExpirations = optionChain.items.filter((exp: any) => {
+  const suitableExpirations = optionChain.expirations.filter((exp: any) => {
     const expDate = new Date(exp['expiration-date']);
     const dte = calculateDTE(exp['expiration-date']);
-    return dte >= 7 && dte <= 14 && dte > currentDTE; // Must be further out than current
+    const suitable = dte >= 7 && dte <= 14 && dte > currentDTE; // Must be further out than current
+    console.log('[generateRollCandidates] Expiration', exp['expiration-date'], 'DTE:', dte, 'Suitable:', suitable);
+    return suitable;
   });
+  
+  console.log('[generateRollCandidates] Found', suitableExpirations.length, 'suitable expirations in 7-14 DTE range');
 
   // Generate roll scenarios for each suitable expiration
   for (const expiration of suitableExpirations) {

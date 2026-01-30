@@ -172,12 +172,41 @@ export const rollsRouter = router({
       const api = getTastytradeAPI();
       await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
       
+      console.log('[getRollCandidates] Starting for:', {
+        symbol: input.symbol,
+        strategy: input.strategy,
+        strikePrice: input.strikePrice,
+        expirationDate: input.expirationDate,
+      });
+      
+      // Use Tradier API for option chains and Greeks
+      const { TradierAPI } = await import('./tradier');
+      const tradierApiKey = process.env.TRADIER_API_KEY;
+      
+      if (!tradierApiKey) {
+        throw new Error('TRADIER_API_KEY not configured');
+      }
+      
+      const tradier = new TradierAPI(tradierApiKey, false);
+      
       try {
-        // Fetch underlying price
-        const underlyingPrice = await api.getUnderlyingQuote(input.symbol);
+        // Fetch underlying price from Tradier
+        console.log('[getRollCandidates] Fetching underlying price for:', input.symbol);
+        const quote = await tradier.getQuote(input.symbol);
+        const underlyingPrice = quote.last;
+        console.log('[getRollCandidates] Underlying price:', underlyingPrice);
         
-        // Fetch option chain
-        const optionChain = await api.getOptionChain(input.symbol);
+        // Fetch option expirations from Tradier
+        console.log('[getRollCandidates] Fetching option expirations for:', input.symbol);
+        const expirations = await tradier.getExpirations(input.symbol);
+        console.log('[getRollCandidates] Expirations received:', expirations.length);
+        
+        // Create option chain structure for generateRollCandidates
+        const optionChain = {
+          symbol: input.symbol,
+          expirations: expirations.map(exp => ({ date: exp })),
+        };
+        console.log('[getRollCandidates] Option chain structure created with', expirations.length, 'expirations');
         
         // Calculate DTE for current position
         const currentDTE = Math.ceil(
@@ -233,12 +262,19 @@ export const rollsRouter = router({
         };
         
         // Generate roll candidates
+        console.log('[getRollCandidates] Calling generateRollCandidates with:', {
+          symbol: mockPosition.symbol,
+          currentDTE,
+          underlyingPrice,
+          optionChainHasData: !!optionChain,
+        });
         const candidates = generateRollCandidates(
           mockPosition,
           mockAnalysis,
           optionChain,
           underlyingPrice
         );
+        console.log('[getRollCandidates] Generated candidates:', candidates.length);
         
         return { candidates };
       } catch (error: any) {
