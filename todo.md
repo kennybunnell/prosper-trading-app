@@ -2784,3 +2784,13 @@
 - [x] Moved green section to top (70%+ profit)
 - [x] Kept yellow section in middle (30-69% profit)
 - [x] Moved red section to bottom (<30% profit/ITM)
+
+## Action Items Tab Reorganization (January 31, 2026)
+- [x] Restructure Action Items page to use separate tabs instead of single page
+- [x] Create Daily Tasks tab (positions needing rolls/closes)
+- [x] Create Market News tab (move Market News Scanner here)
+- [x] Keep Active Positions tab (already exists)
+- [x] Keep Working Orders tab (already exists)
+- [x] Update tab navigation to show all 4 tabs (grid-cols-4)
+- [x] Moved MarketNewsScanner from Daily Tasks to its own tab
+- [x] Tab order: Daily Tasks → Market News → Active Positions → Working Orders

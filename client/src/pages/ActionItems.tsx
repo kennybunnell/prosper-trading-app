@@ -229,8 +229,9 @@ export default function ActionItems() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="daily-tasks">Daily Tasks</TabsTrigger>
+          <TabsTrigger value="market-news">Market News</TabsTrigger>
           <TabsTrigger value="active-positions">Active Positions</TabsTrigger>
           <TabsTrigger value="working-orders">Working Orders</TabsTrigger>
         </TabsList>
@@ -355,9 +356,6 @@ export default function ActionItems() {
               )}
             </CardContent>
           </Card>
-
-          {/* Market News Scanner */}
-          <MarketNewsScanner />
 
           {/* Rolls Needed */}
           <Card>
@@ -501,6 +499,11 @@ export default function ActionItems() {
           </Card>
           </>
           )}
+        </TabsContent>
+
+        {/* Market News Tab */}
+        <TabsContent value="market-news" className="space-y-6">
+          <MarketNewsScanner />
         </TabsContent>
 
         {/* Active Positions Tab */}
