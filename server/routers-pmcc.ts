@@ -79,6 +79,7 @@ export const pmccRouter = router({
       }
 
       const api = createTradierAPI(credentials.tradierApiKey);
+      
       // Use provided symbols if available, otherwise use full watchlist
       const symbols = input.symbols && input.symbols.length > 0 
         ? input.symbols 

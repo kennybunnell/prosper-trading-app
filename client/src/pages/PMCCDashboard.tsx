@@ -155,7 +155,10 @@ export default function PMCCDashboard() {
   
   // Fetch selected watchlist symbols for filtering
   const { data: selectedSymbolsData = [] } = trpc.watchlist.getSelections.useQuery();
-  const selectedSymbols = selectedSymbolsData.map(s => s.symbol);
+  // Filter to only get symbols where isSelected === 1, then map to symbol strings
+  const selectedSymbols = selectedSymbolsData
+    .filter((s: any) => s.isSelected === 1)
+    .map((s: any) => s.symbol);
   
   // Countdown timer effect
   useEffect(() => {
