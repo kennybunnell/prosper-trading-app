@@ -3079,3 +3079,8 @@
 ## Widen OrderPreviewDialog Modal
 - [x] Increase OrderPreviewDialog width by 30-40% to eliminate horizontal scrolling
 - [ ] Test that all columns fit without scrolling
+
+## CSP Dashboard UX Improvements
+- [x] Enable opportunity checkboxes by default (remove requirement to click Select All first)
+- [x] Move toast notifications to left side to avoid blocking Test button
+- [x] Increase OrderPreviewDialog modal width to 90% viewport to eliminate all horizontal scrolling

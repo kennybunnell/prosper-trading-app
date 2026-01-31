@@ -52,7 +52,7 @@ function App() {
       >
         <AccountProvider>
           <TooltipProvider>
-            <Toaster />
+            <Toaster position="bottom-left" />
             <Router />
           </TooltipProvider>
         </AccountProvider>
