@@ -236,7 +236,11 @@ export default function CCDashboard() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   // Strategy type and spread width
-  const [strategyType, setStrategyType] = useState<StrategyType>('cc');
+  // Load strategy type from localStorage on page load
+  const [strategyType, setStrategyType] = useState<StrategyType>(() => {
+    const saved = localStorage.getItem('cc-strategy-type');
+    return (saved === 'spread' ? 'spread' : 'cc') as StrategyType;
+  });
   const [spreadWidth, setSpreadWidth] = useState<SpreadWidth>(5);
   const [strategyPanelCollapsed, setStrategyPanelCollapsed] = useState(false);
   const [showSpreadHelp, setShowSpreadHelp] = useState(false);
@@ -311,6 +315,17 @@ export default function CCDashboard() {
       setIsLoadingPositions(false);
     }
   };
+
+  // Show toast notification on page load if strategy was just changed
+  useEffect(() => {
+    const justSwitched = sessionStorage.getItem('strategy-just-switched');
+    if (justSwitched === 'true') {
+      sessionStorage.removeItem('strategy-just-switched');
+      toast.info('Strategy changed', {
+        description: `Switched to ${strategyType === 'cc' ? 'Covered Call' : 'Bear Call Spread'}. Ready for fresh analysis.`
+      });
+    }
+  }, []); // Run once on mount
 
   // Auto-fetch positions when in paper mode
   useEffect(() => {
@@ -836,7 +851,18 @@ export default function CCDashboard() {
             Generate income with Covered Calls or Bear Call Spreads
           </p>
         </div>
-        <ConnectionStatusIndicator />
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh Page
+          </Button>
+          <ConnectionStatusIndicator />
+        </div>
       </div>
 
       {/* Strategy Type Selection - Always visible at top */}
@@ -882,7 +908,16 @@ export default function CCDashboard() {
           <div className="flex gap-3">
             <Button
               variant={strategyType === 'cc' ? 'default' : 'outline'}
-              onClick={() => setStrategyType('cc')}
+              onClick={() => {
+                if (strategyType !== 'cc') {
+                  // Save strategy selection to localStorage
+                  localStorage.setItem('cc-strategy-type', 'cc');
+                  // Set flag to show toast after reload
+                  sessionStorage.setItem('strategy-just-switched', 'true');
+                  // Reload page to reset everything
+                  window.location.reload();
+                }
+              }}
               className={cn(
                 "flex-1 relative overflow-hidden transition-all duration-300",
                 strategyType === 'cc'
@@ -897,7 +932,16 @@ export default function CCDashboard() {
             </Button>
             <Button
               variant={strategyType === 'spread' ? 'default' : 'outline'}
-              onClick={() => setStrategyType('spread')}
+              onClick={() => {
+                if (strategyType !== 'spread') {
+                  // Save strategy selection to localStorage
+                  localStorage.setItem('cc-strategy-type', 'spread');
+                  // Set flag to show toast after reload
+                  sessionStorage.setItem('strategy-just-switched', 'true');
+                  // Reload page to reset everything
+                  window.location.reload();
+                }
+              }}
               className={cn(
                 "flex-1 relative overflow-hidden transition-all duration-300",
                 strategyType === 'spread'

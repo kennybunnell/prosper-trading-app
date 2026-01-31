@@ -3052,3 +3052,12 @@
 - [x] Test switching from CSP to BPS triggers automatic page refresh
 - [x] Test switching from BPS to CSP triggers automatic page refresh
 - [x] Verify toast notifications work after page reload
+
+## CC Dashboard Refresh Button and Auto-Refresh
+- [x] Add "Refresh Page" button to CC Dashboard header next to APIs Connected
+- [x] Modify Covered Call button to save strategy to localStorage and trigger window.location.reload()
+- [x] Modify Bear Call Spread button to save strategy to localStorage and trigger window.location.reload()
+- [x] Initialize strategyType from localStorage on CC Dashboard page load
+- [x] Add toast notification on page load if strategy was just switched
+- [x] Test switching from CC to BCS triggers automatic page refresh
+- [x] Test switching from BCS to CC triggers automatic page refresh
