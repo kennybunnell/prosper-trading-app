@@ -127,7 +127,6 @@ function ActivePositionsSection() {
 export default function PMCCDashboard() {
   const { mode: tradingMode } = useTradingMode();
   const [selectedPreset, setSelectedPreset] = useState<'conservative' | 'medium' | 'aggressive' | null>(null);
-  const [showBestPerTicker, setShowBestPerTicker] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState(false);
   const [scanStartTime, setScanStartTime] = useState<number | null>(null);
@@ -153,6 +152,10 @@ export default function PMCCDashboard() {
   
   // Fetch watchlist to count symbols for progress calculation
   const { data: watchlist = [] } = trpc.watchlist.get.useQuery();
+  
+  // Fetch selected watchlist symbols for filtering
+  const { data: selectedSymbolsData = [] } = trpc.watchlist.getSelections.useQuery();
+  const selectedSymbols = selectedSymbolsData.map(s => s.symbol);
   
   // Countdown timer effect
   useEffect(() => {
@@ -209,11 +212,20 @@ export default function PMCCDashboard() {
   });
 
   const handleScanLeaps = () => {
+    // Check if any symbols are selected
+    if (selectedSymbols.length === 0) {
+      toast.error('Please select at least one symbol from the watchlist');
+      return;
+    }
+    
     setIsScanning(true);
     setScanStartTime(Date.now());
     setScanProgress(0);
-    // Use medium as default if no preset selected
-    scanLeapsMutation.mutate({ presetName: selectedPreset || 'medium' });
+    // Use medium as default if no preset selected, pass selected symbols
+    scanLeapsMutation.mutate({ 
+      presetName: selectedPreset || 'medium',
+      symbols: selectedSymbols
+    });
   };
 
   // Helper to create unique key for each LEAP
@@ -313,19 +325,7 @@ export default function PMCCDashboard() {
       });
     }
     
-    // Apply Best Per Ticker filterr - show only top-scoring LEAP per symbol
-    if (showBestPerTicker) {
-      const bestPerTicker = new Map<string, typeof filtered[0]>();
-      
-      filtered.forEach(leap => {
-        const existing = bestPerTicker.get(leap.symbol);
-        if (!existing || leap.score > existing.score) {
-          bestPerTicker.set(leap.symbol, leap);
-        }
-      });
-      
-      filtered = Array.from(bestPerTicker.values());
-    }
+
     
     // Apply "Show Selected Only" filter
     if (showSelectedOnly) {
@@ -348,7 +348,7 @@ export default function PMCCDashboard() {
     });
     
     return filtered;
-  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection, selectedPreset, presets, showBestPerTicker, strikeMin, strikeMax, dteMin, dteMax, deltaMin, deltaMax]);
+  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection, selectedPreset, presets, strikeMin, strikeMax, dteMin, dteMax, deltaMin, deltaMax]);
 
   // Calculate order summary
   const orderSummary = useMemo(() => {
@@ -574,7 +574,6 @@ export default function PMCCDashboard() {
                       className="rounded-full px-5 py-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/50 transition-all duration-200 hover:scale-105 font-semibold"
                       onClick={() => {
                         setSelectedPreset(null);
-                        setShowBestPerTicker(false);
                         setSelectedLeaps(new Set());
                         // Reset range filters
                         setStrikeMin('');
@@ -587,19 +586,7 @@ export default function PMCCDashboard() {
                     >
                       Clear All Filters
                     </Button>
-                    <div className="h-6 w-px bg-border mx-2" />
-                    <Button
-                      variant="ghost"
-                      className={cn(
-                        "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
-                        showBestPerTicker
-                          ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/50 hover:shadow-xl hover:shadow-purple-500/60"
-                          : "bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 hover:border-purple-500/50"
-                      )}
-                      onClick={() => setShowBestPerTicker(!showBestPerTicker)}
-                    >
-                      {showBestPerTicker ? '✓ ' : ''}Best Per Ticker
-                    </Button>
+
                   </div>
                   </div>
                 </div>

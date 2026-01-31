@@ -40,6 +40,7 @@ export const pmccRouter = router({
     .input(
       z.object({
         presetName: z.enum(["conservative", "medium", "aggressive"]),
+        symbols: z.array(z.string()).optional(), // Optional array of symbols to scan
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -78,7 +79,10 @@ export const pmccRouter = router({
       }
 
       const api = createTradierAPI(credentials.tradierApiKey);
-      const symbols = watchlist.map((w) => w.symbol);
+      // Use provided symbols if available, otherwise use full watchlist
+      const symbols = input.symbols && input.symbols.length > 0 
+        ? input.symbols 
+        : watchlist.map((w) => w.symbol);
 
       console.log(`[PMCC] Scanning ${symbols.length} symbols for LEAP opportunities with ${input.presetName} preset`);
 
