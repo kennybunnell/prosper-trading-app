@@ -22,7 +22,9 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, TrendingUp, TrendingDown } from "lucide-react";
+import { useTradingMode } from "@/contexts/TradingModeContext";
+import { Switch } from "@/components/ui/switch";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -256,6 +258,11 @@ function DashboardLayoutContent({
             </SidebarMenu>
           </SidebarContent>
 
+          {/* Trading Mode Toggle */}
+          <div className="px-3 py-4 border-t border-border/40">
+            <TradingModeToggle />
+          </div>
+
           <SidebarFooter className="p-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -326,5 +333,60 @@ function DashboardLayoutContent({
         <main className="flex-1 p-4 relative z-10">{children}</main>
       </SidebarInset>
     </>
+  );
+}
+
+/**
+ * Trading Mode Toggle Component
+ * Allows users to switch between Live (Tastytrade) and Paper (Tradier) trading modes
+ */
+function TradingModeToggle() {
+  const { mode, setMode, isLoading } = useTradingMode();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+
+  const handleToggle = () => {
+    const newMode = mode === 'live' ? 'paper' : 'live';
+    setMode(newMode);
+  };
+
+  if (isLoading) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2">
+      {!isCollapsed && (
+        <div className="text-xs font-medium text-muted-foreground px-1">
+          Trading Mode
+        </div>
+      )}
+      <div className={`flex items-center gap-3 rounded-lg p-2 bg-accent/30 border border-border/40 ${
+        isCollapsed ? 'justify-center' : ''
+      }`}>
+        {!isCollapsed && (
+          <div className="flex items-center gap-2 flex-1">
+            {mode === 'live' ? (
+              <TrendingUp className="h-4 w-4 text-green-500" />
+            ) : (
+              <TrendingDown className="h-4 w-4 text-blue-500" />
+            )}
+            <span className="text-sm font-medium">
+              {mode === 'live' ? 'Live Trading' : 'Paper Trading'}
+            </span>
+          </div>
+        )}
+        <Switch
+          checked={mode === 'live'}
+          onCheckedChange={handleToggle}
+          className="data-[state=checked]:bg-green-500"
+        />
+      </div>
+      {!isCollapsed && (
+        <div className="text-xs text-muted-foreground px-1">
+          {mode === 'live' ? 'Using Tastytrade API' : 'Using Tradier API (read-only)'}
+        </div>
+      )}
+    </div>
   );
 }

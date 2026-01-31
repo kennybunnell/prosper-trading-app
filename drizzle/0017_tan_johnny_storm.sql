@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `tradingMode` enum('live','paper') DEFAULT 'paper' NOT NULL;

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import { useAccount } from '@/contexts/AccountContext';
+import { useTradingMode } from '@/contexts/TradingModeContext';
+import { Switch } from '@/components/ui/switch';
 import {
   BarChart3,
   TrendingDown,
@@ -229,6 +231,16 @@ export function Sidebar({ className }: SidebarProps) {
 
       <Separator className="bg-border/50" />
 
+      {/* Trading Mode Toggle */}
+      {!collapsed && (
+        <div className="p-4 space-y-2">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Trading Mode</div>
+          <TradingModeToggle />
+        </div>
+      )}
+
+      <Separator className="bg-border/50" />
+
       {/* Management Section */}
       {!collapsed && (
         <div className="px-4 py-2">
@@ -248,6 +260,52 @@ export function Sidebar({ className }: SidebarProps) {
           <Settings className="w-5 h-5" />
           {!collapsed && <span className="text-sm font-medium">Settings</span>}
         </Link>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Trading Mode Toggle Component
+ * Allows users to switch between Live (Tastytrade) and Paper (Tradier) trading modes
+ */
+function TradingModeToggle() {
+  const { mode, setMode, isLoading } = useTradingMode();
+
+  const handleToggle = () => {
+    const newMode = mode === 'live' ? 'paper' : 'live';
+    setMode(newMode);
+  };
+
+  if (isLoading) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className={`flex items-center gap-3 rounded-lg p-3 border transition-all duration-300 ${
+        mode === 'live'
+          ? 'bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30'
+          : 'bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/30'
+      }`}>
+        <div className="flex items-center gap-2 flex-1">
+          {mode === 'live' ? (
+            <TrendingUp className="h-4 w-4 text-green-500" />
+          ) : (
+            <TrendingDown className="h-4 w-4 text-blue-500" />
+          )}
+          <span className="text-sm font-medium">
+            {mode === 'live' ? 'Live Trading' : 'Paper Trading'}
+          </span>
+        </div>
+        <Switch
+          checked={mode === 'live'}
+          onCheckedChange={handleToggle}
+          className="data-[state=checked]:bg-green-500"
+        />
+      </div>
+      <div className="text-xs text-muted-foreground px-1">
+        {mode === 'live' ? 'Using Tastytrade API' : 'Using Tradier API (read-only)'}
       </div>
     </div>
   );

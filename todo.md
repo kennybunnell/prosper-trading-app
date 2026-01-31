@@ -2794,3 +2794,67 @@
 - [x] Update tab navigation to show all 4 tabs (grid-cols-4)
 - [x] Moved MarketNewsScanner from Daily Tasks to its own tab
 - [x] Tab order: Daily Tasks → Market News → Active Positions → Working Orders
+
+## Paper Trading Mode Implementation (January 31, 2026)
+
+### Phase 1: Documentation & Planning
+- [x] Review previous paper trading discussion from thread
+- [x] Document tier structure for future implementation (saved to TIER_STRUCTURE.md)
+- [x] Plan implementation sequence: Paper Trading first, then Tiers
+
+### Phase 2: Broker Abstraction Layer
+- [x] Create server/brokers/ directory structure
+- [x] Define IBrokerAdapter interface with methods:
+  - getPositions(accountId)
+  - getOptionsChain(symbol, expiration)
+  - getMarketData(symbol)
+  - submitOrder(orderDetails) - only for live mode
+- [x] Create TastytradeAdapter implementing IBrokerAdapter (stub)
+- [x] Create TradierAdapter implementing IBrokerAdapter (stub)
+- [x] Create broker factory function to select adapter based on mode
+- [ ] Refactor existing tastytrade.ts code into adapter pattern (will do after Tradier integration)
+
+### Phase 3: Tradier API Integration
+- [x] Add TRADIER_API_KEY to environment secrets via webdev_request_secrets
+- [x] Validate Tradier API key with test (SPY quote: $691.97)
+- [x] Create server/brokers/tradier-adapter.ts with TradierAdapter
+- [x] Implement Tradier adapter methods using existing TradierAPI class:
+  - getPositions() - returns empty array for paper trading
+  - getOptionsChain() - fetches real options data with Greeks
+  - getMarketData() - fetches real-time quotes
+  - submitOrder() - throws error (paper trading mode)
+- [x] Add error handling in adapter
+- [x] Test Tradier API connectivity and data fetching
+
+### Phase 4: Trading Mode Context
+- [x] Add trading_mode field to user table ('live' | 'paper')
+- [x] Create TradingModeContext in client/src/contexts/TradingModeContext.tsx
+- [x] Add useTradingMode() hook for components
+- [x] Create tRPC procedure to get/set trading mode (user.setTradingMode)
+- [x] Store mode preference in database per user
+
+### Phase 5: Sidebar Toggle
+- [x] Add trading mode toggle to DashboardLayout sidebar
+- [x] Design toggle UI (switch component with Live/Paper labels + icons)
+- [x] Add visual indicator showing current mode (TrendingUp/TrendingDown icons, green/blue colors)
+- [x] Wire up toggle to update user preference via tRPC
+- [ ] Add confirmation dialog when switching modes (optional - can skip for now)
+
+### Phase 6: Mode Switching Integration
+- [ ] Update routers to accept trading mode parameter
+- [ ] Modify broker calls to use factory based on mode
+- [ ] Ensure all position/market data queries respect mode
+- [ ] Add "PAPER TRADING" banner to header when in paper mode
+- [ ] Disable order submission UI in paper mode
+- [ ] Add backend guards to prevent order submission in paper mode
+
+### Phase 7: Testing & Validation
+- [ ] Test Tradier API data fetching (positions, options chains, quotes)
+- [ ] Test mode switching between live and paper
+- [ ] Verify positions display correctly in both modes
+- [ ] Verify roll detection works with Tradier data
+- [ ] Verify order submission is completely disabled in paper mode
+- [ ] Test with multiple users switching modes independently
+- [ ] Document paper trading setup and usage
+
+**NOTE:** Tier-based feature gating will be implemented AFTER paper trading is complete and tested. See TIER_STRUCTURE.md for details.
