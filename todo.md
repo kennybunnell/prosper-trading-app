@@ -3021,3 +3021,10 @@
 - [x] Add logic to reset page to initial state (show "Fetch Opportunities" button)
 - [x] Clear all selections and filters when Clear is clicked
 - [x] Test Clear button properly resets page for new scan
+
+## Bug Fix: Clear Button Regression - Not Clearing Opportunities or Resetting Page
+- [x] Revert from invalidate() back to setData([]) approach
+- [x] Add proper state resets to show Fetch Opportunities button after clear
+- [x] Ensure opportunities table is cleared from UI
+- [x] Ensure Clear button count resets to 0
+- [x] Test Clear button clears opportunities and resets page to initial state

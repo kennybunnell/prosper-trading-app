@@ -970,9 +970,11 @@ export default function CSPDashboard() {
                     variant="destructive"
                     size="sm"
                     onClick={() => {
-                      // Invalidate both CSP and spread queries to reset page state
-                      utils.csp.opportunities.invalidate();
-                      utils.spread.opportunities.invalidate();
+                      // Clear cached query data for both CSP and spread
+                      utils.csp.opportunities.setData({ symbols: [] }, []);
+                      utils.spread.opportunities.setData({ symbols: [], spreadWidth: 5 }, []);
+                      // Clear selections
+                      setSelectedOpportunities(new Set());
                       toast.success("Cleared all opportunities. Click Fetch to load new data.");
                     }}
                     className="flex-1"
