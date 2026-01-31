@@ -3084,3 +3084,7 @@
 - [x] Enable opportunity checkboxes by default (remove requirement to click Select All first)
 - [x] Move toast notifications to left side to avoid blocking Test button
 - [x] Increase OrderPreviewDialog modal width to 90% viewport to eliminate all horizontal scrolling
+
+## Modal and Checkbox Visibility Fixes
+- [x] Fix OrderPreviewDialog modal width with different approach (remove max-width constraints)
+- [x] Make checkboxes visible with border, background, and glow effect
