@@ -1301,7 +1301,15 @@ export default function CCDashboard() {
             )}
 
             {/* Scanning Progress Dialog */}
-            <Dialog open={isScanning} onOpenChange={() => {}}>
+            <Dialog open={isScanning} onOpenChange={(open) => {
+              if (!open) {
+                // Cancel button clicked - abort scan
+                setIsScanning(false);
+                setScanStartTime(null);
+                setScanProgress(0);
+                toast.info('Scan cancelled');
+              }
+            }}>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Scanning Options Chains</DialogTitle>
@@ -1378,7 +1386,15 @@ export default function CCDashboard() {
           </Card>
           
           {/* Scanning Progress Dialog */}
-          <Dialog open={isScanning} onOpenChange={() => {}}>
+          <Dialog open={isScanning} onOpenChange={(open) => {
+            if (!open) {
+              // Cancel button clicked - abort scan
+              setIsScanning(false);
+              setScanStartTime(null);
+              setScanProgress(0);
+              toast.info('Scan cancelled');
+            }
+          }}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Scanning Options Chains</DialogTitle>

@@ -438,80 +438,6 @@ export default function PMCCDashboard() {
               {/* Preset Selection - shown after scan */}
               {scanLeapsMutation.data && scanLeapsMutation.data.opportunities.length > 0 && (
                 <div className="space-y-4">
-                  {/* Range Filters */}
-                  <div>
-                    <label className="text-sm font-medium mb-3 block">Range Filters</label>
-                    <div className="grid grid-cols-3 gap-4">
-                      {/* Strike Range */}
-                      <div className="space-y-2">
-                        <label className="text-xs text-muted-foreground">Strike Price</label>
-                        <div className="flex gap-2 items-center">
-                          <input
-                            type="number"
-                            placeholder="Min"
-                            value={strikeMin}
-                            onChange={(e) => setStrikeMin(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                          <span className="text-muted-foreground">-</span>
-                          <input
-                            type="number"
-                            placeholder="Max"
-                            value={strikeMax}
-                            onChange={(e) => setStrikeMax(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                        </div>
-                      </div>
-                      
-                      {/* DTE Range */}
-                      <div className="space-y-2">
-                        <label className="text-xs text-muted-foreground">Days to Expiration</label>
-                        <div className="flex gap-2 items-center">
-                          <input
-                            type="number"
-                            placeholder="Min"
-                            value={dteMin}
-                            onChange={(e) => setDteMin(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                          <span className="text-muted-foreground">-</span>
-                          <input
-                            type="number"
-                            placeholder="Max"
-                            value={dteMax}
-                            onChange={(e) => setDteMax(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                        </div>
-                      </div>
-                      
-                      {/* Delta Range */}
-                      <div className="space-y-2">
-                        <label className="text-xs text-muted-foreground">Delta</label>
-                        <div className="flex gap-2 items-center">
-                          <input
-                            type="number"
-                            step="0.01"
-                            placeholder="Min"
-                            value={deltaMin}
-                            onChange={(e) => setDeltaMin(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                          <span className="text-muted-foreground">-</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            placeholder="Max"
-                            value={deltaMax}
-                            onChange={(e) => setDeltaMax(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
                   <div>
                     <label className="text-sm font-medium mb-2 block">Filter Presets</label>
                     <div className="flex flex-wrap gap-3">
@@ -588,6 +514,80 @@ export default function PMCCDashboard() {
                     </Button>
 
                   </div>
+                  </div>
+                  
+                  {/* Range Filters - positioned below preset buttons */}
+                  <div>
+                    <label className="text-sm font-medium mb-3 block">Range Filters</label>
+                    <div className="grid grid-cols-3 gap-4">
+                      {/* Strike Range */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground">Strike Price</label>
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="number"
+                            placeholder="Min"
+                            value={strikeMin}
+                            onChange={(e) => setStrikeMin(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                          <span className="text-muted-foreground">-</span>
+                          <input
+                            type="number"
+                            placeholder="Max"
+                            value={strikeMax}
+                            onChange={(e) => setStrikeMax(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* DTE Range */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground">Days to Expiration</label>
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="number"
+                            placeholder="Min"
+                            value={dteMin}
+                            onChange={(e) => setDteMin(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                          <span className="text-muted-foreground">-</span>
+                          <input
+                            type="number"
+                            placeholder="Max"
+                            value={dteMax}
+                            onChange={(e) => setDteMax(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Delta Range */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground">Delta</label>
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Min"
+                            value={deltaMin}
+                            onChange={(e) => setDeltaMin(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                          <span className="text-muted-foreground">-</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Max"
+                            value={deltaMax}
+                            onChange={(e) => setDeltaMax(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -820,7 +820,15 @@ export default function PMCCDashboard() {
         </Card>
         
         {/* Scanning Progress Dialog */}
-        <Dialog open={isScanning} onOpenChange={() => {}}>
+        <Dialog open={isScanning} onOpenChange={(open) => {
+          if (!open) {
+            // Cancel button clicked - abort scan
+            setIsScanning(false);
+            setScanStartTime(null);
+            setScanProgress(0);
+            toast.info('Scan cancelled');
+          }
+        }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Scanning for LEAPs</DialogTitle>

@@ -2124,8 +2124,13 @@ export default function CSPDashboard() {
 
       {/* Fetch Progress Dialog */}
       <Dialog open={fetchProgress.isOpen} onOpenChange={(open) => {
-        if (!loadingOpportunities) {
-          setFetchProgress({ ...fetchProgress, isOpen: open });
+        if (!open) {
+          // Cancel button clicked
+          if (loadingOpportunities) {
+            // Abort ongoing fetch
+            toast.info('Scan cancelled');
+          }
+          setFetchProgress({ ...fetchProgress, isOpen: false });
         }
       }}>
         <DialogContent className="max-w-md">
