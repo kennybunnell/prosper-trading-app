@@ -2973,3 +2973,13 @@
 - [x] Ensure all order flows (CSP, CC, spreads, closes, rolls) have preview dialogs - CSP and CC confirmed
 - [x] Test preset filters with real scan data
 - [x] Test CSP order preview dialog end-to-end
+
+## Feature: Two-Stage Filtering Workflow for CSP Dashboard
+- [x] Investigate why preset filters return zero results with AMD scan data
+- [x] Check preset values in database vs actual scan result ranges (delta, DTE, score, RSI, IV Rank, BB %B)
+- [x] Implement two-stage filtering: Stage 1 (preset filters) → Stage 2 (range filters refine within preset results)
+- [x] Ensure preset filters apply first to narrow down opportunities
+- [x] Ensure range filters then refine WITHIN the preset-filtered subset
+- [x] Test workflow: Click Conservative preset → verify results → adjust range sliders → verify further refinement
+- [x] Test workflow: Click Medium preset → verify results → adjust range sliders → verify further refinement
+- [x] Test workflow: Click Aggressive preset → verify results → adjust range sliders → verify further refinement
