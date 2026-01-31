@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { useAccount } from "@/contexts/AccountContext";
+import { useTradingMode } from "@/contexts/TradingModeContext";
 import {
   Loader2,
   RefreshCw,
@@ -210,6 +211,7 @@ type CCOpportunity = {
 
 export default function CCDashboard() {
   const { selectedAccountId } = useAccount();
+  const { mode: tradingMode } = useTradingMode();
   const utils = trpc.useUtils();
   const [isLoadingPositions, setIsLoadingPositions] = useState(false);
   const [scanStartTime, setScanStartTime] = useState<number | null>(null);
@@ -1914,15 +1916,21 @@ export default function CCDashboard() {
                         </span>
                       </label>
                     </div>
+                    {tradingMode === 'paper' && (
+                      <p className="text-sm text-blue-500 font-semibold mb-2">
+                        ⓘ Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.
+                      </p>
+                    )}
                     <Button
                       onClick={handleSubmitOrders}
-                      disabled={isSubmitting || selectedOpportunities.size === 0}
+                      disabled={isSubmitting || selectedOpportunities.size === 0 || tradingMode === 'paper'}
                       className={cn(
                         dryRun 
                           ? "bg-blue-600 hover:bg-blue-700" 
                           : "bg-red-600 hover:bg-red-700 font-bold"
                       )}
                       size="lg"
+                      title={tradingMode === 'paper' ? 'Order submission is disabled in Paper Trading mode' : undefined}
                     >
                       {isSubmitting ? (
                         <>

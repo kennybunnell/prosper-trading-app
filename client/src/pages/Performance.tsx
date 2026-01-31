@@ -8,6 +8,7 @@ import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Load
 import { trpc } from '@/lib/trpc';
 import { exportToCSV } from '@/lib/utils';
 import { useAccount } from '@/contexts/AccountContext';
+import { useTradingMode } from '@/contexts/TradingModeContext';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Cell, LabelList } from 'recharts';
@@ -81,6 +82,7 @@ export default function Performance() {
 }
 
 export function ActivePositionsTab() {
+  const { mode: tradingMode } = useTradingMode();
   const { selectedAccountId } = useAccount();
   const [positionType, setPositionType] = useState<'csp' | 'cc'>('csp');
   const [profitFilter, setProfitFilter] = useState<number | null>(null);
@@ -308,6 +310,10 @@ export function ActivePositionsTab() {
   };
 
   const handleClosePositions = () => {
+    if (tradingMode === 'paper') {
+      toast.error('Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.');
+      return;
+    }
     if (selectedPositionsData.length === 0) {
       toast.error('Please select at least one position to close');
       return;
@@ -998,6 +1004,7 @@ function ActionButton({ action, onClick }: { action: 'CLOSE' | 'WATCH' | 'HOLD';
 }
 
 export function WorkingOrdersTab() {
+  const { mode: tradingMode } = useTradingMode();
   const { selectedAccountId } = useAccount();
   const [aggressiveFillMode, setAggressiveFillMode] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
@@ -1100,6 +1107,10 @@ export function WorkingOrdersTab() {
   };
 
   const handleReplaceAll = () => {
+    if (tradingMode === 'paper') {
+      toast.error('Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.');
+      return;
+    }
     if (orders.length === 0) {
       toast.error('No orders to replace');
       return;

@@ -29,6 +29,18 @@ export const ordersRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      // Check if user is in paper trading mode
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      const [user] = await db.select().from((await import('../drizzle/schema.js')).users).where((await import('drizzle-orm')).eq((await import('../drizzle/schema.js')).users.id, ctx.user.id));
+      if (user?.tradingMode === 'paper') {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Order submission is disabled in Paper Trading mode',
+        });
+      }
+      
       try {
         const result = await submitRollOrder({
           accountNumber: input.accountNumber,
@@ -71,6 +83,18 @@ export const ordersRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      // Check if user is in paper trading mode
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      const [user] = await db.select().from((await import('../drizzle/schema.js')).users).where((await import('drizzle-orm')).eq((await import('../drizzle/schema.js')).users.id, ctx.user.id));
+      if (user?.tradingMode === 'paper') {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Order submission is disabled in Paper Trading mode',
+        });
+      }
+      
       try {
         const result = await submitCloseOrder({
           accountNumber: input.accountNumber,

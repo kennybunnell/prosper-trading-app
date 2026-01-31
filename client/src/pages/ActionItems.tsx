@@ -17,8 +17,10 @@ import { OrderPreviewModal } from "@/components/OrderPreviewModal";
 import { MarketNewsScanner } from "@/components/MarketNewsScanner";
 import { useToast } from "@/hooks/use-toast";
 import { useAccount } from "@/contexts/AccountContext";
+import { useTradingMode } from "@/contexts/TradingModeContext";
 
 export default function ActionItems() {
+  const { mode: tradingMode } = useTradingMode();
   const [activeTab, setActiveTab] = useState('daily-tasks');
   const [, setLocation] = useLocation();
   const { selectedAccountId } = useAccount();
@@ -187,10 +189,20 @@ export default function ActionItems() {
   const handleConfirmOrder = () => {
     if (!orderDetails) return;
     
-    // Get account number from selected account
+    // Check if in paper trading mode
+    if (tradingMode === 'paper') {
+      toast({
+        title: "Paper Trading Mode",
+        description: "Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Validate account selection
     if (!selectedAccountId || selectedAccountId === 'ALL_ACCOUNTS') {
       toast({
-        title: "No Account Selected",
+        title: "Account Required",
         description: "Please select a specific account from the sidebar before submitting orders.",
         variant: "destructive",
       });

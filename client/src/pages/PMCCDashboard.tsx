@@ -9,6 +9,7 @@ import { HelpBadge } from "@/components/HelpBadge";
 import { HELP_CONTENT } from "@/lib/helpContent";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { trpc } from "@/lib/trpc";
+import { useTradingMode } from "@/contexts/TradingModeContext";
 import { toast } from "sonner";
 import { cn, exportToCSV } from "@/lib/utils";
 
@@ -124,6 +125,7 @@ function ActivePositionsSection() {
 }
 
 export default function PMCCDashboard() {
+  const { mode: tradingMode } = useTradingMode();
   const [selectedPreset, setSelectedPreset] = useState<'conservative' | 'medium' | 'aggressive' | null>(null);
   const [showBestPerTicker, setShowBestPerTicker] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -821,27 +823,34 @@ export default function PMCCDashboard() {
               )}
 
               {/* Action Buttons */}
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setShowOrderPreview(false)} disabled={isSubmittingOrders}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => {
-                    const selectedLeapsArray = sortedLeaps.filter(leap => selectedLeaps.has(getLeapKey(leap)));
-                    setIsSubmittingOrders(true);
-                    submitLeapOrdersMutation.mutate({
-                      leaps: selectedLeapsArray.map(leap => ({
-                        symbol: leap.symbol,
-                        strike: leap.strike,
-                        expiration: leap.expiration,
-                        premium: leap.premium,
-                      })),
-                      isDryRun,
-                    });
-                  }}
-                  disabled={isSubmittingOrders}
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-                >
+              <div className="flex flex-col items-end gap-2">
+                {tradingMode === 'paper' && (
+                  <p className="text-sm text-blue-500 font-semibold">
+                    ⓘ Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setShowOrderPreview(false)} disabled={isSubmittingOrders}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      const selectedLeapsArray = sortedLeaps.filter(leap => selectedLeaps.has(getLeapKey(leap)));
+                      setIsSubmittingOrders(true);
+                      submitLeapOrdersMutation.mutate({
+                        leaps: selectedLeapsArray.map(leap => ({
+                          symbol: leap.symbol,
+                          strike: leap.strike,
+                          expiration: leap.expiration,
+                          premium: leap.premium,
+                        })),
+                        isDryRun,
+                      });
+                    }}
+                    disabled={isSubmittingOrders || tradingMode === 'paper'}
+                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                    title={tradingMode === 'paper' ? 'Order submission is disabled in Paper Trading mode' : undefined}
+                  >
                   {isSubmittingOrders ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -851,6 +860,7 @@ export default function PMCCDashboard() {
                     <>{isDryRun ? "Test Order" : "Submit Order"}</>
                   )}
                 </Button>
+                </div>
               </div>
             </div>
           </DialogContent>

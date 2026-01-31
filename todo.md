@@ -2867,3 +2867,14 @@
 - [x] Disable order submission UI in paper mode (CSPDashboard button disabled with message)
 - [x] Add backend guards to prevent order submission in paper mode (server/routers.ts submitOrders procedure)
 - [ ] Test mode switching and verify correct adapter is used (ready for testing)
+
+### Phase 7: Extend Paper Mode Guards to All Dashboards
+- [x] Add paper mode guards to CC Dashboard order submission (CCDashboard.tsx)
+- [x] Add paper mode guards to PMCC Dashboard order submission (PMCCDashboard.tsx)
+- [x] Add paper mode guards to ActionItems page (roll/close orders - ActionItems.tsx)
+- [x] Add paper mode guards to Performance page (close/replace orders - Performance.tsx)
+- [x] Add backend validation to CC submitOrders procedure (routers-cc.ts)
+- [x] Add backend validation to PMCC submitLeapOrders procedure (routers-pmcc.ts)
+- [x] Add backend validation to roll/close order procedures (routers-orders.ts submitRoll & submitClose)
+- [ ] Test all dashboards with paper mode enabled (ready for testing)
+- [ ] Verify order submission works in live mode (ready for testing)
