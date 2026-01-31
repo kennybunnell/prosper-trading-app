@@ -836,7 +836,7 @@ export default function PMCCDashboard() {
             <DialogHeader>
               <DialogTitle>Scanning for LEAPs</DialogTitle>
               <DialogDescription>
-                Analyzing {watchlist.length} symbols for LEAP call options (9-15 months out, deep ITM)...
+                Analyzing {selectedSymbols.length} symbols for LEAP call options (9-15 months out, deep ITM)...
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col items-center justify-center space-y-4 py-6">
@@ -845,7 +845,7 @@ export default function PMCCDashboard() {
               <p className="text-sm text-muted-foreground">
                 {scanProgress < 100 ? (
                   <>
-                    {Math.floor((100 - scanProgress) * watchlist.length * 2.0 / 100)}s remaining
+                    {Math.floor((100 - scanProgress) * selectedSymbols.length * 2.0 / 100)}s remaining
                   </>
                 ) : (
                   <>Finishing up...</>
