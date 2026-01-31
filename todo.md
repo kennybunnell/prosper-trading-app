@@ -3094,7 +3094,3 @@
 
 ## CC Dashboard Test Button Fix
 - [x] Enable Test Order button in CC Dashboard during paper trading mode when dry run is checked
-
-## CC Dashboard Order Validation Error Fix
-- [x] Investigate order validation schema for missing price field
-- [x] Fix order construction to include all required fields (bid, ask, currentPrice)
