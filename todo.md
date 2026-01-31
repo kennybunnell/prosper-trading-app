@@ -2726,3 +2726,12 @@
 - [x] Updated ActionItems frontend to pass optionSymbol in closeLeg
 - [x] Updated routers-orders schema to accept optionSymbol
 - [x] Updated tastytrade.ts submitCloseOrder to use actual symbol when provided
+
+## Position Card Glow Effects (January 30, 2026)
+- [x] Add glow effects to position cards in Action Items similar to sidebar button glow
+- [x] Apply glow colors based on urgency level (red/yellow/green)
+- [x] Red cards: shadow-[0_0_15px_rgba(239,68,68,0.3)] with hover intensification
+- [x] Yellow cards: shadow-[0_0_15px_rgba(234,179,8,0.3)] with hover intensification
+- [x] Green cards: shadow-[0_0_15px_rgba(34,197,94,0.3)]
+- [x] Update card styling with box-shadow and border effects
+- [x] Updated borders to use /30 opacity and backgrounds to use /20 opacity for dark theme

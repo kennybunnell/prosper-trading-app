@@ -390,7 +390,7 @@ export default function ActionItems() {
                         {rollsRed.map((roll: any) => (
                           <div
                             key={roll.positionId}
-                            className="flex items-center justify-between p-4 border border-red-200 bg-red-50/50 rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
+                            className="flex items-center justify-between p-4 border border-red-500/30 bg-red-950/20 rounded-lg hover:bg-red-950/30 cursor-pointer transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.5)]"
                           >
                             <div className="flex-1">
                               <div className="font-semibold">{roll.symbol} {roll.strategy.toUpperCase()}</div>
@@ -428,7 +428,7 @@ export default function ActionItems() {
                         {rollsYellow.map((roll: any) => (
                           <div
                             key={roll.positionId}
-                            className="flex items-center justify-between p-4 border border-yellow-200 bg-yellow-50/50 rounded-lg hover:bg-yellow-50 cursor-pointer transition-colors"
+                            className="flex items-center justify-between p-4 border border-yellow-500/30 bg-yellow-950/20 rounded-lg hover:bg-yellow-950/30 cursor-pointer transition-all shadow-[0_0_15px_rgba(234,179,8,0.3)] hover:shadow-[0_0_25px_rgba(234,179,8,0.5)]"
                           >
                             <div className="flex-1">
                               <div className="font-semibold">{roll.symbol} {roll.strategy.toUpperCase()}</div>
@@ -466,7 +466,7 @@ export default function ActionItems() {
                         {rollsGreen.slice(0, 5).map((roll: any) => (
                           <div
                             key={roll.positionId}
-                            className="flex items-center justify-between p-4 border border-green-200 bg-green-50/50 rounded-lg"
+                            className="flex items-center justify-between p-4 border border-green-500/30 bg-green-950/20 rounded-lg shadow-[0_0_15px_rgba(34,197,94,0.3)]"
                           >
                             <div className="flex-1">
                               <div className="font-semibold">{roll.symbol} {roll.strategy.toUpperCase()}</div>
