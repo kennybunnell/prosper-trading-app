@@ -3091,3 +3091,6 @@
 
 ## Modal Content-Fit Width Fix
 - [x] Change OrderPreviewDialog to use fit-content width that adapts to table size automatically
+
+## CC Dashboard Test Button Fix
+- [x] Enable Test Order button in CC Dashboard during paper trading mode when dry run is checked

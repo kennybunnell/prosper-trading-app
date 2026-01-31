@@ -1994,7 +1994,7 @@ export default function CCDashboard() {
                     )}
                     <Button
                       onClick={handleSubmitOrders}
-                      disabled={isSubmitting || selectedOpportunities.size === 0 || tradingMode === 'paper'}
+                      disabled={isSubmitting || selectedOpportunities.size === 0 || (tradingMode === 'paper' && !dryRun)}
                       className={cn(
                         dryRun 
                           ? "bg-blue-600 hover:bg-blue-700" 
