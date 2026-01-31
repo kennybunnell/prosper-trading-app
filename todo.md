@@ -3064,3 +3064,14 @@
 
 ## PMCC Dashboard Refresh Button
 - [x] Add "Refresh Page" button to PMCC Dashboard header next to APIs Connected
+
+## CSP Dashboard Order Submission Dialog
+- [ ] Review CC Dashboard OrderPreviewDialog implementation
+- [ ] Update CSP Dashboard to use OrderPreviewDialog before order submission
+- [ ] Ensure "Test X Order(s)" button opens summary dialog with all selected orders
+- [ ] Test order submission flow matches CC Dashboard behavior
+
+## Enable CSP Test Order Button in Paper Trading Mode
+- [x] Remove tradingMode === 'paper' restriction from Test Order button disabled condition
+- [x] Allow order preview dialog to open in paper trading mode
+- [ ] Test that order preview works in paper trading mode

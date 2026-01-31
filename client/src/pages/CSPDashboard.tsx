@@ -2094,14 +2094,14 @@ export default function CSPDashboard() {
                 )}
                 <Button
                   onClick={handleSubmitOrders}
-                  disabled={submitOrders.isPending || overLimit > 0 || tradingMode === 'paper'}
+                  disabled={submitOrders.isPending || overLimit > 0 || (tradingMode === 'paper' && !dryRun)}
                   size="lg"
                   className={cn(
                     dryRun 
                       ? "bg-blue-600 hover:bg-blue-700" 
                       : "bg-red-600 hover:bg-red-700 font-bold"
                   )}
-                  title={tradingMode === 'paper' ? 'Order submission is disabled in Paper Trading mode' : undefined}
+                  title={(tradingMode === 'paper' && !dryRun) ? 'Order submission is disabled in Paper Trading mode. Enable Dry Run to test orders.' : undefined}
                 >
                   {submitOrders.isPending ? (
                     <>
