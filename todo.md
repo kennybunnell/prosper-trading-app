@@ -3061,3 +3061,6 @@
 - [x] Add toast notification on page load if strategy was just switched
 - [x] Test switching from CC to BCS triggers automatic page refresh
 - [x] Test switching from BCS to CC triggers automatic page refresh
+
+## PMCC Dashboard Refresh Button
+- [x] Add "Refresh Page" button to PMCC Dashboard header next to APIs Connected

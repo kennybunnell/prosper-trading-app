@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign, Download } from "lucide-react";
+import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign, Download, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { HelpBadge } from "@/components/HelpBadge";
@@ -377,9 +377,20 @@ export default function PMCCDashboard() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <TrendingUp className="h-8 w-8 text-purple-500" />
-            <h1 className="text-3xl font-bold">PMCC Dashboard</h1>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <TrendingUp className="h-8 w-8 text-purple-500" />
+              <h1 className="text-3xl font-bold">PMCC Dashboard</h1>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.location.reload()}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh Page
+            </Button>
           </div>
           <p className="text-muted-foreground">
             Poor Man's Covered Call - Buy LEAPs and sell short calls for income
