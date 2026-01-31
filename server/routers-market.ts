@@ -3,108 +3,39 @@ import { invokeLLM } from "./_core/llm";
 
 interface NewsItem {
   title: string;
-  url: string;
+  summary: string; // AI-generated 2-3 sentence summary
+  tradingRecommendation: string; // Trading advice based on the news
+  searchQuery: string; // Google News search query
   source: string;
   publishedAt: string;
   sentiment: 'bullish' | 'bearish' | 'volatile' | 'neutral';
   keywords: string[];
 }
 
-const MARKET_KEYWORDS = [
-  'tariff', 'tariffs', 'trade war',
-  'Federal Reserve', 'Fed', 'Jerome Powell', 'interest rate',
-  'inflation', 'CPI', 'PPI',
-  'Trump', 'trade policy',
-  'market crash', 'market volatility', 'VIX',
-  'recession', 'economic data',
-  'S&P 500', 'Dow Jones', 'Nasdaq'
-];
-
-function analyzeSentiment(title: string, snippet?: string): 'bullish' | 'bearish' | 'volatile' | 'neutral' {
-  const text = `${title} ${snippet || ''}`.toLowerCase();
-  
-  const bullishTerms = ['rally', 'surge', 'gain', 'rise', 'up', 'positive', 'growth', 'recovery', 'strong'];
-  const bearishTerms = ['fall', 'drop', 'decline', 'down', 'negative', 'loss', 'crash', 'plunge', 'weak'];
-  const volatileTerms = ['volatile', 'volatility', 'uncertainty', 'risk', 'concern', 'worry', 'tariff', 'threat'];
-  
-  let bullishScore = 0;
-  let bearishScore = 0;
-  let volatileScore = 0;
-  
-  bullishTerms.forEach(term => {
-    if (text.includes(term)) bullishScore++;
-  });
-  
-  bearishTerms.forEach(term => {
-    if (text.includes(term)) bearishScore++;
-  });
-  
-  volatileTerms.forEach(term => {
-    if (text.includes(term)) volatileScore++;
-  });
-  
-  if (volatileScore >= 2) return 'volatile';
-  if (bullishScore > bearishScore) return 'bullish';
-  if (bearishScore > bullishScore) return 'bearish';
-  return 'neutral';
-}
-
-function extractKeywords(title: string, snippet?: string): string[] {
-  const text = `${title} ${snippet || ''}`.toLowerCase();
-  const found: string[] = [];
-  
-  MARKET_KEYWORDS.forEach(keyword => {
-    if (text.includes(keyword.toLowerCase())) {
-      found.push(keyword);
-    }
-  });
-  
-  return found.slice(0, 3); // Return top 3 keywords
-}
-
-function extractSource(url: string): string {
-  try {
-    const hostname = new URL(url).hostname;
-    // Remove www. and extract domain name
-    const domain = hostname.replace('www.', '').split('.')[0];
-    // Capitalize first letter
-    return domain.charAt(0).toUpperCase() + domain.slice(1);
-  } catch {
-    return 'Unknown';
-  }
-}
-
 export const marketRouter = router({
   getMarketNews: publicProcedure.query(async () => {
     try {
-      // Use LLM to search for financial news
-      const searchPrompt = `Search for recent financial news (past 48 hours) about:
-- Stock market volatility and tariffs
-- Federal Reserve interest rate decisions
-- Trump trade policy
-- Market-moving economic events
+      // Use LLM to analyze recent financial news and generate summaries
+      const analysisPrompt = `Analyze recent financial news (past 48 hours) about stock market volatility, tariffs, Federal Reserve decisions, Trump trade policy, and other market-moving events.
 
-Return the results as a JSON array with this structure:
-[
-  {
-    "title": "headline text",
-    "url": "article URL",
-    "snippet": "brief description",
-    "date": "relative date like '3 days ago' or ISO date"
-  }
-]
+For each major news item, provide:
+1. A clear headline
+2. A 2-3 sentence summary explaining what happened
+3. Specific trading recommendation for options traders (e.g., "Consider defensive positions", "Good environment for premium selling", "Watch for increased volatility")
+4. Sentiment (bullish/bearish/volatile/neutral)
+5. A search query to find more articles about this topic
 
-Only include major market-moving news. Limit to 5 most important articles.`;
+Focus on the 5 most important market-moving stories.`;
 
       const response = await invokeLLM({
         messages: [
-          { role: "system", content: "You are a financial news analyst. Search for and return recent market-moving news." },
-          { role: "user", content: searchPrompt }
+          { role: "system", content: "You are a financial news analyst specializing in options trading. Provide actionable insights for premium sellers." },
+          { role: "user", content: analysisPrompt }
         ],
         response_format: {
           type: "json_schema",
           json_schema: {
-            name: "market_news",
+            name: "market_news_analysis",
             strict: true,
             schema: {
               type: "object",
@@ -114,12 +45,22 @@ Only include major market-moving news. Limit to 5 most important articles.`;
                   items: {
                     type: "object",
                     properties: {
-                      title: { type: "string" },
-                      url: { type: "string" },
-                      snippet: { type: "string" },
-                      date: { type: "string" }
+                      title: { type: "string", description: "Clear headline" },
+                      summary: { type: "string", description: "2-3 sentence explanation" },
+                      tradingRecommendation: { type: "string", description: "Specific advice for options traders" },
+                      sentiment: { 
+                        type: "string", 
+                        enum: ["bullish", "bearish", "volatile", "neutral"],
+                        description: "Market sentiment" 
+                      },
+                      searchQuery: { type: "string", description: "Google News search query" },
+                      keywords: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Key topics (max 3)"
+                      }
                     },
-                    required: ["title", "url", "snippet", "date"],
+                    required: ["title", "summary", "tradingRecommendation", "sentiment", "searchQuery", "keywords"],
                     additionalProperties: false
                   }
                 }
@@ -142,27 +83,15 @@ Only include major market-moving news. Limit to 5 most important articles.`;
 
       // Transform to NewsItem format
       const newsItems: NewsItem[] = articles.map((article: any) => {
-        const sentiment = analyzeSentiment(article.title, article.snippet);
-        const keywords = extractKeywords(article.title, article.snippet);
-        const source = extractSource(article.url);
-        
-        // Convert relative dates to ISO format (approximate)
-        let publishedAt = new Date().toISOString();
-        if (article.date.includes('day')) {
-          const daysAgo = parseInt(article.date) || 1;
-          publishedAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
-        } else if (article.date.includes('hour')) {
-          const hoursAgo = parseInt(article.date) || 1;
-          publishedAt = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
-        }
-
         return {
           title: article.title,
-          url: article.url,
-          source,
-          publishedAt,
-          sentiment,
-          keywords
+          summary: article.summary,
+          tradingRecommendation: article.tradingRecommendation,
+          searchQuery: article.searchQuery,
+          source: "AI Analysis", // Since we're generating summaries, not linking to sources
+          publishedAt: new Date().toISOString(), // Current time since it's fresh analysis
+          sentiment: article.sentiment as 'bullish' | 'bearish' | 'volatile' | 'neutral',
+          keywords: article.keywords.slice(0, 3) // Ensure max 3 keywords
         };
       });
 

@@ -2769,3 +2769,18 @@
 - [x] Added sentiment analysis (bullish/bearish/volatile/neutral)
 - [x] Extract keywords and source from each article
 - [x] Handle relative dates and convert to ISO format
+
+## Market News AI Summary & Card Reordering (January 31, 2026)
+- [x] Update Market News Scanner to generate AI summaries (2-3 sentences) for each headline
+- [x] Add trading recommendations based on market conditions (e.g., "Consider defensive positions")
+- [x] Replace direct article URLs with Google News search links
+- [x] Update MarketNewsScanner component to display summaries and "Search News" buttons
+- [x] Updated market router to use LLM with structured output for news analysis
+- [x] Added tradingRecommendation field with specific advice for options traders
+- [x] Added searchQuery field for Google News searches
+- [x] Updated component to show summary, recommendation box, and search button
+- [x] Reorder position cards in ActionItems: Green (top) → Yellow (middle) → Red (bottom)
+- [x] Update ActionItems.tsx to change rendering order
+- [x] Moved green section to top (70%+ profit)
+- [x] Kept yellow section in middle (30-69% profit)
+- [x] Moved red section to bottom (<30% profit/ITM)

@@ -382,26 +382,26 @@ export default function ActionItems() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {/* Red (Urgent) Positions */}
-                  {rollsRed.length > 0 && (
+                  {/* Green (Profitable) Positions */}
+                  {rollsGreen.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">
-                        <div className="h-3 w-3 rounded-full bg-red-500" />
-                        <h3 className="font-semibold text-red-600">Losing Money ({rollsRed.length})</h3>
-                        <span className="text-sm text-muted-foreground">- ITM, urgent action needed</span>
+                        <div className="h-3 w-3 rounded-full bg-green-500" />
+                        <h3 className="font-semibold text-green-600">Profitable ({rollsGreen.length})</h3>
+                        <span className="text-sm text-muted-foreground">- 70%+ profit captured, ready to close</span>
                       </div>
                       <div className="space-y-2">
-                        {rollsRed.map((roll: any) => (
+                        {rollsGreen.map((roll: any) => (
                           <div
                             key={roll.positionId}
-                            className="flex items-center justify-between p-4 border border-red-500/30 bg-red-950/20 rounded-lg hover:bg-red-950/30 cursor-pointer transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.5)]"
+                            className="flex items-center justify-between p-4 border border-green-500/30 bg-green-950/20 rounded-lg hover:bg-green-950/30 cursor-pointer transition-all shadow-[0_0_15px_rgba(34,197,94,0.3)] hover:shadow-[0_0_20px_rgba(34,197,94,0.4)]"
                           >
                             <div className="flex-1">
                               <div className="font-semibold">{roll.symbol} {roll.strategy.toUpperCase()}</div>
                               <div className="text-sm text-muted-foreground">
                                 ${roll.metrics.strikePrice} strike • {roll.metrics.dte} DTE
                               </div>
-                              <div className="text-xs text-red-600 mt-1 space-y-0.5">
+                              <div className="text-xs text-green-600 mt-1 space-y-0.5">
                                 {roll.reasons.map((reason: string, idx: number) => (
                                   <div key={idx}>{reason}</div>
                                 ))}
@@ -458,37 +458,40 @@ export default function ActionItems() {
                     </div>
                   )}
 
-                  {/* Green (Healthy) Positions - Only show if no red/yellow */}
-                  {rollsRed.length === 0 && rollsYellow.length === 0 && rollsGreen.length > 0 && (
+                  {/* Red (Losing) Positions */}
+                  {rollsRed.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">
-                        <div className="h-3 w-3 rounded-full bg-green-500" />
-                        <h3 className="font-semibold text-green-600">Profitable ({rollsGreen.length})</h3>
-                        <span className="text-sm text-muted-foreground">- 80%+ profit captured, ready to close</span>
+                        <div className="h-3 w-3 rounded-full bg-red-500" />
+                        <h3 className="font-semibold text-red-600">Losing Money ({rollsRed.length})</h3>
+                        <span className="text-sm text-muted-foreground">- ITM, urgent action needed</span>
                       </div>
                       <div className="space-y-2">
-                        {rollsGreen.slice(0, 5).map((roll: any) => (
+                        {rollsRed.map((roll: any) => (
                           <div
                             key={roll.positionId}
-                            className="flex items-center justify-between p-4 border border-green-500/30 bg-green-950/20 rounded-lg shadow-[0_0_15px_rgba(34,197,94,0.3)]"
+                            className="flex items-center justify-between p-4 border border-red-500/30 bg-red-950/20 rounded-lg hover:bg-red-950/30 cursor-pointer transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.5)]"
                           >
                             <div className="flex-1">
                               <div className="font-semibold">{roll.symbol} {roll.strategy.toUpperCase()}</div>
                               <div className="text-sm text-muted-foreground">
                                 ${roll.metrics.strikePrice} strike • {roll.metrics.dte} DTE
                               </div>
+                              <div className="text-xs text-red-600 mt-1 space-y-0.5">
+                                {roll.reasons.map((reason: string, idx: number) => (
+                                  <div key={idx}>{reason}</div>
+                                ))}
+                              </div>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right mr-4">
                               <div className="text-sm font-medium">{roll.metrics.profitCaptured.toFixed(0)}% profit</div>
                               <div className="text-xs text-muted-foreground">Score: {roll.score}</div>
                             </div>
+                            <Button size="sm" variant="outline" onClick={() => handleViewOptions(roll)}>
+                              View Options
+                            </Button>
                           </div>
                         ))}
-                        {rollsGreen.length > 5 && (
-                          <div className="text-center text-sm text-muted-foreground pt-2">
-                            +{rollsGreen.length - 5} more healthy positions
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}
