@@ -3005,3 +3005,12 @@
 - [ ] Test Aggressive preset returns results with real scan data
 - [ ] Verify Conservative returns fewer opportunities than Medium
 - [ ] Verify Medium returns fewer opportunities than Aggressive
+
+## Fix: Make Range Filters Completely Independent from Preset Filters
+- [x] Remove logic in handlePresetFilter that updates range slider values (deltaRange, dteRange, scoreRange)
+- [x] Ensure range filters always filter the full opportunity list independently
+- [x] Ensure preset filters always filter the full opportunity list independently
+- [x] Verify clicking preset buttons does NOT change range slider positions
+- [x] Verify adjusting range sliders works regardless of preset button state
+- [x] Test: Click Conservative preset → verify results → adjust range sliders → verify different results
+- [x] Test: Adjust range sliders → verify results → click Medium preset → verify completely different results

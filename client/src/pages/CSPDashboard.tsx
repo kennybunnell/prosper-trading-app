@@ -511,24 +511,21 @@ export default function CSPDashboard() {
       }
     }
 
-    // Apply live range filters (ONLY when no preset is active - mutually exclusive)
-    // User can choose: either use preset filters OR use range filters, not both
-    if (!presetFilter) {
-      filtered = filtered.filter(opp => {
-        const delta = Math.abs(opp.delta);
-        
-        // Delta range filter
-        if (delta < deltaRange[0] || delta > deltaRange[1]) return false;
-        
-        // DTE range filter
-        if (opp.dte < dteRange[0] || opp.dte > dteRange[1]) return false;
-        
-        // Score range filter
-        if (opp.score < scoreRange[0] || opp.score > scoreRange[1]) return false;
-        
-        return true;
-      });
-    }
+    // Apply live range filters (always applied, independent of presets)
+    filtered = filtered.filter(opp => {
+      const delta = Math.abs(opp.delta);
+      
+      // Delta range filter
+      if (delta < deltaRange[0] || delta > deltaRange[1]) return false;
+      
+      // DTE range filter
+      if (opp.dte < dteRange[0] || opp.dte > dteRange[1]) return false;
+      
+      // Score range filter
+      if (opp.score < scoreRange[0] || opp.score > scoreRange[1]) return false;
+      
+      return true;
+    });
 
     // Apply "Selected Only" filter
     if (showSelectedOnly) {
@@ -712,21 +709,6 @@ export default function CSPDashboard() {
   const handlePresetFilter = (preset: PresetFilter) => {
     setPresetFilter(preset);
     setMinScore(undefined); // Clear score filter when using preset
-    
-    // Update filter sliders to match preset values
-    if (presets) {
-      const presetData = presets.find(p => p.presetName === preset);
-      if (presetData) {
-        // Update Delta range
-        setDeltaRange([parseFloat(presetData.minDelta), parseFloat(presetData.maxDelta)]);
-        
-        // Update DTE range
-        setDteRange([presetData.minDte, presetData.maxDte]);
-        
-        // Update Score range
-        setScoreRange([presetData.minScore, 100]);
-      }
-    }
   };
 
   // Handle submit orders - now triggers validation first
