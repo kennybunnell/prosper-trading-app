@@ -133,4 +133,75 @@ export const paperTradingRouter = router({
     
     return { success: true, message: 'Mock positions cleared' };
   }),
+
+  /**
+   * Seed mock performance data for paper trading (6-12 months of premium earnings)
+   */
+  seedPerformanceData: protectedProcedure.mutation(async ({ ctx }) => {
+    const { getDb } = await import('./db');
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+    
+    const { paperTradingPerformance } = await import('../drizzle/schema.js');
+    
+    // Check if user already has performance data
+    const existing = await db.select()
+      .from(paperTradingPerformance)
+      .where(eq(paperTradingPerformance.userId, ctx.user.id));
+    
+    if (existing.length > 0) {
+      return { success: true, message: 'Performance data already exists', data: existing };
+    }
+    
+    // Generate 9 months of mock performance data (realistic premium earnings)
+    const now = new Date();
+    const monthlyData = [];
+    let cumulativeTotal = 0;
+    
+    for (let i = 8; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      
+      // Generate realistic monthly premium: $1,500 - $4,500 (in cents)
+      // With some variation and occasional losses
+      const baseAmount = 250000; // $2,500 base
+      const variation = Math.random() * 200000 - 50000; // +/- $500 to $1,500
+      const netPremium = Math.round(baseAmount + variation);
+      
+      cumulativeTotal += netPremium;
+      
+      monthlyData.push({
+        userId: ctx.user.id,
+        month,
+        netPremium,
+        cumulativeTotal,
+      });
+    }
+    
+    // Insert all monthly data
+    await db.insert(paperTradingPerformance).values(monthlyData);
+    
+    return {
+      success: true,
+      message: 'Performance data seeded successfully',
+      data: monthlyData,
+    };
+  }),
+
+  /**
+   * Get performance data for paper trading
+   */
+  getPerformanceData: protectedProcedure.query(async ({ ctx }) => {
+    const { getDb } = await import('./db');
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+    
+    const { paperTradingPerformance } = await import('../drizzle/schema.js');
+    const data = await db.select()
+      .from(paperTradingPerformance)
+      .where(eq(paperTradingPerformance.userId, ctx.user.id))
+      .orderBy(paperTradingPerformance.month);
+    
+    return data;
+  }),
 });

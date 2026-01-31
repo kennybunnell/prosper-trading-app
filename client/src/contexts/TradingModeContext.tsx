@@ -17,6 +17,7 @@ export function TradingModeProvider({ children }: { children: React.ReactNode })
   const { user, loading: authLoading } = useAuth();
   const updateModeMutation = trpc.user.setTradingMode.useMutation();
   const seedMockPositionsMutation = trpc.paperTrading.seedMockPositions.useMutation();
+  const seedPerformanceDataMutation = trpc.paperTrading.seedPerformanceData.useMutation();
 
   // Initialize mode from user data
   useEffect(() => {
@@ -24,9 +25,10 @@ export function TradingModeProvider({ children }: { children: React.ReactNode })
       const userMode = (user as any).tradingMode || 'paper';
       setModeState(userMode);
       
-      // Auto-seed mock positions if user is in paper mode
+      // Auto-seed mock positions and performance data if user is in paper mode
       if (userMode === 'paper') {
         seedMockPositionsMutation.mutate();
+        seedPerformanceDataMutation.mutate();
       }
     }
   }, [user, authLoading]);
@@ -37,13 +39,14 @@ export function TradingModeProvider({ children }: { children: React.ReactNode })
     try {
       await updateModeMutation.mutateAsync({ mode: newMode });
       
-      // Auto-seed mock positions when switching to paper mode for the first time
+      // Auto-seed mock positions and performance data when switching to paper mode
       if (newMode === 'paper') {
         try {
           await seedMockPositionsMutation.mutateAsync();
-          console.log('Mock positions seeded successfully');
+          await seedPerformanceDataMutation.mutateAsync();
+          console.log('Mock data seeded successfully');
         } catch (seedError) {
-          console.error('Failed to seed mock positions:', seedError);
+          console.error('Failed to seed mock data:', seedError);
           // Don't revert mode on seed failure - user can still use paper mode
         }
       }

@@ -1926,7 +1926,99 @@ export function WorkingOrdersTab() {
   );
 }
 
+/**
+ * Transform paper trading performance data to match the overview format
+ */
+function transformPaperDataToOverview(paperData: any[]) {
+  if (!paperData || paperData.length === 0) return null;
+
+  const monthlyData = paperData.map((m: any) => {
+    const [year, monthNum] = m.month.split('-');
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthName = monthNames[parseInt(monthNum) - 1];
+    
+    return {
+      month: m.month,
+      monthKey: m.month,
+      monthName: `${monthName} ${year}`,
+      netPremium: m.netPremium / 100, // Convert cents to dollars
+      cumulativeTotal: m.cumulativeTotal / 100,
+      totalCredits: m.netPremium / 100, // Simplified for paper trading
+      totalDebits: 0,
+      totalNet: m.netPremium / 100, // Net premium for the month
+      cspNet: m.netPremium / 100 * 0.6, // Assume 60% CSP
+      cspCredits: m.netPremium / 100 * 0.6,
+      cspDebits: 0,
+      ccNet: m.netPremium / 100 * 0.4, // Assume 40% CC
+      ccCredits: m.netPremium / 100 * 0.4,
+      ccDebits: 0,
+      cspTrades: 8,
+      ccTrades: 5,
+      assignments: 0,
+      calledAway: 0,
+    };
+  });
+
+  const lastMonth = monthlyData[monthlyData.length - 1];
+  const totals = {
+    totalCredits: lastMonth.cumulativeTotal,
+    totalDebits: 0,
+    totalNet: lastMonth.cumulativeTotal,
+    cspNet: lastMonth.cumulativeTotal * 0.6,
+    cspCredits: lastMonth.cumulativeTotal * 0.6,
+    cspDebits: 0,
+    ccNet: lastMonth.cumulativeTotal * 0.4,
+    ccCredits: lastMonth.cumulativeTotal * 0.4,
+    ccDebits: 0,
+    cspTrades: monthlyData.length * 8,
+    ccTrades: monthlyData.length * 5,
+    assignments: 0,
+    calledAway: 0,
+  };
+
+  return {
+    monthlyData,
+    symbolPerformance: [], // No symbol breakdown for paper trading
+    performanceMetrics: {
+      avgMonthlyPremium: totals.totalNet / monthlyData.length,
+      bestMonth: monthlyData.reduce((best: any, m: any) => 
+        !best || m.netPremium > best.value ? { month: m.monthName, value: m.netPremium } : best, 
+        null
+      ),
+      worstMonth: monthlyData.reduce((worst: any, m: any) => 
+        !worst || m.netPremium < worst.value ? { month: m.monthName, value: m.netPremium } : worst, 
+        null
+      ),
+      winRate: 85, // Mock win rate
+      avgLoss: 0, // No losses in paper trading mock data
+      avgWin: totals.totalNet / monthlyData.length, // Average monthly premium
+      profitFactor: 0, // No losses to calculate profit factor
+      closedTrades: monthlyData.length * 13, // Mock closed trades (8 CSP + 5 CC per month)
+      wins: Math.round(monthlyData.length * 13 * 0.85), // 85% win rate
+      losses: Math.round(monthlyData.length * 13 * 0.15), // 15% loss rate
+    },
+    assignmentImpact: {
+      totalAssignments: 0,
+      totalCalledAway: 0,
+      assignmentCost: 0,
+      calledAwayRevenue: 0,
+      netImpact: 0,
+      successfulRecoveries: 0,
+      capitalTiedUp: 0,
+      avgDaysHolding: 0,
+      recoveryRate: 0,
+    },
+    totals,
+    dateRange: {
+      firstMonth: monthlyData[0].month,
+      lastMonth: monthlyData[monthlyData.length - 1].month,
+      monthsWithActivity: monthlyData.length,
+    },
+  };
+}
+
 function PerformanceOverviewTab() {
+  const { mode: tradingMode } = useTradingMode();
   const { selectedAccountId } = useAccount();
   const [timePeriod, setTimePeriod] = useState<'3m' | '6m' | 'ytd' | 'all'>('all');
   const [monthsBack, setMonthsBack] = useState(12);
@@ -1953,20 +2045,33 @@ function PerformanceOverviewTab() {
     setMonthsBack(calculateMonthsBack(timePeriod));
   }, [timePeriod]);
 
-  // Fetch performance overview data
-  const { data, isLoading, refetch, error } = trpc.performance.getPerformanceOverview.useQuery(
+  // Fetch paper trading performance data
+  const { data: paperData, isLoading: paperLoading } = trpc.paperTrading.getPerformanceData.useQuery(
+    undefined,
+    {
+      enabled: tradingMode === 'paper',
+      refetchOnWindowFocus: false,
+    }
+  );
+
+  // Fetch live performance overview data
+  const { data: liveData, isLoading: liveLoading, refetch, error } = trpc.performance.getPerformanceOverview.useQuery(
     {
       accountId: selectedAccountId || '',
       monthsBack,
     },
     {
-      enabled: !!selectedAccountId,
+      enabled: tradingMode === 'live' && !!selectedAccountId,
       refetchOnWindowFocus: false,
       retry: false,
     }
   );
 
-  if (!selectedAccountId) {
+  // Use paper data if in paper mode, otherwise use live data
+  const isLoading = tradingMode === 'paper' ? paperLoading : liveLoading;
+  const data = tradingMode === 'paper' ? (paperData ? transformPaperDataToOverview(paperData) : null) : liveData;
+
+  if (tradingMode === 'live' && !selectedAccountId) {
     return (
       <Card className="p-8 text-center">
         <p className="text-muted-foreground">Please select an account to view performance overview</p>
@@ -2060,6 +2165,25 @@ function PerformanceOverviewTab() {
 
   return (
     <div className="space-y-6">
+      {/* Paper Trading Disclaimer */}
+      {tradingMode === 'paper' && (
+        <Card className="p-4 bg-blue-500/10 border-blue-500/30">
+          <div className="flex items-start gap-3">
+            <div className="text-blue-400 mt-0.5">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-blue-400 mb-1">Sample Performance Data</h3>
+              <p className="text-sm text-muted-foreground">
+                You're viewing simulated performance data for demonstration purposes. This data shows 9 months of realistic premium earnings to help you understand how the performance tracking works. Switch to Live mode and connect your brokerage account to see your actual trading performance.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Header with Time Period Selector and Refresh */}
       <div className="flex items-center justify-between">
         <div>

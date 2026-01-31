@@ -2943,3 +2943,12 @@
 - [x] Add auto-fetch useEffect to call fetchPositions on mount in paper mode
 - [x] Fix TradingModeContext to seed mock positions on initial load (not just on mode switch)
 - [x] Test CC Dashboard displays mock MAG7 positions without account selection (4 stocks: AAPL, MSFT, GOOGL, NVDA)
+
+### Phase 11: Sample Performance Data for Paper Trading Mode
+- [x] Create paperTradingPerformance table for storing mock monthly premium data
+- [x] Generate realistic monthly premium earnings (6-12 months of data)
+- [x] Add tRPC procedure to seed performance data for paper trading users
+- [x] Update Performance page to fetch paper trading data when in paper mode
+- [x] Display mock monthly premium chart with realistic gains/losses
+- [x] Add disclaimer message indicating sample data for demonstration
+- [x] Test Performance page visualization with sample data

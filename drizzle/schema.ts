@@ -338,3 +338,22 @@ export const paperTradingPositions = mysqlTable("paperTradingPositions", {
 
 export type PaperTradingPosition = typeof paperTradingPositions.$inferSelect;
 export type InsertPaperTradingPosition = typeof paperTradingPositions.$inferInsert;
+
+/**
+ * Paper trading performance data
+ * Stores mock monthly premium earnings for users in paper trading mode
+ */
+export const paperTradingPerformance = mysqlTable("paperTradingPerformance", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  month: varchar("month", { length: 7 }).notNull(), // Format: YYYY-MM
+  netPremium: int("netPremium").notNull(), // Net premium earned in cents
+  cumulativeTotal: int("cumulativeTotal").notNull(), // Cumulative total in cents
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("paperTradingPerformance_userId_idx").on(table.userId),
+  monthIdx: index("paperTradingPerformance_month_idx").on(table.month),
+}));
+
+export type PaperTradingPerformance = typeof paperTradingPerformance.$inferSelect;
+export type InsertPaperTradingPerformance = typeof paperTradingPerformance.$inferInsert;
