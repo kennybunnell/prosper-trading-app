@@ -3038,3 +3038,9 @@
 - [x] Test switching from CSP to BPS clears and resets page
 - [x] Test switching from BPS to CSP clears and resets page
 - [ ] Consider removing Clear button since strategy switch auto-clears
+
+## Simple Refresh Button
+- [x] Add refresh button at top right of CSP Dashboard next to "APIs Connected"
+- [x] Button should call window.location.reload() to refresh entire page
+- [x] Remove the broken Clear button from Strategy Type section
+- [x] Test refresh button works to clear everything and reset page

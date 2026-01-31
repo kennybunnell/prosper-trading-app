@@ -898,7 +898,18 @@ export default function CSPDashboard() {
               Analyze and execute CSP strategies with dual scoring system
             </p>
           </div>
-          <ConnectionStatusIndicator />
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.location.reload()}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh Page
+            </Button>
+            <ConnectionStatusIndicator />
+          </div>
         </div>
       </div>
       
@@ -979,7 +990,7 @@ export default function CSPDashboard() {
                 </Button>
               </div>
               
-              {/* Clear Opportunities and Export Buttons */}
+              {/* Export Button Only */}
               {opportunities.length > 0 && (
                 <div className="flex gap-2">
                   <Button
@@ -991,26 +1002,10 @@ export default function CSPDashboard() {
                       exportToCSV(opportunities, `${strategyName}_Opportunities_${timestamp}`);
                       toast.success(`Exported ${opportunities.length} opportunities to CSV`);
                     }}
-                    className="flex-1"
+                    className="w-full"
                   >
                     <Download className="w-4 h-4 mr-2" />
                     Export CSV
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => {
-                      // Clear cached query data for both CSP and spread
-                      utils.csp.opportunities.setData({ symbols: [] }, []);
-                      utils.spread.opportunities.setData({ symbols: [], spreadWidth: 5 }, []);
-                      // Clear selections
-                      setSelectedOpportunities(new Set());
-                      toast.success("Cleared all opportunities. Click Fetch to load new data.");
-                    }}
-                    className="flex-1"
-                  >
-                    <X className="w-4 h-4 mr-2" />
-                    Clear ({opportunities.length})
                   </Button>
                 </div>
               )}
