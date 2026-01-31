@@ -2983,3 +2983,25 @@
 - [x] Test workflow: Click Conservative preset → verify results → adjust range sliders → verify further refinement
 - [x] Test workflow: Click Medium preset → verify results → adjust range sliders → verify further refinement
 - [x] Test workflow: Click Aggressive preset → verify results → adjust range sliders → verify further refinement
+
+## Fix: Preset Filters Too Restrictive - Need Broader Ranges
+- [ ] Review current preset filter values in database (Conservative/Medium/Aggressive)
+- [ ] Broaden delta ranges to be more practical (e.g., 0.10-0.35 for Conservative)
+- [ ] Broaden DTE ranges to capture more opportunities (e.g., 7-45 days)
+- [ ] Broaden RSI ranges to be less restrictive
+- [ ] Broaden IV Rank ranges to be less restrictive
+- [ ] Broaden BB %B ranges to be less restrictive
+- [ ] Update preset values in database via SQL or Settings UI
+- [ ] Test Conservative preset with AMD scan (should return useful results)
+- [ ] Test Medium preset with AMD scan (should return useful results)
+- [ ] Test Aggressive preset with AMD scan (should return useful results)
+
+## Fix CSP Preset Filter Values (Too Restrictive)
+- [x] Update CSP Conservative preset with broader values (delta 0.10-0.25, DTE 14-45, RSI 20-70, IV Rank 20-100, BB %B 0-0.7, score 50+)
+- [x] Update CSP Medium preset with broader values (delta 0.15-0.35, DTE 7-45, RSI 15-80, IV Rank 10-100, BB %B 0-0.8, score 40+)
+- [x] Update CSP Aggressive preset with broader values (delta 0.20-0.45, DTE 7-30, RSI 10-90, IV Rank 0-100, BB %B 0-1.0, score 30+)
+- [ ] Test Conservative preset returns results with real scan data
+- [ ] Test Medium preset returns results with real scan data
+- [ ] Test Aggressive preset returns results with real scan data
+- [ ] Verify Conservative returns fewer opportunities than Medium
+- [ ] Verify Medium returns fewer opportunities than Aggressive

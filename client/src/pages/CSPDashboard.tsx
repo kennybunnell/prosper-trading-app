@@ -459,10 +459,11 @@ export default function CSPDashboard() {
   const filteredOpportunities = useMemo(() => {
     let filtered = [...opportunities];
 
-    // Apply preset filter from database
+    //     // Apply preset filter if active
     if (presetFilter && presets) {
       const preset = presets.find(p => p.presetName === presetFilter);
       if (preset) {
+
         filtered = filtered.filter(opp => {
           const delta = Math.abs(opp.delta);
           const minDelta = parseFloat(preset.minDelta);
@@ -506,26 +507,28 @@ export default function CSPDashboard() {
           
           return true;
         });
+
       }
     }
 
-    // Apply live range filters (ALWAYS - creates two-stage filtering workflow)
-    // Stage 1: Preset filters narrow down the list (if active)
-    // Stage 2: Range filters refine within preset results (always applied)
-    filtered = filtered.filter(opp => {
-      const delta = Math.abs(opp.delta);
-      
-      // Delta range filter
-      if (delta < deltaRange[0] || delta > deltaRange[1]) return false;
-      
-      // DTE range filter
-      if (opp.dte < dteRange[0] || opp.dte > dteRange[1]) return false;
-      
-      // Score range filter
-      if (opp.score < scoreRange[0] || opp.score > scoreRange[1]) return false;
-      
-      return true;
-    });
+    // Apply live range filters (ONLY when no preset is active - mutually exclusive)
+    // User can choose: either use preset filters OR use range filters, not both
+    if (!presetFilter) {
+      filtered = filtered.filter(opp => {
+        const delta = Math.abs(opp.delta);
+        
+        // Delta range filter
+        if (delta < deltaRange[0] || delta > deltaRange[1]) return false;
+        
+        // DTE range filter
+        if (opp.dte < dteRange[0] || opp.dte > dteRange[1]) return false;
+        
+        // Score range filter
+        if (opp.score < scoreRange[0] || opp.score > scoreRange[1]) return false;
+        
+        return true;
+      });
+    }
 
     // Apply "Selected Only" filter
     if (showSelectedOnly) {

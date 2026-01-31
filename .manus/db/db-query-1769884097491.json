@@ -1,0 +1,58 @@
+{
+  "query": "SELECT presetName, minDelta, maxDelta, minDte, maxDte, minScore, minRsi, maxRsi, minIvRank, maxIvRank, minBbPercent, maxBbPercent, minOpenInterest, minVolume FROM filterPresets WHERE userId = 1 AND strategy = 'csp' ORDER BY presetName;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT presetName, minDelta, maxDelta, minDte, maxDte, minScore, minRsi, maxRsi, minIvRank, maxIvRank, minBbPercent, maxBbPercent, minOpenInterest, minVolume FROM filterPresets WHERE userId = 1 AND strategy = 'csp' ORDER BY presetName;",
+  "rows": [
+    {
+      "presetName": "conservative",
+      "minDelta": "0.15",
+      "maxDelta": "0.28",
+      "minDte": "14",
+      "maxDte": "25",
+      "minScore": "60",
+      "minRsi": "10",
+      "maxRsi": "35",
+      "minIvRank": "40",
+      "maxIvRank": "100",
+      "minBbPercent": "0",
+      "maxBbPercent": "0.3",
+      "minOpenInterest": "50",
+      "minVolume": "50"
+    },
+    {
+      "presetName": "medium",
+      "minDelta": "0.20",
+      "maxDelta": "0.30",
+      "minDte": "10",
+      "maxDte": "30",
+      "minScore": "50",
+      "minRsi": "25",
+      "maxRsi": "45",
+      "minIvRank": "30",
+      "maxIvRank": "100",
+      "minBbPercent": "0",
+      "maxBbPercent": "0.5",
+      "minOpenInterest": "75",
+      "minVolume": "40"
+    },
+    {
+      "presetName": "aggressive",
+      "minDelta": "0.25",
+      "maxDelta": "0.35",
+      "minDte": "7",
+      "maxDte": "21",
+      "minScore": "40",
+      "minRsi": "30",
+      "maxRsi": "50",
+      "minIvRank": "20",
+      "maxIvRank": "100",
+      "minBbPercent": "0",
+      "maxBbPercent": "0.7",
+      "minOpenInterest": "50",
+      "minVolume": "30"
+    }
+  ],
+  "messages": [],
+  "stdout": "presetName\tminDelta\tmaxDelta\tminDte\tmaxDte\tminScore\tminRsi\tmaxRsi\tminIvRank\tmaxIvRank\tminBbPercent\tmaxBbPercent\tminOpenInterest\tminVolume\nconservative\t0.15\t0.28\t14\t25\t60\t10\t35\t40\t100\t0\t0.3\t50\t50\nmedium\t0.20\t0.30\t10\t30\t50\t25\t45\t30\t100\t0\t0.5\t75\t40\naggressive\t0.25\t0.35\t7\t21\t40\t30\t50\t20\t100\t0\t0.7\t50\t30\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}

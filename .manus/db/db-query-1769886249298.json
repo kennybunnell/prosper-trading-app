@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE filterPresets \nSET minDelta = '0.20', maxDelta = '0.45', \n    minDte = 7, maxDte = 30,\n    minRsi = 10, maxRsi = 90,\n    minIvRank = 0, maxIvRank = 100,\n    minBbPercent = '0', maxBbPercent = '1.0',\n    minScore = 30,\n    minOpenInterest = 30,\n    minVolume = 20\nWHERE userId = 1 AND strategy = 'csp' AND presetName = 'aggressive';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute UPDATE filterPresets \nSET minDelta = '0.20', maxDelta = '0.45', \n    minDte = 7, maxDte = 30,\n    minRsi = 10, maxRsi = 90,\n    minIvRank = 0, maxIvRank = 100,\n    minBbPercent = '0', maxBbPercent = '1.0',\n    minScore = 30,\n    minOpenInterest = 30,\n    minVolume = 20\nWHERE userId = 1 AND strategy = 'csp' AND presetName = 'aggressive';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 54
+}
