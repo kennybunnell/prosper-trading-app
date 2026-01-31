@@ -286,15 +286,18 @@ export default function CCDashboard() {
 
   // Fetch eligible positions
   const fetchPositions = async () => {
-    if (!selectedAccountId) {
-      toast.error("Please select an account first");
-      return;
+    // In paper mode, bypass account selection requirement
+    if (!tradingMode || tradingMode === 'live') {
+      if (!selectedAccountId) {
+        toast.error("Please select an account first");
+        return;
+      }
     }
 
     setIsLoadingPositions(true);
     try {
       const result = await utils.client.cc.getEligiblePositions.query({
-        accountNumber: selectedAccountId,
+        accountNumber: selectedAccountId || 'paper',
       });
       
       setHoldings(result.holdings);
@@ -308,6 +311,13 @@ export default function CCDashboard() {
       setIsLoadingPositions(false);
     }
   };
+
+  // Auto-fetch positions when in paper mode
+  useEffect(() => {
+    if (tradingMode === 'paper' && holdings.length === 0 && !isLoadingPositions) {
+      fetchPositions();
+    }
+  }, [tradingMode]);
 
   // Handle stock selection
   const toggleStockSelection = (symbol: string) => {
@@ -1040,9 +1050,14 @@ export default function CCDashboard() {
                       </>
                     )}
                   </Button>
-                  {!selectedAccountId && (
+                  {!selectedAccountId && tradingMode !== 'paper' && (
                     <p className="text-sm text-muted-foreground text-center mt-2">
                       Please select an account from the sidebar
+                    </p>
+                  )}
+                  {tradingMode === 'paper' && (
+                    <p className="text-sm text-blue-400 text-center mt-2">
+                      Using mock MAG7 positions for paper trading
                     </p>
                   )}
                 </CardContent>

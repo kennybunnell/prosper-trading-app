@@ -2935,3 +2935,11 @@
   - [ ] Verify mock positions appear automatically in paper mode
   - [ ] Test PMCC range filters with various combinations
   - [ ] Test test order workflow for CSP, CC, and PMCC strategies
+
+### Phase 10: CC Dashboard Paper Mode Auto-Display
+- [x] Analyze CC Dashboard account selection and position fetching logic
+- [x] Modify fetchPositions to bypass account check in paper mode
+- [x] Update UI to show paper mode message instead of account selection prompt
+- [x] Add auto-fetch useEffect to call fetchPositions on mount in paper mode
+- [x] Fix TradingModeContext to seed mock positions on initial load (not just on mode switch)
+- [x] Test CC Dashboard displays mock MAG7 positions without account selection (4 stocks: AAPL, MSFT, GOOGL, NVDA)

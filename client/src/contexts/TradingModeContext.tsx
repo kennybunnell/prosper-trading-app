@@ -21,7 +21,13 @@ export function TradingModeProvider({ children }: { children: React.ReactNode })
   // Initialize mode from user data
   useEffect(() => {
     if (user && !authLoading) {
-      setModeState((user as any).tradingMode || 'paper');
+      const userMode = (user as any).tradingMode || 'paper';
+      setModeState(userMode);
+      
+      // Auto-seed mock positions if user is in paper mode
+      if (userMode === 'paper') {
+        seedMockPositionsMutation.mutate();
+      }
     }
   }, [user, authLoading]);
 
