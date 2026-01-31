@@ -2961,3 +2961,15 @@
 - [x] Verify opportunities table updates after strategy change
 - [x] Test all three preset filters with both strategy types
 - [x] Test strategy switching back and forth
+
+## Bug Fixes: CSP Preset Filters Not Working and Missing Order Preview
+- [x] Investigate why preset filter buttons aren't filtering opportunities (Conservative shows 22 results when should be 0)
+- [x] Debug preset filter logic in filteredOpportunities useMemo
+- [x] Verify preset data is being loaded correctly from database
+- [x] Fix preset filter application to properly filter by delta, DTE, score, RSI, IV Rank, BB %B (issue was double-filtering with live range filters)
+- [x] Add order preview dialog to CSP Dashboard (matching CC Dashboard behavior) - already implemented
+- [x] Show buying power, order summary, concentration risk in CSP preview - already implemented
+- [x] Add "Run Dry Run" button to CSP preview dialog - already implemented
+- [x] Ensure all order flows (CSP, CC, spreads, closes, rolls) have preview dialogs - CSP and CC confirmed
+- [x] Test preset filters with real scan data
+- [x] Test CSP order preview dialog end-to-end

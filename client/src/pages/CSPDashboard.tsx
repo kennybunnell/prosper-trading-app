@@ -509,26 +509,29 @@ export default function CSPDashboard() {
       }
     }
 
-    // Apply score filter
-    if (minScore !== undefined) {
+    // Apply score filter (only if no preset is active)
+    if (minScore !== undefined && !presetFilter) {
       filtered = filtered.filter(opp => opp.score >= minScore);
     }
 
-    // Apply live range filters
-    filtered = filtered.filter(opp => {
-      const delta = Math.abs(opp.delta);
-      
-      // Delta range filter
-      if (delta < deltaRange[0] || delta > deltaRange[1]) return false;
-      
-      // DTE range filter
-      if (opp.dte < dteRange[0] || opp.dte > dteRange[1]) return false;
-      
-      // Score range filter
-      if (opp.score < scoreRange[0] || opp.score > scoreRange[1]) return false;
-      
-      return true;
-    });
+    // Apply live range filters (only if no preset is active)
+    // When a preset is active, it already handles delta/DTE/score filtering
+    if (!presetFilter) {
+      filtered = filtered.filter(opp => {
+        const delta = Math.abs(opp.delta);
+        
+        // Delta range filter
+        if (delta < deltaRange[0] || delta > deltaRange[1]) return false;
+        
+        // DTE range filter
+        if (opp.dte < dteRange[0] || opp.dte > dteRange[1]) return false;
+        
+        // Score range filter
+        if (opp.score < scoreRange[0] || opp.score > scoreRange[1]) return false;
+        
+        return true;
+      });
+    }
 
     // Apply "Selected Only" filter
     if (showSelectedOnly) {
