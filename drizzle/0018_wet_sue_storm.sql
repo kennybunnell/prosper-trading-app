@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `paperTradingBalance` int DEFAULT 100000 NOT NULL;

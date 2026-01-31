@@ -19,6 +19,8 @@ export const users = mysqlTable("users", {
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   /** Trading mode: 'live' uses Tastytrade API, 'paper' uses Tradier API (read-only) */
   tradingMode: mysqlEnum("tradingMode", ["live", "paper"]).default("paper").notNull(),
+  /** Paper trading balance for simulation (default $100,000) */
+  paperTradingBalance: int("paperTradingBalance").default(100000).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -315,3 +317,24 @@ export const watchlistSelections = mysqlTable("watchlistSelections", {
 
 export type WatchlistSelection = typeof watchlistSelections.$inferSelect;
 export type InsertWatchlistSelection = typeof watchlistSelections.$inferInsert;
+
+/**
+ * Paper trading mock stock positions
+ * Stores simulated stock positions for users in paper trading mode
+ */
+export const paperTradingPositions = mysqlTable("paperTradingPositions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  symbol: varchar("symbol", { length: 10 }).notNull(),
+  companyName: text("companyName"),
+  quantity: int("quantity").notNull(), // Number of shares
+  costBasis: varchar("costBasis", { length: 20 }).notNull(), // Average cost per share
+  currentPrice: varchar("currentPrice", { length: 20 }), // Current market price
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("paperTradingPositions_userId_idx").on(table.userId),
+}));
+
+export type PaperTradingPosition = typeof paperTradingPositions.$inferSelect;
+export type InsertPaperTradingPosition = typeof paperTradingPositions.$inferInsert;

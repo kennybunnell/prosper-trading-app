@@ -6,6 +6,8 @@
 import { protectedProcedure, router } from "./_core/trpc";
 import { TRPCError } from '@trpc/server';
 import { z } from "zod";
+import * as schema from '../drizzle/schema';
+import { eq } from 'drizzle-orm';
 
 export const ccRouter = router({
   /**
@@ -15,6 +17,49 @@ export const ccRouter = router({
   getEligiblePositions: protectedProcedure
     .input(z.object({ accountNumber: z.string() }))
     .query(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) throw new Error('Database not available');
+
+      // Check trading mode
+      const [user] = await db.select().from(schema.users).where(eq(schema.users.id, ctx.user.id)).limit(1);
+      const tradingMode = user?.tradingMode || 'live';
+
+      // In paper mode, return mock positions
+      if (tradingMode === 'paper') {
+        const mockPositions = await db.select().from(schema.paperTradingPositions).where(eq(schema.paperTradingPositions.userId, ctx.user.id));
+        
+        const holdings = mockPositions.map(p => {
+          const qty = Number(p.quantity) || 0;
+          const price = Number(p.currentPrice) || 0;
+          return {
+            symbol: p.symbol || '',
+            quantity: qty,
+            currentPrice: price,
+            marketValue: qty * price,
+            existingContracts: 0,
+            sharesCovered: 0,
+            availableShares: qty,
+            maxContracts: Math.floor(qty / 100),
+            hasExistingCalls: false,
+          };
+        });
+
+        return {
+          holdings,
+          breakdown: {
+            totalPositions: holdings.length,
+            stockPositions: holdings.length,
+            existingShortCalls: 0,
+            eligiblePositions: holdings.filter(h => h.maxContracts > 0).length,
+            eligibleContracts: holdings.reduce((sum, h) => sum + h.maxContracts, 0),
+            coveredSymbols: [],
+            shortCallDetails: {},
+          },
+        };
+      }
+
+      // Live mode - fetch from Tastytrade
       const { getApiCredentials } = await import('./db');
       const { getTastytradeAPI } = await import('./tastytrade');
 

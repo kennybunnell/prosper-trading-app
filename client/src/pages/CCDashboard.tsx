@@ -270,8 +270,19 @@ export default function CCDashboard() {
   // Fetch account balances for buying power
   const { data: balances } = trpc.account.getBalances.useQuery(
     { accountNumber: selectedAccountId || '' },
-    { enabled: !!selectedAccountId }
+    { enabled: !!selectedAccountId && tradingMode === 'live' }
   );
+
+  // Fetch paper trading balance
+  const { data: paperBalance } = trpc.paperTrading.getBalance.useQuery(
+    undefined,
+    { enabled: tradingMode === 'paper' }
+  );
+
+  // Calculate available buying power based on trading mode
+  const availableBuyingPower = tradingMode === 'paper'
+    ? (paperBalance?.buyingPower || 0)
+    : Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
 
   // Fetch eligible positions
   const fetchPositions = async () => {
@@ -1421,7 +1432,7 @@ export default function CCDashboard() {
                   const totalColl = strategyType === 'spread'
                     ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
                     : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-                  const availableBP = Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
+                  const availableBP = availableBuyingPower;
                   const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                   return usedPct > 80 
                     ? "bg-gradient-to-br from-red-500/10 to-rose-500/5 border-red-500/20" 
@@ -1437,7 +1448,7 @@ export default function CCDashboard() {
                         const totalColl = strategyType === 'spread'
                           ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
                           : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-                        const availableBP = Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
+                        const availableBP = availableBuyingPower;
                         const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                         return usedPct > 80 ? "bg-red-500/20" : "bg-emerald-500/20";
                       })()
@@ -1448,7 +1459,7 @@ export default function CCDashboard() {
                           const totalColl = strategyType === 'spread'
                             ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
                             : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-                          const availableBP = Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
+                          const availableBP = availableBuyingPower;
                           const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                           return usedPct > 80 ? "text-red-400" : "text-emerald-400";
                         })()
@@ -1467,7 +1478,7 @@ export default function CCDashboard() {
                       const totalColl = strategyType === 'spread'
                         ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
                         : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-                      const availableBP = Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
+                      const availableBP = availableBuyingPower;
                       const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                       return usedPct > 80 
                         ? "from-red-400 to-rose-400" 
@@ -1478,7 +1489,7 @@ export default function CCDashboard() {
                       const totalColl = strategyType === 'spread'
                         ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
                         : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-                      const availableBP = Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
+                      const availableBP = availableBuyingPower;
                       const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                       return usedPct.toFixed(1);
                     })()}%
@@ -1489,13 +1500,13 @@ export default function CCDashboard() {
                       const totalColl = strategyType === 'spread'
                         ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
                         : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-                      const availableBP = Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
+                      const availableBP = availableBuyingPower;
                       const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                       return usedPct > 80 ? "text-red-400" : "text-emerald-400";
                     })()
                   )}>
                     ${(() => {
-                      const availableBP = Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
+                      const availableBP = availableBuyingPower;
                       return availableBP.toLocaleString(undefined, { maximumFractionDigits: 0 });
                     })()}
                   </div>

@@ -2878,3 +2878,37 @@
 - [x] Add backend validation to roll/close order procedures (routers-orders.ts submitRoll & submitClose)
 - [ ] Test all dashboards with paper mode enabled (ready for testing)
 - [ ] Verify order submission works in live mode (ready for testing)
+
+### Phase 8: Paper Trading Simulation & Mock Data
+- [ ] Create paper trading account seeding system
+  - [ ] Add paperTradingBalance field to user table (default $100,000)
+  - [ ] Calculate buying power based on paper balance (not real Tastytrade data)
+  - [ ] Display paper balance and buying power in dashboard header
+  - [ ] Allow users to set/reset their paper trading balance
+- [ ] Add mock stock positions for CC workflow
+  - [ ] Seed 3-4 MAG7 stock positions (≥100 shares each) for paper mode users
+  - [ ] Store mock positions in database with paper_trading flag
+  - [ ] Return mock positions when fetching stock positions in paper mode
+- [ ] Add range filters to PMCC Dashboard
+  - [ ] Add strike price range filter (min/max)
+  - [ ] Add expiration date range filter (min/max DTE)
+  - [ ] Add delta range filter (min/max)
+  - [ ] Fix "Clear All Filters" button functionality
+- [ ] Enable dry run/test orders in paper mode
+  - [ ] Allow "Test Order" button to work in paper mode (show summary ticket)
+  - [ ] Only block final "Submit Order" action in paper mode
+  - [ ] Show clear messaging about paper mode limitations
+- [ ] Add sample performance data for paper mode
+  - [ ] Generate dummy monthly premium data for new users
+  - [ ] Display sample performance chart with realistic data
+  - [ ] Add disclaimer that this is sample data for demonstration
+- [ ] Populate Action Items with mock data
+  - [ ] Create sample "Ready to Close" positions
+  - [ ] Create sample "Rolls Needed" positions
+  - [ ] Show realistic action items for new users to explore
+- [ ] Test all paper trading simulation features
+  - [ ] Verify mock data appears correctly for new users
+  - [ ] Test buying power calculations
+  - [ ] Test CC workflow with mock stock positions
+  - [ ] Test PMCC range filters
+  - [ ] Test dry run functionality

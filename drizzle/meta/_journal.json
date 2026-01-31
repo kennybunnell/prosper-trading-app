@@ -120,6 +120,20 @@
       "when": 1769870372632,
       "tag": "0017_tan_johnny_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1769874188134,
+      "tag": "0018_wet_sue_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1769874723577,
+      "tag": "0019_free_darkstar",
+      "breakpoints": true
     }
   ]
 }

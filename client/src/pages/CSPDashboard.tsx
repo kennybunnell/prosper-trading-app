@@ -333,7 +333,13 @@ export default function CSPDashboard() {
   // Fetch account balances for buying power
   const { data: balances } = trpc.account.getBalances.useQuery(
     { accountNumber: selectedAccount?.accountNumber || '' },
-    { enabled: !!selectedAccount?.accountNumber }
+    { enabled: !!selectedAccount?.accountNumber && tradingMode === 'live' }
+  );
+
+  // Fetch paper trading balance
+  const { data: paperBalance } = trpc.paperTrading.getBalance.useQuery(
+    undefined,
+    { enabled: tradingMode === 'paper' }
   );
 
   // Fetch watchlist with 5-minute cache
@@ -549,7 +555,9 @@ export default function CSPDashboard() {
   const roc = totalCollateral > 0 ? (totalPremium / totalCollateral) * 100 : 0;
 
   // Calculate buying power metrics
-  const availableBuyingPower = Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
+  const availableBuyingPower = tradingMode === 'paper' 
+    ? (paperBalance?.buyingPower || 0)
+    : Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
   const buyingPowerUsedPct = availableBuyingPower > 0 ? (totalCollateral / availableBuyingPower) * 100 : 0;
   const overLimit = totalCollateral > availableBuyingPower ? totalCollateral - availableBuyingPower : 0;
   const buyingPowerColor = buyingPowerUsedPct < 80 ? 'text-green-500' : buyingPowerUsedPct < 90 ? 'text-yellow-500' : 'text-red-500';

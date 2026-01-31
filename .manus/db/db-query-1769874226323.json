@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE paperTradingPositions (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  userId INT NOT NULL,\n  symbol VARCHAR(10) NOT NULL,\n  companyName TEXT,\n  quantity INT NOT NULL,\n  costBasis VARCHAR(20) NOT NULL,\n  currentPrice VARCHAR(20),\n  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,\n  INDEX paperTradingPositions_userId_idx (userId)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute CREATE TABLE paperTradingPositions (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  userId INT NOT NULL,\n  symbol VARCHAR(10) NOT NULL,\n  companyName TEXT,\n  quantity INT NOT NULL,\n  costBasis VARCHAR(20) NOT NULL,\n  currentPrice VARCHAR(20),\n  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,\n  INDEX paperTradingPositions_userId_idx (userId)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 270
+}
