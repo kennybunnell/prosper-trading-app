@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { exportToCSV } from "@/lib/utils";
 import { useAccount } from "@/contexts/AccountContext";
+import { useTradingMode } from "@/contexts/TradingModeContext";
 import {
   Loader2,
   Plus,
@@ -212,6 +213,7 @@ const ENABLE_SPREADS = true;
 
 export default function CSPDashboard() {
   const { user, loading: authLoading } = useAuth();
+  const { mode: tradingMode } = useTradingMode();
   
   // Fetch user's background texture preferences
   const { data: backgroundPrefs } = trpc.settings.getBackgroundPreferences.useQuery();
@@ -2048,20 +2050,26 @@ export default function CSPDashboard() {
                 </Label>
               </div>
               <div className="flex flex-col items-end gap-2">
-                {overLimit > 0 && (
+                {tradingMode === 'paper' && (
+                  <p className="text-sm text-blue-500 font-semibold">
+                    ⓘ Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.
+                  </p>
+                )}
+                {overLimit > 0 && tradingMode !== 'paper' && (
                   <p className="text-sm text-red-500 font-semibold">
                     Cannot submit orders: Total collateral exceeds buying power by ${overLimit.toFixed(2)}
                   </p>
                 )}
                 <Button
                   onClick={handleSubmitOrders}
-                  disabled={submitOrders.isPending || overLimit > 0}
+                  disabled={submitOrders.isPending || overLimit > 0 || tradingMode === 'paper'}
                   size="lg"
                   className={cn(
                     dryRun 
                       ? "bg-blue-600 hover:bg-blue-700" 
                       : "bg-red-600 hover:bg-red-700 font-bold"
                   )}
+                  title={tradingMode === 'paper' ? 'Order submission is disabled in Paper Trading mode' : undefined}
                 >
                   {submitOrders.isPending ? (
                     <>

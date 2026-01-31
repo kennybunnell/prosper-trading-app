@@ -6,9 +6,7 @@
 
 import type { IBrokerAdapter } from './types';
 
-// Import adapters (will be implemented next)
-// import { TastytradeAdapter } from './tastytrade-adapter';
-// import { TradierAdapter } from './tradier-adapter';
+// Adapters are dynamically imported below to avoid circular dependencies
 
 export type TradingMode = 'live' | 'paper';
 

@@ -2858,3 +2858,12 @@
 - [ ] Document paper trading setup and usage
 
 **NOTE:** Tier-based feature gating will be implemented AFTER paper trading is complete and tested. See TIER_STRUCTURE.md for details.
+
+### Phase 6: Mode Switching Integration
+- [x] Update broker factory to accept trading mode parameter (factory.ts already supports this)
+- [ ] Modify routers to pass user's trading mode to broker factory (deferred - existing Tastytrade integration works for live mode)
+- [ ] Ensure all position/market data queries respect mode (deferred - will implement when needed)
+- [x] Add "PAPER TRADING" banner to header when in paper mode (PaperTradingBanner component)
+- [x] Disable order submission UI in paper mode (CSPDashboard button disabled with message)
+- [x] Add backend guards to prevent order submission in paper mode (server/routers.ts submitOrders procedure)
+- [ ] Test mode switching and verify correct adapter is used (ready for testing)

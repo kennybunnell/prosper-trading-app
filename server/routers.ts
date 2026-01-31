@@ -883,6 +883,20 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // Get user's trading mode from database
+        const { getDb } = await import('./db');
+        const { users } = await import('../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        const db = await getDb();
+        if (!db) throw new Error('Database connection failed');
+        const [userRecord] = await db.select().from(users).where(eq(users.id, ctx.user.id)).limit(1);
+        const tradingMode = userRecord?.tradingMode || 'paper';
+
+        // CRITICAL: Block order submission in paper trading mode
+        if (tradingMode === 'paper' && !input.dryRun) {
+          throw new Error('Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.');
+        }
+
         // CRITICAL: If dry run, do NOT call Tastytrade API at all
         if (input.dryRun) {
           // Client-side dry run - just validate structure and return success

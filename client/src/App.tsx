@@ -13,12 +13,14 @@ import PMCCDashboard from "./pages/PMCCDashboard";
 import Performance from "./pages/Performance";
 import ActionItems from "./pages/ActionItems";
 import { Sidebar } from "./components/Sidebar";
+import { PaperTradingBanner } from "./components/PaperTradingBanner";
 
 function Router() {
   return (
     <div className="flex h-screen">
       <Sidebar />
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto relative">
+        <PaperTradingBanner />
         <Switch>
           <Route path={"/"} component={Home} />
           <Route path={"/settings"} component={Settings} />
