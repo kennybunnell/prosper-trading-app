@@ -276,7 +276,11 @@ export default function CSPDashboard() {
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [minDte, setMinDte] = useState<number>(7);
   // Strategy type and spread width (Phase 1: UI only)
-  const [strategyType, setStrategyType] = useState<StrategyType>('csp');
+  // Load strategy type from localStorage on page load
+  const [strategyType, setStrategyType] = useState<StrategyType>(() => {
+    const saved = localStorage.getItem('csp-strategy-type');
+    return (saved === 'spread' ? 'spread' : 'csp') as StrategyType;
+  });
   const [spreadWidth, setSpreadWidth] = useState<SpreadWidth>(5);
   const [strategyPanelCollapsed, setStrategyPanelCollapsed] = useState(false);
   const [showSpreadHelp, setShowSpreadHelp] = useState(false);
@@ -338,35 +342,16 @@ export default function CSPDashboard() {
     setMinScore(undefined);
   }, [strategyType]);
 
-  // Auto-clear opportunities and reset page when strategy type changes
+  // Show toast notification on page load if strategy was just changed
   useEffect(() => {
-    // Clear cached query data for both CSP and spread opportunities
-    utils.csp.opportunities.setData(
-      { 
-        symbols: filteredWatchlist.map((w: any) => w.symbol),
-        minDte,
-        maxDte,
-      },
-      []
-    );
-    utils.spread.opportunities.setData(
-      { 
-        symbols: filteredWatchlist.map((w: any) => w.symbol),
-        minDte,
-        maxDte,
-        spreadWidth,
-      },
-      []
-    );
-    
-    // Reset selections
-    setSelectedOpportunities(new Set());
-    
-    // Show toast notification
-    toast.info('Strategy changed', {
-      description: `Switched to ${strategyType === 'csp' ? 'Cash-Secured Put' : 'Bull Put Spread'}. Click Fetch to load new opportunities.`
-    });
-  }, [strategyType]); // Only watch strategyType, not other dependencies
+    const justSwitched = sessionStorage.getItem('strategy-just-switched');
+    if (justSwitched === 'true') {
+      sessionStorage.removeItem('strategy-just-switched');
+      toast.info('Strategy changed', {
+        description: `Switched to ${strategyType === 'csp' ? 'Cash-Secured Put' : 'Bull Put Spread'}. Click Fetch to load new opportunities.`
+      });
+    }
+  }, []); // Run once on mount
 
   // Get selected account details
   const selectedAccount = accounts.find((acc: any) => acc.accountId === selectedAccountId);
@@ -960,7 +945,16 @@ export default function CSPDashboard() {
               <div className="flex gap-3">
                 <Button
                   variant={strategyType === 'csp' ? 'default' : 'outline'}
-                  onClick={() => setStrategyType('csp')}
+                  onClick={() => {
+                    if (strategyType !== 'csp') {
+                      // Save strategy selection to localStorage
+                      localStorage.setItem('csp-strategy-type', 'csp');
+                      // Set flag to show toast after reload
+                      sessionStorage.setItem('strategy-just-switched', 'true');
+                      // Reload page to reset everything
+                      window.location.reload();
+                    }
+                  }}
                   className={cn(
                     "flex-1 relative overflow-hidden transition-all duration-300",
                     strategyType === 'csp'
@@ -975,7 +969,16 @@ export default function CSPDashboard() {
                 </Button>
                 <Button
                   variant={strategyType === 'spread' ? 'default' : 'outline'}
-                  onClick={() => setStrategyType('spread')}
+                  onClick={() => {
+                    if (strategyType !== 'spread') {
+                      // Save strategy selection to localStorage
+                      localStorage.setItem('csp-strategy-type', 'spread');
+                      // Set flag to show toast after reload
+                      sessionStorage.setItem('strategy-just-switched', 'true');
+                      // Reload page to reset everything
+                      window.location.reload();
+                    }
+                  }}
                   className={cn(
                     "flex-1 relative overflow-hidden transition-all duration-300",
                     strategyType === 'spread'

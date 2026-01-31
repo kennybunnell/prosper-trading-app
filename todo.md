@@ -3044,3 +3044,11 @@
 - [x] Button should call window.location.reload() to refresh entire page
 - [x] Remove the broken Clear button from Strategy Type section
 - [x] Test refresh button works to clear everything and reset page
+
+## Auto-Refresh on Strategy Switch
+- [x] Modify Cash-Secured Put button to trigger window.location.reload() on click
+- [x] Modify Bull Put Spread button to trigger window.location.reload() on click
+- [x] Store selected strategy in localStorage before reload so page loads with correct strategy
+- [x] Test switching from CSP to BPS triggers automatic page refresh
+- [x] Test switching from BPS to CSP triggers automatic page refresh
+- [x] Verify toast notifications work after page reload
