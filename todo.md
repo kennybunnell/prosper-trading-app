@@ -3014,3 +3014,10 @@
 - [x] Verify adjusting range sliders works regardless of preset button state
 - [x] Test: Click Conservative preset → verify results → adjust range sliders → verify different results
 - [x] Test: Adjust range sliders → verify results → click Medium preset → verify completely different results
+
+## Bug Fix: Clear Button Not Resetting Page for New Scan
+- [x] Find Clear button handler in CSP Dashboard
+- [x] Add logic to reset opportunities state to empty
+- [x] Add logic to reset page to initial state (show "Fetch Opportunities" button)
+- [x] Clear all selections and filters when Clear is clicked
+- [x] Test Clear button properly resets page for new scan

@@ -970,24 +970,9 @@ export default function CSPDashboard() {
                     variant="destructive"
                     size="sm"
                     onClick={() => {
-                      // Clear cached data for both CSP and spread queries
-                    utils.csp.opportunities.setData(
-                      { 
-                        symbols: filteredWatchlist.map((w: any) => w.symbol),
-                        minDte,
-                        maxDte,
-                      },
-                      []
-                    );
-                    utils.spread.opportunities.setData(
-                      { 
-                        symbols: filteredWatchlist.map((w: any) => w.symbol),
-                        minDte,
-                        maxDte,
-                        spreadWidth,
-                      },
-                      []
-                    );
+                      // Invalidate both CSP and spread queries to reset page state
+                      utils.csp.opportunities.invalidate();
+                      utils.spread.opportunities.invalidate();
                       toast.success("Cleared all opportunities. Click Fetch to load new data.");
                     }}
                     className="flex-1"
