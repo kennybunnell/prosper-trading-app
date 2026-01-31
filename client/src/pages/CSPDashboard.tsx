@@ -327,6 +327,17 @@ export default function CSPDashboard() {
     }
   }, [userPreferences, selectedAccountId, accounts, setSelectedAccountId]);
 
+  // Reset filters and clear preset when strategy type changes
+  useEffect(() => {
+    // Clear preset filter so new strategy's presets can be loaded
+    setPresetFilter(null);
+    // Reset filter ranges to defaults
+    setDeltaRange([0, 1]);
+    setDteRange([0, 90]);
+    setScoreRange([0, 100]);
+    setMinScore(undefined);
+  }, [strategyType]);
+
   // Get selected account details
   const selectedAccount = accounts.find((acc: any) => acc.accountId === selectedAccountId);
 
@@ -701,6 +712,21 @@ export default function CSPDashboard() {
   const handlePresetFilter = (preset: PresetFilter) => {
     setPresetFilter(preset);
     setMinScore(undefined); // Clear score filter when using preset
+    
+    // Update filter sliders to match preset values
+    if (presets) {
+      const presetData = presets.find(p => p.presetName === preset);
+      if (presetData) {
+        // Update Delta range
+        setDeltaRange([parseFloat(presetData.minDelta), parseFloat(presetData.maxDelta)]);
+        
+        // Update DTE range
+        setDteRange([presetData.minDte, presetData.maxDte]);
+        
+        // Update Score range
+        setScoreRange([presetData.minScore, 100]);
+      }
+    }
   };
 
   // Handle submit orders - now triggers validation first

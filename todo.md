@@ -2952,3 +2952,12 @@
 - [x] Display mock monthly premium chart with realistic gains/losses
 - [x] Add disclaimer message indicating sample data for demonstration
 - [x] Test Performance page visualization with sample data
+
+## Bug Fixes: CSP Dashboard Preset Filters and Strategy Switching
+- [x] Investigate why preset filter buttons (Conservative/Medium/Aggressive) aren't applying filters
+- [x] Fix preset filter click handlers to properly update filter state
+- [x] Ensure filter sliders update when preset buttons are clicked
+- [x] Fix strategy type switching (CSP vs Bull Put Spread) to trigger full refresh
+- [x] Verify opportunities table updates after strategy change
+- [x] Test all three preset filters with both strategy types
+- [x] Test strategy switching back and forth
