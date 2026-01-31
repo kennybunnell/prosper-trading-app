@@ -3088,3 +3088,6 @@
 ## Modal and Checkbox Visibility Fixes
 - [x] Fix OrderPreviewDialog modal width with different approach (remove max-width constraints)
 - [x] Make checkboxes visible with border, background, and glow effect
+
+## Modal Content-Fit Width Fix
+- [x] Change OrderPreviewDialog to use fit-content width that adapts to table size automatically

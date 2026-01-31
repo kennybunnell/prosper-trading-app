@@ -85,7 +85,7 @@ export function OrderPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-none max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-fit min-w-[800px] max-w-[98vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">
             {isDryRun ? "Dry Run Preview" : "Order Confirmation"}
