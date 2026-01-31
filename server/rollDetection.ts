@@ -217,25 +217,24 @@ function calculateUrgencyScore(
 }
 
 /**
- * Determine urgency level based on profit status
- * Green = Profitable (80%+ profit, ready to close)
- * Yellow = At-risk (profitable but < 80% or approaching expiration)
- * Red = Losing (ITM, already losing money)
+ * Determine urgency level based on profit captured
+ * 
+ * Green = Profitable (70%+ profit, good positions)
+ * Yellow = Moderate (30-69% profit, watch closely)
+ * Red = Poor/Losing (<30% profit or negative)
  */
 function getUrgencyLevel(
   profitCaptured: number,
   itmDepth: number,
   dte: number
 ): RollUrgency {
-  // Red: ITM (in-the-money) - losing money, urgent action
-  if (itmDepth > 0) return 'red';
+  // Red: <30% profit or negative (poor/losing positions)
+  if (profitCaptured < 30) return 'red';
   
-  // Green: 80%+ profit captured and not approaching expiration - ready to close
-  if (profitCaptured >= 80 && dte >= 7) return 'green';
+  // Green: 70%+ profit captured (good positions, ready to close)
+  if (profitCaptured >= 70) return 'green';
   
-  // Yellow: Everything else (profitable but at-risk)
-  // - Profit < 80%
-  // - OR approaching expiration (< 7 DTE)
+  // Yellow: 30-69% profit (moderate, watch closely)
   return 'yellow';
 }
 

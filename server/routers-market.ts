@@ -1,13 +1,5 @@
 import { publicProcedure, router } from "./_core/trpc";
-import axios from "axios";
-
-interface NewsArticle {
-  title: string;
-  url: string;
-  source: { name: string };
-  publishedAt: string;
-  description?: string;
-}
+import { invokeLLM } from "./_core/llm";
 
 interface NewsItem {
   title: string;
@@ -28,12 +20,12 @@ const MARKET_KEYWORDS = [
   'S&P 500', 'Dow Jones', 'Nasdaq'
 ];
 
-function analyzeSentiment(title: string, description?: string): 'bullish' | 'bearish' | 'volatile' | 'neutral' {
-  const text = `${title} ${description || ''}`.toLowerCase();
+function analyzeSentiment(title: string, snippet?: string): 'bullish' | 'bearish' | 'volatile' | 'neutral' {
+  const text = `${title} ${snippet || ''}`.toLowerCase();
   
-  const bullishTerms = ['rally', 'surge', 'gain', 'rise', 'up', 'positive', 'growth', 'recovery'];
-  const bearishTerms = ['fall', 'drop', 'decline', 'down', 'negative', 'loss', 'crash', 'plunge'];
-  const volatileTerms = ['volatile', 'volatility', 'uncertainty', 'risk', 'concern', 'worry', 'tariff'];
+  const bullishTerms = ['rally', 'surge', 'gain', 'rise', 'up', 'positive', 'growth', 'recovery', 'strong'];
+  const bearishTerms = ['fall', 'drop', 'decline', 'down', 'negative', 'loss', 'crash', 'plunge', 'weak'];
+  const volatileTerms = ['volatile', 'volatility', 'uncertainty', 'risk', 'concern', 'worry', 'tariff', 'threat'];
   
   let bullishScore = 0;
   let bearishScore = 0;
@@ -57,8 +49,8 @@ function analyzeSentiment(title: string, description?: string): 'bullish' | 'bea
   return 'neutral';
 }
 
-function extractKeywords(title: string, description?: string): string[] {
-  const text = `${title} ${description || ''}`.toLowerCase();
+function extractKeywords(title: string, snippet?: string): string[] {
+  const text = `${title} ${snippet || ''}`.toLowerCase();
   const found: string[] = [];
   
   MARKET_KEYWORDS.forEach(keyword => {
@@ -70,69 +62,115 @@ function extractKeywords(title: string, description?: string): string[] {
   return found.slice(0, 3); // Return top 3 keywords
 }
 
+function extractSource(url: string): string {
+  try {
+    const hostname = new URL(url).hostname;
+    // Remove www. and extract domain name
+    const domain = hostname.replace('www.', '').split('.')[0];
+    // Capitalize first letter
+    return domain.charAt(0).toUpperCase() + domain.slice(1);
+  } catch {
+    return 'Unknown';
+  }
+}
+
 export const marketRouter = router({
   getMarketNews: publicProcedure.query(async () => {
     try {
-      // Use NewsAPI or similar service
-      // For now, using a mock implementation that searches for financial news
-      const searchQueries = [
-        'stock market tariff',
-        'Federal Reserve interest rate',
-        'market volatility Trump',
-        'S&P 500 inflation'
-      ];
-      
-      const allNews: NewsItem[] = [];
-      
-      // In production, you would call a real news API here
-      // For now, returning a structured response
-      // You can integrate with NewsAPI, Alpha Vantage, or similar services
-      
-      // Example: Using a free news API (you'll need to add API key to env)
-      // const API_KEY = process.env.NEWS_API_KEY;
-      // const response = await axios.get(`https://newsapi.org/v2/everything`, {
-      //   params: {
-      //     q: 'stock market OR tariff OR "Federal Reserve" OR inflation',
-      //     language: 'en',
-      //     sortBy: 'publishedAt',
-      //     from: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-      //     apiKey: API_KEY
-      //   }
-      // });
-      
-      // For demonstration, returning mock data structure
-      // Replace this with actual API calls
-      const mockNews: NewsItem[] = [
-        {
-          title: "Markets React to Latest Fed Comments on Interest Rates",
-          url: "https://example.com/news1",
-          source: "Financial Times",
-          publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-          sentiment: 'volatile',
-          keywords: ['Federal Reserve', 'interest rate', 'market volatility']
-        },
-        {
-          title: "Trump Announces New Tariff Policy, Markets Show Uncertainty",
-          url: "https://example.com/news2",
-          source: "Bloomberg",
-          publishedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-          sentiment: 'volatile',
-          keywords: ['Trump', 'tariff', 'trade policy']
-        },
-        {
-          title: "Inflation Data Beats Expectations, S&P 500 Rallies",
-          url: "https://example.com/news3",
-          source: "CNBC",
-          publishedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          sentiment: 'bullish',
-          keywords: ['inflation', 'S&P 500', 'CPI']
+      // Use LLM to search for financial news
+      const searchPrompt = `Search for recent financial news (past 48 hours) about:
+- Stock market volatility and tariffs
+- Federal Reserve interest rate decisions
+- Trump trade policy
+- Market-moving economic events
+
+Return the results as a JSON array with this structure:
+[
+  {
+    "title": "headline text",
+    "url": "article URL",
+    "snippet": "brief description",
+    "date": "relative date like '3 days ago' or ISO date"
+  }
+]
+
+Only include major market-moving news. Limit to 5 most important articles.`;
+
+      const response = await invokeLLM({
+        messages: [
+          { role: "system", content: "You are a financial news analyst. Search for and return recent market-moving news." },
+          { role: "user", content: searchPrompt }
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "market_news",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                articles: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      title: { type: "string" },
+                      url: { type: "string" },
+                      snippet: { type: "string" },
+                      date: { type: "string" }
+                    },
+                    required: ["title", "url", "snippet", "date"],
+                    additionalProperties: false
+                  }
+                }
+              },
+              required: ["articles"],
+              additionalProperties: false
+            }
+          }
         }
-      ];
+      });
+
+      const content = response.choices[0].message.content;
+      if (!content) return [];
       
-      return mockNews;
+      // Handle content type (string or array)
+      const contentText = typeof content === 'string' ? content : JSON.stringify(content);
+
+      const parsed = JSON.parse(contentText);
+      const articles = parsed.articles || [];
+
+      // Transform to NewsItem format
+      const newsItems: NewsItem[] = articles.map((article: any) => {
+        const sentiment = analyzeSentiment(article.title, article.snippet);
+        const keywords = extractKeywords(article.title, article.snippet);
+        const source = extractSource(article.url);
+        
+        // Convert relative dates to ISO format (approximate)
+        let publishedAt = new Date().toISOString();
+        if (article.date.includes('day')) {
+          const daysAgo = parseInt(article.date) || 1;
+          publishedAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
+        } else if (article.date.includes('hour')) {
+          const hoursAgo = parseInt(article.date) || 1;
+          publishedAt = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+        }
+
+        return {
+          title: article.title,
+          url: article.url,
+          source,
+          publishedAt,
+          sentiment,
+          keywords
+        };
+      });
+
+      return newsItems;
       
     } catch (error) {
       console.error('[Market News] Error fetching news:', error);
+      // Return empty array on error instead of failing
       return [];
     }
   }),

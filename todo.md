@@ -2757,3 +2757,15 @@
 - [x] Made news items clickable links to full articles
 - [x] Added blue glow effect to match design theme
 - [ ] TODO: Integrate real news API (currently using mock data)
+
+## Fix Profit Thresholds and Real News API (January 31, 2026)
+- [x] Update profit thresholds in rollDetection.ts getUrgencyLevel function
+- [x] Green: 70%+ profit (good positions ready to close)
+- [x] Yellow: 30-69% profit (moderate, watch closely)
+- [x] Red: <30% profit or negative (poor/losing positions)
+- [x] Integrate real news API using LLM with structured output for Market News Scanner
+- [x] Replace mock data with actual financial headlines
+- [x] Fetch news for keywords: tariff, Fed, interest rates, inflation, Trump, market volatility
+- [x] Added sentiment analysis (bullish/bearish/volatile/neutral)
+- [x] Extract keywords and source from each article
+- [x] Handle relative dates and convert to ISO format
