@@ -2735,3 +2735,25 @@
 - [x] Green cards: shadow-[0_0_15px_rgba(34,197,94,0.3)]
 - [x] Update card styling with box-shadow and border effects
 - [x] Updated borders to use /30 opacity and backgrounds to use /20 opacity for dark theme
+
+## Profit-Based Color Logic Update (January 31, 2026)
+- [x] Change color logic from DTE-based urgency to profit-based status
+- [x] Green: 80%+ profit captured (ready to close, profitable)
+- [x] Yellow: Profitable but at-risk (approaching expiration, profit could erode)
+- [x] Red: ITM (in-the-money) positions where losing money
+- [x] Updated getUrgencyLevel function to check ITM first, then profit level
+- [x] Updated rollDetection.ts to use profit-based urgency calculation
+- [x] Updated ActionItems.tsx labels: "Losing Money" (red), "At Risk" (yellow), "Profitable" (green)
+- [x] Updated descriptions to match new meanings
+
+## Market News Scanner Card (January 31, 2026)
+- [x] Create Market News Scanner card above positions section
+- [x] Created MarketNewsScanner component with sentiment icons
+- [x] Created market router with getMarketNews procedure
+- [x] Scan for market-moving keywords: tariff, Fed, interest rates, inflation, Powell, Trump trade policy
+- [x] Display recent 24-48 hour news headlines with source and date
+- [x] Show sentiment badges (bullish/bearish/volatile/neutral)
+- [x] Added auto-refresh on Action Items page load via tRPC query
+- [x] Made news items clickable links to full articles
+- [x] Added blue glow effect to match design theme
+- [ ] TODO: Integrate real news API (currently using mock data)

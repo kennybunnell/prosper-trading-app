@@ -217,12 +217,26 @@ function calculateUrgencyScore(
 }
 
 /**
- * Determine urgency level based on score
+ * Determine urgency level based on profit status
+ * Green = Profitable (80%+ profit, ready to close)
+ * Yellow = At-risk (profitable but < 80% or approaching expiration)
+ * Red = Losing (ITM, already losing money)
  */
-function getUrgencyLevel(score: number): RollUrgency {
-  if (score >= 60) return 'red';
-  if (score >= 30) return 'yellow';
-  return 'green';
+function getUrgencyLevel(
+  profitCaptured: number,
+  itmDepth: number,
+  dte: number
+): RollUrgency {
+  // Red: ITM (in-the-money) - losing money, urgent action
+  if (itmDepth > 0) return 'red';
+  
+  // Green: 80%+ profit captured and not approaching expiration - ready to close
+  if (profitCaptured >= 80 && dte >= 7) return 'green';
+  
+  // Yellow: Everything else (profitable but at-risk)
+  // - Profit < 80%
+  // - OR approaching expiration (< 7 DTE)
+  return 'yellow';
 }
 
 /**
@@ -281,7 +295,7 @@ export function analyzeCSPPosition(
   const delta = position.delta || approximateDelta(position.strike_price, currentPrice, 'put');
 
   const score = calculateUrgencyScore(dte, profitCaptured, itmDepth, delta);
-  const urgency = getUrgencyLevel(score);
+  const urgency = getUrgencyLevel(profitCaptured, itmDepth, dte);
   const reasons = generateRollReasons(dte, profitCaptured, itmDepth, delta);
 
   // Should roll if:
@@ -333,7 +347,7 @@ export function analyzeCCPosition(
   const delta = position.delta || approximateDelta(position.strike_price, currentPrice, 'call');
 
   const score = calculateUrgencyScore(dte, profitCaptured, itmDepth, delta);
-  const urgency = getUrgencyLevel(score);
+  const urgency = getUrgencyLevel(profitCaptured, itmDepth, dte);
   const reasons = generateRollReasons(dte, profitCaptured, itmDepth, delta);
 
   // Should roll if:

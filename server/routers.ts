@@ -10,6 +10,7 @@ import { workingOrdersRouter } from "./routers-working-orders";
 import { rollsRouter } from "./routers-rolls";
 import { rollRecommendationsRouter } from "./routers-roll-recommendations";
 import { ordersRouter } from "./routers-orders";
+import { marketRouter } from "./routers-market";
 
 // Helper function to parse OCC option symbols
 function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
@@ -290,6 +291,7 @@ export const appRouter = router({
   rolls: rollsRouter,
   rollRecommendations: rollRecommendationsRouter,
   orders: ordersRouter,
+  market: marketRouter,
   dashboard: router({
     /**
      * Get monthly premium data across ALL accounts (account-independent)

@@ -14,6 +14,7 @@ import { WorkingOrdersTab } from "./Performance";
 // Import RollCandidateModal and OrderPreviewModal
 import { RollCandidateModal } from "@/components/RollCandidateModal";
 import { OrderPreviewModal } from "@/components/OrderPreviewModal";
+import { MarketNewsScanner } from "@/components/MarketNewsScanner";
 import { useToast } from "@/hooks/use-toast";
 import { useAccount } from "@/contexts/AccountContext";
 
@@ -355,6 +356,9 @@ export default function ActionItems() {
             </CardContent>
           </Card>
 
+          {/* Market News Scanner */}
+          <MarketNewsScanner />
+
           {/* Rolls Needed */}
           <Card>
             <CardHeader>
@@ -383,8 +387,8 @@ export default function ActionItems() {
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <div className="h-3 w-3 rounded-full bg-red-500" />
-                        <h3 className="font-semibold text-red-600">Urgent ({rollsRed.length})</h3>
-                        <span className="text-sm text-muted-foreground">- Act today</span>
+                        <h3 className="font-semibold text-red-600">Losing Money ({rollsRed.length})</h3>
+                        <span className="text-sm text-muted-foreground">- ITM, urgent action needed</span>
                       </div>
                       <div className="space-y-2">
                         {rollsRed.map((roll: any) => (
@@ -421,8 +425,8 @@ export default function ActionItems() {
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <div className="h-3 w-3 rounded-full bg-yellow-500" />
-                        <h3 className="font-semibold text-yellow-600">Watch ({rollsYellow.length})</h3>
-                        <span className="text-sm text-muted-foreground">- Plan action</span>
+                        <h3 className="font-semibold text-yellow-600">At Risk ({rollsYellow.length})</h3>
+                        <span className="text-sm text-muted-foreground">- Profit could erode, monitor closely</span>
                       </div>
                       <div className="space-y-2">
                         {rollsYellow.map((roll: any) => (
@@ -459,8 +463,8 @@ export default function ActionItems() {
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <div className="h-3 w-3 rounded-full bg-green-500" />
-                        <h3 className="font-semibold text-green-600">Healthy ({rollsGreen.length})</h3>
-                        <span className="text-sm text-muted-foreground">- Monitor</span>
+                        <h3 className="font-semibold text-green-600">Profitable ({rollsGreen.length})</h3>
+                        <span className="text-sm text-muted-foreground">- 80%+ profit captured, ready to close</span>
                       </div>
                       <div className="space-y-2">
                         {rollsGreen.slice(0, 5).map((roll: any) => (
