@@ -3028,3 +3028,13 @@
 - [x] Ensure opportunities table is cleared from UI
 - [x] Ensure Clear button count resets to 0
 - [x] Test Clear button clears opportunities and resets page to initial state
+
+## Auto-Clear on Strategy Type Switch
+- [x] Add useEffect to watch strategyType state changes in CSPDashboard
+- [ ] When strategy changes, automatically clear cached query data using setData([])
+- [x] Reset selectedOpportunities to empty array
+- [x] Reset all filters to defaults (deltaRange, dteRange, scoreRange, presetFilter, minScore)
+- [x] Show toast message indicating data was cleared due to strategy switch
+- [x] Test switching from CSP to BPS clears and resets page
+- [x] Test switching from BPS to CSP clears and resets page
+- [ ] Consider removing Clear button since strategy switch auto-clears

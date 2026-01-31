@@ -338,6 +338,36 @@ export default function CSPDashboard() {
     setMinScore(undefined);
   }, [strategyType]);
 
+  // Auto-clear opportunities and reset page when strategy type changes
+  useEffect(() => {
+    // Clear cached query data for both CSP and spread opportunities
+    utils.csp.opportunities.setData(
+      { 
+        symbols: filteredWatchlist.map((w: any) => w.symbol),
+        minDte,
+        maxDte,
+      },
+      []
+    );
+    utils.spread.opportunities.setData(
+      { 
+        symbols: filteredWatchlist.map((w: any) => w.symbol),
+        minDte,
+        maxDte,
+        spreadWidth,
+      },
+      []
+    );
+    
+    // Reset selections
+    setSelectedOpportunities(new Set());
+    
+    // Show toast notification
+    toast.info('Strategy changed', {
+      description: `Switched to ${strategyType === 'csp' ? 'Cash-Secured Put' : 'Bull Put Spread'}. Click Fetch to load new opportunities.`
+    });
+  }, [strategyType]); // Only watch strategyType, not other dependencies
+
   // Get selected account details
   const selectedAccount = accounts.find((acc: any) => acc.accountId === selectedAccountId);
 
