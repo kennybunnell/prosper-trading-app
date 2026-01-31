@@ -719,6 +719,9 @@ export default function CCDashboard() {
       expiration: opp.expiration,
       quantity: 1,
       premium: opp.premium,
+      bid: opp.bid,
+      ask: opp.ask,
+      currentPrice: opp.currentPrice,
       collateral: strategyType === 'spread' ? (opp.capitalAtRisk || 0) : (opp.currentPrice * 100),
       status: 'valid' as const,
       // Spread-specific fields
@@ -726,6 +729,7 @@ export default function CCDashboard() {
       spreadType: strategyType === 'spread' ? ('bear_call' as const) : undefined,
       longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
       spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
+      capitalAtRisk: strategyType === 'spread' ? opp.capitalAtRisk : undefined,
     }));
 
     const totalPremium = orders.reduce((sum, o) => sum + o.premium, 0);
