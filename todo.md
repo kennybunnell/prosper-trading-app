@@ -2912,3 +2912,26 @@
   - [ ] Test CC workflow with mock stock positions
   - [ ] Test PMCC range filters
   - [ ] Test dry run functionality
+
+### Phase 9: Paper Trading Enhancements (Auto-seed, PMCC Filters, Test Orders)
+- [x] Auto-seed mock MAG7 positions when user first switches to paper mode
+  - [x] Add check in TradingModeContext to detect mode switch
+  - [x] Call paperTrading.seedMockPositions when user enters paper mode
+  - [x] Backend prevents re-seeding if positions already exist
+- [x] Add strike/expiration/delta range filters to PMCC Dashboard
+  - [x] Add range input fields for strike price (min/max)
+  - [x] Add range input fields for expiration date (DTE min/max)
+  - [x] Add range input fields for delta (min/max)
+  - [x] Wire up filters to sortedLeaps useMemo with proper filtering logic
+- [x] Fix Clear All Filters button on PMCC Dashboard
+  - [x] Updated button click handler to reset all range filter states
+  - [x] Button now clears presets, Best Per Ticker, selections, and all range filters
+- [x] Enable test order summary workflow for all strategies in paper mode
+  - [x] Force dry run mode for all dashboards (CSP, CC, PMCC) when in paper mode
+  - [x] Disable dry run toggle in paper mode (checkbox/button disabled with "Forced" label)
+  - [x] All dashboards already have test order functionality with summary display
+  - [x] Clear messaging already exists ("Dry Run", "Test Order", validation messages)
+- [ ] Test all three features end-to-end
+  - [ ] Verify mock positions appear automatically in paper mode
+  - [ ] Test PMCC range filters with various combinations
+  - [ ] Test test order workflow for CSP, CC, and PMCC strategies

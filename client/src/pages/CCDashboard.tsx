@@ -1918,8 +1918,9 @@ export default function CCDashboard() {
                       <label className="flex items-center gap-2 cursor-pointer">
                         <Checkbox
                           id="dryRun"
-                          checked={dryRun}
+                          checked={tradingMode === 'paper' ? true : dryRun}
                           onCheckedChange={(checked) => setDryRun(checked as boolean)}
+                          disabled={tradingMode === 'paper'}
                         />
                         <span className="text-sm text-muted-foreground flex items-center gap-1">
                           Dry Run Mode (Test without submitting)

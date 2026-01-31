@@ -139,6 +139,14 @@ export default function PMCCDashboard() {
   const [showOrderPreview, setShowOrderPreview] = useState(false);
   const [isDryRun, setIsDryRun] = useState(true);
   const [isSubmittingOrders, setIsSubmittingOrders] = useState(false);
+  
+  // Range filter states
+  const [strikeMin, setStrikeMin] = useState<number | ''>('');
+  const [strikeMax, setStrikeMax] = useState<number | ''>('');
+  const [dteMin, setDteMin] = useState<number | ''>('');
+  const [dteMax, setDteMax] = useState<number | ''>('');
+  const [deltaMin, setDeltaMin] = useState<number | ''>('');
+  const [deltaMax, setDeltaMax] = useState<number | ''>('');
 
   // Fetch PMCC filter presets from database
   const { data: presets } = trpc.filterPresets.getByStrategy.useQuery({ strategy: 'pmcc' });
@@ -285,6 +293,26 @@ export default function PMCCDashboard() {
       }
      }
     
+    // Apply range filters
+    if (strikeMin !== '' || strikeMax !== '' || dteMin !== '' || dteMax !== '' || deltaMin !== '' || deltaMax !== '') {
+      filtered = filtered.filter(leap => {
+        // Strike filter
+        if (strikeMin !== '' && leap.strike < strikeMin) return false;
+        if (strikeMax !== '' && leap.strike > strikeMax) return false;
+        
+        // DTE filter
+        if (dteMin !== '' && leap.dte < dteMin) return false;
+        if (dteMax !== '' && leap.dte > dteMax) return false;
+        
+        // Delta filter (use absolute value)
+        const delta = Math.abs(leap.delta);
+        if (deltaMin !== '' && delta < deltaMin) return false;
+        if (deltaMax !== '' && delta > deltaMax) return false;
+        
+        return true;
+      });
+    }
+    
     // Apply Best Per Ticker filterr - show only top-scoring LEAP per symbol
     if (showBestPerTicker) {
       const bestPerTicker = new Map<string, typeof filtered[0]>();
@@ -320,7 +348,7 @@ export default function PMCCDashboard() {
     });
     
     return filtered;
-  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection, selectedPreset, presets, showBestPerTicker]);
+  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection, selectedPreset, presets, showBestPerTicker, strikeMin, strikeMax, dteMin, dteMax, deltaMin, deltaMax]);
 
   // Calculate order summary
   const orderSummary = useMemo(() => {
@@ -398,9 +426,84 @@ export default function PMCCDashboard() {
 
               {/* Preset Selection - shown after scan */}
               {scanLeapsMutation.data && scanLeapsMutation.data.opportunities.length > 0 && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Filter Presets</label>
-                  <div className="flex flex-wrap gap-3">
+                <div className="space-y-4">
+                  {/* Range Filters */}
+                  <div>
+                    <label className="text-sm font-medium mb-3 block">Range Filters</label>
+                    <div className="grid grid-cols-3 gap-4">
+                      {/* Strike Range */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground">Strike Price</label>
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="number"
+                            placeholder="Min"
+                            value={strikeMin}
+                            onChange={(e) => setStrikeMin(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                          <span className="text-muted-foreground">-</span>
+                          <input
+                            type="number"
+                            placeholder="Max"
+                            value={strikeMax}
+                            onChange={(e) => setStrikeMax(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* DTE Range */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground">Days to Expiration</label>
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="number"
+                            placeholder="Min"
+                            value={dteMin}
+                            onChange={(e) => setDteMin(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                          <span className="text-muted-foreground">-</span>
+                          <input
+                            type="number"
+                            placeholder="Max"
+                            value={dteMax}
+                            onChange={(e) => setDteMax(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Delta Range */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground">Delta</label>
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Min"
+                            value={deltaMin}
+                            onChange={(e) => setDeltaMin(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                          <span className="text-muted-foreground">-</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Max"
+                            value={deltaMax}
+                            onChange={(e) => setDeltaMax(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Filter Presets</label>
+                    <div className="flex flex-wrap gap-3">
                     <Button
                       variant="ghost"
                       className={cn(
@@ -462,6 +565,13 @@ export default function PMCCDashboard() {
                         setSelectedPreset(null);
                         setShowBestPerTicker(false);
                         setSelectedLeaps(new Set());
+                        // Reset range filters
+                        setStrikeMin('');
+                        setStrikeMax('');
+                        setDteMin('');
+                        setDteMax('');
+                        setDeltaMin('');
+                        setDeltaMax('');
                       }}
                     >
                       Clear All Filters
@@ -479,6 +589,7 @@ export default function PMCCDashboard() {
                     >
                       {showBestPerTicker ? '✓ ' : ''}Best Per Ticker
                     </Button>
+                  </div>
                   </div>
                 </div>
               )}
@@ -755,8 +866,10 @@ export default function PMCCDashboard() {
                 <Button
                   variant={isDryRun ? "default" : "outline"}
                   onClick={() => setIsDryRun(!isDryRun)}
+                  disabled={tradingMode === 'paper'}
                 >
                   {isDryRun ? "Dry Run" : "Live Mode"}
+                  {tradingMode === 'paper' && <span className="ml-2 text-xs">(Forced)</span>}
                 </Button>
               </div>
 

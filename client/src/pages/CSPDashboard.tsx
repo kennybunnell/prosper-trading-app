@@ -2049,8 +2049,9 @@ export default function CSPDashboard() {
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="dry-run"
-                  checked={dryRun}
+                  checked={tradingMode === 'paper' ? true : dryRun}
                   onCheckedChange={(checked) => setDryRun(checked as boolean)}
+                  disabled={tradingMode === 'paper'}
                 />
                 <Label htmlFor="dry-run" className="cursor-pointer text-sm flex items-center gap-1">
                   Dry Run (test without submitting real orders)
