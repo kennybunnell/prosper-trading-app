@@ -3075,3 +3075,7 @@
 - [x] Remove tradingMode === 'paper' restriction from Test Order button disabled condition
 - [x] Allow order preview dialog to open in paper trading mode
 - [ ] Test that order preview works in paper trading mode
+
+## Widen OrderPreviewDialog Modal
+- [x] Increase OrderPreviewDialog width by 30-40% to eliminate horizontal scrolling
+- [ ] Test that all columns fit without scrolling
