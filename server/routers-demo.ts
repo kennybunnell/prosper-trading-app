@@ -2,6 +2,16 @@ import { router, protectedProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { tastytradeAccounts } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+
+// Starter watchlist for demo users (from production environment)
+const DEMO_WATCHLIST = [
+  'AAPL', 'MSFT', 'AMZN', 'TSLA', 'META', 'GOOGL', 'NVDA', 'AVGO',
+  'V', 'JPM', 'JNJ', 'UNH', 'PG', 'HD', 'DIS', 'ADBE',
+  'COIN', 'SOFI', 'HOOD', 'DKNG', 'PINS',
+  'CVX', 'CAT', 'F', 'AAL', 'FCX',
+  'AXP', 'GS', 'ABBV', 'ORCL', 'TSM', 'QCOM', 'CMCSA'
+];
 
 /**
  * Demo account management procedures
@@ -47,6 +57,17 @@ export const demoRouter = router({
       demoBalance: 100000,
       isActive: 1,
     });
+
+    // Pre-populate watchlist for demo users
+    try {
+      const watchlistValues = DEMO_WATCHLIST.map(symbol => `(${userId}, '${symbol}', 1, NOW())`);
+      await db.execute(sql.raw(
+        `INSERT INTO watchlistSelections (userId, symbol, isSelected, updatedAt) VALUES ${watchlistValues.join(', ')} ON DUPLICATE KEY UPDATE isSelected = 1`
+      ));
+    } catch (err) {
+      console.error('[Demo] Failed to populate watchlist:', err);
+      // Don't fail account creation if watchlist fails
+    }
 
     // Fetch the newly created account
     const createdAccount = await db

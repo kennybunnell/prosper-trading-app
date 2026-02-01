@@ -3152,3 +3152,12 @@
 - [x] Debug why welcome modal is not showing - Fixed: moved logic to Sidebar component
 - [x] Debug why sidebar still shows "Paper Trading" instead of "Demo Mode" - Fixed: updated TradingModeToggle
 - [x] Fix demo mode detection logic in TradingModeToggle
+
+## 🎯 Demo Mode Refinements (User Feedback)
+- [x] Change top banner from "PAPER TRADING MODE" to "DEMO MODE" for trial users
+- [x] Fix welcome modal not appearing on first login - now shows for all demo users
+- [x] Auto-select demo account when it's created (no manual selection required)
+- [x] Pre-populate demo users with default watchlist (33 symbols from production)
+- [x] Make welcome modal more persistent (60 second countdown or manual close)
+- [x] Add watchlist import instructions to welcome modal
+- [ ] Test full onboarding flow: logout → login → see modal → auto-selected account → pre-loaded watchlist

@@ -40,23 +40,37 @@ export function Sidebar({ className }: SidebarProps) {
   // Initialize demo account for trial users
   const { data: demoAccountData } = trpc.demo.getOrCreateDemoAccount.useQuery();
   
-  // Show welcome modal for first-time users
+  // Check if user has real accounts
+  const { data: accountStatus } = trpc.demo.hasRealAccounts.useQuery();
+  const hasRealAccounts = accountStatus?.hasRealAccounts ?? false;
+  const isDemo = user?.subscriptionTier === 'free_trial' || !hasRealAccounts;
+  
+  // Show welcome modal for demo users on every login
   useEffect(() => {
-    if (demoAccountData?.isNew) {
+    if (isDemo && demoAccountData) {
       setShowWelcomeModal(true);
     }
-  }, [demoAccountData]);
+  }, [isDemo, demoAccountData]);
 
   // Fetch Tastytrade accounts
   const { data: accounts, isLoading: accountsLoading } = trpc.accounts.list.useQuery();
   const { data: credentials } = trpc.settings.getCredentials.useQuery();
 
-  // Set default account if available
+  // Auto-select demo account for demo users, or default account for others
   useEffect(() => {
-    if (credentials?.defaultTastytradeAccountId && !selectedAccountId && accounts) {
+    if (!accounts || selectedAccountId) return;
+    
+    if (isDemo) {
+      // Auto-select demo account
+      const demoAccount = accounts.find((acc: any) => acc.isDemoAccount);
+      if (demoAccount) {
+        setSelectedAccountId(demoAccount.accountId);
+      }
+    } else if (credentials?.defaultTastytradeAccountId) {
+      // Select default account for non-demo users
       setSelectedAccountId(credentials.defaultTastytradeAccountId);
     }
-  }, [credentials, accounts, selectedAccountId, setSelectedAccountId]);
+  }, [accounts, selectedAccountId, setSelectedAccountId, isDemo, credentials]);
 
   // Get selected account details
   const selectedAccount = accounts?.find((acc: any) => acc.accountId === selectedAccountId);
