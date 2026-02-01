@@ -3166,3 +3166,10 @@
 - [x] Verify preset filter criteria are properly loaded from database - Confirmed: presets are auto-seeded on first access
 - [x] Test Settings access for trial users after fix - Settings link confirmed visible in screenshot
 - [ ] User needs to refresh page to get updated API key restriction code (allows trial users to use system Tradier API key)
+
+## Preset Filter Values - Critical Issue
+- [x] Verify preset filter values in database match development environment (user reports all opportunities filtered out)
+- [x] Compare seeded preset values with working dev environment presets - Found major discrepancies
+- [x] Update getRecommendedFilterValues() function with correct dev environment values for ALL 5 strategies (CSP, CC, PMCC, BPS, BCS)
+- [x] Delete existing trial user presets from database to force re-seeding
+- [ ] Test that Conservative/Medium/Aggressive presets show opportunities after refresh

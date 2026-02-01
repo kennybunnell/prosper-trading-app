@@ -14,51 +14,51 @@ export function getRecommendedFilterValues(
   const recommendations = {
     csp: {
       conservative: {
-        minDte: 330,
-        maxDte: 390,
-        minDelta: "0.75",
-        maxDelta: "0.85",
-        minOpenInterest: 1000,
-        minVolume: 50,
-        minRsi: 30,
+        minDte: 14,
+        maxDte: 45,
+        minDelta: "0.10",
+        maxDelta: "0.25",
+        minOpenInterest: 50,
+        minVolume: 30,
+        minRsi: 20,
         maxRsi: 70,
         minIvRank: 20,
         maxIvRank: 100,
         minBbPercent: "0",
-        maxBbPercent: "0.015",
-        minScore: 70,
-        maxStrikePercent: 90,
+        maxBbPercent: "0.7",
+        minScore: 50,
+        maxStrikePercent: 100,
       },
       medium: {
-        minDte: 10,
-        maxDte: 30,
-        minDelta: "0.20",
-        maxDelta: "0.30",
-        minOpenInterest: 75,
-        minVolume: 40,
-        minRsi: 25,
-        maxRsi: 45,
-        minIvRank: 30,
+        minDte: 7,
+        maxDte: 45,
+        minDelta: "0.15",
+        maxDelta: "0.35",
+        minOpenInterest: 50,
+        minVolume: 25,
+        minRsi: 15,
+        maxRsi: 80,
+        minIvRank: 10,
         maxIvRank: 100,
         minBbPercent: "0",
-        maxBbPercent: "0.5",
-        minScore: 50,
+        maxBbPercent: "0.8",
+        minScore: 40,
         maxStrikePercent: 105,
       },
       aggressive: {
         minDte: 7,
-        maxDte: 21,
-        minDelta: "0.25",
-        maxDelta: "0.35",
-        minOpenInterest: 50,
-        minVolume: 30,
-        minRsi: 30,
-        maxRsi: 50,
-        minIvRank: 20,
+        maxDte: 30,
+        minDelta: "0.20",
+        maxDelta: "0.45",
+        minOpenInterest: 30,
+        minVolume: 20,
+        minRsi: 10,
+        maxRsi: 90,
+        minIvRank: 0,
         maxIvRank: 100,
         minBbPercent: "0",
-        maxBbPercent: "0.7",
-        minScore: 40,
+        maxBbPercent: "1.0",
+        minScore: 30,
         maxStrikePercent: 110,
       },
     },
@@ -81,9 +81,9 @@ export function getRecommendedFilterValues(
       },
       medium: {
         minDte: 10,
-        maxDte: 30,
+        maxDte: 20,
         minDelta: "0.20",
-        maxDelta: "0.30",
+        maxDelta: "0.28",
         minOpenInterest: 75,
         minVolume: 40,
         minRsi: 55,
@@ -114,19 +114,19 @@ export function getRecommendedFilterValues(
     },
     bps: {
       conservative: {
-        minDte: 7,  // Allow all DTE ranges
+        minDte: 7,
         maxDte: 60,
-        minDelta: "0.05",  // Allow all delta ranges
+        minDelta: "0.05",
         maxDelta: "0.40",
-        minOpenInterest: 10,  // Minimal liquidity requirement
+        minOpenInterest: 10,
         minVolume: 10,
-        minRsi: 0,  // Full RSI range - no filtering
+        minRsi: 0,
         maxRsi: 100,
-        minIvRank: 0,  // Full IV Rank range - no filtering
+        minIvRank: 0,
         maxIvRank: 100,
-        minBbPercent: "0",  // Full BB %B range - no filtering
+        minBbPercent: "0",
         maxBbPercent: "1.0",
-        minScore: 50,  // Top ~20% (scores 50-63 based on user's 22-63 range)
+        minScore: 50,
         maxStrikePercent: 110,
       },
       medium: {
@@ -136,13 +136,13 @@ export function getRecommendedFilterValues(
         maxDelta: "0.40",
         minOpenInterest: 10,
         minVolume: 10,
-        minRsi: 0,  // Full range
+        minRsi: 0,
         maxRsi: 100,
-        minIvRank: 0,  // Full range
+        minIvRank: 0,
         maxIvRank: 100,
-        minBbPercent: "0",  // Full range
+        minBbPercent: "0",
         maxBbPercent: "1.0",
-        minScore: 40,  // Top ~40% (scores 40-63)
+        minScore: 40,
         maxStrikePercent: 110,
       },
       aggressive: {
@@ -152,13 +152,13 @@ export function getRecommendedFilterValues(
         maxDelta: "0.40",
         minOpenInterest: 10,
         minVolume: 10,
-        minRsi: 0,  // Full range
+        minRsi: 0,
         maxRsi: 100,
-        minIvRank: 0,  // Full range
+        minIvRank: 0,
         maxIvRank: 100,
-        minBbPercent: "0",  // Full range
+        minBbPercent: "0",
         maxBbPercent: "1.0",
-        minScore: 30,  // Top ~60% (scores 30-63)
+        minScore: 30,
         maxStrikePercent: 110,
       },
     },
@@ -214,9 +214,9 @@ export function getRecommendedFilterValues(
     },
     pmcc: {
       conservative: {
-        minDte: 270, // 9 months minimum for LEAP
-        maxDte: 450, // 15 months maximum
-        minDelta: "0.75", // Deep ITM for LEAP
+        minDte: 270,
+        maxDte: 450,
+        minDelta: "0.75",
         maxDelta: "0.90",
         minOpenInterest: 50,
         minVolume: 20,
@@ -227,7 +227,7 @@ export function getRecommendedFilterValues(
         minBbPercent: "0",
         maxBbPercent: "1.0",
         minScore: 60,
-        maxStrikePercent: 90, // ITM strikes
+        maxStrikePercent: 90,
       },
       medium: {
         minDte: 300,
