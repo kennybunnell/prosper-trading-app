@@ -298,6 +298,49 @@ export function AdminFeedback() {
                 <div className="bg-muted/50 p-4 rounded-lg">
                   <p className="whitespace-pre-wrap">{feedbackDetail.feedback.description}</p>
                 </div>
+
+                {/* Screenshot/Recording */}
+                {feedbackDetail.feedback.screenshotUrl && (
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Attachment</label>
+                    <div className="border border-border rounded-lg p-4">
+                      {feedbackDetail.feedback.screenshotUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                        <img
+                          src={feedbackDetail.feedback.screenshotUrl}
+                          alt="Screenshot"
+                          className="max-w-full h-auto rounded-lg"
+                        />
+                      ) : feedbackDetail.feedback.screenshotUrl.match(/\.(mp4|webm|mov)$/i) ? (
+                        <video
+                          src={feedbackDetail.feedback.screenshotUrl}
+                          controls
+                          className="max-w-full h-auto rounded-lg"
+                        />
+                      ) : (
+                        <a
+                          href={feedbackDetail.feedback.screenshotUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          View attachment
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Page URL & User Agent */}
+                {(feedbackDetail.feedback.pageUrl || feedbackDetail.feedback.userAgent) && (
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    {feedbackDetail.feedback.pageUrl && (
+                      <p><strong>Page:</strong> {feedbackDetail.feedback.pageUrl}</p>
+                    )}
+                    {feedbackDetail.feedback.userAgent && (
+                      <p><strong>Browser:</strong> {feedbackDetail.feedback.userAgent}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Status Update */}

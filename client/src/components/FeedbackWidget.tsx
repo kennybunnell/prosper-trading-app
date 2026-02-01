@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,16 +12,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MessageCircle, Send } from "lucide-react";
+import { MessageCircle, Send, Upload, X, Image as ImageIcon, Video } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function FeedbackWidget() {
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [type, setType] = useState<string>("feedback");
   const [priority, setPriority] = useState<string>("medium");
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // File upload mutation
+  const uploadFile = trpc.feedback.uploadFile.useMutation();
 
   // Submit feedback mutation
   const submitFeedback = trpc.feedback.submit.useMutation({
@@ -31,11 +38,7 @@ export function FeedbackWidget() {
         description: "Thank you for your feedback! We'll review it shortly.",
       });
       // Reset form
-      setType("feedback");
-      setPriority("medium");
-      setSubject("");
-      setDescription("");
-      setIsOpen(false);
+      resetForm();
     },
     onError: (error: any) => {
       toast({
@@ -46,7 +49,61 @@ export function FeedbackWidget() {
     },
   });
 
-  const handleSubmit = () => {
+  const resetForm = () => {
+    setType("feedback");
+    setPriority("medium");
+    setSubject("");
+    setDescription("");
+    setSelectedFile(null);
+    setFilePreviewUrl(null);
+    setIsOpen(false);
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an image (PNG, JPG, GIF, WebP) or video (MP4, WebM, MOV)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (16MB limit)
+    const maxSize = 16 * 1024 * 1024; // 16MB
+    if (file.size > maxSize) {
+      toast({
+        title: "File too large",
+        description: "Please upload a file smaller than 16MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedFile(file);
+
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setFilePreviewUrl(previewUrl);
+  };
+
+  const handleRemoveFile = () => {
+    if (filePreviewUrl) {
+      URL.revokeObjectURL(filePreviewUrl);
+    }
+    setSelectedFile(null);
+    setFilePreviewUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSubmit = async () => {
     if (!subject.trim()) {
       toast({
         title: "Subject required",
@@ -65,6 +122,47 @@ export function FeedbackWidget() {
       return;
     }
 
+    let screenshotUrl: string | undefined = undefined;
+
+    // Upload file if selected
+    if (selectedFile) {
+      try {
+        setIsUploading(true);
+        
+        // Convert file to base64
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Remove data URL prefix (e.g., "data:image/png;base64,")
+            const base64Data = result.split(',')[1];
+            resolve(base64Data);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(selectedFile);
+        });
+
+        const uploadResult = await uploadFile.mutateAsync({
+          fileName: selectedFile.name,
+          fileType: selectedFile.type,
+          fileData: base64,
+        });
+
+        screenshotUrl = uploadResult.url;
+      } catch (error: any) {
+        toast({
+          title: "File upload failed",
+          description: error.message || "Failed to upload file. Please try again.",
+          variant: "destructive",
+        });
+        setIsUploading(false);
+        return;
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
+    // Submit feedback with file URL
     submitFeedback.mutate({
       type: type as any,
       priority: priority as any,
@@ -72,8 +170,12 @@ export function FeedbackWidget() {
       description: description.trim(),
       pageUrl: window.location.href,
       userAgent: navigator.userAgent,
+      screenshotUrl,
     });
   };
+
+  const isImage = selectedFile?.type.startsWith('image/');
+  const isVideo = selectedFile?.type.startsWith('video/');
 
   return (
     <>
@@ -88,7 +190,7 @@ export function FeedbackWidget() {
 
       {/* Feedback Dialog */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Send Feedback</DialogTitle>
             <DialogDescription>
@@ -152,6 +254,79 @@ export function FeedbackWidget() {
               </p>
             </div>
 
+            {/* File Upload Section */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                Screenshot or Recording (Optional)
+              </label>
+              
+              {!selectedFile ? (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary hover:bg-accent/50 transition-colors"
+                >
+                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm font-medium mb-1">
+                    Click to upload screenshot or recording
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    PNG, JPG, GIF, WebP, MP4, WebM, MOV (max 16MB)
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,video/mp4,video/webm,video/quicktime"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                </div>
+              ) : (
+                <div className="border border-border rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    {/* Preview */}
+                    <div className="flex-shrink-0">
+                      {isImage && filePreviewUrl && (
+                        <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-muted">
+                          <img
+                            src={filePreviewUrl}
+                            alt="Preview"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      {isVideo && filePreviewUrl && (
+                        <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+                          <Video className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* File Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {selectedFile.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleRemoveFile}
+                          className="flex-shrink-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="bg-muted/50 p-3 rounded-lg text-sm">
               <p className="text-muted-foreground">
                 <strong>Note:</strong> We'll automatically include the current page URL and browser information to help us investigate issues.
@@ -165,10 +340,10 @@ export function FeedbackWidget() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={submitFeedback.isPending || !subject.trim() || !description.trim()}
+              disabled={submitFeedback.isPending || isUploading || !subject.trim() || !description.trim()}
             >
               <Send className="h-4 w-4 mr-2" />
-              {submitFeedback.isPending ? "Submitting..." : "Submit Feedback"}
+              {isUploading ? "Uploading..." : submitFeedback.isPending ? "Submitting..." : "Submit Feedback"}
             </Button>
           </DialogFooter>
         </DialogContent>

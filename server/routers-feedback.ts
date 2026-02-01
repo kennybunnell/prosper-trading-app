@@ -10,6 +10,44 @@ import { z } from "zod";
 
 export const feedbackRouter = router({
   /**
+   * Upload file (screenshot/recording) to S3
+   */
+  uploadFile: protectedProcedure
+    .input(z.object({
+      fileName: z.string(),
+      fileType: z.string(),
+      fileData: z.string(), // base64 encoded file data
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { storagePut } = await import('./storage');
+
+      try {
+        // Decode base64 to buffer
+        const buffer = Buffer.from(input.fileData, 'base64');
+
+        // Generate unique file key with user ID and timestamp
+        const timestamp = Date.now();
+        const sanitizedFileName = input.fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileKey = `feedback/${ctx.user.id}/${timestamp}-${sanitizedFileName}`;
+
+        // Upload to S3
+        const { url } = await storagePut(fileKey, buffer, input.fileType);
+
+        return {
+          success: true,
+          url,
+          key: fileKey,
+        };
+      } catch (error: any) {
+        console.error('[Feedback] File upload error:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to upload file',
+        });
+      }
+    }),
+
+  /**
    * Submit feedback from user
    */
   submit: protectedProcedure

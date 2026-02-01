@@ -3267,3 +3267,12 @@
 - [x] Add feedback submission form in widget
 - [x] Integrate widget into main app pages
 - [ ] Test complete feedback workflow (submit, view, reply)
+
+## Feedback Widget File Upload Enhancement
+- [x] Add file input to FeedbackWidget for screenshots/recordings
+- [x] Add file preview (image thumbnail, video player)
+- [x] Add file validation (type, size limits)
+- [x] Create backend endpoint for S3 file upload
+- [x] Update feedback submission to include uploaded file URLs
+- [x] Display uploaded files in AdminFeedback detail view
+- [ ] Test complete upload workflow
