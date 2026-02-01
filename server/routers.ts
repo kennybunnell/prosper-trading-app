@@ -723,11 +723,20 @@ export const appRouter = router({
         const { scoreOpportunities } = await import('./scoring');
 
         const credentials = await getApiCredentials(ctx.user.id);
-        if (!credentials?.tradierApiKey) {
-          throw new Error('Tradier API key not configured');
+        
+        // Determine if user can use system API key (only free trial users)
+        const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+        const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
+        
+        if (!tradierApiKey) {
+          if (isFreeTrialUser) {
+            throw new Error('System Tradier API key not configured. Please contact support.');
+          } else {
+            throw new Error('Please configure your Tradier API key in Settings to access live market data.');
+          }
         }
 
-        const api = createTradierAPI(credentials.tradierApiKey);
+        const api = createTradierAPI(tradierApiKey);
         const symbols = input.symbols || [];
         
         if (symbols.length === 0) {
@@ -1075,11 +1084,20 @@ export const appRouter = router({
         const { calculateBullPutSpread } = await import('./spread-pricing');
 
         const credentials = await getApiCredentials(ctx.user.id);
-        if (!credentials?.tradierApiKey) {
-          throw new Error('Tradier API key not configured');
+        
+        // Determine if user can use system API key (only free trial users)
+        const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+        const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
+        
+        if (!tradierApiKey) {
+          if (isFreeTrialUser) {
+            throw new Error('System Tradier API key not configured. Please contact support.');
+          } else {
+            throw new Error('Please configure your Tradier API key in Settings to access live market data.');
+          }
         }
 
-        const api = createTradierAPI(credentials.tradierApiKey);
+        const api = createTradierAPI(tradierApiKey);
         const symbols = input.symbols || [];
         
         if (symbols.length === 0) {

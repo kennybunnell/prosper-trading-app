@@ -173,11 +173,20 @@ export const ccRouter = router({
       const { createTradierAPI } = await import('./tradier');
 
       const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tradierApiKey) {
-        throw new Error('Tradier API key not configured');
+      
+      // Determine if user can use system API key (only free trial users)
+      const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+      const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
+      
+      if (!tradierApiKey) {
+        if (isFreeTrialUser) {
+          throw new Error('System Tradier API key not configured. Please contact support.');
+        } else {
+          throw new Error('Please configure your Tradier API key in Settings to access live market data.');
+        }
       }
 
-      const api = createTradierAPI(credentials.tradierApiKey);
+      const api = createTradierAPI(tradierApiKey);
       const opportunities: any[] = [];
 
       // Build holdings map for quick lookup
@@ -377,11 +386,20 @@ export const ccRouter = router({
       const { calculateBearCallSpread } = await import('./bear-call-pricing');
 
       const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tradierApiKey) {
-        throw new Error('Tradier API key not configured');
+      
+      // Determine if user can use system API key (only free trial users)
+      const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+      const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
+      
+      if (!tradierApiKey) {
+        if (isFreeTrialUser) {
+          throw new Error('System Tradier API key not configured. Please contact support.');
+        } else {
+          throw new Error('Please configure your Tradier API key in Settings to access live market data.');
+        }
       }
 
-      const api = createTradierAPI(credentials.tradierApiKey);
+      const api = createTradierAPI(tradierApiKey);
       const spreadOpportunities: any[] = [];
 
       // OPTIMIZATION: Group opportunities by symbol+expiration to batch API calls

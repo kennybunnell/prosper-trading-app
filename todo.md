@@ -3129,3 +3129,33 @@
 - [x] Test demo account has $100K balance (demoBalance: 100000 in database)
 - [x] Test pre-loaded watchlist has 33 symbols in CSP Dashboard ✅
 - [ ] Test welcome modal countdown timer works correctly (optional - can test later)
+
+## 🐛 Fix Demo Mode Tradier API Access
+- [x] Investigate why demo users get "Tradier API key not configured" error
+- [x] Check if TRADIER_API_KEY is accessible to all users or only admin
+- [x] Fix configuration to allow demo users to access Tradier API (added fallback to system TRADIER_API_KEY)
+- [x] Updated routers.ts (CSP opportunities)
+- [x] Updated routers-cc.ts (CC opportunities and bear call spreads)
+- [x] Updated routers-pmcc.ts (PMCC LEAP scanning)
+- [ ] Test "Fetch Opportunities" button works in demo mode with real Tradier data
+- [ ] Verify demo users can fetch real option chains from Tradier
+
+## 🔐 Restrict System API Key to Trial Users Only
+- [ ] Update Tradier API fallback logic to check user.subscriptionTier
+- [ ] Allow system TRADIER_API_KEY only for 'free_trial' tier users
+- [ ] Require personal Tradier API key for paid tiers (starter, pro, advanced)
+- [ ] Show clear error message for paid users without personal API key
+- [ ] Update routers.ts CSP opportunities procedure
+- [ ] Update routers-cc.ts CC opportunities procedures
+- [ ] Update routers-pmcc.ts PMCC procedures
+- [ ] Test trial user can use system key
+- [ ] Test paid user gets error without personal key
+
+## API Key Access Control
+- [x] Restrict Tradier API system key fallback to free_trial users only
+- [x] Require paid users (starter/pro/advanced) to provide their own Tradier API credentials
+- [x] Update CSP router (getOpportunities, getBullPutSpreadOpportunities) with tier-based API key logic
+- [x] Update CC router (getCoveredCallOpportunities, getBearCallSpreadOpportunities) with tier-based API key logic
+- [x] Update PMCC router (scanLeaps, getLeapPositions) with tier-based API key logic
+- [x] Add clear error messages for missing credentials (trial: contact support, paid: configure in Settings)
+- [x] Create comprehensive vitest test suite for API key restriction logic (17 tests passing)

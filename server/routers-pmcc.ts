@@ -65,10 +65,18 @@ export const pmccRouter = router({
 
       // Get API credentials
       const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tradierApiKey) {
+      
+      // Determine if user can use system API key (only free trial users)
+      const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+      const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
+      
+      if (!tradierApiKey) {
+        const message = isFreeTrialUser 
+          ? 'System Tradier API key not configured. Please contact support.'
+          : 'Please configure your Tradier API key in Settings to access live market data.';
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: "Tradier API key not configured",
+          message,
         });
       }
 
@@ -78,7 +86,7 @@ export const pmccRouter = router({
         return { opportunities: [], message: "Watchlist is empty" };
       }
 
-      const api = createTradierAPI(credentials.tradierApiKey);
+      const api = createTradierAPI(tradierApiKey);
       
       // Use provided symbols if available, otherwise use full watchlist
       const symbols = input.symbols && input.symbols.length > 0 
@@ -245,7 +253,9 @@ export const pmccRouter = router({
       });
 
       // Get current market data for each LEAP
-      const tradierApi = createTradierAPI(credentials.tradierApiKey || "");
+      const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+      const tradierApiKey = credentials.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null) || "";
+      const tradierApi = createTradierAPI(tradierApiKey);
       const enrichedPositions = await Promise.all(
         leapPositions.map(async (pos) => {
           try {
