@@ -23,6 +23,8 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { WelcomeModal } from './WelcomeModal';
+import { useAuth } from '@/_core/hooks/useAuth';
 
 interface SidebarProps {
   className?: string;
@@ -31,7 +33,19 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const { selectedAccountId, setSelectedAccountId } = useAccount();
+  const { user } = useAuth();
+  
+  // Initialize demo account for trial users
+  const { data: demoAccountData } = trpc.demo.getOrCreateDemoAccount.useQuery();
+  
+  // Show welcome modal for first-time users
+  useEffect(() => {
+    if (demoAccountData?.isNew) {
+      setShowWelcomeModal(true);
+    }
+  }, [demoAccountData]);
 
   // Fetch Tastytrade accounts
   const { data: accounts, isLoading: accountsLoading } = trpc.accounts.list.useQuery();
@@ -84,13 +98,18 @@ export function Sidebar({ className }: SidebarProps) {
 
 
   return (
-    <div
-      className={cn(
-        'flex flex-col h-screen bg-card/50 backdrop-blur-md border-r border-border/50 transition-all duration-300',
-        collapsed ? 'w-16' : 'w-72',
-        className
-      )}
-    >
+    <>
+      <WelcomeModal 
+        open={showWelcomeModal} 
+        onClose={() => setShowWelcomeModal(false)} 
+      />
+      <div
+        className={cn(
+          'flex flex-col h-screen bg-card/50 backdrop-blur-md border-r border-border/50 transition-all duration-300',
+          collapsed ? 'w-16' : 'w-72',
+          className
+        )}
+      >
       {/* Header with Logo */}
       <div className="p-4 flex items-center justify-between">
         {!collapsed && (
@@ -261,18 +280,28 @@ export function Sidebar({ className }: SidebarProps) {
           {!collapsed && <span className="text-sm font-medium">Settings</span>}
         </Link>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
 /**
  * Trading Mode Toggle Component
- * Allows users to switch between Live (Tastytrade) and Paper (Tradier) trading modes
+ * Shows "Demo Mode" for trial users, "Live/Paper Trading" toggle for paid users with credentials
  */
 function TradingModeToggle() {
   const { mode, setMode, isLoading } = useTradingMode();
+  const { user } = useAuth();
+  
+  // Check if user has real Tastytrade accounts
+  const { data: accountStatus } = trpc.demo.hasRealAccounts.useQuery();
+  const hasRealAccounts = accountStatus?.hasRealAccounts ?? false;
+  
+  // Trial users or users without real accounts see "Demo Mode" (non-toggleable)
+  const isDemo = user?.subscriptionTier === 'free_trial' || !hasRealAccounts;
 
   const handleToggle = () => {
+    if (isDemo) return; // Demo mode is always on, can't toggle
     const newMode = mode === 'live' ? 'paper' : 'live';
     setMode(newMode);
   };
@@ -284,28 +313,46 @@ function TradingModeToggle() {
   return (
     <div className="space-y-2">
       <div className={`flex items-center gap-3 rounded-lg p-3 border transition-all duration-300 ${
-        mode === 'live'
-          ? 'bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30'
-          : 'bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/30'
+        isDemo
+          ? 'bg-gradient-to-br from-amber-500/10 to-yellow-500/10 border-amber-500/30'
+          : mode === 'live'
+            ? 'bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30'
+            : 'bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/30'
       }`}>
         <div className="flex items-center gap-2 flex-1">
-          {mode === 'live' ? (
-            <TrendingUp className="h-4 w-4 text-green-500" />
+          {isDemo ? (
+            <>
+              <TrendingDown className="h-4 w-4 text-amber-500" />
+              <span className="text-sm font-medium">Demo Mode</span>
+            </>
           ) : (
-            <TrendingDown className="h-4 w-4 text-blue-500" />
+            <>
+              {mode === 'live' ? (
+                <TrendingUp className="h-4 w-4 text-green-500" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-blue-500" />
+              )}
+              <span className="text-sm font-medium">
+                {mode === 'live' ? 'Live Trading' : 'Paper Trading'}
+              </span>
+            </>
           )}
-          <span className="text-sm font-medium">
-            {mode === 'live' ? 'Live Trading' : 'Paper Trading'}
-          </span>
         </div>
-        <Switch
-          checked={mode === 'live'}
-          onCheckedChange={handleToggle}
-          className="data-[state=checked]:bg-green-500"
-        />
+        {!isDemo && (
+          <Switch
+            checked={mode === 'live'}
+            onCheckedChange={handleToggle}
+            className="data-[state=checked]:bg-green-500"
+          />
+        )}
       </div>
       <div className="text-xs text-muted-foreground px-1">
-        {mode === 'live' ? 'Using Tastytrade API' : 'Using Tradier API (read-only)'}
+        {isDemo 
+          ? 'Simulated $100K account' 
+          : mode === 'live' 
+            ? 'Using Tastytrade API' 
+            : 'Using Tradier API (read-only)'
+        }
       </div>
     </div>
   );

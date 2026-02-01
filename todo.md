@@ -3144,3 +3144,11 @@
 - [ ] Test first-time user flow with Kenny account (logout/login to trigger onboarding)
 - [ ] Verify $100K demo account is auto-created and selected
 - [ ] Verify trading mode toggle shows correct state based on subscription tier and credentials
+
+## 🐛 Debug: Demo Mode Not Working for Kenny
+- [x] Check browser console logs for API errors
+- [x] Verify demo account API is being called on DashboardLayout mount
+- [x] Check database to see if demo account was created for Kenny
+- [x] Debug why welcome modal is not showing - Fixed: moved logic to Sidebar component
+- [x] Debug why sidebar still shows "Paper Trading" instead of "Demo Mode" - Fixed: updated TradingModeToggle
+- [x] Fix demo mode detection logic in TradingModeToggle
