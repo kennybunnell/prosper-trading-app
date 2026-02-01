@@ -68,9 +68,34 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    const result = await db.insert(users).values(values).onDuplicateKeyUpdate({
       set: updateSet,
     });
+
+    // Trigger onboarding for new users
+    // Check if this was an INSERT (new user) vs UPDATE (existing user)
+    // For MySQL, insertId is available when a new row is inserted
+    const insertId = (result as any)[0]?.insertId;
+    if (insertId) {
+      const userId = Number(insertId);
+      console.log(`[Database] New user created with ID ${userId}, triggering onboarding`);
+      
+      // Import and run onboarding asynchronously (don't block login)
+      import('./onboarding').then(async ({ onboardNewUser }) => {
+        try {
+          const onboardingResult = await onboardNewUser(userId);
+          if (onboardingResult.success) {
+            console.log(`[Database] Onboarding completed for user ${userId}`);
+          } else {
+            console.error(`[Database] Onboarding failed for user ${userId}:`, onboardingResult.errors);
+          }
+        } catch (error) {
+          console.error(`[Database] Onboarding error for user ${userId}:`, error);
+        }
+      }).catch(error => {
+        console.error(`[Database] Failed to import onboarding module:`, error);
+      });
+    }
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
     throw error;

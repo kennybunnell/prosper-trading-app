@@ -3173,3 +3173,26 @@
 - [x] Update getRecommendedFilterValues() function with correct dev environment values for ALL 5 strategies (CSP, CC, PMCC, BPS, BCS)
 - [x] Delete existing trial user presets from database to force re-seeding
 - [ ] Test that Conservative/Medium/Aggressive presets show opportunities after refresh
+
+## Systematic User Onboarding System
+- [ ] Create master onboarding configuration file (server/onboarding-config.ts) with all default data
+- [ ] Define default preset values for all 5 strategies (CSP, CC, PMCC, BPS, BCS)
+- [ ] Define default watchlist symbols (33 symbols from dev environment)
+- [ ] Build unified onboarding service (server/onboarding.ts) with onboardNewUser() function
+- [ ] Integrate onboarding into user registration flow
+- [ ] Integrate onboarding into first login flow
+- [ ] Create admin utility to export current user's data as "golden template"
+- [ ] Create admin utility to validate onboarding configuration
+- [ ] Create admin utility to manually trigger onboarding for specific users
+- [ ] Add comprehensive logging for onboarding process
+- [ ] Test onboarding with new test user account
+- [ ] Verify all essential data is seeded correctly (presets, watchlist, etc.)
+
+## Systematic User Onboarding System
+- [x] Create master onboarding configuration file (onboarding-config.ts) with all default data
+- [x] Build unified onboarding service (onboarding.ts) with automatic data seeding
+- [x] Integrate onboarding service into user registration flow (upsertUser in db.ts)
+- [x] Create admin utilities for exporting and validating onboarding data
+- [x] Add admin router with onboarding management endpoints (routers-admin.ts)
+- [x] Write configuration validation tests (7/7 passing)
+- [x] Document onboarding system (ONBOARDING_SYSTEM.md)

@@ -14,6 +14,7 @@ import { marketRouter } from "./routers-market";
 import { userRouter } from "./routers-user";
 import { paperTradingRouter } from "./routers-paper-trading";
 import { demoRouter } from "./routers/demo";
+import { adminRouter } from "./routers-admin";
 
 // Helper function to parse OCC option symbols
 function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
@@ -288,6 +289,7 @@ export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   user: userRouter,
+  admin: adminRouter,
   demo: demoRouter,
   paperTrading: paperTradingRouter,
   pmcc: pmccRouter,
