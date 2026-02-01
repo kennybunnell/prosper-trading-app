@@ -1,4 +1,4 @@
-import { index, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, index, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -369,3 +369,94 @@ export const paperTradingPerformance = mysqlTable("paperTradingPerformance", {
 
 export type PaperTradingPerformance = typeof paperTradingPerformance.$inferSelect;
 export type InsertPaperTradingPerformance = typeof paperTradingPerformance.$inferInsert;
+
+/**
+ * User feedback and support tickets
+ */
+export const feedback = mysqlTable("feedback", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: mysqlEnum("type", ["bug", "feature", "question", "feedback"]).notNull(),
+  priority: mysqlEnum("priority", ["low", "medium", "high", "urgent"]).default("medium").notNull(),
+  status: mysqlEnum("status", ["new", "in_progress", "resolved", "closed"]).default("new").notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  pageUrl: varchar("pageUrl", { length: 500 }), // Where user was when submitting
+  screenshotUrl: varchar("screenshotUrl", { length: 500 }),
+  userAgent: text("userAgent"), // Browser/device info
+  assignedToAdminId: int("assignedToAdminId").references(() => users.id),
+  resolvedAt: timestamp("resolvedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("feedback_userId_idx").on(table.userId),
+  statusIdx: index("feedback_status_idx").on(table.status),
+  createdAtIdx: index("feedback_createdAt_idx").on(table.createdAt),
+}));
+
+export type Feedback = typeof feedback.$inferSelect;
+export type InsertFeedback = typeof feedback.$inferInsert;
+
+/**
+ * Feedback replies and conversation thread
+ */
+export const feedbackReplies = mysqlTable("feedbackReplies", {
+  id: int("id").autoincrement().primaryKey(),
+  feedbackId: int("feedbackId").notNull().references(() => feedback.id, { onDelete: "cascade" }),
+  userId: int("userId").notNull().references(() => users.id), // Who replied (user or admin)
+  isAdminReply: boolean("isAdminReply").default(false).notNull(),
+  message: text("message").notNull(),
+  isInternalNote: boolean("isInternalNote").default(false).notNull(), // Admin-only notes
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  feedbackIdIdx: index("feedbackReplies_feedbackId_idx").on(table.feedbackId),
+}));
+
+export type FeedbackReply = typeof feedbackReplies.$inferSelect;
+export type InsertFeedbackReply = typeof feedbackReplies.$inferInsert;
+
+/**
+ * User activity tracking for analytics
+ */
+export const userActivity = mysqlTable("userActivity", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityType: mysqlEnum("activityType", [
+    "login",
+    "logout",
+    "page_view",
+    "api_call",
+    "strategy_view",
+    "opportunity_fetch",
+    "trade_submit",
+    "preset_change",
+    "watchlist_update",
+  ]).notNull(),
+  metadata: text("metadata"), // JSON string for additional context
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("userActivity_userId_idx").on(table.userId),
+  activityTypeIdx: index("userActivity_activityType_idx").on(table.activityType),
+  createdAtIdx: index("userActivity_createdAt_idx").on(table.createdAt),
+}));
+
+export type UserActivity = typeof userActivity.$inferSelect;
+export type InsertUserActivity = typeof userActivity.$inferInsert;
+
+/**
+ * Broadcast messages sent by admins
+ */
+export const broadcasts = mysqlTable("broadcasts", {
+  id: int("id").autoincrement().primaryKey(),
+  sentByAdminId: int("sentByAdminId").notNull().references(() => users.id),
+  targetTier: mysqlEnum("targetTier", ["all", "free_trial", "wheel", "advanced"]).default("all").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  recipientCount: int("recipientCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  createdAtIdx: index("broadcasts_createdAt_idx").on(table.createdAt),
+}));
+
+export type Broadcast = typeof broadcasts.$inferSelect;
+export type InsertBroadcast = typeof broadcasts.$inferInsert;

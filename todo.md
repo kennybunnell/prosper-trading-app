@@ -3196,3 +3196,33 @@
 - [x] Add admin router with onboarding management endpoints (routers-admin.ts)
 - [x] Write configuration validation tests (7/7 passing)
 - [x] Document onboarding system (ONBOARDING_SYSTEM.md)
+
+## Admin Panel - Phase 1 (Full Implementation)
+- [x] Create database schema for feedback system (feedback, feedbackReplies tables)
+- [x] Create database schema for user activity tracking (userActivity table)
+- [x] Create database schema for broadcasts table
+- [x] Extend admin router with user management endpoints (list, detail, delete, reset, upgrade tier)
+- [x] Add broadcast communications endpoints to admin router
+- [x] Add feedback system endpoints to admin router (submit, list, reply, status update)
+- [x] Add analytics endpoints to admin router
+- [ ] Create admin panel layout and navigation (/admin route)
+- [ ] Build admin dashboard overview page (metrics, charts)
+- [ ] Build user management page (list with search/filter/sort)
+- [ ] Build user detail page (view user info, activity, manage account)
+- [ ] Build broadcast communications page (send message, view history)
+- [ ] Build feedback management page (inbox, detail view, reply interface)
+- [ ] Build user-facing feedback widget (floating button + submission form)
+- [ ] Build user feedback history page (view submissions + replies)
+- [ ] Implement notifications for feedback (admin notified on new, user notified on reply)
+- [ ] Build basic analytics dashboard (user metrics, activity tracking)
+- [ ] Write tests for admin endpoints
+- [ ] Test admin panel with multiple user scenarios
+
+## Admin Panel - Phase 2 (Stubbed Placeholders)
+- [ ] Create gamification tracking placeholder page
+- [ ] Create user impersonation placeholder page
+- [ ] Create cohort analysis placeholder page
+- [ ] Create feature flags placeholder page
+- [ ] Create advanced analytics placeholder page
+- [ ] Create audit log placeholder page
+- [ ] Add "Coming Soon" badges and toast notifications for Phase 2 features
