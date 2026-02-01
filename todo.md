@@ -3276,3 +3276,12 @@
 - [x] Update feedback submission to include uploaded file URLs
 - [x] Display uploaded files in AdminFeedback detail view
 - [ ] Test complete upload workflow
+
+## Browser-Native Screen Recording
+- [x] Implement screen recording with getDisplayMedia API
+- [x] Add MediaRecorder for capturing video stream
+- [x] Add "Record Screen" button to feedback widget
+- [x] Add recording status indicator (timer, stop button)
+- [x] Handle recording completion and file creation
+- [x] Auto-attach recorded video to feedback form
+- [ ] Test screen recording across browsers

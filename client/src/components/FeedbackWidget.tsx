@@ -12,12 +12,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MessageCircle, Send, Upload, X, Image as ImageIcon, Video } from "lucide-react";
+import { MessageCircle, Send, Upload, X, Video, Circle, Square } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function FeedbackWidget() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  
   const [isOpen, setIsOpen] = useState(false);
   const [type, setType] = useState<string>("feedback");
   const [priority, setPriority] = useState<string>("medium");
@@ -26,6 +29,8 @@ export function FeedbackWidget() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
 
   // File upload mutation
   const uploadFile = trpc.feedback.uploadFile.useMutation();
@@ -56,6 +61,8 @@ export function FeedbackWidget() {
     setDescription("");
     setSelectedFile(null);
     setFilePreviewUrl(null);
+    setIsRecording(false);
+    setRecordingTime(0);
     setIsOpen(false);
   };
 
@@ -101,6 +108,90 @@ export function FeedbackWidget() {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const startScreenRecording = async () => {
+    try {
+      // Request screen capture
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true, // Include system audio if available
+      } as any);
+
+      // Create MediaRecorder
+      const mimeType = MediaRecorder.isTypeSupported('video/webm; codecs=vp9')
+        ? 'video/webm; codecs=vp9'
+        : 'video/webm';
+      
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = mediaRecorder;
+      recordedChunksRef.current = [];
+
+      // Collect recorded data
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      // Handle recording stop
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        const file = new File([blob], `screen-recording-${Date.now()}.webm`, { type: mimeType });
+        
+        // Set as selected file
+        setSelectedFile(file);
+        const previewUrl = URL.createObjectURL(file);
+        setFilePreviewUrl(previewUrl);
+
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+        
+        setIsRecording(false);
+        setRecordingTime(0);
+      };
+
+      // Start recording
+      mediaRecorder.start();
+      setIsRecording(true);
+
+      // Start timer
+      const startTime = Date.now();
+      const timerInterval = setInterval(() => {
+        if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') {
+          clearInterval(timerInterval);
+          return;
+        }
+        setRecordingTime(Math.floor((Date.now() - startTime) / 1000));
+      }, 1000);
+
+      // Handle user stopping share from browser UI
+      stream.getVideoTracks()[0].onended = () => {
+        stopScreenRecording();
+      };
+
+    } catch (error: any) {
+      console.error('Screen recording error:', error);
+      toast({
+        title: "Screen recording failed",
+        description: error.name === 'NotAllowedError' 
+          ? "Screen recording permission was denied" 
+          : "Failed to start screen recording. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const stopScreenRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const formatRecordingTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const handleSubmit = async () => {
@@ -254,31 +345,80 @@ export function FeedbackWidget() {
               </p>
             </div>
 
-            {/* File Upload Section */}
+            {/* File Upload / Screen Recording Section */}
             <div>
               <label className="text-sm font-medium mb-2 block">
                 Screenshot or Recording (Optional)
               </label>
               
-              {!selectedFile ? (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary hover:bg-accent/50 transition-colors"
-                >
-                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm font-medium mb-1">
-                    Click to upload screenshot or recording
+              {!selectedFile && !isRecording ? (
+                <div className="space-y-3">
+                  {/* Upload File */}
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary hover:bg-accent/50 transition-colors"
+                  >
+                    <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm font-medium mb-1">
+                      Click to upload screenshot or video
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      PNG, JPG, GIF, WebP, MP4, WebM, MOV (max 16MB)
+                    </p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,video/mp4,video/webm,video/quicktime"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                  </div>
+
+                  {/* Record Screen */}
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-border"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">Or</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={startScreenRecording}
+                  >
+                    <Circle className="h-4 w-4 mr-2 text-red-500 fill-red-500" />
+                    Record Your Screen
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Browser will ask which screen/window to share
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    PNG, JPG, GIF, WebP, MP4, WebM, MOV (max 16MB)
-                  </p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,video/mp4,video/webm,video/quicktime"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
+                </div>
+              ) : isRecording ? (
+                <div className="border border-border rounded-lg p-4 bg-red-50 dark:bg-red-950/20">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <Circle className="h-3 w-3 text-red-500 fill-red-500 animate-pulse" />
+                        <span className="text-sm font-medium">Recording...</span>
+                      </div>
+                      <span className="text-sm text-muted-foreground font-mono">
+                        {formatRecordingTime(recordingTime)}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={stopScreenRecording}
+                    >
+                      <Square className="h-4 w-4 mr-2" />
+                      Stop Recording
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="border border-border rounded-lg p-4">
@@ -306,10 +446,10 @@ export function FeedbackWidget() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">
-                            {selectedFile.name}
+                            {selectedFile?.name}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                            {selectedFile ? (selectedFile.size / 1024 / 1024).toFixed(2) : '0.00'} MB
                           </p>
                         </div>
                         <Button
@@ -335,12 +475,12 @@ export function FeedbackWidget() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsOpen(false)}>
+            <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isRecording}>
               Cancel
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={submitFeedback.isPending || isUploading || !subject.trim() || !description.trim()}
+              disabled={submitFeedback.isPending || isUploading || isRecording || !subject.trim() || !description.trim()}
             >
               <Send className="h-4 w-4 mr-2" />
               {isUploading ? "Uploading..." : submitFeedback.isPending ? "Submitting..." : "Submit Feedback"}
