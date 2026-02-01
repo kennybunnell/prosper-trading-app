@@ -3227,3 +3227,9 @@
 - [ ] Create advanced analytics placeholder page
 - [ ] Create audit log placeholder page
 - [ ] Add "Coming Soon" badges and toast notifications for Phase 2 features
+
+## Admin Panel Access Improvement
+- [x] Add "Admin Panel" button to Sidebar component in Management section (below Settings)
+- [x] Button only visible to users with role='admin'
+- [x] Add Shield icon import to Sidebar component
+- [ ] Test admin panel access from sidebar button

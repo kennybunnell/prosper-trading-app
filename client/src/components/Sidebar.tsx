@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Layers,
   Settings,
+  Shield,
   ChevronLeft,
   ChevronRight,
   Home,
@@ -269,7 +270,7 @@ export function Sidebar({ className }: SidebarProps) {
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Management</div>
         </div>
       )}
-      <div className="p-2">
+      <div className="p-2 space-y-1">
         <Link
           href="/settings"
           className={cn(
@@ -282,6 +283,22 @@ export function Sidebar({ className }: SidebarProps) {
           <Settings className="w-5 h-5" />
           {!collapsed && <span className="text-sm font-medium">Settings</span>}
         </Link>
+        
+        {/* Admin Panel - Only visible to admin users */}
+        {user?.role === 'admin' && (
+          <Link
+            href="/admin"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200',
+              'hover:bg-accent/50 hover:shadow-lg hover:shadow-primary/20',
+              location.startsWith('/admin') && 'bg-primary/20 text-primary shadow-lg shadow-primary/30 border-l-2 border-primary',
+              !location.startsWith('/admin') && 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Shield className="w-5 h-5" />
+            {!collapsed && <span className="text-sm font-medium">Admin Panel</span>}
+          </Link>
+        )}
       </div>
       
       {/* Welcome Modal for Demo Users */}

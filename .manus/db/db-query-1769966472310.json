@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, email, name, role FROM users WHERE email = 'kennybunnell@gmail.com';\nUPDATE users SET role = 'admin' WHERE email = 'kennybunnell@gmail.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT id, email, name, role FROM users WHERE email = 'kennybunnell@gmail.com';\nUPDATE users SET role = 'admin' WHERE email = 'kennybunnell@gmail.com';",
+  "rows": [
+    {
+      "id": "1",
+      "email": "kennybunnell@gmail.com",
+      "name": "Kenny Bunnell",
+      "role": "admin"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tname\trole\n1\tkennybunnell@gmail.com\tKenny Bunnell\tadmin\n",
+  "stderr": "",
+  "execution_time_ms": 63
+}
