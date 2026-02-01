@@ -3243,3 +3243,10 @@
 - [x] Add "Back to App" button to AdminLayout footer (returns to main dashboard)
 - [ ] Test navigation flow: Main app → Admin Panel → Back to App
 - [ ] Test navigation between all admin pages (Dashboard, Users, Broadcasts, Feedback, Analytics)
+
+## Admin Page Breadcrumb Navigation
+- [x] Create reusable AdminPageHeader component with breadcrumb navigation
+- [x] Add breadcrumbs to AdminUsers page (Admin Panel > Users)
+- [x] Add breadcrumbs to AdminDashboard page (Admin Panel)
+- [ ] Add breadcrumbs to future admin pages (Broadcasts, Feedback, Analytics)
+- [ ] Test breadcrumb navigation across all admin pages

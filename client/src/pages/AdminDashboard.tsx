@@ -3,15 +3,22 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, UserCheck, UserX, AlertCircle, TrendingUp, TrendingDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AdminPageHeader } from "@/components/AdminPageHeader";
 
 export function AdminDashboard() {
   const { data: analytics, isLoading } = trpc.admin.getAnalyticsOverview.useQuery();
 
   if (isLoading) {
-    return (
-      <AdminLayout>
-        <div className="p-8">
-          <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+  return (
+    <AdminLayout>
+      <AdminPageHeader
+        title="Admin Dashboard"
+        description="Overview of platform metrics and user activity"
+        breadcrumbs={[
+          { label: "Admin Panel" },
+        ]}
+      />
+      <div className="p-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[...Array(4)].map((_, i) => (
               <Card key={i}>
@@ -66,14 +73,14 @@ export function AdminDashboard() {
 
   return (
     <AdminLayout>
+      <AdminPageHeader
+        title="Admin Dashboard"
+        description="Overview of platform metrics and user activity"
+        breadcrumbs={[
+          { label: "Admin Panel" },
+        ]}
+      />
       <div className="p-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-2">
-            Overview of your platform's key metrics and user activity
-          </p>
-        </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

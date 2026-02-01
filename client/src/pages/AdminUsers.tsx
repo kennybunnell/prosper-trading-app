@@ -26,6 +26,7 @@ import {
 import { Search, UserPlus, Trash2, RefreshCw, ArrowUpCircle, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { AdminPageHeader } from "@/components/AdminPageHeader";
 
 export function AdminUsers() {
   const { toast } = useToast();
@@ -94,13 +95,16 @@ export function AdminUsers() {
   };
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">User Management</h1>
-        <p className="text-muted-foreground mt-2">
-          Manage registered users, view details, and perform administrative actions
-        </p>
-      </div>
+    <div>
+      <AdminPageHeader
+        title="User Management"
+        description="Manage registered users, view details, and perform administrative actions"
+        breadcrumbs={[
+          { label: "Admin Panel", href: "/admin" },
+          { label: "Users" },
+        ]}
+      />
+      <div className="p-8">
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -288,6 +292,7 @@ export function AdminUsers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 }
