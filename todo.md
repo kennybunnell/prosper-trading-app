@@ -3094,3 +3094,17 @@
 
 ## CC Dashboard Test Button Fix
 - [x] Enable Test Order button in CC Dashboard during paper trading mode when dry run is checked
+
+- [ ] Replace PMCC Dashboard text input range filters with slider components matching CSP/CC dashboards
+
+## PMCC Dashboard Improvements (Jan 31, 2026)
+- [x] Fix PMCC symbol filtering to only scan selected watchlist symbols
+- [x] Fix watchlist selection sync between frontend and database
+- [x] Fix clearAll to clear ALL user selections (not just current watchlist)
+- [x] Replace PMCC text input range filters with horizontal sliders matching CSP/CC dashboards
+- [x] Add Strike Price slider (0-500)
+- [x] Add DTE slider (270-450)
+- [x] Add Delta slider (0.6-1.0)
+- [x] Position range filters below preset buttons for better UX
+- [x] Implement functional cancel button for PMCC scan operations
+- [x] Apply cancel functionality to CSP and CC dashboard scan operations

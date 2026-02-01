@@ -139,13 +139,10 @@ export default function PMCCDashboard() {
   const [isDryRun, setIsDryRun] = useState(true);
   const [isSubmittingOrders, setIsSubmittingOrders] = useState(false);
   
-  // Range filter states
-  const [strikeMin, setStrikeMin] = useState<number | ''>('');
-  const [strikeMax, setStrikeMax] = useState<number | ''>('');
-  const [dteMin, setDteMin] = useState<number | ''>('');
-  const [dteMax, setDteMax] = useState<number | ''>('');
-  const [deltaMin, setDeltaMin] = useState<number | ''>('');
-  const [deltaMax, setDeltaMax] = useState<number | ''>('');
+  // Range filter states (using range arrays like CSP/CC dashboards)
+  const [strikeRange, setStrikeRange] = useState<[number, number]>([0, 500]);
+  const [dteRange, setDteRange] = useState<[number, number]>([270, 450]);
+  const [deltaRange, setDeltaRange] = useState<[number, number]>([0.6, 1]);
 
   // Fetch PMCC filter presets from database
   const { data: presets } = trpc.filterPresets.getByStrategy.useQuery({ strategy: 'pmcc' });
@@ -156,9 +153,11 @@ export default function PMCCDashboard() {
   // Fetch selected watchlist symbols for filtering
   const { data: selectedSymbolsData = [] } = trpc.watchlist.getSelections.useQuery();
   // Filter to only get symbols where isSelected === 1, then map to symbol strings
-  const selectedSymbols = selectedSymbolsData
-    .filter((s: any) => s.isSelected === 1)
-    .map((s: any) => s.symbol);
+  const selectedSymbols = useMemo(() => {
+    return selectedSymbolsData
+      .filter((s: any) => s.isSelected === 1)
+      .map((s: any) => s.symbol);
+  }, [selectedSymbolsData]);
   
   // Countdown timer effect
   useEffect(() => {
@@ -308,25 +307,20 @@ export default function PMCCDashboard() {
       }
      }
     
-    // Apply range filters
-    if (strikeMin !== '' || strikeMax !== '' || dteMin !== '' || dteMax !== '' || deltaMin !== '' || deltaMax !== '') {
-      filtered = filtered.filter(leap => {
-        // Strike filter
-        if (strikeMin !== '' && leap.strike < strikeMin) return false;
-        if (strikeMax !== '' && leap.strike > strikeMax) return false;
-        
-        // DTE filter
-        if (dteMin !== '' && leap.dte < dteMin) return false;
-        if (dteMax !== '' && leap.dte > dteMax) return false;
-        
-        // Delta filter (use absolute value)
-        const delta = Math.abs(leap.delta);
-        if (deltaMin !== '' && delta < deltaMin) return false;
-        if (deltaMax !== '' && delta > deltaMax) return false;
-        
-        return true;
-      });
-    }
+    // Apply range filters (always applied, independent of presets)
+    filtered = filtered.filter(leap => {
+      // Strike filter
+      if (leap.strike < strikeRange[0] || leap.strike > strikeRange[1]) return false;
+      
+      // DTE filter
+      if (leap.dte < dteRange[0] || leap.dte > dteRange[1]) return false;
+      
+      // Delta filter (use absolute value)
+      const delta = Math.abs(leap.delta);
+      if (delta < deltaRange[0] || delta > deltaRange[1]) return false;
+      
+      return true;
+    });
     
 
     
@@ -351,7 +345,7 @@ export default function PMCCDashboard() {
     });
     
     return filtered;
-  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection, selectedPreset, presets, strikeMin, strikeMax, dteMin, dteMax, deltaMin, deltaMax]);
+  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection, selectedPreset, presets, strikeRange, dteRange, deltaRange]);
 
   // Calculate order summary
   const orderSummary = useMemo(() => {
@@ -504,13 +498,10 @@ export default function PMCCDashboard() {
                       onClick={() => {
                         setSelectedPreset(null);
                         setSelectedLeaps(new Set());
-                        // Reset range filters
-                        setStrikeMin('');
-                        setStrikeMax('');
-                        setDteMin('');
-                        setDteMax('');
-                        setDeltaMin('');
-                        setDeltaMax('');
+                        // Reset range filters to defaults
+                        setStrikeRange([0, 500]);
+                        setDteRange([270, 450]);
+                        setDeltaRange([0.6, 1]);
                       }}
                     >
                       Clear All Filters
@@ -519,77 +510,127 @@ export default function PMCCDashboard() {
                   </div>
                   </div>
                   
-                  {/* Range Filters - positioned below preset buttons */}
-                  <div>
-                    <label className="text-sm font-medium mb-3 block">Range Filters</label>
-                    <div className="grid grid-cols-3 gap-4">
-                      {/* Strike Range */}
-                      <div className="space-y-2">
-                        <label className="text-xs text-muted-foreground">Strike Price</label>
-                        <div className="flex gap-2 items-center">
-                          <input
-                            type="number"
-                            placeholder="Min"
-                            value={strikeMin}
-                            onChange={(e) => setStrikeMin(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                          <span className="text-muted-foreground">-</span>
-                          <input
-                            type="number"
-                            placeholder="Max"
-                            value={strikeMax}
-                            onChange={(e) => setStrikeMax(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                        </div>
-                      </div>
-                      
-                      {/* DTE Range */}
-                      <div className="space-y-2">
-                        <label className="text-xs text-muted-foreground">Days to Expiration</label>
-                        <div className="flex gap-2 items-center">
-                          <input
-                            type="number"
-                            placeholder="Min"
-                            value={dteMin}
-                            onChange={(e) => setDteMin(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                          <span className="text-muted-foreground">-</span>
-                          <input
-                            type="number"
-                            placeholder="Max"
-                            value={dteMax}
-                            onChange={(e) => setDteMax(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                        </div>
-                      </div>
-                      
-                      {/* Delta Range */}
-                      <div className="space-y-2">
-                        <label className="text-xs text-muted-foreground">Delta</label>
-                        <div className="flex gap-2 items-center">
-                          <input
-                            type="number"
-                            step="0.01"
-                            placeholder="Min"
-                            value={deltaMin}
-                            onChange={(e) => setDeltaMin(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                          <span className="text-muted-foreground">-</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            placeholder="Max"
-                            value={deltaMax}
-                            onChange={(e) => setDeltaMax(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                        </div>
-                      </div>
+                  {/* Compact Horizontal Range Filters - positioned below preset buttons */}
+                  <div className="flex flex-wrap items-center gap-4 py-2">
+                    <label className="text-sm font-semibold">Filters:</label>
+                    
+                    {/* Strike Price Range */}
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-muted-foreground whitespace-nowrap">Strike</label>
+                      <input
+                        type="number"
+                        value={strikeRange[0]}
+                        onChange={(e) => setStrikeRange([parseInt(e.target.value) || 0, strikeRange[1]])}
+                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
+                        min="0"
+                        max="500"
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max="500"
+                        step="10"
+                        value={strikeRange[0]}
+                        onChange={(e) => setStrikeRange([parseInt(e.target.value), strikeRange[1]])}
+                        className="w-16"
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max="500"
+                        step="10"
+                        value={strikeRange[1]}
+                        onChange={(e) => setStrikeRange([strikeRange[0], parseInt(e.target.value)])}
+                        className="w-16"
+                      />
+                      <input
+                        type="number"
+                        value={strikeRange[1]}
+                        onChange={(e) => setStrikeRange([strikeRange[0], parseInt(e.target.value) || 500])}
+                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
+                        min="0"
+                        max="500"
+                      />
+                    </div>
+
+                    {/* DTE Range */}
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-muted-foreground whitespace-nowrap">DTE</label>
+                      <input
+                        type="number"
+                        value={dteRange[0]}
+                        onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
+                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
+                        min="0"
+                        max="450"
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max="450"
+                        step="10"
+                        value={dteRange[0]}
+                        onChange={(e) => setDteRange([parseInt(e.target.value), dteRange[1]])}
+                        className="w-16"
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max="450"
+                        step="10"
+                        value={dteRange[1]}
+                        onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value)])}
+                        className="w-16"
+                      />
+                      <input
+                        type="number"
+                        value={dteRange[1]}
+                        onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 450])}
+                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
+                        min="0"
+                        max="450"
+                      />
+                    </div>
+
+                    {/* Delta Range */}
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-muted-foreground whitespace-nowrap">Δ</label>
+                      <input
+                        type="number"
+                        value={deltaRange[0]}
+                        onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
+                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
+                        step="0.01"
+                        min="0"
+                        max="1"
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={deltaRange[0]}
+                        onChange={(e) => setDeltaRange([parseFloat(e.target.value), deltaRange[1]])}
+                        className="w-16"
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={deltaRange[1]}
+                        onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value)])}
+                        className="w-16"
+                      />
+                      <input
+                        type="number"
+                        value={deltaRange[1]}
+                        onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
+                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
+                        step="0.01"
+                        min="0"
+                        max="1"
+                      />
                     </div>
                   </div>
                 </div>

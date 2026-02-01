@@ -1024,6 +1024,16 @@ export async function setAllWatchlistSelections(userId: number, symbols: string[
     
     const selectedValue = isSelected ? 1 : 0;
     
+    // If clearing all (isSelected = false), clear ALL user selections, not just the provided symbols
+    if (!isSelected) {
+      await db
+        .update(watchlistSelections)
+        .set({ isSelected: 0, updatedAt: new Date() })
+        .where(eq(watchlistSelections.userId, userId));
+      return;
+    }
+    
+    // If selecting all, update only the provided symbols
     for (const symbol of symbols) {
       // Check if selection exists
       const existing = await db
