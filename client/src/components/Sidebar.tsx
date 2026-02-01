@@ -23,8 +23,6 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { WelcomeModal } from './WelcomeModal';
-import { useAuth } from '@/_core/hooks/useAuth';
 
 interface SidebarProps {
   className?: string;
@@ -33,50 +31,18 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
-  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const { selectedAccountId, setSelectedAccountId } = useAccount();
-  const { user } = useAuth();
-  
-  // Check if current user is the owner (never show demo mode for owner)
-  const isOwner = user?.openId === import.meta.env.VITE_OWNER_OPEN_ID || user?.role === 'admin';
-  
-  // Initialize demo account for trial users (but NOT for owner)
-  const shouldInitDemo = user?.subscriptionTier === 'free_trial' && !isOwner;
-  const { data: demoAccountData } = trpc.demo.getOrCreateDemoAccount.useQuery(undefined, {
-    enabled: shouldInitDemo,
-  });
-  
-  // Check if user has real accounts
-  const { data: accountStatus } = trpc.demo.hasRealAccounts.useQuery();
-  const hasRealAccounts = accountStatus?.hasRealAccounts ?? false;
-  const isDemo = shouldInitDemo || (!hasRealAccounts && !isOwner);
-  
-  // Show welcome modal for demo users on every login (but NOT for owner)
-  useEffect(() => {
-    if (isDemo && demoAccountData && !isOwner) {
-      setShowWelcomeModal(true);
-    }
-  }, [isDemo, demoAccountData, isOwner]);
 
   // Fetch Tastytrade accounts
   const { data: accounts, isLoading: accountsLoading } = trpc.accounts.list.useQuery();
   const { data: credentials } = trpc.settings.getCredentials.useQuery();
 
-  // Auto-select demo account for demo users, or default account for others
+  // Set default account if available
   useEffect(() => {
-    if (!accounts || selectedAccountId) return;
-    
-    if (isDemo) {
-      // Auto-select demo account
-      const demoAccount = accounts.find((acc: any) => acc.isDemoAccount);
-      if (demoAccount) {
-        setSelectedAccountId(demoAccount.accountId);
-      }
-    } else if (credentials?.defaultTastytradeAccountId) {
-      // Select default account for non-demo users
+    if (credentials?.defaultTastytradeAccountId && !selectedAccountId && accounts) {
       setSelectedAccountId(credentials.defaultTastytradeAccountId);
     }
-  }, [accounts, selectedAccountId, setSelectedAccountId, isDemo, credentials]);
+  }, [credentials, accounts, selectedAccountId, setSelectedAccountId]);
 
   // Get selected account details
   const selectedAccount = accounts?.find((acc: any) => acc.accountId === selectedAccountId);
@@ -118,18 +84,13 @@ export function Sidebar({ className }: SidebarProps) {
 
 
   return (
-    <>
-      <WelcomeModal 
-        open={showWelcomeModal} 
-        onClose={() => setShowWelcomeModal(false)} 
-      />
-      <div
-        className={cn(
-          'flex flex-col h-screen bg-card/50 backdrop-blur-md border-r border-border/50 transition-all duration-300',
-          collapsed ? 'w-16' : 'w-72',
-          className
-        )}
-      >
+    <div
+      className={cn(
+        'flex flex-col h-screen bg-card/50 backdrop-blur-md border-r border-border/50 transition-all duration-300',
+        collapsed ? 'w-16' : 'w-72',
+        className
+      )}
+    >
       {/* Header with Logo */}
       <div className="p-4 flex items-center justify-between">
         {!collapsed && (
@@ -300,28 +261,18 @@ export function Sidebar({ className }: SidebarProps) {
           {!collapsed && <span className="text-sm font-medium">Settings</span>}
         </Link>
       </div>
-      </div>
-    </>
+    </div>
   );
 }
 
 /**
  * Trading Mode Toggle Component
- * Shows "Demo Mode" for trial users, "Live/Paper Trading" toggle for paid users with credentials
+ * Allows users to switch between Live (Tastytrade) and Paper (Tradier) trading modes
  */
 function TradingModeToggle() {
   const { mode, setMode, isLoading } = useTradingMode();
-  const { user } = useAuth();
-  
-  // Check if user has real Tastytrade accounts
-  const { data: accountStatus } = trpc.demo.hasRealAccounts.useQuery();
-  const hasRealAccounts = accountStatus?.hasRealAccounts ?? false;
-  
-  // Trial users or users without real accounts see "Demo Mode" (non-toggleable)
-  const isDemo = user?.subscriptionTier === 'free_trial' || !hasRealAccounts;
 
   const handleToggle = () => {
-    if (isDemo) return; // Demo mode is always on, can't toggle
     const newMode = mode === 'live' ? 'paper' : 'live';
     setMode(newMode);
   };
@@ -333,46 +284,28 @@ function TradingModeToggle() {
   return (
     <div className="space-y-2">
       <div className={`flex items-center gap-3 rounded-lg p-3 border transition-all duration-300 ${
-        isDemo
-          ? 'bg-gradient-to-br from-amber-500/10 to-yellow-500/10 border-amber-500/30'
-          : mode === 'live'
-            ? 'bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30'
-            : 'bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/30'
+        mode === 'live'
+          ? 'bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30'
+          : 'bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/30'
       }`}>
         <div className="flex items-center gap-2 flex-1">
-          {isDemo ? (
-            <>
-              <TrendingDown className="h-4 w-4 text-amber-500" />
-              <span className="text-sm font-medium">Demo Mode</span>
-            </>
+          {mode === 'live' ? (
+            <TrendingUp className="h-4 w-4 text-green-500" />
           ) : (
-            <>
-              {mode === 'live' ? (
-                <TrendingUp className="h-4 w-4 text-green-500" />
-              ) : (
-                <TrendingDown className="h-4 w-4 text-blue-500" />
-              )}
-              <span className="text-sm font-medium">
-                {mode === 'live' ? 'Live Trading' : 'Paper Trading'}
-              </span>
-            </>
+            <TrendingDown className="h-4 w-4 text-blue-500" />
           )}
+          <span className="text-sm font-medium">
+            {mode === 'live' ? 'Live Trading' : 'Paper Trading'}
+          </span>
         </div>
-        {!isDemo && (
-          <Switch
-            checked={mode === 'live'}
-            onCheckedChange={handleToggle}
-            className="data-[state=checked]:bg-green-500"
-          />
-        )}
+        <Switch
+          checked={mode === 'live'}
+          onCheckedChange={handleToggle}
+          className="data-[state=checked]:bg-green-500"
+        />
       </div>
       <div className="text-xs text-muted-foreground px-1">
-        {isDemo 
-          ? 'Simulated $100K account' 
-          : mode === 'live' 
-            ? 'Using Tastytrade API' 
-            : 'Using Tradier API (read-only)'
-        }
+        {mode === 'live' ? 'Using Tastytrade API' : 'Using Tradier API (read-only)'}
       </div>
     </div>
   );

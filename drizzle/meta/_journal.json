@@ -141,20 +141,6 @@
       "when": 1769879035670,
       "tag": "0020_wakeful_inertia",
       "breakpoints": true
-    },
-    {
-      "idx": 21,
-      "version": "5",
-      "when": 1769928771291,
-      "tag": "0021_late_the_twelve",
-      "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "5",
-      "when": 1769931292783,
-      "tag": "0022_sticky_leech",
-      "breakpoints": true
     }
   ]
 }

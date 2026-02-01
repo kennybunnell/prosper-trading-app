@@ -29,7 +29,6 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
-import { WelcomeModal } from "./WelcomeModal";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Page 1", path: "/" },
@@ -115,20 +114,9 @@ function DashboardLayoutContent({
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
-  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
-  
-  // Initialize demo account for trial users
-  const { data: demoAccountData } = trpc.demo.getOrCreateDemoAccount.useQuery();
-  
-  // Show welcome modal for first-time users
-  useEffect(() => {
-    if (demoAccountData?.isNew) {
-      setShowWelcomeModal(true);
-    }
-  }, [demoAccountData]);
   
   // Fetch user's background texture preferences
   const { data: backgroundPrefs } = trpc.settings.getBackgroundPreferences.useQuery();
@@ -222,10 +210,6 @@ function DashboardLayoutContent({
 
   return (
     <>
-      <WelcomeModal 
-        open={showWelcomeModal} 
-        onClose={() => setShowWelcomeModal(false)} 
-      />
       <div className="relative" ref={sidebarRef}>
         <Sidebar
           collapsible="icon"
@@ -354,23 +338,14 @@ function DashboardLayoutContent({
 
 /**
  * Trading Mode Toggle Component
- * Shows "Demo Mode" for trial users, "Live/Paper Trading" toggle for paid users with credentials
+ * Allows users to switch between Live (Tastytrade) and Paper (Tradier) trading modes
  */
 function TradingModeToggle() {
   const { mode, setMode, isLoading } = useTradingMode();
   const { state } = useSidebar();
-  const { user } = useAuth();
   const isCollapsed = state === "collapsed";
-  
-  // Check if user has real Tastytrade accounts
-  const { data: accountStatus } = trpc.demo.hasRealAccounts.useQuery();
-  const hasRealAccounts = accountStatus?.hasRealAccounts ?? false;
-  
-  // Trial users or users without real accounts see "Demo Mode" (non-toggleable)
-  const isDemo = user?.subscriptionTier === 'free_trial' || !hasRealAccounts;
 
   const handleToggle = () => {
-    if (isDemo) return; // Demo mode is always on, can't toggle
     const newMode = mode === 'live' ? 'paper' : 'live';
     setMode(newMode);
   };
@@ -383,7 +358,7 @@ function TradingModeToggle() {
     <div className="space-y-2">
       {!isCollapsed && (
         <div className="text-xs font-medium text-muted-foreground px-1">
-          {isDemo ? 'Trading Mode' : 'Trading Mode'}
+          Trading Mode
         </div>
       )}
       <div className={`flex items-center gap-3 rounded-lg p-2 bg-accent/30 border border-border/40 ${
@@ -391,41 +366,25 @@ function TradingModeToggle() {
       }`}>
         {!isCollapsed && (
           <div className="flex items-center gap-2 flex-1">
-            {isDemo ? (
-              <>
-                <TrendingDown className="h-4 w-4 text-amber-500" />
-                <span className="text-sm font-medium">Demo Mode</span>
-              </>
+            {mode === 'live' ? (
+              <TrendingUp className="h-4 w-4 text-green-500" />
             ) : (
-              <>
-                {mode === 'live' ? (
-                  <TrendingUp className="h-4 w-4 text-green-500" />
-                ) : (
-                  <TrendingDown className="h-4 w-4 text-blue-500" />
-                )}
-                <span className="text-sm font-medium">
-                  {mode === 'live' ? 'Live Trading' : 'Paper Trading'}
-                </span>
-              </>
+              <TrendingDown className="h-4 w-4 text-blue-500" />
             )}
+            <span className="text-sm font-medium">
+              {mode === 'live' ? 'Live Trading' : 'Paper Trading'}
+            </span>
           </div>
         )}
-        {!isDemo && (
-          <Switch
-            checked={mode === 'live'}
-            onCheckedChange={handleToggle}
-            className="data-[state=checked]:bg-green-500"
-          />
-        )}
+        <Switch
+          checked={mode === 'live'}
+          onCheckedChange={handleToggle}
+          className="data-[state=checked]:bg-green-500"
+        />
       </div>
       {!isCollapsed && (
         <div className="text-xs text-muted-foreground px-1">
-          {isDemo 
-            ? 'Simulated $100K account' 
-            : mode === 'live' 
-              ? 'Using Tastytrade API' 
-              : 'Using Tradier API (read-only)'
-          }
+          {mode === 'live' ? 'Using Tastytrade API' : 'Using Tradier API (read-only)'}
         </div>
       )}
     </div>
