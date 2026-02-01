@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MessageCircle, Send, Upload, X, Video, Circle, Square, Bot, User } from "lucide-react";
+import { MessageCircle, Send, Upload, X, Video, Circle, Square, Bot, User, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function SupportWidget() {
@@ -47,6 +47,8 @@ export function SupportWidget() {
   const [isUploading, setIsUploading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   // Chat mutations
   const askQuestion = trpc.chat.askQuestion.useMutation({
@@ -118,6 +120,66 @@ export function SupportWidget() {
     setConversationId(null);
     setIsOpen(false);
     setActiveTab("chat");
+  };
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          setChatMessage(prev => prev + (prev ? ' ' : '') + transcript);
+          setIsListening(false);
+        };
+
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsListening(false);
+          if (event.error !== 'no-speech' && event.error !== 'aborted') {
+            toast({
+              title: "Voice input failed",
+              description: "Could not recognize speech. Please try again.",
+              variant: "destructive",
+            });
+          }
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        recognitionRef.current = recognition;
+      }
+    }
+  }, [toast]);
+
+  const toggleVoiceInput = () => {
+    if (!recognitionRef.current) {
+      toast({
+        title: "Voice input not supported",
+        description: "Your browser doesn't support voice input. Please use Chrome, Edge, or Safari.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (error) {
+        console.error('Failed to start recognition:', error);
+      }
+    }
   };
 
   const handleSendMessage = () => {
@@ -453,7 +515,7 @@ export function SupportWidget() {
                   value={chatMessage}
                   onChange={(e) => setChatMessage(e.target.value)}
                   placeholder="Type your question here..."
-                  className="flex-1 min-h-[60px]"
+                  className="flex-1 min-h-[60px] border-2 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
@@ -462,6 +524,15 @@ export function SupportWidget() {
                   }}
                   disabled={isAiThinking}
                 />
+                <Button
+                  onClick={toggleVoiceInput}
+                  disabled={isAiThinking}
+                  size="icon"
+                  className={`h-[60px] w-[60px] ${isListening ? 'bg-red-500 hover:bg-red-600 animate-pulse' : ''}`}
+                  variant={isListening ? "default" : "outline"}
+                >
+                  <Mic className={`h-5 w-5 ${isListening ? 'animate-pulse' : ''}`} />
+                </Button>
                 <Button
                   onClick={handleSendMessage}
                   disabled={!chatMessage.trim() || isAiThinking}

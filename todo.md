@@ -3337,3 +3337,12 @@
 - [x] Add admin page for monitoring AI conversations
 - [x] Add admin ability to join conversations and send messages
 - [ ] Test complete AI chat workflow
+
+## Support Widget UI & Voice Input Enhancements
+- [x] Add glowing purple/blue borders to text input field
+- [x] Add glowing borders to interactive elements (buttons, tabs)
+- [x] Match glow styling to sidebar button theme
+- [x] Add microphone button next to send button
+- [x] Implement speech-to-text using Web Speech API
+- [x] Add visual indicator when recording (pulsing mic icon)
+- [ ] Test voice input and glowing borders
