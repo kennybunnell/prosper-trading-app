@@ -472,6 +472,13 @@ export default function CSPDashboard() {
 
   // Apply preset filters
   const filteredOpportunities = useMemo(() => {
+    console.log('[CSP Dashboard] Filtering opportunities:', {
+      totalOpportunities: opportunities.length,
+      presetFilter,
+      presetsAvailable: !!presets,
+      presetsCount: presets?.length
+    });
+    
     let filtered = [...opportunities];
 
     //     // Apply preset filter if active
@@ -722,6 +729,8 @@ export default function CSPDashboard() {
 
   // Handle preset button click
   const handlePresetFilter = (preset: PresetFilter) => {
+    console.log('[CSP Dashboard] Preset filter clicked:', preset);
+    console.log('[CSP Dashboard] Available presets:', presets);
     setPresetFilter(preset);
     setMinScore(undefined); // Clear score filter when using preset
   };

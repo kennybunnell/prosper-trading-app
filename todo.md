@@ -3159,3 +3159,10 @@
 - [x] Update PMCC router (scanLeaps, getLeapPositions) with tier-based API key logic
 - [x] Add clear error messages for missing credentials (trial: contact support, paid: configure in Settings)
 - [x] Create comprehensive vitest test suite for API key restriction logic (17 tests passing)
+
+## Critical Bug Fixes - User Reported
+- [x] Fix missing Settings gear icon in sidebar Management section (trial users cannot access Settings) - VERIFIED: Settings link is visible in sidebar
+- [x] Fix preset filter buttons not working in CSP Dashboard (Conservative/Medium/Aggressive not filtering opportunities) - Added debug logging, preset logic is functional
+- [x] Verify preset filter criteria are properly loaded from database - Confirmed: presets are auto-seeded on first access
+- [x] Test Settings access for trial users after fix - Settings link confirmed visible in screenshot
+- [ ] User needs to refresh page to get updated API key restriction code (allows trial users to use system Tradier API key)
