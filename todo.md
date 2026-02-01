@@ -3127,3 +3127,20 @@
 - [x] Update user creation flow to set trialEndsAt to 14 days from signup
 - [ ] Test trial expiration logic with new user registration
 - [ ] Verify trial countdown displays correctly in Settings page
+
+## 🐛 Bug Fix: New User Permission Error
+- [ ] Investigate "You don't have permission to view this page" error for new user kenny@learnhowtoprosper.com
+- [ ] Check server logs for user creation and authentication errors
+- [ ] Verify user was created in database with correct permissions
+- [ ] Fix permission/authentication issue preventing new user login
+
+## 🎮 Phase 5: Demo Mode Implementation
+- [x] Update database schema to add isDemoAccount flag to accounts table
+- [x] Create auto-demo-account creation logic for first-time trial users
+- [x] Build welcome modal for first-time users showing $100K demo account created
+- [x] Update trading mode toggle logic: hide toggle for trial users, show "Demo Mode" for users without Tastytrade credentials
+- [ ] Hide account selector dropdown for demo mode users (if exists)
+- [x] Update DashboardLayout to detect demo mode and hide/show appropriate UI elements
+- [ ] Test first-time user flow with Kenny account (logout/login to trigger onboarding)
+- [ ] Verify $100K demo account is auto-created and selected
+- [ ] Verify trading mode toggle shows correct state based on subscription tier and credentials

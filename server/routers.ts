@@ -14,6 +14,7 @@ import { marketRouter } from "./routers-market";
 import { userRouter } from "./routers-user";
 import { paperTradingRouter } from "./routers-paper-trading";
 import { subscriptionRouter } from "./routers-subscription";
+import { demoRouter } from "./routers-demo";
 
 // Helper function to parse OCC option symbols
 function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
@@ -289,6 +290,7 @@ export const appRouter = router({
   system: systemRouter,
   user: userRouter,
   subscription: subscriptionRouter,
+  demo: demoRouter,
   paperTrading: paperTradingRouter,
   pmcc: pmccRouter,
   performance: performanceRouter,

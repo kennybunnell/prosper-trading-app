@@ -161,6 +161,10 @@ export const tastytradeAccounts = mysqlTable("tastytradeAccounts", {
   accountType: varchar("accountType", { length: 64 }),
   nickname: varchar("nickname", { length: 128 }),
   isActive: int("isActive").default(1).notNull(),
+  /** Flag to indicate if this is a demo/simulated account for trial users */
+  isDemoAccount: int("isDemoAccount").default(0).notNull(),
+  /** Demo account balance (only used for demo accounts) */
+  demoBalance: int("demoBalance").default(100000),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
