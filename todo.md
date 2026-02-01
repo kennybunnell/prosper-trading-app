@@ -3295,3 +3295,10 @@
 - [x] Add paperclip icon to feedback list rows with attachments
 - [x] Update AdminFeedback table to show attachment indicator
 - [ ] Test visual indicator appears correctly
+
+## Screen Recording Audio Capture
+- [x] Enable audio capture in getDisplayMedia call
+- [x] Request microphone audio with getUserMedia
+- [x] Combine screen audio and microphone audio into single stream
+- [x] Update MediaRecorder to include all audio tracks
+- [ ] Test audio playback in admin panel

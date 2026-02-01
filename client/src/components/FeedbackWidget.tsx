@@ -112,18 +112,39 @@ export function FeedbackWidget() {
 
   const startScreenRecording = async () => {
     try {
-      // Request screen capture
-      const stream = await navigator.mediaDevices.getDisplayMedia({
+      // Request screen capture with system audio
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: true, // Include system audio if available
       } as any);
 
-      // Create MediaRecorder
+      // Request microphone audio
+      let micStream: MediaStream | null = null;
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (micError) {
+        console.warn('Microphone access denied or unavailable:', micError);
+        // Continue without microphone - screen audio might still work
+      }
+
+      // Combine audio tracks from both streams
+      const audioTracks = [
+        ...displayStream.getAudioTracks(),
+        ...(micStream ? micStream.getAudioTracks() : [])
+      ];
+
+      // Create combined stream with video from display and all audio tracks
+      const combinedStream = new MediaStream([
+        ...displayStream.getVideoTracks(),
+        ...audioTracks
+      ]);
+
+      // Create MediaRecorder with combined stream
       const mimeType = MediaRecorder.isTypeSupported('video/webm; codecs=vp9')
         ? 'video/webm; codecs=vp9'
         : 'video/webm';
       
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      const mediaRecorder = new MediaRecorder(combinedStream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       recordedChunksRef.current = [];
 
@@ -144,8 +165,11 @@ export function FeedbackWidget() {
         const previewUrl = URL.createObjectURL(file);
         setFilePreviewUrl(previewUrl);
 
-        // Stop all tracks
-        stream.getTracks().forEach(track => track.stop());
+        // Stop all tracks from both streams
+        combinedStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+        if (micStream) {
+          micStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+        }
         
         setIsRecording(false);
         setRecordingTime(0);
@@ -166,7 +190,7 @@ export function FeedbackWidget() {
       }, 1000);
 
       // Handle user stopping share from browser UI
-      stream.getVideoTracks()[0].onended = () => {
+      displayStream.getVideoTracks()[0].onended = () => {
         stopScreenRecording();
       };
 
