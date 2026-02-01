@@ -96,23 +96,23 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                   const isActive = location === item.href;
                   
                   return (
-                    <Link key={item.name} href={item.href}>
-                      <a
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                          isActive
-                            ? "bg-primary text-primary-foreground"
-                            : "hover:bg-accent hover:text-accent-foreground"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span className="flex-1">{item.name}</span>
-                        {('badge' in item) && item.badge && (
-                          <span className="text-xs bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 px-2 py-0.5 rounded">
-                            {item.badge}
-                          </span>
-                        )}
-                      </a>
+                    <Link 
+                      key={item.name} 
+                      href={item.href}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-accent hover:text-accent-foreground"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span className="flex-1">{item.name}</span>
+                      {('badge' in item) && item.badge && (
+                        <span className="text-xs bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 px-2 py-0.5 rounded">
+                          {item.badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
@@ -123,11 +123,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
         {/* Footer */}
         <div className="p-4 border-t space-y-1">
-          <Link href="/settings">
-            <a className="flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-accent hover:text-accent-foreground transition-colors">
-              <Settings className="h-4 w-4" />
-              <span>Settings</span>
-            </a>
+          <Link 
+            href="/settings"
+            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+          >
+            <Settings className="h-4 w-4" />
+            <span>Settings</span>
           </Link>
           <button
             onClick={logout}

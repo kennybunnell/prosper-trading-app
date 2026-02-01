@@ -3208,7 +3208,8 @@
 - [x] Create admin panel layout and navigation (/admin route)
 - [x] Build admin dashboard overview page (metrics, charts)
 - [x] Add admin routes to App.tsx
-- [ ] Build user management page (list with search/filter/sort)
+- [x] Build user management page (list with search/filter/sort)
+- [x] Add user management route to App.tsx
 - [ ] Build user detail page (view user info, activity, manage account)
 - [ ] Build broadcast communications page (send message, view history)
 - [ ] Build feedback management page (inbox, detail view, reply interface)
@@ -3233,3 +3234,7 @@
 - [x] Button only visible to users with role='admin'
 - [x] Add Shield icon import to Sidebar component
 - [ ] Test admin panel access from sidebar button
+
+## Bug Fix - Nested Anchor Tags
+- [x] Fix nested <a> tag error in AdminLayout component on /admin/broadcasts page
+- [x] Review all navigation components for nested anchor tag issues

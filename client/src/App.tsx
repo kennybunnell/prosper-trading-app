@@ -13,6 +13,7 @@ import PMCCDashboard from "./pages/PMCCDashboard";
 import Performance from "./pages/Performance";
 import ActionItems from "./pages/ActionItems";
 import { AdminDashboard } from "./pages/AdminDashboard";
+import { AdminUsers } from "./pages/AdminUsers";
 import { Sidebar } from "./components/Sidebar";
 import { PaperTradingBanner } from "./components/PaperTradingBanner";
 
@@ -25,6 +26,7 @@ function Router() {
     return (
       <Switch>
         <Route path="/admin" component={AdminDashboard} />
+        <Route path="/admin/users" component={AdminUsers} />
         <Route path="/admin/:rest*" component={AdminDashboard} />
       </Switch>
     );
