@@ -5,7 +5,8 @@ import {
   LayoutDashboard, 
   Users, 
   MessageSquare, 
-  Send, 
+  Send,
+  Bot, 
   BarChart3,
   Trophy,
   UserCog,
@@ -54,6 +55,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         { name: "Users", href: "/admin/users", icon: Users },
         { name: "Feedback", href: "/admin/feedback", icon: MessageSquare },
         { name: "Broadcasts", href: "/admin/broadcasts", icon: Send },
+        { name: "AI Chats", href: "/admin/chats", icon: Bot },
       ],
     },
     {

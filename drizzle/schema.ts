@@ -483,3 +483,43 @@ export const broadcastReads = mysqlTable("broadcastReads", {
 
 export type BroadcastRead = typeof broadcastReads.$inferSelect;
 export type InsertBroadcastRead = typeof broadcastReads.$inferInsert;
+
+/**
+ * AI-powered support chat conversations
+ */
+export const chatConversations = mysqlTable("chatConversations", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  subject: varchar("subject", { length: 255 }).notNull(), // First question or auto-generated summary
+  status: mysqlEnum("status", ["active", "resolved", "needs_admin"]).default("active").notNull(),
+  hasAdminReplied: boolean("hasAdminReplied").default(false).notNull(), // Track if admin has joined conversation
+  lastMessageAt: timestamp("lastMessageAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("chatConversations_userId_idx").on(table.userId),
+  statusIdx: index("chatConversations_status_idx").on(table.status),
+  lastMessageAtIdx: index("chatConversations_lastMessageAt_idx").on(table.lastMessageAt),
+}));
+
+export type ChatConversation = typeof chatConversations.$inferSelect;
+export type InsertChatConversation = typeof chatConversations.$inferInsert;
+
+/**
+ * Individual messages within chat conversations
+ */
+export const chatMessages = mysqlTable("chatMessages", {
+  id: int("id").autoincrement().primaryKey(),
+  conversationId: int("conversationId").notNull().references(() => chatConversations.id, { onDelete: "cascade" }),
+  senderId: int("senderId").references(() => users.id), // Null for AI messages
+  senderType: mysqlEnum("senderType", ["user", "ai", "admin"]).notNull(),
+  message: text("message").notNull(),
+  isRead: boolean("isRead").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  conversationIdIdx: index("chatMessages_conversationId_idx").on(table.conversationId),
+  createdAtIdx: index("chatMessages_createdAt_idx").on(table.createdAt),
+}));
+
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = typeof chatMessages.$inferInsert;

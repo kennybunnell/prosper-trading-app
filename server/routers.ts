@@ -17,6 +17,7 @@ import { demoRouter } from "./routers/demo";
 import { adminRouter } from "./routers-admin";
 import { feedbackRouter } from "./routers-feedback";
 import { inboxRouter } from "./routers-inbox";
+import { chatRouter } from "./routers-chat";
 
 // Helper function to parse OCC option symbols
 function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
@@ -294,6 +295,7 @@ export const appRouter = router({
   admin: adminRouter,
   feedback: feedbackRouter,
   inbox: inboxRouter,
+  chat: chatRouter,
   demo: demoRouter,
   paperTrading: paperTradingRouter,
   pmcc: pmccRouter,

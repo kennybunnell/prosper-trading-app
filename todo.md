@@ -3317,3 +3317,23 @@
 - [x] Make labels crisp and professional
 - [x] Ensure consistent font styling across all nav items
 - [ ] Test sidebar appearance on all pages
+
+## AI-Powered Support Chat System
+- [ ] Update database schema: create chatConversations and chatMessages tables
+- [ ] Create chat router with AI integration (askQuestion, getChatHistory, sendMessage)
+- [ ] Redesign FeedbackWidget with tabs: "Ask Question" and "Report Issue"
+- [ ] Build chat interface with message bubbles and streaming AI responses
+- [ ] Integrate chat conversations into user Inbox page
+- [ ] Add admin chat monitoring view in Admin Feedback page
+- [ ] Allow admin to join and reply to AI conversations
+- [ ] Test complete AI chat workflow with various question types
+
+## AI-Powered Support Chat System
+- [x] Update database schema for chat conversations and messages
+- [x] Create chat router with LLM integration
+- [x] Build AI response system with trading app context
+- [x] Create dual-mode SupportWidget with tabs (Ask Question | Report Issue)
+- [x] Build chat interface with message history
+- [x] Add admin page for monitoring AI conversations
+- [x] Add admin ability to join conversations and send messages
+- [ ] Test complete AI chat workflow

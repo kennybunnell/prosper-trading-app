@@ -16,10 +16,11 @@ import { AdminDashboard } from "./pages/AdminDashboard";
 import { AdminUsers } from "./pages/AdminUsers";
 import { AdminBroadcasts } from "./pages/AdminBroadcasts";
 import { AdminFeedback } from "./pages/AdminFeedback";
+import AdminChats from "./pages/AdminChats";
 import Inbox from "./pages/Inbox";
 import { Sidebar } from "./components/Sidebar";
 import { PaperTradingBanner } from "./components/PaperTradingBanner";
-import { FeedbackWidget } from "./components/FeedbackWidget";
+import { SupportWidget } from "./components/SupportWidget";
 
 function Router() {
   const [location] = useLocation();
@@ -33,6 +34,7 @@ function Router() {
         <Route path="/admin/users" component={AdminUsers} />
         <Route path="/admin/broadcasts" component={AdminBroadcasts} />
         <Route path="/admin/feedback" component={AdminFeedback} />
+        <Route path="/admin/chats" component={AdminChats} />
         <Route path="/admin/:rest*" component={AdminDashboard} />
       </Switch>
     );
@@ -43,7 +45,7 @@ function Router() {
       <Sidebar />
       <div className="flex-1 overflow-auto relative">
         <PaperTradingBanner />
-        <FeedbackWidget />
+        <SupportWidget />
         <Switch>          <Route path={"/"} component={Home} />
           <Route path={"/settings"} component={Settings} />
           <Route path="/inbox" component={Inbox} />
