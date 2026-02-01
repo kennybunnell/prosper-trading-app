@@ -3205,8 +3205,9 @@
 - [x] Add broadcast communications endpoints to admin router
 - [x] Add feedback system endpoints to admin router (submit, list, reply, status update)
 - [x] Add analytics endpoints to admin router
-- [ ] Create admin panel layout and navigation (/admin route)
-- [ ] Build admin dashboard overview page (metrics, charts)
+- [x] Create admin panel layout and navigation (/admin route)
+- [x] Build admin dashboard overview page (metrics, charts)
+- [x] Add admin routes to App.tsx
 - [ ] Build user management page (list with search/filter/sort)
 - [ ] Build user detail page (view user info, activity, manage account)
 - [ ] Build broadcast communications page (send message, view history)

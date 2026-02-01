@@ -12,10 +12,24 @@ import CCDashboard from "./pages/CCDashboard";
 import PMCCDashboard from "./pages/PMCCDashboard";
 import Performance from "./pages/Performance";
 import ActionItems from "./pages/ActionItems";
+import { AdminDashboard } from "./pages/AdminDashboard";
 import { Sidebar } from "./components/Sidebar";
 import { PaperTradingBanner } from "./components/PaperTradingBanner";
 
 function Router() {
+  const [location] = useLocation();
+  const isAdminRoute = location.startsWith('/admin');
+
+  // Admin routes don't use the sidebar layout
+  if (isAdminRoute) {
+    return (
+      <Switch>
+        <Route path="/admin" component={AdminDashboard} />
+        <Route path="/admin/:rest*" component={AdminDashboard} />
+      </Switch>
+    );
+  }
+
   return (
     <div className="flex h-screen">
       <Sidebar />
