@@ -141,6 +141,41 @@
       "when": 1769879035670,
       "tag": "0020_wakeful_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1769928771291,
+      "tag": "0021_late_the_twelve",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1769931292783,
+      "tag": "0022_sticky_leech",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1769946817574,
+      "tag": "0023_lowly_tempest",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1769947065936,
+      "tag": "0024_fast_oracle",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1769947379030,
+      "tag": "0025_cuddly_the_watchers",
+      "breakpoints": true
     }
   ]
 }

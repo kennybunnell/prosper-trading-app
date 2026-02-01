@@ -3,7 +3,10 @@ import { Link, useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import { useAccount } from '@/contexts/AccountContext';
 import { useTradingMode } from '@/contexts/TradingModeContext';
+import { useAuth } from '@/_core/hooks/useAuth';
 import { Switch } from '@/components/ui/switch';
+import { WelcomeModal } from '@/components/WelcomeModal';
+import { isOwnerAccount, shouldEnableDemoMode } from '../../../shared/auth';
 import {
   BarChart3,
   TrendingDown,
@@ -17,6 +20,7 @@ import {
   CheckSquare,
   ListChecks,
   ClipboardList,
+  Sparkles,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -32,17 +36,36 @@ export function Sidebar({ className }: SidebarProps) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const { selectedAccountId, setSelectedAccountId } = useAccount();
+  const { user } = useAuth();
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
   // Fetch Tastytrade accounts
   const { data: accounts, isLoading: accountsLoading } = trpc.accounts.list.useQuery();
   const { data: credentials } = trpc.settings.getCredentials.useQuery();
 
+  // LAYER 3 PROTECTION: Check if user should have demo mode
+  const shouldInitDemo = user ? shouldEnableDemoMode(user) : false;
+  
+  // Initialize demo account for trial users (NOT owner)
+  const { data: demoAccount } = trpc.demo.getOrCreateDemoAccount.useQuery(
+    undefined,
+    { enabled: shouldInitDemo && !isOwnerAccount(user) }
+  );
+  
   // Set default account if available
   useEffect(() => {
     if (credentials?.defaultTastytradeAccountId && !selectedAccountId && accounts) {
       setSelectedAccountId(credentials.defaultTastytradeAccountId);
     }
   }, [credentials, accounts, selectedAccountId, setSelectedAccountId]);
+  
+  // Auto-select demo account and show welcome modal for demo users
+  useEffect(() => {
+    if (demoAccount && !selectedAccountId) {
+      setSelectedAccountId(demoAccount.accountId);
+      setShowWelcomeModal(true);
+    }
+  }, [demoAccount, selectedAccountId, setSelectedAccountId]);
 
   // Get selected account details
   const selectedAccount = accounts?.find((acc: any) => acc.accountId === selectedAccountId);
@@ -261,6 +284,12 @@ export function Sidebar({ className }: SidebarProps) {
           {!collapsed && <span className="text-sm font-medium">Settings</span>}
         </Link>
       </div>
+      
+      {/* Welcome Modal for Demo Users */}
+      <WelcomeModal 
+        open={showWelcomeModal} 
+        onClose={() => setShowWelcomeModal(false)} 
+      />
     </div>
   );
 }
@@ -271,6 +300,10 @@ export function Sidebar({ className }: SidebarProps) {
  */
 function TradingModeToggle() {
   const { mode, setMode, isLoading } = useTradingMode();
+  const { user } = useAuth();
+  
+  // LAYER 3 PROTECTION: Check if user is in demo mode
+  const isDemo = user ? shouldEnableDemoMode(user) : false;
 
   const handleToggle = () => {
     const newMode = mode === 'live' ? 'paper' : 'live';
@@ -280,7 +313,25 @@ function TradingModeToggle() {
   if (isLoading) {
     return null;
   }
+  
+  // Show Demo Mode for trial users (not owner)
+  if (isDemo) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-3 rounded-lg p-3 border transition-all duration-300 bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/30">
+          <div className="flex items-center gap-2 flex-1">
+            <Sparkles className="h-4 w-4 text-amber-500" />
+            <span className="text-sm font-medium">Demo Mode</span>
+          </div>
+        </div>
+        <div className="text-xs text-muted-foreground px-1">
+          Simulated $100K account
+        </div>
+      </div>
+    );
+  }
 
+  // Show Live/Paper toggle for paid users
   return (
     <div className="space-y-2">
       <div className={`flex items-center gap-3 rounded-lg p-3 border transition-all duration-300 ${

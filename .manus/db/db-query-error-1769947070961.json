@@ -1,0 +1,8 @@
+{
+  "query": "ALTER TABLE tastytradeAccounts \nADD COLUMN isDemoAccount INT NOT NULL DEFAULT 0,\nADD COLUMN demoBalance INT DEFAULT 100000;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute ALTER TABLE tastytradeAccounts \nADD COLUMN isDemoAccount INT NOT NULL DEFAULT 0,\nADD COLUMN demoBalance INT DEFAULT 100000;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1060 (42S21) at line 1: Duplicate column name 'isDemoAccount'"
+  ]
+}

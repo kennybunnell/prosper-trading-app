@@ -21,6 +21,14 @@ export const users = mysqlTable("users", {
   tradingMode: mysqlEnum("tradingMode", ["live", "paper"]).default("paper").notNull(),
   /** Paper trading balance for simulation (default $100,000) */
   paperTradingBalance: int("paperTradingBalance").default(100000).notNull(),
+  /** Subscription tier: free_trial (demo mode), wheel (CSP/CC), advanced (all strategies) */
+  subscriptionTier: mysqlEnum("subscriptionTier", ["free_trial", "wheel", "advanced"]).default("free_trial"),
+  /** Trial end date - 14 days from signup for new users */
+  trialEndsAt: timestamp("trialEndsAt"),
+  /** Stripe customer ID for subscription management */
+  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
+  /** Stripe subscription ID */
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -153,6 +161,10 @@ export const tastytradeAccounts = mysqlTable("tastytradeAccounts", {
   accountType: varchar("accountType", { length: 64 }),
   nickname: varchar("nickname", { length: 128 }),
   isActive: int("isActive").default(1).notNull(),
+  /** Demo account flag - true for simulated accounts, false/null for real Tastytrade accounts */
+  isDemoAccount: int("isDemoAccount").default(0).notNull(),
+  /** Demo account balance - only used when isDemoAccount = true */
+  demoBalance: int("demoBalance").default(100000),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
