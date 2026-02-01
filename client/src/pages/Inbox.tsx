@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,13 +7,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { MessageSquare, Megaphone, Trash2, Eye, EyeOff, Send, Paperclip, Video } from "lucide-react";
+import { MessageSquare, Megaphone, Trash2, Eye, EyeOff, Send, Paperclip, Video, Bot } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export default function Inbox() {
   const { toast } = useToast();
   const [selectedFeedback, setSelectedFeedback] = useState<number | null>(null);
   const [selectedBroadcast, setSelectedBroadcast] = useState<number | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<number | null>(null);
   const [replyMessage, setReplyMessage] = useState("");
 
   // Fetch user's feedback submissions
@@ -22,11 +23,27 @@ export default function Inbox() {
   // Fetch user's broadcasts
   const { data: broadcastList, refetch: refetchBroadcasts } = trpc.inbox.listBroadcasts.useQuery();
 
+  // Fetch user's AI chat conversations
+  const { data: conversationsList } = trpc.chat.listConversations.useQuery();
+
+  // Fetch conversation detail with messages
+  const { data: conversationDetail } = trpc.chat.getChatHistory.useQuery(
+    { conversationId: selectedConversation! },
+    { enabled: !!selectedConversation }
+  );
+
   // Fetch feedback detail with replies
   const { data: feedbackDetail } = trpc.feedback.getFeedbackDetail.useQuery(
     { feedbackId: selectedFeedback! },
     { enabled: !!selectedFeedback }
   );
+
+  // Refetch feedback list when detail is loaded to update unread badge
+  useEffect(() => {
+    if (feedbackDetail) {
+      refetchFeedback();
+    }
+  }, [feedbackDetail, refetchFeedback]);
 
   // Mutations
   const replyMutation = trpc.feedback.submitReply.useMutation({
@@ -98,6 +115,10 @@ export default function Inbox() {
             {unreadBroadcastCount > 0 && (
               <Badge variant="destructive" className="ml-2">{unreadBroadcastCount}</Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="conversations" className="gap-2">
+            <Bot className="h-4 w-4" />
+            Conversations
           </TabsTrigger>
         </TabsList>
 
@@ -207,6 +228,43 @@ export default function Inbox() {
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
+                  </div>
+                </div>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="conversations" className="space-y-4">
+          {!conversationsList || conversationsList.conversations.length === 0 ? (
+            <Card className="p-12 text-center">
+              <Bot className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No conversations yet</h3>
+              <p className="text-muted-foreground">
+                Start a conversation using the Ask Question feature in the Support widget
+              </p>
+            </Card>
+          ) : (
+            conversationsList.conversations.map((conversation: any) => (
+              <Card
+                key={conversation.id}
+                className="p-6 cursor-pointer hover:bg-accent/50 transition-colors"
+                onClick={() => setSelectedConversation(conversation.id)}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="font-semibold truncate">{conversation.subject}</h3>
+                      <Badge variant={conversation.status === 'resolved' ? 'default' : 'secondary'}>
+                        {conversation.status}
+                      </Badge>
+                      {conversation.hasAdminReplied && (
+                        <Badge variant="outline">Admin Joined</Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Last activity: {formatDistanceToNow(new Date(conversation.lastMessageAt), { addSuffix: true })}
+                    </p>
                   </div>
                 </div>
               </Card>
@@ -360,6 +418,69 @@ export default function Inbox() {
                 </div>
               );
             })()
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Conversation Detail Dialog */}
+      <Dialog open={!!selectedConversation} onOpenChange={() => setSelectedConversation(null)}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>AI Chat Conversation</DialogTitle>
+          </DialogHeader>
+          {conversationDetail && (
+            <div className="space-y-6">
+              {/* Conversation Header */}
+              <div className="space-y-3 pb-4 border-b">
+                <div className="flex items-center gap-3">
+                  <h3 className="font-semibold text-lg">{conversationDetail.conversation.subject}</h3>
+                  <Badge variant={conversationDetail.conversation.status === 'resolved' ? 'default' : 'secondary'}>
+                    {conversationDetail.conversation.status}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Started {formatDistanceToNow(new Date(conversationDetail.conversation.createdAt), { addSuffix: true })}
+                </p>
+              </div>
+
+              {/* Messages */}
+              <div className="space-y-4">
+                {conversationDetail.messages.map((message: any) => (
+                  <div
+                    key={message.id}
+                    className={`flex gap-3 ${
+                      message.senderType === 'user' ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    {message.senderType !== 'user' && (
+                      <div className="flex-shrink-0">
+                        {message.senderType === 'ai' ? (
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Bot className="h-4 w-4 text-primary" />
+                          </div>
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-orange-500/10 flex items-center justify-center">
+                            <span className="text-xs font-semibold text-orange-500">A</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <div
+                      className={`max-w-[70%] rounded-lg p-4 ${
+                        message.senderType === 'user'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted'
+                      }`}
+                    >
+                      <p className="text-sm whitespace-pre-wrap">{message.message}</p>
+                      <p className="text-xs mt-2 opacity-70">
+                        {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

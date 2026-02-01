@@ -3354,3 +3354,5 @@
 - [x] Update speech recognition to handle interim and final results
 - [ ] Test gold glow styling and extended recording duration
 - [x] Add orange glow styling to all input fields in SupportWidget (Report Issue form and feedback reply)
+- [ ] Fix unread badge persistence - badge should disappear when feedback/broadcasts are viewed
+- [x] Add Conversations tab to Inbox to show AI chat history threads
