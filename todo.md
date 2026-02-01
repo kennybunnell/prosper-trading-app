@@ -3238,3 +3238,8 @@
 ## Bug Fix - Nested Anchor Tags
 - [x] Fix nested <a> tag error in AdminLayout component on /admin/broadcasts page
 - [x] Review all navigation components for nested anchor tag issues
+
+## Admin Panel Navigation Improvements
+- [x] Add "Back to App" button to AdminLayout footer (returns to main dashboard)
+- [ ] Test navigation flow: Main app → Admin Panel → Back to App
+- [ ] Test navigation between all admin pages (Dashboard, Users, Broadcasts, Feedback, Analytics)

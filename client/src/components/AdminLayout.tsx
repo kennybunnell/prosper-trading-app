@@ -13,7 +13,8 @@ import {
   Flag,
   FileText,
   Settings,
-  LogOut
+  LogOut,
+  ArrowLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -123,6 +124,13 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
         {/* Footer */}
         <div className="p-4 border-t space-y-1">
+          <Link 
+            href="/"
+            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to App</span>
+          </Link>
           <Link 
             href="/settings"
             className="flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
