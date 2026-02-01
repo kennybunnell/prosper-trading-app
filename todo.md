@@ -3250,3 +3250,20 @@
 - [x] Add breadcrumbs to AdminDashboard page (Admin Panel)
 - [ ] Add breadcrumbs to future admin pages (Broadcasts, Feedback, Analytics)
 - [ ] Test breadcrumb navigation across all admin pages
+
+## Broadcast Messaging System
+- [x] Create AdminBroadcasts page component
+- [x] Add broadcast form with message input and tier filter
+- [x] Add broadcast history table showing past messages
+- [x] Add route to App.tsx for /admin/broadcasts
+- [ ] Test sending broadcasts to all users and filtered by tier
+
+## Feedback System UI
+- [x] Create AdminFeedback page component (inbox view)
+- [x] Add feedback list with filters (status, type, priority)
+- [x] Create feedback detail dialog with reply functionality
+- [x] Add route to App.tsx for /admin/feedback
+- [x] Create FeedbackWidget component (floating button)
+- [x] Add feedback submission form in widget
+- [x] Integrate widget into main app pages
+- [ ] Test complete feedback workflow (submit, view, reply)
