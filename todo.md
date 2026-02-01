@@ -3346,3 +3346,10 @@
 - [x] Implement speech-to-text using Web Speech API
 - [x] Add visual indicator when recording (pulsing mic icon)
 - [ ] Test voice input and glowing borders
+
+## Support Widget Gold Glow & Extended Voice Recording
+- [x] Replace blue glow with warm gold/orange glow matching sidebar buttons
+- [x] Update focus states to use gold/orange color scheme
+- [x] Extend speech recognition to continuous mode with 15-second timeout
+- [x] Update speech recognition to handle interim and final results
+- [ ] Test gold glow styling and extended recording duration

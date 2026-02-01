@@ -128,14 +128,22 @@ export function SupportWidget() {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
+        recognition.continuous = true;
+        recognition.interimResults = true;
         recognition.lang = 'en-US';
+        recognition.maxAlternatives = 1;
 
         recognition.onresult = (event: any) => {
-          const transcript = event.results[0][0].transcript;
-          setChatMessage(prev => prev + (prev ? ' ' : '') + transcript);
-          setIsListening(false);
+          let finalTranscript = '';
+          for (let i = 0; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript + ' ';
+            }
+          }
+          if (finalTranscript) {
+            setChatMessage(prev => prev + (prev ? ' ' : '') + finalTranscript.trim());
+          }
         };
 
         recognition.onerror = (event: any) => {
@@ -176,6 +184,14 @@ export function SupportWidget() {
       try {
         recognitionRef.current.start();
         setIsListening(true);
+        
+        // Auto-stop after 15 seconds
+        setTimeout(() => {
+          if (recognitionRef.current && isListening) {
+            recognitionRef.current.stop();
+            setIsListening(false);
+          }
+        }, 15000);
       } catch (error) {
         console.error('Failed to start recognition:', error);
       }
@@ -515,7 +531,7 @@ export function SupportWidget() {
                   value={chatMessage}
                   onChange={(e) => setChatMessage(e.target.value)}
                   placeholder="Type your question here..."
-                  className="flex-1 min-h-[60px] border-2 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all"
+                  className="flex-1 min-h-[60px] border-2 border-orange-500/30 focus:border-orange-500/70 focus:ring-2 focus:ring-orange-500/30 shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
