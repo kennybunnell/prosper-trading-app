@@ -3285,3 +3285,13 @@
 - [x] Handle recording completion and file creation
 - [x] Auto-attach recorded video to feedback form
 - [ ] Test screen recording across browsers
+
+## Admin Sidebar Navigation
+- [x] Add Broadcasts menu item to AdminLayout sidebar (already exists)
+- [x] Add Feedback menu item to AdminLayout sidebar (already exists)
+- [ ] Test navigation from sidebar to both pages
+
+## Feedback List Attachment Indicator
+- [x] Add paperclip icon to feedback list rows with attachments
+- [x] Update AdminFeedback table to show attachment indicator
+- [ ] Test visual indicator appears correctly

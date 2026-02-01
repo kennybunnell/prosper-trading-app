@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MessageSquare, Send, CheckCircle, Clock, XCircle } from "lucide-react";
+import { MessageSquare, Send, CheckCircle, Clock, XCircle, Paperclip } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AdminPageHeader } from "@/components/AdminPageHeader";
 
@@ -248,7 +248,12 @@ export function AdminFeedback() {
                       <TableCell>{getPriorityBadge(item.feedback.priority)}</TableCell>
                       <TableCell>{getStatusBadge(item.feedback.status)}</TableCell>
                       <TableCell className="max-w-xs">
-                        <div className="truncate font-medium">{item.feedback.subject}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="truncate font-medium">{item.feedback.subject}</div>
+                          {item.feedback.screenshotUrl && (
+                            <Paperclip className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Button
