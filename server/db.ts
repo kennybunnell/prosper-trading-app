@@ -64,6 +64,19 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.lastSignedIn = new Date();
     }
 
+    // Set 14-day trial for new users (only on insert, not update)
+    // Check if this is a new user by seeing if we're inserting (no existing user)
+    const existingUser = await db.select().from(users).where(eq(users.openId, user.openId)).limit(1);
+    const isNewUser = existingUser.length === 0;
+    
+    if (isNewUser) {
+      // Set trial to expire 14 days from now
+      const trialEnd = new Date();
+      trialEnd.setDate(trialEnd.getDate() + 14);
+      values.trialEndsAt = trialEnd;
+      console.log(`[Database] New user ${user.openId} created with 14-day trial ending ${trialEnd.toISOString()}`);
+    }
+
     if (Object.keys(updateSet).length === 0) {
       updateSet.lastSignedIn = new Date();
     }

@@ -3122,3 +3122,8 @@
 - [ ] Test tier upgrade/downgrade flows
 - [ ] Test webhook handling for subscription lifecycle events
 - [ ] Create checkpoint after Phase 1 completion
+
+## 🕐 Trial Expiration Logic
+- [x] Update user creation flow to set trialEndsAt to 14 days from signup
+- [ ] Test trial expiration logic with new user registration
+- [ ] Verify trial countdown displays correctly in Settings page
