@@ -1,7 +1,6 @@
 import { useTradingMode } from '@/contexts/TradingModeContext';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { AlertTriangle } from 'lucide-react';
-import { shouldEnableDemoMode } from '../../../shared/auth';
 
 /**
  * Paper Trading Banner Component
@@ -13,15 +12,15 @@ export function PaperTradingBanner() {
   const { mode, isLoading } = useTradingMode();
   const { user } = useAuth();
   
-  // LAYER 3 PROTECTION: Check if user is in demo mode
-  const isDemo = user ? shouldEnableDemoMode(user) : false;
+  // Check if user is on free trial (demo mode)
+  const isDemo = user?.subscriptionTier === 'free_trial';
 
-  // Don't show banner if loading or in live mode
-  if (isLoading || mode === 'live') {
+  // Don't show banner if loading
+  if (isLoading) {
     return null;
   }
   
-  // Show Demo Mode banner for trial users (not owner)
+  // Show Demo Mode banner for trial users (always show, regardless of mode)
   if (isDemo) {
     return (
       <div className="sticky top-0 z-50 bg-gradient-to-r from-amber-600 via-amber-500 to-orange-500 text-white shadow-lg border-b-2 border-amber-400">
@@ -42,7 +41,11 @@ export function PaperTradingBanner() {
     );
   }
 
-  // Show Paper Trading banner for paid users
+  // Show Paper Trading banner for paid users (only if in paper mode)
+  if (mode !== 'paper') {
+    return null;
+  }
+  
   return (
     <div className="sticky top-0 z-50 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white shadow-lg border-b-2 border-blue-400">
       <div className="container mx-auto px-4 py-3">

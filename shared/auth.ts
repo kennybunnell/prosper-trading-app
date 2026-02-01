@@ -25,23 +25,34 @@ export interface User {
 export function isOwnerAccount(user: User | null | undefined): boolean {
   if (!user) return false;
   
+  console.log('[isOwnerAccount] Checking user:', {
+    email: user.email,
+    role: user.role,
+    openId: user.openId
+  });
+  
   // Check 1: Email match
   if (user.email === 'kennybunnell@gmail.com') {
+    console.log('[isOwnerAccount] MATCHED: Email is kennybunnell@gmail.com');
     return true;
   }
   
   // Check 2: Admin role
   if (user.role === 'admin') {
+    console.log('[isOwnerAccount] MATCHED: Role is admin');
     return true;
   }
   
   // Check 3: OpenID match (server-side only, env var may not exist on client)
   if (typeof process !== 'undefined' && process.env?.OWNER_OPEN_ID) {
+    console.log('[isOwnerAccount] Checking openId against OWNER_OPEN_ID:', process.env.OWNER_OPEN_ID);
     if (user.openId === process.env.OWNER_OPEN_ID) {
+      console.log('[isOwnerAccount] MATCHED: OpenID matches OWNER_OPEN_ID');
       return true;
     }
   }
   
+  console.log('[isOwnerAccount] NO MATCH: User is not owner');
   return false;
 }
 

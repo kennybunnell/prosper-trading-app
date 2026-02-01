@@ -6,7 +6,6 @@ import { useTradingMode } from '@/contexts/TradingModeContext';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { Switch } from '@/components/ui/switch';
 import { WelcomeModal } from '@/components/WelcomeModal';
-import { isOwnerAccount, shouldEnableDemoMode } from '../../../shared/auth';
 import {
   BarChart3,
   TrendingDown,
@@ -43,13 +42,13 @@ export function Sidebar({ className }: SidebarProps) {
   const { data: accounts, isLoading: accountsLoading } = trpc.accounts.list.useQuery();
   const { data: credentials } = trpc.settings.getCredentials.useQuery();
 
-  // LAYER 3 PROTECTION: Check if user should have demo mode
-  const shouldInitDemo = user ? shouldEnableDemoMode(user) : false;
+  // Check if user is on free trial (demo mode)
+  const isTrialUser = user?.subscriptionTier === 'free_trial';
   
-  // Initialize demo account for trial users (NOT owner)
+  // Initialize demo account for trial users
   const { data: demoAccount } = trpc.demo.getOrCreateDemoAccount.useQuery(
     undefined,
-    { enabled: shouldInitDemo && !isOwnerAccount(user) }
+    { enabled: isTrialUser }
   );
   
   // Set default account if available
@@ -302,8 +301,8 @@ function TradingModeToggle() {
   const { mode, setMode, isLoading } = useTradingMode();
   const { user } = useAuth();
   
-  // LAYER 3 PROTECTION: Check if user is in demo mode
-  const isDemo = user ? shouldEnableDemoMode(user) : false;
+  // Check if user is on free trial (demo mode)
+  const isDemo = user?.subscriptionTier === 'free_trial';
 
   const handleToggle = () => {
     const newMode = mode === 'live' ? 'paper' : 'live';

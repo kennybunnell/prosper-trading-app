@@ -137,7 +137,7 @@ export default function Home() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Prosper Trading</h1>
-            <p className="text-sm text-muted-foreground">Welcome back, {user?.name || user?.email}</p>
+            <p className="text-sm text-muted-foreground">Welcome back, {user?.email || user?.name}</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={toggleTheme}>

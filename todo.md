@@ -3109,15 +3109,23 @@
 - [x] Implement functional cancel button for PMCC scan operations
 - [x] Apply cancel functionality to CSP and CC dashboard scan operations
 
-## 🔒 Re-implement Demo Mode with Owner Protection (Phase 5 Redux)
+## ✅ Demo Mode Implementation Complete (Phase 5 Redux)
 - [x] Create isOwnerAccount() helper function to check if user is owner (by email OR role)
 - [x] Update demo router to check isOwnerAccount() and return early if true
-- [x] Update Sidebar to check isOwnerAccount() before initializing demo logic
-- [x] Update TradingModeBanner to check isOwnerAccount() before showing demo banner
+- [x] Simplify Sidebar to check only user.subscriptionTier === 'free_trial'
+- [x] Simplify PaperTradingBanner to check only user.subscriptionTier === 'free_trial'
+- [x] Fix banner to show demo mode regardless of trading mode setting
 - [x] Add isDemoAccount field back to tastytradeAccounts table
 - [x] Re-create demo account creation logic with owner protection
 - [x] Re-create WelcomeModal component for trial users only
 - [x] Add pre-populated watchlist for demo users (33 symbols)
-- [x] Test with owner account (kennybunnell@gmail.com) - should see NO demo mode (VERIFIED)
-- [ ] Test with trial account (kenny@learnhowtoprosper.com) - should see demo mode
-- [ ] Verify complete isolation between owner production and trial demo environments
+- [x] Test with owner account (kennybunnell@gmail.com) - shows blue "PAPER TRADING MODE" banner ✅
+- [x] Test with trial account (kenny@learnhowtoprosper.com) - shows amber "DEMO MODE" banner ✅
+- [x] Verify complete isolation between owner production and trial demo environments ✅
+
+## 🧹 Demo Mode Cleanup Tasks
+- [x] Remove all debug console.log statements from Sidebar and PaperTradingBanner
+- [x] Remove DiagnosticPage component and route (was only for debugging)
+- [x] Test demo account has $100K balance (demoBalance: 100000 in database)
+- [x] Test pre-loaded watchlist has 33 symbols in CSP Dashboard ✅
+- [ ] Test welcome modal countdown timer works correctly (optional - can test later)
