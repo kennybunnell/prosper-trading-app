@@ -9,6 +9,7 @@ import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { SubscriptionCard } from "@/components/SubscriptionCard";
 
 export default function Settings() {
   const { user, loading: authLoading } = useAuth();
@@ -197,6 +198,9 @@ export default function Settings() {
             Configure your API credentials for Tastytrade and Tradier
           </p>
         </div>
+
+        {/* Subscription & Billing */}
+        <SubscriptionCard />
 
         {/* Tastytrade Credentials */}
         <Card>

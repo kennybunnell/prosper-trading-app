@@ -3108,3 +3108,17 @@
 - [x] Position range filters below preset buttons for better UX
 - [x] Implement functional cancel button for PMCC scan operations
 - [x] Apply cancel functionality to CSP and CC dashboard scan operations
+
+## 💳 Phase 1: Subscription Infrastructure (Stripe Integration)
+- [x] Install Stripe integration via webdev_add_feature
+- [x] Update database schema with subscription tier fields (subscriptionTier, trialEndsAt, stripeCustomerId, stripeSubscriptionId)
+- [x] Create subscription management tRPC procedures (getSubscription, createCheckoutSession, handleWebhook)
+- [x] Implement feature gating middleware (requireTier helper for 'wheel' and 'advanced' tiers)
+- [x] Build Settings page subscription section with tier display
+- [x] Add upgrade buttons for each tier with Stripe checkout integration
+- [x] Implement Stripe webhook handler for subscription events (created, updated, cancelled)
+- [ ] Add trial countdown timer for free trial users
+- [ ] Test subscription creation flow end-to-end
+- [ ] Test tier upgrade/downgrade flows
+- [ ] Test webhook handling for subscription lifecycle events
+- [ ] Create checkpoint after Phase 1 completion

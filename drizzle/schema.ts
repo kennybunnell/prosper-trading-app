@@ -21,6 +21,14 @@ export const users = mysqlTable("users", {
   tradingMode: mysqlEnum("tradingMode", ["live", "paper"]).default("paper").notNull(),
   /** Paper trading balance for simulation (default $100,000) */
   paperTradingBalance: int("paperTradingBalance").default(100000).notNull(),
+  /** Subscription tier: free_trial (14 days then $47/mo), wheel ($97/mo), advanced ($197/mo) */
+  subscriptionTier: mysqlEnum("subscriptionTier", ["free_trial", "wheel", "advanced"]).default("free_trial").notNull(),
+  /** Trial expiration timestamp (14 days from signup) */
+  trialEndsAt: timestamp("trialEndsAt"),
+  /** Stripe customer ID for payment management */
+  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
+  /** Stripe subscription ID for active subscription */
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
