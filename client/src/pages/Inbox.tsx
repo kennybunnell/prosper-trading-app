@@ -291,6 +291,7 @@ export default function Inbox() {
                     value={replyMessage}
                     onChange={(e) => setReplyMessage(e.target.value)}
                     rows={4}
+                    className="border-2 border-orange-500/30 focus:border-orange-500/70 focus:ring-2 focus:ring-orange-500/30 shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all"
                   />
                   <Button
                     onClick={handleSendReply}

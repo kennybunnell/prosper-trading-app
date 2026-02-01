@@ -3353,3 +3353,4 @@
 - [x] Extend speech recognition to continuous mode with 15-second timeout
 - [x] Update speech recognition to handle interim and final results
 - [ ] Test gold glow styling and extended recording duration
+- [x] Add orange glow styling to all input fields in SupportWidget (Report Issue form and feedback reply)

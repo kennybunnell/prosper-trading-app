@@ -600,6 +600,7 @@ export function SupportWidget() {
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                   placeholder="Brief description of the issue"
+                  className="border-2 border-orange-500/30 focus:border-orange-500/70 focus:ring-2 focus:ring-orange-500/30 shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all"
                 />
               </div>
 
@@ -609,7 +610,7 @@ export function SupportWidget() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Provide detailed information..."
-                  className="min-h-[120px]"
+                  className="min-h-[120px] border-2 border-orange-500/30 focus:border-orange-500/70 focus:ring-2 focus:ring-orange-500/30 shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all"
                 />
               </div>
 
