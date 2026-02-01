@@ -83,38 +83,32 @@ export function Sidebar({ className }: SidebarProps) {
       name: 'Dashboard',
       path: '/',
       icon: Home,
-      description: 'Overview',
     },
     {
       name: 'Action Items',
       path: '/action-items',
       icon: CheckSquare,
-      description: 'Daily Tasks',
     },
     {
       name: 'Inbox',
       path: '/inbox',
       icon: Inbox,
-      description: 'Messages & Updates',
       badge: unreadCount?.count || 0,
     },
     {
       name: 'CSP Dashboard',
       path: '/csp',
       icon: TrendingDown,
-      description: 'Cash-Secured Puts',
     },
     {
       name: 'CC Dashboard',
       path: '/cc',
       icon: TrendingUp,
-      description: 'Covered Calls',
     },
     {
       name: 'PMCC Dashboard',
       path: '/pmcc',
       icon: Layers,
-      description: 'Poor Man\'s Covered Call',
     },
   ];
 
@@ -244,18 +238,11 @@ export function Sidebar({ className }: SidebarProps) {
               </div>
                          {!collapsed && (
                 <div className="flex-1 flex items-center justify-between">
-                  <div>
-                    <span className={cn(
-                      "text-sm font-medium transition-all duration-300",
-                      isActive && "text-amber-100",
-                      !isActive && "text-foreground"
-                    )}>{item.name}</span>
-                    <span className={cn(
-                      "text-xs transition-all duration-300",
-                      isActive && "text-amber-200",
-                      !isActive && "text-muted-foreground"
-                    )}>{item.description}</span>
-                  </div>
+                  <span className={cn(
+                    "text-sm font-medium transition-all duration-300",
+                    isActive && "text-amber-100",
+                    !isActive && "text-foreground"
+                  )}>{item.name}</span>
                   {(item as any).badge > 0 && (
                     <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-0.5 rounded-full">
                       {(item as any).badge}
