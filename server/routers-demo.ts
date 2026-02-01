@@ -26,6 +26,16 @@ export const demoRouter = router({
     const db = await getDb();
     if (!db) throw new Error("Database not available");
     
+    // CRITICAL: Never create demo accounts for the owner
+    const ownerOpenId = process.env.OWNER_OPEN_ID;
+    if (ctx.user.openId === ownerOpenId || ctx.user.role === 'admin') {
+      console.log('[Demo] Blocked demo account creation for owner/admin');
+      return {
+        isNew: false,
+        account: null,
+      };
+    }
+    
     // Check if user already has a demo account
     const existingDemoAccount = await db
       .select()

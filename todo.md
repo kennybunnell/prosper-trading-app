@@ -3161,3 +3161,15 @@
 - [x] Make welcome modal more persistent (60 second countdown or manual close)
 - [x] Add watchlist import instructions to welcome modal
 - [ ] Test full onboarding flow: logout → login → see modal → auto-selected account → pre-loaded watchlist
+
+## 🐛 Fix HTML Nesting Errors in WelcomeModal
+- [x] Fix `<p>` containing nested `<div>` in WelcomeModal
+- [x] Fix `<p>` containing nested `<p>` in WelcomeModal
+- [x] Replace DialogDescription with div to allow proper nesting
+
+## 🚨 CRITICAL: Prevent Demo Mode for Owner Account
+- [x] Add owner account check to demo mode logic in Sidebar
+- [x] Add owner account check to demo router getOrCreateDemoAccount
+- [x] Ensure demo accounts are ONLY created for trial users who are NOT the owner
+- [x] Delete any demo account created for owner account
+- [ ] Verify owner account sees normal production UI without demo mode

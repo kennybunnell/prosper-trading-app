@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Rocket, DollarSign, TrendingUp, List, FileDown } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -39,7 +39,7 @@ export function WelcomeModal({ open, onClose }: WelcomeModalProps) {
             <Rocket className="h-6 w-6 text-primary" />
             Welcome to Prosper Trading!
           </DialogTitle>
-          <DialogDescription className="text-base pt-4 space-y-4">
+          <div className="text-base pt-4 space-y-4">
             <div className="flex items-start gap-3">
               <DollarSign className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
               <div>
@@ -75,7 +75,7 @@ export function WelcomeModal({ open, onClose }: WelcomeModalProps) {
                 <span className="font-semibold text-foreground">Your 14-day free trial</span> gives you full access to all dashboards and features. Upgrade anytime to connect your Tastytrade account for live trading.
               </p>
             </div>
-          </DialogDescription>
+          </div>
         </DialogHeader>
         <DialogFooter className="flex-col gap-2">
           <Button onClick={onClose} className="w-full">

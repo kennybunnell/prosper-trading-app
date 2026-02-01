@@ -37,20 +37,26 @@ export function Sidebar({ className }: SidebarProps) {
   const { selectedAccountId, setSelectedAccountId } = useAccount();
   const { user } = useAuth();
   
-  // Initialize demo account for trial users
-  const { data: demoAccountData } = trpc.demo.getOrCreateDemoAccount.useQuery();
+  // Check if current user is the owner (never show demo mode for owner)
+  const isOwner = user?.openId === import.meta.env.VITE_OWNER_OPEN_ID || user?.role === 'admin';
+  
+  // Initialize demo account for trial users (but NOT for owner)
+  const shouldInitDemo = user?.subscriptionTier === 'free_trial' && !isOwner;
+  const { data: demoAccountData } = trpc.demo.getOrCreateDemoAccount.useQuery(undefined, {
+    enabled: shouldInitDemo,
+  });
   
   // Check if user has real accounts
   const { data: accountStatus } = trpc.demo.hasRealAccounts.useQuery();
   const hasRealAccounts = accountStatus?.hasRealAccounts ?? false;
-  const isDemo = user?.subscriptionTier === 'free_trial' || !hasRealAccounts;
+  const isDemo = shouldInitDemo || (!hasRealAccounts && !isOwner);
   
-  // Show welcome modal for demo users on every login
+  // Show welcome modal for demo users on every login (but NOT for owner)
   useEffect(() => {
-    if (isDemo && demoAccountData) {
+    if (isDemo && demoAccountData && !isOwner) {
       setShowWelcomeModal(true);
     }
-  }, [isDemo, demoAccountData]);
+  }, [isDemo, demoAccountData, isOwner]);
 
   // Fetch Tastytrade accounts
   const { data: accounts, isLoading: accountsLoading } = trpc.accounts.list.useQuery();
