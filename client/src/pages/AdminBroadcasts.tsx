@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Send, MessageSquare } from "lucide-react";
+import { Send, MessageSquare, Video } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AdminPageHeader } from "@/components/AdminPageHeader";
 
@@ -21,6 +21,7 @@ export function AdminBroadcasts() {
   const { toast } = useToast();
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
   const [targetTier, setTargetTier] = useState<string>("all");
 
   // Fetch broadcast history
@@ -37,6 +38,7 @@ export function AdminBroadcasts() {
       });
       setTitle("");
       setMessage("");
+      setVideoUrl("");
       setTargetTier("all");
       refetch();
     },
@@ -71,6 +73,7 @@ export function AdminBroadcasts() {
     sendBroadcast.mutate({
       title: title.trim(),
       message: message.trim(),
+      videoUrl: videoUrl.trim() || undefined,
       targetTier: targetTier as any,
     });
   };
@@ -161,6 +164,23 @@ export function AdminBroadcasts() {
               />
               <p className="text-sm text-muted-foreground mt-2">
                 {message.length} characters
+              </p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+                <Video className="h-4 w-4" />
+                Video Link (Optional)
+              </label>
+              <input
+                type="url"
+                placeholder="Paste YouTube, Loom, or video URL..."
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Add a video tutorial, feature walkthrough, or trading tip to accompany your message
               </p>
             </div>
 

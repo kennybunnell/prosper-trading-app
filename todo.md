@@ -3302,3 +3302,12 @@
 - [x] Combine screen audio and microphone audio into single stream
 - [x] Update MediaRecorder to include all audio tracks
 - [ ] Test audio playback in admin panel
+
+## Two-Way Feedback & Broadcast System
+- [x] Update database schema: add read/unread status, video attachment fields
+- [x] Create user inbox page showing feedback conversations and broadcasts
+- [x] Add video link field for admin replies
+- [x] Add video link field to broadcast messages
+- [x] Build notification system for new replies and broadcasts (unread count badge in sidebar)
+- [x] Add message management (mark as read, delete)
+- [ ] Test complete two-way communication workflow

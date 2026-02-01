@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MessageSquare, Send, CheckCircle, Clock, XCircle, Paperclip } from "lucide-react";
+import { MessageSquare, Send, CheckCircle, Clock, XCircle, Paperclip, Video, Circle, StopCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AdminPageHeader } from "@/components/AdminPageHeader";
 
@@ -31,6 +31,7 @@ export function AdminFeedback() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [selectedFeedbackId, setSelectedFeedbackId] = useState<number | null>(null);
   const [replyMessage, setReplyMessage] = useState("");
+  const [replyVideoUrl, setReplyVideoUrl] = useState("");
 
   // Fetch feedback list
   const { data: feedbackList, isLoading, refetch } = trpc.admin.listFeedback.useQuery({
@@ -51,6 +52,7 @@ export function AdminFeedback() {
         title: "Reply sent successfully",
       });
       setReplyMessage("");
+      setReplyVideoUrl("");
       refetch();
     },
     onError: (error) => {
@@ -91,6 +93,7 @@ export function AdminFeedback() {
     replyToFeedback.mutate({
       feedbackId: selectedFeedbackId,
       message: replyMessage.trim(),
+      videoUrl: replyVideoUrl.trim() || undefined,
     });
   };
 
@@ -397,15 +400,33 @@ export function AdminFeedback() {
               )}
 
               {/* Reply Form */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">Send Reply</label>
-                <Textarea
-                  placeholder="Type your reply here..."
-                  value={replyMessage}
-                  onChange={(e) => setReplyMessage(e.target.value)}
-                  rows={4}
-                  className="resize-none"
-                />
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Send Reply</label>
+                  <Textarea
+                    placeholder="Type your reply here..."
+                    value={replyMessage}
+                    onChange={(e) => setReplyMessage(e.target.value)}
+                    rows={4}
+                    className="resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+                    <Video className="h-4 w-4" />
+                    Video Link (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="Paste YouTube, Loom, or video URL..."
+                    value={replyVideoUrl}
+                    onChange={(e) => setReplyVideoUrl(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Add a video walkthrough or tutorial to help explain the solution
+                  </p>
+                </div>
               </div>
             </div>
           )}

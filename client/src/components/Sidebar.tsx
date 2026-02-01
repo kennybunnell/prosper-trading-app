@@ -21,6 +21,7 @@ import {
   ListChecks,
   ClipboardList,
   Sparkles,
+  Inbox,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,12 @@ export function Sidebar({ className }: SidebarProps) {
   // Fetch Tastytrade accounts
   const { data: accounts, isLoading: accountsLoading } = trpc.accounts.list.useQuery();
   const { data: credentials } = trpc.settings.getCredentials.useQuery();
+  
+  // Fetch unread count for inbox badge
+  const { data: unreadCount } = trpc.inbox.getUnreadCount.useQuery(undefined, {
+    enabled: !!user,
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
 
   // Check if user is on free trial (demo mode)
   const isTrialUser = user?.subscriptionTier === 'free_trial';
@@ -83,6 +90,13 @@ export function Sidebar({ className }: SidebarProps) {
       path: '/action-items',
       icon: CheckSquare,
       description: 'Daily Tasks',
+    },
+    {
+      name: 'Inbox',
+      path: '/inbox',
+      icon: Inbox,
+      description: 'Messages & Updates',
+      badge: unreadCount?.count || 0,
     },
     {
       name: 'CSP Dashboard',
@@ -228,18 +242,25 @@ export function Sidebar({ className }: SidebarProps) {
                   !isActive && "text-muted-foreground group-hover:text-foreground"
                 )} />
               </div>
-              
-              {!collapsed && (
-                <div className="flex flex-col flex-1">
-                  <span className={cn(
-                    "text-sm font-semibold transition-all duration-300",
-                    isActive && "text-white"
-                  )}>{item.name}</span>
-                  <span className={cn(
-                    "text-xs transition-all duration-300",
-                    isActive && "text-amber-200",
-                    !isActive && "text-muted-foreground"
-                  )}>{item.description}</span>
+                         {!collapsed && (
+                <div className="flex-1 flex items-center justify-between">
+                  <div>
+                    <span className={cn(
+                      "text-sm font-medium transition-all duration-300",
+                      isActive && "text-amber-100",
+                      !isActive && "text-foreground"
+                    )}>{item.name}</span>
+                    <span className={cn(
+                      "text-xs transition-all duration-300",
+                      isActive && "text-amber-200",
+                      !isActive && "text-muted-foreground"
+                    )}>{item.description}</span>
+                  </div>
+                  {(item as any).badge > 0 && (
+                    <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-0.5 rounded-full">
+                      {(item as any).badge}
+                    </span>
+                  )}
                 </div>
               )}
               

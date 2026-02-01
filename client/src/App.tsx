@@ -16,6 +16,7 @@ import { AdminDashboard } from "./pages/AdminDashboard";
 import { AdminUsers } from "./pages/AdminUsers";
 import { AdminBroadcasts } from "./pages/AdminBroadcasts";
 import { AdminFeedback } from "./pages/AdminFeedback";
+import Inbox from "./pages/Inbox";
 import { Sidebar } from "./components/Sidebar";
 import { PaperTradingBanner } from "./components/PaperTradingBanner";
 import { FeedbackWidget } from "./components/FeedbackWidget";
@@ -43,9 +44,9 @@ function Router() {
       <div className="flex-1 overflow-auto relative">
         <PaperTradingBanner />
         <FeedbackWidget />
-        <Switch>
-          <Route path={"/"} component={Home} />
+        <Switch>          <Route path={"/"} component={Home} />
           <Route path={"/settings"} component={Settings} />
+          <Route path="/inbox" component={Inbox} />
           <Route path="/action-items" component={ActionItems} />
           <Route path={"/csp"} component={CSPDashboard} />
           <Route path={"/cc"} component={CCDashboard} />

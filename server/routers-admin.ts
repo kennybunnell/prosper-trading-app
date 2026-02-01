@@ -387,6 +387,7 @@ export const adminRouter = router({
     .input(z.object({
       title: z.string(),
       message: z.string(),
+      videoUrl: z.string().optional(),
       targetTier: z.enum(['all', 'free_trial', 'wheel', 'advanced']).default('all'),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -425,6 +426,7 @@ export const adminRouter = router({
         targetTier: input.targetTier,
         title: input.title,
         message: input.message,
+        videoUrl: input.videoUrl,
         recipientCount: targetUsers.length,
       });
 
@@ -574,6 +576,7 @@ export const adminRouter = router({
     .input(z.object({
       feedbackId: z.number(),
       message: z.string(),
+      videoUrl: z.string().optional(),
       isInternalNote: z.boolean().default(false),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -596,6 +599,7 @@ export const adminRouter = router({
         userId: ctx.user.id,
         isAdminReply: true,
         message: input.message,
+        videoUrl: input.videoUrl,
         isInternalNote: input.isInternalNote,
       });
 

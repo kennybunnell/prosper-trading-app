@@ -406,7 +406,9 @@ export const feedbackReplies = mysqlTable("feedbackReplies", {
   userId: int("userId").notNull().references(() => users.id), // Who replied (user or admin)
   isAdminReply: boolean("isAdminReply").default(false).notNull(),
   message: text("message").notNull(),
+  videoUrl: varchar("videoUrl", { length: 500 }), // Video attachment for replies
   isInternalNote: boolean("isInternalNote").default(false).notNull(), // Admin-only notes
+  readByUser: boolean("readByUser").default(false).notNull(), // Track if user has read admin reply
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
   feedbackIdIdx: index("feedbackReplies_feedbackId_idx").on(table.feedbackId),
@@ -452,6 +454,7 @@ export const broadcasts = mysqlTable("broadcasts", {
   targetTier: mysqlEnum("targetTier", ["all", "free_trial", "wheel", "advanced"]).default("all").notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   message: text("message").notNull(),
+  videoUrl: varchar("videoUrl", { length: 500 }), // Optional video link for tutorials/walkthroughs
   recipientCount: int("recipientCount").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
@@ -460,3 +463,23 @@ export const broadcasts = mysqlTable("broadcasts", {
 
 export type Broadcast = typeof broadcasts.$inferSelect;
 export type InsertBroadcast = typeof broadcasts.$inferInsert;
+
+/**
+ * Track which users have read or deleted broadcast messages
+ */
+export const broadcastReads = mysqlTable("broadcastReads", {
+  id: int("id").autoincrement().primaryKey(),
+  broadcastId: int("broadcastId").notNull().references(() => broadcasts.id, { onDelete: "cascade" }),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  isRead: boolean("isRead").default(false).notNull(),
+  isDeleted: boolean("isDeleted").default(false).notNull(),
+  readAt: timestamp("readAt"),
+  deletedAt: timestamp("deletedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  broadcastUserIdx: index("broadcastReads_broadcastUser_idx").on(table.broadcastId, table.userId),
+  userIdIdx: index("broadcastReads_userId_idx").on(table.userId),
+}));
+
+export type BroadcastRead = typeof broadcastReads.$inferSelect;
+export type InsertBroadcastRead = typeof broadcastReads.$inferInsert;

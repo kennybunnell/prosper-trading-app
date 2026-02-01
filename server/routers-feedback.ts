@@ -90,4 +90,162 @@ export const feedbackRouter = router({
         feedbackId: Number(result[0].insertId),
       };
     }),
+
+  /**
+   * List current user's feedback submissions with replies
+   */
+  listMyFeedback: protectedProcedure.query(async ({ ctx }) => {
+    const { getDb } = await import('./db');
+    const { feedback, feedbackReplies } = await import('../drizzle/schema');
+    const { eq, desc } = await import('drizzle-orm');
+
+    const db = await getDb();
+    if (!db) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Database connection failed',
+      });
+    }
+
+    const userId = ctx.user.id;
+
+    // Get user's feedback
+    const userFeedback = await db
+      .select()
+      .from(feedback)
+      .where(eq(feedback.userId, userId))
+      .orderBy(desc(feedback.createdAt));
+
+    // Get replies for each feedback
+    const feedbackWithReplies = await Promise.all(
+      userFeedback.map(async (fb: any) => {
+        const replies = await db
+          .select()
+          .from(feedbackReplies)
+          .where(eq(feedbackReplies.feedbackId, fb.id))
+          .orderBy(desc(feedbackReplies.createdAt));
+
+        return {
+          ...fb,
+          replies,
+        };
+      })
+    );
+
+    return { feedback: feedbackWithReplies };
+  }),
+
+  /**
+   * Get feedback detail with full conversation thread
+   */
+  getFeedbackDetail: protectedProcedure
+    .input(z.object({
+      feedbackId: z.number(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const { feedback, feedbackReplies } = await import('../drizzle/schema');
+      const { eq, desc, and } = await import('drizzle-orm');
+
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Database connection failed',
+        });
+      }
+
+      // Get feedback and verify ownership
+      const feedbackItem = await db
+        .select()
+        .from(feedback)
+        .where(
+          and(
+            eq(feedback.id, input.feedbackId),
+            eq(feedback.userId, ctx.user.id)
+          )
+        )
+        .limit(1);
+
+      if (feedbackItem.length === 0) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Feedback not found',
+        });
+      }
+
+      // Get all replies
+      const replies = await db
+        .select()
+        .from(feedbackReplies)
+        .where(eq(feedbackReplies.feedbackId, input.feedbackId))
+        .orderBy(feedbackReplies.createdAt);
+
+      // Mark admin replies as read
+      const unreadAdminReplies = replies.filter((r: any) => r.isAdminReply && !r.readByUser);
+      if (unreadAdminReplies.length > 0) {
+        for (const reply of unreadAdminReplies) {
+          await db
+            .update(feedbackReplies)
+            .set({ readByUser: true })
+            .where(eq(feedbackReplies.id, (reply as any).id));
+        }
+      }
+
+      return {
+        feedback: feedbackItem[0],
+        replies,
+      };
+    }),
+
+  /**
+   * Submit reply to feedback (user responding to admin)
+   */
+  submitReply: protectedProcedure
+    .input(z.object({
+      feedbackId: z.number(),
+      message: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const { feedback, feedbackReplies } = await import('../drizzle/schema');
+      const { eq, and } = await import('drizzle-orm');
+
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Database connection failed',
+        });
+      }
+
+      // Verify feedback ownership
+      const feedbackItem = await db
+        .select()
+        .from(feedback)
+        .where(
+          and(
+            eq(feedback.id, input.feedbackId),
+            eq(feedback.userId, ctx.user.id)
+          )
+        )
+        .limit(1);
+
+      if (feedbackItem.length === 0) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Feedback not found',
+        });
+      }
+
+      // Insert reply
+      await db.insert(feedbackReplies).values({
+        feedbackId: input.feedbackId,
+        userId: ctx.user.id,
+        isAdminReply: false,
+        message: input.message,
+      });
+
+      return { success: true };
+    }),
 });
