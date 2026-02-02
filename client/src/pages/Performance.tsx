@@ -1206,8 +1206,8 @@ export function WorkingOrdersTab() {
       toast.error('Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.');
       return;
     }
-    if (orders.length === 0) {
-      toast.error('No orders to fill');
+    if (selectedOrders.size === 0) {
+      toast.error('Please select orders to fill');
       return;
     }
     if (!safeToReplace) {
@@ -1215,25 +1215,23 @@ export function WorkingOrdersTab() {
       return;
     }
     
-    // Use Ask + $0.10 for guaranteed immediate fills
-    const ordersToFill = orders.map(order => ({
-      orderId: String(order.orderId),
-      accountNumber: String(order.accountNumber),
-      symbol: order.symbol,
-      suggestedPrice: order.ask + 0.10, // Force Ask + $0.10 for instant fill
-      rawOrder: order.rawOrder,
-    }));
-
-    if (ordersToFill.length === 0) {
-      toast.error('No orders to fill');
-      return;
-    }
+    // Use Ask + $0.10 for guaranteed immediate fills on selected orders only
+    const ordersToFill = Array.from(selectedOrders).map(idx => {
+      const order = orders[idx];
+      return {
+        orderId: String(order.orderId),
+        accountNumber: String(order.accountNumber),
+        symbol: order.symbol,
+        suggestedPrice: order.ask + 0.10, // Force Ask + $0.10 for instant fill
+        rawOrder: order.rawOrder,
+      };
+    });
 
     // Show confirmation with cost warning
     const totalExtraCost = ordersToFill.length * 0.10 * 100; // $0.10 per contract * 100 shares
-    if (confirm(`Fill Now will use ASK + $0.10 for guaranteed fills.\n\nThis costs approximately $${totalExtraCost.toFixed(0)} extra across ${ordersToFill.length} orders.\n\nContinue?`)) {
+    if (confirm(`Fill Now will use ASK + $0.10 for guaranteed fills on ${ordersToFill.length} selected order(s).\n\nThis costs approximately $${totalExtraCost.toFixed(0)} extra.\n\nContinue?`)) {
       replaceOrdersMutation.mutate({ orders: ordersToFill });
-      toast.info('Submitting orders at ASK + $0.10 for immediate fills...');
+      toast.info(`Submitting ${ordersToFill.length} order(s) at ASK + $0.10 for immediate fills...`);
     }
   };
 
@@ -1528,31 +1526,17 @@ export function WorkingOrdersTab() {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleReplaceAll}
-              disabled={summary.needsReplacement === 0 || !safeToReplace || replaceOrdersMutation.isPending}
-              className="border-green-500/50 hover:bg-green-500/20 text-green-400"
-            >
-              {replaceOrdersMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-              )}
-              Replace All to Suggested ({summary.needsReplacement})
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={handleFillNow}
-              disabled={orders.length === 0 || !safeToReplace || replaceOrdersMutation.isPending}
+              disabled={selectedOrders.size === 0 || !safeToReplace || replaceOrdersMutation.isPending}
               className="border-orange-500/50 hover:bg-orange-500/20 text-orange-400"
-              title="Force immediate fills at ASK + $0.10 (costs extra but guarantees fills)"
+              title="Force immediate fills at ASK + $0.10 for selected orders (costs extra but guarantees fills)"
             >
               {replaceOrdersMutation.isPending ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <span className="mr-2">🚀</span>
               )}
-              Fill Now ({orders.length})
+              Fill Now ({selectedOrders.size})
             </Button>
             <Button
               variant="outline"

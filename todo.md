@@ -3391,3 +3391,5 @@
 - [x] Fix type mismatch error: orderIds are numbers but tRPC expects strings
 - [x] Fix false "Filled" badges - orders showing filled when they're still working
 - [x] Add option to use ASK price (or ASK + premium) for guaranteed immediate fills
+- [x] Remove "Replace All to Suggested" button to simplify UI
+- [x] Update "Fill Now" button to work only on selected orders (not all orders)
