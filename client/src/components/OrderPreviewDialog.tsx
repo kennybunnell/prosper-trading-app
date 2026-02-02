@@ -16,7 +16,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, XCircle, Sparkles } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { useState } from "react";
+import { Streamdown } from "streamdown";
 
 interface OrderPreviewItem {
   symbol: string;
@@ -27,6 +30,7 @@ interface OrderPreviewItem {
   collateral: number;
   status: 'valid' | 'warning' | 'error';
   message?: string;
+  currentPrice?: number;
   // Spread-specific fields
   isSpread?: boolean;
   spreadType?: 'bull_put' | 'bear_call';
@@ -59,6 +63,33 @@ export function OrderPreviewDialog({
   onSubmit,
   isDryRun,
 }: OrderPreviewDialogProps) {
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  
+  const evaluateOrder = trpc.csp.evaluateOrder.useMutation({
+    onSuccess: (data) => {
+      setAnalysis(typeof data.analysis === 'string' ? data.analysis : JSON.stringify(data.analysis));
+      setShowAnalysis(true);
+    },
+  });
+  
+  const handleAnalyze = () => {
+    // Map orders to the format expected by the API
+    const orderData = orders.map(order => ({
+      symbol: order.symbol,
+      strike: order.strike,
+      expiration: order.expiration,
+      premium: order.premium,
+      currentPrice: order.currentPrice || 0,
+      isSpread: order.isSpread,
+      spreadType: order.spreadType,
+      longStrike: order.longStrike,
+      spreadWidth: order.spreadWidth,
+    }));
+    
+    evaluateOrder.mutate({ orders: orderData });
+  };
+  
   const buyingPowerUsagePercent = (totalCollateral / availableBuyingPower) * 100;
   const highBuyingPowerUsage = buyingPowerUsagePercent > 80;
   
@@ -85,7 +116,7 @@ export function OrderPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-fit min-w-[800px] max-w-[98vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-fit min-w-[800px] max-w-[98vw] max-h-[90vh] overflow-y-auto border-2 border-orange-500">
         <DialogHeader>
           <DialogTitle className="text-2xl">
             {isDryRun ? "Dry Run Preview" : "Order Confirmation"}
@@ -232,7 +263,30 @@ export function OrderPreviewDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        {/* AI Analysis Section */}
+        {showAnalysis && analysis && (
+          <div className="mt-4 p-4 bg-blue-950/30 border border-blue-500/30 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="h-5 w-5 text-blue-400" />
+              <h3 className="text-lg font-semibold text-blue-400">AI Order Analysis</h3>
+            </div>
+            <div className="prose prose-invert prose-sm max-w-none">
+              <Streamdown>{analysis}</Streamdown>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter className="gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleAnalyze}
+            disabled={evaluateOrder.isPending || hasErrors}
+            className="border-blue-500 text-blue-400 hover:bg-blue-950/30"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            {evaluateOrder.isPending ? "Analyzing..." : "Analyze Order"}
+          </Button>
+          <div className="flex-1" />
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

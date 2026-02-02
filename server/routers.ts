@@ -1081,6 +1081,58 @@ export const appRouter = router({
           results,
         };
       }),
+    evaluateOrder: protectedProcedure
+      .input(
+        z.object({
+          orders: z.array(z.object({
+            symbol: z.string(),
+            strike: z.number(),
+            expiration: z.string(),
+            premium: z.number(),
+            currentPrice: z.number(),
+            isSpread: z.boolean().optional(),
+            spreadType: z.enum(['bull_put', 'bear_call']).optional(),
+            longStrike: z.number().optional(),
+            spreadWidth: z.number().optional(),
+          })),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+        
+        // Build order summary for LLM
+        const orderSummary = input.orders.map(order => {
+          const dte = Math.floor((new Date(order.expiration).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          const strikeVsPrice = ((order.currentPrice - order.strike) / order.currentPrice * 100).toFixed(1);
+          
+          if (order.isSpread) {
+            return `${order.symbol} ${order.spreadType === 'bull_put' ? 'Bull Put Spread' : 'Bear Call Spread'}: ` +
+                   `Sell $${order.strike} / Buy $${order.longStrike} (${order.spreadWidth}pt width), ` +
+                   `${dte} DTE, Premium: $${order.premium.toFixed(2)}, ` +
+                   `Current price: $${order.currentPrice.toFixed(2)} (strike ${strikeVsPrice}% OTM)`;
+          } else {
+            return `${order.symbol} Cash-Secured Put: Sell $${order.strike} strike, ` +
+                   `${dte} DTE, Premium: $${order.premium.toFixed(2)}, ` +
+                   `Current price: $${order.currentPrice.toFixed(2)} (strike ${strikeVsPrice}% OTM)`;
+          }
+        }).join('\n');
+        
+        const prompt = `You are an expert options trader analyzing the following order(s) for entry quality:\n\n${orderSummary}\n\nProvide a comprehensive analysis covering:\n\n1. **Probability of Profit**: Estimate the likelihood these orders will expire worthless (profitable) based on strike selection, DTE, and current market conditions.\n\n2. **Risk Assessment**: Analyze max loss, breakeven points, and risk/reward ratio. For spreads, explain the defined risk benefit.\n\n3. **Market Context**: Consider current volatility environment, whether premiums are attractive, and any macro factors that could impact these positions.\n\n4. **Recommendation**: Provide a clear verdict (FAVORABLE / NEUTRAL / UNFAVORABLE) with reasoning. Suggest any adjustments if needed.\n\nBe specific, concise, and actionable. Focus on practical trading insights.`;
+        
+        const response = await invokeLLM({
+          messages: [
+            { role: 'system', content: 'You are an expert options trading analyst providing actionable trade analysis.' },
+            { role: 'user', content: prompt },
+          ],
+        });
+        
+        const analysis = response.choices[0].message.content;
+        
+        return {
+          analysis,
+          orderCount: input.orders.length,
+        };
+      }),
   }),
 
   // Bull Put Spreads (Phase 2: Backend Pricing)

@@ -758,6 +758,7 @@ export default function CSPDashboard() {
       currentPrice: opp.currentPrice,
       // Spread-specific fields
       isSpread: strategyType === 'spread',
+      spreadType: strategyType === 'spread' ? 'bull_put' as const : undefined,
       longStrike: strategyType === 'spread' ? (opp as any).longStrike : undefined,
       spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
       capitalAtRisk: strategyType === 'spread' ? (opp as any).capitalAtRisk : undefined,

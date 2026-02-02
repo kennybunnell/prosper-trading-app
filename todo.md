@@ -3394,3 +3394,8 @@
 - [x] Remove "Replace All to Suggested" button to simplify UI
 - [x] Update "Fill Now" button to work only on selected orders (not all orders)
 - [x] Replace browser confirm alert with professional modal dialog for Fill Now confirmation
+- [ ] Fix strategy detection logic - correctly identify Bull Put Spreads vs Bear Call Spreads
+- [ ] Add orange border to Dry Run Review modal for better visibility
+- [ ] Implement AI-powered order evaluation feature using Manus LLM
+- [ ] Add "Analyze Order" button to all order tickets
+- [ ] Display AI evaluation results (probability of profit, risk assessment, market context, recommendation)
