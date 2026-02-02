@@ -1036,6 +1036,34 @@ export function WorkingOrdersTab() {
     }
   );
 
+  // Play fill notification sound
+  const playFillSound = () => {
+    // Create a pleasant notification sound (three ascending tones)
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const playTone = (frequency: number, startTime: number, duration: number) => {
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = frequency;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0, startTime);
+      gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.01);
+      gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
+      
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration);
+    };
+    
+    const now = audioContext.currentTime;
+    playTone(523.25, now, 0.15); // C5
+    playTone(659.25, now + 0.15, 0.15); // E5
+    playTone(783.99, now + 0.3, 0.25); // G5
+  };
+
   // Update actionResults when order status changes
   useEffect(() => {
     if (!orderStatusData || !actionResults) return;
@@ -1053,6 +1081,18 @@ export function WorkingOrdersTab() {
       }
       return result;
     });
+
+    // Check if any orders just changed to filled status
+    const newlyFilledOrders = updatedResults.filter((r: any, idx: number) => {
+      const oldStatus = actionResults.results[idx]?.orderStatus;
+      const newStatus = r.orderStatus;
+      return oldStatus !== 'Filled' && newStatus === 'Filled';
+    });
+
+    // Play sound if any orders were just filled
+    if (newlyFilledOrders.length > 0) {
+      playFillSound();
+    }
 
     // Only update if something changed
     const hasChanges = updatedResults.some((r: any, idx: number) => 

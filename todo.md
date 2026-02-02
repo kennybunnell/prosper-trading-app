@@ -3405,3 +3405,8 @@
 - [x] Implement Smart Select feature with AI batch evaluation of all opportunities
 - [x] Add recommendation badges (Favorable/Neutral/Unfavorable) to opportunity rows
 - [x] Auto-select only favorable trades based on AI recommendations
+
+## Sound Notification for Order Fills
+- [x] Add sound notification function that plays when orders are filled
+- [x] Integrate sound with existing fill detection polling system in Performance.tsx
+- [x] Test sound plays only once per newly filled order (not repeatedly)
