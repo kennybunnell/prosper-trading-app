@@ -1722,7 +1722,7 @@ export function WorkingOrdersTab() {
 
       {/* Replace Confirmation Dialog with Detailed Pricing */}
       <Dialog open={showReplaceDialog} onOpenChange={setShowReplaceDialog}>
-        <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto border-2 border-[#FF8C00]">
+        <DialogContent className="w-[90vw] max-w-[90vw] max-h-[80vh] overflow-y-auto border-2 border-[#FF8C00]">
           <DialogHeader>
             <DialogTitle>Confirm Order Replacement</DialogTitle>
             <DialogDescription>

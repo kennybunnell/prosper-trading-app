@@ -3378,3 +3378,7 @@
 - [x] Fix priceEffect detection in cancelReplaceOrder (should use original order's priceEffect, not detect from first leg)
 - [x] Verify BCS replacement uses correct priceEffect logic (already works - uses original order's priceEffect)
 - [x] Fix confirmation modal styling: add orange border and widen to fit full table
+
+## Current Issues to Fix
+- [x] Widen confirmation modal to 90% screen width for full table visibility
+- [x] Investigate and verify spread replacements maintain spread structure (not breaking into individual legs) - CONFIRMED: Code correctly preserves all legs
