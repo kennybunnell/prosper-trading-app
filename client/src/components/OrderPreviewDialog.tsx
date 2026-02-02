@@ -31,6 +31,7 @@ interface OrderPreviewItem {
   status: 'valid' | 'warning' | 'error';
   message?: string;
   currentPrice?: number;
+  ivRank?: number | null;
   // Spread-specific fields
   isSpread?: boolean;
   spreadType?: 'bull_put' | 'bear_call';
@@ -81,6 +82,7 @@ export function OrderPreviewDialog({
       expiration: order.expiration,
       premium: order.premium,
       currentPrice: order.currentPrice || 0,
+      ivRank: order.ivRank,
       isSpread: order.isSpread,
       spreadType: order.spreadType,
       longStrike: order.longStrike,

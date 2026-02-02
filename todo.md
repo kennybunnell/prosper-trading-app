@@ -3399,3 +3399,6 @@
 - [ ] Implement AI-powered order evaluation feature using Manus LLM
 - [ ] Add "Analyze Order" button to all order tickets
 - [ ] Display AI evaluation results (probability of profit, risk assessment, market context, recommendation)
+- [x] Add current stock price fetching to order validation
+- [x] Add implied volatility (IV) data to order validation
+- [x] Update AI evaluation prompt to use current prices and IV for comprehensive analysis

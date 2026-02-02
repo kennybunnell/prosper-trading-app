@@ -756,6 +756,7 @@ export default function CSPDashboard() {
       bid: opp.bid,
       ask: opp.ask,
       currentPrice: opp.currentPrice,
+      ivRank: opp.ivRank,
       // Spread-specific fields
       isSpread: strategyType === 'spread',
       spreadType: strategyType === 'spread' ? 'bull_put' as const : undefined,

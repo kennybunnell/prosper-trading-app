@@ -791,6 +791,7 @@ export const appRouter = router({
             bid: z.number(),
             ask: z.number(),
             currentPrice: z.number(),
+            ivRank: z.number().nullable().optional(),
             // Spread-specific fields
             isSpread: z.boolean().optional(),
             spreadType: z.enum(['bull_put', 'bear_call']).optional(),
@@ -872,6 +873,8 @@ export const appRouter = router({
             collateral,
             status,
             message,
+            currentPrice: order.currentPrice, // Pass through current price for AI analysis
+            ivRank: order.ivRank, // Pass through IV Rank for AI analysis
             // Pass through spread details
             isSpread: order.isSpread,
             spreadType: order.spreadType,
@@ -1090,6 +1093,7 @@ export const appRouter = router({
             expiration: z.string(),
             premium: z.number(),
             currentPrice: z.number(),
+            ivRank: z.number().nullable().optional(),
             isSpread: z.boolean().optional(),
             spreadType: z.enum(['bull_put', 'bear_call']).optional(),
             longStrike: z.number().optional(),
@@ -1104,20 +1108,23 @@ export const appRouter = router({
         const orderSummary = input.orders.map(order => {
           const dte = Math.floor((new Date(order.expiration).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
           const strikeVsPrice = ((order.currentPrice - order.strike) / order.currentPrice * 100).toFixed(1);
+          const ivRankStr = order.ivRank !== null && order.ivRank !== undefined ? `IV Rank: ${order.ivRank}%` : 'IV Rank: N/A';
           
           if (order.isSpread) {
             return `${order.symbol} ${order.spreadType === 'bull_put' ? 'Bull Put Spread' : 'Bear Call Spread'}: ` +
                    `Sell $${order.strike} / Buy $${order.longStrike} (${order.spreadWidth}pt width), ` +
                    `${dte} DTE, Premium: $${order.premium.toFixed(2)}, ` +
-                   `Current price: $${order.currentPrice.toFixed(2)} (strike ${strikeVsPrice}% OTM)`;
+                   `Current price: $${order.currentPrice.toFixed(2)} (short strike ${strikeVsPrice}% OTM), ` +
+                   `${ivRankStr}`;
           } else {
             return `${order.symbol} Cash-Secured Put: Sell $${order.strike} strike, ` +
                    `${dte} DTE, Premium: $${order.premium.toFixed(2)}, ` +
-                   `Current price: $${order.currentPrice.toFixed(2)} (strike ${strikeVsPrice}% OTM)`;
+                   `Current price: $${order.currentPrice.toFixed(2)} (strike ${strikeVsPrice}% OTM), ` +
+                   `${ivRankStr}`;
           }
         }).join('\n');
         
-        const prompt = `You are an expert options trader analyzing the following order(s) for entry quality:\n\n${orderSummary}\n\nProvide a comprehensive analysis covering:\n\n1. **Probability of Profit**: Estimate the likelihood these orders will expire worthless (profitable) based on strike selection, DTE, and current market conditions.\n\n2. **Risk Assessment**: Analyze max loss, breakeven points, and risk/reward ratio. For spreads, explain the defined risk benefit.\n\n3. **Market Context**: Consider current volatility environment, whether premiums are attractive, and any macro factors that could impact these positions.\n\n4. **Recommendation**: Provide a clear verdict (FAVORABLE / NEUTRAL / UNFAVORABLE) with reasoning. Suggest any adjustments if needed.\n\nBe specific, concise, and actionable. Focus on practical trading insights.`;
+        const prompt = `You are an expert options trader analyzing the following order(s) for entry quality:\n\n${orderSummary}\n\nProvide a comprehensive analysis covering:\n\n1. **Probability of Profit**: Estimate the likelihood these orders will expire worthless (profitable) based on:\n   - Strike selection relative to current price (% OTM)\n   - Days to expiration (DTE)\n   - IV Rank (higher IV = higher premium but more uncertainty)\n   - Current market environment\n\n2. **Risk Assessment**: \n   - Maximum loss potential\n   - Breakeven price(s)\n   - Risk/reward ratio (premium collected vs capital at risk)\n   - For spreads: explain the defined risk benefit and max loss calculation\n\n3. **Volatility Analysis**:\n   - Is the IV Rank favorable for selling premium? (>50% is generally good for sellers)\n   - Are premiums attractive relative to the risk?\n   - Consider if current volatility is elevated or suppressed\n\n4. **Market Context**:\n   - Technical levels (support/resistance near strikes)\n   - Macro factors that could impact the position\n   - Earnings or events before expiration\n\n5. **Recommendation**: Provide a clear verdict:\n   - **FAVORABLE**: Strong entry, good risk/reward\n   - **NEUTRAL**: Acceptable but not ideal\n   - **UNFAVORABLE**: Poor risk/reward or timing\n   \n   Include specific reasoning and any suggested adjustments (strike, DTE, size).\n\nBe specific, quantitative where possible, and actionable. Focus on practical trading insights.`;
         
         const response = await invokeLLM({
           messages: [
