@@ -411,10 +411,8 @@ export class TastytradeAPI {
       console.log(`[Tastytrade] Order ${orderId} canceled successfully`);
       
       // Step 2: Build new order from original order legs
-      const firstLeg = originalOrder.legs?.[0];
-      const action = firstLeg?.action || '';
-      const isBuyOrder = action.toLowerCase().includes('buy');
-      const priceEffect = isBuyOrder ? 'Debit' : 'Credit';
+      // Use the original order's priceEffect (Credit for spreads you sell, Debit for spreads you buy)
+      const priceEffect = (originalOrder['price-effect'] || originalOrder.priceEffect || 'Credit') as 'Credit' | 'Debit';
       
       const newOrderPayload: CreateOrderRequest = {
         accountNumber: accountNumber,

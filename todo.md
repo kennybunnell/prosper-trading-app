@@ -3375,3 +3375,4 @@
 - [x] Fix BPS replace operation - implemented proper cancel+resubmit instead of unreliable PUT
 - [x] Restore proper atomic PUT request for BPS order replacement per Tastytrade API docs
 - [x] Implement two-step cancel+resubmit for BPS replacement (Tastytrade PUT creates contingent orders that never activate)
+- [x] Fix priceEffect detection in cancelReplaceOrder (should use original order's priceEffect, not detect from first leg)
