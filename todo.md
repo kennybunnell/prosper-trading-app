@@ -3415,3 +3415,9 @@
 - [x] Auto-select default account when CSPDashboard loads and no account is selected
 - [x] Add toast notification when Fetch Opportunities clicked without account selected
 - [x] Test account auto-selection works correctly
+
+## Smart Select AI Analysis Improvements
+- [x] Review and adjust AI evaluation criteria to be more realistic (currently marking everything unfavorable)
+- [x] Add detailed explanation modal showing why each trade is rated favorable/neutral/unfavorable
+- [x] Calibrate AI to provide balanced recommendations suitable for real-world trading
+- [x] Test AI recommendations produce reasonable distribution of ratings

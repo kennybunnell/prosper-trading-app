@@ -1183,12 +1183,12 @@ export const appRouter = router({
                          `${ivRankStr}`;
             }
             
-            const prompt = `You are an expert options trader. Analyze this trade and provide a BRIEF recommendation (2-3 sentences max):\n\n${orderDesc}\n\nProvide:\n1. Quick assessment of risk/reward\n2. One-word verdict: FAVORABLE, NEUTRAL, or UNFAVORABLE\n3. One key reason\n\nBe concise and actionable.`;
+            const prompt = `You are an expert options trader analyzing this trade for a premium-selling strategy:\n\n${orderDesc}\n\nEvaluation Criteria for Premium Selling:\n- IV Rank: >30% is good, >50% is excellent (high premium environment)\n- Strike Distance: 10-30% OTM is ideal balance of premium vs. safety\n- DTE: 7-45 days is standard for theta decay optimization\n- Premium: Higher is better, but must balance with probability\n\nProvide a structured analysis:\n1. **Risk Assessment**: Evaluate strike distance and probability of assignment\n2. **Premium Quality**: Is the premium attractive given the risk and IV environment?\n3. **Timing**: Is DTE appropriate for theta decay?\n4. **Market Context**: Consider IV Rank and current price action\n5. **Verdict**: FAVORABLE (good trade), NEUTRAL (acceptable but not ideal), or UNFAVORABLE (poor risk/reward)\n6. **Key Reason**: One sentence explaining the verdict\n\nBe realistic - not every trade needs to be perfect. Focus on whether it's a reasonable premium-selling opportunity.`;
             
             try {
               const response = await invokeLLM({
                 messages: [
-                  { role: 'system', content: 'You are a concise options trading analyst. Keep responses under 3 sentences.' },
+                  { role: 'system', content: 'You are a realistic options trading analyst who evaluates premium-selling opportunities. Provide balanced, practical assessments - not every trade needs to be perfect. Focus on whether the risk/reward is reasonable for active traders.' },
                   { role: 'user', content: prompt },
                 ],
               });

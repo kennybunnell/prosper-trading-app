@@ -313,6 +313,8 @@ export default function CSPDashboard() {
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [validationData, setValidationData] = useState<any>(null);
   const [aiRecommendations, setAiRecommendations] = useState<Map<string, { recommendation: 'favorable' | 'neutral' | 'unfavorable'; analysis: string }>>(new Map());
+  const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
+  const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{ symbol: string; strike: number; recommendation: string; analysis: string } | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -2197,16 +2199,25 @@ export default function CSPDashboard() {
                             const recommendation = aiRecommendations.get(key);
                             if (!recommendation) return <span className="text-muted-foreground text-xs">-</span>;
                             
-                            const { recommendation: rec } = recommendation;
+                            const { recommendation: rec, analysis } = recommendation;
                             return (
                               <Badge
                                 className={cn(
-                                  "font-bold cursor-help",
+                                  "font-bold cursor-pointer hover:opacity-80 transition-opacity",
                                   rec === 'favorable' && "bg-green-500/20 text-green-500 border-green-500/50",
                                   rec === 'neutral' && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
                                   rec === 'unfavorable' && "bg-red-500/20 text-red-500 border-red-500/50"
                                 )}
-                                title={recommendation.analysis}
+                                onClick={() => {
+                                  setSelectedAiAnalysis({
+                                    symbol: opp.symbol,
+                                    strike: opp.strike,
+                                    recommendation: rec,
+                                    analysis,
+                                  });
+                                  setShowAiAnalysisModal(true);
+                                }}
+                                title="Click to see detailed analysis"
                               >
                                 {rec === 'favorable' && '🟢 Favorable'}
                                 {rec === 'neutral' && '🟡 Neutral'}
@@ -2467,6 +2478,57 @@ export default function CSPDashboard() {
                   <span className="text-muted-foreground">Conservative income</span>
                   <span className="font-medium">10-point spreads (lower stress, more buffer)</span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Analysis Detail Modal */}
+      <Dialog open={showAiAnalysisModal} onOpenChange={setShowAiAnalysisModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              AI Trade Analysis: {selectedAiAnalysis?.symbol} ${selectedAiAnalysis?.strike}
+            </DialogTitle>
+            <DialogDescription>
+              Detailed analysis from the Smart Select AI evaluation
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Recommendation Badge */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-muted-foreground">Recommendation:</span>
+              <Badge
+                className={cn(
+                  "font-bold text-base px-3 py-1",
+                  selectedAiAnalysis?.recommendation === 'favorable' && "bg-green-500/20 text-green-500 border-green-500/50",
+                  selectedAiAnalysis?.recommendation === 'neutral' && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
+                  selectedAiAnalysis?.recommendation === 'unfavorable' && "bg-red-500/20 text-red-500 border-red-500/50"
+                )}
+              >
+                {selectedAiAnalysis?.recommendation === 'favorable' && '🟢 Favorable'}
+                {selectedAiAnalysis?.recommendation === 'neutral' && '🟡 Neutral'}
+                {selectedAiAnalysis?.recommendation === 'unfavorable' && '🔴 Unfavorable'}
+              </Badge>
+            </div>
+
+            {/* Analysis Text */}
+            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+              <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Detailed Analysis</h4>
+              <div className="text-sm whitespace-pre-wrap leading-relaxed">
+                {selectedAiAnalysis?.analysis}
+              </div>
+            </div>
+
+            {/* Evaluation Criteria Reference */}
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 space-y-2">
+              <h4 className="font-semibold text-sm text-blue-400 uppercase tracking-wide">Evaluation Criteria</h4>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>• <strong>IV Rank:</strong> &gt;30% is good, &gt;50% is excellent</p>
+                <p>• <strong>Strike Distance:</strong> 10-30% OTM is ideal</p>
+                <p>• <strong>DTE:</strong> 7-45 days is standard for theta decay</p>
+                <p>• <strong>Premium:</strong> Higher is better, balanced with probability</p>
               </div>
             </div>
           </div>
