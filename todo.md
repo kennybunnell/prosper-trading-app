@@ -3389,3 +3389,5 @@
 - [x] Change replacement log text from "replaced successfully" to "submitted successfully" (orders aren't filled yet)
 - [x] Implement real-time fill detection to update replacement log badges from Working to Filled
 - [x] Fix type mismatch error: orderIds are numbers but tRPC expects strings
+- [x] Fix false "Filled" badges - orders showing filled when they're still working
+- [x] Add option to use ASK price (or ASK + premium) for guaranteed immediate fills

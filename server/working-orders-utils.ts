@@ -75,14 +75,18 @@ export function calculateSmartFillPrice(
     if (aggressiveFillMode) {
       if (minutesWorking >= 120) {
         // Orders working >2 hours: go well above ask
-        suggestedPrice = ask + 0.10;
-        strategy = `Buy-side: Ask + $0.10 🚀 (>2hrs, aggressive)`;
+        suggestedPrice = ask + 0.15;
+        strategy = `Buy-side: Ask + $0.15 🚀 (>2hrs, aggressive)`;
       } else if (minutesWorking >= 60) {
-        suggestedPrice = ask + 0.05;
-        strategy = `Buy-side: Ask + $0.05 🚀 (>1hr, aggressive)`;
+        suggestedPrice = ask + 0.10;
+        strategy = `Buy-side: Ask + $0.10 🚀 (>1hr, aggressive)`;
+      } else if (minutesWorking >= 30) {
+        suggestedPrice = ask + 0.07;
+        strategy = `Buy-side: Ask + $0.07 🚀 (>30min, aggressive)`;
       } else {
-        suggestedPrice = ask + 0.02;
-        strategy = `Buy-side: Ask + $0.02 🚀 (aggressive)`;
+        // Immediately aggressive: start at Ask + $0.05 for faster fills
+        suggestedPrice = ask + 0.05;
+        strategy = `Buy-side: Ask + $0.05 🚀 (aggressive)`;
       }
     }
 

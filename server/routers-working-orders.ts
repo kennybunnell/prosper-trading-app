@@ -601,13 +601,10 @@ export const workingOrdersRouter = router({
             // Order still exists in live orders - it's working
             statusMap[orderId] = { status: 'Working' };
           } else {
-            // Order not in live orders - assume it's filled or canceled
-            // We can't distinguish between filled/canceled without additional API call
-            // but for replacement log purposes, we'll mark as Filled since that's the expected outcome
-            statusMap[orderId] = { 
-              status: 'Filled',
-              filledAt: new Date().toISOString()
-            };
+            // Order not in live orders - could be filled, canceled, or rejected
+            // Without additional API calls, we can't determine the exact status
+            // Keep as Working to avoid false positives - user can check Tastytrade directly
+            statusMap[orderId] = { status: 'Working' };
           }
         }
 
