@@ -428,13 +428,20 @@ export class TastytradeAPI {
       );
       
       const newOrderId = response.data.data?.order?.id || response.data.data?.id || orderId;
+      const orderStatus = response.data.data?.order?.status || response.data.data?.status || 'unknown';
       
-      console.log(`[Tastytrade] Order replaced successfully. New order ID: ${newOrderId}`);
+      console.log(`[Tastytrade] Order replace response:`, JSON.stringify(response.data, null, 2));
+      console.log(`[Tastytrade] Order replaced successfully. New order ID: ${newOrderId}, Status: ${orderStatus}`);
+      
+      // Check if order was actually replaced or just canceled
+      if (orderStatus === 'Cancelled' || orderStatus === 'Canceled') {
+        console.warn(`[Tastytrade] WARNING: Order ${orderId} was canceled but new order status is also 'Cancelled'. This may indicate the replace failed.`);
+      }
       
       return {
         success: true,
         orderId: newOrderId,
-        message: `Order replaced successfully (New ID: ${newOrderId})`,
+        message: `Order replaced successfully (New ID: ${newOrderId}, Status: ${orderStatus})`,
       };
     } catch (error: any) {
       const errorMsg = error.response?.data?.error?.message || error.message;

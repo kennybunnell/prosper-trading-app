@@ -3370,3 +3370,5 @@
 - [x] Fix covered call bid price still undefined for multiple orders (APLD example with 11 orders) - Already fixed in previous checkpoint
 - [x] Fix screen recording permission error in SupportWidget
 - [x] Add Performance dashboard back to sidebar navigation
+- [x] Fix BPS bid/ask pricing strategy - use midpoint instead of ask price for better fill rates
+- [x] Fix BPS replace logic - added detailed logging to diagnose Tastytrade API response
