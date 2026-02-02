@@ -3367,3 +3367,5 @@
 - [ ] Add subscription management page (upgrade/cancel)
 - [ ] Test complete registration and payment flow
 - [x] Fix covered call order submission - price field undefined error
+- [x] Fix covered call bid price still undefined for multiple orders (APLD example with 11 orders) - Already fixed in previous checkpoint
+- [x] Fix screen recording permission error in SupportWidget

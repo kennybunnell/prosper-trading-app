@@ -18,6 +18,24 @@ import { useToast } from "@/hooks/use-toast";
 
 export function SupportWidget() {
   const { toast } = useToast();
+
+  // Check if screen recording is available
+  useEffect(() => {
+    const checkScreenRecording = async () => {
+      try {
+        // Check if getDisplayMedia is available and not blocked by permissions policy
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+          setIsScreenRecordingAvailable(false);
+          return;
+        }
+        // Feature is available
+        setIsScreenRecordingAvailable(true);
+      } catch (error) {
+        setIsScreenRecordingAvailable(false);
+      }
+    };
+    checkScreenRecording();
+  }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -48,6 +66,7 @@ export function SupportWidget() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isListening, setIsListening] = useState(false);
+  const [isScreenRecordingAvailable, setIsScreenRecordingAvailable] = useState(true);
   const recognitionRef = useRef<any>(null);
 
   // Chat mutations
@@ -341,6 +360,17 @@ export function SupportWidget() {
       };
 
     } catch (error: any) {
+      // Silently handle permission policy errors (e.g., iframe restrictions)
+      if (error.message && error.message.includes('permissions policy')) {
+        setIsScreenRecordingAvailable(false);
+        toast({
+          title: "Screen recording unavailable",
+          description: "Screen recording is not available in this environment. Please use file upload instead.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       console.error('Screen recording error:', error);
       toast({
         title: "Screen recording failed",
@@ -627,7 +657,7 @@ export function SupportWidget() {
                     Upload File
                   </Button>
 
-                  {!isRecording ? (
+                  {isScreenRecordingAvailable && !isRecording ? (
                     <Button
                       type="button"
                       variant="outline"
