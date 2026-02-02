@@ -96,6 +96,11 @@ export function Sidebar({ className }: SidebarProps) {
       badge: unreadCount?.count || 0,
     },
     {
+      name: 'Performance',
+      path: '/performance',
+      icon: BarChart3,
+    },
+    {
       name: 'CSP Dashboard',
       path: '/csp',
       icon: TrendingDown,
