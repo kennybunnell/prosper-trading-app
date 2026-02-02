@@ -3442,3 +3442,22 @@
 - [x] Add conservative/aggressive mode toggle in UI
 - [ ] Add "Assignment Comfort Score" for CSP/Wheel strategies (future enhancement)
 - [x] Test AI produces balanced, quality-focused recommendations
+
+## Scoring Audit and Smart Select Simplification
+- [x] Audit composite scoring algorithm to verify it properly reflects technical indicators
+- [x] Document what each technical indicator contributes to the score
+- [x] Optimize scoring weights based on user's trading criteria (Delta 0.20-0.29, DTE 7-14, RSI, BB, IV Rank)
+- [x] Implement new CSP scoring algorithm with proper weights:
+  - [x] Technical Setup (40%): RSI (20) + BB %B (20)
+  - [x] Greeks & Timing (30%): Delta (15) + DTE (10) + IV Rank (5)
+  - [x] Premium Quality (20%): Weekly Return (15) + Spread (5)
+  - [x] Stock Quality (10%): Mag 7 (5) + Market Cap (5)
+- [x] Add scoring breakdown tooltip to UI showing sub-scores
+- [ ] Test with real data and iterate on weights
+- [ ] Implement simple score-based Smart Select (no AI for batch selection)
+  - [ ] Conservative mode: Select Score ≥70 AND Delta 0.15-0.30 AND DTE 7-30
+  - [ ] Aggressive mode: Select Score ≥55 AND Delta 0.15-0.35 AND DTE 7-21
+- [ ] Simplify preset filters: merge Conservative+Medium into just "Conservative", keep "Aggressive"
+- [ ] Remove Medium preset button from UI
+- [ ] Simplify individual row AI analysis to 3-4 bullet points + 1 summary sentence
+- [ ] Add orange border to AI analysis modal for better visibility

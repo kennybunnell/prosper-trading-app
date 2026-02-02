@@ -15,6 +15,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { trpc } from "@/lib/trpc";
 import { exportToCSV } from "@/lib/utils";
 import { useAccount } from "@/contexts/AccountContext";
@@ -2235,16 +2241,52 @@ export default function CSPDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge 
-                            className={cn(
-                              "font-bold",
-                              opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
-                              opp.score >= 50 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
-                              opp.score < 50 && "bg-red-500/20 text-red-500 border-red-500/50"
-                            )}
-                          >
-                            {opp.score}
-                          </Badge>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge 
+                                  className={cn(
+                                    "font-bold cursor-help",
+                                    opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
+                                    opp.score >= 50 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
+                                    opp.score < 50 && "bg-red-500/20 text-red-500 border-red-500/50"
+                                  )}
+                                >
+                                  {opp.score}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="bg-gray-900 border-orange-500/50 p-3 max-w-xs">
+                                <div className="space-y-1.5 text-sm">
+                                  <div className="font-semibold text-orange-400 border-b border-orange-500/30 pb-1 mb-2">
+                                    Score Breakdown ({opp.score}/100)
+                                  </div>
+                                  {(opp as any).scoreBreakdown && (
+                                    <>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-400">Technical (RSI+BB):</span>
+                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/40</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-400">Greeks (Δ+DTE+IV):</span>
+                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-400">Premium (Return+Spread):</span>
+                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/20</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-400">Quality (Mag7+Cap):</span>
+                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
+                                      </div>
+                                    </>
+                                  )}
+                                  {!(opp as any).scoreBreakdown && (
+                                    <div className="text-gray-400 text-xs">Breakdown not available</div>
+                                  )}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </TableCell>
                         <TableCell>
                           {(() => {
