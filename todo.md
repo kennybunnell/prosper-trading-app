@@ -3385,3 +3385,5 @@
 - [x] Add toast notification showing "Canceled #X, Created #Y" after successful order replacement
 - [x] Implement auto-refresh of working orders list after replacement completes (already implemented via refetch())
 - [x] Add status badges (Filled/Working/Canceled) to replacement log for visual tracking
+- [x] Fix modal width to prevent ANY horizontal scrolling - make modals fit all content
+- [x] Change replacement log text from "replaced successfully" to "submitted successfully" (orders aren't filled yet)

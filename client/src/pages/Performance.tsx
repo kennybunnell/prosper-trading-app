@@ -1750,7 +1750,7 @@ export function WorkingOrdersTab() {
 
       {/* Replace Confirmation Dialog with Detailed Pricing */}
       <Dialog open={showReplaceDialog} onOpenChange={setShowReplaceDialog}>
-        <DialogContent className="w-[90vw] max-w-[90vw] max-h-[80vh] overflow-y-auto border-2 border-[#FF8C00]">
+        <DialogContent className="max-w-fit w-auto max-h-[80vh] overflow-y-auto border-2 border-[#FF8C00]" style={{ maxWidth: 'calc(100vw - 4rem)' }}>
           <DialogHeader>
             <DialogTitle>Confirm Order Replacement</DialogTitle>
             <DialogDescription>
@@ -1924,7 +1924,7 @@ export function WorkingOrdersTab() {
                     </div>
                     {result.success ? (
                       <div className="text-sm text-muted-foreground">
-                        {actionResults.action === 'cancel' ? 'Order cancelled successfully' : 'Order replaced successfully'}
+                        {actionResults.action === 'cancel' ? 'Order cancelled successfully' : 'Order submitted successfully (now working)'}
                         {result.oldPrice && result.newPrice && (
                           <span className="ml-2">
                             ${result.oldPrice.toFixed(2)} → ${result.newPrice.toFixed(2)}
