@@ -1011,6 +1011,7 @@ export function WorkingOrdersTab() {
   const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showReplaceDialog, setShowReplaceDialog] = useState(false);
+  const [showFillNowDialog, setShowFillNowDialog] = useState(false);
   const [actionResults, setActionResults] = useState<any>(null);
   const [showFillRateAnalytics, setShowFillRateAnalytics] = useState(false);
   const [groupBySymbol, setGroupBySymbol] = useState(true);
@@ -1214,7 +1215,10 @@ export function WorkingOrdersTab() {
       toast.error('Not safe to replace orders after 3:55 PM ET');
       return;
     }
-    
+    setShowFillNowDialog(true);
+  };
+
+  const confirmFillNow = () => {
     // Use Ask + $0.10 for guaranteed immediate fills on selected orders only
     const ordersToFill = Array.from(selectedOrders).map(idx => {
       const order = orders[idx];
@@ -1227,12 +1231,9 @@ export function WorkingOrdersTab() {
       };
     });
 
-    // Show confirmation with cost warning
-    const totalExtraCost = ordersToFill.length * 0.10 * 100; // $0.10 per contract * 100 shares
-    if (confirm(`Fill Now will use ASK + $0.10 for guaranteed fills on ${ordersToFill.length} selected order(s).\n\nThis costs approximately $${totalExtraCost.toFixed(0)} extra.\n\nContinue?`)) {
-      replaceOrdersMutation.mutate({ orders: ordersToFill });
-      toast.info(`Submitting ${ordersToFill.length} order(s) at ASK + $0.10 for immediate fills...`);
-    }
+    replaceOrdersMutation.mutate({ orders: ordersToFill });
+    setShowFillNowDialog(false);
+    toast.info(`Submitting ${ordersToFill.length} order(s) at ASK + $0.10 for immediate fills...`);
   };
 
   const confirmCancel = () => {
@@ -1828,6 +1829,123 @@ export function WorkingOrdersTab() {
                 </>
               ) : (
                 'Confirm Cancel'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Fill Now Confirmation Dialog */}
+      <Dialog open={showFillNowDialog} onOpenChange={setShowFillNowDialog}>
+        <DialogContent className="max-w-fit w-auto max-h-[80vh] overflow-y-auto border-2 border-[#FF8C00]" style={{ maxWidth: 'calc(100vw - 4rem)' }}>
+          <DialogHeader>
+            <DialogTitle>🚀 Confirm Fill Now Order</DialogTitle>
+            <DialogDescription>
+              Force immediate fills at ASK + $0.10 for {selectedOrders.size} selected order{selectedOrders.size > 1 ? 's' : ''}.
+              This guarantees fills but costs extra.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Pricing Details Table */}
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="p-2 text-left font-medium">Symbol</th>
+                    <th className="p-2 text-left font-medium">Action</th>
+                    <th className="p-2 text-right font-medium">Current</th>
+                    <th className="p-2 text-right font-medium">Ask</th>
+                    <th className="p-2 text-right font-medium">Fill Now Price</th>
+                    <th className="p-2 text-right font-medium">Extra Cost</th>
+                    <th className="p-2 text-right font-medium">Total Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from(selectedOrders).map(idx => {
+                    const order = orders[idx];
+                    const fillNowPrice = order.ask + 0.10;
+                    const extraCost = 0.10 * order.quantity * 100;
+                    const totalCost = fillNowPrice * order.quantity * 100;
+                    const isBuyOrder = order.action.toLowerCase().includes('buy');
+                    
+                    return (
+                      <tr key={idx} className="border-t">
+                        <td className="p-2">
+                          <div className="font-medium">{order.underlyingSymbol}</div>
+                          <div className="text-xs text-muted-foreground">{order.optionType} ${order.strike}</div>
+                        </td>
+                        <td className="p-2">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            isBuyOrder
+                              ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                              : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                          }`}>
+                            {order.action.replace('Buy to Close', 'BTC').replace('Sell to Open', 'STO').replace('Sell to Close', 'STC').replace('Buy to Open', 'BTO')}
+                          </span>
+                        </td>
+                        <td className="p-2 text-right text-muted-foreground">${order.currentPrice.toFixed(2)}</td>
+                        <td className="p-2 text-right">${order.ask.toFixed(2)}</td>
+                        <td className="p-2 text-right">
+                          <div className="font-bold text-orange-400">${fillNowPrice.toFixed(2)}</div>
+                          <div className="text-xs text-red-400">+$0.10</div>
+                        </td>
+                        <td className="p-2 text-right text-red-400 font-medium">
+                          ${extraCost.toFixed(2)}
+                        </td>
+                        <td className="p-2 text-right font-bold">
+                          ${totalCost.toFixed(2)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Cost Warning Summary */}
+            <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Total Orders:</span>
+                <span className="font-medium">{selectedOrders.size}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Extra Cost (vs ASK):</span>
+                <span className="font-bold text-red-400">
+                  ${(Array.from(selectedOrders).map(idx => orders[idx]).reduce((sum, o) => sum + (0.10 * o.quantity * 100), 0)).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm border-t border-orange-500/30 pt-2 mt-2">
+                <span className="text-muted-foreground">Total Cost to Close:</span>
+                <span className="font-bold text-lg text-orange-400">
+                  ${(Array.from(selectedOrders).map(idx => orders[idx]).reduce((sum, o) => sum + ((o.ask + 0.10) * o.quantity * 100), 0)).toFixed(2)}
+                </span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-orange-500/30">
+                ⚠️ <strong>Fill Now Strategy:</strong> Uses ASK + $0.10 to guarantee immediate fills. You pay extra for certainty.
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFillNowDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={confirmFillNow} 
+              disabled={replaceOrdersMutation.isPending}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              {replaceOrdersMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <span className="mr-2">🚀</span>
+                  Confirm Fill Now
+                </>
               )}
             </Button>
           </DialogFooter>

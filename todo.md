@@ -3393,3 +3393,4 @@
 - [x] Add option to use ASK price (or ASK + premium) for guaranteed immediate fills
 - [x] Remove "Replace All to Suggested" button to simplify UI
 - [x] Update "Fill Now" button to work only on selected orders (not all orders)
+- [x] Replace browser confirm alert with professional modal dialog for Fill Now confirmation
