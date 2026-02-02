@@ -3356,3 +3356,14 @@
 - [x] Add orange glow styling to all input fields in SupportWidget (Report Issue form and feedback reply)
 - [ ] Fix unread badge persistence - badge should disappear when feedback/broadcasts are viewed
 - [x] Add Conversations tab to Inbox to show AI chat history threads
+- [x] Create Terms of Service document with liability disclaimers
+- [x] Create Risk Disclosure document for financial trading
+- [x] Add legal acceptance checkboxes to registration flow
+- [x] Store legal acceptance timestamps in database
+- [ ] Create Stripe products for Free and Premium tiers
+- [ ] Implement Stripe checkout for Premium subscription
+- [ ] Add subscription status to user profile
+- [ ] Implement access control for Premium-only features
+- [ ] Add subscription management page (upgrade/cancel)
+- [ ] Test complete registration and payment flow
+- [x] Fix covered call order submission - price field undefined error

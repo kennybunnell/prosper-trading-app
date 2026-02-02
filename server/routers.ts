@@ -431,6 +431,19 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+    acceptLegalAgreements: protectedProcedure.mutation(async ({ ctx }) => {
+      const { updateUser } = await import('./db');
+      const ipAddress = ctx.req.headers['x-forwarded-for'] || ctx.req.socket.remoteAddress || '';
+      const ip = Array.isArray(ipAddress) ? ipAddress[0] : ipAddress.split(',')[0].trim();
+      
+      await updateUser(ctx.user.id, {
+        acceptedTermsAt: new Date(),
+        acceptedRiskDisclosureAt: new Date(),
+        acceptedTermsIp: ip,
+      });
+      
+      return { success: true };
+    }),
   }),
 
   settings: router({

@@ -29,6 +29,11 @@ export const users = mysqlTable("users", {
   stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
   /** Stripe subscription ID */
   stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
+  /** Legal agreements acceptance */
+  acceptedTermsAt: timestamp("acceptedTermsAt"),
+  acceptedRiskDisclosureAt: timestamp("acceptedRiskDisclosureAt"),
+  /** IP address when legal agreements were accepted (for audit trail) */
+  acceptedTermsIp: varchar("acceptedTermsIp", { length: 45 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

@@ -718,6 +718,7 @@ export default function CCDashboard() {
       strike: opp.strike,
       expiration: opp.expiration,
       quantity: 1,
+      bid: opp.bid,
       premium: opp.premium,
       collateral: strategyType === 'spread' ? (opp.capitalAtRisk || 0) : (opp.currentPrice * 100),
       status: 'valid' as const,

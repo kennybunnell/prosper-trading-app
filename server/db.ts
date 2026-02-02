@@ -114,6 +114,16 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function updateUser(userId: number, updates: Partial<InsertUser>) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot update user: database not available");
+    return;
+  }
+
+  await db.update(users).set(updates).where(eq(users.id, userId));
+}
+
 // Watchlist queries (shared across all strategies)
 export async function getWatchlist(userId: number) {
   const db = await getDb();

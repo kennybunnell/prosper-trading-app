@@ -21,10 +21,26 @@ import Inbox from "./pages/Inbox";
 import { Sidebar } from "./components/Sidebar";
 import { PaperTradingBanner } from "./components/PaperTradingBanner";
 import { SupportWidget } from "./components/SupportWidget";
+import { LegalAcceptanceModal } from "./components/LegalAcceptanceModal";
+import { useState, useEffect } from "react";
+import { trpc } from "@/lib/trpc";
 
 function Router() {
   const [location] = useLocation();
   const isAdminRoute = location.startsWith('/admin');
+  const [showLegalModal, setShowLegalModal] = useState(false);
+  const { data: user, refetch } = trpc.auth.me.useQuery();
+
+  useEffect(() => {
+    if (user && !user.acceptedTermsAt && !user.acceptedRiskDisclosureAt) {
+      setShowLegalModal(true);
+    }
+  }, [user]);
+
+  const handleLegalAccepted = () => {
+    setShowLegalModal(false);
+    refetch();
+  };
 
   // Admin routes don't use the sidebar layout
   if (isAdminRoute) {
@@ -41,11 +57,13 @@ function Router() {
   }
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <div className="flex-1 overflow-auto relative">
-        <PaperTradingBanner />
-        <SupportWidget />
+    <>
+      <LegalAcceptanceModal open={showLegalModal} onAccepted={handleLegalAccepted} />
+      <div className="flex h-screen">
+        <Sidebar />
+        <div className="flex-1 overflow-auto relative">
+          <PaperTradingBanner />
+          <SupportWidget />
         <Switch>          <Route path={"/"} component={Home} />
           <Route path={"/settings"} component={Settings} />
           <Route path="/inbox" component={Inbox} />
@@ -60,6 +78,7 @@ function Router() {
         </Switch>
       </div>
     </div>
+    </>
   );
 }
 
