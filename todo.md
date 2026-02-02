@@ -3384,3 +3384,4 @@
 - [x] Investigate and verify spread replacements maintain spread structure (not breaking into individual legs) - CONFIRMED: Code correctly preserves all legs
 - [x] Add toast notification showing "Canceled #X, Created #Y" after successful order replacement
 - [x] Implement auto-refresh of working orders list after replacement completes (already implemented via refetch())
+- [x] Add status badges (Filled/Working/Canceled) to replacement log for visual tracking

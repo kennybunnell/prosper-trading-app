@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Loader2, Download } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
@@ -1904,6 +1905,19 @@ export function WorkingOrdersTab() {
                         <XCircle className="h-4 w-4 text-red-400" />
                       )}
                       <span className="font-medium">{result.symbol}</span>
+                      
+                      {/* Status Badge */}
+                      {result.success && result.newOrderId && (
+                        <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">
+                          Working
+                        </Badge>
+                      )}
+                      {!result.success && (
+                        <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30">
+                          Canceled
+                        </Badge>
+                      )}
+                      
                       <span className="text-xs text-muted-foreground">
                         {new Date().toLocaleTimeString()}
                       </span>
