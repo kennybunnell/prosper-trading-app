@@ -1020,7 +1020,7 @@ export function WorkingOrdersTab() {
     if (!actionResults?.results) return [];
     return actionResults.results
       .filter((r: any) => r.success && r.newOrderId)
-      .map((r: any) => r.newOrderId);
+      .map((r: any) => String(r.newOrderId)); // Convert to string for tRPC validation
   }, [actionResults]);
 
   const { data: orderStatusData } = trpc.workingOrders.checkOrderStatus.useQuery(
