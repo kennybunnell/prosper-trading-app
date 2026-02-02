@@ -1140,6 +1140,100 @@ export const appRouter = router({
           orderCount: input.orders.length,
         };
       }),
+
+    // Batch evaluate multiple opportunities for Smart Select
+    batchEvaluate: protectedProcedure
+      .input(
+        z.object({
+          opportunities: z.array(z.object({
+            symbol: z.string(),
+            strike: z.number(),
+            expiration: z.string(),
+            premium: z.number(),
+            currentPrice: z.number(),
+            ivRank: z.number().nullable().optional(),
+            isSpread: z.boolean().optional(),
+            spreadType: z.enum(['bull_put', 'bear_call']).optional(),
+            longStrike: z.number().optional(),
+            spreadWidth: z.number().optional(),
+          })),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+        
+        // Evaluate each opportunity individually
+        const evaluations = await Promise.all(
+          input.opportunities.map(async (opp) => {
+            const dte = Math.floor((new Date(opp.expiration).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+            const strikeVsPrice = ((opp.currentPrice - opp.strike) / opp.currentPrice * 100).toFixed(1);
+            const ivRankStr = opp.ivRank !== null && opp.ivRank !== undefined ? `IV Rank: ${opp.ivRank}%` : 'IV Rank: N/A';
+            
+            let orderDesc = '';
+            if (opp.isSpread) {
+              orderDesc = `${opp.symbol} ${opp.spreadType === 'bull_put' ? 'Bull Put Spread' : 'Bear Call Spread'}: ` +
+                         `Sell $${opp.strike} / Buy $${opp.longStrike} (${opp.spreadWidth}pt width), ` +
+                         `${dte} DTE, Premium: $${opp.premium.toFixed(2)}, ` +
+                         `Current price: $${opp.currentPrice.toFixed(2)} (short strike ${strikeVsPrice}% OTM), ` +
+                         `${ivRankStr}`;
+            } else {
+              orderDesc = `${opp.symbol} Cash-Secured Put: Sell $${opp.strike} strike, ` +
+                         `${dte} DTE, Premium: $${opp.premium.toFixed(2)}, ` +
+                         `Current price: $${opp.currentPrice.toFixed(2)} (strike ${strikeVsPrice}% OTM), ` +
+                         `${ivRankStr}`;
+            }
+            
+            const prompt = `You are an expert options trader. Analyze this trade and provide a BRIEF recommendation (2-3 sentences max):\n\n${orderDesc}\n\nProvide:\n1. Quick assessment of risk/reward\n2. One-word verdict: FAVORABLE, NEUTRAL, or UNFAVORABLE\n3. One key reason\n\nBe concise and actionable.`;
+            
+            try {
+              const response = await invokeLLM({
+                messages: [
+                  { role: 'system', content: 'You are a concise options trading analyst. Keep responses under 3 sentences.' },
+                  { role: 'user', content: prompt },
+                ],
+              });
+              
+              const analysis = typeof response.choices[0].message.content === 'string' 
+                ? response.choices[0].message.content 
+                : 'Analysis unavailable';
+              
+              // Extract recommendation from analysis
+              let recommendation: 'favorable' | 'neutral' | 'unfavorable' = 'neutral';
+              const analysisUpper = analysis.toUpperCase();
+              if (analysisUpper.includes('FAVORABLE') && !analysisUpper.includes('UNFAVORABLE')) {
+                recommendation = 'favorable';
+              } else if (analysisUpper.includes('UNFAVORABLE')) {
+                recommendation = 'unfavorable';
+              }
+              
+              return {
+                symbol: opp.symbol,
+                strike: opp.strike,
+                recommendation,
+                analysis,
+              };
+            } catch (error) {
+              console.error(`Error evaluating ${opp.symbol}:`, error);
+              return {
+                symbol: opp.symbol,
+                strike: opp.strike,
+                recommendation: 'neutral' as const,
+                analysis: 'Analysis unavailable',
+              };
+            }
+          })
+        );
+        
+        return {
+          evaluations,
+          summary: {
+            total: evaluations.length,
+            favorable: evaluations.filter(e => e.recommendation === 'favorable').length,
+            neutral: evaluations.filter(e => e.recommendation === 'neutral').length,
+            unfavorable: evaluations.filter(e => e.recommendation === 'unfavorable').length,
+          },
+        };
+      }),
   }),
 
   // Bull Put Spreads (Phase 2: Backend Pricing)

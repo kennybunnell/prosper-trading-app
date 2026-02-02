@@ -3402,3 +3402,6 @@
 - [x] Add current stock price fetching to order validation
 - [x] Add implied volatility (IV) data to order validation
 - [x] Update AI evaluation prompt to use current prices and IV for comprehensive analysis
+- [x] Implement Smart Select feature with AI batch evaluation of all opportunities
+- [x] Add recommendation badges (Favorable/Neutral/Unfavorable) to opportunity rows
+- [x] Auto-select only favorable trades based on AI recommendations

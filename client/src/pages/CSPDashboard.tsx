@@ -312,6 +312,7 @@ export default function CSPDashboard() {
   }>({ isOpen: false, current: 0, total: 0, completed: 0, startTime: null, endTime: null });
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [validationData, setValidationData] = useState<any>(null);
+  const [aiRecommendations, setAiRecommendations] = useState<Map<string, { recommendation: 'favorable' | 'neutral' | 'unfavorable'; analysis: string }>>(new Map());
 
   const utils = trpc.useUtils();
 
@@ -708,6 +709,73 @@ export default function CSPDashboard() {
       setShowProgressDialog(false);
     },
   });
+
+  // Smart Select mutation - AI-powered auto-selection
+  const smartSelectMutation = trpc.csp.batchEvaluate.useMutation({
+    onSuccess: (data) => {
+      // Store AI recommendations and auto-select favorable opportunities
+      const favorableKeys = new Set<string>();
+      const newRecommendations = new Map<string, { recommendation: 'favorable' | 'neutral' | 'unfavorable'; analysis: string }>();
+      
+      data.evaluations.forEach((evaluation) => {
+        // Find matching opportunity
+        const matchingOpp = filteredOpportunities.find(
+          opp => opp.symbol === evaluation.symbol && opp.strike === evaluation.strike
+        );
+        
+        if (matchingOpp) {
+          const key = `${matchingOpp.symbol}-${matchingOpp.strike}-${matchingOpp.expiration}`;
+          
+          // Store recommendation
+          newRecommendations.set(key, {
+            recommendation: evaluation.recommendation,
+            analysis: evaluation.analysis,
+          });
+          
+          // Auto-select favorable opportunities
+          if (evaluation.recommendation === 'favorable') {
+            favorableKeys.add(key);
+          }
+        }
+      });
+      
+      setAiRecommendations(newRecommendations);
+      setSelectedOpportunities(favorableKeys);
+      
+      toast.success(
+        `Smart Select complete: ${data.summary.favorable} favorable, ${data.summary.neutral} neutral, ${data.summary.unfavorable} unfavorable`,
+        { duration: 5000 }
+      );
+    },
+    onError: (error) => {
+      toast.error(`Smart Select failed: ${error.message}`);
+    },
+  });
+
+  // Handle Smart Select button click
+  const handleSmartSelect = async () => {
+    if (filteredOpportunities.length === 0) {
+      toast.error('No opportunities to analyze');
+      return;
+    }
+    
+    // Prepare opportunities for batch evaluation
+    const opportunitiesToEvaluate = filteredOpportunities.map(opp => ({
+      symbol: opp.symbol,
+      strike: opp.strike,
+      expiration: opp.expiration,
+      premium: opp.premium,
+      currentPrice: opp.currentPrice,
+      ivRank: opp.ivRank,
+      isSpread: false,
+    }));
+    
+    toast.info(`Analyzing ${opportunitiesToEvaluate.length} opportunities with AI...`, { duration: 3000 });
+    
+    await smartSelectMutation.mutateAsync({
+      opportunities: opportunitiesToEvaluate,
+    });
+  };
 
   // Toggle opportunity selection
   const toggleOpportunity = (opp: ScoredOpportunity) => {
@@ -1742,6 +1810,23 @@ export default function CSPDashboard() {
                 ✓ Select All Filtered ({filteredOpportunities.length})
               </Button>
               <Button
+                className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+                size="default"
+                onClick={handleSmartSelect}
+                disabled={smartSelectMutation.isPending || filteredOpportunities.length === 0}
+              >
+                {smartSelectMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    🤖 Smart Select
+                  </>
+                )}
+              </Button>
+              <Button
                 className="bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
                 size="default"
                 onClick={() => {
@@ -1893,10 +1978,33 @@ export default function CSPDashboard() {
       {/* Opportunities Table */}
       <Card className="bg-card/50 backdrop-blur border-border/50">
         <CardHeader>
-          <CardTitle>Opportunities ({filteredOpportunities.length})</CardTitle>
-          <CardDescription>
-            {selectedOppsList.length > 0 && `${selectedOppsList.length} selected`}
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Opportunities ({filteredOpportunities.length})</CardTitle>
+              <CardDescription>
+                {selectedOppsList.length > 0 && `${selectedOppsList.length} selected`}
+              </CardDescription>
+            </div>
+            {filteredOpportunities.length > 0 && (
+              <Button
+                onClick={handleSmartSelect}
+                disabled={smartSelectMutation.isPending}
+                variant="outline"
+                className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border-purple-500/50 hover:border-purple-500 hover:bg-purple-600/30"
+              >
+                {smartSelectMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    🤖 Smart Select
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -1921,6 +2029,7 @@ export default function CSPDashboard() {
                     { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP },
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK },
                     { key: 'score', label: 'Score', help: 'dialog-score' },
+                    { key: 'aiRecommendation', label: 'AI', help: null },
                   ] : [
                     { key: 'symbol', label: 'Symbol', help: null },
                     { key: 'strike', label: 'Strike', help: null },
@@ -1940,6 +2049,7 @@ export default function CSPDashboard() {
                     { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP },
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK },
                     { key: 'score', label: 'Score', help: 'dialog-score' },
+                    { key: 'aiRecommendation', label: 'AI', help: null },
                   ]).map(({ key, label, help }) => (
                     <TableHead 
                       key={key}
@@ -2012,6 +2122,11 @@ export default function CSPDashboard() {
                             <TableCell>{opp.dte}</TableCell>
                             <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
                             <TableCell className="text-blue-300">${(opp as any).breakeven?.toFixed(2)}</TableCell>
+                            <TableCell>
+                              <Badge className={cn("font-bold", getROCColor((opp as any).spreadROC || 0))}>
+                                {opp.score}
+                              </Badge>
+                            </TableCell>
                           </>
                         ) : (
                           <>
@@ -2068,6 +2183,29 @@ export default function CSPDashboard() {
                           >
                             {opp.score}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const recommendation = aiRecommendations.get(key);
+                            if (!recommendation) return <span className="text-muted-foreground text-xs">-</span>;
+                            
+                            const { recommendation: rec } = recommendation;
+                            return (
+                              <Badge
+                                className={cn(
+                                  "font-bold cursor-help",
+                                  rec === 'favorable' && "bg-green-500/20 text-green-500 border-green-500/50",
+                                  rec === 'neutral' && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
+                                  rec === 'unfavorable' && "bg-red-500/20 text-red-500 border-red-500/50"
+                                )}
+                                title={recommendation.analysis}
+                              >
+                                {rec === 'favorable' && '🟢 Favorable'}
+                                {rec === 'neutral' && '🟡 Neutral'}
+                                {rec === 'unfavorable' && '🔴 Unfavorable'}
+                              </Badge>
+                            );
+                          })()}
                         </TableCell>
                       </TableRow>
                     );
