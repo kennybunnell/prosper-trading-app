@@ -3410,3 +3410,8 @@
 - [x] Add sound notification function that plays when orders are filled
 - [x] Integrate sound with existing fill detection polling system in Performance.tsx
 - [x] Test sound plays only once per newly filled order (not repeatedly)
+
+## Bug Fixes - Account Selection UX
+- [x] Auto-select default account when CSPDashboard loads and no account is selected
+- [x] Add toast notification when Fetch Opportunities clicked without account selected
+- [x] Test account auto-selection works correctly

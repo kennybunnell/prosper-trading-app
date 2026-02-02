@@ -327,8 +327,14 @@ export default function CSPDashboard() {
 
   // Auto-select default account if no account is selected
   useEffect(() => {
-    if (userPreferences?.defaultTastytradeAccountId && !selectedAccountId && accounts.length > 0) {
-      setSelectedAccountId(userPreferences.defaultTastytradeAccountId);
+    if (!selectedAccountId && accounts.length > 0) {
+      // First try to use the default account from preferences
+      if (userPreferences?.defaultTastytradeAccountId) {
+        setSelectedAccountId(userPreferences.defaultTastytradeAccountId);
+      } else {
+        // If no default is set, auto-select the first account
+        setSelectedAccountId(accounts[0].accountId);
+      }
     }
   }, [userPreferences, selectedAccountId, accounts, setSelectedAccountId]);
 
@@ -1445,7 +1451,9 @@ export default function CSPDashboard() {
           <Button 
             onClick={() => {
               if (!selectedAccountId) {
-                toast.error('Please select an account first');
+                toast.error('No account selected', {
+                  description: 'Please select an account from the dropdown in the sidebar to continue.'
+                });
                 setFetchProgress(prev => ({ ...prev, isOpen: false }));
                 return;
               }
