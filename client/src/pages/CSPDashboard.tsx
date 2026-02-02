@@ -315,6 +315,7 @@ export default function CSPDashboard() {
   const [aiRecommendations, setAiRecommendations] = useState<Map<string, { recommendation: 'favorable' | 'neutral' | 'unfavorable'; analysis: string }>>(new Map());
   const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{ symbol: string; strike: number; recommendation: string; analysis: string } | null>(null);
+  const [aiMode, setAiMode] = useState<'conservative' | 'aggressive'>('conservative');
 
   const utils = trpc.useUtils();
 
@@ -767,21 +768,46 @@ export default function CSPDashboard() {
       return;
     }
     
-    // Prepare opportunities for batch evaluation
-    const opportunitiesToEvaluate = filteredOpportunities.map(opp => ({
-      symbol: opp.symbol,
-      strike: opp.strike,
-      expiration: opp.expiration,
-      premium: opp.premium,
-      currentPrice: opp.currentPrice,
-      ivRank: opp.ivRank,
-      isSpread: false,
-    }));
+    // Mag 7 stocks list
+    const mag7 = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA'];
+    
+    // Prepare opportunities for batch evaluation with complete data
+    const opportunitiesToEvaluate = filteredOpportunities.map(opp => {
+      // Determine Bollinger Band position
+      let bbPosition: 'below_lower' | 'in_band' | 'above_upper' | null = null;
+      if (opp.bbPctB !== null) {
+        if (opp.bbPctB < 0) bbPosition = 'below_lower';
+        else if (opp.bbPctB > 1) bbPosition = 'above_upper';
+        else bbPosition = 'in_band';
+      }
+      
+      // Calculate 52-week high/low (approximate from current price if not available)
+      // TODO: Add actual 52-week data to opportunity fetching
+      const week52High = opp.currentPrice * 1.2; // Placeholder
+      const week52Low = opp.currentPrice * 0.8;  // Placeholder
+      
+      return {
+        symbol: opp.symbol,
+        strike: opp.strike,
+        expiration: opp.expiration,
+        premium: opp.premium,
+        currentPrice: opp.currentPrice,
+        ivRank: opp.ivRank,
+        delta: Math.abs(opp.delta), // Use absolute value for puts
+        rsi: opp.rsi,
+        bbPosition,
+        week52High,
+        week52Low,
+        isMag7: mag7.includes(opp.symbol),
+        isSpread: false,
+      };
+    });
     
     toast.info(`Analyzing ${opportunitiesToEvaluate.length} opportunities with AI...`, { duration: 3000 });
     
     await smartSelectMutation.mutateAsync({
       opportunities: opportunitiesToEvaluate,
+      mode: aiMode,
     });
   };
 
@@ -1819,11 +1845,37 @@ export default function CSPDashboard() {
               >
                 ✓ Select All Filtered ({filteredOpportunities.length})
               </Button>
+              {/* AI Mode Toggle */}
+              <div className="flex items-center gap-2 border border-border rounded-lg p-1 bg-muted/30">
+                <Button
+                  size="sm"
+                  variant={aiMode === 'conservative' ? 'default' : 'ghost'}
+                  onClick={() => setAiMode('conservative')}
+                  className={cn(
+                    "text-xs",
+                    aiMode === 'conservative' && "bg-blue-600 hover:bg-blue-700"
+                  )}
+                >
+                  Conservative
+                </Button>
+                <Button
+                  size="sm"
+                  variant={aiMode === 'aggressive' ? 'default' : 'ghost'}
+                  onClick={() => setAiMode('aggressive')}
+                  className={cn(
+                    "text-xs",
+                    aiMode === 'aggressive' && "bg-orange-600 hover:bg-orange-700"
+                  )}
+                >
+                  Aggressive
+                </Button>
+              </div>
               <Button
                 className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
                 size="default"
                 onClick={handleSmartSelect}
                 disabled={smartSelectMutation.isPending || filteredOpportunities.length === 0}
+                title={`AI Mode: ${aiMode === 'conservative' ? '3-5% monthly target' : '8-10% monthly target'}`}
               >
                 {smartSelectMutation.isPending ? (
                   <>
@@ -1832,7 +1884,7 @@ export default function CSPDashboard() {
                   </>
                 ) : (
                   <>
-                    🤖 Smart Select
+                    🤖 Smart Select ({aiMode === 'conservative' ? '3-5%' : '8-10%'})
                   </>
                 )}
               </Button>

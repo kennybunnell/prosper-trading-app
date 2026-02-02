@@ -1152,11 +1152,18 @@ export const appRouter = router({
             premium: z.number(),
             currentPrice: z.number(),
             ivRank: z.number().nullable().optional(),
+            delta: z.number().nullable().optional(),
+            rsi: z.number().nullable().optional(),
+            bbPosition: z.string().nullable().optional(), // 'below_lower', 'in_band', 'above_upper'
+            week52High: z.number().nullable().optional(),
+            week52Low: z.number().nullable().optional(),
+            isMag7: z.boolean().optional(),
             isSpread: z.boolean().optional(),
             spreadType: z.enum(['bull_put', 'bear_call']).optional(),
             longStrike: z.number().optional(),
             spreadWidth: z.number().optional(),
           })),
+          mode: z.enum(['conservative', 'aggressive']).optional().default('conservative'),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -1167,28 +1174,50 @@ export const appRouter = router({
           input.opportunities.map(async (opp) => {
             const dte = Math.floor((new Date(opp.expiration).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
             const strikeVsPrice = ((opp.currentPrice - opp.strike) / opp.currentPrice * 100).toFixed(1);
+            
+            // Calculate weekly return for target assessment
+            const weeklyReturn = (opp.premium / (opp.strike * 100)) * 100;
+            
+            // Build comprehensive trade description
+            const stockQuality = opp.isMag7 ? 'Mag 7 (Premium Quality)' : 'Standard';
+            const deltaStr = opp.delta !== null && opp.delta !== undefined ? `Delta: ${(opp.delta * 100).toFixed(1)}` : 'Delta: N/A';
+            const rsiStr = opp.rsi !== null && opp.rsi !== undefined ? `RSI: ${opp.rsi.toFixed(1)}` : 'RSI: N/A';
+            const bbStr = opp.bbPosition ? `BB Position: ${opp.bbPosition}` : 'BB: N/A';
             const ivRankStr = opp.ivRank !== null && opp.ivRank !== undefined ? `IV Rank: ${opp.ivRank}%` : 'IV Rank: N/A';
             
             let orderDesc = '';
             if (opp.isSpread) {
-              orderDesc = `${opp.symbol} ${opp.spreadType === 'bull_put' ? 'Bull Put Spread' : 'Bear Call Spread'}: ` +
-                         `Sell $${opp.strike} / Buy $${opp.longStrike} (${opp.spreadWidth}pt width), ` +
-                         `${dte} DTE, Premium: $${opp.premium.toFixed(2)}, ` +
-                         `Current price: $${opp.currentPrice.toFixed(2)} (short strike ${strikeVsPrice}% OTM), ` +
-                         `${ivRankStr}`;
+              orderDesc = `${opp.symbol} ${opp.spreadType === 'bull_put' ? 'Bull Put Spread' : 'Bear Call Spread'}\n` +
+                         `Stock Quality: ${stockQuality}\n` +
+                         `Sell $${opp.strike} / Buy $${opp.longStrike} (${opp.spreadWidth}pt width)\n` +
+                         `${dte} DTE, Premium: $${opp.premium.toFixed(2)} (${weeklyReturn.toFixed(2)}% weekly return)\n` +
+                         `Current price: $${opp.currentPrice.toFixed(2)} (short strike ${strikeVsPrice}% OTM)\n` +
+                         `${deltaStr}, ${rsiStr}, ${bbStr}, ${ivRankStr}`;
             } else {
-              orderDesc = `${opp.symbol} Cash-Secured Put: Sell $${opp.strike} strike, ` +
-                         `${dte} DTE, Premium: $${opp.premium.toFixed(2)}, ` +
-                         `Current price: $${opp.currentPrice.toFixed(2)} (strike ${strikeVsPrice}% OTM), ` +
-                         `${ivRankStr}`;
+              orderDesc = `${opp.symbol} Cash-Secured Put (Wheel Strategy)\n` +
+                         `Stock Quality: ${stockQuality}\n` +
+                         `Sell $${opp.strike} strike\n` +
+                         `${dte} DTE, Premium: $${opp.premium.toFixed(2)} (${weeklyReturn.toFixed(2)}% weekly return)\n` +
+                         `Current price: $${opp.currentPrice.toFixed(2)} (strike ${strikeVsPrice}% OTM)\n` +
+                         `${deltaStr}, ${rsiStr}, ${bbStr}, ${ivRankStr}`;
             }
             
-            const prompt = `You are an expert options trader analyzing this trade for a premium-selling strategy:\n\n${orderDesc}\n\nEvaluation Criteria for Premium Selling:\n- IV Rank: >30% is good, >50% is excellent (high premium environment)\n- Strike Distance: 10-30% OTM is ideal balance of premium vs. safety\n- DTE: 7-45 days is standard for theta decay optimization\n- Premium: Higher is better, but must balance with probability\n\nProvide a structured analysis:\n1. **Risk Assessment**: Evaluate strike distance and probability of assignment\n2. **Premium Quality**: Is the premium attractive given the risk and IV environment?\n3. **Timing**: Is DTE appropriate for theta decay?\n4. **Market Context**: Consider IV Rank and current price action\n5. **Verdict**: FAVORABLE (good trade), NEUTRAL (acceptable but not ideal), or UNFAVORABLE (poor risk/reward)\n6. **Key Reason**: One sentence explaining the verdict\n\nBe realistic - not every trade needs to be perfect. Focus on whether it's a reasonable premium-selling opportunity.`;
+            // Determine strategy type for weighting
+            const strategyType = opp.isSpread ? 'spread' : 'csp';
+            const isConservative = input.mode === 'conservative';
+            
+            const prompt = `You are a quality-focused options trader analyzing this ${strategyType === 'csp' ? 'Cash-Secured Put' : 'Spread'} trade:\n\n${orderDesc}\n\n=== EVALUATION FRAMEWORK ===\n\n**TIER 1: Stock Quality (${strategyType === 'csp' ? '40%' : strategyType === 'spread' ? '25%' : '45%'} weight)**\n- Mag 7 stocks (AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA) = HIGHEST priority\n- These are assignment-worthy companies for the Wheel strategy\n- For CSP: Would you want to own this stock at this strike price?\n\n**TIER 2: Technical Setup (${strategyType === 'csp' ? '30%' : '30%'} weight)**\n- RSI: For CSP, <30 = oversold (ideal), 30-40 = good, >50 = caution\n- Bollinger Bands: below_lower = oversold (ideal for CSP), in_band = neutral, above_upper = overbought\n- Technical alignment indicates mean reversion opportunity\n\n**TIER 3: Greeks & Timing (${strategyType === 'csp' ? '20%' : '35%'} weight)**\n- DTE: 7-10 days = IDEAL (weekly trading), 11-14 = acceptable, >14 = penalize\n- Delta: 20-29 = IDEAL range, 15-19 or 30-35 = acceptable, outside = penalize\n- IV Rank: >50% = excellent premium, 30-50% = good, <30% = only if other factors strong\n\n**TIER 4: Premium Quality (${strategyType === 'csp' ? '10%' : '10%'} weight)**\n${isConservative ? 
+  '- Conservative Mode: Target 0.75-1.25% weekly for CSP, 1.5-2.5% for spreads' :
+  '- Aggressive Mode: Target 1.5-2.5% weekly for CSP, 2.5-4% for spreads (reach for 8-10% monthly)'
+}\n- Premium must balance with probability of success\n\n=== STRATEGY-SPECIFIC GUIDANCE ===\n${strategyType === 'csp' ? 
+  '**Cash-Secured Put (Wheel Strategy):**\n- PRIORITY: Stock quality first - assignment is acceptable if stock is great\n- Look for oversold conditions (low RSI, below lower BB)\n- Conservative approach - you want to own these stocks' :
+  '**Spread Strategy:**\n- PRIORITY: Premium/ROC optimization - no assignment risk\n- More aggressive returns acceptable (6-10% monthly target)\n- Technical setup still important for probability'
+}\n\n=== YOUR ANALYSIS ===\nProvide:\n1. **Stock Quality Score** (Critical for CSP): Is this an assignment-worthy company?\n2. **Technical Setup**: RSI + BB alignment - is this oversold/mean reversion opportunity?\n3. **Greeks Assessment**: DTE (7-10 ideal?) + Delta (20-29 ideal?) + IV Rank\n4. **Premium Evaluation**: Does weekly return meet ${isConservative ? 'conservative' : 'aggressive'} target?\n5. **VERDICT**: FAVORABLE (strong trade), NEUTRAL (acceptable), or UNFAVORABLE (pass)\n6. **Key Reason**: One sentence explaining verdict\n\nBe practical - prioritize quality stocks with good technical setups. Not every metric needs to be perfect, but stock quality is paramount for CSP.`;
             
             try {
               const response = await invokeLLM({
                 messages: [
-                  { role: 'system', content: 'You are a realistic options trading analyst who evaluates premium-selling opportunities. Provide balanced, practical assessments - not every trade needs to be perfect. Focus on whether the risk/reward is reasonable for active traders.' },
+                  { role: 'system', content: 'You are a quality-focused options trader who prioritizes stock quality and technical setups for premium-selling strategies. For CSP/Wheel, assignment is acceptable if the stock is high-quality (Mag 7 preferred). Provide practical, balanced assessments that consider the trader\'s monthly return targets (3-5% conservative, 8-10% aggressive). Not every metric needs to be perfect, but stock quality and technical alignment are paramount.' },
                   { role: 'user', content: prompt },
                 ],
               });

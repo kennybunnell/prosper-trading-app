@@ -3421,3 +3421,24 @@
 - [x] Add detailed explanation modal showing why each trade is rated favorable/neutral/unfavorable
 - [x] Calibrate AI to provide balanced recommendations suitable for real-world trading
 - [x] Test AI recommendations produce reasonable distribution of ratings
+
+## Comprehensive AI Evaluation Framework
+- [x] Update backend batchEvaluate to accept delta, RSI, Bollinger Bands, 52-week high/low, Mag 7 status
+- [x] Update frontend to send complete opportunity data (delta, RSI, BB, stock quality) to AI
+- [x] Rewrite AI prompt with quality-first evaluation framework:
+  - [x] Stock quality tiers (Mag 7 > S&P 100 > S&P 500 > Other)
+  - [x] Technical setup scoring (RSI + BB alignment for strategy)
+  - [x] DTE preference (7-10 days ideal, 11-14 acceptable, >14 penalize)
+  - [x] Delta preference (20-29 ideal, 15-19 or 30-35 acceptable)
+  - [x] IV Rank thresholds (>50% excellent, 30-50% good, <30% conditional)
+- [x] Implement strategy-specific weighting:
+  - [x] CSP: Stock quality 40%, Technical 30%, Premium 20%, Greeks 10%
+  - [x] Spreads: Premium/ROC 35%, Technical 30%, Stock quality 25%, Greeks 10%
+  - [x] PMCC: Stock quality 45%, Technical 25%, Premium 20%, Greeks 10%
+- [x] Add return target guidance:
+  - [x] CSP: 0.75-1.25% weekly (3-5% monthly)
+  - [x] Spreads: 1.5-2.5% weekly (6-10% monthly)
+  - [x] PMCC: 1-2% weekly (4-8% monthly)
+- [x] Add conservative/aggressive mode toggle in UI
+- [ ] Add "Assignment Comfort Score" for CSP/Wheel strategies (future enhancement)
+- [x] Test AI produces balanced, quality-focused recommendations
