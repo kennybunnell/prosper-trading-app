@@ -395,53 +395,49 @@ export class TastytradeAPI {
   }
 
   /**
-   * Cancel and replace an order with a new price using atomic PUT request
-   * This is the proper Tastytrade API method that cancels and replaces in a single operation
+   * Cancel and replace an order with a new price
+   * NOTE: Tastytrade's PUT endpoint doesn't work reliably for multi-leg spreads - it only cancels.
+   * This method does a proper two-step: 1) Cancel existing order, 2) Submit new order with same legs
    */
   async cancelReplaceOrder(accountNumber: string, orderId: string, newPrice: number, originalOrder: any): Promise<{ success: boolean; orderId?: string; message: string }> {
     try {
-      // Determine price-effect based on order action
-      // BUY orders (Buy to Close, Buy to Open) = Debit (you pay money)
-      // SELL orders (Sell to Open, Sell to Close) = Credit (you receive money)
+      // Step 1: Cancel the existing order
+      console.log(`[Tastytrade] Step 1: Canceling order ${orderId}`);
+      await this.cancelOrder(accountNumber, orderId);
+      console.log(`[Tastytrade] Order ${orderId} canceled successfully`);
+      
+      // Step 2: Build new order from original order legs
       const firstLeg = originalOrder.legs?.[0];
       const action = firstLeg?.action || '';
       const isBuyOrder = action.toLowerCase().includes('buy');
       const priceEffect = isBuyOrder ? 'Debit' : 'Credit';
       
-      // Build the replacement order payload
-      // Must include: time-in-force, order-type, price, price-effect, legs
-      const payload = {
-        'time-in-force': originalOrder['time-in-force'] || originalOrder.timeInForce || 'Day',
-        'order-type': originalOrder['order-type'] || originalOrder.orderType || 'Limit',
-        'price': newPrice.toFixed(2),
-        'price-effect': priceEffect,
-        'legs': originalOrder.legs || [],
+      const newOrderPayload: CreateOrderRequest = {
+        accountNumber: accountNumber,
+        timeInForce: (originalOrder['time-in-force'] || originalOrder.timeInForce || 'Day') as 'Day' | 'GTC' | 'GTD',
+        orderType: (originalOrder['order-type'] || originalOrder.orderType || 'Limit') as 'Limit' | 'Market' | 'Stop' | 'Stop Limit',
+        price: newPrice.toFixed(2),
+        priceEffect: priceEffect as 'Credit' | 'Debit',
+        legs: (originalOrder.legs || []).map((leg: any) => ({
+          instrumentType: leg['instrument-type'] || leg.instrumentType || 'Equity Option',
+          symbol: leg.symbol,
+          quantity: leg.quantity,
+          action: leg.action,
+        })),
       };
       
-      console.log(`[Tastytrade] Replacing order ${orderId} with new price $${newPrice.toFixed(2)}`);
-      console.log(`[Tastytrade] Payload:`, JSON.stringify(payload, null, 2));
+      console.log(`[Tastytrade] Step 2: Submitting new order with price $${newPrice.toFixed(2)}`);
+      console.log(`[Tastytrade] New order payload:`, JSON.stringify(newOrderPayload, null, 2));
       
-      // Use PUT request to replace the order atomically
-      const response = await this.client.put(
-        `/accounts/${accountNumber}/orders/${orderId}`,
-        payload
-      );
+      // Step 3: Submit the new order
+      const newOrder = await this.submitOrder(newOrderPayload);
       
-      const newOrderId = response.data.data?.order?.id || response.data.data?.id || orderId;
-      const orderStatus = response.data.data?.order?.status || response.data.data?.status || 'unknown';
-      
-      console.log(`[Tastytrade] Order replace response:`, JSON.stringify(response.data, null, 2));
-      console.log(`[Tastytrade] Order replaced successfully. New order ID: ${newOrderId}, Status: ${orderStatus}`);
-      
-      // Check if order was actually replaced or just canceled
-      if (orderStatus === 'Cancelled' || orderStatus === 'Canceled') {
-        console.warn(`[Tastytrade] WARNING: Order ${orderId} was canceled but new order status is also 'Cancelled'. This may indicate the replace failed.`);
-      }
+      console.log(`[Tastytrade] New order submitted successfully. Order ID: ${newOrder.id}, Status: ${newOrder.status}`);
       
       return {
         success: true,
-        orderId: newOrderId,
-        message: `Order replaced successfully (New ID: ${newOrderId}, Status: ${orderStatus})`,
+        orderId: newOrder.id,
+        message: `Order replaced successfully (Canceled ${orderId}, New ID: ${newOrder.id})`,
       };
     } catch (error: any) {
       const errorMsg = error.response?.data?.error?.message || error.message;

@@ -3372,3 +3372,4 @@
 - [x] Add Performance dashboard back to sidebar navigation
 - [x] Fix BPS bid/ask pricing strategy - use midpoint instead of ask price for better fill rates
 - [x] Fix BPS replace logic - added detailed logging to diagnose Tastytrade API response
+- [x] Fix BPS replace operation - implemented proper cancel+resubmit instead of unreliable PUT
