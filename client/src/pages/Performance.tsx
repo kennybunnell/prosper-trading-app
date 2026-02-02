@@ -1015,6 +1015,57 @@ export function WorkingOrdersTab() {
   const [showFillRateAnalytics, setShowFillRateAnalytics] = useState(false);
   const [groupBySymbol, setGroupBySymbol] = useState(true);
 
+  // Poll for order fill status updates
+  const orderIds = useMemo(() => {
+    if (!actionResults?.results) return [];
+    return actionResults.results
+      .filter((r: any) => r.success && r.newOrderId)
+      .map((r: any) => r.newOrderId);
+  }, [actionResults]);
+
+  const { data: orderStatusData } = trpc.workingOrders.checkOrderStatus.useQuery(
+    {
+      accountId: selectedAccountId || '',
+      orderIds,
+    },
+    {
+      enabled: !!selectedAccountId && orderIds.length > 0,
+      refetchInterval: 10000, // Poll every 10 seconds
+      refetchOnWindowFocus: false,
+    }
+  );
+
+  // Update actionResults when order status changes
+  useEffect(() => {
+    if (!orderStatusData || !actionResults) return;
+
+    const updatedResults = actionResults.results.map((result: any) => {
+      if (!result.newOrderId) return result;
+      
+      const status = orderStatusData[result.newOrderId];
+      if (status) {
+        return {
+          ...result,
+          orderStatus: status.status,
+          filledAt: status.filledAt,
+        };
+      }
+      return result;
+    });
+
+    // Only update if something changed
+    const hasChanges = updatedResults.some((r: any, idx: number) => 
+      r.orderStatus !== actionResults.results[idx]?.orderStatus
+    );
+
+    if (hasChanges) {
+      setActionResults({
+        ...actionResults,
+        results: updatedResults,
+      });
+    }
+  }, [orderStatusData]);
+
   // Fetch working orders
   const { data, isLoading, refetch, error } = trpc.workingOrders.getWorkingOrders.useQuery(
     {
@@ -1906,11 +1957,17 @@ export function WorkingOrdersTab() {
                       )}
                       <span className="font-medium">{result.symbol}</span>
                       
-                      {/* Status Badge */}
+                      {/* Status Badge - updates in real-time */}
                       {result.success && result.newOrderId && (
-                        <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">
-                          Working
-                        </Badge>
+                        result.orderStatus === 'Filled' ? (
+                          <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">
+                            Filled ✓
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">
+                            Working
+                          </Badge>
+                        )
                       )}
                       {!result.success && (
                         <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30">

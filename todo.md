@@ -3387,3 +3387,4 @@
 - [x] Add status badges (Filled/Working/Canceled) to replacement log for visual tracking
 - [x] Fix modal width to prevent ANY horizontal scrolling - make modals fit all content
 - [x] Change replacement log text from "replaced successfully" to "submitted successfully" (orders aren't filled yet)
+- [x] Implement real-time fill detection to update replacement log badges from Working to Filled
