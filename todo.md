@@ -3373,3 +3373,4 @@
 - [x] Fix BPS bid/ask pricing strategy - use midpoint instead of ask price for better fill rates
 - [x] Fix BPS replace logic - added detailed logging to diagnose Tastytrade API response
 - [x] Fix BPS replace operation - implemented proper cancel+resubmit instead of unreliable PUT
+- [x] Restore proper atomic PUT request for BPS order replacement per Tastytrade API docs

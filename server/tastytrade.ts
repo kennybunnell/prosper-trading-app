@@ -401,49 +401,48 @@ export class TastytradeAPI {
    */
   async cancelReplaceOrder(accountNumber: string, orderId: string, newPrice: number, originalOrder: any): Promise<{ success: boolean; orderId?: string; message: string }> {
     try {
-      // Step 1: Cancel the existing order
-      console.log(`[Tastytrade] Step 1: Canceling order ${orderId}`);
-      await this.cancelOrder(accountNumber, orderId);
-      console.log(`[Tastytrade] Order ${orderId} canceled successfully`);
+      console.log(`[Tastytrade] Attempting atomic cancel/replace for order ${orderId}`);
+      console.log(`[Tastytrade] Original order:`, JSON.stringify(originalOrder, null, 2));
+      console.log(`[Tastytrade] New price: $${newPrice.toFixed(2)}`);
       
-      // Step 2: Build new order from original order legs
-      const firstLeg = originalOrder.legs?.[0];
-      const action = firstLeg?.action || '';
-      const isBuyOrder = action.toLowerCase().includes('buy');
-      const priceEffect = isBuyOrder ? 'Debit' : 'Credit';
-      
-      const newOrderPayload: CreateOrderRequest = {
-        accountNumber: accountNumber,
-        timeInForce: (originalOrder['time-in-force'] || originalOrder.timeInForce || 'Day') as 'Day' | 'GTC' | 'GTD',
-        orderType: (originalOrder['order-type'] || originalOrder.orderType || 'Limit') as 'Limit' | 'Market' | 'Stop' | 'Stop Limit',
-        price: newPrice.toFixed(2),
-        priceEffect: priceEffect as 'Credit' | 'Debit',
-        legs: (originalOrder.legs || []).map((leg: any) => ({
-          instrumentType: leg['instrument-type'] || leg.instrumentType || 'Equity Option',
-          symbol: leg.symbol,
-          quantity: leg.quantity,
-          action: leg.action,
+      // Build request body per Tastytrade API documentation
+      // Only price, order-type, and time-in-force can be changed
+      // All other fields must match the original order
+      const requestBody = {
+        'time-in-force': originalOrder['time-in-force'] || originalOrder.timeInForce || 'Day',
+        'order-type': originalOrder['order-type'] || originalOrder.orderType || 'Limit',
+        'price': newPrice.toFixed(2),
+        'price-effect': originalOrder['price-effect'] || originalOrder.priceEffect,
+        'legs': (originalOrder.legs || []).map((leg: any) => ({
+          'instrument-type': leg['instrument-type'] || leg.instrumentType,
+          'symbol': leg.symbol,
+          'quantity': leg.quantity,
+          'action': leg.action,
         })),
       };
       
-      console.log(`[Tastytrade] Step 2: Submitting new order with price $${newPrice.toFixed(2)}`);
-      console.log(`[Tastytrade] New order payload:`, JSON.stringify(newOrderPayload, null, 2));
+      console.log(`[Tastytrade] PUT request body:`, JSON.stringify(requestBody, null, 2));
       
-      // Step 3: Submit the new order
-      const newOrder = await this.submitOrder(newOrderPayload);
+      // Use atomic PUT request to cancel and replace in one operation
+      const response = await this.client.put(
+        `/accounts/${accountNumber}/orders/${orderId}`,
+        requestBody
+      );
       
-      console.log(`[Tastytrade] New order submitted successfully. Order ID: ${newOrder.id}, Status: ${newOrder.status}`);
+      const updatedOrder = response.data?.data?.order || response.data?.data;
+      console.log(`[Tastytrade] Replace response:`, JSON.stringify(response.data, null, 2));
+      console.log(`[Tastytrade] Order replaced successfully. New status: ${updatedOrder?.status}`);
       
       return {
         success: true,
-        orderId: newOrder.id,
-        message: `Order replaced successfully (Canceled ${orderId}, New ID: ${newOrder.id})`,
+        orderId: updatedOrder?.id || orderId,
+        message: `Order replaced successfully`,
       };
     } catch (error: any) {
       const errorMsg = error.response?.data?.error?.message || error.message;
       console.error(`[Tastytrade] Failed to replace order ${orderId}:`, errorMsg);
-      console.error(`[Tastytrade] Error response:`, error.response?.data);
-      console.error(`[Tastytrade] Cancel-replace error:`, errorMsg);
+      console.error(`[Tastytrade] Error status:`, error.response?.status);
+      console.error(`[Tastytrade] Error response:`, JSON.stringify(error.response?.data, null, 2));
       return {
         success: false,
         message: `Failed to replace order: ${errorMsg}`,
