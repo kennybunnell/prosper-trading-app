@@ -1048,7 +1048,34 @@ export function WorkingOrdersTab() {
       setActionResults({ ...result, action: 'replace' });
       setSelectedOrders(new Set());
       refetch();
-      toast.success(`Replaced ${result.successCount} of ${result.successCount + result.failedCount} orders`);
+      
+      // Show detailed toast with order IDs for successful replacements
+      if (result.successCount > 0) {
+        const successfulReplacements = result.results.filter((r: any) => r.success);
+        if (successfulReplacements.length === 1) {
+          const r = successfulReplacements[0];
+          toast.success(
+            `Order replaced: Canceled #${r.orderId.slice(-6)}, Created #${r.newOrderId?.slice(-6) || 'N/A'}`,
+            { duration: 5000 }
+          );
+        } else {
+          // Multiple orders - show summary
+          toast.success(
+            `Replaced ${result.successCount} orders successfully`,
+            { duration: 4000 }
+          );
+          // Show individual order IDs in console for reference
+          console.log('[Order Replacement] Details:', successfulReplacements.map((r: any) => ({
+            canceled: r.orderId,
+            created: r.newOrderId,
+            symbol: r.symbol
+          })));
+        }
+      }
+      
+      if (result.failedCount > 0) {
+        toast.error(`Failed to replace ${result.failedCount} order(s)`);
+      }
     },
     onError: (error) => {
       toast.error(`Failed to replace orders: ${error.message}`);
