@@ -3376,3 +3376,5 @@
 - [x] Restore proper atomic PUT request for BPS order replacement per Tastytrade API docs
 - [x] Implement two-step cancel+resubmit for BPS replacement (Tastytrade PUT creates contingent orders that never activate)
 - [x] Fix priceEffect detection in cancelReplaceOrder (should use original order's priceEffect, not detect from first leg)
+- [x] Verify BCS replacement uses correct priceEffect logic (already works - uses original order's priceEffect)
+- [x] Fix confirmation modal styling: add orange border and widen to fit full table
