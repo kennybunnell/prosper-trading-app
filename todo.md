@@ -3477,3 +3477,8 @@
 - [x] Hide redundant technical columns by default (RSI, BB, IV Rank already in score)
 - [x] Add toggle to show/hide technical details
 - [x] Test complete simplified workflow
+
+## Bug Fixes - UI Simplification Follow-up
+- [x] Fix AI info icon error - "No procedure found on path 'csp.explainScore'" (restarted server to sync types)
+- [x] Remove Smart Select button (no longer needed with score-based workflow)
+- [ ] Investigate slider performance issues during interaction

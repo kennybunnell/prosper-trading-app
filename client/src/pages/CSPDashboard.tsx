@@ -1866,35 +1866,24 @@ export default function CSPDashboard() {
                 {selectedOppsList.length > 0 && `${selectedOppsList.length} selected`}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={() => setShowTechnicalColumns(!showTechnicalColumns)}
-                variant="outline"
-                size="sm"
-                className="border-border/50 hover:border-border"
-              >
-                {showTechnicalColumns ? (
-                  <>
-                    <ChevronDown className="w-4 h-4 mr-1" />
-                    Hide Technical Columns
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="w-4 h-4 mr-1 rotate-180" />
-                    Show Technical Columns
-                  </>
-                )}
-              </Button>
-              {filteredOpportunities.length > 0 && (
-                <Button
-                  onClick={handleSmartSelect}
-                  variant="outline"
-                  className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border-purple-500/50 hover:border-purple-500 hover:bg-purple-600/30"
-                >
-                  🤖 Smart Select
-                </Button>
+            <Button
+              onClick={() => setShowTechnicalColumns(!showTechnicalColumns)}
+              variant="outline"
+              size="sm"
+              className="border-border/50 hover:border-border"
+            >
+              {showTechnicalColumns ? (
+                <>
+                  <ChevronDown className="w-4 h-4 mr-1" />
+                  Hide Technical Columns
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-4 h-4 mr-1 rotate-180" />
+                  Show Technical Columns
+                </>
               )}
-            </div>
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
