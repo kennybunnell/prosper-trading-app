@@ -3688,3 +3688,7 @@
 - [x] Update AI explanation dialog to match CSP Dashboard style (purple border, compact layout)
 - [x] Remove old ScoreExplanationDialog component and unused state variables
 - [x] Ensure all filter logic uses new range array state (scoreRange, deltaRange, dteRange)
+
+## PMCC AI Analysis Modal Width Fix
+- [x] Update PMCC AI Analysis modal DialogContent to use max-w-fit w-auto pattern with calc(100vw - 4rem) inline style
+- [x] Test modal width with long AI explanations to ensure text has enough room

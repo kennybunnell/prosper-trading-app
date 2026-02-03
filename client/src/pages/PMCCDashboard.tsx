@@ -1077,7 +1077,7 @@ export default function PMCCDashboard() {
 
         {/* AI Analysis Detail Modal */}
         <Dialog open={showAiAnalysisModal} onOpenChange={setShowAiAnalysisModal}>
-          <DialogContent className="max-w-2xl border-2 border-purple-500/50">
+          <DialogContent className="max-w-fit w-auto max-h-[80vh] overflow-y-auto border-2 border-purple-500/50" style={{ maxWidth: 'calc(100vw - 4rem)' }}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-purple-500" />
