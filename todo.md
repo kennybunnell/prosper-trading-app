@@ -3692,3 +3692,9 @@
 ## PMCC AI Analysis Modal Width Fix
 - [x] Update PMCC AI Analysis modal DialogContent to use max-w-fit w-auto pattern with calc(100vw - 4rem) inline style
 - [x] Test modal width with long AI explanations to ensure text has enough room
+
+## PMCC AI Explanation Company Overview Enhancement
+- [x] Update PMCC explainScore backend to include company overview in AI prompt
+- [x] Add company overview section to AI explanation response (company name, sector, brief description)
+- [x] Frontend AI modal already displays aiExplanation with Streamdown (no changes needed)
+- [x] AI will now automatically generate company overview for all tickers (PFE, GOOGL, AMD, etc.)

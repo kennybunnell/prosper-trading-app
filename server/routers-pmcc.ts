@@ -536,16 +536,16 @@ export const pmccRouter = router({
       // Generate detailed explanation using scoring breakdown
       const technicalExplanation = explainPMCCScore(input.leap, breakdown);
 
-      // Use AI to provide conversational explanation
+      // Use AI to provide conversational explanation with company context
       const response = await invokeLLM({
         messages: [
           {
             role: 'system',
-            content: `You are an expert options trader explaining PMCC (Poor Man's Covered Call) LEAP scores. Provide clear, actionable insights about why a LEAP received its score and whether it's a good buy. Be concise but thorough.`,
+            content: `You are an expert options trader explaining PMCC (Poor Man's Covered Call) LEAP scores. Provide clear, actionable insights about why a LEAP received its score and whether it's a good buy. Be concise but thorough. Always start with a brief company overview to help newer traders understand what the ticker represents.`,
           },
           {
             role: 'user',
-            content: `Explain this PMCC LEAP score in a conversational way:\n\n${technicalExplanation}\n\nProvide:\n1. Overall assessment (Is this a good LEAP to buy?)\n2. Key strengths\n3. Key concerns (if any)\n4. Recommendation (Buy, Pass, or Monitor)`,
+            content: `Explain this PMCC LEAP score for ${input.leap.symbol} in a conversational way:\n\n${technicalExplanation}\n\nProvide:\n1. Company Overview: Brief description of what ${input.leap.symbol} is (company name, sector, what they do) - keep this to 1-2 sentences for newer traders\n2. Overall assessment (Is this a good LEAP to buy?)\n3. Key strengths\n4. Key concerns (if any)\n5. Recommendation (Buy, Pass, or Monitor)`,
           },
         ],
       });
