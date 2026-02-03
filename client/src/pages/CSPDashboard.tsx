@@ -1657,23 +1657,36 @@ export default function CSPDashboard() {
 
           {/* Selection Controls */}
           <div className="space-y-3">
-            <Button
-              className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 w-full"
-              size="default"
-              onClick={() => {
-                // Select all filtered opportunities
-                const newSelection = new Set(selectedOpportunities);
-                filteredOpportunities.forEach(opp => {
-                  const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
-                  newSelection.add(key);
-                });
-                setSelectedOpportunities(newSelection);
-                toast.success(`Selected ${filteredOpportunities.length} opportunities`);
-              }}
-              disabled={filteredOpportunities.length === 0}
-            >
-              ✓ Select All Filtered ({filteredOpportunities.length})
-            </Button>
+            <div className="flex gap-3">
+              <Button
+                className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 flex-1"
+                size="default"
+                onClick={() => {
+                  // Select all filtered opportunities
+                  const newSelection = new Set(selectedOpportunities);
+                  filteredOpportunities.forEach(opp => {
+                    const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+                    newSelection.add(key);
+                  });
+                  setSelectedOpportunities(newSelection);
+                  toast.success(`Selected ${filteredOpportunities.length} opportunities`);
+                }}
+                disabled={filteredOpportunities.length === 0}
+              >
+                ✓ Select All Filtered ({filteredOpportunities.length})
+              </Button>
+              <Button
+                className="bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 flex-1"
+                size="default"
+                onClick={() => {
+                  setSelectedOpportunities(new Set());
+                  toast.success("Cleared all selections");
+                }}
+                disabled={selectedOpportunities.size === 0}
+              >
+                ✗ Clear Selection
+              </Button>
+            </div>
             <div className="flex items-center gap-3 p-3 bg-accent/20 rounded-lg">
               <Checkbox
                 id="selected-only"

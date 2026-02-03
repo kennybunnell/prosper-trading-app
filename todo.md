@@ -3492,3 +3492,6 @@
 ## Bug Fix - Restore Selection Controls
 - [x] Restore "Select All Filtered" button (accidentally removed, needed for selecting opportunities)
 - [x] Keep only the essential selection button, remove redundant Conservative/Aggressive/Smart Select buttons
+
+## Restore Clear Selection Button
+- [x] Add red "Clear Selection" button next to the green "Select All Filtered" button
