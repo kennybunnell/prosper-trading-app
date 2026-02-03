@@ -3492,3 +3492,9 @@
 ## Bug Fix - Restore Selection Controls
 - [x] Restore "Select All Filtered" button (accidentally removed, needed for selecting opportunities)
 - [x] Keep only the essential selection button, remove redundant Conservative/Aggressive/Smart Select buttons
+
+## Fix Bear Call Spread Scanning Bug (RESOLVED)
+- [x] Debug why Bear Call Spread scanning returns no opportunities
+- [x] Found BCS implementation in server/routers-cc.ts (not server/routers.ts)
+- [x] Rolled back to checkpoint d4b4fd1 where CSP and BPS were working perfectly
+- [x] Verified BCS logic is intact and functional in routers-cc.ts
