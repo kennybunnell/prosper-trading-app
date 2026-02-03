@@ -3573,3 +3573,12 @@
 - [ ] Fix score badge color threshold - score 90 should show green not yellow
 - [ ] Add "Show Technical Columns" toggle button to hide/show RSI, BB %B, IV Rank columns
 - [ ] Test all fixes with real data
+
+## CCDashboard UI Refinements - Round 2
+- [x] Add increment/decrement buttons (±0.01) to Delta filter in CCDashboard
+- [x] Add increment/decrement buttons (±1) to DTE filter in CCDashboard
+- [x] Add orange border to scanning progress modal (black on black visibility issue)
+- [x] Add orange border to AI explanation modal (black on black visibility issue)
+- [x] Add orange borders to all modals in CSP and BPS dashboards
+- [x] Increase spread scanning timeout (from 5s to 15s per API call)
+- [x] Extend technical columns toggle to hide/show Volume and OI columns (matching CSP/BPS)

@@ -2196,7 +2196,7 @@ export default function CSPDashboard() {
           setFetchProgress({ ...fetchProgress, isOpen: false });
         }
       }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md border-2 border-orange-500/50">
           <DialogHeader>
             <DialogTitle>Fetching Opportunities</DialogTitle>
             <DialogDescription>
@@ -2266,7 +2266,7 @@ export default function CSPDashboard() {
 
       {/* Progress Dialog */}
       <Dialog open={showProgressDialog} onOpenChange={setShowProgressDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md border-2 border-orange-500/50">
           <DialogHeader>
             <DialogTitle>Submitting Orders</DialogTitle>
             <DialogDescription>
@@ -2299,7 +2299,7 @@ export default function CSPDashboard() {
 
       {/* Spread Width Help Dialog */}
       <Dialog open={showSpreadHelp} onOpenChange={setShowSpreadHelp}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto border-2 border-orange-500/50">
           <DialogHeader>
             <DialogTitle>Recommended Spread Widths</DialogTitle>
             <DialogDescription>
@@ -2381,7 +2381,7 @@ export default function CSPDashboard() {
 
       {/* AI Analysis Detail Modal */}
       <Dialog open={showAiAnalysisModal} onOpenChange={setShowAiAnalysisModal}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl border-2 border-orange-500/50">
           <DialogHeader>
             <DialogTitle>
               Score Explanation: {selectedAiAnalysis?.symbol} ${selectedAiAnalysis?.strike}

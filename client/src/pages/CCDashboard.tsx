@@ -1356,7 +1356,7 @@ export default function CCDashboard() {
                 toast.info('Scan cancelled');
               }
             }}>
-              <DialogContent className="sm:max-w-md">
+              <DialogContent className="sm:max-w-md border-2 border-orange-500/50">
                 <DialogHeader>
                   <DialogTitle>Scanning Options Chains</DialogTitle>
                   <DialogDescription>
@@ -1441,7 +1441,7 @@ export default function CCDashboard() {
               toast.info('Scan cancelled');
             }
           }}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md border-2 border-orange-500/50">
               <DialogHeader>
                 <DialogTitle>Scanning Options Chains</DialogTitle>
                 <DialogDescription>
@@ -1768,15 +1768,33 @@ export default function CCDashboard() {
                 <span className="text-xs text-muted-foreground">{deltaRange[0].toFixed(2)} - {deltaRange[1].toFixed(2)}</span>
               </div>
               <div className="flex items-center gap-4">
-                <input
-                  type="number"
-                  value={deltaRange[0]}
-                  onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeltaRange([Math.max(0, deltaRange[0] - 0.01), deltaRange[1]])}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <input
+                    type="number"
+                    value={deltaRange[0]}
+                    onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
+                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeltaRange([Math.min(1, deltaRange[0] + 0.01), deltaRange[1]])}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
                 <div className="flex-1 flex items-center gap-2">
                   <input
                     type="range"
@@ -1797,15 +1815,33 @@ export default function CCDashboard() {
                     className="flex-1 h-2"
                   />
                 </div>
-                <input
-                  type="number"
-                  value={deltaRange[1]}
-                  onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeltaRange([deltaRange[0], Math.max(0, deltaRange[1] - 0.01)])}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <input
+                    type="number"
+                    value={deltaRange[1]}
+                    onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
+                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeltaRange([deltaRange[0], Math.min(1, deltaRange[1] + 0.01)])}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -1816,14 +1852,32 @@ export default function CCDashboard() {
                 <span className="text-xs text-muted-foreground">{dteRange[0]} - {dteRange[1]} days</span>
               </div>
               <div className="flex items-center gap-4">
-                <input
-                  type="number"
-                  value={dteRange[0]}
-                  onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="90"
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDteRange([Math.max(0, dteRange[0] - 1), dteRange[1]])}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <input
+                    type="number"
+                    value={dteRange[0]}
+                    onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
+                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                    min="0"
+                    max="90"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDteRange([Math.min(90, dteRange[0] + 1), dteRange[1]])}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
                 <div className="flex-1 flex items-center gap-2">
                   <input
                     type="range"
@@ -1844,14 +1898,32 @@ export default function CCDashboard() {
                     className="flex-1 h-2"
                   />
                 </div>
-                <input
-                  type="number"
-                  value={dteRange[1]}
-                  onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="90"
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDteRange([dteRange[0], Math.max(0, dteRange[1] - 1)])}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <input
+                    type="number"
+                    value={dteRange[1]}
+                    onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])}
+                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                    min="0"
+                    max="90"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDteRange([dteRange[0], Math.min(90, dteRange[1] + 1)])}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -2367,20 +2439,24 @@ export default function CCDashboard() {
                           {sortColumn === 'spreadPct' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
-                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('volume')}>
-                        <div className="flex items-center justify-end gap-1">
-                          Volume
-                          <HelpDialog title="Open Interest & Volume" content={HELP_CONTENT.OPEN_INTEREST_VOLUME_DIALOG} />
-                          {sortColumn === 'volume' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                        </div>
-                      </TableHead>
-                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('openInterest')}>
-                        <div className="flex items-center justify-end gap-1">
-                          OI
-                          <HelpDialog title="Open Interest & Volume" content={HELP_CONTENT.OPEN_INTEREST_VOLUME_DIALOG} />
-                          {sortColumn === 'openInterest' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                        </div>
-                      </TableHead>
+                      {showTechnicalColumns && (
+                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('volume')}>
+                          <div className="flex items-center justify-end gap-1">
+                            Volume
+                            <HelpDialog title="Open Interest & Volume" content={HELP_CONTENT.OPEN_INTEREST_VOLUME_DIALOG} />
+                            {sortColumn === 'volume' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                          </div>
+                        </TableHead>
+                      )}
+                      {showTechnicalColumns && (
+                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('openInterest')}>
+                          <div className="flex items-center justify-end gap-1">
+                            OI
+                            <HelpDialog title="Open Interest & Volume" content={HELP_CONTENT.OPEN_INTEREST_VOLUME_DIALOG} />
+                            {sortColumn === 'openInterest' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                          </div>
+                        </TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2489,16 +2565,20 @@ export default function CCDashboard() {
                           </TableCell>
                         )}
                         <TableCell className="text-right">{opp.spreadPct.toFixed(1)}%</TableCell>
-                        <TableCell className="text-right">
-                          <Badge className={cn("font-bold", getLiquidityColor(opp.volume, 'vol'))}>
-                            {opp.volume.toLocaleString()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge className={cn("font-bold", getLiquidityColor(opp.openInterest, 'oi'))}>
-                            {opp.openInterest.toLocaleString()}
-                          </Badge>
-                        </TableCell>
+                        {showTechnicalColumns && (
+                          <TableCell className="text-right">
+                            <Badge className={cn("font-bold", getLiquidityColor(opp.volume, 'vol'))}>
+                              {opp.volume.toLocaleString()}
+                            </Badge>
+                          </TableCell>
+                        )}
+                        {showTechnicalColumns && (
+                          <TableCell className="text-right">
+                            <Badge className={cn("font-bold", getLiquidityColor(opp.openInterest, 'oi'))}>
+                              {opp.openInterest.toLocaleString()}
+                            </Badge>
+                          </TableCell>
+                        )}
                       </TableRow>
                       );
                     })}
@@ -2513,7 +2593,7 @@ export default function CCDashboard() {
 
       {/* Spread Width Help Dialog */}
       <Dialog open={showSpreadHelp} onOpenChange={setShowSpreadHelp}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto border-2 border-orange-500/50">
           <DialogHeader>
             <DialogTitle>Recommended Spread Widths</DialogTitle>
             <DialogDescription>
@@ -2611,7 +2691,7 @@ export default function CCDashboard() {
 
       {/* AI Analysis Modal */}
       <Dialog open={showAiAnalysisModal} onOpenChange={setShowAiAnalysisModal}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto border-2 border-orange-500/50">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-purple-400" />

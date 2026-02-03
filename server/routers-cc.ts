@@ -200,7 +200,7 @@ export const ccRouter = router({
 
       // Process symbols in parallel with concurrency limit of 5 (matches CSP Dashboard)
       const CONCURRENCY = 5;
-      const API_TIMEOUT_MS = 5000; // 5 second timeout per API call
+      const API_TIMEOUT_MS = 15000; // 15 second timeout per API call (increased for spread scanning)
       console.log(`[CC Scanner] Processing ${input.symbols.length} symbols with ${CONCURRENCY} concurrent workers...`);
       
       // Helper function to add timeout to promises
@@ -416,6 +416,17 @@ export const ccRouter = router({
 
       // Process each group (fetch option chain once, process all strikes)
       const CONCURRENCY_LIMIT = 5; // Process 5 groups at a time
+      const API_TIMEOUT_MS = 15000; // 15 second timeout per API call
+      
+      // Helper function to add timeout to promises
+      const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+        return Promise.race([
+          promise,
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error('API call timeout')), timeoutMs)
+          ),
+        ]);
+      };
       const groups = Object.entries(groupedOpps);
       
       for (let i = 0; i < groups.length; i += CONCURRENCY_LIMIT) {
@@ -426,7 +437,10 @@ export const ccRouter = router({
             const [symbol, expiration] = key.split('|');
             
             // Fetch option chain ONCE for this symbol+expiration
-            const options = await api.getOptionChain(symbol, expiration, true);
+            const options = await withTimeout(
+              api.getOptionChain(symbol, expiration, true),
+              API_TIMEOUT_MS
+            ).catch(() => []);
             
             // Process all opportunities for this expiration
             for (const ccOpp of opps) {
