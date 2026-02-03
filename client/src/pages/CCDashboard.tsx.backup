@@ -27,8 +27,6 @@ import {
   ArrowDown,
   HelpCircle,
   Download,
-  Filter,
-  Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
@@ -289,22 +287,6 @@ export default function CCDashboard() {
   const availableBuyingPower = tradingMode === 'paper'
     ? (paperBalance?.buyingPower || 0)
     : Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
-
-  // Calculate summary metrics for selected opportunities
-  const selectedOppsList = Array.from(selectedOpportunities)
-    .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
-    .filter((opp): opp is CCOpportunity => opp !== undefined);
-  
-  const totalPremium = selectedOppsList.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-  
-  // For spreads, use capitalAtRisk instead of full collateral
-  const totalCollateral = strategyType === 'spread'
-    ? selectedOppsList.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-    : selectedOppsList.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-  
-  const roc = totalCollateral > 0 ? (totalPremium / totalCollateral) * 100 : 0;
-  const buyingPowerUsedPct = availableBuyingPower > 0 ? (totalCollateral / availableBuyingPower) * 100 : 0;
-  const overLimit = totalCollateral > availableBuyingPower ? totalCollateral - availableBuyingPower : 0;
 
   // Fetch eligible positions
   const fetchPositions = async () => {
@@ -1611,345 +1593,310 @@ export default function CCDashboard() {
               </Card>
             </div>
 
-      <Card className="bg-card/50 backdrop-blur border-amber-500/20" data-section="filters">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="w-5 h-5" />
-            Filters
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Range Filters - Redesigned with larger sliders */}
-          <div className="space-y-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Label className="text-base font-semibold">Range Filters</Label>
-              <span className="text-xs text-muted-foreground">(Adjust sliders to filter opportunities)</span>
-            </div>
-            
-            {/* Score Range - PRIMARY FILTER */}
-            <div className="space-y-2 p-4 bg-orange-500/5 border border-orange-500/20 rounded-lg">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-semibold text-orange-400">Score (Primary Filter)</Label>
-                <span className="text-xs text-muted-foreground">{scoreRange[0]} - {scoreRange[1]}</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <input
-                  type="number"
-                  value={scoreRange[0]}
-                  onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="100"
-                />
-                <div className="flex-1 flex items-center gap-2">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={scoreRange[0]}
-                    onChange={(e) => setScoreRange([parseInt(e.target.value), scoreRange[1]])}
-                    className="flex-1 h-2 accent-orange-500"
-                  />
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={scoreRange[1]}
-                    onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value)])}
-                    className="flex-1 h-2 accent-orange-500"
-                  />
+            {/* Filter Presets */}
+            <Card className="bg-card/50 backdrop-blur border-amber-500/20">
+              <CardHeader>
+                <CardTitle className="text-xl">Filter Presets</CardTitle>
+                <CardDescription>
+                  Quick filters based on risk tolerance
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
+                      presetFilter === 'conservative'
+                        ? "bg-gradient-to-r from-slate-600 via-gray-700 to-slate-800 text-white shadow-lg shadow-slate-500/50 hover:shadow-xl hover:shadow-slate-500/60 hover:scale-110"
+                        : "bg-slate-500/10 text-slate-400 border border-slate-500/30 hover:bg-slate-500/20 hover:border-slate-500/50 hover:scale-105"
+                    )}
+                    onClick={() => handlePresetFilter('conservative')}
+                    size="default"
+                  >
+                    <span className="relative z-10 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-300 animate-pulse" />
+                      Conservative
+                    </span>
+                    {presetFilter === 'conservative' && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
+                      presetFilter === 'medium'
+                        ? "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-white shadow-lg shadow-amber-500/50 hover:shadow-xl hover:shadow-amber-500/60 hover:scale-110"
+                        : "bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-105"
+                    )}
+                    onClick={() => handlePresetFilter('medium')}
+                    size="default"
+                  >
+                    <span className="relative z-10 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse" />
+                      Medium
+                    </span>
+                    {presetFilter === 'medium' && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
+                      presetFilter === 'aggressive'
+                        ? "bg-gradient-to-r from-orange-600 via-amber-700 to-orange-800 text-white shadow-lg shadow-orange-500/50 hover:shadow-xl hover:shadow-orange-500/60 hover:scale-110"
+                        : "bg-orange-500/10 text-orange-400 border border-orange-500/30 hover:bg-orange-500/20 hover:border-orange-500/50 hover:scale-105"
+                    )}
+                    onClick={() => handlePresetFilter('aggressive')}
+                    size="default"
+                  >
+                    <span className="relative z-10 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-red-300 animate-pulse" />
+                      Aggressive
+                    </span>
+                    {presetFilter === 'aggressive' && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="rounded-full px-5 py-2.5 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200 hover:scale-105"
+                    onClick={() => {
+                      setPresetFilter(null);
+                      setMinScore(undefined);
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
                 </div>
-                <input
-                  type="number"
-                  value={scoreRange[1]}
-                  onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="100"
-                />
-              </div>
-              <div className="flex gap-2 mt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setScoreRange([70, 100])}
-                  className="text-xs"
-                >
-                  Conservative (≥70)
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setScoreRange([55, 100])}
-                  className="text-xs"
-                >
-                  Aggressive (≥55)
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setScoreRange([0, 100])}
-                  className="text-xs"
-                >
-                  All
-                </Button>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
-            {/* Delta Range */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Delta (Δ)</Label>
-                <span className="text-xs text-muted-foreground">{deltaRange[0].toFixed(2)} - {deltaRange[1].toFixed(2)}</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <input
-                  type="number"
-                  value={deltaRange[0]}
-                  onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                />
-                <div className="flex-1 flex items-center gap-2">
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={deltaRange[0]}
-                    onChange={(e) => setDeltaRange([parseFloat(e.target.value), deltaRange[1]])}
-                    className="flex-1 h-2"
-                  />
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={deltaRange[1]}
-                    onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value)])}
-                    className="flex-1 h-2"
-                  />
+            {/* Compact Horizontal Live Filters */}
+            <Card className="bg-card/50 backdrop-blur border-amber-500/20">
+              <CardContent className="py-3">
+                <div className="flex flex-wrap items-center gap-4">
+                  <Label className="text-sm font-semibold">Filters:</Label>
+                  
+                  {/* Delta Range */}
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Δ</Label>
+                    <div className="flex items-center gap-0.5">
+                      <input
+                        type="number"
+                        value={deltaRange[0]}
+                        onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
+                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
+                        step="0.01"
+                        min="0"
+                        max="1"
+                      />
+                      <div className="flex flex-col">
+                        <button
+                          onClick={() => setDeltaRange([Math.min(1, deltaRange[0] + 0.01), deltaRange[1]])}
+                          className="h-3 w-4 flex items-center justify-center border rounded-t text-xs hover:bg-accent"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          onClick={() => setDeltaRange([Math.max(0, deltaRange[0] - 0.01), deltaRange[1]])}
+                          className="h-3 w-4 flex items-center justify-center border rounded-b text-xs hover:bg-accent"
+                        >
+                          ▼
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={deltaRange[0]}
+                      onChange={(e) => setDeltaRange([parseFloat(e.target.value), deltaRange[1]])}
+                      className="w-16"
+                    />
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={deltaRange[1]}
+                      onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value)])}
+                      className="w-16"
+                    />
+                    <div className="flex items-center gap-0.5">
+                      <input
+                        type="number"
+                        value={deltaRange[1]}
+                        onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
+                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
+                        step="0.01"
+                        min="0"
+                        max="1"
+                      />
+                      <div className="flex flex-col">
+                        <button
+                          onClick={() => setDeltaRange([deltaRange[0], Math.min(1, deltaRange[1] + 0.01)])}
+                          className="h-3 w-4 flex items-center justify-center border rounded-t text-xs hover:bg-accent"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          onClick={() => setDeltaRange([deltaRange[0], Math.max(0, deltaRange[1] - 0.01)])}
+                          className="h-3 w-4 flex items-center justify-center border rounded-b text-xs hover:bg-accent"
+                        >
+                          ▼
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DTE Range */}
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">DTE</Label>
+                    <div className="flex items-center gap-0.5">
+                      <input
+                        type="number"
+                        value={dteRange[0]}
+                        onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
+                        className="w-12 px-1 py-0.5 text-xs border rounded bg-background"
+                        min="0"
+                        max="90"
+                      />
+                      <div className="flex flex-col">
+                        <button
+                          onClick={() => setDteRange([Math.min(90, dteRange[0] + 1), dteRange[1]])}
+                          className="h-3 w-4 flex items-center justify-center border rounded-t text-xs hover:bg-accent"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          onClick={() => setDteRange([Math.max(0, dteRange[0] - 1), dteRange[1]])}
+                          className="h-3 w-4 flex items-center justify-center border rounded-b text-xs hover:bg-accent"
+                        >
+                          ▼
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="90"
+                      step="1"
+                      value={dteRange[0]}
+                      onChange={(e) => setDteRange([parseInt(e.target.value), dteRange[1]])}
+                      className="w-16"
+                    />
+                    <input
+                      type="range"
+                      min="0"
+                      max="90"
+                      step="1"
+                      value={dteRange[1]}
+                      onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value)])}
+                      className="w-16"
+                    />
+                    <div className="flex items-center gap-0.5">
+                      <input
+                        type="number"
+                        value={dteRange[1]}
+                        onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])}
+                        className="w-12 px-1 py-0.5 text-xs border rounded bg-background"
+                        min="0"
+                        max="90"
+                      />
+                      <div className="flex flex-col">
+                        <button
+                          onClick={() => setDteRange([dteRange[0], Math.min(90, dteRange[1] + 1)])}
+                          className="h-3 w-4 flex items-center justify-center border rounded-t text-xs hover:bg-accent"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          onClick={() => setDteRange([dteRange[0], Math.max(0, dteRange[1] - 1)])}
+                          className="h-3 w-4 flex items-center justify-center border rounded-b text-xs hover:bg-accent"
+                        >
+                          ▼
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Score Range */}
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Score</Label>
+                    <div className="flex items-center gap-0.5">
+                      <input
+                        type="number"
+                        value={scoreRange[0]}
+                        onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])}
+                        className="w-12 px-1 py-0.5 text-xs border rounded bg-background"
+                        min="0"
+                        max="100"
+                      />
+                      <div className="flex flex-col">
+                        <button
+                          onClick={() => setScoreRange([Math.min(100, scoreRange[0] + 1), scoreRange[1]])}
+                          className="h-3 w-4 flex items-center justify-center border rounded-t text-xs hover:bg-accent"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          onClick={() => setScoreRange([Math.max(0, scoreRange[0] - 1), scoreRange[1]])}
+                          className="h-3 w-4 flex items-center justify-center border rounded-b text-xs hover:bg-accent"
+                        >
+                          ▼
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={scoreRange[0]}
+                      onChange={(e) => setScoreRange([parseInt(e.target.value), scoreRange[1]])}
+                      className="w-16"
+                    />
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={scoreRange[1]}
+                      onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value)])}
+                      className="w-16"
+                    />
+                    <div className="flex items-center gap-0.5">
+                      <input
+                        type="number"
+                        value={scoreRange[1]}
+                        onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])}
+                        className="w-12 px-1 py-0.5 text-xs border rounded bg-background"
+                        min="0"
+                        max="100"
+                      />
+                      <div className="flex flex-col">
+                        <button
+                          onClick={() => setScoreRange([scoreRange[0], Math.min(100, scoreRange[1] + 1)])}
+                          className="h-3 w-4 flex items-center justify-center border rounded-t text-xs hover:bg-accent"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          onClick={() => setScoreRange([scoreRange[0], Math.max(0, scoreRange[1] - 1)])}
+                          className="h-3 w-4 flex items-center justify-center border rounded-b text-xs hover:bg-accent"
+                        >
+                          ▼
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <input
-                  type="number"
-                  value={deltaRange[1]}
-                  onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                />
-              </div>
-            </div>
-
-            {/* DTE Range */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Days to Expiration (DTE)</Label>
-                <span className="text-xs text-muted-foreground">{dteRange[0]} - {dteRange[1]} days</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <input
-                  type="number"
-                  value={dteRange[0]}
-                  onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="90"
-                />
-                <div className="flex-1 flex items-center gap-2">
-                  <input
-                    type="range"
-                    min="0"
-                    max="90"
-                    step="1"
-                    value={dteRange[0]}
-                    onChange={(e) => setDteRange([parseInt(e.target.value), dteRange[1]])}
-                    className="flex-1 h-2"
-                  />
-                  <input
-                    type="range"
-                    min="0"
-                    max="90"
-                    step="1"
-                    value={dteRange[1]}
-                    onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value)])}
-                    className="flex-1 h-2"
-                  />
-                </div>
-                <input
-                  type="number"
-                  value={dteRange[1]}
-                  onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="90"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Selection Controls */}
-          <div className="space-y-3">
-            <Button
-              className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 w-full"
-              size="default"
-              onClick={() => {
-                // Select all filtered opportunities
-                const newSelection = new Set(selectedOpportunities);
-                filteredOpportunities.forEach(opp => {
-                  const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
-                  newSelection.add(key);
-                });
-                setSelectedOpportunities(newSelection);
-                toast.success(`Selected ${filteredOpportunities.length} opportunities`);
-              }}
-              disabled={filteredOpportunities.length === 0}
-            >
-              ✓ Select All Filtered ({filteredOpportunities.length})
-            </Button>
-            <div className="flex items-center gap-3 p-3 bg-accent/20 rounded-lg">
-              <Checkbox
-                id="selected-only"
-                checked={showSelectedOnly}
-                onCheckedChange={(checked) => setShowSelectedOnly(checked as boolean)}
-                className="w-5 h-5"
-              />
-              <Label htmlFor="selected-only" className="cursor-pointer text-base font-medium">
-                Show Selected Only
-              </Label>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-
-
-      {/* Summary Cards - Enhanced with gradients and glassmorphism */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 to-yellow-500/5 backdrop-blur border-amber-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent" />
-          <CardHeader className="pb-2 relative">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-green-500/20">
-                <DollarSign className="w-4 h-4 text-amber-400" />
-              </div>
-              <span className="text-muted-foreground">Total Premium</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
-              ${totalPremium.toFixed(2)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="relative overflow-hidden bg-gradient-to-br from-slate-500/10 to-gray-500/5 backdrop-blur border-slate-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-500/5 to-transparent" />
-          <CardHeader className="pb-2 relative">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-blue-500/20">
-                <Target className="w-4 h-4 text-slate-400" />
-              </div>
-              <span className="text-muted-foreground">Total Collateral</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold bg-gradient-to-r from-slate-400 to-gray-400 bg-clip-text text-transparent">
-              ${totalCollateral.toFixed(2)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="relative overflow-hidden bg-gradient-to-br from-amber-600/10 to-orange-600/5 backdrop-blur border-amber-600/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-600/5 to-transparent" />
-          <CardHeader className="pb-2 relative">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-purple-500/20">
-                <TrendingUp className="w-4 h-4 text-amber-400" />
-              </div>
-              <span className="text-muted-foreground">ROC</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
-              {roc.toFixed(2)}%
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="relative overflow-hidden bg-gradient-to-br from-yellow-600/10 to-amber-700/5 backdrop-blur border-yellow-600/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
-          <div className="absolute inset-0 bg-gradient-to-br from-yellow-600/5 to-transparent" />
-          <CardHeader className="pb-2 relative">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-orange-500/20">
-                <Calendar className="w-4 h-4 text-yellow-400" />
-              </div>
-              <span className="text-muted-foreground">Opportunities</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">
-              {filteredOpportunities.length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={cn(
-          "relative overflow-hidden backdrop-blur shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]",
-          buyingPowerUsedPct > 80 
-            ? "bg-gradient-to-br from-red-500/10 to-rose-500/5 border-red-500/20" 
-            : "bg-gradient-to-br from-emerald-500/10 to-green-500/5 border-emerald-500/20"
-        )}>
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent" />
-          <CardHeader className="pb-2 relative">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <div className={cn(
-                "p-2 rounded-lg",
-                buyingPowerUsedPct > 80 ? "bg-red-500/20" : "bg-emerald-500/20"
-              )}>
-                <TrendingUp className={cn(
-                  "w-4 h-4",
-                  buyingPowerUsedPct > 80 ? "text-red-400" : "text-emerald-400"
-                )} />
-              </div>
-              <span className="text-muted-foreground flex items-center gap-1">
-                Buying Power
-                <HelpBadge content={HELP_CONTENT.BUYING_POWER_USAGE} />
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className={cn(
-              "text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent",
-              buyingPowerUsedPct > 80 
-                ? "from-red-400 to-rose-400" 
-                : "from-emerald-400 to-green-400"
-            )}>
-              {buyingPowerUsedPct.toFixed(1)}%
-            </div>
-            <div className={cn(
-              "text-3xl font-bold mt-2",
-              buyingPowerUsedPct > 80 ? "text-red-400" : "text-emerald-400"
-            )}>
-              ${availableBuyingPower.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              available
-            </div>
-            {overLimit > 0 && (
-              <div className="text-xs text-red-400 font-semibold mt-1 flex items-center gap-1">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-                Over Limit: ${overLimit.toFixed(2)}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              </CardContent>
+            </Card>
 
             {/* Order Summary */}
             {selectedOpportunities.size > 0 && (

@@ -3510,10 +3510,11 @@
 - [ ] Add BCS-specific AI explanations to explainScore endpoint
 
 ## CCDashboard UI Updates (Match BPS Structure)
-- [ ] Add Range Filters section with Score/Delta/DTE sliders
-- [ ] Add increment/decrement buttons (Score ±1, Delta ±0.01, DTE ±1)
-- [ ] Remove Conservative/Aggressive/Smart Select quick-select buttons
-- [ ] Add "Select All Filtered" button
+- [x] Add Range Filters section with Score/Delta/DTE sliders
+- [x] Add increment/decrement buttons (Score ±1, Delta ±0.01, DTE ±1)
+- [x] Remove Conservative/Aggressive/Smart Select quick-select buttons
+- [x] Add "Select All Filtered" button
+- [x] Add summary cards (Total Premium, Total Collateral, ROC, Opportunities, Buying Power)
 - [ ] Consolidate score display into single "AI Score" column with breakdown tooltip
 - [ ] Add AI explanation modal (click score badge to see detailed analysis)
 - [ ] Add "Show Technical Columns" toggle for RSI/BB/IV Rank columns
