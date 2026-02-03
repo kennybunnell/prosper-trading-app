@@ -3705,3 +3705,11 @@
 - [x] Identify root cause: invalid_price_increment - price must be in $0.05 increments
 - [x] Fix: Added roundToNickel() helper function to round prices to nearest $0.05
 - [x] Updated order.price to use roundToNickel(leap.premium) instead of toFixed(2)
+
+## PMCC LEAP Purchase Logic Verification
+- [x] Verify tastytrade price increment rules: $0.01 (toFixed(2)), NOT $0.05
+- [x] Review LEAP purchase API implementation: Buy to Open action is CORRECT
+- [x] Confirm order structure: priceEffect="Debit" is CORRECT for buying
+- [x] Document LEAP purchase flow for user validation (explained in detail)
+- [x] Compare with CSP/CC selling logic: CSP/CC use toFixed(2), PMCC should too
+- [x] Fix price increment: Changed from roundToNickel() to toFixed(2)
