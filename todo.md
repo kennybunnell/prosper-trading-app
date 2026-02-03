@@ -3586,3 +3586,12 @@
 ## CSPDashboard UI Consistency Fix
 - [x] Add red "Clear Selection" button to CSPDashboard (half width, side-by-side with green "Select All Filtered" button)
 - [x] Match the exact layout and styling of CCDashboard's selection buttons
+
+## CC Dashboard Fetch Options Feature Parity
+- [x] Add "Fetch Options" section to CC Dashboard (between Watchlist and Scan button)
+- [x] Add Portfolio Size selector (Small/Medium/Large/All buttons)
+- [x] Add Quick Switch toggles (Small Only/Medium Only/Large Only)
+- [x] Add DTE Range inputs (min/max with default 7-30)
+- [x] Replace "Scan Watchlist" button with "Fetch Opportunities" button
+- [x] Implement collapsible behavior after fetch completes
+- [x] Match exact styling and layout of CSP Dashboard Fetch Options

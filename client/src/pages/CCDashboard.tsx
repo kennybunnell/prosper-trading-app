@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -255,6 +256,12 @@ export default function CCDashboard() {
   const [dteRange, setDteRange] = useState<[number, number]>([0, 90]);
   const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
   const [showTechnicalColumns, setShowTechnicalColumns] = useState(true);
+  
+  // Fetch Options state variables
+  const [portfolioSizeFilter, setPortfolioSizeFilter] = useState<Array<'small' | 'medium' | 'large'>>(['small', 'medium', 'large']);
+  const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
+  const [minDte, setMinDte] = useState<number>(7);
+  const [maxDte, setMaxDte] = useState<number>(30);
   
   // Order preview dialog state
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
@@ -1401,35 +1408,222 @@ export default function CCDashboard() {
       {/* Watchlist Section - Only show in Bear Call Spread mode */}
       {strategyType === 'spread' && (
         <div className="space-y-6">
-          <EnhancedWatchlist />
+          <EnhancedWatchlist 
+            isCollapsed={watchlistCollapsed}
+            onToggleCollapse={() => setWatchlistCollapsed(!watchlistCollapsed)}
+          />
           
-          {/* Scan Button for Bear Call Spreads */}
-          <Card className="bg-card/50 backdrop-blur border-orange-500/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Ready to scan watchlist for bear call spread opportunities
-                </p>
-                <Button
+          {/* Fetch Options Section - Only show when watchlist is not collapsed */}
+          {!watchlistCollapsed && (
+            <Card className="bg-card/50 backdrop-blur border-border/50">
+              <CardHeader>
+                <CardTitle>Fetch Options</CardTitle>
+                <CardDescription>Configure and fetch Bear Call Spread opportunities</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Portfolio Size Filter */}
+                <div>
+                  <Label className="mb-2 block flex items-center gap-1">
+                    Portfolio Size
+                  </Label>
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setPortfolioSizeFilter(prev => 
+                          prev.includes('small') 
+                            ? prev.filter(s => s !== 'small')
+                            : [...prev, 'small']
+                        );
+                      }}
+                      className={cn(
+                        "relative overflow-hidden rounded-full px-4 py-2 font-semibold transition-all duration-300",
+                        portfolioSizeFilter.includes('small')
+                          ? "bg-gradient-to-r from-emerald-500 via-emerald-600 to-green-600 text-white shadow-lg shadow-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/60 hover:scale-110"
+                          : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-500/50 hover:scale-105"
+                      )}
+                    >
+                      <span className="relative z-10 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                        Small
+                      </span>
+                      {portfolioSizeFilter.includes('small') && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                      )}
+                    </Button>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setPortfolioSizeFilter(prev => 
+                          prev.includes('medium') 
+                            ? prev.filter(s => s !== 'medium')
+                            : [...prev, 'medium']
+                        );
+                      }}
+                      className={cn(
+                        "relative overflow-hidden rounded-full px-4 py-2 font-semibold transition-all duration-300",
+                        portfolioSizeFilter.includes('medium')
+                          ? "bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-lg shadow-amber-500/50 hover:shadow-xl hover:shadow-amber-500/60 hover:scale-110"
+                          : "bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-105"
+                      )}
+                    >
+                      <span className="relative z-10 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse" />
+                        Medium
+                      </span>
+                      {portfolioSizeFilter.includes('medium') && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                      )}
+                    </Button>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setPortfolioSizeFilter(prev => 
+                          prev.includes('large') 
+                            ? prev.filter(s => s !== 'large')
+                            : [...prev, 'large']
+                        );
+                      }}
+                      className={cn(
+                        "relative overflow-hidden rounded-full px-4 py-2 font-semibold transition-all duration-300",
+                        portfolioSizeFilter.includes('large')
+                          ? "bg-gradient-to-r from-rose-500 via-rose-600 to-red-600 text-white shadow-lg shadow-rose-500/50 hover:shadow-xl hover:shadow-rose-500/60 hover:scale-110"
+                          : "bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20 hover:border-rose-500/50 hover:scale-105"
+                      )}
+                    >
+                      <span className="relative z-10 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-rose-300 animate-pulse" />
+                        Large
+                      </span>
+                      {portfolioSizeFilter.includes('large') && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                      )}
+                    </Button>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPortfolioSizeFilter(['small', 'medium', 'large'])}
+                      className="rounded-full px-4 py-2 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200 hover:scale-105"
+                    >
+                      All
+                    </Button>
+                  </div>
+                  
+                  {/* Quick Switch & Refetch */}
+                  <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-border/50">
+                    <span className="text-xs text-muted-foreground self-center font-semibold">Quick Switch:</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setPortfolioSizeFilter(['small']);
+                        toast.success('Switched to Small portfolio size');
+                        setTimeout(() => {
+                          scanOpportunities();
+                          setWatchlistCollapsed(true);
+                        }, 100);
+                      }}
+                      disabled={isScanning}
+                      className="relative overflow-hidden rounded-full px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-500/50 hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="relative z-10 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                        Small Only
+                      </span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setPortfolioSizeFilter(['medium']);
+                        toast.success('Switched to Medium portfolio size');
+                        setTimeout(() => {
+                          scanOpportunities();
+                          setWatchlistCollapsed(true);
+                        }, 100);
+                      }}
+                      disabled={isScanning}
+                      className="relative overflow-hidden rounded-full px-4 py-2 bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="relative z-10 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-400" />
+                        Medium Only
+                      </span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setPortfolioSizeFilter(['large']);
+                        toast.success('Switched to Large portfolio size');
+                        setTimeout(() => {
+                          scanOpportunities();
+                          setWatchlistCollapsed(true);
+                        }, 100);
+                      }}
+                      disabled={isScanning}
+                      className="relative overflow-hidden rounded-full px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20 hover:border-rose-500/50 hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="relative z-10 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-rose-400" />
+                        Large Only
+                      </span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* DTE Range Filter */}
+                <div className="flex items-center gap-4">
+                  <Label>DTE Range:</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Min"
+                      value={minDte}
+                      onChange={(e) => setMinDte(Number(e.target.value))}
+                      className="w-20"
+                    />
+                    <span>to</span>
+                    <Input
+                      type="number"
+                      placeholder="Max"
+                      value={maxDte}
+                      onChange={(e) => setMaxDte(Number(e.target.value))}
+                      className="w-20"
+                    />
+                  </div>
+                </div>
+
+                {/* Fetch Button */}
+                <Button 
+                  onClick={() => {
+                    scanOpportunities();
+                    setWatchlistCollapsed(true);
+                  }} 
                   disabled={isScanning}
-                  onClick={scanOpportunities}
-                  className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
+                  className="w-full bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
                 >
                   {isScanning ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Scanning...
+                      Fetching Opportunities...
                     </>
                   ) : (
                     <>
-                      <TrendingUp className="w-4 h-4 mr-2" />
-                      Scan Watchlist for Bear Call Spreads
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Fetch Opportunities
                     </>
                   )}
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
           
           {/* Scanning Progress Dialog */}
           <Dialog open={isScanning} onOpenChange={(open) => {
