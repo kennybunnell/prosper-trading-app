@@ -368,3 +368,255 @@ export function selectBestPerTicker(
 
   return best;
 }
+
+/**
+ * Bull Put Spread Scoring System
+ * Adapted from CSP scoring with spread-specific adjustments
+ */
+
+import type { BullPutSpreadOpportunity } from './spread-pricing';
+
+export interface BPSScoredOpportunity extends BullPutSpreadOpportunity {
+  score: number;
+  scoreBreakdown: ScoreBreakdown;
+}
+
+/**
+ * Calculate Bull Put Spread Composite Score (0-100) with detailed breakdown
+ * 
+ * Weights:
+ * - Technical Setup (40%): RSI (20) + BB %B (20) - Same as CSP
+ * - Greeks & Spread Efficiency (30%): Short Delta (10) + Spread Efficiency (10) + DTE (5) + IV Rank (5)
+ * - Premium Quality (20%): Credit/Width Ratio (15) + Bid-Ask Spread (5)
+ * - Overall Quality (10%): Liquidity Both Legs (5) + Stock Quality (5)
+ */
+export function calculateBPSScore(opp: BullPutSpreadOpportunity): { score: number; breakdown: ScoreBreakdown } {
+  let technicalScore = 0;
+  let greeksScore = 0;
+  let premiumScore = 0;
+  let qualityScore = 0;
+
+  // ===== TECHNICAL SETUP (40 points) - SAME AS CSP =====
+  
+  // RSI - Oversold Indicator (20 points)
+  const rsi = opp.rsi;
+  if (rsi !== null && rsi !== undefined) {
+    if (rsi < 25) {
+      technicalScore += 20;
+    } else if (rsi < 30) {
+      technicalScore += 18;
+    } else if (rsi < 35) {
+      technicalScore += 15;
+    } else if (rsi < 40) {
+      technicalScore += 12;
+    } else if (rsi < 50) {
+      technicalScore += 8;
+    } else if (rsi < 60) {
+      technicalScore += 4;
+    }
+  } else {
+    technicalScore += 10;
+  }
+
+  // Bollinger Band %B (20 points)
+  const bb = opp.bbPctB;
+  if (bb !== null && bb !== undefined) {
+    if (bb < 0) {
+      technicalScore += 20;
+    } else if (bb < 0.15) {
+      technicalScore += 18;
+    } else if (bb < 0.30) {
+      technicalScore += 15;
+    } else if (bb < 0.50) {
+      technicalScore += 10;
+    } else if (bb < 0.70) {
+      technicalScore += 5;
+    }
+  } else {
+    technicalScore += 10;
+  }
+
+  // ===== GREEKS & SPREAD EFFICIENCY (30 points) =====
+  
+  // Short Leg Delta - Primary Risk Indicator (10 points)
+  // For spreads, we still want the short leg in the 0.20-0.30 range
+  // The long leg provides protection, but short leg delta drives assignment risk
+  const shortDelta = Math.abs(opp.delta || 0); // opp.delta is the net spread delta, but we need original short delta
+  // Note: In BullPutSpreadOpportunity, the delta field represents net delta
+  // We need to access the original CSP delta before spread calculation
+  // For now, using net delta as proxy - ideally we'd store shortDelta separately
+  if (shortDelta >= 0.20 && shortDelta <= 0.29) {
+    greeksScore += 10;
+  } else if ((shortDelta >= 0.15 && shortDelta < 0.20) || (shortDelta > 0.29 && shortDelta <= 0.35)) {
+    greeksScore += 8;
+  } else if ((shortDelta >= 0.10 && shortDelta < 0.15) || (shortDelta > 0.35 && shortDelta <= 0.40)) {
+    greeksScore += 5;
+  } else if (shortDelta > 0 && shortDelta < 0.10) {
+    greeksScore += 2;
+  } else if (shortDelta > 0.40) {
+    greeksScore += 2;
+  }
+
+  // Spread Efficiency - Delta Separation & Width (10 points)
+  // Ideal: Long leg provides meaningful protection (delta separation)
+  // Good spread: long delta is 0.10-0.15 less than short delta
+  // Width efficiency: narrower spreads (2-5 pts) score higher than wide (10 pts)
+  const longDelta = Math.abs(opp.longDelta || 0);
+  const deltaSeparation = Math.abs(shortDelta - longDelta);
+  const spreadWidth = opp.spreadWidth;
+  
+  // Delta separation scoring (5 points)
+  if (deltaSeparation >= 0.10 && deltaSeparation <= 0.20) {
+    greeksScore += 5; // Ideal protection
+  } else if (deltaSeparation >= 0.05 && deltaSeparation < 0.10) {
+    greeksScore += 3; // Some protection
+  } else if (deltaSeparation >= 0.20 && deltaSeparation <= 0.30) {
+    greeksScore += 3; // More protection, less premium
+  } else {
+    greeksScore += 1; // Too close or too far
+  }
+  
+  // Width efficiency scoring (5 points)
+  if (spreadWidth <= 2) {
+    greeksScore += 5; // Tight spread - capital efficient
+  } else if (spreadWidth <= 5) {
+    greeksScore += 4; // Standard spread
+  } else if (spreadWidth <= 10) {
+    greeksScore += 2; // Wide spread - more capital at risk
+  } else {
+    greeksScore += 1; // Very wide - inefficient
+  }
+
+  // DTE - Time Decay Optimization (5 points)
+  const dte = opp.dte;
+  if (dte >= 7 && dte <= 10) {
+    greeksScore += 5;
+  } else if (dte >= 11 && dte <= 14) {
+    greeksScore += 4;
+  } else if (dte >= 15 && dte <= 21) {
+    greeksScore += 3;
+  } else if (dte >= 22 && dte <= 30) {
+    greeksScore += 2;
+  } else {
+    greeksScore += 1;
+  }
+
+  // IV Rank - Premium Environment (5 points)
+  const iv = opp.ivRank;
+  if (iv !== null && iv !== undefined) {
+    if (iv > 70) {
+      greeksScore += 5;
+    } else if (iv > 50) {
+      greeksScore += 4;
+    } else if (iv > 30) {
+      greeksScore += 3;
+    } else if (iv > 15) {
+      greeksScore += 2;
+    } else {
+      greeksScore += 1;
+    }
+  } else {
+    greeksScore += 2;
+  }
+
+  // ===== PREMIUM QUALITY (20 points) =====
+  
+  // Credit/Width Ratio - Risk/Reward Efficiency (15 points)
+  // Target: 25-40% of spread width as credit (industry standard for quality spreads)
+  // Example: $5 wide spread, target $1.25-$2.00 credit
+  const creditWidthRatio = opp.spreadWidth > 0 ? (opp.netCredit / opp.spreadWidth) * 100 : 0;
+  
+  if (creditWidthRatio >= 35) {
+    premiumScore += 15; // Excellent - high premium capture
+  } else if (creditWidthRatio >= 30) {
+    premiumScore += 13; // Very good - 30%+ is strong
+  } else if (creditWidthRatio >= 25) {
+    premiumScore += 11; // Good - meets minimum target
+  } else if (creditWidthRatio >= 20) {
+    premiumScore += 8; // Acceptable - below target
+  } else if (creditWidthRatio >= 15) {
+    premiumScore += 4; // Thin - marginal
+  }
+  // < 15% = 0 points (not worth the risk)
+
+  // Combined Bid-Ask Spread % (5 points)
+  // For spreads, we need tight markets on BOTH legs
+  // spreadPct is already calculated in spread-pricing.ts
+  const spread = opp.spreadPct;
+  if (spread !== null && spread !== undefined) {
+    if (spread <= 5) {
+      premiumScore += 5; // Tight on both legs
+    } else if (spread <= 10) {
+      premiumScore += 4; // Normal
+    } else if (spread <= 15) {
+      premiumScore += 2; // Wide - harder to fill
+    }
+    // > 15% = 0 points (illiquid)
+  } else {
+    premiumScore += 2;
+  }
+
+  // ===== OVERALL QUALITY (10 points) =====
+  
+  // Liquidity on Both Legs (5 points)
+  // Both short and long need sufficient OI + volume
+  // Using short leg OI/volume as proxy (long leg typically has similar liquidity)
+  const oi = opp.openInterest;
+  const vol = opp.volume || 0;
+  
+  if (oi >= 100 && vol >= 50) {
+    qualityScore += 5; // Excellent liquidity
+  } else if (oi >= 50 && vol >= 25) {
+    qualityScore += 4; // Good liquidity
+  } else if (oi >= 20 && vol >= 10) {
+    qualityScore += 3; // Acceptable liquidity
+  } else if (oi >= 10) {
+    qualityScore += 1; // Minimal liquidity
+  }
+
+  // Stock Quality (5 points)
+  // Mag 7 + volume (assignment risk matters for spreads too)
+  const mag7 = ['AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA'];
+  if (mag7.includes(opp.symbol)) {
+    qualityScore += 3; // Mag 7 bonus
+  }
+  
+  if (vol > 1000000) {
+    qualityScore += 2; // High volume
+  } else if (vol > 500000) {
+    qualityScore += 1;
+  }
+
+  // Calculate total score
+  const totalScore = Math.round(technicalScore + greeksScore + premiumScore + qualityScore);
+
+  return {
+    score: totalScore,
+    breakdown: {
+      technical: Math.round(technicalScore),
+      greeks: Math.round(greeksScore),
+      premium: Math.round(premiumScore),
+      quality: Math.round(qualityScore),
+      total: totalScore,
+    },
+  };
+}
+
+/**
+ * Score all BPS opportunities and sort by score descending
+ */
+export function scoreBPSOpportunities(opportunities: BullPutSpreadOpportunity[]): BPSScoredOpportunity[] {
+  const scored = opportunities.map((opp) => {
+    const { score, breakdown } = calculateBPSScore(opp);
+    return {
+      ...opp,
+      score,
+      scoreBreakdown: breakdown,
+    };
+  });
+
+  // Sort by score descending
+  scored.sort((a, b) => b.score - a.score);
+
+  return scored;
+}

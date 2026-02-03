@@ -2080,15 +2080,21 @@ export default function CSPDashboard() {
                                         <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/40</span>
                                       </div>
                                       <div className="flex justify-between">
-                                        <span className="text-gray-400">Greeks (Δ+DTE+IV):</span>
+                                        <span className="text-gray-400">
+                                          {strategyType === 'spread' ? 'Greeks (Δ+Width+DTE+IV):' : 'Greeks (Δ+DTE+IV):'}
+                                        </span>
                                         <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
                                       </div>
                                       <div className="flex justify-between">
-                                        <span className="text-gray-400">Premium (Return+Spread):</span>
+                                        <span className="text-gray-400">
+                                          {strategyType === 'spread' ? 'Premium (Credit/Width):' : 'Premium (Return+Spread):'}
+                                        </span>
                                         <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/20</span>
                                       </div>
                                       <div className="flex justify-between">
-                                        <span className="text-gray-400">Quality (Mag7+Cap):</span>
+                                        <span className="text-gray-400">
+                                          {strategyType === 'spread' ? 'Quality (Liquidity+Stock):' : 'Quality (Mag7+Cap):'}
+                                        </span>
                                         <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
                                       </div>
                                     </>

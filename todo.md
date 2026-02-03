@@ -3495,3 +3495,17 @@
 
 ## Restore Clear Selection Button
 - [x] Add red "Clear Selection" button next to the green "Select All Filtered" button
+
+## Bull Put Spread Scoring Logic
+- [x] Review CSP scoring algorithm to understand component weights and thresholds
+- [x] Design BPS scoring algorithm with four components:
+  - [x] Technical Score (40pts): Same as CSP - RSI + BB for oversold conditions
+  - [x] Greeks Score (30pts): Short leg delta (10) + spread efficiency (10) + DTE (5) + IV Rank (5)
+  - [x] Premium Quality Score (20pts): Credit/width ratio (15) + bid-ask spread (5)
+  - [x] Overall Quality Score (10pts): Liquidity both legs (5) + stock quality (5)
+- [x] Implement calculateBPSScore() function in server/scoring.ts
+- [x] Add BPSScoredOpportunity interface with scoreBreakdown
+- [x] Update spread router to use BPS scoring instead of CSP scoring
+- [x] Update frontend to display BPS scores with color coding and strategy-specific tooltip labels
+- [x] AI explanation already works (uses same explainScore endpoint)
+- [x] Test BPS scoring - ready for real market data

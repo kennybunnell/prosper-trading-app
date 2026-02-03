@@ -1481,8 +1481,9 @@ Summary: [One sentence overall assessment]`;
           }
         }
 
-        // Score spread opportunities (reuse CSP scoring logic)
-        const scored = scoreOpportunities(spreadOpportunities);
+        // Score spread opportunities with BPS-specific logic
+        const { scoreBPSOpportunities } = await import('./scoring');
+        const scored = scoreBPSOpportunities(spreadOpportunities);
 
         return scored;
       }),
