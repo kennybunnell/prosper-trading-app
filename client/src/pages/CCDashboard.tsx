@@ -2731,7 +2731,7 @@ export default function CCDashboard() {
                                 bbPctB: opp.bbPctB,
                                 ivRank: opp.ivRank,
                                 score: opp.score,
-                                scoreBreakdown: (opp as any).scoreBreakdown || { technical: 0, greeks: 0, premiumQuality: 0, stockQuality: 0 },
+                                scoreBreakdown: (opp as any).scoreBreakdown || { technical: 0, greeks: 0, premium: 0, quality: 0, total: 0 },
                               });
                             }}
                             disabled={analyzingRowKey === getOpportunityKey(opp)}

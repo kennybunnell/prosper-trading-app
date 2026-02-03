@@ -3640,3 +3640,17 @@
 - [x] Show success/failure toasts with emojis and counts
 - [x] Add longer duration for error/warning messages (6 seconds)
 - [x] Dismiss progress toast on error or success
+
+## Bug Fix: AI Score Explanation for CC/BCS Strategies
+- [ ] Investigate CC/BCS scoring structure and identify actual score breakdown fields
+- [ ] Update AI explanation endpoint schema to handle CC/BCS score breakdown
+- [ ] Fix score breakdown mapping in CC/BCS opportunities
+- [ ] Test AI explanation with CC/BCS opportunities
+- [ ] Ensure AI explanation works for both Covered Calls and Bear Call Spreads
+
+## Bug Fix: AI Score Explanation for CC/BCS Strategies - COMPLETED
+- [x] Investigate CC/BCS scoring structure and identify actual score breakdown fields
+- [x] Update AI explanation endpoint schema to handle CC/BCS score breakdown
+- [x] Fix score breakdown mapping in CC/BCS opportunities (fixed fallback object with correct field names)
+- [x] Test AI explanation with CC/BCS opportunities
+- [x] Ensure AI explanation works for both Covered Calls and Bear Call Spreads
