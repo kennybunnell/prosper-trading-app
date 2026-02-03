@@ -3595,3 +3595,17 @@
 - [x] Replace "Scan Watchlist" button with "Fetch Opportunities" button
 - [x] Implement collapsible behavior after fetch completes
 - [x] Match exact styling and layout of CSP Dashboard Fetch Options
+
+## CSP Dashboard Statistics Panel Parity
+- [ ] Add "All Opportunities" statistics panel to CSP Dashboard (before Range Filters section)
+- [ ] Panel should show Total Premium, Total Collateral, ROC %, Opportunities count, Buying Power
+- [ ] Data should reflect ALL fetched opportunities (unfiltered, before user selection)
+- [ ] Keep existing statistics panel below Range Filters (shows selected opportunities only)
+- [ ] Match exact styling and layout of CC Dashboard's statistics panels
+
+## CSP Dashboard Statistics Panel Parity
+- [x] Add "All Opportunities" statistics panel to CSP Dashboard (before Range Filters)
+- [x] Panel shows: Total Premium, Total Collateral, ROC %, Opportunities count, Buying Power
+- [x] Panel displays data for ALL fetched opportunities (unfiltered)
+- [x] Match exact styling and layout of CC Dashboard's first statistics panel
+- [x] Keep existing "Selected Opportunities" panel below Range Filters unchanged

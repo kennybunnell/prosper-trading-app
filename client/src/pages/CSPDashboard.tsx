@@ -1473,6 +1473,181 @@ export default function CSPDashboard() {
       )}
 
 
+      {/* Summary Cards - Show totals for ALL opportunities (before filtering) */}
+      {opportunities.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 to-yellow-500/5 backdrop-blur border-amber-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent" />
+            <CardHeader className="pb-2 relative">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-green-500/20">
+                  <DollarSign className="w-4 h-4 text-amber-400" />
+                </div>
+                <span className="text-muted-foreground">Total Premium</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="relative">
+              <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
+                ${opportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0).toFixed(2)}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="relative overflow-hidden bg-gradient-to-br from-slate-500/10 to-gray-500/5 backdrop-blur border-slate-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-500/5 to-transparent" />
+            <CardHeader className="pb-2 relative">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-blue-500/20">
+                  <Target className="w-4 h-4 text-slate-400" />
+                </div>
+                <span className="text-muted-foreground">Total Collateral</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="relative">
+              <div className="text-3xl font-bold bg-gradient-to-r from-slate-400 to-gray-400 bg-clip-text text-transparent">
+                ${(() => {
+                  const collateral = strategyType === 'spread'
+                    ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                  return collateral.toFixed(2);
+                })()}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="relative overflow-hidden bg-gradient-to-br from-amber-600/10 to-orange-600/5 backdrop-blur border-amber-600/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-600/5 to-transparent" />
+            <CardHeader className="pb-2 relative">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-purple-500/20">
+                  <TrendingUp className="w-4 h-4 text-amber-400" />
+                </div>
+                <span className="text-muted-foreground">ROC</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="relative">
+              <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
+                {(() => {
+                  const totalPrem = opportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
+                  const totalColl = strategyType === 'spread'
+                    ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                  const roc = totalColl > 0 ? (totalPrem / totalColl) * 100 : 0;
+                  return roc.toFixed(2);
+                })()}%
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="relative overflow-hidden bg-gradient-to-br from-yellow-600/10 to-amber-700/5 backdrop-blur border-yellow-600/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+            <div className="absolute inset-0 bg-gradient-to-br from-yellow-600/5 to-transparent" />
+            <CardHeader className="pb-2 relative">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-orange-500/20">
+                  <Target className="w-4 h-4 text-yellow-400" />
+                </div>
+                <span className="text-muted-foreground">Opportunities</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="relative">
+              <div className="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">
+                {opportunities.length}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={cn(
+            "relative overflow-hidden backdrop-blur shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]",
+            (() => {
+              const totalColl = strategyType === 'spread'
+                ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+              const availableBP = availableBuyingPower;
+              const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
+              return usedPct > 80 
+                ? "bg-gradient-to-br from-red-500/10 to-rose-500/5 border-red-500/20" 
+                : "bg-gradient-to-br from-emerald-500/10 to-green-500/5 border-emerald-500/20";
+            })()
+          )}>
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent" />
+            <CardHeader className="pb-2 relative">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <div className={cn(
+                  "p-2 rounded-lg",
+                  (() => {
+                    const totalColl = strategyType === 'spread'
+                      ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                      : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                    const availableBP = availableBuyingPower;
+                    const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
+                    return usedPct > 80 ? "bg-red-500/20" : "bg-emerald-500/20";
+                  })()
+                )}>
+                  <TrendingUp className={cn(
+                    "w-4 h-4",
+                    (() => {
+                      const totalColl = strategyType === 'spread'
+                        ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                        : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                      const availableBP = availableBuyingPower;
+                      const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
+                      return usedPct > 80 ? "text-red-400" : "text-emerald-400";
+                    })()
+                  )} />
+                </div>
+                <span className="text-muted-foreground flex items-center gap-1">
+                  Buying Power
+                  <HelpBadge content={HELP_CONTENT.BUYING_POWER_USAGE} />
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="relative">
+              <div className={cn(
+                "text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent",
+                (() => {
+                  const totalColl = strategyType === 'spread'
+                    ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                  const availableBP = availableBuyingPower;
+                  const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
+                  return usedPct > 80 
+                    ? "from-red-400 to-rose-400" 
+                    : "from-emerald-400 to-green-400";
+                })()
+              )}>
+                {(() => {
+                  const totalColl = strategyType === 'spread'
+                    ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                  const availableBP = availableBuyingPower;
+                  const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
+                  return usedPct.toFixed(1);
+                })()}%
+              </div>
+              <div className={cn(
+                "text-3xl font-bold mt-2",
+                (() => {
+                  const totalColl = strategyType === 'spread'
+                    ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                  const availableBP = availableBuyingPower;
+                  const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
+                  return usedPct > 80 ? "text-red-400" : "text-emerald-400";
+                })()
+              )}>
+                ${(() => {
+                  const availableBP = availableBuyingPower;
+                  return availableBP.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                })()}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                available
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Filters */}
       <Card className="bg-card/50 backdrop-blur border-border/50" data-section="filters">
         <CardHeader>
