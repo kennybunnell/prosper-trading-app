@@ -3713,3 +3713,11 @@
 - [x] Document LEAP purchase flow for user validation (explained in detail)
 - [x] Compare with CSP/CC selling logic: CSP/CC use toFixed(2), PMCC should too
 - [x] Fix price increment: Changed from roundToNickel() to toFixed(2)
+
+## PMCC LEAP Purchase Dry Run Failure Debugging (After Price Fix)
+- [x] Check server logs: Still showing "Price must be in increments of $0.05"
+- [x] Research tastytrade price increment rules from official documentation
+- [x] Identify root cause: Standard options use $0.05 (<$3) or $0.10 (≥$3) increments
+- [x] Implement smart rounding function based on price and symbol type
+- [x] Add comprehensive console logging for debugging (original premium, rounded price, errors)
+- [x] Ready for user testing with detailed console output

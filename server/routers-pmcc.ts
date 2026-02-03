@@ -429,6 +429,25 @@ export const pmccRouter = router({
         });
       }
 
+      // Helper function to round price to correct increment based on tastytrade rules
+      const roundToCorrectIncrement = (price: number, symbol: string): string => {
+        // ETFs (SPY, QQQ, IWM) always use $0.01 increments
+        const etfs = ['SPY', 'QQQ', 'IWM'];
+        if (etfs.includes(symbol.toUpperCase())) {
+          return price.toFixed(2);
+        }
+        
+        // Standard options: <$3 = $0.05, ≥$3 = $0.10
+        // (Penny Pilot: <$3 = $0.01, ≥$3 = $0.05, but we don't have the list)
+        if (price < 3.00) {
+          // Use $0.05 for standard options <$3
+          return (Math.round(price / 0.05) * 0.05).toFixed(2);
+        } else {
+          // Use $0.10 for standard options ≥$3
+          return (Math.round(price / 0.10) * 0.10).toFixed(2);
+        }
+      };
+
       // Submit orders (or dry run)
       const results = [];
       for (const leap of input.leaps) {
@@ -438,11 +457,14 @@ export const pmccRouter = router({
           const strikeStr = (leap.strike * 1000).toFixed(0).padStart(8, "0");
           const optionSymbol = `${leap.symbol.padEnd(6)}${expDate}C${strikeStr}`;
 
+          const roundedPrice = roundToCorrectIncrement(leap.premium, leap.symbol);
+          console.log(`[PMCC Order] Symbol: ${leap.symbol}, Original Premium: $${leap.premium.toFixed(2)}, Rounded Price: $${roundedPrice}`);
+          
           const order = {
             accountNumber,
             timeInForce: "Day" as const,
             orderType: "Limit" as const,
-            price: leap.premium.toFixed(2),
+            price: roundedPrice,
             priceEffect: "Debit" as const,
             legs: [
               {
@@ -472,10 +494,11 @@ export const pmccRouter = router({
             });
           }
         } catch (error: any) {
+          console.error(`[PMCC Order Error] Symbol: ${leap.symbol}`, error.response?.data || error.message);
           results.push({
             symbol: leap.symbol,
             status: "failed",
-            message: error.message || "Order submission failed",
+            message: error.response?.data?.error?.message || error.message || "Order submission failed",
             orderId: null,
           });
         }
