@@ -39,6 +39,7 @@ import {
   HelpCircle,
   X,
   Download,
+  Sparkles,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 
@@ -2116,7 +2117,7 @@ export default function CSPDashboard() {
                             {analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}` ? (
                               <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
                             ) : (
-                              <span className="text-purple-500">ℹ️</span>
+                              <Sparkles className="w-4 h-4 text-purple-500" />
                             )}
                           </Button>
                         </TableCell>

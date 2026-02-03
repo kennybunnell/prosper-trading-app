@@ -3559,3 +3559,11 @@
 - [x] Fix "Cannot access 'filteredOpportunities' before initialization" error
 - [x] Reorder variable declarations to ensure proper initialization sequence
 - [x] Test CCDashboard loads without errors
+
+## Align Score/AI Columns Across All Dashboards
+- [x] Compare Score/AI column structure in CSP/BPS vs CC/BCS dashboards
+- [x] Update CSPDashboard Score/AI columns to match CC dashboard layout
+- [x] Add purple Sparkles AI icon to CSP opportunities table
+- [x] Add purple Sparkles AI icon to BPS opportunities table (same table as CSP)
+- [ ] Ensure consistent Score badge styling across all dashboards
+- [ ] Test AI explanation modal on all dashboards
