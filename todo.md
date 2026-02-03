@@ -3553,3 +3553,8 @@
   - [ ] Ensure Select All Filtered and Clear Selection buttons work
   - [ ] Update explainScore call to pass strategy='cc'
 - [ ] Test CC scoring with real stock positions and save checkpoint
+
+## Fix CCDashboard Runtime Error
+- [x] Fix "Cannot read properties of undefined (reading 'filter')" error in CCDashboard
+- [x] Add proper null/undefined checks for getEligiblePositions query data
+- [x] Ensure scanOpportunities mutation result is properly handled

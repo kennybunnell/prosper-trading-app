@@ -1545,8 +1545,20 @@ Summary: [One sentence overall assessment]`;
         })
       )
       .query(async ({ input, ctx }) => {
-        // TODO: Implement fetching stock positions for CC
-        return [];
+        // TODO: Implement fetching stock positions for CC from Tastytrade
+        // For now, return empty structure to prevent runtime errors
+        return {
+          holdings: [],
+          breakdown: {
+            totalPositions: 0,
+            stockPositions: 0,
+            existingShortCalls: 0,
+            eligiblePositions: 0,
+            eligibleContracts: 0,
+            coveredSymbols: [],
+            shortCallDetails: [],
+          },
+        };
       }),
   }),
 
