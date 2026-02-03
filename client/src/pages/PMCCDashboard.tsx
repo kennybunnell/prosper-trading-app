@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign, Download, RefreshCw, Plus, Minus } from "lucide-react";
+import { Label } from '@/components/ui/label';
+import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign, Download, RefreshCw, Plus, Minus, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { HelpBadge } from "@/components/HelpBadge";
@@ -138,13 +139,14 @@ export default function PMCCDashboard() {
   const [showOrderPreview, setShowOrderPreview] = useState(false);
   const [isDryRun, setIsDryRun] = useState(true);
   const [isSubmittingOrders, setIsSubmittingOrders] = useState(false);
-  const [showScoreExplanation, setShowScoreExplanation] = useState(false);
-  const [selectedLeapForExplanation, setSelectedLeapForExplanation] = useState<any>(null);
+  const [analyzingRowKey, setAnalyzingRowKey] = useState<string | null>(null);
+  const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<any>(null);
+  const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
   
   // Range filter states (using range arrays like CSP/CC dashboards)
-  const [scoreFilter, setScoreFilter] = useState({ min: 0, max: 100 });
-  const [deltaFilter, setDeltaFilter] = useState({ min: 0.70, max: 0.85 });
-  const [dteFilter, setDteFilter] = useState({ min: 270, max: 450 });
+  const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
+  const [deltaRange, setDeltaRange] = useState<[number, number]>([0.70, 0.85]);
+  const [dteRange, setDteRange] = useState<[number, number]>([270, 450]);
 
   // No longer using database presets - using direct range filters instead
   
@@ -214,6 +216,19 @@ export default function PMCCDashboard() {
     },
   });
 
+  // Explain score mutation
+  const explainScore = trpc.pmcc.explainScore.useMutation({
+    onSuccess: (data) => {
+      setSelectedAiAnalysis(data);
+      setShowAiAnalysisModal(true);
+      setAnalyzingRowKey(null);
+    },
+    onError: (error) => {
+      toast.error(`Failed to explain score: ${error.message}`);
+      setAnalyzingRowKey(null);
+    },
+  });
+
   const handleScanLeaps = () => {
     // Check if any symbols are selected
     if (selectedSymbols.length === 0) {
@@ -277,14 +292,14 @@ export default function PMCCDashboard() {
     // Apply range filters
     filtered = filtered.filter(leap => {
       // Score filter
-      if (leap.score < scoreFilter.min || leap.score > scoreFilter.max) return false;
+      if (leap.score < scoreRange[0] || leap.score > scoreRange[1]) return false;
       
       // DTE filter
-      if (leap.dte < dteFilter.min || leap.dte > dteFilter.max) return false;
+      if (leap.dte < dteRange[0] || leap.dte > dteRange[1]) return false;
       
       // Delta filter (use absolute value)
       const delta = Math.abs(leap.delta);
-      if (delta < deltaFilter.min || delta > deltaFilter.max) return false;
+      if (delta < deltaRange[0] || delta > deltaRange[1]) return false;
       
       return true;
     });
@@ -312,7 +327,7 @@ export default function PMCCDashboard() {
     });
     
     return filtered;
-  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection, scoreFilter, dteFilter, deltaFilter]);
+  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection, scoreRange, dteRange, deltaRange]);
 
   // Calculate order summary
   const orderSummary = useMemo(() => {
@@ -399,190 +414,230 @@ export default function PMCCDashboard() {
                 )}
               </Button>
 
-              {/* Preset Selection - shown after scan */}
+              {/* Range Filters - shown after scan */}
               {scanLeapsMutation.data && scanLeapsMutation.data.opportunities.length > 0 && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Range Filters</label>
-                    <div className="space-y-3">
-                      {/* Score Filter */}
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-muted-foreground w-16">Score:</label>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setScoreFilter(prev => ({ ...prev, min: Math.max(0, prev.min - 1) }))}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <input
-                            type="number"
-                            value={scoreFilter.min}
-                            onChange={(e) => setScoreFilter(prev => ({ ...prev, min: Math.max(0, parseInt(e.target.value) || 0) }))}
-                            className="w-16 px-2 py-1 text-sm border rounded bg-background text-center"
-                            min="0"
-                            max="100"
-                          />
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setScoreFilter(prev => ({ ...prev, min: Math.min(100, prev.min + 1) }))}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle className="text-base">Filters</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Range Filters */}
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Label className="text-base font-semibold">Range Filters</Label>
+                        <span className="text-xs text-muted-foreground">(Adjust sliders to filter opportunities)</span>
+                      </div>
+                      {/* Score Range - PRIMARY FILTER */}
+                      <div className="space-y-2 p-4 bg-purple-500/5 border border-purple-500/20 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-semibold text-purple-400">Score (Primary Filter)</Label>
+                          <span className="text-xs text-muted-foreground">{scoreRange[0]} - {scoreRange[1]}</span>
                         </div>
-                        <span className="text-muted-foreground">to</span>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setScoreFilter(prev => ({ ...prev, max: Math.max(0, prev.max - 1) }))}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
+                        <div className="flex items-center gap-4">
                           <input
                             type="number"
-                            value={scoreFilter.max}
-                            onChange={(e) => setScoreFilter(prev => ({ ...prev, max: Math.min(100, parseInt(e.target.value) || 100) }))}
-                            className="w-16 px-2 py-1 text-sm border rounded bg-background text-center"
+                            value={scoreRange[0]}
+                            onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])}
+                            className="w-16 px-2 py-1 text-sm border rounded bg-background"
                             min="0"
                             max="100"
                           />
+                          <div className="flex-1 flex items-center gap-2">
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              step="1"
+                              value={scoreRange[0]}
+                              onChange={(e) => setScoreRange([parseInt(e.target.value), scoreRange[1]])}
+                              className="flex-1 h-2 accent-purple-500"
+                            />
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              step="1"
+                              value={scoreRange[1]}
+                              onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value)])}
+                              className="flex-1 h-2 accent-purple-500"
+                            />
+                          </div>
+                          <input
+                            type="number"
+                            value={scoreRange[1]}
+                            onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])}
+                            className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                            min="0"
+                            max="100"
+                          />
+                        </div>
+                        <div className="flex gap-2 mt-2">
                           <Button
                             variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setScoreFilter(prev => ({ ...prev, max: Math.min(100, prev.max + 1) }))}
+                            size="sm"
+                            onClick={() => setScoreRange([70, 100])}
+                            className="text-xs"
                           >
-                            <Plus className="h-3 w-3" />
+                            Conservative (≥70)
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setScoreRange([65, 100])}
+                            className="text-xs"
+                          >
+                            Aggressive (≥65)
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setScoreRange([0, 100])}
+                            className="text-xs"
+                          >
+                            All
                           </Button>
                         </div>
                       </div>
 
-                      {/* Delta Filter */}
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-muted-foreground w-16">Delta:</label>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setDeltaFilter(prev => ({ ...prev, min: Math.max(0, prev.min - 0.01) }))}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <input
-                            type="number"
-                            value={deltaFilter.min}
-                            onChange={(e) => setDeltaFilter(prev => ({ ...prev, min: Math.max(0, parseFloat(e.target.value) || 0) }))}
-                            className="w-16 px-2 py-1 text-sm border rounded bg-background text-center"
-                            step="0.01"
-                            min="0"
-                            max="1"
-                          />
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setDeltaFilter(prev => ({ ...prev, min: Math.min(1, prev.min + 0.01) }))}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
+                      {/* Delta Range */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">Delta (Δ)</Label>
+                          <span className="text-xs text-muted-foreground">{deltaRange[0].toFixed(2)} - {deltaRange[1].toFixed(2)}</span>
                         </div>
-                        <span className="text-muted-foreground">to</span>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setDeltaFilter(prev => ({ ...prev, max: Math.max(0, prev.max - 0.01) }))}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
+                        <div className="flex items-center gap-4">
                           <input
                             type="number"
-                            value={deltaFilter.max}
-                            onChange={(e) => setDeltaFilter(prev => ({ ...prev, max: Math.min(1, parseFloat(e.target.value) || 1) }))}
-                            className="w-16 px-2 py-1 text-sm border rounded bg-background text-center"
+                            value={deltaRange[0]}
+                            onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
+                            className="w-16 px-2 py-1 text-sm border rounded bg-background"
                             step="0.01"
                             min="0"
                             max="1"
                           />
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setDeltaFilter(prev => ({ ...prev, max: Math.min(1, prev.max + 0.01) }))}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
+                          <div className="flex-1 flex items-center gap-2">
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.01"
+                              value={deltaRange[0]}
+                              onChange={(e) => setDeltaRange([parseFloat(e.target.value), deltaRange[1]])}
+                              className="flex-1 h-2"
+                            />
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.01"
+                              value={deltaRange[1]}
+                              onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value)])}
+                              className="flex-1 h-2"
+                            />
+                          </div>
+                          <input
+                            type="number"
+                            value={deltaRange[1]}
+                            onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
+                            className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                            step="0.01"
+                            min="0"
+                            max="1"
+                          />
                         </div>
                       </div>
 
-                      {/* DTE Filter */}
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-muted-foreground w-16">DTE:</label>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setDteFilter(prev => ({ ...prev, min: Math.max(0, prev.min - 1) }))}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <input
-                            type="number"
-                            value={dteFilter.min}
-                            onChange={(e) => setDteFilter(prev => ({ ...prev, min: Math.max(0, parseInt(e.target.value) || 0) }))}
-                            className="w-16 px-2 py-1 text-sm border rounded bg-background text-center"
-                            min="0"
-                            max="730"
-                          />
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setDteFilter(prev => ({ ...prev, min: Math.min(730, prev.min + 1) }))}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
+                      {/* DTE Range */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">Days to Expiration (DTE)</Label>
+                          <span className="text-xs text-muted-foreground">{dteRange[0]} - {dteRange[1]} days</span>
                         </div>
-                        <span className="text-muted-foreground">to</span>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setDteFilter(prev => ({ ...prev, max: Math.max(0, prev.max - 1) }))}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
+                        <div className="flex items-center gap-4">
                           <input
                             type="number"
-                            value={dteFilter.max}
-                            onChange={(e) => setDteFilter(prev => ({ ...prev, max: Math.min(730, parseInt(e.target.value) || 730) }))}
-                            className="w-16 px-2 py-1 text-sm border rounded bg-background text-center"
+                            value={dteRange[0]}
+                            onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
+                            className="w-16 px-2 py-1 text-sm border rounded bg-background"
                             min="0"
                             max="730"
                           />
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setDteFilter(prev => ({ ...prev, max: Math.min(730, prev.max + 1) }))}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
+                          <div className="flex-1 flex items-center gap-2">
+                            <input
+                              type="range"
+                              min="0"
+                              max="730"
+                              step="1"
+                              value={dteRange[0]}
+                              onChange={(e) => setDteRange([parseInt(e.target.value), dteRange[1]])}
+                              className="flex-1 h-2"
+                            />
+                            <input
+                              type="range"
+                              min="0"
+                              max="730"
+                              step="1"
+                              value={dteRange[1]}
+                              onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value)])}
+                              className="flex-1 h-2"
+                            />
+                          </div>
+                          <input
+                            type="number"
+                            value={dteRange[1]}
+                            onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 730])}
+                            className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                            min="0"
+                            max="730"
+                          />
                         </div>
                       </div>
                     </div>
-                  </div>
-                </div>
+
+                    {/* Selection Controls */}
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button
+                          className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+                          size="default"
+                          onClick={() => {
+                            const newSelection = new Set(selectedLeaps);
+                            sortedLeaps.forEach((leap: any) => {
+                              const key = `${leap.symbol}-${leap.strike}-${leap.expiration}`;
+                              newSelection.add(key);
+                            });
+                            setSelectedLeaps(newSelection);
+                            toast.success(`Selected ${sortedLeaps.length} LEAPs`);
+                          }}
+                          disabled={sortedLeaps.length === 0}
+                        >
+                          ✓ Select All Filtered ({sortedLeaps.length})
+                        </Button>
+                        <Button
+                          className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+                          size="default"
+                          onClick={() => {
+                            setSelectedLeaps(new Set());
+                            toast.success('Selection cleared');
+                          }}
+                          disabled={selectedLeaps.size === 0}
+                        >
+                          ✕ Clear Selection ({selectedLeaps.size})
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 bg-accent/20 rounded-lg">
+                        <Checkbox
+                          id="selected-only"
+                          checked={showSelectedOnly}
+                          onCheckedChange={(checked) => setShowSelectedOnly(checked as boolean)}
+                        />
+                        <Label htmlFor="selected-only" className="text-sm cursor-pointer">
+                          Show Selected Only
+                        </Label>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
               {/* LEAP Opportunities Table */}
@@ -750,6 +805,7 @@ export default function PMCCDashboard() {
                               {sortColumn === 'score' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                             </div>
                           </th>
+                          <th className="p-2 text-center">AI</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -777,20 +833,33 @@ export default function PMCCDashboard() {
                               <td className="p-2 text-right">{leap.openInterest.toLocaleString()}</td>
                               <td className="p-2 text-right">{leap.volume.toLocaleString()}</td>
                               <td className="p-2 text-right">
-                                <button
-                                  onClick={() => {
-                                    setSelectedLeapForExplanation(leap);
-                                    setShowScoreExplanation(true);
-                                  }}
-                                  className={`inline-flex items-center justify-center w-10 h-10 rounded-full font-bold cursor-pointer transition-all hover:scale-110 hover:shadow-lg ${
-                                    leap.score >= 80 ? 'bg-green-900/50 text-green-400 hover:bg-green-900/70' :
-                                    leap.score >= 60 ? 'bg-amber-900/50 text-amber-400 hover:bg-amber-900/70' :
-                                    'bg-red-900/50 text-red-400 hover:bg-red-900/70'
-                                  }`}
-                                  title="Click to explain score"
-                                >
+                                <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full font-bold ${
+                                  leap.score >= 80 ? 'bg-green-900/50 text-green-400' :
+                                  leap.score >= 60 ? 'bg-amber-900/50 text-amber-400' :
+                                  'bg-red-900/50 text-red-400'
+                                }`}>
                                   {Math.round(leap.score)}
-                                </button>
+                                </span>
+                              </td>
+                              <td className="p-2 text-center">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 hover:bg-purple-500/20"
+                                  onClick={() => {
+                                    const rowKey = `${leap.symbol}-${leap.strike}-${leap.expiration}`;
+                                    setAnalyzingRowKey(rowKey);
+                                    explainScore.mutate({ leap });
+                                  }}
+                                  disabled={analyzingRowKey === `${leap.symbol}-${leap.strike}-${leap.expiration}`}
+                                  title="Click to see AI explanation of this score"
+                                >
+                                  {analyzingRowKey === `${leap.symbol}-${leap.strike}-${leap.expiration}` ? (
+                                    <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                                  ) : (
+                                    <Sparkles className="w-4 h-4 text-purple-500" />
+                                  )}
+                                </Button>
                               </td>
                             </tr>
                           );
@@ -891,6 +960,7 @@ export default function PMCCDashboard() {
                       <th className="p-2 text-right">Delta</th>
                       <th className="p-2 text-right">Premium</th>
                       <th className="p-2 text-right">Score</th>
+                      <th className="p-2 text-center">AI</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -912,6 +982,26 @@ export default function PMCCDashboard() {
                             }`}>
                               {Math.round(leap.score)}
                             </span>
+                          </td>
+                          <td className="p-2 text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 hover:bg-purple-500/20"
+                              onClick={() => {
+                                const rowKey = `${leap.symbol}-${leap.strike}-${leap.expiration}`;
+                                setAnalyzingRowKey(rowKey);
+                                explainScore.mutate({ leap });
+                              }}
+                              disabled={analyzingRowKey === `${leap.symbol}-${leap.strike}-${leap.expiration}`}
+                              title="Click to see AI explanation of this score"
+                            >
+                              {analyzingRowKey === `${leap.symbol}-${leap.strike}-${leap.expiration}` ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                              ) : (
+                                <Sparkles className="w-4 h-4 text-purple-500" />
+                              )}
+                            </Button>
                           </td>
                         </tr>
                       ))}
@@ -985,138 +1075,100 @@ export default function PMCCDashboard() {
           </DialogContent>
         </Dialog>
 
-        {/* Score Explanation Dialog */}
-        <ScoreExplanationDialog
-          leap={selectedLeapForExplanation}
-          open={showScoreExplanation}
-          onClose={() => {
-            setShowScoreExplanation(false);
-            setSelectedLeapForExplanation(null);
-          }}
-        />
+        {/* AI Analysis Detail Modal */}
+        <Dialog open={showAiAnalysisModal} onOpenChange={setShowAiAnalysisModal}>
+          <DialogContent className="max-w-2xl border-2 border-purple-500/50">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-500" />
+                Score Explanation: {selectedAiAnalysis?.symbol} ${selectedAiAnalysis?.strike}
+              </DialogTitle>
+              <DialogDescription>
+                AI-powered explanation of why this LEAP scored {selectedAiAnalysis?.score}/100
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              {/* Score Breakdown */}
+              {selectedAiAnalysis?.breakdown && (
+                <Card className="bg-gradient-to-br from-slate-900/50 to-slate-800/50 border-slate-700/50">
+                  <CardHeader>
+                    <CardTitle className="text-base">Score Breakdown</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
+                        <div className="text-xs text-muted-foreground">Stock Quality</div>
+                        <div className="text-xl font-bold text-blue-400">
+                          {selectedAiAnalysis.breakdown.stockQuality}/35
+                        </div>
+                      </div>
+                      <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
+                        <div className="text-xs text-muted-foreground">LEAP Structure</div>
+                        <div className="text-xl font-bold text-purple-400">
+                          {selectedAiAnalysis.breakdown.leapStructure}/30
+                        </div>
+                      </div>
+                      <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
+                        <div className="text-xs text-muted-foreground">Cost & Liquidity</div>
+                        <div className="text-xl font-bold text-amber-400">
+                          {selectedAiAnalysis.breakdown.costLiquidity}/25
+                        </div>
+                      </div>
+                      <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
+                        <div className="text-xs text-muted-foreground">Risk Management</div>
+                        <div className="text-xl font-bold text-green-400">
+                          {selectedAiAnalysis.breakdown.riskManagement}/10
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 p-3 bg-gradient-to-r from-slate-800/50 to-slate-700/50 rounded-lg border border-slate-600/50">
+                      <div className="text-xs text-muted-foreground">Total Score</div>
+                      <div className={`text-2xl font-bold ${
+                        selectedAiAnalysis.score >= 80 ? 'text-green-400' :
+                        selectedAiAnalysis.score >= 60 ? 'text-amber-400' :
+                        'text-red-400'
+                      }`}>
+                        {selectedAiAnalysis.score}/100
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* AI Explanation */}
+              {selectedAiAnalysis?.aiExplanation && (
+                <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-700/50">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-purple-500" />
+                      AI Analysis
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="prose prose-invert prose-sm max-w-none">
+                      <Streamdown>{selectedAiAnalysis.aiExplanation}</Streamdown>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Technical Details */}
+              {selectedAiAnalysis?.technicalExplanation && (
+                <Card className="bg-gradient-to-br from-slate-900/50 to-slate-800/50 border-slate-700/50">
+                  <CardHeader>
+                    <CardTitle className="text-base">Technical Details</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="prose prose-invert prose-sm max-w-none text-xs">
+                      <Streamdown>{selectedAiAnalysis.technicalExplanation}</Streamdown>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
-  );
-}
-
-// Score Explanation Dialog Component
-function ScoreExplanationDialog({ leap, open, onClose }: { leap: any; open: boolean; onClose: () => void }) {
-  const explainScoreMutation = trpc.pmcc.explainScore.useMutation();
-
-  useEffect(() => {
-    if (open && leap && !explainScoreMutation.data) {
-      explainScoreMutation.mutate({ leap });
-    }
-  }, [open, leap]);
-
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            LEAP Score Explanation: {leap?.symbol} ${leap?.strike}
-          </DialogTitle>
-          <DialogDescription>
-            Expiration: {leap?.expiration} ({leap?.dte} DTE) • Delta: {leap?.delta?.toFixed(2)}
-          </DialogDescription>
-        </DialogHeader>
-
-        {explainScoreMutation.isPending && (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-muted-foreground">Analyzing LEAP score...</span>
-          </div>
-        )}
-
-        {explainScoreMutation.error && (
-          <div className="p-4 bg-red-900/20 border border-red-700/50 rounded-lg">
-            <p className="text-red-400">Failed to generate explanation: {explainScoreMutation.error.message}</p>
-          </div>
-        )}
-
-        {explainScoreMutation.data && (
-          <div className="space-y-4">
-            {/* Score Breakdown */}
-            <Card className="bg-gradient-to-br from-slate-900/50 to-slate-800/50 border-slate-700/50">
-              <CardHeader>
-                <CardTitle className="text-lg">Score Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
-                    <div className="text-sm text-muted-foreground">Stock Quality & Growth</div>
-                    <div className="text-2xl font-bold text-blue-400">
-                      {explainScoreMutation.data.breakdown.stockQuality}/35
-                    </div>
-                  </div>
-                  <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
-                    <div className="text-sm text-muted-foreground">LEAP Structure</div>
-                    <div className="text-2xl font-bold text-purple-400">
-                      {explainScoreMutation.data.breakdown.leapStructure}/30
-                    </div>
-                  </div>
-                  <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
-                    <div className="text-sm text-muted-foreground">Cost & Liquidity</div>
-                    <div className="text-2xl font-bold text-amber-400">
-                      {explainScoreMutation.data.breakdown.costLiquidity}/25
-                    </div>
-                  </div>
-                  <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
-                    <div className="text-sm text-muted-foreground">Risk Management</div>
-                    <div className="text-2xl font-bold text-green-400">
-                      {explainScoreMutation.data.breakdown.riskManagement}/10
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 p-4 bg-gradient-to-r from-slate-800/50 to-slate-700/50 rounded-lg border border-slate-600/50">
-                  <div className="text-sm text-muted-foreground">Total Score</div>
-                  <div className={`text-4xl font-bold ${
-                    explainScoreMutation.data.score >= 80 ? 'text-green-400' :
-                    explainScoreMutation.data.score >= 60 ? 'text-amber-400' :
-                    'text-red-400'
-                  }`}>
-                    {explainScoreMutation.data.score}/100
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* AI Explanation */}
-            <Card className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-blue-700/50">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="text-2xl">🤖</span>
-                  AI Analysis
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="prose prose-invert max-w-none">
-                  <Streamdown>{typeof explainScoreMutation.data.aiExplanation === 'string' ? explainScoreMutation.data.aiExplanation : JSON.stringify(explainScoreMutation.data.aiExplanation)}</Streamdown>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Technical Details */}
-            <Card className="bg-gradient-to-br from-slate-900/50 to-slate-800/50 border-slate-700/50">
-              <CardHeader>
-                <CardTitle className="text-lg">Technical Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="prose prose-invert max-w-none text-sm">
-                  <Streamdown>{explainScoreMutation.data.technicalExplanation}</Streamdown>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        <div className="flex justify-end mt-4">
-          <Button onClick={onClose} variant="outline">
-            Close
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }

@@ -3677,3 +3677,14 @@
 - [x] Add AI score explanation endpoint for PMCC strategy
 - [x] Add clickable score badges to PMCC opportunities table
 - [x] Add AI explanation dialog with score breakdown and conversational analysis
+
+## PMCC Dashboard UI Alignment with CSP Dashboard
+- [x] Replace increment/decrement buttons with full-width dual-handle range sliders (Score, Delta, DTE)
+- [x] Add preset quick-select buttons under Score slider (Conservative ≥70, Aggressive ≥65, All)
+- [x] Add "Select All Filtered" (green) and "Clear Selection" (red) buttons below filters
+- [x] Reposition "Show Selected Only" checkbox below selection buttons
+- [x] Add AI column to opportunities table with sparkle icon buttons
+- [x] Move score explanation trigger from score badges to AI column sparkle icons
+- [x] Update AI explanation dialog to match CSP Dashboard style (purple border, compact layout)
+- [x] Remove old ScoreExplanationDialog component and unused state variables
+- [x] Ensure all filter logic uses new range array state (scoreRange, deltaRange, dteRange)
