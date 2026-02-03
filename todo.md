@@ -3752,3 +3752,8 @@
 - [x] Add Current Price column after Strike column showing current stock price
 - [x] Update RollsTable component to display both Strike and Current Price
 - [x] Verify Current Price data is available in roll analysis backend (metrics.currentPrice)
+
+## Modal Dialog Visibility Improvement
+- [x] Add orange border to all modal dialogs for better visibility on dark background
+- [x] Update Dialog component (shadcn/ui) to include border-2 border-[#FF8C00] styling
+- [x] Applied to all modals globally (Roll Options, AI Explanation, Order Preview, etc.)
