@@ -29,6 +29,7 @@ import {
   Download,
   Filter,
   Calendar,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
@@ -2203,6 +2204,7 @@ export default function CCDashboard() {
                           {sortColumn === 'score' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
+                      <TableHead className="text-center">AI</TableHead>
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('strike')}>
                         <div className="flex items-center justify-end gap-1">
                           {strategyType === 'spread' ? 'Strikes (Short/Long)' : 'Strike'}
@@ -2336,6 +2338,38 @@ export default function CCDashboard() {
                           <Badge variant="secondary" className={getScoreBadgeClass(opp.score)}>
                             {opp.score}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 hover:bg-purple-500/20"
+                            onClick={() => {
+                              const rowKey = getOpportunityKey(opp);
+                              setAnalyzingRowKey(rowKey);
+                              explainBCSScore.mutate({
+                                symbol: opp.symbol,
+                                shortStrike: opp.strike,
+                                longStrike: opp.longStrike || 0,
+                                currentPrice: opp.currentPrice,
+                                netCredit: opp.premium,
+                                shortDelta: opp.delta,
+                                dte: opp.dte,
+                                rsi: opp.rsi,
+                                bbPctB: opp.bbPctB,
+                                ivRank: opp.ivRank,
+                                score: opp.score,
+                                scoreBreakdown: (opp as any).scoreBreakdown || { technical: 0, greeks: 0, premiumQuality: 0, stockQuality: 0 },
+                              });
+                            }}
+                            disabled={analyzingRowKey === getOpportunityKey(opp)}
+                          >
+                            {analyzingRowKey === getOpportunityKey(opp) ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
+                            ) : (
+                              <Sparkles className="h-4 w-4 text-purple-400" />
+                            )}
+                          </Button>
                         </TableCell>
                         <TableCell className="text-right">
                           {strategyType === 'spread' && opp.longStrike ? (
@@ -2506,6 +2540,52 @@ export default function CCDashboard() {
           isDryRun={dryRun}
         />
       )}
+
+      {/* AI Analysis Modal */}
+      <Dialog open={showAiAnalysisModal} onOpenChange={setShowAiAnalysisModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-400" />
+              Score Explanation: {selectedAiAnalysis?.symbol} ${selectedAiAnalysis?.shortStrike}
+              {selectedAiAnalysis?.longStrike && selectedAiAnalysis.longStrike > 0 && (
+                <span className="text-orange-400"> / ${selectedAiAnalysis.longStrike}</span>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              AI-powered explanation of why this opportunity scored {selectedAiAnalysis?.score}/100
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Composite Score Badge */}
+            <div className="flex items-center justify-center gap-3 p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-lg border border-purple-500/20">
+              <span className="text-sm text-muted-foreground">Composite Score:</span>
+              <Badge 
+                variant="secondary" 
+                className={cn(
+                  "text-lg px-3 py-1",
+                  selectedAiAnalysis && selectedAiAnalysis.score >= 70 ? "bg-green-500/20 text-green-400 border-green-500/50" :
+                  selectedAiAnalysis && selectedAiAnalysis.score >= 50 ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/50" :
+                  "bg-red-500/20 text-red-400 border-red-500/50"
+                )}
+              >
+                {selectedAiAnalysis?.score}/100
+              </Badge>
+            </div>
+
+            {/* AI Explanation */}
+            <div className="prose prose-sm dark:prose-invert max-w-none">
+              <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                {typeof selectedAiAnalysis?.explanation === 'string' 
+                  ? selectedAiAnalysis.explanation
+                  : JSON.stringify(selectedAiAnalysis?.explanation, null, 2)
+                }
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

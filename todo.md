@@ -3546,3 +3546,11 @@
 - [ ] Integrate CC scoring into routers-cc.ts coveredCallOpportunities endpoint
 - [ ] Add AI explanation modal to CC dashboard
 - [ ] Add "Show Technical Columns" toggle to CC dashboard
+
+## Add AI Modal UI to CCDashboard
+- [x] Add "AI" column header to opportunities table (after Score column)
+- [x] Add AI icon button (Sparkles icon) to each table row
+- [x] Wire button click to call explainBCSScore mutation
+- [x] Create AI modal dialog component with score breakdown display
+- [x] Display explanation text with proper formatting (markdown support)
+- [ ] Test AI explanation flow end-to-end
