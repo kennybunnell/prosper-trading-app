@@ -3488,3 +3488,7 @@
 - [x] Remove Smart Select (≥70) button from top of page (duplicates score filter)
 - [x] Remove Clear Selection button from top of page (no longer needed)
 - [x] Fix AI info icon to only analyze the single clicked row (not entire list)
+
+## Bug Fix - Restore Selection Controls
+- [x] Restore "Select All Filtered" button (accidentally removed, needed for selecting opportunities)
+- [x] Keep only the essential selection button, remove redundant Conservative/Aggressive/Smart Select buttons
