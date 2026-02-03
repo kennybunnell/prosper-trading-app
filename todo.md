@@ -3498,3 +3498,23 @@
 - [x] Found BCS implementation in server/routers-cc.ts (not server/routers.ts)
 - [x] Rolled back to checkpoint d4b4fd1 where CSP and BPS were working perfectly
 - [x] Verified BCS logic is intact and functional in routers-cc.ts
+
+
+## Bear Call Spread Scoring System Implementation
+- [x] Create calculateBCSScore() function with strategy-specific weights (Technical 40%, Greeks 30%, Premium 20%, Quality 10%)
+- [x] Implement overbought-focused technical scoring (RSI >70, BB %B >0.85)
+- [x] Add Greeks scoring: Short Delta (0.20-0.30 ideal), Spread Width efficiency, Delta Separation, DTE (7-14 days), IV Rank
+- [x] Add Premium Quality scoring: Credit/Width Ratio (25-40% target), Bid-Ask Spread
+- [x] Add Stock Quality scoring: Liquidity + Mag 7 preference
+- [x] Integrate BCS scoring into routers-cc.ts bearCallSpreadOpportunities endpoint
+- [ ] Add BCS-specific AI explanations to explainScore endpoint
+
+## CCDashboard UI Updates (Match BPS Structure)
+- [ ] Add Range Filters section with Score/Delta/DTE sliders
+- [ ] Add increment/decrement buttons (Score ±1, Delta ±0.01, DTE ±1)
+- [ ] Remove Conservative/Aggressive/Smart Select quick-select buttons
+- [ ] Add "Select All Filtered" button
+- [ ] Consolidate score display into single "AI Score" column with breakdown tooltip
+- [ ] Add AI explanation modal (click score badge to see detailed analysis)
+- [ ] Add "Show Technical Columns" toggle for RSI/BB/IV Rank columns
+- [ ] Update table columns to match BPS layout (Weekly %, Breakeven, Score, AI)

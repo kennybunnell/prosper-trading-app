@@ -453,7 +453,11 @@ export const ccRouter = router({
                 
                 // Only include if net credit is positive
                 if (spreadOpp.netCredit > 0) {
-                  spreadOpp.score = calculateCCScore(spreadOpp);
+                  // Use BCS-specific scoring (not CC scoring)
+                  const { calculateBCSScore } = await import('./bcs-scoring');
+                  const { score, breakdown } = calculateBCSScore(spreadOpp);
+                  spreadOpp.score = score;
+                  (spreadOpp as any).scoreBreakdown = breakdown;
                   spreadOpportunities.push(spreadOpp);
                 }
               } catch (error) {
