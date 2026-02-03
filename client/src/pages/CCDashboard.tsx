@@ -793,15 +793,14 @@ export default function CCDashboard() {
         });
       }
 
-      // Handle single result object (placeholder implementation)
-      const successCount = results.success ? 1 : 0;
-      const failedCount = results.success ? 0 : 1;
+      const successCount = results.filter((r: any) => r.success).length;
+      const failedCount = results.filter((r: any) => !r.success).length;
 
       if (failedCount === 0) {
         if (dryRun) {
-          toast.success(`Dry run successful! Orders validated`);
+          toast.success(`Dry run successful! ${results.length} orders validated`);
         } else {
-          toast.success(`Successfully submitted orders!`);
+          toast.success(`Successfully submitted ${results.length} orders!`);
           
           // Confetti animation
           confetti({

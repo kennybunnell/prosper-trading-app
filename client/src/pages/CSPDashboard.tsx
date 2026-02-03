@@ -1495,32 +1495,14 @@ export default function CSPDashboard() {
                 <span className="text-xs text-muted-foreground">{scoreRange[0]} - {scoreRange[1]}</span>
               </div>
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setScoreRange([Math.max(0, scoreRange[0] - 1), scoreRange[1]])}
-                  >
-                    −
-                  </Button>
-                  <input
-                    type="number"
-                    value={scoreRange[0]}
-                    onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])}
-                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                    min="0"
-                    max="100"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setScoreRange([Math.min(100, scoreRange[0] + 1), scoreRange[1]])}
-                  >
-                    +
-                  </Button>
-                </div>
+                <input
+                  type="number"
+                  value={scoreRange[0]}
+                  onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])}
+                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                  min="0"
+                  max="100"
+                />
                 <div className="flex-1 flex items-center gap-2">
                   <input
                     type="range"
@@ -1541,32 +1523,14 @@ export default function CSPDashboard() {
                     className="flex-1 h-2 accent-orange-500"
                   />
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setScoreRange([scoreRange[0], Math.max(0, scoreRange[1] - 1)])}
-                  >
-                    −
-                  </Button>
-                  <input
-                    type="number"
-                    value={scoreRange[1]}
-                    onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])}
-                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                    min="0"
-                    max="100"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setScoreRange([scoreRange[0], Math.min(100, scoreRange[1] + 1)])}
-                  >
-                    +
-                  </Button>
-                </div>
+                <input
+                  type="number"
+                  value={scoreRange[1]}
+                  onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])}
+                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                  min="0"
+                  max="100"
+                />
               </div>
               <div className="flex gap-2 mt-2">
                 <Button
@@ -1603,33 +1567,15 @@ export default function CSPDashboard() {
                 <span className="text-xs text-muted-foreground">{deltaRange[0].toFixed(2)} - {deltaRange[1].toFixed(2)}</span>
               </div>
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setDeltaRange([Math.max(0, deltaRange[0] - 0.01), deltaRange[1]])}
-                  >
-                    −
-                  </Button>
-                  <input
-                    type="number"
-                    value={deltaRange[0]}
-                    onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
-                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                    step="0.01"
-                    min="0"
-                    max="1"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setDeltaRange([Math.min(1, deltaRange[0] + 0.01), deltaRange[1]])}
-                  >
-                    +
-                  </Button>
-                </div>
+                <input
+                  type="number"
+                  value={deltaRange[0]}
+                  onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
+                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                />
                 <div className="flex-1 flex items-center gap-2">
                   <input
                     type="range"
@@ -1650,33 +1596,15 @@ export default function CSPDashboard() {
                     className="flex-1 h-2"
                   />
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setDeltaRange([deltaRange[0], Math.max(0, deltaRange[1] - 0.01)])}
-                  >
-                    −
-                  </Button>
-                  <input
-                    type="number"
-                    value={deltaRange[1]}
-                    onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
-                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                    step="0.01"
-                    min="0"
-                    max="1"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setDeltaRange([deltaRange[0], Math.min(1, deltaRange[1] + 0.01)])}
-                  >
-                    +
-                  </Button>
-                </div>
+                <input
+                  type="number"
+                  value={deltaRange[1]}
+                  onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
+                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                />
               </div>
             </div>
 
@@ -1687,32 +1615,14 @@ export default function CSPDashboard() {
                 <span className="text-xs text-muted-foreground">{dteRange[0]} - {dteRange[1]} days</span>
               </div>
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setDteRange([Math.max(0, dteRange[0] - 1), dteRange[1]])}
-                  >
-                    −
-                  </Button>
-                  <input
-                    type="number"
-                    value={dteRange[0]}
-                    onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
-                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                    min="0"
-                    max="90"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setDteRange([Math.min(90, dteRange[0] + 1), dteRange[1]])}
-                  >
-                    +
-                  </Button>
-                </div>
+                <input
+                  type="number"
+                  value={dteRange[0]}
+                  onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
+                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                  min="0"
+                  max="90"
+                />
                 <div className="flex-1 flex items-center gap-2">
                   <input
                     type="range"
@@ -1733,68 +1643,37 @@ export default function CSPDashboard() {
                     className="flex-1 h-2"
                   />
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setDteRange([dteRange[0], Math.max(0, dteRange[1] - 1)])}
-                  >
-                    −
-                  </Button>
-                  <input
-                    type="number"
-                    value={dteRange[1]}
-                    onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])}
-                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                    min="0"
-                    max="90"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setDteRange([dteRange[0], Math.min(90, dteRange[1] + 1)])}
-                  >
-                    +
-                  </Button>
-                </div>
+                <input
+                  type="number"
+                  value={dteRange[1]}
+                  onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])}
+                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                  min="0"
+                  max="90"
+                />
               </div>
             </div>
           </div>
 
           {/* Selection Controls */}
           <div className="space-y-3">
-            <div className="flex gap-3">
-              <Button
-                className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 flex-1"
-                size="default"
-                onClick={() => {
-                  // Select all filtered opportunities
-                  const newSelection = new Set(selectedOpportunities);
-                  filteredOpportunities.forEach(opp => {
-                    const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
-                    newSelection.add(key);
-                  });
-                  setSelectedOpportunities(newSelection);
-                  toast.success(`Selected ${filteredOpportunities.length} opportunities`);
-                }}
-                disabled={filteredOpportunities.length === 0}
-              >
-                ✓ Select All Filtered ({filteredOpportunities.length})
-              </Button>
-              <Button
-                className="bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 flex-1"
-                size="default"
-                onClick={() => {
-                  setSelectedOpportunities(new Set());
-                  toast.success("Cleared all selections");
-                }}
-                disabled={selectedOpportunities.size === 0}
-              >
-                ✗ Clear Selection
-              </Button>
-            </div>
+            <Button
+              className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 w-full"
+              size="default"
+              onClick={() => {
+                // Select all filtered opportunities
+                const newSelection = new Set(selectedOpportunities);
+                filteredOpportunities.forEach(opp => {
+                  const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+                  newSelection.add(key);
+                });
+                setSelectedOpportunities(newSelection);
+                toast.success(`Selected ${filteredOpportunities.length} opportunities`);
+              }}
+              disabled={filteredOpportunities.length === 0}
+            >
+              ✓ Select All Filtered ({filteredOpportunities.length})
+            </Button>
             <div className="flex items-center gap-3 p-3 bg-accent/20 rounded-lg">
               <Checkbox
                 id="selected-only"
@@ -1984,7 +1863,8 @@ export default function CSPDashboard() {
                     { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, technical: true },
                     { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, technical: true },
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
-                    { key: 'aiRecommendation', label: 'AI Score', help: 'dialog-score', technical: false },
+                    { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
+                    { key: 'aiRecommendation', label: 'AI', help: null, technical: false },
                   ] : [
                     { key: 'symbol', label: 'Symbol', help: null, technical: false },
                     { key: 'strike', label: 'Strike', help: null, technical: false },
@@ -2003,7 +1883,8 @@ export default function CSPDashboard() {
                     { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, technical: true },
                     { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, technical: true },
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
-                    { key: 'aiRecommendation', label: 'AI Score', help: 'dialog-score', technical: false },
+                    { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
+                    { key: 'aiRecommendation', label: 'AI', help: null, technical: false },
                   ]).filter(({ technical }) => !technical || showTechnicalColumns).map(({ key, label, help }) => (
                     <TableHead 
                       key={key}
@@ -2105,6 +1986,11 @@ export default function CSPDashboard() {
                                 </TableCell>
                               </>
                             )}
+                            <TableCell>
+                              <Badge className={cn("font-bold", getROCColor((opp as any).spreadROC || 0))}>
+                                {opp.score}
+                              </Badge>
+                            </TableCell>
                           </>
                         ) : (
                           <>
@@ -2155,98 +2041,84 @@ export default function CSPDashboard() {
                           </>
                         )}
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge 
-                                    className={cn(
-                                      "font-bold cursor-help",
-                                      opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
-                                      opp.score >= 50 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
-                                      opp.score < 50 && "bg-red-500/20 text-red-500 border-red-500/50"
-                                    )}
-                                  >
-                                    {opp.score}
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent side="left" className="bg-gray-900 border-orange-500/50 p-3 max-w-xs">
-                                  <div className="space-y-1.5 text-sm">
-                                    <div className="font-semibold text-orange-400 border-b border-orange-500/30 pb-1 mb-2">
-                                      Score Breakdown ({opp.score}/100)
-                                    </div>
-                                    {(opp as any).scoreBreakdown && (
-                                      <>
-                                        <div className="flex justify-between">
-                                          <span className="text-gray-400">Technical (RSI+BB):</span>
-                                          <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/40</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span className="text-gray-400">
-                                            {strategyType === 'spread' ? 'Greeks (Δ+Width+DTE+IV):' : 'Greeks (Δ+DTE+IV):'}
-                                          </span>
-                                          <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span className="text-gray-400">
-                                            {strategyType === 'spread' ? 'Premium (Credit/Width):' : 'Premium (Return+Spread):'}
-                                          </span>
-                                          <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/20</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span className="text-gray-400">
-                                            {strategyType === 'spread' ? 'Quality (Liquidity+Stock):' : 'Quality (Mag7+Cap):'}
-                                          </span>
-                                          <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
-                                        </div>
-                                      </>
-                                    )}
-                                    {!(opp as any).scoreBreakdown && (
-                                      <div className="text-gray-400 text-xs">Breakdown not available</div>
-                                    )}
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge 
+                                  className={cn(
+                                    "font-bold cursor-help",
+                                    opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
+                                    opp.score >= 50 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
+                                    opp.score < 50 && "bg-red-500/20 text-red-500 border-red-500/50"
+                                  )}
+                                >
+                                  {opp.score}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="bg-gray-900 border-orange-500/50 p-3 max-w-xs">
+                                <div className="space-y-1.5 text-sm">
+                                  <div className="font-semibold text-orange-400 border-b border-orange-500/30 pb-1 mb-2">
+                                    Score Breakdown ({opp.score}/100)
                                   </div>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 hover:bg-purple-500/20"
-                              onClick={() => {
-                                const rowKey = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
-                                setAnalyzingRowKey(rowKey);
-                                explainScore.mutate({
-                                  strategy: strategyType === 'spread' ? 'bps' : 'csp',
-                                  symbol: opp.symbol,
-                                  strike: opp.strike,
-                                  currentPrice: opp.currentPrice,
-                                  premium: opp.premium,
-                                  delta: Math.abs(opp.delta),
-                                  dte: opp.dte,
-                                  rsi: opp.rsi,
-                                  bbPctB: opp.bbPctB,
-                                  ivRank: opp.ivRank,
-                                  score: opp.score,
-                                  scoreBreakdown: opp.scoreBreakdown,
-                                  // BPS-specific fields (only populated when strategyType === 'spread')
-                                  ...(strategyType === 'spread' && {
-                                    shortStrike: opp.strike,
-                                    longStrike: (opp as any).longStrike,
-                                    spreadWidth: (opp as any).spreadWidth,
-                                    creditReceived: opp.premium,
-                                  }),
-                                });
-                              }}
-                              disabled={analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}`}
-                              title="Click to see AI explanation of this score"
-                            >
-                              {analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}` ? (
-                                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
-                              ) : (
-                                <span className="text-purple-500">ℹ️</span>
-                              )}
-                            </Button>
-                          </div>
+                                  {(opp as any).scoreBreakdown && (
+                                    <>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-400">Technical (RSI+BB):</span>
+                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/40</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-400">Greeks (Δ+DTE+IV):</span>
+                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-400">Premium (Return+Spread):</span>
+                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/20</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-400">Quality (Mag7+Cap):</span>
+                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
+                                      </div>
+                                    </>
+                                  )}
+                                  {!(opp as any).scoreBreakdown && (
+                                    <div className="text-gray-400 text-xs">Breakdown not available</div>
+                                  )}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-purple-500/20"
+                            onClick={() => {
+                              const rowKey = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+                              setAnalyzingRowKey(rowKey);
+                              explainScore.mutate({
+                                symbol: opp.symbol,
+                                strike: opp.strike,
+                                currentPrice: opp.currentPrice,
+                                premium: opp.premium,
+                                delta: Math.abs(opp.delta),
+                                dte: opp.dte,
+                                rsi: opp.rsi,
+                                bbPctB: opp.bbPctB,
+                                ivRank: opp.ivRank,
+                                score: opp.score,
+                                scoreBreakdown: opp.scoreBreakdown,
+                              });
+                            }}
+                            disabled={analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}`}
+                            title="Click to see AI explanation of this score"
+                          >
+                            {analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}` ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                            ) : (
+                              <span className="text-purple-500">ℹ️</span>
+                            )}
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );
