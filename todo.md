@@ -3461,3 +3461,19 @@
 - [ ] Remove Medium preset button from UI
 - [ ] Simplify individual row AI analysis to 3-4 bullet points + 1 summary sentence
 - [ ] Add orange border to AI analysis modal for better visibility
+
+## UI Simplification - Score-Based Workflow
+- [x] Remove preset filter buttons (Conservative/Medium/Aggressive) from CSP dashboard
+- [x] Enlarge range sliders and make them easier to use
+- [x] Make Score slider more prominent as the primary filter
+- [x] Implement score-based Smart Select:
+  - [x] Conservative mode: Auto-select Score ≥70
+  - [x] Aggressive mode: Auto-select Score ≥55
+  - [x] Remove AI batch evaluation calls
+- [x] Redesign AI column to explain score breakdowns:
+  - [x] AI reads scoreBreakdown (Technical/Greeks/Premium/Quality)
+  - [x] AI explains in 2-3 sentences WHY each component scored high/low
+  - [x] Remove Favorable/Neutral/Unfavorable verdict (score color shows this)
+- [x] Hide redundant technical columns by default (RSI, BB, IV Rank already in score)
+- [x] Add toggle to show/hide technical details
+- [x] Test complete simplified workflow

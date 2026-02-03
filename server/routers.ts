@@ -780,6 +780,84 @@ export const appRouter = router({
 
         return scored;
       }),
+    
+    explainScore: protectedProcedure
+      .input(
+        z.object({
+          symbol: z.string(),
+          strike: z.number(),
+          currentPrice: z.number(),
+          premium: z.number(),
+          delta: z.number(),
+          dte: z.number(),
+          rsi: z.number().nullable(),
+          bbPctB: z.number().nullable(),
+          ivRank: z.number().nullable(),
+          score: z.number(),
+          scoreBreakdown: z.object({
+            technical: z.number(),
+            greeks: z.number(),
+            premium: z.number(),
+            quality: z.number(),
+            total: z.number(),
+          }),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+        
+        // Generate concise explanation of the score
+        const prompt = `You are explaining a CSP (Cash-Secured Put) opportunity's composite score to a trader.
+
+Opportunity Details:
+- Symbol: ${input.symbol}
+- Strike: $${input.strike}
+- Current Price: $${input.currentPrice}
+- Premium: $${input.premium}
+- Delta: ${input.delta}
+- DTE: ${input.dte} days
+- RSI: ${input.rsi !== null ? input.rsi.toFixed(1) : 'N/A'}
+- Bollinger Band %B: ${input.bbPctB !== null ? input.bbPctB.toFixed(2) : 'N/A'}
+- IV Rank: ${input.ivRank !== null ? input.ivRank.toFixed(1) : 'N/A'}
+
+Composite Score: ${input.score}/100
+Breakdown:
+- Technical Setup (RSI + BB): ${input.scoreBreakdown.technical}/40
+- Greeks & Timing (Delta + DTE + IV Rank): ${input.scoreBreakdown.greeks}/30
+- Premium Quality (Weekly Return + Spread): ${input.scoreBreakdown.premium}/20
+- Stock Quality (Mag 7 + Market Cap): ${input.scoreBreakdown.quality}/10
+
+Provide a concise explanation (3-4 bullet points + 1 summary sentence) of WHY this opportunity scored ${input.score}/100.
+
+Focus on:
+1. Which components scored well and why
+2. Which components scored poorly and why
+3. What this means for the trade's attractiveness
+
+Format:
+• [Component]: [Brief explanation]
+• [Component]: [Brief explanation]
+• [Component]: [Brief explanation]
+
+Summary: [One sentence overall assessment]`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: 'system', content: 'You are a concise options trading educator. Explain scores clearly and briefly.' },
+            { role: 'user', content: prompt },
+          ],
+        });
+
+        const explanation = response.choices[0]?.message?.content || 'Unable to generate explanation';
+        
+        return {
+          symbol: input.symbol,
+          strike: input.strike,
+          score: input.score,
+          explanation,
+        };
+      }),
+    
     validateOrders: protectedProcedure
       .input(
         z.object({

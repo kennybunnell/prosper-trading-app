@@ -318,10 +318,10 @@ export default function CSPDashboard() {
   }>({ isOpen: false, current: 0, total: 0, completed: 0, startTime: null, endTime: null });
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [validationData, setValidationData] = useState<any>(null);
-  const [aiRecommendations, setAiRecommendations] = useState<Map<string, { recommendation: 'favorable' | 'neutral' | 'unfavorable'; analysis: string }>>(new Map());
   const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
-  const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{ symbol: string; strike: number; recommendation: string; analysis: string } | null>(null);
+  const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{ symbol: string; strike: number; score: number; explanation: string | any[] } | null>(null);
   const [aiMode, setAiMode] = useState<'conservative' | 'aggressive'>('conservative');
+  const [showTechnicalColumns, setShowTechnicalColumns] = useState(false);
 
   const utils = trpc.useUtils();
 
@@ -641,6 +641,17 @@ export default function CSPDashboard() {
     },
   });
 
+  // Explain score mutation
+  const explainScore = trpc.csp.explainScore.useMutation({
+    onSuccess: (data) => {
+      setSelectedAiAnalysis(data);
+      setShowAiAnalysisModal(true);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to generate explanation: ${error.message}`);
+    },
+  });
+
   // Submit orders mutation
   const submitOrders = trpc.csp.submitOrders.useMutation({
     onError: (error) => {
@@ -725,96 +736,31 @@ export default function CSPDashboard() {
     },
   });
 
-  // Smart Select mutation - AI-powered auto-selection
-  const smartSelectMutation = trpc.csp.batchEvaluate.useMutation({
-    onSuccess: (data) => {
-      // Store AI recommendations and auto-select favorable opportunities
-      const favorableKeys = new Set<string>();
-      const newRecommendations = new Map<string, { recommendation: 'favorable' | 'neutral' | 'unfavorable'; analysis: string }>();
-      
-      data.evaluations.forEach((evaluation) => {
-        // Find matching opportunity
-        const matchingOpp = filteredOpportunities.find(
-          opp => opp.symbol === evaluation.symbol && opp.strike === evaluation.strike
-        );
-        
-        if (matchingOpp) {
-          const key = `${matchingOpp.symbol}-${matchingOpp.strike}-${matchingOpp.expiration}`;
-          
-          // Store recommendation
-          newRecommendations.set(key, {
-            recommendation: evaluation.recommendation,
-            analysis: evaluation.analysis,
-          });
-          
-          // Auto-select favorable opportunities
-          if (evaluation.recommendation === 'favorable') {
-            favorableKeys.add(key);
-          }
-        }
-      });
-      
-      setAiRecommendations(newRecommendations);
-      setSelectedOpportunities(favorableKeys);
-      
-      toast.success(
-        `Smart Select complete: ${data.summary.favorable} favorable, ${data.summary.neutral} neutral, ${data.summary.unfavorable} unfavorable`,
-        { duration: 5000 }
-      );
-    },
-    onError: (error) => {
-      toast.error(`Smart Select failed: ${error.message}`);
-    },
-  });
-
-  // Handle Smart Select button click
-  const handleSmartSelect = async () => {
+  // Handle Smart Select - score-based auto-selection
+  const handleSmartSelect = () => {
     if (filteredOpportunities.length === 0) {
       toast.error('No opportunities to analyze');
       return;
     }
     
-    // Mag 7 stocks list
-    const mag7 = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA'];
+    // Determine score threshold based on mode
+    const scoreThreshold = aiMode === 'conservative' ? 70 : 55;
     
-    // Prepare opportunities for batch evaluation with complete data
-    const opportunitiesToEvaluate = filteredOpportunities.map(opp => {
-      // Determine Bollinger Band position
-      let bbPosition: 'below_lower' | 'in_band' | 'above_upper' | null = null;
-      if (opp.bbPctB !== null) {
-        if (opp.bbPctB < 0) bbPosition = 'below_lower';
-        else if (opp.bbPctB > 1) bbPosition = 'above_upper';
-        else bbPosition = 'in_band';
+    // Select all opportunities that meet the score threshold
+    const selectedKeys = new Set<string>();
+    filteredOpportunities.forEach(opp => {
+      if (opp.score >= scoreThreshold) {
+        const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+        selectedKeys.add(key);
       }
-      
-      // Calculate 52-week high/low (approximate from current price if not available)
-      // TODO: Add actual 52-week data to opportunity fetching
-      const week52High = opp.currentPrice * 1.2; // Placeholder
-      const week52Low = opp.currentPrice * 0.8;  // Placeholder
-      
-      return {
-        symbol: opp.symbol,
-        strike: opp.strike,
-        expiration: opp.expiration,
-        premium: opp.premium,
-        currentPrice: opp.currentPrice,
-        ivRank: opp.ivRank,
-        delta: Math.abs(opp.delta), // Use absolute value for puts
-        rsi: opp.rsi,
-        bbPosition,
-        week52High,
-        week52Low,
-        isMag7: mag7.includes(opp.symbol),
-        isSpread: false,
-      };
     });
     
-    toast.info(`Analyzing ${opportunitiesToEvaluate.length} opportunities with AI...`, { duration: 3000 });
+    setSelectedOpportunities(selectedKeys);
     
-    await smartSelectMutation.mutateAsync({
-      opportunities: opportunitiesToEvaluate,
-      mode: aiMode,
-    });
+    toast.success(
+      `Smart Select complete: ${selectedKeys.size} opportunities selected (Score ≥${scoreThreshold})`,
+      { duration: 5000 }
+    );
   };
 
   // Toggle opportunity selection
@@ -1532,300 +1478,176 @@ export default function CSPDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Preset Filters */}
-          <div>
-            <Label className="mb-2 block text-base font-semibold flex items-center gap-1">
-              Preset Filters
-              <HelpDialog title="Preset Filter Profiles" content={HELP_CONTENT.PRESET_FILTER_DIALOG} />
-            </Label>
-            <div className="flex flex-wrap gap-3">
-              <Button
-                variant="ghost"
-                className={cn(
-                  "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
-                  presetFilter === 'conservative'
-                    ? "bg-gradient-to-r from-slate-600 via-gray-700 to-slate-800 text-white shadow-lg shadow-slate-500/50 hover:shadow-xl hover:shadow-slate-500/60 hover:scale-110"
-                    : "bg-slate-500/10 text-slate-400 border border-slate-500/30 hover:bg-slate-500/20 hover:border-slate-500/50 hover:scale-105"
-                )}
-                onClick={() => handlePresetFilter('conservative')}
-                size="default"
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-blue-300 animate-pulse" />
-                  Conservative
-                </span>
-                {presetFilter === 'conservative' && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                className={cn(
-                  "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
-                  presetFilter === 'medium'
-                    ? "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-white shadow-lg shadow-amber-500/50 hover:shadow-xl hover:shadow-amber-500/60 hover:scale-110"
-                    : "bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-105"
-                )}
-                onClick={() => handlePresetFilter('medium')}
-                size="default"
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse" />
-                  Medium
-                </span>
-                {presetFilter === 'medium' && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                className={cn(
-                  "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
-                  presetFilter === 'aggressive'
-                    ? "bg-gradient-to-r from-orange-600 via-amber-700 to-orange-800 text-white shadow-lg shadow-orange-500/50 hover:shadow-xl hover:shadow-orange-500/60 hover:scale-110"
-                    : "bg-orange-500/10 text-orange-400 border border-orange-500/30 hover:bg-orange-500/20 hover:border-orange-500/50 hover:scale-105"
-                )}
-                onClick={() => handlePresetFilter('aggressive')}
-                size="default"
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-300 animate-pulse" />
-                  Aggressive
-                </span>
-                {presetFilter === 'aggressive' && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                className="rounded-full px-5 py-2.5 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200 hover:scale-105"
-                onClick={() => {
-                  setPresetFilter(null);
-                  setMinScore(undefined);
-                }}
-                size="default"
-              >
-                Clear Filters
-              </Button>
+          {/* Range Filters - Redesigned with larger sliders */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Label className="text-base font-semibold">Range Filters</Label>
+              <span className="text-xs text-muted-foreground">(Adjust sliders to filter opportunities)</span>
             </div>
-          </div>
-
-          {/* Compact Horizontal Live Filters */}
-          <div className="flex flex-wrap items-center gap-4 py-2">
-            <Label className="text-sm font-semibold">Filters:</Label>
             
-            {/* Delta Range */}
-            <div className="flex items-center gap-2">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">Δ</Label>
-              <div className="flex items-center gap-0.5">
-                <input
-                  type="number"
-                  value={deltaRange[0]}
-                  onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
-                  className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                />
-                <div className="flex flex-col">
-                  <button
-                    onClick={() => setDeltaRange([Math.min(1, deltaRange[0] + 0.01), deltaRange[1]])}
-                    className="h-3 w-4 flex items-center justify-center border rounded-t text-xs hover:bg-accent"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    onClick={() => setDeltaRange([Math.max(0, deltaRange[0] - 0.01), deltaRange[1]])}
-                    className="h-3 w-4 flex items-center justify-center border rounded-b text-xs hover:bg-accent"
-                  >
-                    ▼
-                  </button>
-                </div>
+            {/* Score Range - PRIMARY FILTER */}
+            <div className="space-y-2 p-4 bg-orange-500/5 border border-orange-500/20 rounded-lg">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold text-orange-400">Score (Primary Filter)</Label>
+                <span className="text-xs text-muted-foreground">{scoreRange[0]} - {scoreRange[1]}</span>
               </div>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={deltaRange[0]}
-                onChange={(e) => setDeltaRange([parseFloat(e.target.value), deltaRange[1]])}
-                className="w-16"
-              />
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={deltaRange[1]}
-                onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value)])}
-                className="w-16"
-              />
-              <div className="flex items-center gap-0.5">
-                <input
-                  type="number"
-                  value={deltaRange[1]}
-                  onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
-                  className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                />
-                <div className="flex flex-col">
-                  <button
-                    onClick={() => setDeltaRange([deltaRange[0], Math.min(1, deltaRange[1] + 0.01)])}
-                    className="h-3 w-4 flex items-center justify-center border rounded-t text-xs hover:bg-accent"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    onClick={() => setDeltaRange([deltaRange[0], Math.max(0, deltaRange[1] - 0.01)])}
-                    className="h-3 w-4 flex items-center justify-center border rounded-b text-xs hover:bg-accent"
-                  >
-                    ▼
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* DTE Range */}
-            <div className="flex items-center gap-2">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">DTE</Label>
-              <div className="flex items-center gap-0.5">
-                <input
-                  type="number"
-                  value={dteRange[0]}
-                  onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
-                  className="w-12 px-1 py-0.5 text-xs border rounded bg-background"
-                  min="0"
-                  max="90"
-                />
-                <div className="flex flex-col">
-                  <button
-                    onClick={() => setDteRange([Math.min(90, dteRange[0] + 1), dteRange[1]])}
-                    className="h-3 w-4 flex items-center justify-center border rounded-t text-xs hover:bg-accent"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    onClick={() => setDteRange([Math.max(0, dteRange[0] - 1), dteRange[1]])}
-                    className="h-3 w-4 flex items-center justify-center border rounded-b text-xs hover:bg-accent"
-                  >
-                    ▼
-                  </button>
-                </div>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="90"
-                step="1"
-                value={dteRange[0]}
-                onChange={(e) => setDteRange([parseInt(e.target.value), dteRange[1]])}
-                className="w-16"
-              />
-              <input
-                type="range"
-                min="0"
-                max="90"
-                step="1"
-                value={dteRange[1]}
-                onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value)])}
-                className="w-16"
-              />
-              <div className="flex items-center gap-0.5">
-                <input
-                  type="number"
-                  value={dteRange[1]}
-                  onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])}
-                  className="w-12 px-1 py-0.5 text-xs border rounded bg-background"
-                  min="0"
-                  max="90"
-                />
-                <div className="flex flex-col">
-                  <button
-                    onClick={() => setDteRange([dteRange[0], Math.min(90, dteRange[1] + 1)])}
-                    className="h-3 w-4 flex items-center justify-center border rounded-t text-xs hover:bg-accent"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    onClick={() => setDteRange([dteRange[0], Math.max(0, dteRange[1] - 1)])}
-                    className="h-3 w-4 flex items-center justify-center border rounded-b text-xs hover:bg-accent"
-                  >
-                    ▼
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Score Range */}
-            <div className="flex items-center gap-2">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">Score</Label>
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center gap-4">
                 <input
                   type="number"
                   value={scoreRange[0]}
                   onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])}
-                  className="w-12 px-1 py-0.5 text-xs border rounded bg-background"
+                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
                   min="0"
                   max="100"
                 />
-                <div className="flex flex-col">
-                  <button
-                    onClick={() => setScoreRange([Math.min(100, scoreRange[0] + 1), scoreRange[1]])}
-                    className="h-3 w-4 flex items-center justify-center border rounded-t text-xs hover:bg-accent"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    onClick={() => setScoreRange([Math.max(0, scoreRange[0] - 1), scoreRange[1]])}
-                    className="h-3 w-4 flex items-center justify-center border rounded-b text-xs hover:bg-accent"
-                  >
-                    ▼
-                  </button>
+                <div className="flex-1 flex items-center gap-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={scoreRange[0]}
+                    onChange={(e) => setScoreRange([parseInt(e.target.value), scoreRange[1]])}
+                    className="flex-1 h-2 accent-orange-500"
+                  />
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={scoreRange[1]}
+                    onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value)])}
+                    className="flex-1 h-2 accent-orange-500"
+                  />
                 </div>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                value={scoreRange[0]}
-                onChange={(e) => setScoreRange([parseInt(e.target.value), scoreRange[1]])}
-                className="w-16"
-              />
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                value={scoreRange[1]}
-                onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value)])}
-                className="w-16"
-              />
-              <div className="flex items-center gap-0.5">
                 <input
                   type="number"
                   value={scoreRange[1]}
                   onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])}
-                  className="w-12 px-1 py-0.5 text-xs border rounded bg-background"
+                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
                   min="0"
                   max="100"
                 />
-                <div className="flex flex-col">
-                  <button
-                    onClick={() => setScoreRange([scoreRange[0], Math.min(100, scoreRange[1] + 1)])}
-                    className="h-3 w-4 flex items-center justify-center border rounded-t text-xs hover:bg-accent"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    onClick={() => setScoreRange([scoreRange[0], Math.max(0, scoreRange[1] - 1)])}
-                    className="h-3 w-4 flex items-center justify-center border rounded-b text-xs hover:bg-accent"
-                  >
-                    ▼
-                  </button>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setScoreRange([70, 100])}
+                  className="text-xs"
+                >
+                  Conservative (≥70)
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setScoreRange([55, 100])}
+                  className="text-xs"
+                >
+                  Aggressive (≥55)
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setScoreRange([0, 100])}
+                  className="text-xs"
+                >
+                  All
+                </Button>
+              </div>
+            </div>
+
+            {/* Delta Range */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Delta (Δ)</Label>
+                <span className="text-xs text-muted-foreground">{deltaRange[0].toFixed(2)} - {deltaRange[1].toFixed(2)}</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <input
+                  type="number"
+                  value={deltaRange[0]}
+                  onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
+                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                />
+                <div className="flex-1 flex items-center gap-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={deltaRange[0]}
+                    onChange={(e) => setDeltaRange([parseFloat(e.target.value), deltaRange[1]])}
+                    className="flex-1 h-2"
+                  />
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={deltaRange[1]}
+                    onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value)])}
+                    className="flex-1 h-2"
+                  />
                 </div>
+                <input
+                  type="number"
+                  value={deltaRange[1]}
+                  onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
+                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                />
+              </div>
+            </div>
+
+            {/* DTE Range */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Days to Expiration (DTE)</Label>
+                <span className="text-xs text-muted-foreground">{dteRange[0]} - {dteRange[1]} days</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <input
+                  type="number"
+                  value={dteRange[0]}
+                  onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
+                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                  min="0"
+                  max="90"
+                />
+                <div className="flex-1 flex items-center gap-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="90"
+                    step="1"
+                    value={dteRange[0]}
+                    onChange={(e) => setDteRange([parseInt(e.target.value), dteRange[1]])}
+                    className="flex-1 h-2"
+                  />
+                  <input
+                    type="range"
+                    min="0"
+                    max="90"
+                    step="1"
+                    value={dteRange[1]}
+                    onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value)])}
+                    className="flex-1 h-2"
+                  />
+                </div>
+                <input
+                  type="number"
+                  value={dteRange[1]}
+                  onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])}
+                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                  min="0"
+                  max="90"
+                />
               </div>
             </div>
           </div>
@@ -1880,19 +1702,10 @@ export default function CSPDashboard() {
                 className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
                 size="default"
                 onClick={handleSmartSelect}
-                disabled={smartSelectMutation.isPending || filteredOpportunities.length === 0}
-                title={`AI Mode: ${aiMode === 'conservative' ? '3-5% monthly target' : '8-10% monthly target'}`}
+                disabled={filteredOpportunities.length === 0}
+                title={`Score-based selection: ${aiMode === 'conservative' ? 'Score ≥70' : 'Score ≥55'}`}
               >
-                {smartSelectMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    🤖 Smart Select ({aiMode === 'conservative' ? '3-5%' : '8-10%'})
-                  </>
-                )}
+                🤖 Smart Select ({aiMode === 'conservative' ? '≥70' : '≥55'})
               </Button>
               <Button
                 className="bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
@@ -2053,25 +1866,35 @@ export default function CSPDashboard() {
                 {selectedOppsList.length > 0 && `${selectedOppsList.length} selected`}
               </CardDescription>
             </div>
-            {filteredOpportunities.length > 0 && (
+            <div className="flex items-center gap-2">
               <Button
-                onClick={handleSmartSelect}
-                disabled={smartSelectMutation.isPending}
+                onClick={() => setShowTechnicalColumns(!showTechnicalColumns)}
                 variant="outline"
-                className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border-purple-500/50 hover:border-purple-500 hover:bg-purple-600/30"
+                size="sm"
+                className="border-border/50 hover:border-border"
               >
-                {smartSelectMutation.isPending ? (
+                {showTechnicalColumns ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Analyzing...
+                    <ChevronDown className="w-4 h-4 mr-1" />
+                    Hide Technical Columns
                   </>
                 ) : (
                   <>
-                    🤖 Smart Select
+                    <ChevronDown className="w-4 h-4 mr-1 rotate-180" />
+                    Show Technical Columns
                   </>
                 )}
               </Button>
-            )}
+              {filteredOpportunities.length > 0 && (
+                <Button
+                  onClick={handleSmartSelect}
+                  variant="outline"
+                  className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border-purple-500/50 hover:border-purple-500 hover:bg-purple-600/30"
+                >
+                  🤖 Smart Select
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -2081,44 +1904,44 @@ export default function CSPDashboard() {
                 <TableRow>
                   <TableHead className="w-12">Select</TableHead>
                   {(strategyType === 'spread' ? [
-                    { key: 'symbol', label: 'Symbol', help: null },
-                    { key: 'strike', label: 'Strikes', help: null },
-                    { key: 'currentPrice', label: 'Current', help: null },
-                    { key: 'netCredit', label: 'Net Credit', help: HELP_CONTENT.NET_CREDIT },
-                    { key: 'capitalAtRisk', label: 'Capital Risk', help: HELP_CONTENT.CAPITAL_AT_RISK },
-                    { key: 'spreadROC', label: 'ROC %', help: HELP_CONTENT.SPREAD_ROC },
-                    { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP },
-                    { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE },
-                    { key: 'weeklyPct', label: 'Weekly %', help: HELP_CONTENT.WEEKLY_RETURN },
-                    { key: 'breakeven', label: 'Breakeven', help: HELP_CONTENT.BREAKEVEN_BULL_PUT },
-                    { key: 'openInterest', label: 'OI', help: 'dialog-oi-vol' },
-                    { key: 'volume', label: 'Vol', help: 'dialog-oi-vol' },
-                    { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP },
-                    { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP },
-                    { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK },
-                    { key: 'score', label: 'Score', help: 'dialog-score' },
-                    { key: 'aiRecommendation', label: 'AI', help: null },
+                    { key: 'symbol', label: 'Symbol', help: null, technical: false },
+                    { key: 'strike', label: 'Strikes', help: null, technical: false },
+                    { key: 'currentPrice', label: 'Current', help: null, technical: false },
+                    { key: 'netCredit', label: 'Net Credit', help: HELP_CONTENT.NET_CREDIT, technical: false },
+                    { key: 'capitalAtRisk', label: 'Capital Risk', help: HELP_CONTENT.CAPITAL_AT_RISK, technical: false },
+                    { key: 'spreadROC', label: 'ROC %', help: HELP_CONTENT.SPREAD_ROC, technical: false },
+                    { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP, technical: true },
+                    { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE, technical: false },
+                    { key: 'weeklyPct', label: 'Weekly %', help: HELP_CONTENT.WEEKLY_RETURN, technical: false },
+                    { key: 'breakeven', label: 'Breakeven', help: HELP_CONTENT.BREAKEVEN_BULL_PUT, technical: false },
+                    { key: 'openInterest', label: 'OI', help: 'dialog-oi-vol', technical: true },
+                    { key: 'volume', label: 'Vol', help: 'dialog-oi-vol', technical: true },
+                    { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, technical: true },
+                    { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, technical: true },
+                    { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
+                    { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
+                    { key: 'aiRecommendation', label: 'AI', help: null, technical: false },
                   ] : [
-                    { key: 'symbol', label: 'Symbol', help: null },
-                    { key: 'strike', label: 'Strike', help: null },
-                    { key: 'currentPrice', label: 'Current', help: null },
-                    { key: 'bid', label: 'Bid', help: null },
-                    { key: 'ask', label: 'Ask', help: null },
-                    { key: 'spreadPct', label: 'Spread %', help: null },
-                    { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP },
-                    { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE },
-                    { key: 'premium', label: 'Premium', help: null },
-                    { key: 'weeklyPct', label: 'Weekly %', help: HELP_CONTENT.WEEKLY_RETURN },
-                    { key: 'collateral', label: 'Collateral', help: null },
-                    { key: 'roc', label: 'ROC %', help: null },
-                    { key: 'openInterest', label: 'OI', help: 'dialog-oi-vol' },
-                    { key: 'volume', label: 'Vol', help: 'dialog-oi-vol' },
-                    { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP },
-                    { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP },
-                    { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK },
-                    { key: 'score', label: 'Score', help: 'dialog-score' },
-                    { key: 'aiRecommendation', label: 'AI', help: null },
-                  ]).map(({ key, label, help }) => (
+                    { key: 'symbol', label: 'Symbol', help: null, technical: false },
+                    { key: 'strike', label: 'Strike', help: null, technical: false },
+                    { key: 'currentPrice', label: 'Current', help: null, technical: false },
+                    { key: 'bid', label: 'Bid', help: null, technical: false },
+                    { key: 'ask', label: 'Ask', help: null, technical: false },
+                    { key: 'spreadPct', label: 'Spread %', help: null, technical: false },
+                    { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP, technical: true },
+                    { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE, technical: false },
+                    { key: 'premium', label: 'Premium', help: null, technical: false },
+                    { key: 'weeklyPct', label: 'Weekly %', help: HELP_CONTENT.WEEKLY_RETURN, technical: false },
+                    { key: 'collateral', label: 'Collateral', help: null, technical: false },
+                    { key: 'roc', label: 'ROC %', help: null, technical: false },
+                    { key: 'openInterest', label: 'OI', help: 'dialog-oi-vol', technical: true },
+                    { key: 'volume', label: 'Vol', help: 'dialog-oi-vol', technical: true },
+                    { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, technical: true },
+                    { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, technical: true },
+                    { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
+                    { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
+                    { key: 'aiRecommendation', label: 'AI', help: null, technical: false },
+                  ]).filter(({ technical }) => !technical || showTechnicalColumns).map(({ key, label, help }) => (
                     <TableHead 
                       key={key}
                       className="cursor-pointer hover:bg-accent/50 transition-colors"
@@ -2186,10 +2009,39 @@ export default function CSPDashboard() {
                                 {((opp as any).spreadROC || 0).toFixed(2)}%
                               </Badge>
                             </TableCell>
-                            <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>
+                            {showTechnicalColumns && <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>}
                             <TableCell>{opp.dte}</TableCell>
                             <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
                             <TableCell className="text-blue-300">${(opp as any).breakeven?.toFixed(2)}</TableCell>
+                            {showTechnicalColumns && (
+                              <>
+                                <TableCell>
+                                  <Badge className={cn("font-bold", getLiquidityColor(opp.openInterest, 'oi'))}>
+                                    {opp.openInterest}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className={cn("font-bold", getLiquidityColor(opp.volume, 'vol'))}>
+                                    {opp.volume}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'csp'))}>
+                                    {opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className={cn("font-bold", getBBColor(opp.bbPctB, 'csp'))}>
+                                    {opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className={cn("font-bold", getIVRankColor(opp.ivRank))}>
+                                    {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
+                                  </Badge>
+                                </TableCell>
+                              </>
+                            )}
                             <TableCell>
                               <Badge className={cn("font-bold", getROCColor((opp as any).spreadROC || 0))}>
                                 {opp.score}
@@ -2203,7 +2055,7 @@ export default function CSPDashboard() {
                             <TableCell>${opp.bid.toFixed(2)}</TableCell>
                             <TableCell>${opp.ask.toFixed(2)}</TableCell>
                             <TableCell>{opp.spreadPct.toFixed(1)}%</TableCell>
-                            <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>
+                            {showTechnicalColumns && <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>}
                             <TableCell>{opp.dte}</TableCell>
                             <TableCell className="font-medium text-green-500">${opp.premium.toFixed(2)}</TableCell>
                             <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
@@ -2215,31 +2067,35 @@ export default function CSPDashboard() {
                             </TableCell>
                           </>
                         )}
-                        <TableCell>
-                          <Badge className={cn("font-bold", getLiquidityColor(opp.openInterest, 'oi'))}>
-                            {opp.openInterest}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={cn("font-bold", getLiquidityColor(opp.volume, 'vol'))}>
-                            {opp.volume}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'csp'))}>
-                            {opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={cn("font-bold", getBBColor(opp.bbPctB, 'csp'))}>
-                            {opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={cn("font-bold", getIVRankColor(opp.ivRank))}>
-                            {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
-                          </Badge>
-                        </TableCell>
+                        {showTechnicalColumns && (
+                          <>
+                            <TableCell>
+                              <Badge className={cn("font-bold", getLiquidityColor(opp.openInterest, 'oi'))}>
+                                {opp.openInterest}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={cn("font-bold", getLiquidityColor(opp.volume, 'vol'))}>
+                                {opp.volume}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'csp'))}>
+                                {opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={cn("font-bold", getBBColor(opp.bbPctB, 'csp'))}>
+                                {opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={cn("font-bold", getIVRankColor(opp.ivRank))}>
+                                {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
+                              </Badge>
+                            </TableCell>
+                          </>
+                        )}
                         <TableCell>
                           <TooltipProvider>
                             <Tooltip>
@@ -2289,36 +2145,34 @@ export default function CSPDashboard() {
                           </TooltipProvider>
                         </TableCell>
                         <TableCell>
-                          {(() => {
-                            const recommendation = aiRecommendations.get(key);
-                            if (!recommendation) return <span className="text-muted-foreground text-xs">-</span>;
-                            
-                            const { recommendation: rec, analysis } = recommendation;
-                            return (
-                              <Badge
-                                className={cn(
-                                  "font-bold cursor-pointer hover:opacity-80 transition-opacity",
-                                  rec === 'favorable' && "bg-green-500/20 text-green-500 border-green-500/50",
-                                  rec === 'neutral' && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
-                                  rec === 'unfavorable' && "bg-red-500/20 text-red-500 border-red-500/50"
-                                )}
-                                onClick={() => {
-                                  setSelectedAiAnalysis({
-                                    symbol: opp.symbol,
-                                    strike: opp.strike,
-                                    recommendation: rec,
-                                    analysis,
-                                  });
-                                  setShowAiAnalysisModal(true);
-                                }}
-                                title="Click to see detailed analysis"
-                              >
-                                {rec === 'favorable' && '🟢 Favorable'}
-                                {rec === 'neutral' && '🟡 Neutral'}
-                                {rec === 'unfavorable' && '🔴 Unfavorable'}
-                              </Badge>
-                            );
-                          })()}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-purple-500/20"
+                            onClick={() => {
+                              explainScore.mutate({
+                                symbol: opp.symbol,
+                                strike: opp.strike,
+                                currentPrice: opp.currentPrice,
+                                premium: opp.premium,
+                                delta: Math.abs(opp.delta),
+                                dte: opp.dte,
+                                rsi: opp.rsi,
+                                bbPctB: opp.bbPctB,
+                                ivRank: opp.ivRank,
+                                score: opp.score,
+                                scoreBreakdown: opp.scoreBreakdown,
+                              });
+                            }}
+                            disabled={explainScore.isPending}
+                            title="Click to see AI explanation of this score"
+                          >
+                            {explainScore.isPending ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                            ) : (
+                              <span className="text-purple-500">ℹ️</span>
+                            )}
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );
@@ -2583,46 +2437,44 @@ export default function CSPDashboard() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              AI Trade Analysis: {selectedAiAnalysis?.symbol} ${selectedAiAnalysis?.strike}
+              Score Explanation: {selectedAiAnalysis?.symbol} ${selectedAiAnalysis?.strike}
             </DialogTitle>
             <DialogDescription>
-              Detailed analysis from the Smart Select AI evaluation
+              AI-powered explanation of why this opportunity scored {selectedAiAnalysis?.score}/100
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Recommendation Badge */}
+            {/* Score Badge */}
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-muted-foreground">Recommendation:</span>
+              <span className="text-sm font-medium text-muted-foreground">Composite Score:</span>
               <Badge
                 className={cn(
                   "font-bold text-base px-3 py-1",
-                  selectedAiAnalysis?.recommendation === 'favorable' && "bg-green-500/20 text-green-500 border-green-500/50",
-                  selectedAiAnalysis?.recommendation === 'neutral' && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
-                  selectedAiAnalysis?.recommendation === 'unfavorable' && "bg-red-500/20 text-red-500 border-red-500/50"
+                  (selectedAiAnalysis?.score ?? 0) >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
+                  (selectedAiAnalysis?.score ?? 0) >= 55 && (selectedAiAnalysis?.score ?? 0) < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
+                  (selectedAiAnalysis?.score ?? 0) < 55 && "bg-red-500/20 text-red-500 border-red-500/50"
                 )}
               >
-                {selectedAiAnalysis?.recommendation === 'favorable' && '🟢 Favorable'}
-                {selectedAiAnalysis?.recommendation === 'neutral' && '🟡 Neutral'}
-                {selectedAiAnalysis?.recommendation === 'unfavorable' && '🔴 Unfavorable'}
+                {selectedAiAnalysis?.score}/100
               </Badge>
             </div>
 
-            {/* Analysis Text */}
-            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-              <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Detailed Analysis</h4>
+            {/* Explanation Text */}
+            <div className="bg-muted/50 rounded-lg p-4 space-y-2 border-2 border-orange-500/30">
+              <h4 className="font-semibold text-sm text-orange-400 uppercase tracking-wide">Why This Score?</h4>
               <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                {selectedAiAnalysis?.analysis}
+                {selectedAiAnalysis?.explanation}
               </div>
             </div>
 
-            {/* Evaluation Criteria Reference */}
+            {/* Scoring System Reference */}
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 space-y-2">
-              <h4 className="font-semibold text-sm text-blue-400 uppercase tracking-wide">Evaluation Criteria</h4>
+              <h4 className="font-semibold text-sm text-blue-400 uppercase tracking-wide">Scoring System</h4>
               <div className="text-xs text-muted-foreground space-y-1">
-                <p>• <strong>IV Rank:</strong> &gt;30% is good, &gt;50% is excellent</p>
-                <p>• <strong>Strike Distance:</strong> 10-30% OTM is ideal</p>
-                <p>• <strong>DTE:</strong> 7-45 days is standard for theta decay</p>
-                <p>• <strong>Premium:</strong> Higher is better, balanced with probability</p>
+                <p>• <strong>Technical Setup (40%):</strong> RSI + Bollinger Band %B (oversold = higher score)</p>
+                <p>• <strong>Greeks & Timing (30%):</strong> Delta (0.20-0.29 ideal) + DTE (7-10 days max) + IV Rank</p>
+                <p>• <strong>Premium Quality (20%):</strong> Weekly return (0.75-1.5% target) + Bid-ask spread</p>
+                <p>• <strong>Stock Quality (10%):</strong> Mag 7 bonus + Market cap tier</p>
               </div>
             </div>
           </div>
