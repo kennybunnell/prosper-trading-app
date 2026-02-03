@@ -3609,3 +3609,17 @@
 - [x] Panel displays data for ALL fetched opportunities (unfiltered)
 - [x] Match exact styling and layout of CC Dashboard's first statistics panel
 - [x] Keep existing "Selected Opportunities" panel below Range Filters unchanged
+
+## Bug Fix: Tastytrade API TLS Connection Error
+- [ ] Investigate Tastytrade API connection code and identify timeout/retry issues
+- [ ] Add retry logic with exponential backoff for network failures (3 retries with 1s, 2s, 4s delays)
+- [ ] Increase HTTP client connection timeout from default to 30 seconds
+- [ ] Add better error messages distinguishing network errors from API errors
+- [ ] Test order submission with retry logic
+
+## Bug Fix: Tastytrade API TLS Connection Error
+- [x] Investigate Tastytrade API connection code and identify timeout/retry issues
+- [x] Add retry logic with exponential backoff for network failures (3 retries with 1s, 2s, 4s delays)
+- [x] Increase HTTP client connection timeout from default to 30 seconds
+- [x] Add better error messages distinguishing network errors from API errors
+- [ ] Test order submission with retry logic (requires user to test with real orders)

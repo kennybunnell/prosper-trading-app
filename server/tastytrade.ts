@@ -107,6 +107,7 @@ export class TastytradeAPI {
       headers: {
         'Content-Type': 'application/json',
       },
+      timeout: 30000, // 30 second timeout for all requests
     });
   }
 
@@ -241,27 +242,36 @@ export class TastytradeAPI {
    * Submit an order
    */
   async submitOrder(order: CreateOrderRequest): Promise<TastytradeOrder> {
-    try {
-      const response = await this.client.post(
-        `/accounts/${order.accountNumber}/orders`,
-        {
-          'time-in-force': order.timeInForce,
-          'order-type': order.orderType,
-          price: order.price,
-          'price-effect': order.priceEffect,
-          legs: order.legs.map(leg => ({
-            'instrument-type': leg.instrumentType,
-            symbol: leg.symbol,
-            quantity: leg.quantity,
-            action: leg.action,
-          })),
-        }
-      );
+    return this.retryWithBackoff(async () => {
+      try {
+        const response = await this.client.post(
+          `/accounts/${order.accountNumber}/orders`,
+          {
+            'time-in-force': order.timeInForce,
+            'order-type': order.orderType,
+            price: order.price,
+            'price-effect': order.priceEffect,
+            legs: order.legs.map(leg => ({
+              'instrument-type': leg.instrumentType,
+              symbol: leg.symbol,
+              quantity: leg.quantity,
+              action: leg.action,
+            })),
+          }
+        );
 
-      return response.data.data.order;
-    } catch (error: any) {
-      throw new Error(`Failed to submit order: ${error.response?.data?.error?.message || error.message}`);
-    }
+        return response.data.data.order;
+      } catch (error: any) {
+        // Log detailed error for debugging
+        console.error('[Tastytrade submitOrder] Error details:', {
+          errorCode: error.code,
+          errorMessage: error.message,
+          responseStatus: error.response?.status,
+          responseData: error.response?.data,
+        });
+        throw new Error(`Failed to submit order: ${error.response?.data?.error?.message || error.message}`);
+      }
+    });
   }
 
   /**
