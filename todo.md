@@ -3582,3 +3582,7 @@
 - [x] Add orange borders to all modals in CSP and BPS dashboards
 - [x] Increase spread scanning timeout (from 5s to 15s per API call)
 - [x] Extend technical columns toggle to hide/show Volume and OI columns (matching CSP/BPS)
+
+## CSPDashboard UI Consistency Fix
+- [x] Add red "Clear Selection" button to CSPDashboard (half width, side-by-side with green "Select All Filtered" button)
+- [x] Match the exact layout and styling of CCDashboard's selection buttons
