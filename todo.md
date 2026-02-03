@@ -3482,3 +3482,9 @@
 - [x] Fix AI info icon error - "No procedure found on path 'csp.explainScore'" (restarted server to sync types)
 - [x] Remove Smart Select button (no longer needed with score-based workflow)
 - [ ] Investigate slider performance issues during interaction
+
+## UI Cleanup - Remove Redundant Buttons
+- [x] Remove Conservative/Aggressive buttons from top of page (duplicates score filter quick-select)
+- [x] Remove Smart Select (≥70) button from top of page (duplicates score filter)
+- [x] Remove Clear Selection button from top of page (no longer needed)
+- [x] Fix AI info icon to only analyze the single clicked row (not entire list)
