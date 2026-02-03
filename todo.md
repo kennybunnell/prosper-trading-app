@@ -3524,3 +3524,10 @@
 - [x] Change Score increment from ±5 to ±1 for precise control
 - [x] Change DTE increment from ±5 to ±1 for precise control
 - [x] Change Delta increment from ±0.05 to ±0.01 for precise control
+
+## Verify Strategy-Specific AI Explanations
+- [x] Check if explainScore endpoint differentiates between CSP and BPS strategies
+- [x] Ensure AI prompts describe CSP-specific scoring components for CSP opportunities
+- [x] Ensure AI prompts describe BPS-specific scoring components (spread width, delta separation, credit/width ratio) for BPS opportunities
+- [x] Frontend now passes strategy parameter based on strategyType
+- [x] Test AI explanations for both strategies to confirm they're distinct

@@ -2216,6 +2216,7 @@ export default function CSPDashboard() {
                                 const rowKey = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
                                 setAnalyzingRowKey(rowKey);
                                 explainScore.mutate({
+                                  strategy: strategyType === 'spread' ? 'bps' : 'csp',
                                   symbol: opp.symbol,
                                   strike: opp.strike,
                                   currentPrice: opp.currentPrice,
@@ -2227,6 +2228,13 @@ export default function CSPDashboard() {
                                   ivRank: opp.ivRank,
                                   score: opp.score,
                                   scoreBreakdown: opp.scoreBreakdown,
+                                  // BPS-specific fields (only populated when strategyType === 'spread')
+                                  ...(strategyType === 'spread' && {
+                                    shortStrike: opp.strike,
+                                    longStrike: (opp as any).longStrike,
+                                    spreadWidth: (opp as any).spreadWidth,
+                                    creditReceived: opp.premium,
+                                  }),
                                 });
                               }}
                               disabled={analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}`}

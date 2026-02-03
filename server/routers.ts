@@ -784,6 +784,7 @@ export const appRouter = router({
     explainScore: protectedProcedure
       .input(
         z.object({
+          strategy: z.enum(['csp', 'bps']).default('csp'),
           symbol: z.string(),
           strike: z.number(),
           currentPrice: z.number(),
@@ -801,13 +802,60 @@ export const appRouter = router({
             quality: z.number(),
             total: z.number(),
           }),
+          // BPS-specific fields
+          shortStrike: z.number().optional(),
+          longStrike: z.number().optional(),
+          spreadWidth: z.number().optional(),
+          creditReceived: z.number().optional(),
         })
       )
       .mutation(async ({ input }) => {
         const { invokeLLM } = await import('./_core/llm');
         
-        // Generate concise explanation of the score
-        const prompt = `You are explaining a CSP (Cash-Secured Put) opportunity's composite score to a trader.
+        // Generate strategy-specific explanation
+        let prompt: string;
+        
+        if (input.strategy === 'bps') {
+          // Bull Put Spread specific prompt
+          prompt = `You are explaining a Bull Put Spread (BPS) opportunity's composite score to a trader.
+
+Opportunity Details:
+- Symbol: ${input.symbol}
+- Short Strike: $${input.shortStrike || input.strike}
+- Long Strike: $${input.longStrike || 'N/A'}
+- Spread Width: $${input.spreadWidth || 'N/A'}
+- Credit Received: $${input.creditReceived || input.premium}
+- Current Price: $${input.currentPrice}
+- Short Leg Delta: ${input.delta}
+- DTE: ${input.dte} days
+- RSI: ${input.rsi !== null ? input.rsi.toFixed(1) : 'N/A'}
+- Bollinger Band %B: ${input.bbPctB !== null ? input.bbPctB.toFixed(2) : 'N/A'}
+- IV Rank: ${input.ivRank !== null ? input.ivRank.toFixed(1) : 'N/A'}
+
+Composite Score: ${input.score}/100
+Breakdown:
+- Technical Setup (RSI + BB for oversold conditions): ${input.scoreBreakdown.technical}/40
+- Greeks & Spread Efficiency (Short leg delta + spread width + delta separation + DTE + IV Rank): ${input.scoreBreakdown.greeks}/30
+- Premium Quality (Credit/width ratio targeting 25-40% + bid-ask spread): ${input.scoreBreakdown.premium}/20
+- Overall Quality (Liquidity on both legs + stock quality): ${input.scoreBreakdown.quality}/10
+
+Provide a concise explanation (3-4 bullet points + 1 summary sentence) of WHY this spread scored ${input.score}/100.
+
+Focus on:
+1. Technical setup (oversold conditions favor bullish spreads)
+2. Spread efficiency (delta positioning, width, credit/width ratio)
+3. Risk/reward balance (capital efficiency vs probability of profit)
+4. Liquidity and execution quality
+
+Format:
+• [Component]: [Brief explanation]
+• [Component]: [Brief explanation]
+• [Component]: [Brief explanation]
+
+Summary: [One sentence overall assessment]`;
+        } else {
+          // CSP specific prompt
+          prompt = `You are explaining a Cash-Secured Put (CSP) opportunity's composite score to a trader.
 
 Opportunity Details:
 - Symbol: ${input.symbol}
@@ -822,10 +870,10 @@ Opportunity Details:
 
 Composite Score: ${input.score}/100
 Breakdown:
-- Technical Setup (RSI + BB): ${input.scoreBreakdown.technical}/40
-- Greeks & Timing (Delta + DTE + IV Rank): ${input.scoreBreakdown.greeks}/30
-- Premium Quality (Weekly Return + Spread): ${input.scoreBreakdown.premium}/20
-- Stock Quality (Mag 7 + Market Cap): ${input.scoreBreakdown.quality}/10
+- Technical Setup (RSI + BB for oversold conditions): ${input.scoreBreakdown.technical}/40
+- Greeks & Timing (Delta positioning + DTE + IV Rank): ${input.scoreBreakdown.greeks}/30
+- Premium Quality (Weekly return + bid-ask spread): ${input.scoreBreakdown.premium}/20
+- Stock Quality (Mag 7 preference + market cap): ${input.scoreBreakdown.quality}/10
 
 Provide a concise explanation (3-4 bullet points + 1 summary sentence) of WHY this opportunity scored ${input.score}/100.
 
@@ -840,6 +888,7 @@ Format:
 • [Component]: [Brief explanation]
 
 Summary: [One sentence overall assessment]`;
+        }
 
         const response = await invokeLLM({
           messages: [
