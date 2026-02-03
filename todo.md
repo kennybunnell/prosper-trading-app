@@ -3525,3 +3525,24 @@
 - [x] Style button with red gradient matching CSP dashboard
 - [x] Ensure button clears all selected opportunities
 - [x] Test selection and clearing workflow
+
+## BCS Dashboard - AI Score Explanations & Technical Columns Toggle
+- [ ] Add AI score explanation modal (click score badge to see breakdown)
+- [x] Implement explainBCSScore tRPC endpoint with LLM integration
+- [x] Add explainBCSScore mutation to CCDashboard frontend
+- [x] Add AI modal state management (showAiAnalysisModal, selectedAiAnalysis, analyzingRowKey)
+- [ ] Add AI icon button column to opportunities table
+- [ ] Add AI modal dialog UI component
+- [ ] Display Technical Setup (40%), Greeks (30%), Premium Quality (20%), Stock Quality (10%)
+- [ ] Add "Show Technical Columns" toggle button
+- [ ] Hide/show RSI, BB %B, IV Rank columns based on toggle state
+
+## CC Dashboard - Implement Scoring System
+- [ ] Create cc-scoring.ts with Covered Call specific algorithm
+- [ ] Technical Setup (40%): Oversold indicators (RSI <30, BB %B <0.15) - opposite of BCS
+- [ ] Greeks scoring: Short Delta (0.20-0.30 ideal), DTE (7-14 days), IV Rank
+- [ ] Premium Quality (20%): Premium/Stock Price ratio, Bid-Ask Spread
+- [ ] Stock Quality (10%): Liquidity + Mag 7 preference
+- [ ] Integrate CC scoring into routers-cc.ts coveredCallOpportunities endpoint
+- [ ] Add AI explanation modal to CC dashboard
+- [ ] Add "Show Technical Columns" toggle to CC dashboard

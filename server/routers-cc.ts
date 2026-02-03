@@ -784,6 +784,86 @@ export const ccRouter = router({
 
       return results;
     }),
+
+  explainBCSScore: protectedProcedure
+    .input(
+      z.object({
+        symbol: z.string(),
+        shortStrike: z.number(),
+        longStrike: z.number(),
+        currentPrice: z.number(),
+        netCredit: z.number(),
+        shortDelta: z.number(),
+        dte: z.number(),
+        rsi: z.number().nullable(),
+        bbPctB: z.number().nullable(),
+        ivRank: z.number().nullable(),
+        score: z.number(),
+        scoreBreakdown: z.object({
+          technical: z.number(),
+          greeks: z.number(),
+          premium: z.number(),
+          quality: z.number(),
+          total: z.number(),
+        }),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('./_core/llm');
+      
+      // Generate concise explanation of the BCS score
+      const prompt = `You are explaining a Bear Call Spread opportunity's composite score to a trader.
+
+Opportunity Details:
+- Symbol: ${input.symbol}
+- Short Strike: $${input.shortStrike}
+- Long Strike: $${input.longStrike}
+- Current Price: $${input.currentPrice}
+- Net Credit: $${input.netCredit}
+- Short Delta: ${input.shortDelta}
+- DTE: ${input.dte} days
+- RSI: ${input.rsi !== null ? input.rsi.toFixed(1) : 'N/A'}
+- Bollinger Band %B: ${input.bbPctB !== null ? input.bbPctB.toFixed(2) : 'N/A'}
+- IV Rank: ${input.ivRank !== null ? input.ivRank.toFixed(1) : 'N/A'}
+
+Composite Score: ${input.score}/100
+Breakdown:
+- Technical Setup (RSI + BB - OVERBOUGHT): ${input.scoreBreakdown.technical}/40
+- Greeks & Spread Efficiency: ${input.scoreBreakdown.greeks}/30
+- Premium Quality (Credit/Width Ratio): ${input.scoreBreakdown.premium}/20
+- Stock Quality (Mag 7 + Liquidity): ${input.scoreBreakdown.quality}/10
+
+Provide a concise explanation (3-4 bullet points + 1 summary sentence) of WHY this Bear Call Spread scored ${input.score}/100.
+
+Focus on:
+1. Which components scored well and why (overbought = good for BCS)
+2. Which components scored poorly and why
+3. What this means for the trade's attractiveness
+
+Format:
+• [Component]: [Brief explanation]
+• [Component]: [Brief explanation]
+• [Component]: [Brief explanation]
+
+Summary: [One sentence overall assessment]`;
+
+      const response = await invokeLLM({
+        messages: [
+          { role: 'system', content: 'You are a concise options trading educator. Explain Bear Call Spread scores clearly and briefly.' },
+          { role: 'user', content: prompt },
+        ],
+      });
+
+      const explanation = response.choices[0]?.message?.content || 'Unable to generate explanation';
+      
+      return {
+        symbol: input.symbol,
+        shortStrike: input.shortStrike,
+        longStrike: input.longStrike,
+        score: input.score,
+        explanation,
+      };
+    }),
 });
 
 /**

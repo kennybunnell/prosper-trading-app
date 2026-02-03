@@ -265,6 +265,17 @@ export default function CCDashboard() {
     total: number;
   }>({ isOpen: false, startTime: null, endTime: null, current: 0, total: 0 });
   
+  // AI Analysis Modal state
+  const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
+  const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{
+    symbol: string;
+    shortStrike: number;
+    longStrike: number;
+    score: number;
+    explanation: string | any;
+  } | null>(null);
+  const [analyzingRowKey, setAnalyzingRowKey] = useState<string | null>(null);
+  
   const filtersRef = useRef<HTMLDivElement>(null);
 
   // Fetch filter presets from database
@@ -284,6 +295,19 @@ export default function CCDashboard() {
     undefined,
     { enabled: tradingMode === 'paper' }
   );
+
+  // AI Score Explanation mutation
+  const explainBCSScore = trpc.cc.explainBCSScore.useMutation({
+    onSuccess: (data) => {
+      setSelectedAiAnalysis(data);
+      setShowAiAnalysisModal(true);
+      setAnalyzingRowKey(null);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to generate explanation: ${error.message}`);
+      setAnalyzingRowKey(null);
+    },
+  });
 
   // Calculate available buying power based on trading mode
   const availableBuyingPower = tradingMode === 'paper'
