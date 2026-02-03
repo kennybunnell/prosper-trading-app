@@ -3746,3 +3746,9 @@
 - [x] Yellow: Near at-the-money (ATM) - itmDepth > -5%, within 5% of strike, watch closely
 - [x] Green: Far out-of-the-money (OTM) - itmDepth < -5%, safe zone, no immediate action needed
 - [x] RollsTable component automatically uses backend urgency color (no frontend changes needed)
+
+## Action Items Table Improvements
+- [x] Round up Score column values to whole numbers (Math.ceil)
+- [x] Add Current Price column after Strike column showing current stock price
+- [x] Update RollsTable component to display both Strike and Current Price
+- [x] Verify Current Price data is available in roll analysis backend (metrics.currentPrice)

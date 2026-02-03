@@ -9,6 +9,7 @@ interface RollPosition {
   score: number;
   metrics: {
     strikePrice: number;
+    currentPrice: number;
     dte: number;
     profitCaptured: number;
   };
@@ -63,6 +64,7 @@ export function RollsTable({ rollsRed, rollsYellow, rollsGreen, onViewOptions }:
               <TableHead>Symbol</TableHead>
               <TableHead>Strategy</TableHead>
               <TableHead>Strike</TableHead>
+              <TableHead>Current Price</TableHead>
               <TableHead>DTE</TableHead>
               <TableHead>Alert/Warning</TableHead>
               <TableHead className="text-right">Score</TableHead>
@@ -73,7 +75,7 @@ export function RollsTable({ rollsRed, rollsYellow, rollsGreen, onViewOptions }:
           <TableBody>
             {filteredRolls.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   No {strategyFilter} positions need rolling at this time
                 </TableCell>
               </TableRow>
@@ -101,6 +103,7 @@ export function RollsTable({ rollsRed, rollsYellow, rollsGreen, onViewOptions }:
                     <TableCell className="font-semibold">{roll.symbol}</TableCell>
                     <TableCell>{roll.strategy.toUpperCase()}</TableCell>
                     <TableCell>${roll.metrics.strikePrice}</TableCell>
+                    <TableCell>${roll.metrics.currentPrice.toFixed(2)}</TableCell>
                     <TableCell>{roll.metrics.dte}</TableCell>
                     <TableCell>
                       <div className={`text-xs ${textClass} space-y-0.5`}>
@@ -109,7 +112,7 @@ export function RollsTable({ rollsRed, rollsYellow, rollsGreen, onViewOptions }:
                         ))}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">{roll.score}</TableCell>
+                    <TableCell className="text-right">{Math.ceil(roll.score)}</TableCell>
                     <TableCell className={`text-right font-medium ${textClass}`}>
                       {roll.metrics.profitCaptured.toFixed(0)}%
                     </TableCell>
