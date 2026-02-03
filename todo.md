@@ -3519,3 +3519,9 @@
 - [ ] Add AI explanation modal (click score badge to see detailed analysis)
 - [ ] Add "Show Technical Columns" toggle for RSI/BB/IV Rank columns
 - [ ] Update table columns to match BPS layout (Weekly %, Breakeven, Score, AI)
+
+## CCDashboard - Add Clear Selection Button
+- [x] Add "Clear Selection" button on same horizontal line as "Select All Filtered"
+- [x] Style button with red gradient matching CSP dashboard
+- [x] Ensure button clears all selected opportunities
+- [x] Test selection and clearing workflow
