@@ -3654,3 +3654,17 @@
 - [x] Fix score breakdown mapping in CC/BCS opportunities (fixed fallback object with correct field names)
 - [x] Test AI explanation with CC/BCS opportunities
 - [x] Ensure AI explanation works for both Covered Calls and Bear Call Spreads
+
+## Bug Fix: AI Explanation Incorrectly Identifies Covered Calls as Bear Call Spreads
+- [ ] Investigate Covered Call scoring criteria and metrics
+- [ ] Document Covered Call scoring system for user confirmation
+- [ ] Verify if separate scoring exists for Covered Calls vs Bear Call Spreads
+- [ ] Update AI explanation prompt to correctly identify Covered Call strategy
+- [ ] Ensure AI explanation uses proper Covered Call technical metrics
+- [ ] Test AI explanation with Covered Call opportunities
+
+## Covered Call AI Explanation Fix (COMPLETED)
+- [x] Investigate Covered Call scoring criteria (6 components: Weekly Return, Delta, RSI, BB %B, Distance OTM, Bid-Ask Spread)
+- [x] Create separate explainCCScore endpoint for Covered Calls
+- [x] Update frontend to call correct endpoint based on strategy type (CC vs BCS)
+- [x] Fix AI prompt to correctly identify and explain Covered Call strategy

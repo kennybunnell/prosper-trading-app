@@ -307,7 +307,19 @@ export default function CCDashboard() {
     { enabled: tradingMode === 'paper' }
   );
 
-  // AI Score Explanation mutation
+  // AI Score Explanation mutations
+  const explainCCScore = trpc.cc.explainCCScore.useMutation({
+    onSuccess: (data) => {
+      setSelectedAiAnalysis(data as any);
+      setShowAiAnalysisModal(true);
+      setAnalyzingRowKey(null);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to generate explanation: ${error.message}`);
+      setAnalyzingRowKey(null);
+    },
+  });
+
   const explainBCSScore = trpc.cc.explainBCSScore.useMutation({
     onSuccess: (data) => {
       setSelectedAiAnalysis(data);
@@ -2719,20 +2731,43 @@ export default function CCDashboard() {
                             onClick={() => {
                               const rowKey = getOpportunityKey(opp);
                               setAnalyzingRowKey(rowKey);
-                              explainBCSScore.mutate({
-                                symbol: opp.symbol,
-                                shortStrike: opp.strike,
-                                longStrike: opp.longStrike || 0,
-                                currentPrice: opp.currentPrice,
-                                netCredit: opp.premium,
-                                shortDelta: opp.delta,
-                                dte: opp.dte,
-                                rsi: opp.rsi,
-                                bbPctB: opp.bbPctB,
-                                ivRank: opp.ivRank,
-                                score: opp.score,
-                                scoreBreakdown: (opp as any).scoreBreakdown || { technical: 0, greeks: 0, premium: 0, quality: 0, total: 0 },
-                              });
+                              
+                              // Determine if this is a Covered Call or Bear Call Spread
+                              const isBearCallSpread = opp.longStrike && opp.longStrike > 0;
+                              
+                              if (isBearCallSpread) {
+                                // Bear Call Spread - use BCS endpoint
+                                explainBCSScore.mutate({
+                                  symbol: opp.symbol,
+                                  shortStrike: opp.strike,
+                                  longStrike: opp.longStrike || 0,
+                                  currentPrice: opp.currentPrice,
+                                  netCredit: opp.premium,
+                                  shortDelta: opp.delta,
+                                  dte: opp.dte,
+                                  rsi: opp.rsi,
+                                  bbPctB: opp.bbPctB,
+                                  ivRank: opp.ivRank,
+                                  score: opp.score,
+                                  scoreBreakdown: (opp as any).scoreBreakdown || { technical: 0, greeks: 0, premium: 0, quality: 0, total: 0 },
+                                });
+                              } else {
+                                // Covered Call - use CC endpoint
+                                explainCCScore.mutate({
+                                  symbol: opp.symbol,
+                                  strike: opp.strike,
+                                  currentPrice: opp.currentPrice,
+                                  premium: opp.premium,
+                                  delta: opp.delta,
+                                  dte: opp.dte,
+                                  weeklyReturn: opp.weeklyReturn || 0,
+                                  distanceOtm: opp.distanceOtm || 0,
+                                  rsi: opp.rsi,
+                                  bbPctB: opp.bbPctB,
+                                  spreadPct: opp.spreadPct,
+                                  score: opp.score,
+                                });
+                              }
                             }}
                             disabled={analyzingRowKey === getOpportunityKey(opp)}
                           >

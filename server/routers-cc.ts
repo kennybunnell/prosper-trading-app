@@ -799,6 +799,83 @@ export const ccRouter = router({
       return results;
     }),
 
+  explainCCScore: protectedProcedure
+    .input(
+      z.object({
+        symbol: z.string(),
+        strike: z.number(),
+        currentPrice: z.number(),
+        premium: z.number(),
+        delta: z.number(),
+        dte: z.number(),
+        weeklyReturn: z.number(),
+        distanceOtm: z.number(),
+        rsi: z.number().nullable(),
+        bbPctB: z.number().nullable(),
+        spreadPct: z.number().nullable(),
+        score: z.number(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('./_core/llm');
+      
+      // Generate concise explanation of the CC score
+      const prompt = `You are explaining a Covered Call opportunity's composite score to a trader.
+
+Opportunity Details:
+- Symbol: ${input.symbol}
+- Strike: $${input.strike}
+- Current Price: $${input.currentPrice}
+- Premium: $${input.premium}
+- Delta: ${input.delta.toFixed(2)}
+- DTE: ${input.dte} days
+- Weekly Return: ${input.weeklyReturn.toFixed(2)}%
+- Distance OTM: ${input.distanceOtm.toFixed(1)}%
+- RSI: ${input.rsi !== null ? input.rsi.toFixed(1) : 'N/A'}
+- Bollinger Band %B: ${input.bbPctB !== null ? input.bbPctB.toFixed(2) : 'N/A'}
+- Bid-Ask Spread: ${input.spreadPct !== null ? input.spreadPct.toFixed(1) + '%' : 'N/A'}
+
+Composite Score: ${input.score}/100
+
+Scoring Components:
+- Weekly Return % (25 points): Higher premium = better
+- Delta (20 points): 0.20-0.35 = sweet spot (balance premium vs assignment)
+- RSI (15 points): Higher = better for CC (overbought = good time to sell calls)
+- Bollinger Band %B (15 points): Higher = better for CC (stock near upper band)
+- Distance to Strike % (15 points): Higher = better (more room before assignment)
+- Bid-Ask Spread % (10 points): Lower = better (tighter spreads)
+
+Provide a concise explanation (3-4 bullet points + 1 summary sentence) of WHY this Covered Call scored ${input.score}/100.
+
+Focus on:
+1. Which components scored well and why (overbought = good for CC)
+2. Which components scored poorly and why
+3. What this means for the trade's attractiveness
+
+Format:
+• [Component]: [Brief explanation]
+• [Component]: [Brief explanation]
+• [Component]: [Brief explanation]
+
+Summary: [One sentence overall assessment]`;
+
+      const response = await invokeLLM({
+        messages: [
+          { role: 'system', content: 'You are a concise options trading educator. Explain Covered Call scores clearly and briefly.' },
+          { role: 'user', content: prompt },
+        ],
+      });
+
+      const explanation = response.choices[0]?.message?.content || 'Unable to generate explanation';
+      
+      return {
+        symbol: input.symbol,
+        strike: input.strike,
+        score: input.score,
+        explanation,
+      };
+    }),
+
   explainBCSScore: protectedProcedure
     .input(
       z.object({
