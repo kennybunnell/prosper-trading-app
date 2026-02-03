@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign, Download, RefreshCw } from "lucide-react";
+import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign, Download, RefreshCw, Plus, Minus } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { HelpBadge } from "@/components/HelpBadge";
@@ -12,6 +12,7 @@ import { trpc } from "@/lib/trpc";
 import { useTradingMode } from "@/contexts/TradingModeContext";
 import { toast } from "sonner";
 import { cn, exportToCSV } from "@/lib/utils";
+import { Streamdown } from "streamdown";
 
 type SortColumn = 'symbol' | 'strike' | 'expiration' | 'dte' | 'delta' | 'premium' | 'bidAskSpread' | 'openInterest' | 'volume' | 'score';
 type SortDirection = 'asc' | 'desc';
@@ -126,7 +127,6 @@ function ActivePositionsSection() {
 
 export default function PMCCDashboard() {
   const { mode: tradingMode } = useTradingMode();
-  const [selectedPreset, setSelectedPreset] = useState<'conservative' | 'medium' | 'aggressive' | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState(false);
   const [scanStartTime, setScanStartTime] = useState<number | null>(null);
@@ -138,14 +138,15 @@ export default function PMCCDashboard() {
   const [showOrderPreview, setShowOrderPreview] = useState(false);
   const [isDryRun, setIsDryRun] = useState(true);
   const [isSubmittingOrders, setIsSubmittingOrders] = useState(false);
+  const [showScoreExplanation, setShowScoreExplanation] = useState(false);
+  const [selectedLeapForExplanation, setSelectedLeapForExplanation] = useState<any>(null);
   
   // Range filter states (using range arrays like CSP/CC dashboards)
-  const [strikeRange, setStrikeRange] = useState<[number, number]>([0, 500]);
-  const [dteRange, setDteRange] = useState<[number, number]>([270, 450]);
-  const [deltaRange, setDeltaRange] = useState<[number, number]>([0.6, 1]);
+  const [scoreFilter, setScoreFilter] = useState({ min: 0, max: 100 });
+  const [deltaFilter, setDeltaFilter] = useState({ min: 0.70, max: 0.85 });
+  const [dteFilter, setDteFilter] = useState({ min: 270, max: 450 });
 
-  // Fetch PMCC filter presets from database
-  const { data: presets } = trpc.filterPresets.getByStrategy.useQuery({ strategy: 'pmcc' });
+  // No longer using database presets - using direct range filters instead
   
   // Fetch watchlist to count symbols for progress calculation
   const { data: watchlist = [] } = trpc.watchlist.get.useQuery();
@@ -223,9 +224,9 @@ export default function PMCCDashboard() {
     setIsScanning(true);
     setScanStartTime(Date.now());
     setScanProgress(0);
-    // Use medium as default if no preset selected, pass selected symbols
+    // Pass selected symbols for scanning with default preset
     scanLeapsMutation.mutate({ 
-      presetName: selectedPreset || 'medium',
+      presetName: 'medium',
       symbols: selectedSymbols
     });
   };
@@ -273,51 +274,17 @@ export default function PMCCDashboard() {
     
     let filtered = [...scanLeapsMutation.data.opportunities];
     
-    // Apply preset filter from database first
-    if (selectedPreset && presets) {
-      const preset = presets.find(p => p.presetName === selectedPreset);
-      if (preset) {
-        filtered = filtered.filter(leap => {
-          const delta = Math.abs(leap.delta);
-          const minDelta = parseFloat(preset.minDelta);
-          const maxDelta = parseFloat(preset.maxDelta);
-          
-          // Delta filter (0.65-0.90 for LEAPs)
-          if (delta < minDelta || delta > maxDelta) return false;
-          
-          // DTE filter (270-450 days for LEAPs)
-          if (leap.dte < preset.minDte || leap.dte > preset.maxDte) return false;
-          
-          // Open Interest filter
-          if (leap.openInterest < preset.minOpenInterest) return false;
-          
-          // Volume filter
-          if (leap.volume < preset.minVolume) return false;
-          
-          // Spread % filter (use maxBbPercent as max spread %)
-          const spreadPercent = ((leap.ask - leap.bid) / leap.ask) * 100;
-          const maxSpreadPercent = preset.maxBbPercent ? parseFloat(preset.maxBbPercent) * 100 : 10; // Convert from decimal to %, default 10%
-          if (spreadPercent > maxSpreadPercent) return false;
-          
-          // Score filter
-          if (leap.score < preset.minScore) return false;
-          
-          return true;
-        });
-      }
-     }
-    
-    // Apply range filters (always applied, independent of presets)
+    // Apply range filters
     filtered = filtered.filter(leap => {
-      // Strike filter
-      if (leap.strike < strikeRange[0] || leap.strike > strikeRange[1]) return false;
+      // Score filter
+      if (leap.score < scoreFilter.min || leap.score > scoreFilter.max) return false;
       
       // DTE filter
-      if (leap.dte < dteRange[0] || leap.dte > dteRange[1]) return false;
+      if (leap.dte < dteFilter.min || leap.dte > dteFilter.max) return false;
       
       // Delta filter (use absolute value)
       const delta = Math.abs(leap.delta);
-      if (delta < deltaRange[0] || delta > deltaRange[1]) return false;
+      if (delta < deltaFilter.min || delta > deltaFilter.max) return false;
       
       return true;
     });
@@ -345,7 +312,7 @@ export default function PMCCDashboard() {
     });
     
     return filtered;
-  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection, selectedPreset, presets, strikeRange, dteRange, deltaRange]);
+  }, [scanLeapsMutation.data?.opportunities, selectedLeaps, showSelectedOnly, sortColumn, sortDirection, scoreFilter, dteFilter, deltaFilter]);
 
   // Calculate order summary
   const orderSummary = useMemo(() => {
@@ -436,201 +403,183 @@ export default function PMCCDashboard() {
               {scanLeapsMutation.data && scanLeapsMutation.data.opportunities.length > 0 && (
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium mb-2 block">Filter Presets</label>
-                    <div className="flex flex-wrap gap-3">
-                    <Button
-                      variant="ghost"
-                      className={cn(
-                        "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
-                        selectedPreset === 'conservative'
-                          ? "bg-gradient-to-r from-slate-600 via-gray-700 to-slate-800 text-white shadow-lg shadow-slate-500/50 hover:shadow-xl hover:shadow-slate-500/60 hover:scale-110"
-                          : "bg-slate-500/10 text-slate-400 border border-slate-500/30 hover:bg-slate-500/20 hover:border-slate-500/50 hover:scale-105"
-                      )}
-                      onClick={() => setSelectedPreset("conservative")}
-                    >
-                      <span className="relative z-10 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-blue-300 animate-pulse" />
-                        Conservative
-                      </span>
-                      {selectedPreset === 'conservative' && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className={cn(
-                        "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
-                        selectedPreset === 'medium'
-                          ? "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-white shadow-lg shadow-amber-500/50 hover:shadow-xl hover:shadow-amber-500/60 hover:scale-110"
-                          : "bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-105"
-                      )}
-                      onClick={() => setSelectedPreset("medium")}
-                    >
-                      <span className="relative z-10 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse" />
-                        Medium
-                      </span>
-                      {selectedPreset === 'medium' && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className={cn(
-                        "relative overflow-hidden rounded-full px-5 py-2.5 font-semibold transition-all duration-300",
-                        selectedPreset === 'aggressive'
-                          ? "bg-gradient-to-r from-orange-600 via-amber-700 to-orange-800 text-white shadow-lg shadow-orange-500/50 hover:shadow-xl hover:shadow-orange-500/60 hover:scale-110"
-                          : "bg-orange-500/10 text-orange-400 border border-orange-500/30 hover:bg-orange-500/20 hover:border-orange-500/50 hover:scale-105"
-                      )}
-                      onClick={() => setSelectedPreset("aggressive")}
-                    >
-                      <span className="relative z-10 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-red-300 animate-pulse" />
-                        Aggressive
-                      </span>
-                      {selectedPreset === 'aggressive' && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="rounded-full px-5 py-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/50 transition-all duration-200 hover:scale-105 font-semibold"
-                      onClick={() => {
-                        setSelectedPreset(null);
-                        setSelectedLeaps(new Set());
-                        // Reset range filters to defaults
-                        setStrikeRange([0, 500]);
-                        setDteRange([270, 450]);
-                        setDeltaRange([0.6, 1]);
-                      }}
-                    >
-                      Clear All Filters
-                    </Button>
+                    <label className="text-sm font-medium mb-2 block">Range Filters</label>
+                    <div className="space-y-3">
+                      {/* Score Filter */}
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-muted-foreground w-16">Score:</label>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setScoreFilter(prev => ({ ...prev, min: Math.max(0, prev.min - 1) }))}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <input
+                            type="number"
+                            value={scoreFilter.min}
+                            onChange={(e) => setScoreFilter(prev => ({ ...prev, min: Math.max(0, parseInt(e.target.value) || 0) }))}
+                            className="w-16 px-2 py-1 text-sm border rounded bg-background text-center"
+                            min="0"
+                            max="100"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setScoreFilter(prev => ({ ...prev, min: Math.min(100, prev.min + 1) }))}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <span className="text-muted-foreground">to</span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setScoreFilter(prev => ({ ...prev, max: Math.max(0, prev.max - 1) }))}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <input
+                            type="number"
+                            value={scoreFilter.max}
+                            onChange={(e) => setScoreFilter(prev => ({ ...prev, max: Math.min(100, parseInt(e.target.value) || 100) }))}
+                            className="w-16 px-2 py-1 text-sm border rounded bg-background text-center"
+                            min="0"
+                            max="100"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setScoreFilter(prev => ({ ...prev, max: Math.min(100, prev.max + 1) }))}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
 
-                  </div>
-                  </div>
-                  
-                  {/* Compact Horizontal Range Filters - positioned below preset buttons */}
-                  <div className="flex flex-wrap items-center gap-4 py-2">
-                    <label className="text-sm font-semibold">Filters:</label>
-                    
-                    {/* Strike Price Range */}
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-muted-foreground whitespace-nowrap">Strike</label>
-                      <input
-                        type="number"
-                        value={strikeRange[0]}
-                        onChange={(e) => setStrikeRange([parseInt(e.target.value) || 0, strikeRange[1]])}
-                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
-                        min="0"
-                        max="500"
-                      />
-                      <input
-                        type="range"
-                        min="0"
-                        max="500"
-                        step="10"
-                        value={strikeRange[0]}
-                        onChange={(e) => setStrikeRange([parseInt(e.target.value), strikeRange[1]])}
-                        className="w-16"
-                      />
-                      <input
-                        type="range"
-                        min="0"
-                        max="500"
-                        step="10"
-                        value={strikeRange[1]}
-                        onChange={(e) => setStrikeRange([strikeRange[0], parseInt(e.target.value)])}
-                        className="w-16"
-                      />
-                      <input
-                        type="number"
-                        value={strikeRange[1]}
-                        onChange={(e) => setStrikeRange([strikeRange[0], parseInt(e.target.value) || 500])}
-                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
-                        min="0"
-                        max="500"
-                      />
-                    </div>
+                      {/* Delta Filter */}
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-muted-foreground w-16">Delta:</label>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setDeltaFilter(prev => ({ ...prev, min: Math.max(0, prev.min - 0.01) }))}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <input
+                            type="number"
+                            value={deltaFilter.min}
+                            onChange={(e) => setDeltaFilter(prev => ({ ...prev, min: Math.max(0, parseFloat(e.target.value) || 0) }))}
+                            className="w-16 px-2 py-1 text-sm border rounded bg-background text-center"
+                            step="0.01"
+                            min="0"
+                            max="1"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setDeltaFilter(prev => ({ ...prev, min: Math.min(1, prev.min + 0.01) }))}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <span className="text-muted-foreground">to</span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setDeltaFilter(prev => ({ ...prev, max: Math.max(0, prev.max - 0.01) }))}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <input
+                            type="number"
+                            value={deltaFilter.max}
+                            onChange={(e) => setDeltaFilter(prev => ({ ...prev, max: Math.min(1, parseFloat(e.target.value) || 1) }))}
+                            className="w-16 px-2 py-1 text-sm border rounded bg-background text-center"
+                            step="0.01"
+                            min="0"
+                            max="1"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setDeltaFilter(prev => ({ ...prev, max: Math.min(1, prev.max + 0.01) }))}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
 
-                    {/* DTE Range */}
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-muted-foreground whitespace-nowrap">DTE</label>
-                      <input
-                        type="number"
-                        value={dteRange[0]}
-                        onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
-                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
-                        min="0"
-                        max="450"
-                      />
-                      <input
-                        type="range"
-                        min="0"
-                        max="450"
-                        step="10"
-                        value={dteRange[0]}
-                        onChange={(e) => setDteRange([parseInt(e.target.value), dteRange[1]])}
-                        className="w-16"
-                      />
-                      <input
-                        type="range"
-                        min="0"
-                        max="450"
-                        step="10"
-                        value={dteRange[1]}
-                        onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value)])}
-                        className="w-16"
-                      />
-                      <input
-                        type="number"
-                        value={dteRange[1]}
-                        onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 450])}
-                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
-                        min="0"
-                        max="450"
-                      />
-                    </div>
-
-                    {/* Delta Range */}
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-muted-foreground whitespace-nowrap">Δ</label>
-                      <input
-                        type="number"
-                        value={deltaRange[0]}
-                        onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
-                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
-                        step="0.01"
-                        min="0"
-                        max="1"
-                      />
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={deltaRange[0]}
-                        onChange={(e) => setDeltaRange([parseFloat(e.target.value), deltaRange[1]])}
-                        className="w-16"
-                      />
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={deltaRange[1]}
-                        onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value)])}
-                        className="w-16"
-                      />
-                      <input
-                        type="number"
-                        value={deltaRange[1]}
-                        onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
-                        className="w-14 px-1 py-0.5 text-xs border rounded bg-background"
-                        step="0.01"
-                        min="0"
-                        max="1"
-                      />
+                      {/* DTE Filter */}
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-muted-foreground w-16">DTE:</label>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setDteFilter(prev => ({ ...prev, min: Math.max(0, prev.min - 1) }))}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <input
+                            type="number"
+                            value={dteFilter.min}
+                            onChange={(e) => setDteFilter(prev => ({ ...prev, min: Math.max(0, parseInt(e.target.value) || 0) }))}
+                            className="w-16 px-2 py-1 text-sm border rounded bg-background text-center"
+                            min="0"
+                            max="730"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setDteFilter(prev => ({ ...prev, min: Math.min(730, prev.min + 1) }))}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <span className="text-muted-foreground">to</span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setDteFilter(prev => ({ ...prev, max: Math.max(0, prev.max - 1) }))}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <input
+                            type="number"
+                            value={dteFilter.max}
+                            onChange={(e) => setDteFilter(prev => ({ ...prev, max: Math.min(730, parseInt(e.target.value) || 730) }))}
+                            className="w-16 px-2 py-1 text-sm border rounded bg-background text-center"
+                            min="0"
+                            max="730"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setDteFilter(prev => ({ ...prev, max: Math.min(730, prev.max + 1) }))}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -828,13 +777,20 @@ export default function PMCCDashboard() {
                               <td className="p-2 text-right">{leap.openInterest.toLocaleString()}</td>
                               <td className="p-2 text-right">{leap.volume.toLocaleString()}</td>
                               <td className="p-2 text-right">
-                                <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full font-bold ${
-                                  leap.score >= 80 ? 'bg-green-900/50 text-green-400' :
-                                  leap.score >= 60 ? 'bg-amber-900/50 text-amber-400' :
-                                  'bg-red-900/50 text-red-400'
-                                }`}>
+                                <button
+                                  onClick={() => {
+                                    setSelectedLeapForExplanation(leap);
+                                    setShowScoreExplanation(true);
+                                  }}
+                                  className={`inline-flex items-center justify-center w-10 h-10 rounded-full font-bold cursor-pointer transition-all hover:scale-110 hover:shadow-lg ${
+                                    leap.score >= 80 ? 'bg-green-900/50 text-green-400 hover:bg-green-900/70' :
+                                    leap.score >= 60 ? 'bg-amber-900/50 text-amber-400 hover:bg-amber-900/70' :
+                                    'bg-red-900/50 text-red-400 hover:bg-red-900/70'
+                                  }`}
+                                  title="Click to explain score"
+                                >
                                   {Math.round(leap.score)}
-                                </span>
+                                </button>
                               </td>
                             </tr>
                           );
@@ -1028,7 +984,139 @@ export default function PMCCDashboard() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Score Explanation Dialog */}
+        <ScoreExplanationDialog
+          leap={selectedLeapForExplanation}
+          open={showScoreExplanation}
+          onClose={() => {
+            setShowScoreExplanation(false);
+            setSelectedLeapForExplanation(null);
+          }}
+        />
       </div>
     </div>
+  );
+}
+
+// Score Explanation Dialog Component
+function ScoreExplanationDialog({ leap, open, onClose }: { leap: any; open: boolean; onClose: () => void }) {
+  const explainScoreMutation = trpc.pmcc.explainScore.useMutation();
+
+  useEffect(() => {
+    if (open && leap && !explainScoreMutation.data) {
+      explainScoreMutation.mutate({ leap });
+    }
+  }, [open, leap]);
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            LEAP Score Explanation: {leap?.symbol} ${leap?.strike}
+          </DialogTitle>
+          <DialogDescription>
+            Expiration: {leap?.expiration} ({leap?.dte} DTE) • Delta: {leap?.delta?.toFixed(2)}
+          </DialogDescription>
+        </DialogHeader>
+
+        {explainScoreMutation.isPending && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-muted-foreground">Analyzing LEAP score...</span>
+          </div>
+        )}
+
+        {explainScoreMutation.error && (
+          <div className="p-4 bg-red-900/20 border border-red-700/50 rounded-lg">
+            <p className="text-red-400">Failed to generate explanation: {explainScoreMutation.error.message}</p>
+          </div>
+        )}
+
+        {explainScoreMutation.data && (
+          <div className="space-y-4">
+            {/* Score Breakdown */}
+            <Card className="bg-gradient-to-br from-slate-900/50 to-slate-800/50 border-slate-700/50">
+              <CardHeader>
+                <CardTitle className="text-lg">Score Breakdown</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
+                    <div className="text-sm text-muted-foreground">Stock Quality & Growth</div>
+                    <div className="text-2xl font-bold text-blue-400">
+                      {explainScoreMutation.data.breakdown.stockQuality}/35
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
+                    <div className="text-sm text-muted-foreground">LEAP Structure</div>
+                    <div className="text-2xl font-bold text-purple-400">
+                      {explainScoreMutation.data.breakdown.leapStructure}/30
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
+                    <div className="text-sm text-muted-foreground">Cost & Liquidity</div>
+                    <div className="text-2xl font-bold text-amber-400">
+                      {explainScoreMutation.data.breakdown.costLiquidity}/25
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
+                    <div className="text-sm text-muted-foreground">Risk Management</div>
+                    <div className="text-2xl font-bold text-green-400">
+                      {explainScoreMutation.data.breakdown.riskManagement}/10
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 p-4 bg-gradient-to-r from-slate-800/50 to-slate-700/50 rounded-lg border border-slate-600/50">
+                  <div className="text-sm text-muted-foreground">Total Score</div>
+                  <div className={`text-4xl font-bold ${
+                    explainScoreMutation.data.score >= 80 ? 'text-green-400' :
+                    explainScoreMutation.data.score >= 60 ? 'text-amber-400' :
+                    'text-red-400'
+                  }`}>
+                    {explainScoreMutation.data.score}/100
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* AI Explanation */}
+            <Card className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-blue-700/50">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="text-2xl">🤖</span>
+                  AI Analysis
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="prose prose-invert max-w-none">
+                  <Streamdown>{typeof explainScoreMutation.data.aiExplanation === 'string' ? explainScoreMutation.data.aiExplanation : JSON.stringify(explainScoreMutation.data.aiExplanation)}</Streamdown>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Technical Details */}
+            <Card className="bg-gradient-to-br from-slate-900/50 to-slate-800/50 border-slate-700/50">
+              <CardHeader>
+                <CardTitle className="text-lg">Technical Details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="prose prose-invert max-w-none text-sm">
+                  <Streamdown>{explainScoreMutation.data.technicalExplanation}</Streamdown>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        <div className="flex justify-end mt-4">
+          <Button onClick={onClose} variant="outline">
+            Close
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

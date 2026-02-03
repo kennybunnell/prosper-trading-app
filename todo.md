@@ -3668,3 +3668,12 @@
 - [x] Create separate explainCCScore endpoint for Covered Calls
 - [x] Update frontend to call correct endpoint based on strategy type (CC vs BCS)
 - [x] Fix AI prompt to correctly identify and explain Covered Call strategy
+
+## PMCC Dashboard Modernization (Current Focus)
+- [x] Update UI controls to use range filter sliders (Score, Delta, DTE) with increment/decrement buttons
+- [x] Remove old preset buttons (Conservative, Medium, Aggressive, Clear All Filters)
+- [x] Implement PMCC-specific scoring system (Stock Quality 35pts, LEAP Structure 30pts, Cost & Liquidity 25pts, Risk Management 10pts)
+- [x] Adjust DTE scoring: 365+ days = 15pts (max), 270-365: 12pts, 180-270: 8pts, <180: 3pts
+- [x] Add AI score explanation endpoint for PMCC strategy
+- [x] Add clickable score badges to PMCC opportunities table
+- [x] Add AI explanation dialog with score breakdown and conversational analysis

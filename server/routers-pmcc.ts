@@ -112,6 +112,13 @@ export const pmccRouter = router({
               return [];
             }
 
+            // Fetch technical indicators (RSI, IV Rank, BB %B)
+            const indicators = await api.getTechnicalIndicators(symbol).catch(() => ({
+              rsi: null,
+              ivRank: null,
+              bollingerBands: { percentB: null },
+            }));
+
             // Get option expirations (looking for LEAPs 9-15 months out)
             const expirations = await api.getExpirations(symbol);
             const now = new Date();
@@ -147,16 +154,17 @@ export const pmccRouter = router({
                     const bidAskSpread = call.ask - call.bid;
                     const bidAskSpreadPercent = (bidAskSpread / call.ask) * 100;
 
-                    // Calculate opportunity score (similar to CSP/CC scoring)
-                    const score = calculateLeapScore(call, currentPrice, preset);
-
-                    symbolOpportunities.push({
+                    // Import new scoring system
+                    const { calculatePMCCScore } = await import('./pmcc-scoring');
+                    
+                    // Build LEAP opportunity object for scoring
+                    const leapOpp: LeapOpportunity = {
                       symbol,
                       strike: call.strike,
                       currentPrice,
                       expiration,
                       dte,
-                      premium: (call.bid + call.ask) / 2, // Mid price for buying
+                      premium: (call.bid + call.ask) / 2,
                       bid: call.bid,
                       ask: call.ask,
                       bidAskSpread,
@@ -168,11 +176,18 @@ export const pmccRouter = router({
                       iv: call.greeks?.mid_iv || null,
                       openInterest: call.open_interest,
                       volume: call.volume,
-                      rsi: null, // TODO: Fetch RSI from technical indicators
-                      ivRank: null, // TODO: Fetch IV Rank
-                      bbPercent: null, // TODO: Fetch Bollinger Band %
-                      score,
-                    });
+                      rsi: indicators.rsi,
+                      ivRank: indicators.ivRank,
+                      bbPercent: indicators.bollingerBands?.percentB || null,
+                      score: 0, // Will be calculated next
+                    };
+                    
+                    // Calculate score using new PMCC scoring system
+                    const { score } = calculatePMCCScore(leapOpp);
+                    leapOpp.score = score;
+
+                    // Add to opportunities
+                    symbolOpportunities.push(leapOpp);
                   }
                 }
               }
@@ -477,6 +492,71 @@ export const pmccRouter = router({
           failed: failCount,
           isDryRun: input.isDryRun,
         },
+      };
+    }),
+
+  /**
+   * Explain PMCC LEAP score using AI
+   */
+  explainScore: protectedProcedure
+    .input(
+      z.object({
+        leap: z.object({
+          symbol: z.string(),
+          strike: z.number(),
+          currentPrice: z.number(),
+          expiration: z.string(),
+          dte: z.number(),
+          premium: z.number(),
+          bid: z.number(),
+          ask: z.number(),
+          bidAskSpread: z.number(),
+          bidAskSpreadPercent: z.number(),
+          delta: z.number(),
+          gamma: z.number().nullable(),
+          theta: z.number().nullable(),
+          vega: z.number().nullable(),
+          iv: z.number().nullable(),
+          openInterest: z.number(),
+          volume: z.number(),
+          rsi: z.number().nullable(),
+          ivRank: z.number().nullable(),
+          bbPercent: z.number().nullable(),
+          score: z.number(),
+        }),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { calculatePMCCScore, explainPMCCScore } = await import('./pmcc-scoring');
+      const { invokeLLM } = await import('./_core/llm');
+
+      // Recalculate score to get breakdown
+      const { score, breakdown } = calculatePMCCScore(input.leap);
+
+      // Generate detailed explanation using scoring breakdown
+      const technicalExplanation = explainPMCCScore(input.leap, breakdown);
+
+      // Use AI to provide conversational explanation
+      const response = await invokeLLM({
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert options trader explaining PMCC (Poor Man's Covered Call) LEAP scores. Provide clear, actionable insights about why a LEAP received its score and whether it's a good buy. Be concise but thorough.`,
+          },
+          {
+            role: 'user',
+            content: `Explain this PMCC LEAP score in a conversational way:\n\n${technicalExplanation}\n\nProvide:\n1. Overall assessment (Is this a good LEAP to buy?)\n2. Key strengths\n3. Key concerns (if any)\n4. Recommendation (Buy, Pass, or Monitor)`,
+          },
+        ],
+      });
+
+      const aiExplanation = response.choices[0]?.message?.content || 'Unable to generate explanation';
+
+      return {
+        score,
+        breakdown,
+        technicalExplanation,
+        aiExplanation,
       };
     }),
 });
