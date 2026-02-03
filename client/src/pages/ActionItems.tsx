@@ -15,6 +15,7 @@ import { WorkingOrdersTab } from "./Performance";
 import { RollCandidateModal } from "@/components/RollCandidateModal";
 import { OrderPreviewModal } from "@/components/OrderPreviewModal";
 import { MarketNewsScanner } from "@/components/MarketNewsScanner";
+import { RollsTable } from "@/components/RollsTable";
 import { useToast } from "@/hooks/use-toast";
 import { useAccount } from "@/contexts/AccountContext";
 import { useTradingMode } from "@/contexts/TradingModeContext";
@@ -391,121 +392,12 @@ export default function ActionItems() {
                   <p className="text-sm mt-1">All positions are within healthy parameters</p>
                 </div>
               ) : (
-                <div className="space-y-6">
-                  {/* Green (Profitable) Positions */}
-                  {rollsGreen.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="h-3 w-3 rounded-full bg-green-500" />
-                        <h3 className="font-semibold text-green-600">Profitable ({rollsGreen.length})</h3>
-                        <span className="text-sm text-muted-foreground">- 70%+ profit captured, ready to close</span>
-                      </div>
-                      <div className="space-y-2">
-                        {rollsGreen.map((roll: any) => (
-                          <div
-                            key={roll.positionId}
-                            className="flex items-center justify-between p-4 border border-green-500/30 bg-green-950/20 rounded-lg hover:bg-green-950/30 cursor-pointer transition-all shadow-[0_0_15px_rgba(34,197,94,0.3)] hover:shadow-[0_0_20px_rgba(34,197,94,0.4)]"
-                          >
-                            <div className="flex-1">
-                              <div className="font-semibold">{roll.symbol} {roll.strategy.toUpperCase()}</div>
-                              <div className="text-sm text-muted-foreground">
-                                ${roll.metrics.strikePrice} strike • {roll.metrics.dte} DTE
-                              </div>
-                              <div className="text-xs text-green-600 mt-1 space-y-0.5">
-                                {roll.reasons.map((reason: string, idx: number) => (
-                                  <div key={idx}>{reason}</div>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="text-right mr-4">
-                              <div className="text-sm font-medium">{roll.metrics.profitCaptured.toFixed(0)}% profit</div>
-                              <div className="text-xs text-muted-foreground">Score: {roll.score}</div>
-                            </div>
-                            <Button size="sm" variant="outline" onClick={() => handleViewOptions(roll)}>
-                              View Options
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Yellow (Watch) Positions */}
-                  {rollsYellow.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="h-3 w-3 rounded-full bg-yellow-500" />
-                        <h3 className="font-semibold text-yellow-600">At Risk ({rollsYellow.length})</h3>
-                        <span className="text-sm text-muted-foreground">- Profit could erode, monitor closely</span>
-                      </div>
-                      <div className="space-y-2">
-                        {rollsYellow.map((roll: any) => (
-                          <div
-                            key={roll.positionId}
-                            className="flex items-center justify-between p-4 border border-yellow-500/30 bg-yellow-950/20 rounded-lg hover:bg-yellow-950/30 cursor-pointer transition-all shadow-[0_0_15px_rgba(234,179,8,0.3)] hover:shadow-[0_0_25px_rgba(234,179,8,0.5)]"
-                          >
-                            <div className="flex-1">
-                              <div className="font-semibold">{roll.symbol} {roll.strategy.toUpperCase()}</div>
-                              <div className="text-sm text-muted-foreground">
-                                ${roll.metrics.strikePrice} strike • {roll.metrics.dte} DTE
-                              </div>
-                              <div className="text-xs text-yellow-600 mt-1 space-y-0.5">
-                                {roll.reasons.map((reason: string, idx: number) => (
-                                  <div key={idx}>{reason}</div>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="text-right mr-4">
-                              <div className="text-sm font-medium">{roll.metrics.profitCaptured.toFixed(0)}% profit</div>
-                              <div className="text-xs text-muted-foreground">Score: {roll.score}</div>
-                            </div>
-                            <Button size="sm" variant="outline" onClick={() => handleViewOptions(roll)}>
-                              View Options
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Red (Losing) Positions */}
-                  {rollsRed.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="h-3 w-3 rounded-full bg-red-500" />
-                        <h3 className="font-semibold text-red-600">Losing Money ({rollsRed.length})</h3>
-                        <span className="text-sm text-muted-foreground">- ITM, urgent action needed</span>
-                      </div>
-                      <div className="space-y-2">
-                        {rollsRed.map((roll: any) => (
-                          <div
-                            key={roll.positionId}
-                            className="flex items-center justify-between p-4 border border-red-500/30 bg-red-950/20 rounded-lg hover:bg-red-950/30 cursor-pointer transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:shadow-[0_0_25px_rgba(239,68,68,0.5)]"
-                          >
-                            <div className="flex-1">
-                              <div className="font-semibold">{roll.symbol} {roll.strategy.toUpperCase()}</div>
-                              <div className="text-sm text-muted-foreground">
-                                ${roll.metrics.strikePrice} strike • {roll.metrics.dte} DTE
-                              </div>
-                              <div className="text-xs text-red-600 mt-1 space-y-0.5">
-                                {roll.reasons.map((reason: string, idx: number) => (
-                                  <div key={idx}>{reason}</div>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="text-right mr-4">
-                              <div className="text-sm font-medium">{roll.metrics.profitCaptured.toFixed(0)}% profit</div>
-                              <div className="text-xs text-muted-foreground">Score: {roll.score}</div>
-                            </div>
-                            <Button size="sm" variant="outline" onClick={() => handleViewOptions(roll)}>
-                              View Options
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <RollsTable
+                  rollsRed={rollsRed}
+                  rollsYellow={rollsYellow}
+                  rollsGreen={rollsGreen}
+                  onViewOptions={handleViewOptions}
+                />
               )}
             </CardContent>
           </Card>

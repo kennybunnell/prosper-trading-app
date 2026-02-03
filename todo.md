@@ -3721,3 +3721,20 @@
 - [x] Implement smart rounding function based on price and symbol type
 - [x] Add comprehensive console logging for debugging (original premium, rounded price, errors)
 - [x] Ready for user testing with detailed console output
+
+## Active PMCC Positions Not Showing Submitted Orders
+- [ ] Check Active PMCC Positions backend logic to see how it detects LEAP positions
+- [ ] Verify order submission returns correct order ID and status
+- [ ] Check if order is pending (not filled) vs filled
+- [ ] Add logging to track order status after submission
+- [ ] Verify position detection logic matches submitted LEAP structure
+- [ ] Test with user's tastytrade account to see actual order status
+
+## Action Items UI Redesign (Card to Table Layout)
+- [x] Replace card layout with table layout for Action Items
+- [x] Add two tab buttons at top: "Covered Calls" and "Cash-Secured Puts"
+- [x] Create table with columns: Symbol, Strategy, Strike, DTE, Alert/Warning, Score, Profit %, Actions
+- [x] Add tab state to filter items by strategy type (CC vs CSP)
+- [x] Keep "View Options" button in Actions column
+- [x] Maintain color coding for urgency (red/yellow/green rows)
+- [x] Create RollsTable component for cleaner code organization
