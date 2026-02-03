@@ -3567,3 +3567,9 @@
 - [x] Add purple Sparkles AI icon to BPS opportunities table (same table as CSP)
 - [ ] Ensure consistent Score badge styling across all dashboards
 - [ ] Test AI explanation modal on all dashboards
+
+## CC/BCS Dashboard Fixes
+- [ ] Add increment/decrement (±1) buttons to Score primary filter range slider
+- [ ] Fix score badge color threshold - score 90 should show green not yellow
+- [ ] Add "Show Technical Columns" toggle button to hide/show RSI, BB %B, IV Rank columns
+- [ ] Test all fixes with real data

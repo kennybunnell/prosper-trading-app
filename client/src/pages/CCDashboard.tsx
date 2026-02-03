@@ -30,6 +30,8 @@ import {
   Filter,
   Calendar,
   Sparkles,
+  Minus,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
@@ -252,6 +254,7 @@ export default function CCDashboard() {
   const [deltaRange, setDeltaRange] = useState<[number, number]>([0, 1]);
   const [dteRange, setDteRange] = useState<[number, number]>([0, 90]);
   const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
+  const [showTechnicalColumns, setShowTechnicalColumns] = useState(true);
   
   // Order preview dialog state
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
@@ -672,9 +675,8 @@ export default function CCDashboard() {
 
   // Get score badge variant
   const getScoreBadgeClass = (score: number) => {
-    if (score >= 90) return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-    if (score >= 70) return 'bg-green-500/20 text-green-400 border-green-500/30';
-    if (score >= 50) return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+    if (score >= 80) return 'bg-green-500/20 text-green-400 border-green-500/30';
+    if (score >= 60) return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
     return 'bg-red-500/20 text-red-400 border-red-500/30';
   };
 
@@ -1658,14 +1660,32 @@ export default function CCDashboard() {
                 <span className="text-xs text-muted-foreground">{scoreRange[0]} - {scoreRange[1]}</span>
               </div>
               <div className="flex items-center gap-4">
-                <input
-                  type="number"
-                  value={scoreRange[0]}
-                  onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="100"
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setScoreRange([Math.max(0, scoreRange[0] - 1), scoreRange[1]])}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <input
+                    type="number"
+                    value={scoreRange[0]}
+                    onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])}
+                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                    min="0"
+                    max="100"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setScoreRange([Math.min(100, scoreRange[0] + 1), scoreRange[1]])}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
                 <div className="flex-1 flex items-center gap-2">
                   <input
                     type="range"
@@ -1686,14 +1706,32 @@ export default function CCDashboard() {
                     className="flex-1 h-2 accent-orange-500"
                   />
                 </div>
-                <input
-                  type="number"
-                  value={scoreRange[1]}
-                  onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="100"
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setScoreRange([scoreRange[0], Math.max(0, scoreRange[1] - 1)])}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <input
+                    type="number"
+                    value={scoreRange[1]}
+                    onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])}
+                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                    min="0"
+                    max="100"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setScoreRange([scoreRange[0], Math.min(100, scoreRange[1] + 1)])}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
               <div className="flex gap-2 mt-2">
                 <Button
@@ -2145,6 +2183,24 @@ export default function CCDashboard() {
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={() => setShowTechnicalColumns(!showTechnicalColumns)}
+                    className="border-border/50 hover:border-border"
+                  >
+                    {showTechnicalColumns ? (
+                      <>
+                        <ChevronDown className="w-4 h-4 mr-1" />
+                        Hide Technical Columns
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-4 h-4 mr-1 rotate-180" />
+                        Show Technical Columns
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => {
                       const timestamp = new Date().toISOString().split('T')[0];
                       const strategyName = strategyType === 'cc' ? 'CoveredCall' : 'BearCallSpread';
@@ -2278,27 +2334,33 @@ export default function CCDashboard() {
                           {sortColumn === 'distanceOtm' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
-                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('rsi')}>
-                        <div className="flex items-center justify-end gap-1">
-                          RSI
-                          <HelpBadge content={HELP_CONTENT.RSI_CC} />
-                          {sortColumn === 'rsi' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                        </div>
-                      </TableHead>
-                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('ivRank')}>
-                        <div className="flex items-center justify-end gap-1">
-                          IV Rank
-                          <HelpBadge content={HELP_CONTENT.IV_RANK} />
-                          {sortColumn === 'ivRank' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                        </div>
-                      </TableHead>
-                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('bbPctB')}>
-                        <div className="flex items-center justify-end gap-1">
-                          BB %B
-                          <HelpBadge content={HELP_CONTENT.BB_PCTB_CC} />
-                          {sortColumn === 'bbPctB' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                        </div>
-                      </TableHead>
+                      {showTechnicalColumns && (
+                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('rsi')}>
+                          <div className="flex items-center justify-end gap-1">
+                            RSI
+                            <HelpBadge content={HELP_CONTENT.RSI_CC} />
+                            {sortColumn === 'rsi' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                          </div>
+                        </TableHead>
+                      )}
+                      {showTechnicalColumns && (
+                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('ivRank')}>
+                          <div className="flex items-center justify-end gap-1">
+                            IV Rank
+                            <HelpBadge content={HELP_CONTENT.IV_RANK} />
+                            {sortColumn === 'ivRank' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                          </div>
+                        </TableHead>
+                      )}
+                      {showTechnicalColumns && (
+                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('bbPctB')}>
+                          <div className="flex items-center justify-end gap-1">
+                            BB %B
+                            <HelpBadge content={HELP_CONTENT.BB_PCTB_CC} />
+                            {sortColumn === 'bbPctB' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                          </div>
+                        </TableHead>
+                      )}
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('spreadPct')}>
                         <div className="flex items-center justify-end gap-1">
                           Spread %
@@ -2407,19 +2469,25 @@ export default function CCDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">{opp.distanceOtm.toFixed(1)}%</TableCell>
-                        <TableCell className="text-right">
-                          <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'cc'))}>
-                            {opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge className={cn("font-bold", getBBColor(opp.bbPctB, 'cc'))}>
-                            {opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}
-                          </Badge>
-                        </TableCell>
+                        {showTechnicalColumns && (
+                          <TableCell className="text-right">
+                            <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'cc'))}>
+                              {opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}
+                            </Badge>
+                          </TableCell>
+                        )}
+                        {showTechnicalColumns && (
+                          <TableCell className="text-right">
+                            {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
+                          </TableCell>
+                        )}
+                        {showTechnicalColumns && (
+                          <TableCell className="text-right">
+                            <Badge className={cn("font-bold", getBBColor(opp.bbPctB, 'cc'))}>
+                              {opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}
+                            </Badge>
+                          </TableCell>
+                        )}
                         <TableCell className="text-right">{opp.spreadPct.toFixed(1)}%</TableCell>
                         <TableCell className="text-right">
                           <Badge className={cn("font-bold", getLiquidityColor(opp.volume, 'vol'))}>
