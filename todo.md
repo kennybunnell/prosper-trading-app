@@ -3698,3 +3698,10 @@
 - [x] Add company overview section to AI explanation response (company name, sector, brief description)
 - [x] Frontend AI modal already displays aiExplanation with Streamdown (no changes needed)
 - [x] AI will now automatically generate company overview for all tickers (PFE, GOOGL, AMD, etc.)
+
+## PMCC LEAP Purchase Dry Run Failure Investigation
+- [x] Check server logs for PMCC LEAP purchase error details
+- [x] Review PMCC submitLeapOrders backend code for order submission logic
+- [x] Identify root cause: invalid_price_increment - price must be in $0.05 increments
+- [x] Fix: Added roundToNickel() helper function to round prices to nearest $0.05
+- [x] Updated order.price to use roundToNickel(leap.premium) instead of toFixed(2)

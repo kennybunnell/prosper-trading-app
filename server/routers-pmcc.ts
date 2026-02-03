@@ -429,6 +429,11 @@ export const pmccRouter = router({
         });
       }
 
+      // Helper function to round price to nearest $0.05 increment
+      const roundToNickel = (price: number): string => {
+        return (Math.round(price / 0.05) * 0.05).toFixed(2);
+      };
+
       // Submit orders (or dry run)
       const results = [];
       for (const leap of input.leaps) {
@@ -442,7 +447,7 @@ export const pmccRouter = router({
             accountNumber,
             timeInForce: "Day" as const,
             orderType: "Limit" as const,
-            price: leap.premium.toFixed(2),
+            price: roundToNickel(leap.premium),
             priceEffect: "Debit" as const,
             legs: [
               {
