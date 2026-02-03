@@ -3509,3 +3509,8 @@
 - [x] Update frontend to display BPS scores with color coding and strategy-specific tooltip labels
 - [x] AI explanation already works (uses same explainScore endpoint)
 - [x] Test BPS scoring - ready for real market data
+
+## Remove Redundant Score Column
+- [x] Remove separate Score column header from CSP opportunities table
+- [x] Keep only AI Score column with score badge + info icon
+- [x] Update table cells to remove duplicate score display

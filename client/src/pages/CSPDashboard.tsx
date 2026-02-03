@@ -1876,8 +1876,7 @@ export default function CSPDashboard() {
                     { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, technical: true },
                     { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, technical: true },
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
-                    { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
-                    { key: 'aiRecommendation', label: 'AI', help: null, technical: false },
+                    { key: 'aiRecommendation', label: 'AI Score', help: 'dialog-score', technical: false },
                   ] : [
                     { key: 'symbol', label: 'Symbol', help: null, technical: false },
                     { key: 'strike', label: 'Strike', help: null, technical: false },
@@ -1896,8 +1895,7 @@ export default function CSPDashboard() {
                     { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, technical: true },
                     { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, technical: true },
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
-                    { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
-                    { key: 'aiRecommendation', label: 'AI', help: null, technical: false },
+                    { key: 'aiRecommendation', label: 'AI Score', help: 'dialog-score', technical: false },
                   ]).filter(({ technical }) => !technical || showTechnicalColumns).map(({ key, label, help }) => (
                     <TableHead 
                       key={key}
@@ -1999,11 +1997,6 @@ export default function CSPDashboard() {
                                 </TableCell>
                               </>
                             )}
-                            <TableCell>
-                              <Badge className={cn("font-bold", getROCColor((opp as any).spreadROC || 0))}>
-                                {opp.score}
-                              </Badge>
-                            </TableCell>
                           </>
                         ) : (
                           <>
@@ -2054,90 +2047,90 @@ export default function CSPDashboard() {
                           </>
                         )}
                         <TableCell>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Badge 
-                                  className={cn(
-                                    "font-bold cursor-help",
-                                    opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
-                                    opp.score >= 50 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
-                                    opp.score < 50 && "bg-red-500/20 text-red-500 border-red-500/50"
-                                  )}
-                                >
-                                  {opp.score}
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent side="left" className="bg-gray-900 border-orange-500/50 p-3 max-w-xs">
-                                <div className="space-y-1.5 text-sm">
-                                  <div className="font-semibold text-orange-400 border-b border-orange-500/30 pb-1 mb-2">
-                                    Score Breakdown ({opp.score}/100)
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge 
+                                    className={cn(
+                                      "font-bold cursor-help",
+                                      opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
+                                      opp.score >= 50 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
+                                      opp.score < 50 && "bg-red-500/20 text-red-500 border-red-500/50"
+                                    )}
+                                  >
+                                    {opp.score}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="bg-gray-900 border-orange-500/50 p-3 max-w-xs">
+                                  <div className="space-y-1.5 text-sm">
+                                    <div className="font-semibold text-orange-400 border-b border-orange-500/30 pb-1 mb-2">
+                                      Score Breakdown ({opp.score}/100)
+                                    </div>
+                                    {(opp as any).scoreBreakdown && (
+                                      <>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-400">Technical (RSI+BB):</span>
+                                          <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/40</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-400">
+                                            {strategyType === 'spread' ? 'Greeks (Δ+Width+DTE+IV):' : 'Greeks (Δ+DTE+IV):'}
+                                          </span>
+                                          <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-400">
+                                            {strategyType === 'spread' ? 'Premium (Credit/Width):' : 'Premium (Return+Spread):'}
+                                          </span>
+                                          <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/20</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-400">
+                                            {strategyType === 'spread' ? 'Quality (Liquidity+Stock):' : 'Quality (Mag7+Cap):'}
+                                          </span>
+                                          <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
+                                        </div>
+                                      </>
+                                    )}
+                                    {!(opp as any).scoreBreakdown && (
+                                      <div className="text-gray-400 text-xs">Breakdown not available</div>
+                                    )}
                                   </div>
-                                  {(opp as any).scoreBreakdown && (
-                                    <>
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-400">Technical (RSI+BB):</span>
-                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/40</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-400">
-                                          {strategyType === 'spread' ? 'Greeks (Δ+Width+DTE+IV):' : 'Greeks (Δ+DTE+IV):'}
-                                        </span>
-                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-400">
-                                          {strategyType === 'spread' ? 'Premium (Credit/Width):' : 'Premium (Return+Spread):'}
-                                        </span>
-                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/20</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-400">
-                                          {strategyType === 'spread' ? 'Quality (Liquidity+Stock):' : 'Quality (Mag7+Cap):'}
-                                        </span>
-                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
-                                      </div>
-                                    </>
-                                  )}
-                                  {!(opp as any).scoreBreakdown && (
-                                    <div className="text-gray-400 text-xs">Breakdown not available</div>
-                                  )}
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 hover:bg-purple-500/20"
-                            onClick={() => {
-                              const rowKey = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
-                              setAnalyzingRowKey(rowKey);
-                              explainScore.mutate({
-                                symbol: opp.symbol,
-                                strike: opp.strike,
-                                currentPrice: opp.currentPrice,
-                                premium: opp.premium,
-                                delta: Math.abs(opp.delta),
-                                dte: opp.dte,
-                                rsi: opp.rsi,
-                                bbPctB: opp.bbPctB,
-                                ivRank: opp.ivRank,
-                                score: opp.score,
-                                scoreBreakdown: opp.scoreBreakdown,
-                              });
-                            }}
-                            disabled={analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}`}
-                            title="Click to see AI explanation of this score"
-                          >
-                            {analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}` ? (
-                              <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
-                            ) : (
-                              <span className="text-purple-500">ℹ️</span>
-                            )}
-                          </Button>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 hover:bg-purple-500/20"
+                              onClick={() => {
+                                const rowKey = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+                                setAnalyzingRowKey(rowKey);
+                                explainScore.mutate({
+                                  symbol: opp.symbol,
+                                  strike: opp.strike,
+                                  currentPrice: opp.currentPrice,
+                                  premium: opp.premium,
+                                  delta: Math.abs(opp.delta),
+                                  dte: opp.dte,
+                                  rsi: opp.rsi,
+                                  bbPctB: opp.bbPctB,
+                                  ivRank: opp.ivRank,
+                                  score: opp.score,
+                                  scoreBreakdown: opp.scoreBreakdown,
+                                });
+                              }}
+                              disabled={analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}`}
+                              title="Click to see AI explanation of this score"
+                            >
+                              {analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}` ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                              ) : (
+                                <span className="text-purple-500">ℹ️</span>
+                              )}
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
