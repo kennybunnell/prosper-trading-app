@@ -315,6 +315,75 @@ export default function CCDashboard() {
     ? (paperBalance?.buyingPower || 0)
     : Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
 
+  const filteredOpportunities = useMemo(() => {
+    let filtered = [...opportunities];
+
+    // Apply preset filter from database
+    if (presetFilter && presets) {
+      const preset = presets.find((p: any) => p.presetName === presetFilter);
+      if (preset) {
+        filtered = filtered.filter(opp => {
+          const delta = Math.abs(opp.delta);
+          const minDelta = parseFloat(preset.minDelta);
+          const maxDelta = parseFloat(preset.maxDelta);
+          
+          // Delta filter
+          if (delta < minDelta || delta > maxDelta) return false;
+          
+          // Open Interest filter
+          if (opp.openInterest < preset.minOpenInterest) return false;
+          
+          // Volume filter
+          if (opp.volume < preset.minVolume) return false;
+          
+          // Score filter
+          if (preset.minScore && opp.score < preset.minScore) return false;
+          
+          // RSI filter (if available)
+          if (opp.rsi !== null && preset.minRsi !== null && preset.maxRsi !== null) {
+            if (opp.rsi < preset.minRsi || opp.rsi > preset.maxRsi) return false;
+          }
+          
+          // IV Rank filter (if available)
+          if (opp.ivRank !== null && preset.minIvRank !== null && preset.maxIvRank !== null) {
+            if (opp.ivRank < preset.minIvRank || opp.ivRank > preset.maxIvRank) return false;
+          }
+          
+          // BB %B filter (if available)
+          if (opp.bbPctB !== null && preset.minBbPercent !== null && preset.maxBbPercent !== null) {
+            const minBb = parseFloat(preset.minBbPercent);
+            const maxBb = parseFloat(preset.maxBbPercent);
+            if (opp.bbPctB < minBb || opp.bbPctB > maxBb) return false;
+          }
+          
+          return true;
+        });
+      }
+    }
+
+    // Apply score filter
+    if (minScore !== undefined) {
+      filtered = filtered.filter(opp => opp.score >= minScore);
+    }
+
+    // Apply live range filters
+    filtered = filtered.filter(opp => {
+      const delta = Math.abs(opp.delta);
+      
+      // Delta range filter
+      if (delta < deltaRange[0] || delta > deltaRange[1]) return false;
+      
+      // DTE range filter
+      if (opp.dte < dteRange[0] || opp.dte > dteRange[1]) return false;
+      
+      // Score range filter
+      if (opp.score < scoreRange[0] || opp.score > scoreRange[1]) return false;
+      
+      return true;
+    });
+
+    return filtered;
+  }, [opportunities, presetFilter, presets, minScore, deltaRange, dteRange, scoreRange]);
   // Calculate summary metrics for selected opportunities
   const selectedOppsList = Array.from(selectedOpportunities)
     .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
@@ -622,75 +691,6 @@ export default function CCDashboard() {
   };
 
   // Apply preset filters
-  const filteredOpportunities = useMemo(() => {
-    let filtered = [...opportunities];
-
-    // Apply preset filter from database
-    if (presetFilter && presets) {
-      const preset = presets.find((p: any) => p.presetName === presetFilter);
-      if (preset) {
-        filtered = filtered.filter(opp => {
-          const delta = Math.abs(opp.delta);
-          const minDelta = parseFloat(preset.minDelta);
-          const maxDelta = parseFloat(preset.maxDelta);
-          
-          // Delta filter
-          if (delta < minDelta || delta > maxDelta) return false;
-          
-          // Open Interest filter
-          if (opp.openInterest < preset.minOpenInterest) return false;
-          
-          // Volume filter
-          if (opp.volume < preset.minVolume) return false;
-          
-          // Score filter
-          if (preset.minScore && opp.score < preset.minScore) return false;
-          
-          // RSI filter (if available)
-          if (opp.rsi !== null && preset.minRsi !== null && preset.maxRsi !== null) {
-            if (opp.rsi < preset.minRsi || opp.rsi > preset.maxRsi) return false;
-          }
-          
-          // IV Rank filter (if available)
-          if (opp.ivRank !== null && preset.minIvRank !== null && preset.maxIvRank !== null) {
-            if (opp.ivRank < preset.minIvRank || opp.ivRank > preset.maxIvRank) return false;
-          }
-          
-          // BB %B filter (if available)
-          if (opp.bbPctB !== null && preset.minBbPercent !== null && preset.maxBbPercent !== null) {
-            const minBb = parseFloat(preset.minBbPercent);
-            const maxBb = parseFloat(preset.maxBbPercent);
-            if (opp.bbPctB < minBb || opp.bbPctB > maxBb) return false;
-          }
-          
-          return true;
-        });
-      }
-    }
-
-    // Apply score filter
-    if (minScore !== undefined) {
-      filtered = filtered.filter(opp => opp.score >= minScore);
-    }
-
-    // Apply live range filters
-    filtered = filtered.filter(opp => {
-      const delta = Math.abs(opp.delta);
-      
-      // Delta range filter
-      if (delta < deltaRange[0] || delta > deltaRange[1]) return false;
-      
-      // DTE range filter
-      if (opp.dte < dteRange[0] || opp.dte > dteRange[1]) return false;
-      
-      // Score range filter
-      if (opp.score < scoreRange[0] || opp.score > scoreRange[1]) return false;
-      
-      return true;
-    });
-
-    return filtered;
-  }, [opportunities, presetFilter, presets, minScore, deltaRange, dteRange, scoreRange]);
 
   // Handle sorting
   const handleSort = (column: keyof CCOpportunity) => {
