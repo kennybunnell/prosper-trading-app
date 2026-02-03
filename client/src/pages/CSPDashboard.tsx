@@ -623,6 +623,9 @@ export default function CSPDashboard() {
       setShowPreviewDialog(true);
     },
     onError: (error) => {
+      // Dismiss progress toast
+      toast.dismiss('order-submission-progress');
+      
       if (error.message.includes('Account not found')) {
         toast.error('No Tastytrade account found. Please configure your account in Settings.', {
           action: {
@@ -658,7 +661,21 @@ export default function CSPDashboard() {
 
   // Submit orders mutation
   const submitOrders = trpc.csp.submitOrders.useMutation({
+    onMutate: (variables) => {
+      // Show initial progress toast
+      const orderCount = variables.orders.length;
+      const isDryRun = variables.dryRun;
+      toast.loading(
+        isDryRun 
+          ? `Validating ${orderCount} order${orderCount > 1 ? 's' : ''}...`
+          : `Submitting ${orderCount} order${orderCount > 1 ? 's' : ''}...`,
+        { id: 'order-submission-progress' }
+      );
+    },
     onError: (error) => {
+      // Dismiss progress toast
+      toast.dismiss('order-submission-progress');
+      
       if (error.message.includes('Account not found')) {
         toast.error('No Tastytrade account found. Please configure your account in Settings.', {
           action: {
@@ -678,16 +695,23 @@ export default function CSPDashboard() {
       }
     },
     onSuccess: (data, variables) => {
+      // Dismiss progress toast
+      toast.dismiss('order-submission-progress');
+      
       setShowProgressDialog(false);
       const isDryRun = variables.dryRun;
       
       if (data.success) {
         if (isDryRun) {
           // Dry run validation success
-          toast.success(`✓ ${data.results.length} order(s) validated successfully (Dry Run)`);
+          toast.success(`✓ ${data.results.length} order(s) validated successfully (Dry Run)`, {
+            duration: 4000,
+          });
         } else {
           // Live order submission success
-          toast.success(`Successfully submitted ${data.results.length} orders!`);
+          toast.success(`✅ Successfully submitted ${data.results.length} order${data.results.length > 1 ? 's' : ''}!`, {
+            duration: 5000,
+          });
           playSuccessSound();
           confetti({
             particleCount: 200,
@@ -719,16 +743,24 @@ export default function CSPDashboard() {
         if (isDryRun) {
           // Dry run validation failures
           if (successCount > 0) {
-            toast.warning(`${successCount} order(s) validated, ${failedCount} failed validation (Dry Run)`);
+            toast.warning(`⚠️ ${successCount} order(s) validated, ${failedCount} failed validation (Dry Run)`, {
+              duration: 6000,
+            });
           } else {
-            toast.error(`${failedCount} order(s) failed validation (Dry Run)`);
+            toast.error(`❌ ${failedCount} order(s) failed validation (Dry Run)`, {
+              duration: 6000,
+            });
           }
         } else {
           // Live order submission failures
           if (successCount > 0) {
-            toast.warning(`${successCount} order(s) submitted, ${failedCount} failed to submit`);
+            toast.warning(`⚠️ ${successCount} order(s) submitted, ${failedCount} failed to submit`, {
+              duration: 6000,
+            });
           } else {
-            toast.error(`${failedCount} order(s) failed to submit`);
+            toast.error(`❌ ${failedCount} order(s) failed to submit`, {
+              duration: 6000,
+            });
           }
         }
         

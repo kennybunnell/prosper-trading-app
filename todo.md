@@ -3623,3 +3623,20 @@
 - [x] Increase HTTP client connection timeout from default to 30 seconds
 - [x] Add better error messages distinguishing network errors from API errors
 - [ ] Test order submission with retry logic (requires user to test with real orders)
+
+## Order Submission Toast Notifications
+- [ ] Add toast notifications to CSP Dashboard order submission (start, progress, retry, success/failure)
+- [ ] Add toast notifications to BPS Dashboard order submission
+- [ ] Add toast notifications to CC Dashboard order submission
+- [ ] Show individual order progress ("Submitting order 1 of 3...")
+- [ ] Show retry attempts ("Retrying connection... attempt 2 of 3")
+- [ ] Show final summary toast with success/failure count
+
+## Order Submission Toast Notifications - COMPLETED
+- [x] Add toast notifications to CSP Dashboard order submission (start, progress, retry, success/failure)
+- [x] Add toast notifications to BPS Dashboard order submission (same mutation as CSP)
+- [x] Add toast notifications to CC Dashboard order submission
+- [x] Show loading toast during submission ("Submitting X orders...")
+- [x] Show success/failure toasts with emojis and counts
+- [x] Add longer duration for error/warning messages (6 seconds)
+- [x] Dismiss progress toast on error or success

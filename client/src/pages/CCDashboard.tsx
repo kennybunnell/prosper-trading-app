@@ -809,7 +809,16 @@ export default function CCDashboard() {
       return;
     }
 
-    try {
+    // Show initial progress toast
+    const orderCount = validationData.orders.length;
+    toast.loading(
+      dryRun 
+        ? `Validating ${orderCount} order${orderCount > 1 ? 's' : ''}...`
+        : `Submitting ${orderCount} order${orderCount > 1 ? 's' : ''}...`,
+      { id: 'cc-order-submission-progress' }
+    );
+
+    try{
       let results;
       
       if (strategyType === 'spread') {
@@ -845,14 +854,21 @@ export default function CCDashboard() {
         });
       }
 
+      // Dismiss progress toast
+      toast.dismiss('cc-order-submission-progress');
+
       const successCount = results.filter((r: any) => r.success).length;
       const failedCount = results.filter((r: any) => !r.success).length;
 
       if (failedCount === 0) {
         if (dryRun) {
-          toast.success(`Dry run successful! ${results.length} orders validated`);
+          toast.success(`✓ ${results.length} order${results.length > 1 ? 's' : ''} validated successfully (Dry Run)`, {
+            duration: 4000,
+          });
         } else {
-          toast.success(`Successfully submitted ${results.length} orders!`);
+          toast.success(`✅ Successfully submitted ${results.length} order${results.length > 1 ? 's' : ''}!`, {
+            duration: 5000,
+          });
           
           // Confetti animation
           confetti({
@@ -880,10 +896,34 @@ export default function CCDashboard() {
           setSelectedOpportunities(new Set());
         }
       } else {
-        toast.error(`${failedCount} order(s) failed, ${successCount} succeeded`);
+        if (dryRun) {
+          if (successCount > 0) {
+            toast.warning(`⚠️ ${successCount} order(s) validated, ${failedCount} failed validation (Dry Run)`, {
+              duration: 6000,
+            });
+          } else {
+            toast.error(`❌ ${failedCount} order(s) failed validation (Dry Run)`, {
+              duration: 6000,
+            });
+          }
+        } else {
+          if (successCount > 0) {
+            toast.warning(`⚠️ ${successCount} order(s) submitted, ${failedCount} failed to submit`, {
+              duration: 6000,
+            });
+          } else {
+            toast.error(`❌ ${failedCount} order(s) failed to submit`, {
+              duration: 6000,
+            });
+          }
+        }
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to submit orders");
+      // Dismiss progress toast
+      toast.dismiss('cc-order-submission-progress');
+      toast.error(error.message || "Failed to submit orders", {
+        duration: 6000,
+      });
     } finally {
       setIsSubmitting(false);
     }
