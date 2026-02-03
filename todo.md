@@ -3514,3 +3514,8 @@
 - [x] Remove separate Score column header from CSP opportunities table
 - [x] Keep only AI Score column with score badge + info icon
 - [x] Update table cells to remove duplicate score display
+
+## Add Slider Increment/Decrement Controls
+- [x] Add -/+ arrow buttons next to each range slider for precise value adjustment
+- [x] Implement increment logic (Score ±5, Delta ±0.05, DTE ±5)
+- [x] Style buttons to match existing UI design

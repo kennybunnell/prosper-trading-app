@@ -1495,14 +1495,32 @@ export default function CSPDashboard() {
                 <span className="text-xs text-muted-foreground">{scoreRange[0]} - {scoreRange[1]}</span>
               </div>
               <div className="flex items-center gap-4">
-                <input
-                  type="number"
-                  value={scoreRange[0]}
-                  onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="100"
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setScoreRange([Math.max(0, scoreRange[0] - 5), scoreRange[1]])}
+                  >
+                    −
+                  </Button>
+                  <input
+                    type="number"
+                    value={scoreRange[0]}
+                    onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])}
+                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                    min="0"
+                    max="100"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setScoreRange([Math.min(100, scoreRange[0] + 5), scoreRange[1]])}
+                  >
+                    +
+                  </Button>
+                </div>
                 <div className="flex-1 flex items-center gap-2">
                   <input
                     type="range"
@@ -1523,14 +1541,32 @@ export default function CSPDashboard() {
                     className="flex-1 h-2 accent-orange-500"
                   />
                 </div>
-                <input
-                  type="number"
-                  value={scoreRange[1]}
-                  onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="100"
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setScoreRange([scoreRange[0], Math.max(0, scoreRange[1] - 5)])}
+                  >
+                    −
+                  </Button>
+                  <input
+                    type="number"
+                    value={scoreRange[1]}
+                    onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])}
+                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                    min="0"
+                    max="100"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setScoreRange([scoreRange[0], Math.min(100, scoreRange[1] + 5)])}
+                  >
+                    +
+                  </Button>
+                </div>
               </div>
               <div className="flex gap-2 mt-2">
                 <Button
@@ -1567,15 +1603,33 @@ export default function CSPDashboard() {
                 <span className="text-xs text-muted-foreground">{deltaRange[0].toFixed(2)} - {deltaRange[1].toFixed(2)}</span>
               </div>
               <div className="flex items-center gap-4">
-                <input
-                  type="number"
-                  value={deltaRange[0]}
-                  onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setDeltaRange([Math.max(0, deltaRange[0] - 0.05), deltaRange[1]])}
+                  >
+                    −
+                  </Button>
+                  <input
+                    type="number"
+                    value={deltaRange[0]}
+                    onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])}
+                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setDeltaRange([Math.min(1, deltaRange[0] + 0.05), deltaRange[1]])}
+                  >
+                    +
+                  </Button>
+                </div>
                 <div className="flex-1 flex items-center gap-2">
                   <input
                     type="range"
@@ -1596,15 +1650,33 @@ export default function CSPDashboard() {
                     className="flex-1 h-2"
                   />
                 </div>
-                <input
-                  type="number"
-                  value={deltaRange[1]}
-                  onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setDeltaRange([deltaRange[0], Math.max(0, deltaRange[1] - 0.05)])}
+                  >
+                    −
+                  </Button>
+                  <input
+                    type="number"
+                    value={deltaRange[1]}
+                    onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])}
+                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setDeltaRange([deltaRange[0], Math.min(1, deltaRange[1] + 0.05)])}
+                  >
+                    +
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -1615,14 +1687,32 @@ export default function CSPDashboard() {
                 <span className="text-xs text-muted-foreground">{dteRange[0]} - {dteRange[1]} days</span>
               </div>
               <div className="flex items-center gap-4">
-                <input
-                  type="number"
-                  value={dteRange[0]}
-                  onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="90"
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setDteRange([Math.max(0, dteRange[0] - 5), dteRange[1]])}
+                  >
+                    −
+                  </Button>
+                  <input
+                    type="number"
+                    value={dteRange[0]}
+                    onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])}
+                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                    min="0"
+                    max="90"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setDteRange([Math.min(90, dteRange[0] + 5), dteRange[1]])}
+                  >
+                    +
+                  </Button>
+                </div>
                 <div className="flex-1 flex items-center gap-2">
                   <input
                     type="range"
@@ -1643,14 +1733,32 @@ export default function CSPDashboard() {
                     className="flex-1 h-2"
                   />
                 </div>
-                <input
-                  type="number"
-                  value={dteRange[1]}
-                  onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])}
-                  className="w-16 px-2 py-1 text-sm border rounded bg-background"
-                  min="0"
-                  max="90"
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setDteRange([dteRange[0], Math.max(0, dteRange[1] - 5)])}
+                  >
+                    −
+                  </Button>
+                  <input
+                    type="number"
+                    value={dteRange[1]}
+                    onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])}
+                    className="w-16 px-2 py-1 text-sm border rounded bg-background"
+                    min="0"
+                    max="90"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setDteRange([dteRange[0], Math.min(90, dteRange[1] + 5)])}
+                  >
+                    +
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
