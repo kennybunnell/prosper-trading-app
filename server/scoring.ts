@@ -620,3 +620,205 @@ export function scoreBPSOpportunities(opportunities: BullPutSpreadOpportunity[])
 
   return scored;
 }
+
+
+/**
+ * Calculate Covered Call Composite Score (0-100) with detailed breakdown
+ * 
+ * Weights:
+ * - Technical Setup (40%): RSI (20) + BB %B (20) - OPPOSITE of CSP (overbought is good)
+ * - Greeks & Timing (30%): Delta (15) + DTE (10) + IV Rank (5)
+ * - Premium Quality (20%): Weekly Return (15) + Spread (5)
+ * - Stock Quality (10%): Mag 7 (5) + Market Cap (5)
+ */
+export function calculateCCScore(opp: CSPOpportunity): { score: number; breakdown: ScoreBreakdown } {
+  let technicalScore = 0;
+  let greeksScore = 0;
+  let premiumScore = 0;
+  let qualityScore = 0;
+
+  // ===== TECHNICAL SETUP (40 points) - OPPOSITE OF CSP =====
+  
+  // RSI - Overbought Indicator (20 points)
+  // Higher is better for CC (overbought stocks = max premium, assignment less likely if OTM)
+  const rsi = opp.rsi;
+  if (rsi !== null && rsi !== undefined) {
+    if (rsi > 75) {
+      technicalScore += 20; // Extremely overbought - max premium
+    } else if (rsi > 70) {
+      technicalScore += 18; // Overbought - excellent
+    } else if (rsi > 65) {
+      technicalScore += 15; // Approaching overbought - very good
+    } else if (rsi > 60) {
+      technicalScore += 12; // Neutral-bullish - good
+    } else if (rsi > 50) {
+      technicalScore += 8; // Neutral - acceptable
+    } else if (rsi > 40) {
+      technicalScore += 4; // Neutral-bearish - caution
+    }
+    // < 40 = 0 points (oversold - avoid CC)
+  } else {
+    technicalScore += 10; // Neutral if no data
+  }
+
+  // Bollinger Band %B (20 points)
+  // Higher is better for CC (near upper band = overbought = max premium)
+  const bb = opp.bbPctB;
+  if (bb !== null && bb !== undefined) {
+    if (bb > 1.0) {
+      technicalScore += 20; // Above upper band - extreme overbought
+    } else if (bb > 0.85) {
+      technicalScore += 18; // Near upper band - excellent
+    } else if (bb > 0.70) {
+      technicalScore += 15; // Upper third - very good
+    } else if (bb > 0.50) {
+      technicalScore += 10; // Middle - acceptable
+    } else if (bb > 0.30) {
+      technicalScore += 5; // Lower third - caution
+    }
+    // < 0.30 = 0 points (near/below lower band - avoid CC)
+  } else {
+    technicalScore += 10; // Neutral if no data
+  }
+
+  // ===== GREEKS & TIMING (30 points) =====
+  
+  // Delta - Probability Sweet Spot (15 points)
+  // 0.30-0.50 = ideal (OTM calls, lower assignment risk, decent premium)
+  const delta = Math.abs(opp.delta || 0);
+  if (delta >= 0.30 && delta <= 0.50) {
+    greeksScore += 15; // Ideal range
+  } else if ((delta >= 0.25 && delta < 0.30) || (delta > 0.50 && delta <= 0.60)) {
+    greeksScore += 12; // Good range (safer or higher premium)
+  } else if ((delta >= 0.20 && delta < 0.25) || (delta > 0.60 && delta <= 0.70)) {
+    greeksScore += 8; // Acceptable (very safe or aggressive)
+  } else if (delta > 0 && delta < 0.20) {
+    greeksScore += 3; // Too safe - thin premium
+  } else if (delta > 0.70) {
+    greeksScore += 3; // Too aggressive - high assignment risk
+  }
+
+  // DTE - Time Decay Optimization (10 points)
+  // 7-45 days = sweet spot (theta decay + flexibility)
+  const dte = opp.dte;
+  if (dte >= 7 && dte <= 14) {
+    greeksScore += 10; // Weekly sweet spot
+  } else if (dte >= 15 && dte <= 30) {
+    greeksScore += 9; // Monthly - very good
+  } else if (dte >= 31 && dte <= 45) {
+    greeksScore += 7; // Longer term - good
+  } else if (dte >= 4 && dte < 7) {
+    greeksScore += 5; // Very short - risky
+  } else if (dte > 45 && dte <= 60) {
+    greeksScore += 4; // Too long - slow theta
+  }
+  // < 4 or > 60 = 0 points
+
+  // IV Rank - Premium Environment (5 points)
+  // Higher IV = better premium for selling
+  const ivRank = opp.ivRank;
+  if (ivRank !== null && ivRank !== undefined) {
+    if (ivRank > 70) {
+      greeksScore += 5; // High IV - excellent premium
+    } else if (ivRank > 50) {
+      greeksScore += 4; // Elevated IV - good
+    } else if (ivRank > 30) {
+      greeksScore += 3; // Moderate IV - acceptable
+    } else if (ivRank > 10) {
+      greeksScore += 1; // Low IV - thin premium
+    }
+    // < 10 = 0 points (very low IV)
+  } else {
+    greeksScore += 2; // Neutral if no data
+  }
+
+  // ===== PREMIUM QUALITY (20 points) =====
+  
+  // Weekly Return - Income Efficiency (15 points)
+  // Premium / stock price / weeks to expiration
+  const weeksToExpiration = dte / 7;
+  const weeklyReturn = weeksToExpiration > 0 
+    ? (opp.premium / opp.currentPrice / weeksToExpiration) * 100 
+    : 0;
+  
+  if (weeklyReturn > 1.5) {
+    premiumScore += 15; // Excellent weekly return
+  } else if (weeklyReturn > 1.0) {
+    premiumScore += 13; // Very good
+  } else if (weeklyReturn > 0.75) {
+    premiumScore += 11; // Good
+  } else if (weeklyReturn > 0.50) {
+    premiumScore += 8; // Acceptable
+  } else if (weeklyReturn > 0.25) {
+    premiumScore += 5; // Marginal
+  }
+  // < 0.25% = 0 points (too thin)
+
+  // Bid-Ask Spread - Execution Quality (5 points)
+  // Tighter spread = better execution
+  const bidAskSpread = Math.abs(opp.ask - opp.bid);
+  const spreadPct = (bidAskSpread / opp.bid) * 100;
+  
+  if (spreadPct < 5) {
+    premiumScore += 5; // Tight spread - excellent
+  } else if (spreadPct < 10) {
+    premiumScore += 4; // Acceptable spread
+  } else if (spreadPct < 15) {
+    premiumScore += 3; // Wide spread - caution
+  } else if (spreadPct < 25) {
+    premiumScore += 1; // Very wide - poor execution
+  }
+  // > 25% = 0 points (illiquid)
+
+  // ===== OVERALL QUALITY (10 points) =====
+  
+  // Liquidity - Open Interest + Volume (5 points)
+  const liquidity = (opp.openInterest || 0) + (opp.volume || 0);
+  if (liquidity > 500) {
+    qualityScore += 5; // Highly liquid
+  } else if (liquidity > 200) {
+    qualityScore += 4; // Good liquidity
+  } else if (liquidity > 100) {
+    qualityScore += 3; // Acceptable
+  } else if (liquidity > 50) {
+    qualityScore += 2; // Marginal
+  } else if (liquidity > 0) {
+    qualityScore += 1; // Poor liquidity
+  }
+
+  // Stock Quality - Mag 7 preference (5 points)
+  const mag7 = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA'];
+  const isMag7 = mag7.includes(opp.symbol);
+  
+  if (isMag7) {
+    qualityScore += 5; // Mag 7 - premium quality
+  } else {
+    // Non-Mag7 stocks get partial credit based on volume (proxy for quality)
+    const volume = opp.volume || 0;
+    if (volume > 1000) {
+      qualityScore += 3; // High volume - good quality
+    } else if (volume > 500) {
+      qualityScore += 2; // Moderate volume
+    } else if (volume > 100) {
+      qualityScore += 1; // Low volume
+    }
+  }
+
+  const totalScore = technicalScore + greeksScore + premiumScore + qualityScore;
+
+  return {
+    score: Math.round(totalScore),
+    breakdown: {
+      technical: Math.round(technicalScore),
+      greeks: Math.round(greeksScore),
+      premium: Math.round(premiumScore),
+      quality: Math.round(qualityScore),
+      total: Math.round(totalScore),
+    },
+  };
+}
+
+export interface CCScoredOpportunity extends CSPOpportunity {
+  score: number;
+  scoreBreakdown: ScoreBreakdown;
+}

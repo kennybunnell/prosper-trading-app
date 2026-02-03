@@ -784,7 +784,7 @@ export const appRouter = router({
     explainScore: protectedProcedure
       .input(
         z.object({
-          strategy: z.enum(['csp', 'bps']).default('csp'),
+          strategy: z.enum(['csp', 'bps', 'cc']).default('csp'),
           symbol: z.string(),
           strike: z.number(),
           currentPrice: z.number(),
@@ -815,7 +815,43 @@ export const appRouter = router({
         // Generate strategy-specific explanation
         let prompt: string;
         
-        if (input.strategy === 'bps') {
+        if (input.strategy === 'cc') {
+          // Covered Call specific prompt
+          prompt = `You are explaining a Covered Call (CC) opportunity's composite score to a trader.
+
+Opportunity Details:
+- Symbol: ${input.symbol}
+- Strike: $${input.strike}
+- Current Price: $${input.currentPrice}
+- Premium: $${input.premium}
+- Delta: ${input.delta}
+- DTE: ${input.dte} days
+- RSI: ${input.rsi !== null ? input.rsi.toFixed(1) : 'N/A'}
+- Bollinger Band %B: ${input.bbPctB !== null ? input.bbPctB.toFixed(2) : 'N/A'}
+- IV Rank: ${input.ivRank !== null ? input.ivRank.toFixed(1) : 'N/A'}
+
+Composite Score: ${input.score}/100
+Breakdown:
+- Technical Setup (RSI + BB for overbought conditions - opposite of CSP): ${input.scoreBreakdown.technical}/40
+- Greeks & Timing (Delta 0.30-0.50 ideal + DTE 7-45 days + IV Rank): ${input.scoreBreakdown.greeks}/30
+- Premium Quality (Weekly return on stock value + bid-ask spread): ${input.scoreBreakdown.premium}/20
+- Overall Quality (Liquidity + stock quality): ${input.scoreBreakdown.quality}/10
+
+Provide a concise explanation (3-4 bullet points + 1 summary sentence) of WHY this covered call scored ${input.score}/100.
+
+Focus on:
+1. Technical setup (overbought conditions favor selling calls)
+2. Delta positioning (0.30-0.50 balances premium vs assignment risk)
+3. Income generation (weekly return vs assignment probability)
+4. Liquidity and execution quality
+
+Format:
+• [Component]: [Brief explanation]
+• [Component]: [Brief explanation]
+• [Component]: [Brief explanation]
+
+Summary: [One sentence overall assessment]`;
+        } else if (input.strategy === 'bps') {
           // Bull Put Spread specific prompt
           prompt = `You are explaining a Bull Put Spread (BPS) opportunity's composite score to a trader.
 
@@ -1392,6 +1428,128 @@ Summary: [One sentence overall assessment]`;
       }),
   }),
 
+  // Covered Calls - Only for owned stock positions
+  cc: router({
+    scanOpportunities: protectedProcedure
+      .input(
+        z.object({
+          symbols: z.array(z.string()),
+          holdings: z.array(z.object({
+            symbol: z.string(),
+            quantity: z.number(),
+            currentPrice: z.number(),
+            maxContracts: z.number(),
+          })),
+          minDelta: z.number().optional(),
+          maxDelta: z.number().optional(),
+          minDte: z.number().optional(),
+          maxDte: z.number().optional(),
+          minVolume: z.number().optional(),
+          minOI: z.number().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { getApiCredentials } = await import('./db');
+        const { createTradierAPI } = await import('./tradier');
+        const { calculateCCScore } = await import('./scoring');
+
+        const credentials = await getApiCredentials(ctx.user.id);
+        
+        // Determine if user can use system API key (only free trial users)
+        const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+        const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
+        
+        if (!tradierApiKey) {
+          if (isFreeTrialUser) {
+            throw new Error('System Tradier API key not configured. Please contact support.');
+          } else {
+            throw new Error('Please configure your Tradier API key in Settings to access live market data.');
+          }
+        }
+
+        const api = createTradierAPI(tradierApiKey);
+        
+        // Fetch CC opportunities with filters
+        const opportunities = await api.fetchCCOpportunities(
+          input.symbols,
+          input.minDelta || 0.30,
+          input.maxDelta || 0.60,
+          input.minDte || 7,
+          input.maxDte || 45,
+          input.minVolume || 5,
+          input.minOI || 50
+        );
+
+        // Score all opportunities using CC scoring
+        const scoredOpportunities = opportunities.map(opp => {
+          const { score, breakdown } = calculateCCScore(opp);
+          
+          // Find holding info for this symbol
+          const holding = input.holdings.find(h => h.symbol === opp.symbol);
+          
+          return {
+            ...opp,
+            score,
+            scoreBreakdown: breakdown,
+            maxContracts: holding?.maxContracts || 0,
+            sharesOwned: holding?.quantity || 0,
+          };
+        });
+
+        return scoredOpportunities as any[];
+      }),
+
+    bearCallSpreadOpportunities: protectedProcedure
+      .input(
+        z.object({
+          ccOpportunities: z.array(z.any()),
+          spreadWidth: z.number(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        // TODO: Implement Bear Call Spread pricing and scoring
+        // For now, return empty array as placeholder
+        return [];
+      }),
+
+    submitOrders: protectedProcedure
+      .input(
+        z.object({
+          orders: z.array(z.any()),
+          accountNumber: z.string(),
+          dryRun: z.boolean().optional(),
+        })
+      )
+      .mutation(async () => {
+        // TODO: Implement CC order submission
+        return { success: true, message: 'CC order submission not yet implemented' };
+      }),
+
+    submitBearCallSpreadOrders: protectedProcedure
+      .input(
+        z.object({
+          orders: z.array(z.any()),
+          accountNumber: z.string(),
+          dryRun: z.boolean().optional(),
+        })
+      )
+      .mutation(async () => {
+        // TODO: Implement BCS order submission
+        return { success: true, message: 'BCS order submission not yet implemented' };
+      }),
+
+    getEligiblePositions: protectedProcedure
+      .input(
+        z.object({
+          accountNumber: z.string(),
+        })
+      )
+      .query(async ({ input, ctx }) => {
+        // TODO: Implement fetching stock positions for CC
+        return [];
+      }),
+  }),
+
   // Bull Put Spreads (Phase 2: Backend Pricing)
   spread: router({
     opportunities: protectedProcedure
@@ -1790,9 +1948,6 @@ Summary: [One sentence overall assessment]`;
         return { success: true };
       }),
   }),
-
-  // Covered Calls Dashboard
-  cc: ccRouter,
 
   // Stock Basis & Returns
   stockBasis: router({

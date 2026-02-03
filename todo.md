@@ -3531,3 +3531,25 @@
 - [x] Ensure AI prompts describe BPS-specific scoring components (spread width, delta separation, credit/width ratio) for BPS opportunities
 - [x] Frontend now passes strategy parameter based on strategyType
 - [x] Test AI explanations for both strategies to confirm they're distinct
+
+## Covered Call Strategy Implementation
+- [x] Design CC scoring algorithm (Technical 40pts, Greeks 30pts, Premium 20pts, Quality 10pts)
+  - [x] Technical Score: RSI + BB for overbought conditions (opposite of CSP/BPS)
+  - [x] Greeks Score: Delta positioning (0.30-0.50 ideal) + DTE (7-45 days) + IV Rank
+  - [x] Premium Quality: Weekly return + bid-ask spread
+  - [x] Overall Quality: Liquidity + stock quality
+- [x] Implement calculateCCScore() function in server/scoring.ts
+- [x] Create CC opportunities endpoint in server/routers.ts (cc.scanOpportunities)
+- [x] Add fetchCCOpportunities method to Tradier API for call options
+- [x] Add placeholder bearCallSpreadOpportunities endpoint
+- [x] Add placeholder submitOrders and submitBearCallSpreadOrders endpoints
+- [x] Add CC-specific AI explanations to explainScore endpoint
+- [ ] Update CCDashboard UI to match CSP/BPS layout:
+  - [ ] Add Score range filter (0-100) with ±1 increment buttons and quick-select
+  - [ ] Add Delta range filter with ±0.01 increment buttons
+  - [ ] Add DTE range filter with ±1 increment buttons
+  - [ ] Add Show Technical Columns toggle
+  - [ ] Update table to show AI Score column with info icons (remove separate Score column)
+  - [ ] Ensure Select All Filtered and Clear Selection buttons work
+  - [ ] Update explainScore call to pass strategy='cc'
+- [ ] Test CC scoring with real stock positions and save checkpoint
