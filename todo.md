@@ -3519,3 +3519,8 @@
 - [x] Add -/+ arrow buttons next to each range slider for precise value adjustment
 - [x] Implement increment logic (Score ±5, Delta ±0.05, DTE ±5)
 - [x] Style buttons to match existing UI design
+
+## Adjust Slider Increment Precision
+- [x] Change Score increment from ±5 to ±1 for precise control
+- [x] Change DTE increment from ±5 to ±1 for precise control
+- [x] Change Delta increment from ±0.05 to ±0.01 for precise control

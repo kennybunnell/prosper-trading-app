@@ -1500,7 +1500,7 @@ export default function CSPDashboard() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setScoreRange([Math.max(0, scoreRange[0] - 5), scoreRange[1]])}
+                    onClick={() => setScoreRange([Math.max(0, scoreRange[0] - 1), scoreRange[1]])}
                   >
                     −
                   </Button>
@@ -1516,7 +1516,7 @@ export default function CSPDashboard() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setScoreRange([Math.min(100, scoreRange[0] + 5), scoreRange[1]])}
+                    onClick={() => setScoreRange([Math.min(100, scoreRange[0] + 1), scoreRange[1]])}
                   >
                     +
                   </Button>
@@ -1546,7 +1546,7 @@ export default function CSPDashboard() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setScoreRange([scoreRange[0], Math.max(0, scoreRange[1] - 5)])}
+                    onClick={() => setScoreRange([scoreRange[0], Math.max(0, scoreRange[1] - 1)])}
                   >
                     −
                   </Button>
@@ -1562,7 +1562,7 @@ export default function CSPDashboard() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setScoreRange([scoreRange[0], Math.min(100, scoreRange[1] + 5)])}
+                    onClick={() => setScoreRange([scoreRange[0], Math.min(100, scoreRange[1] + 1)])}
                   >
                     +
                   </Button>
@@ -1608,7 +1608,7 @@ export default function CSPDashboard() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setDeltaRange([Math.max(0, deltaRange[0] - 0.05), deltaRange[1]])}
+                    onClick={() => setDeltaRange([Math.max(0, deltaRange[0] - 0.01), deltaRange[1]])}
                   >
                     −
                   </Button>
@@ -1625,7 +1625,7 @@ export default function CSPDashboard() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setDeltaRange([Math.min(1, deltaRange[0] + 0.05), deltaRange[1]])}
+                    onClick={() => setDeltaRange([Math.min(1, deltaRange[0] + 0.01), deltaRange[1]])}
                   >
                     +
                   </Button>
@@ -1655,7 +1655,7 @@ export default function CSPDashboard() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setDeltaRange([deltaRange[0], Math.max(0, deltaRange[1] - 0.05)])}
+                    onClick={() => setDeltaRange([deltaRange[0], Math.max(0, deltaRange[1] - 0.01)])}
                   >
                     −
                   </Button>
@@ -1672,7 +1672,7 @@ export default function CSPDashboard() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setDeltaRange([deltaRange[0], Math.min(1, deltaRange[1] + 0.05)])}
+                    onClick={() => setDeltaRange([deltaRange[0], Math.min(1, deltaRange[1] + 0.01)])}
                   >
                     +
                   </Button>
@@ -1692,7 +1692,7 @@ export default function CSPDashboard() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setDteRange([Math.max(0, dteRange[0] - 5), dteRange[1]])}
+                    onClick={() => setDteRange([Math.max(0, dteRange[0] - 1), dteRange[1]])}
                   >
                     −
                   </Button>
@@ -1708,7 +1708,7 @@ export default function CSPDashboard() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setDteRange([Math.min(90, dteRange[0] + 5), dteRange[1]])}
+                    onClick={() => setDteRange([Math.min(90, dteRange[0] + 1), dteRange[1]])}
                   >
                     +
                   </Button>
@@ -1738,7 +1738,7 @@ export default function CSPDashboard() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setDteRange([dteRange[0], Math.max(0, dteRange[1] - 5)])}
+                    onClick={() => setDteRange([dteRange[0], Math.max(0, dteRange[1] - 1)])}
                   >
                     −
                   </Button>
@@ -1754,7 +1754,7 @@ export default function CSPDashboard() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => setDteRange([dteRange[0], Math.min(90, dteRange[1] + 5)])}
+                    onClick={() => setDteRange([dteRange[0], Math.min(90, dteRange[1] + 1)])}
                   >
                     +
                   </Button>
