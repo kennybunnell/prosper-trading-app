@@ -217,25 +217,25 @@ function calculateUrgencyScore(
 }
 
 /**
- * Determine urgency level based on profit captured
+ * Determine urgency level based on moneyness (ITM depth)
  * 
- * Green = Profitable (70%+ profit, good positions)
- * Yellow = Moderate (30-69% profit, watch closely)
- * Red = Poor/Losing (<30% profit or negative)
+ * Red = In-the-money (ITM) - option breached, urgent action needed
+ * Yellow = Near at-the-money (ATM) - getting close, watch closely
+ * Green = Far out-of-the-money (OTM) - safe zone
  */
 function getUrgencyLevel(
   profitCaptured: number,
   itmDepth: number,
   dte: number
 ): RollUrgency {
-  // Red: <30% profit or negative (poor/losing positions)
-  if (profitCaptured < 30) return 'red';
+  // Red: ITM (itmDepth > 0) - option strike breached, urgent
+  if (itmDepth > 0) return 'red';
   
-  // Green: 70%+ profit captured (good positions, ready to close)
-  if (profitCaptured >= 70) return 'green';
+  // Yellow: Near ATM (within 5% of strike) - getting close, watch
+  if (itmDepth > -5) return 'yellow';
   
-  // Yellow: 30-69% profit (moderate, watch closely)
-  return 'yellow';
+  // Green: Far OTM (more than 5% away from strike) - safe zone
+  return 'green';
 }
 
 /**

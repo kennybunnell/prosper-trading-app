@@ -3738,3 +3738,11 @@
 - [x] Keep "View Options" button in Actions column
 - [x] Maintain color coding for urgency (red/yellow/green rows)
 - [x] Create RollsTable component for cleaner code organization
+
+## Action Items Moneyness-Based Color Coding
+- [x] Investigate roll data structure to find current stock price and strike price fields
+- [x] Update getUrgencyLevel function in rollDetection.ts to use moneyness (itmDepth)
+- [x] Red: In-the-money (ITM) - itmDepth > 0, option strike breached, urgent action needed
+- [x] Yellow: Near at-the-money (ATM) - itmDepth > -5%, within 5% of strike, watch closely
+- [x] Green: Far out-of-the-money (OTM) - itmDepth < -5%, safe zone, no immediate action needed
+- [x] RollsTable component automatically uses backend urgency color (no frontend changes needed)
