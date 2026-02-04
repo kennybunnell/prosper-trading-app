@@ -1794,30 +1794,7 @@ export default function CCDashboard() {
                 </CardContent>
               </Card>
 
-              <Card className="relative overflow-hidden bg-gradient-to-br from-blue-500/10 to-cyan-500/5 backdrop-blur border-blue-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent" />
-                <CardHeader className="pb-2 relative">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <div className="p-2 rounded-lg bg-blue-500/20">
-                      <Wallet className="w-4 h-4 text-blue-400" />
-                    </div>
-                    <span className="text-muted-foreground">Total Stock Value</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="relative">
-                  <div className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                    ${(() => {
-                      const totalStockValue = strategyType === 'spread'
-                        ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                        : filteredOpportunities.reduce((sum, opp) => sum + (opp.currentPrice * 100), 0);
-                      return totalStockValue.toLocaleString(undefined, { maximumFractionDigits: 0 });
-                    })()}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {strategyType === 'spread' ? 'capital at risk' : 'in eligible positions'}
-                  </div>
-                </CardContent>
-              </Card>
+
             </div>
 
       <Card className="bg-card/50 backdrop-blur border-amber-500/20" data-section="filters">
