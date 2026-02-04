@@ -3893,3 +3893,7 @@
 - [x] Support all order types (CSP, BPS, CC, BCS)
 - [x] Add bid/ask/mid market data to validation endpoints
 - [x] Create comprehensive test suite (24/24 tests passing)
+
+## Bug Fix: Premium Display
+- [x] Fix Total Premium in Order Summary card to show per-contract value (multiply by 100)
+- [ ] Verify all premium displays show correct per-contract amounts across all dashboards
