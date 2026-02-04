@@ -16,10 +16,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Clock, XCircle, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, XCircle, Sparkles, Plus, Minus } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { Streamdown } from "streamdown";
+import { Slider } from "@/components/ui/slider";
 
 interface OrderPreviewItem {
   symbol: string;
@@ -37,6 +38,10 @@ interface OrderPreviewItem {
   spreadType?: 'bull_put' | 'bear_call';
   longStrike?: number;
   spreadWidth?: number;
+  // Market data for price adjustment
+  bid?: number;
+  ask?: number;
+  mid?: number;
 }
 
 interface OrderPreviewDialogProps {
@@ -48,7 +53,7 @@ interface OrderPreviewDialogProps {
   availableBuyingPower: number;
   remainingBuyingPower: number;
   isMarketOpen: boolean;
-  onSubmit: () => void;
+  onSubmit: (adjustedPrices?: Map<number, number>) => void;
   isDryRun: boolean;
 }
 
@@ -66,6 +71,9 @@ export function OrderPreviewDialog({
 }: OrderPreviewDialogProps) {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
+  
+  // Track adjusted prices for each order (indexed by order index)
+  const [adjustedPrices, setAdjustedPrices] = useState<Map<number, number>>(new Map());
   
   const evaluateOrder = trpc.csp.evaluateOrder.useMutation({
     onSuccess: (data) => {
@@ -90,6 +98,52 @@ export function OrderPreviewDialog({
     }));
     
     evaluateOrder.mutate({ orders: orderData });
+  };
+  
+  // Adjust price by increment (nickel increments = $0.05)
+  const adjustPrice = (orderIdx: number, delta: number) => {
+    const order = orders[orderIdx];
+    const currentPrice = adjustedPrices.get(orderIdx) ?? order.premium;
+    const newPrice = Math.max(0.01, currentPrice + delta);
+    
+    setAdjustedPrices(new Map(adjustedPrices.set(orderIdx, newPrice)));
+  };
+  
+  // Set price via slider (between bid and mid)
+  const setPriceFromSlider = (orderIdx: number, value: number[]) => {
+    const order = orders[orderIdx];
+    if (!order.bid || !order.mid) return;
+    
+    // Map slider value (0-100) to price range (bid to mid)
+    const priceRange = order.mid - order.bid;
+    const newPrice = order.bid + (priceRange * value[0] / 100);
+    const roundedPrice = Math.round(newPrice * 100) / 100; // Round to nearest cent
+    
+    setAdjustedPrices(new Map(adjustedPrices.set(orderIdx, roundedPrice)));
+  };
+  
+  // Get current price for an order (adjusted or original)
+  const getCurrentPrice = (orderIdx: number) => {
+    return adjustedPrices.get(orderIdx) ?? orders[orderIdx].premium;
+  };
+  
+  // Calculate percentage of mid
+  const getPercentOfMid = (orderIdx: number) => {
+    const order = orders[orderIdx];
+    if (!order.mid) return null;
+    const currentPrice = getCurrentPrice(orderIdx);
+    return ((currentPrice / order.mid) * 100).toFixed(1);
+  };
+  
+  // Calculate slider position (0-100) based on current price
+  const getSliderPosition = (orderIdx: number) => {
+    const order = orders[orderIdx];
+    if (!order.bid || !order.mid) return [50];
+    
+    const currentPrice = getCurrentPrice(orderIdx);
+    const priceRange = order.mid - order.bid;
+    const position = ((currentPrice - order.bid) / priceRange) * 100;
+    return [Math.max(0, Math.min(100, position))];
   };
   
   const buyingPowerUsagePercent = (totalCollateral / availableBuyingPower) * 100;
@@ -118,7 +172,7 @@ export function OrderPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-fit min-w-[800px] max-w-[98vw] max-h-[90vh] overflow-y-auto border-2 border-orange-500">
+      <DialogContent className="w-fit min-w-[900px] max-w-[98vw] max-h-[90vh] overflow-y-auto border-2 border-orange-500">
         <DialogHeader>
           <DialogTitle className="text-2xl">
             {isDryRun ? "Dry Run Preview" : "Order Confirmation"}
@@ -179,60 +233,120 @@ export function OrderPreviewDialog({
                 <TableHead className="text-right w-28">Strikes</TableHead>
                 <TableHead className="w-24">Expiration</TableHead>
                 <TableHead className="text-right w-12">Qty</TableHead>
-                <TableHead className="text-right w-24">Premium</TableHead>
+                <TableHead className="text-right w-32">Limit Price</TableHead>
+                <TableHead className="w-64">Price Adjustment</TableHead>
                 <TableHead className="text-right w-28">Capital Risk</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orders.map((order, idx) => (
-                <TableRow key={idx}>
-                  <TableCell>
-                    {order.status === 'valid' && (
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    )}
-                    {order.status === 'warning' && (
-                      <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    )}
-                    {order.status === 'error' && (
-                      <XCircle className="h-4 w-4 text-red-600" />
-                    )}
-                  </TableCell>
-                  <TableCell className="font-semibold">{order.symbol}</TableCell>
-                  <TableCell>
-                    {order.isSpread ? (
-                      <Badge variant="secondary" className="bg-blue-500/10 text-blue-700 dark:text-blue-300">
-                        {order.spreadType === 'bull_put' ? 'Bull Put Spread' : 'Bear Call Spread'}
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">CSP</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {order.isSpread && order.longStrike ? (
+              {orders.map((order, idx) => {
+                const currentPrice = getCurrentPrice(idx);
+                const percentOfMid = getPercentOfMid(idx);
+                const hasMarketData = order.bid && order.ask && order.mid;
+                
+                return (
+                  <TableRow key={idx}>
+                    <TableCell>
+                      {order.status === 'valid' && (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      )}
+                      {order.status === 'warning' && (
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      )}
+                      {order.status === 'error' && (
+                        <XCircle className="h-4 w-4 text-red-600" />
+                      )}
+                    </TableCell>
+                    <TableCell className="font-semibold">{order.symbol}</TableCell>
+                    <TableCell>
+                      {order.isSpread ? (
+                        <Badge variant="secondary" className="bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                          {order.spreadType === 'bull_put' ? 'Bull Put Spread' : 'Bear Call Spread'}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">CSP</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {order.isSpread && order.longStrike ? (
+                        <div className="flex flex-col items-end">
+                          <span className="font-semibold">${order.strike.toFixed(2)}/${order.longStrike.toFixed(2)}</span>
+                          <span className="text-xs text-muted-foreground">{order.spreadWidth}pt spread</span>
+                        </div>
+                      ) : (
+                        <span>${order.strike.toFixed(2)}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{new Date(order.expiration).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right">{order.quantity}</TableCell>
+                    <TableCell className="text-right">
                       <div className="flex flex-col items-end">
-                        <span className="font-semibold">${order.strike.toFixed(2)}/${order.longStrike.toFixed(2)}</span>
-                        <span className="text-xs text-muted-foreground">{order.spreadWidth}pt spread</span>
+                        <span className={`font-semibold ${adjustedPrices.has(idx) ? 'text-blue-600' : 'text-green-600'}`}>
+                          ${currentPrice.toFixed(2)}
+                        </span>
+                        {hasMarketData && (
+                          <div className="text-xs text-muted-foreground">
+                            <div>Mid: ${order.mid!.toFixed(2)}</div>
+                            {percentOfMid && (
+                              <div className="text-blue-400">{percentOfMid}% of mid</div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <span>${order.strike.toFixed(2)}</span>
-                    )}
-                  </TableCell>
-                  <TableCell>{new Date(order.expiration).toLocaleDateString()}</TableCell>
-                  <TableCell className="text-right">{order.quantity}</TableCell>
-                  <TableCell className="text-right text-green-600 font-semibold">
-                    ${order.premium.toFixed(2)}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold">
-                    ${order.collateral.toLocaleString()}
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    <TableCell>
+                      {hasMarketData ? (
+                        <div className="flex flex-col gap-2">
+                          {/* +/- Buttons */}
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 w-7 p-0"
+                              onClick={() => adjustPrice(idx, -0.05)}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 w-7 p-0"
+                              onClick={() => adjustPrice(idx, 0.05)}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                            <span className="text-xs text-muted-foreground">±$0.05</span>
+                          </div>
+                          {/* Slider */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground w-12">Bid</span>
+                            <Slider
+                              value={getSliderPosition(idx)}
+                              onValueChange={(value) => setPriceFromSlider(idx, value)}
+                              max={100}
+                              step={1}
+                              className="flex-1"
+                            />
+                            <span className="text-xs text-muted-foreground w-12">Mid</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No market data</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      ${order.collateral.toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               {/* Totals Row */}
               <TableRow className="bg-muted/50 font-bold">
                 <TableCell colSpan={6} className="text-right">TOTALS</TableCell>
                 <TableCell className="text-right text-green-600">
                   ${totalPremium.toFixed(2)}
                 </TableCell>
+                <TableCell></TableCell>
                 <TableCell className="text-right">
                   ${totalCollateral.toLocaleString()}
                 </TableCell>
@@ -294,7 +408,7 @@ export function OrderPreviewDialog({
           </Button>
           <Button
             onClick={() => {
-              onSubmit();
+              onSubmit(adjustedPrices);
               onOpenChange(false);
             }}
             disabled={hasErrors}

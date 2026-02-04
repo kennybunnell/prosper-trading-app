@@ -958,6 +958,10 @@ Summary: [One sentence overall assessment]`;
             spreadType: order.spreadType,
             longStrike: order.longStrike,
             spreadWidth: order.spreadWidth,
+            // Market data for price adjustment
+            bid: order.bid * 100, // Bid per contract
+            ask: order.ask * 100, // Ask per contract
+            mid: midpoint * 100, // Mid per contract
           };
         });
 

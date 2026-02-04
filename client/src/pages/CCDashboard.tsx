@@ -792,6 +792,9 @@ export default function CCDashboard() {
       spreadType: strategyType === 'spread' ? ('bear_call' as const) : undefined,
       longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
       spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
+      // Market data for price adjustment
+      ask: opp.ask,
+      mid: (opp.bid + opp.ask) / 2,
     }));
 
     const totalPremium = orders.reduce((sum, o) => sum + o.premium, 0);
@@ -812,7 +815,7 @@ export default function CCDashboard() {
   };
 
   // Execute order submission after preview confirmation
-  const executeOrderSubmission = async () => {
+  const executeOrderSubmission = async (adjustedPrices?: Map<number, number>) => {
     setShowPreviewDialog(false);
     setIsSubmitting(true);
 
@@ -836,13 +839,13 @@ export default function CCDashboard() {
       
       if (strategyType === 'spread') {
         // Bear call spread orders
-        const spreadOrders = validationData.orders.map((order: any) => ({
+        const spreadOrders = validationData.orders.map((order: any, idx: number) => ({
           symbol: order.symbol,
           shortStrike: order.strike,
           longStrike: order.longStrike,
           expiration: order.expiration,
           quantity: 1,
-          netCredit: order.premium / 100, // Convert cents to dollars
+          netCredit: (adjustedPrices?.get(idx) ?? order.premium) / 100, // Convert cents to dollars
         }));
 
         results = await utils.client.cc.submitBearCallSpreadOrders.mutate({
@@ -852,12 +855,12 @@ export default function CCDashboard() {
         });
       } else {
         // Regular CC orders
-        const orders = validationData.orders.map((order: any) => ({
+        const orders = validationData.orders.map((order: any, idx: number) => ({
           symbol: order.symbol,
           strike: order.strike,
           expiration: order.expiration,
           quantity: 1,
-          price: order.bid,
+          price: (adjustedPrices?.get(idx) ?? order.premium) / 100, // Use adjusted price or default premium
         }));
 
         results = await utils.client.cc.submitOrders.mutate({

@@ -3871,3 +3871,25 @@
 - [x] Fix spread type detection to handle legs in any order from Tastytrade API
 - [x] Update working orders display to show "BPS" badge instead of just first leg action
 - [ ] Test with live orders to verify fills at competitive prices
+
+## Price Adjustment Controls in Order Preview (All Order Types)
+- [ ] Design UI layout with +/- buttons for $0.05 increments
+- [ ] Add slider control for quick adjustment between bid and mid
+- [ ] Display market reference data (bid, ask, mid) in preview dialog
+- [ ] Show percentage of mid being requested (e.g., "95% of mid")
+- [ ] Implement price adjustment for CSP orders
+- [ ] Implement price adjustment for Bull Put Spread orders
+- [ ] Implement price adjustment for Bear Call Spread orders
+- [ ] Implement price adjustment for Covered Call orders
+- [ ] Test price adjustment controls with all order types
+
+## Price Adjustment Feature
+- [x] Add price adjustment controls to order preview dialog
+- [x] Implement +/- buttons for $0.05 increments
+- [x] Add slider for quick adjustment between bid and mid
+- [x] Display market mid as reference point
+- [x] Show percentage of mid indicator
+- [x] Pass adjusted prices to order submission handlers
+- [x] Support all order types (CSP, BPS, CC, BCS)
+- [x] Add bid/ask/mid market data to validation endpoints
+- [x] Create comprehensive test suite (24/24 tests passing)

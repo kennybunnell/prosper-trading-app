@@ -863,7 +863,7 @@ export default function CSPDashboard() {
   };
 
   // Execute order submission with midpoint pricing from validation
-  const executeOrderSubmission = () => {
+  const executeOrderSubmission = (adjustedPrices?: Map<number, number>) => {
     setShowPreviewDialog(false);
     setShowProgressDialog(true);
     
@@ -885,7 +885,7 @@ export default function CSPDashboard() {
         return `${ticker}${expShort}P${strikeFormatted}`;
       };
       
-      const orderLegs = validationData.orders.map((validatedOrder: any) => {
+      const orderLegs = validationData.orders.map((validatedOrder: any, idx: number) => {
       const opp = selectedOppsList.find(
         o => o.symbol === validatedOrder.symbol && 
              o.strike === validatedOrder.strike && 
@@ -901,7 +901,7 @@ export default function CSPDashboard() {
           symbol: validatedOrder.symbol,
           strike: validatedOrder.strike,
           expiration: validatedOrder.expiration,
-          premium: roundToNickel(validatedOrder.premium / 100),
+          premium: roundToNickel((adjustedPrices?.get(idx) ?? validatedOrder.premium) / 100),
           isSpread: true,
           // Leg 1: Sell to Open (short put at higher strike)
           shortLeg: {
@@ -920,7 +920,7 @@ export default function CSPDashboard() {
           symbol: validatedOrder.symbol,
           strike: validatedOrder.strike,
           expiration: validatedOrder.expiration,
-          premium: roundToNickel(validatedOrder.premium / 100),
+          premium: roundToNickel((adjustedPrices?.get(idx) ?? validatedOrder.premium) / 100),
           isSpread: false,
           optionSymbol: buildOptionSymbol(validatedOrder.symbol, validatedOrder.expiration, validatedOrder.strike),
         };
