@@ -1092,11 +1092,16 @@ Summary: [One sentence overall assessment]`;
                     },
                   ];
               
+              // Calculate competitive limit price for spreads
+              // Subtract 5% buffer (or $0.05 minimum) to encourage fills
+              const buffer = order.isSpread ? Math.max(order.premium * 0.05, 0.05) : 0;
+              const limitPrice = Math.max(order.premium - buffer, 0.01); // Ensure minimum $0.01
+              
               const orderRequest = {
                 accountNumber: input.accountId,
                 timeInForce: 'Day' as const,
                 orderType: 'Limit' as const,
-                price: order.premium.toFixed(2),
+                price: limitPrice.toFixed(2),
                 priceEffect: 'Credit' as const,
                 legs,
               };

@@ -722,9 +722,9 @@ export const ccRouter = router({
             const shortCallSymbol = `${order.symbol.padEnd(6)}${expStr}C${shortStrikeStr}`;
             const longCallSymbol = `${order.symbol.padEnd(6)}${expStr}C${longStrikeStr}`;
 
-            // Calculate limit price (10% above net credit or +$0.05, whichever is greater)
-            const buffer = Math.max(order.netCredit * 0.10, 0.05);
-            const limitPrice = order.netCredit + buffer;
+            // Calculate limit price (subtract 5% from net credit or -$0.05, whichever is greater, to encourage fills)
+            const buffer = Math.max(order.netCredit * 0.05, 0.05);
+            const limitPrice = Math.max(order.netCredit - buffer, 0.01); // Ensure minimum $0.01
 
             // Submit two-leg spread order
             const result = await api.submitOrder({

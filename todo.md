@@ -3794,3 +3794,23 @@
 - [x] Fix the calculation to show $612.50 instead of $61,250.00 (removed × 100 from all 4 locations)
 - [x] Verify ROC calculation updates correctly with fixed premium
 - [x] Test with real data to confirm correct display (5/5 tests passing)
+
+## Analyze and Fix Unfilled Spread Orders
+
+- [ ] Analyze working orders CSV to identify pricing patterns
+- [ ] Calculate spread width and net credit for each unfilled order
+- [ ] Identify if orders are using ask price (too aggressive for buy-side)
+- [ ] Research optimal pricing for bull put spreads (buy long put at bid, sell short put at ask, net credit = mid?)
+- [ ] Research optimal pricing for bear call spreads (sell short call at bid, buy long call at ask, net credit = mid?)
+- [ ] Find where BPS order submission pricing is set in code
+- [ ] Find where BCS order submission pricing is set in code
+- [ ] Update BPS pricing logic to use more conservative/realistic prices
+- [ ] Update BCS pricing logic to use more conservative/realistic prices
+- [ ] Test updated pricing logic
+
+## Analyze and Fix Unfilled Spread Orders
+- [x] Analyze working orders CSV to understand why spreads aren't filling (all orders at ask price)
+- [x] Identify pricing strategy issues (adding 10% buffer instead of subtracting)
+- [x] Update Bear Call Spread order submission pricing logic (subtract 5% buffer)
+- [x] Update Bull Put Spread order submission pricing logic (subtract 5% buffer)
+- [x] Test updated pricing with real orders (comprehensive test suite with 11 passing tests)
