@@ -33,6 +33,7 @@ import {
   Sparkles,
   Minus,
   Plus,
+  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
@@ -413,10 +414,10 @@ export default function CCDashboard() {
   
   const totalPremium = selectedOppsList.reduce((sum, opp) => sum + (opp.premium * 100), 0);
   
-  // For spreads, use capitalAtRisk instead of full collateral
+  // For spreads, use capitalAtRisk; for covered calls, use stock value
   const totalCollateral = strategyType === 'spread'
     ? selectedOppsList.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-    : selectedOppsList.reduce((sum, opp) => sum + (opp.premium * 100), 0);
+    : selectedOppsList.reduce((sum, opp) => sum + (opp.currentPrice * 100), 0);
   
   const roc = totalCollateral > 0 ? (totalPremium / totalCollateral) * 100 : 0;
   const buyingPowerUsedPct = availableBuyingPower > 0 ? (totalCollateral / availableBuyingPower) * 100 : 0;
@@ -1745,7 +1746,7 @@ export default function CCDashboard() {
                     ${(() => {
                       const collateral = strategyType === 'spread'
                         ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                        : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
+                        : filteredOpportunities.reduce((sum, opp) => sum + (opp.currentPrice * 100), 0);
                       return collateral.toFixed(2);
                     })()}
                   </div>
@@ -1768,7 +1769,7 @@ export default function CCDashboard() {
                       const totalPrem = filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
                       const totalColl = strategyType === 'spread'
                         ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                        : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
+                        : filteredOpportunities.reduce((sum, opp) => sum + (opp.currentPrice * 100), 0);
                       const roc = totalColl > 0 ? (totalPrem / totalColl) * 100 : 0;
                       return roc.toFixed(2);
                     })()}%
@@ -1793,92 +1794,27 @@ export default function CCDashboard() {
                 </CardContent>
               </Card>
 
-              <Card className={cn(
-                "relative overflow-hidden backdrop-blur shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]",
-                (() => {
-                  const totalColl = strategyType === 'spread'
-                    ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                    : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-                  const availableBP = availableBuyingPower;
-                  const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
-                  return usedPct > 80 
-                    ? "bg-gradient-to-br from-red-500/10 to-rose-500/5 border-red-500/20" 
-                    : "bg-gradient-to-br from-emerald-500/10 to-green-500/5 border-emerald-500/20";
-                })()
-              )}>
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent" />
+              <Card className="relative overflow-hidden bg-gradient-to-br from-blue-500/10 to-cyan-500/5 backdrop-blur border-blue-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent" />
                 <CardHeader className="pb-2 relative">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <div className={cn(
-                      "p-2 rounded-lg",
-                      (() => {
-                        const totalColl = strategyType === 'spread'
-                          ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                          : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-                        const availableBP = availableBuyingPower;
-                        const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
-                        return usedPct > 80 ? "bg-red-500/20" : "bg-emerald-500/20";
-                      })()
-                    )}>
-                      <TrendingUp className={cn(
-                        "w-4 h-4",
-                        (() => {
-                          const totalColl = strategyType === 'spread'
-                            ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                            : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-                          const availableBP = availableBuyingPower;
-                          const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
-                          return usedPct > 80 ? "text-red-400" : "text-emerald-400";
-                        })()
-                      )} />
+                    <div className="p-2 rounded-lg bg-blue-500/20">
+                      <Wallet className="w-4 h-4 text-blue-400" />
                     </div>
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      Buying Power
-                      <HelpBadge content={HELP_CONTENT.BUYING_POWER_USAGE} />
-                    </span>
+                    <span className="text-muted-foreground">Total Stock Value</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="relative">
-                  <div className={cn(
-                    "text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent",
-                    (() => {
-                      const totalColl = strategyType === 'spread'
-                        ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                        : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-                      const availableBP = availableBuyingPower;
-                      const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
-                      return usedPct > 80 
-                        ? "from-red-400 to-rose-400" 
-                        : "from-emerald-400 to-green-400";
-                    })()
-                  )}>
-                    {(() => {
-                      const totalColl = strategyType === 'spread'
-                        ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                        : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-                      const availableBP = availableBuyingPower;
-                      const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
-                      return usedPct.toFixed(1);
-                    })()}%
-                  </div>
-                  <div className={cn(
-                    "text-3xl font-bold mt-2",
-                    (() => {
-                      const totalColl = strategyType === 'spread'
-                        ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                        : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
-                      const availableBP = availableBuyingPower;
-                      const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
-                      return usedPct > 80 ? "text-red-400" : "text-emerald-400";
-                    })()
-                  )}>
+                  <div className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
                     ${(() => {
-                      const availableBP = availableBuyingPower;
-                      return availableBP.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                      const totalStockValue = strategyType === 'spread'
+                        ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                        : filteredOpportunities.reduce((sum, opp) => sum + (opp.currentPrice * 100), 0);
+                      return totalStockValue.toLocaleString(undefined, { maximumFractionDigits: 0 });
                     })()}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    available
+                    {strategyType === 'spread' ? 'capital at risk' : 'in eligible positions'}
                   </div>
                 </CardContent>
               </Card>
@@ -2293,56 +2229,30 @@ export default function CCDashboard() {
           </CardContent>
         </Card>
 
-        <Card className={cn(
-          "relative overflow-hidden backdrop-blur shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]",
-          buyingPowerUsedPct > 80 
-            ? "bg-gradient-to-br from-red-500/10 to-rose-500/5 border-red-500/20" 
-            : "bg-gradient-to-br from-emerald-500/10 to-green-500/5 border-emerald-500/20"
-        )}>
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent" />
-          <CardHeader className="pb-2 relative">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <div className={cn(
-                "p-2 rounded-lg",
-                buyingPowerUsedPct > 80 ? "bg-red-500/20" : "bg-emerald-500/20"
-              )}>
-                <TrendingUp className={cn(
-                  "w-4 h-4",
-                  buyingPowerUsedPct > 80 ? "text-red-400" : "text-emerald-400"
-                )} />
-              </div>
-              <span className="text-muted-foreground flex items-center gap-1">
-                Buying Power
-                <HelpBadge content={HELP_CONTENT.BUYING_POWER_USAGE} />
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className={cn(
-              "text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent",
-              buyingPowerUsedPct > 80 
-                ? "from-red-400 to-rose-400" 
-                : "from-emerald-400 to-green-400"
-            )}>
-              {buyingPowerUsedPct.toFixed(1)}%
-            </div>
-            <div className={cn(
-              "text-3xl font-bold mt-2",
-              buyingPowerUsedPct > 80 ? "text-red-400" : "text-emerald-400"
-            )}>
-              ${availableBuyingPower.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              available
-            </div>
-            {overLimit > 0 && (
-              <div className="text-xs text-red-400 font-semibold mt-1 flex items-center gap-1">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-                Over Limit: ${overLimit.toFixed(2)}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <Card className="relative overflow-hidden bg-gradient-to-br from-blue-500/10 to-cyan-500/5 backdrop-blur border-blue-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent" />
+                <CardHeader className="pb-2 relative">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-blue-500/20">
+                      <Wallet className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <span className="text-muted-foreground">Total Stock Value</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="relative">
+                  <div className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                    ${(() => {
+                      const totalStockValue = strategyType === 'spread'
+                        ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                        : filteredOpportunities.reduce((sum, opp) => sum + (opp.currentPrice * 100), 0);
+                      return totalStockValue.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                    })()}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {strategyType === 'spread' ? 'capital at risk' : 'in eligible positions'}
+                  </div>
+                </CardContent>
+              </Card>
       </div>
 
             {/* Order Summary */}

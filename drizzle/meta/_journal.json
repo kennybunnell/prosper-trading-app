@@ -204,6 +204,20 @@
       "when": 1769997143798,
       "tag": "0029_clean_lionheart",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1770179905134,
+      "tag": "0030_misty_tyger_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1770182287252,
+      "tag": "0031_perpetual_leech",
+      "breakpoints": true
     }
   ]
 }

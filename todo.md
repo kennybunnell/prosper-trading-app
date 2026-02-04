@@ -3757,3 +3757,14 @@
 - [x] Add orange border to all modal dialogs for better visibility on dark background
 - [x] Update Dialog component (shadcn/ui) to include border-2 border-[#FF8C00] styling
 - [x] Applied to all modals globally (Roll Options, AI Explanation, Order Preview, etc.)
+
+## Fix CC Dashboard Metrics Calculations
+
+- [x] Investigate Portfolio Positions metrics calculation (Total Premium, Total Collateral, ROC, Buying Power)
+- [x] Investigate Order Summary metrics calculation
+- [x] Fix Total Premium calculation (already correct)
+- [x] Fix Total Collateral calculation (now uses currentPrice × 100)
+- [x] Fix ROC calculation (now calculates correctly with fixed collateral)
+- [x] Replace Buying Power with Total Stock Value metric
+- [x] Test corrected metrics with real data
+- [x] Verify calculations match expected values (5/5 tests passing)
