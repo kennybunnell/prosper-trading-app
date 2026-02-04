@@ -3933,3 +3933,8 @@
 - [x] For Covered Calls: Show "Total Stock Value" = currentPrice × 100 × contracts (for selected)
 - [x] For Bear Call Spreads: Show "Total Collateral" = spread width × 100 × contracts (for selected)
 - [x] Update card title and calculation based on strategy type
+
+## Bug Fix: CC Dashboard Display Issues
+- [x] Rename far-right card from "Total Collateral" to "Buying Power Required"
+- [x] Fix Total Premium in Order Summary card (removed incorrect × 100 multiplication)
+- [ ] Fix TOTALS row in Order Preview dialog if needed

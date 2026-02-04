@@ -2216,7 +2216,7 @@ export default function CCDashboard() {
                     <div className="p-2 rounded-lg bg-blue-500/20">
                       <Wallet className="w-4 h-4 text-blue-400" />
                     </div>
-                    <span className="text-muted-foreground">{strategyType === 'spread' ? 'Total Collateral' : 'Total Stock Value'}</span>
+                    <span className="text-muted-foreground">{strategyType === 'spread' ? 'Buying Power Required' : 'Total Stock Value'}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="relative">
@@ -2258,7 +2258,7 @@ export default function CCDashboard() {
                           ${(Array.from(selectedOpportunities)
                             .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
                             .filter((opp): opp is CCOpportunity => opp !== undefined)
-                            .reduce((sum, opp) => sum + opp.premium, 0) * 100)
+                            .reduce((sum, opp) => sum + opp.premium, 0))
                             .toFixed(2)}
                         </p>
                       </div>
