@@ -51,6 +51,7 @@ import { OrderPreviewDialog } from "@/components/OrderPreviewDialog";
 import { HelpBadge } from "@/components/HelpBadge";
 import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
+import { SavedScanConfigs } from "@/components/SavedScanConfigs";
 
 // Strategy types
 type StrategyType = 'cc' | 'spread';
@@ -219,6 +220,26 @@ export default function CCDashboard() {
   const { selectedAccountId } = useAccount();
   const { mode: tradingMode } = useTradingMode();
   const utils = trpc.useUtils();
+
+  // Handler for loading saved scan configurations
+  const handleLoadSavedConfig = (tickers: string, filters: any) => {
+    // Apply filters
+    if (filters.minScore !== undefined) setMinScore(filters.minScore);
+    if (filters.deltaRange) setDeltaRange(filters.deltaRange);
+    if (filters.dteRange) setDteRange(filters.dteRange);
+    if (filters.scoreRange) setScoreRange(filters.scoreRange);
+    if (filters.minDte !== undefined) setMinDte(filters.minDte);
+    if (filters.maxDte !== undefined) setMaxDte(filters.maxDte);
+    if (filters.portfolioSizeFilter) setPortfolioSizeFilter(filters.portfolioSizeFilter);
+    if (filters.presetFilter) setPresetFilter(filters.presetFilter);
+    if (filters.strategyType) setStrategyType(filters.strategyType);
+    if (filters.spreadWidth) setSpreadWidth(filters.spreadWidth);
+    
+    const tickerArray = tickers.split(',').map(t => t.trim()).filter(Boolean);
+    toast.success('Configuration loaded', {
+      description: `Loaded ${tickerArray.length} tickers and filter settings. Review and click Fetch Opportunities.`
+    });
+  };
   const [isLoadingPositions, setIsLoadingPositions] = useState(false);
   const [scanStartTime, setScanStartTime] = useState<number | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
@@ -1629,6 +1650,25 @@ export default function CCDashboard() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Saved Configurations */}
+                <SavedScanConfigs
+                  strategy={strategyType === 'spread' ? 'bcs' : 'cc'}
+                  currentTickers="" // CC Dashboard doesn't use watchlist for ticker selection
+                  currentFilters={{
+                    minScore,
+                    deltaRange,
+                    dteRange,
+                    scoreRange,
+                    minDte,
+                    maxDte,
+                    portfolioSizeFilter,
+                    presetFilter,
+                    strategyType,
+                    spreadWidth,
+                  }}
+                  onLoad={handleLoadSavedConfig}
+                />
 
                 {/* DTE Range Filter */}
                 <div className="flex items-center gap-4">

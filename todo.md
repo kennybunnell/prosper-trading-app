@@ -3757,3 +3757,16 @@
 - [x] Add orange border to all modal dialogs for better visibility on dark background
 - [x] Update Dialog component (shadcn/ui) to include border-2 border-[#FF8C00] styling
 - [x] Applied to all modals globally (Roll Options, AI Explanation, Order Preview, etc.)
+
+## Watchlist Auto-Scan Feature (Save & Reload Ticker Configurations)
+- [x] Create scanConfigurations database table schema (user_id, strategy_type, config_name, tickers, filters, created_at)
+- [x] Add backend query helpers for save/load/delete scan configs (server/db.ts)
+- [x] Add tRPC procedures for CSP dashboard scan configs (server/routers.ts)
+- [x] Add tRPC procedures for BPS dashboard scan configs (server/routers.ts spread router)
+- [x] Add tRPC procedures for CC dashboard scan configs (server/routers-cc.ts)
+- [x] Add tRPC procedures for BCS dashboard scan configs (server/routers.ts)
+- [x] Add UI for saved configs on CSP Dashboard (dropdown, save/load/delete buttons)
+- [x] Add UI for saved configs on BPS Dashboard (integrated in CSP Dashboard)
+- [x] Add UI for saved configs on CC Dashboard (dropdown, save/load/delete buttons)
+- [x] Add UI for saved configs on BCS Dashboard (integrated in CC Dashboard)
+- [x] Test save/load/delete workflow on all 4 dashboards

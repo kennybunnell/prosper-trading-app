@@ -1341,6 +1341,37 @@ Summary: [One sentence overall assessment]`;
           },
         };
       }),
+    
+    // Scan Configuration Management (Watchlist Auto-Scan)
+    getScanConfigs: protectedProcedure.query(async ({ ctx }) => {
+      const { getScanConfigurations } = await import('./db');
+      return getScanConfigurations(ctx.user.id, 'csp');
+    }),
+    saveScanConfig: protectedProcedure
+      .input(
+        z.object({
+          configName: z.string().min(1).max(128),
+          tickers: z.string(), // Comma-separated
+          filters: z.string(), // JSON string
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { saveScanConfiguration } = await import('./db');
+        return await saveScanConfiguration(
+          ctx.user.id,
+          'csp',
+          input.configName,
+          input.tickers,
+          input.filters
+        );
+      }),
+    deleteScanConfig: protectedProcedure
+      .input(z.object({ configId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const { deleteScanConfiguration } = await import('./db');
+        await deleteScanConfiguration(ctx.user.id, input.configId);
+        return { success: true };
+      }),
   }),
 
   // Bull Put Spreads (Phase 2: Backend Pricing)
@@ -1485,6 +1516,37 @@ Summary: [One sentence overall assessment]`;
         const scored = scoreOpportunities(spreadOpportunities);
 
         return scored;
+      }),
+    
+    // Scan Configuration Management (Watchlist Auto-Scan)
+    getScanConfigs: protectedProcedure.query(async ({ ctx }) => {
+      const { getScanConfigurations } = await import('./db');
+      return getScanConfigurations(ctx.user.id, 'bps');
+    }),
+    saveScanConfig: protectedProcedure
+      .input(
+        z.object({
+          configName: z.string().min(1).max(128),
+          tickers: z.string(), // Comma-separated
+          filters: z.string(), // JSON string
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { saveScanConfiguration } = await import('./db');
+        return await saveScanConfiguration(
+          ctx.user.id,
+          'bps',
+          input.configName,
+          input.tickers,
+          input.filters
+        );
+      }),
+    deleteScanConfig: protectedProcedure
+      .input(z.object({ configId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const { deleteScanConfiguration } = await import('./db');
+        await deleteScanConfiguration(ctx.user.id, input.configId);
+        return { success: true };
       }),
   }),
 
@@ -1737,6 +1799,40 @@ Summary: [One sentence overall assessment]`;
         const { updateFilterPreset } = await import('./db-filter-presets');
         const { presetName, ...updates } = input;
         await updateFilterPreset(ctx.user.id, 'bcs', presetName, updates);
+        return { success: true };
+      }),
+  }),
+
+  // Bear Call Spreads
+  bcs: router({
+    // Scan Configuration Management (Watchlist Auto-Scan)
+    getScanConfigs: protectedProcedure.query(async ({ ctx }) => {
+      const { getScanConfigurations } = await import('./db');
+      return getScanConfigurations(ctx.user.id, 'bcs');
+    }),
+    saveScanConfig: protectedProcedure
+      .input(
+        z.object({
+          configName: z.string().min(1).max(128),
+          tickers: z.string(), // Comma-separated
+          filters: z.string(), // JSON string
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { saveScanConfiguration } = await import('./db');
+        return await saveScanConfiguration(
+          ctx.user.id,
+          'bcs',
+          input.configName,
+          input.tickers,
+          input.filters
+        );
+      }),
+    deleteScanConfig: protectedProcedure
+      .input(z.object({ configId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const { deleteScanConfiguration } = await import('./db');
+        await deleteScanConfiguration(ctx.user.id, input.configId);
         return { success: true };
       }),
   }),

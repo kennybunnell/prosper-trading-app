@@ -955,6 +955,37 @@ Summary: [One sentence overall assessment]`;
         explanation,
       };
     }),
+  
+  // Scan Configuration Management (Watchlist Auto-Scan)
+  getScanConfigs: protectedProcedure.query(async ({ ctx }) => {
+    const { getScanConfigurations } = await import('./db');
+    return getScanConfigurations(ctx.user.id, 'cc');
+  }),
+  saveScanConfig: protectedProcedure
+    .input(
+      z.object({
+        configName: z.string().min(1).max(128),
+        tickers: z.string(), // Comma-separated
+        filters: z.string(), // JSON string
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { saveScanConfiguration } = await import('./db');
+      return await saveScanConfiguration(
+        ctx.user.id,
+        'cc',
+        input.configName,
+        input.tickers,
+        input.filters
+      );
+    }),
+  deleteScanConfig: protectedProcedure
+    .input(z.object({ configId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const { deleteScanConfiguration } = await import('./db');
+      await deleteScanConfiguration(ctx.user.id, input.configId);
+      return { success: true };
+    }),
 });
 
 /**

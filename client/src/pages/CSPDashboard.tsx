@@ -42,6 +42,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+import { SavedScanConfigs } from "@/components/SavedScanConfigs";
 
 // Color-coding helper functions for technical indicators
 function getRSIColor(rsi: number | null, strategy: 'csp' | 'cc'): string {
@@ -326,6 +327,26 @@ export default function CSPDashboard() {
   const [analyzingRowKey, setAnalyzingRowKey] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
+
+  // Handler for loading saved scan configurations
+  const handleLoadSavedConfig = (tickers: string, filters: any) => {
+    // Apply filters
+    if (filters.minScore !== undefined) setMinScore(filters.minScore);
+    if (filters.deltaRange) setDeltaRange(filters.deltaRange);
+    if (filters.dteRange) setDteRange(filters.dteRange);
+    if (filters.scoreRange) setScoreRange(filters.scoreRange);
+    if (filters.minDte !== undefined) setMinDte(filters.minDte);
+    if (filters.maxDte !== undefined) setMaxDte(filters.maxDte);
+    if (filters.portfolioSizeFilter) setPortfolioSizeFilter(filters.portfolioSizeFilter);
+    if (filters.presetFilter) setPresetFilter(filters.presetFilter);
+    if (filters.strategyType) setStrategyType(filters.strategyType);
+    if (filters.spreadWidth) setSpreadWidth(filters.spreadWidth);
+    
+    const tickerArray = tickers.split(',').map(t => t.trim()).filter(Boolean);
+    toast.success('Configuration loaded', {
+      description: `Loaded ${tickerArray.length} tickers and filter settings. Review and click Fetch Opportunities.`
+    });
+  };
 
   // Fetch filter presets from database (use BPS presets for spread mode, CSP presets for single-leg mode)
   const { data: presets } = trpc[strategyType === 'spread' ? 'bpsFilters' : 'cspFilters'].getPresets.useQuery(undefined, { enabled: !!user });
@@ -1440,6 +1461,25 @@ export default function CSPDashboard() {
               </Button>
             </div>
           </div>
+
+          {/* Saved Configurations */}
+          <SavedScanConfigs
+            strategy={strategyType === 'spread' ? 'bps' : 'csp'}
+            currentTickers={filteredWatchlist.map((w: any) => w.symbol).join(',')}
+            currentFilters={{
+              minScore,
+              deltaRange,
+              dteRange,
+              scoreRange,
+              minDte,
+              maxDte,
+              portfolioSizeFilter,
+              presetFilter,
+              strategyType,
+              spreadWidth,
+            }}
+            onLoad={handleLoadSavedConfig}
+          />
 
           {/* DTE Range Filter */}
           <div className="flex items-center gap-4">

@@ -1105,3 +1105,61 @@ export async function setAllWatchlistSelections(userId: number, symbols: string[
     console.error("[Database] Failed to set all watchlist selections:", error);
   }
 }
+
+// Scan Configuration queries (for watchlist auto-scan feature)
+export async function getScanConfigurations(userId: number, strategy: 'csp' | 'cc' | 'bps' | 'bcs') {
+  const db = await getDb();
+  if (!db) return [];
+  const { scanConfigurations } = await import('../drizzle/schema');
+  const { eq, and } = await import('drizzle-orm');
+  return db.select().from(scanConfigurations)
+    .where(and(
+      eq(scanConfigurations.userId, userId),
+      eq(scanConfigurations.strategy, strategy)
+    ))
+    .orderBy(scanConfigurations.createdAt);
+}
+
+export async function saveScanConfiguration(
+  userId: number,
+  strategy: 'csp' | 'cc' | 'bps' | 'bcs',
+  configName: string,
+  tickers: string,
+  filters: string
+) {
+  const db = await getDb();
+  if (!db) return null;
+  const { scanConfigurations } = await import('../drizzle/schema');
+  const result = await db.insert(scanConfigurations).values({
+    userId,
+    strategy,
+    configName,
+    tickers,
+    filters,
+  });
+  
+  // Get the inserted ID from result
+  const insertId = result[0]?.insertId;
+  if (!insertId) return null;
+  
+  // Fetch and return the created record
+  const { eq } = await import('drizzle-orm');
+  const created = await db.select()
+    .from(scanConfigurations)
+    .where(eq(scanConfigurations.id, insertId))
+    .limit(1);
+  
+  return created[0] || null;
+}
+
+export async function deleteScanConfiguration(userId: number, configId: number) {
+  const db = await getDb();
+  if (!db) return;
+  const { scanConfigurations } = await import('../drizzle/schema');
+  const { eq, and } = await import('drizzle-orm');
+  await db.delete(scanConfigurations)
+    .where(and(
+      eq(scanConfigurations.id, configId),
+      eq(scanConfigurations.userId, userId)
+    ));
+}

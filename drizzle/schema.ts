@@ -276,6 +276,29 @@ export type PmccLeapPosition = typeof pmccLeapPositions.$inferSelect;
 export type InsertPmccLeapPosition = typeof pmccLeapPositions.$inferInsert;
 
 /**
+ * Saved scan configurations for watchlist auto-scan feature
+ * Allows users to save ticker lists + filter settings and re-run scans with fresh market data
+ */
+export const scanConfigurations = mysqlTable("scanConfigurations", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  strategy: mysqlEnum("strategy", ["csp", "cc", "bps", "bcs"]).notNull(),
+  configName: varchar("configName", { length: 128 }).notNull(),
+  
+  // Ticker list (comma-separated)
+  tickers: text("tickers").notNull(),
+  
+  // Filter settings (JSON string)
+  filters: text("filters").notNull(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ScanConfiguration = typeof scanConfigurations.$inferSelect;
+export type InsertScanConfiguration = typeof scanConfigurations.$inferInsert;
+
+/**
  * Order history tracking for fill rate analytics and order lifecycle management
  * Tracks when orders are submitted, replaced, filled, or canceled
  */
