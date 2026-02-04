@@ -296,38 +296,90 @@ export function OrderPreviewDialog({
                     </TableCell>
                     <TableCell>
                       {hasMarketData ? (
-                        <div className="flex flex-col gap-2">
-                          {/* +/- Buttons */}
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 w-7 p-0"
-                              onClick={() => adjustPrice(idx, -0.05)}
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 w-7 p-0"
-                              onClick={() => adjustPrice(idx, 0.05)}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                            <span className="text-xs text-muted-foreground">±$0.05</span>
-                          </div>
-                          {/* Slider */}
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground w-12">Bid</span>
-                            <Slider
-                              value={getSliderPosition(idx)}
-                              onValueChange={(value) => setPriceFromSlider(idx, value)}
-                              max={100}
-                              step={1}
-                              className="flex-1"
-                            />
-                            <span className="text-xs text-muted-foreground w-12">Mid</span>
+                        <div className="flex flex-col gap-3 py-2">
+                          {/* Visual Continuum with Markers */}
+                          <div className="relative">
+                            {/* Price Labels Row */}
+                            <div className="flex justify-between text-xs font-medium mb-1">
+                              <span className="text-red-400">Bid ${order.bid!.toFixed(2)}</span>
+                              <span className="text-blue-400">Mid ${order.mid!.toFixed(2)}</span>
+                              <span className="text-green-400">Ask ${order.ask!.toFixed(2)}</span>
+                            </div>
+                            
+                            {/* Slider with Visual Zones */}
+                            <div className="relative px-1">
+                              {/* Background gradient showing zones */}
+                              <div className="absolute inset-0 h-2 rounded-full overflow-hidden" style={{ top: '50%', transform: 'translateY(-50%)' }}>
+                                <div className="absolute inset-0 bg-gradient-to-r from-red-500/30 via-green-500/30 to-yellow-500/30"></div>
+                              </div>
+                              
+                              {/* Fill Zone Marker (around 85-95% of mid) */}
+                              <div 
+                                className="absolute h-4 w-1 bg-emerald-400 rounded-full shadow-lg" 
+                                style={{ 
+                                  left: '85%', 
+                                  top: '50%', 
+                                  transform: 'translate(-50%, -50%)',
+                                  zIndex: 1
+                                }}
+                                title="Optimal fill zone (~90% of mid)"
+                              >
+                                <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-emerald-400 font-bold whitespace-nowrap">Fill</div>
+                              </div>
+                              
+                              {/* Mid Marker */}
+                              <div 
+                                className="absolute h-3 w-0.5 bg-blue-400/50" 
+                                style={{ 
+                                  left: '50%', 
+                                  top: '50%', 
+                                  transform: 'translate(-50%, -50%)',
+                                  zIndex: 0
+                                }}
+                              />
+                              
+                              {/* Slider */}
+                              <Slider
+                                value={getSliderPosition(idx)}
+                                onValueChange={(value) => setPriceFromSlider(idx, value)}
+                                max={100}
+                                step={1}
+                                className="relative z-10"
+                              />
+                            </div>
+                            
+                            {/* Current Price and Position Indicator */}
+                            <div className="flex justify-between items-center mt-2">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => adjustPrice(idx, -0.05)}
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <span className="text-xs font-mono font-bold text-blue-400">
+                                  ${currentPrice.toFixed(2)}
+                                </span>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => adjustPrice(idx, 0.05)}
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {(() => {
+                                  const sliderPos = getSliderPosition(idx)[0];
+                                  if (sliderPos < 70) return <span className="text-red-400">⚠️ Too conservative</span>;
+                                  if (sliderPos >= 70 && sliderPos < 95) return <span className="text-green-400">✓ Good fill zone</span>;
+                                  return <span className="text-yellow-400">⚠️ Too aggressive</span>;
+                                })()}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       ) : (
