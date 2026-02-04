@@ -73,7 +73,21 @@ export function OrderPreviewDialog({
   const [analysis, setAnalysis] = useState<string | null>(null);
   
   // Track adjusted prices for each order (indexed by order index)
-  const [adjustedPrices, setAdjustedPrices] = useState<Map<number, number>>(new Map());
+  // Initialize with Fill zone prices (85% between bid and mid) for better fill rates
+  const [adjustedPrices, setAdjustedPrices] = useState<Map<number, number>>(() => {
+    const initialPrices = new Map<number, number>();
+    orders.forEach((order, idx) => {
+      if (order.bid && order.mid) {
+        // Calculate Fill zone price: 85% between bid and mid
+        const priceRange = order.mid - order.bid;
+        const fillPrice = order.bid + (priceRange * 0.85);
+        const roundedPrice = Math.round(fillPrice * 100) / 100; // Round to nearest cent
+        initialPrices.set(idx, roundedPrice);
+      }
+      // If no market data, fall back to order.premium (backend calculated price)
+    });
+    return initialPrices;
+  });
   
   const evaluateOrder = trpc.csp.evaluateOrder.useMutation({
     onSuccess: (data) => {

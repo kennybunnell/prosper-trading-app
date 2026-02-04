@@ -3942,3 +3942,7 @@
 ## CC Dashboard Display Fixes (User Reported Feb 4)
 - [x] Change "Buying Power Required" card to "Buying Power Available" - show remaining BP after collateral
 - [x] Fix Order Summary Total Premium to multiply by 100 (shows $3.45, should be $345.00)
+
+## Order Preview Dialog Default Price Positioning (User Reported Feb 4)
+- [x] Change default price position from Bid to Fill zone (85% between bid and mid)
+- [x] Update logic so orders start at optimal fill position instead of most conservative
