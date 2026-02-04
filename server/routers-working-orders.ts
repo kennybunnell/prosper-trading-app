@@ -298,7 +298,7 @@ export const workingOrdersRouter = router({
           const expDate = symbolMatch[2]; // YYMMDD
           const optionType = symbolMatch[3] === 'C' ? 'CALL' : 'PUT';
           const strikeRaw = parseInt(symbolMatch[4]);
-          const strike = strikeRaw / 1000; // Convert to actual strike price
+          let strike = strikeRaw / 1000; // Convert to actual strike price (let allows reassignment for spreads)
 
           // Format expiration date
           const year = 2000 + parseInt(expDate.substring(0, 2));
@@ -338,13 +338,24 @@ export const workingOrdersRouter = router({
               // Check if both legs are same type (both puts or both calls)
               if (leg2OptionType === symbolMatch[3]) {
                 isSpread = true;
-                longStrike = leg2Strike;
                 
-                // Determine spread type
-                if (optionType === 'PUT' && leg2Strike < strike) {
-                  spreadType = 'bull_put'; // Short higher strike, long lower strike
-                } else if (optionType === 'CALL' && leg2Strike > strike) {
-                  spreadType = 'bear_call'; // Short lower strike, long higher strike
+                // Determine spread type based on strike relationship (handle legs in any order)
+                if (optionType === 'PUT') {
+                  // Bull Put Spread: Short higher strike, long lower strike
+                  // Find which strike is higher and which is lower
+                  const higherStrike = Math.max(strike, leg2Strike);
+                  const lowerStrike = Math.min(strike, leg2Strike);
+                  strike = higherStrike; // Display the short leg strike (higher)
+                  longStrike = lowerStrike; // Long leg is always the lower strike
+                  spreadType = 'bull_put';
+                } else if (optionType === 'CALL') {
+                  // Bear Call Spread: Short lower strike, long higher strike
+                  // Find which strike is higher and which is lower
+                  const higherStrike = Math.max(strike, leg2Strike);
+                  const lowerStrike = Math.min(strike, leg2Strike);
+                  strike = lowerStrike; // Display the short leg strike (lower)
+                  longStrike = higherStrike; // Long leg is always the higher strike
+                  spreadType = 'bear_call';
                 }
               }
             }

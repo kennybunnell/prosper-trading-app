@@ -1766,13 +1766,23 @@ export function WorkingOrdersTab() {
                       </div>
                     </td>
                     <td className="p-3 text-sm">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        order.action.toLowerCase().includes('buy') 
-                          ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                          : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                      }`} title={order.action}>
-                        {order.action.replace('Buy to Close', 'BTC').replace('Sell to Open', 'STO').replace('Sell to Close', 'STC').replace('Buy to Open', 'BTO')}
-                      </span>
+                      {(order as any).isSpread && (order as any).spreadType ? (
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          (order as any).spreadType === 'bull_put' 
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                            : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                        }`} title={(order as any).spreadType === 'bull_put' ? 'Bull Put Spread' : 'Bear Call Spread'}>
+                          {(order as any).spreadType === 'bull_put' ? 'BPS' : 'BCS'}
+                        </span>
+                      ) : (
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          order.action.toLowerCase().includes('buy') 
+                            ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                            : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                        }`} title={order.action}>
+                          {order.action.replace('Buy to Close', 'BTC').replace('Sell to Open', 'STO').replace('Sell to Close', 'STC').replace('Buy to Open', 'BTO')}
+                        </span>
+                      )}
                     </td>
                     <td className="p-3 text-sm text-right">
                       {(order as any).isSpread && (order as any).longStrike ? (

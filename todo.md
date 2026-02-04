@@ -3823,3 +3823,51 @@
 - [x] Apply 5% buffer to net credit for competitive pricing
 - [x] Test updated pricing logic with comprehensive tests (11/11 passing)
 - [x] Verify orders will be submitted at bid-based net credit minus 5% buffer
+
+## Fix Bull Put Spread Order Submission Bug
+- [ ] Investigate where Bull Put Spread orders are submitted (only one leg being sent)
+- [ ] Find why short leg (STO) is missing from working orders
+- [ ] Find why strikes are backwards (long leg showing as short strike)
+- [ ] Fix order submission to send both legs as a vertical spread
+- [ ] Verify both legs are submitted together atomically
+- [ ] Test with real order submission (dry run mode)
+
+## Fix Spread Strike Assignment Bug
+- [x] Investigate what strike value is stored in opportunities (confirmed correct)
+- [x] Fix Bull Put Spread strike assignment in CSP Dashboard (confirmed correct - no changes needed)
+- [x] Verify Bear Call Spread strike assignment in CC Dashboard (confirmed correct)
+- [x] Ensure short leg uses correct strike (higher for BPS, lower for BCS) - verified correct
+- [x] Ensure long leg uses correct strike (lower for BPS, higher for BCS) - verified correct
+- [x] Test with dry run - both legs are being sent correctly
+
+## Fix Working Orders Display Logic
+- [x] Investigate why only one leg of spread orders appears in working orders list (confirmed: showing as single entry is correct)
+- [x] Check if working orders query is filtering out one leg (confirmed: intentionally showing one entry per spread)
+- [x] Ensure spread orders are displayed as single entries (not separate legs) - already correct
+- [x] Fix spread type detection to handle legs in any order (uses Math.max/min to find strikes regardless of leg order)
+- [ ] Test with real working orders to verify spreadType is populated correctly
+
+## Fix Working Orders Display in Prosper App
+- [x] Update working orders table to show spread strike format (e.g., "$317.50 / $307.50") - already working
+- [x] Fix action column to show spread type (BPS/BCS) instead of just first leg action
+- [x] Update strategy column to reflect credit spread pricing strategy - already working
+- [ ] Test display with live spread orders
+
+## CRITICAL: Fix Bull Put Spread Strike Display
+- [ ] Investigate why working orders return wrong strike (showing long leg strike instead of short leg strike)
+- [ ] Fix backend to return correct short leg strike as primary strike
+- [ ] Verify strike display shows "$317.50 / $307.50" format correctly
+
+## CRITICAL: Fix Bull Put Spread Pricing (Orders Not Filling)
+- [ ] Investigate why order price ($1.90) is 68% higher than market mid ($1.13)
+- [ ] Check if pricing calculation is using wrong quote data
+- [ ] Fix pricing to use realistic market prices that will actually fill
+- [ ] Test with new order to verify fills occur within reasonable timeframe
+
+## CRITICAL: Bull Put Spread Fixes (Feb 4, 2026)
+- [x] Fix working orders display showing wrong strike (now correctly shows short leg strike for both BPS and BCS)
+- [x] Fix pricing calculation using stale cached quotes (now fetches fresh quotes before submission)
+- [x] Implement fresh quote fetching at order submission time (bid for short leg, ask for long leg)
+- [x] Fix spread type detection to handle legs in any order from Tastytrade API
+- [x] Update working orders display to show "BPS" badge instead of just first leg action
+- [ ] Test with live orders to verify fills at competitive prices

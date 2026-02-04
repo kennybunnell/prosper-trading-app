@@ -1022,12 +1022,38 @@ Summary: [One sentence overall assessment]`;
         // CRITICAL: If dry run, do NOT call Tastytrade API at all
         if (input.dryRun) {
           // Client-side dry run - just validate structure and return success
-          const results = input.orders.map(order => ({
-            symbol: order.symbol,
-            success: true,
-            orderId: 'DRY_RUN_' + Math.random().toString(36).substr(2, 9),
-            message: `Dry run validation passed for ${order.symbol} ${order.strike}P @ $${order.premium}`,
-          }));
+          console.log('[DRY RUN Debug] Received orders:', input.orders.length);
+          
+          const results = input.orders.map(order => {
+            // Log each order's spread data
+            console.log('[DRY RUN Debug] Order:', {
+              symbol: order.symbol,
+              strike: order.strike,
+              premium: order.premium,
+              isSpread: order.isSpread,
+              hasShortLeg: !!order.shortLeg,
+              hasLongLeg: !!order.longLeg,
+              shortLeg: order.shortLeg,
+              longLeg: order.longLeg,
+            });
+            
+            // Build legs to see what would be submitted
+            const legs = order.isSpread && order.shortLeg && order.longLeg
+              ? [
+                  { symbol: order.shortLeg.optionSymbol, action: order.shortLeg.action },
+                  { symbol: order.longLeg.optionSymbol, action: order.longLeg.action },
+                ]
+              : [{ symbol: order.optionSymbol, action: 'Sell to Open' }];
+            
+            console.log('[DRY RUN Debug] Would submit legs:', legs);
+            
+            return {
+              symbol: order.symbol,
+              success: true,
+              orderId: 'DRY_RUN_' + Math.random().toString(36).substr(2, 9),
+              message: `Dry run validation passed for ${order.symbol} ${order.strike}P @ $${order.premium} (${legs.length} legs)`,
+            };
+          });
           
           return {
             success: true,
@@ -1064,6 +1090,52 @@ Summary: [One sentence overall assessment]`;
           // Process batch concurrently
           const batchPromises = batch.map(async (order) => {
             try {
+              // Log incoming order data for debugging
+              console.log('[BPS Debug] Processing order:', {
+                symbol: order.symbol,
+                strike: order.strike,
+                isSpread: order.isSpread,
+                hasShortLeg: !!order.shortLeg,
+                hasLongLeg: !!order.longLeg,
+                shortLeg: order.shortLeg,
+                longLeg: order.longLeg,
+              });
+              
+              // For spreads, fetch fresh quotes to get current market prices
+              let freshNetCredit = order.premium; // Default to cached value
+              
+              if (order.isSpread && order.shortLeg && order.longLeg) {
+                try {
+                  // Fetch fresh quotes for both legs
+                  const quotes = await api.getOptionQuotesBatch([
+                    order.shortLeg.optionSymbol,
+                    order.longLeg.optionSymbol,
+                  ]);
+                  
+                  const shortQuote = quotes[order.shortLeg.optionSymbol];
+                  const longQuote = quotes[order.longLeg.optionSymbol];
+                  
+                  if (shortQuote && longQuote && shortQuote.bid > 0 && longQuote.ask > 0) {
+                    // Calculate fresh net credit: bid (what we receive) - ask (what we pay)
+                    freshNetCredit = shortQuote.bid - longQuote.ask;
+                    console.log('[BPS Debug] Fresh quotes:', {
+                      shortBid: shortQuote.bid,
+                      longAsk: longQuote.ask,
+                      freshNetCredit,
+                      cachedPremium: order.premium,
+                      difference: freshNetCredit - order.premium,
+                    });
+                  } else {
+                    console.warn('[BPS Debug] Invalid quotes, using cached premium:', {
+                      shortQuote,
+                      longQuote,
+                    });
+                  }
+                } catch (error) {
+                  console.error('[BPS Debug] Failed to fetch fresh quotes, using cached premium:', error);
+                }
+              }
+              
               // Build legs based on order type
               const legs = order.isSpread && order.shortLeg && order.longLeg
               ? [
@@ -1094,8 +1166,8 @@ Summary: [One sentence overall assessment]`;
               
               // Calculate competitive limit price for spreads
               // Subtract 5% buffer (or $0.05 minimum) to encourage fills
-              const buffer = order.isSpread ? Math.max(order.premium * 0.05, 0.05) : 0;
-              const limitPrice = Math.max(order.premium - buffer, 0.01); // Ensure minimum $0.01
+              const buffer = order.isSpread ? Math.max(freshNetCredit * 0.05, 0.05) : 0;
+              const limitPrice = Math.max(freshNetCredit - buffer, 0.01); // Ensure minimum $0.01
               
               const orderRequest = {
                 accountNumber: input.accountId,
@@ -1105,6 +1177,15 @@ Summary: [One sentence overall assessment]`;
                 priceEffect: 'Credit' as const,
                 legs,
               };
+              
+              // Log the order request being sent to Tastytrade
+              console.log('[BPS Debug] Submitting order to Tastytrade:', {
+                symbol: order.symbol,
+                legCount: legs.length,
+                legs: legs.map(leg => ({ symbol: leg.symbol, action: leg.action })),
+                price: limitPrice.toFixed(2),
+                orderRequest: JSON.stringify(orderRequest, null, 2),
+              });
 
               // LIVE MODE ONLY - no dry run parameter
               const result = await api.submitOrder(orderRequest);
