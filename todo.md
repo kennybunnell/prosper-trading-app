@@ -3938,3 +3938,7 @@
 - [x] Rename far-right card from "Total Collateral" to "Buying Power Required"
 - [x] Fix Total Premium in Order Summary card (removed incorrect × 100 multiplication)
 - [ ] Fix TOTALS row in Order Preview dialog if needed
+
+## CC Dashboard Display Fixes (User Reported Feb 4)
+- [x] Change "Buying Power Required" card to "Buying Power Available" - show remaining BP after collateral
+- [x] Fix Order Summary Total Premium to multiply by 100 (shows $3.45, should be $345.00)

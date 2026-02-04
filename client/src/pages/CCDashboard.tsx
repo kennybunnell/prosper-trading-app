@@ -2216,7 +2216,7 @@ export default function CCDashboard() {
                     <div className="p-2 rounded-lg bg-blue-500/20">
                       <Wallet className="w-4 h-4 text-blue-400" />
                     </div>
-                    <span className="text-muted-foreground">{strategyType === 'spread' ? 'Buying Power Required' : 'Total Stock Value'}</span>
+                    <span className="text-muted-foreground">{strategyType === 'spread' ? 'Buying Power Available' : 'Total Stock Value'}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="relative">
@@ -2226,10 +2226,16 @@ export default function CCDashboard() {
                         filteredOpportunities.find(opp => getOpportunityKey(opp) === id)
                       ).filter(Boolean) as typeof filteredOpportunities;
                       
-                      const totalValue = strategyType === 'spread'
-                        ? selectedOppsList.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                        : selectedOppsList.reduce((sum, opp) => sum + (opp.currentPrice * 100), 0);
-                      return totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                      if (strategyType === 'spread') {
+                        // For spreads: show available BP = total BP - collateral required
+                        const totalCollateral = selectedOppsList.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0);
+                        const remainingBP = Math.max(0, availableBuyingPower - totalCollateral);
+                        return remainingBP.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                      } else {
+                        // For CC: show total stock value
+                        const totalValue = selectedOppsList.reduce((sum, opp) => sum + (opp.currentPrice * 100), 0);
+                        return totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                      }
                     })()}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
@@ -2258,7 +2264,7 @@ export default function CCDashboard() {
                           ${(Array.from(selectedOpportunities)
                             .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
                             .filter((opp): opp is CCOpportunity => opp !== undefined)
-                            .reduce((sum, opp) => sum + opp.premium, 0))
+                            .reduce((sum, opp) => sum + (opp.premium * 100), 0))
                             .toFixed(2)}
                         </p>
                       </div>
