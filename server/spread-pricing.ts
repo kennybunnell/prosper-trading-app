@@ -49,11 +49,10 @@ export function calculateBullPutSpread(
   const longStrike = shortStrike - spreadWidth;
   
   // Net credit = premium received from short put - premium paid for long put
-  // Use midpoint pricing for better fill rates (more realistic than bid/ask extremes)
-  const shortMid = (cspOpp.bid + cspOpp.ask) / 2; // Midpoint for short put
-  const longMid = (longPutQuote.bid + longPutQuote.ask) / 2; // Midpoint for long put
-  const shortPremium = shortMid; // What we receive
-  const longPremium = longMid; // What we pay
+  // Use bid for selling (short put) and ask for buying (long put)
+  // This gives us the realistic net credit we can actually receive
+  const shortPremium = cspOpp.bid; // What we receive (bid price)
+  const longPremium = longPutQuote.ask; // What we pay (ask price)
   const netCredit = shortPremium - longPremium;
   
   // Capital at risk = spread width - net credit received

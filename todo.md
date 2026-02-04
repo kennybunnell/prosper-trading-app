@@ -3814,3 +3814,12 @@
 - [x] Update Bear Call Spread order submission pricing logic (subtract 5% buffer)
 - [x] Update Bull Put Spread order submission pricing logic (subtract 5% buffer)
 - [x] Test updated pricing with real orders (comprehensive test suite with 11 passing tests)
+
+## Fix Credit Spread Pricing to Use Bid Prices
+- [x] Investigate where Bull Put Spread net credit is calculated (was using mid)
+- [x] Investigate where Bear Call Spread net credit is calculated (already using bid correctly)
+- [x] Update Bull Put Spread pricing to use bid price instead of mid
+- [x] Bear Call Spread pricing already correct (using bid for short, ask for long)
+- [x] Apply 5% buffer to net credit for competitive pricing
+- [x] Test updated pricing logic with comprehensive tests (11/11 passing)
+- [x] Verify orders will be submitted at bid-based net credit minus 5% buffer
