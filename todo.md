@@ -3913,3 +3913,11 @@
 ## Bug Fix: TOTALS Calculation (Decimal Point)
 - [x] Remove incorrect multiplication by 100 in TOTALS row calculation
 - [x] Premium values are already in correct units (per-contract dollars)
+
+## Bug Fix: Order Submission Preflight Check Failure
+- [x] Investigate why orders fail with "One or more preflight checks failed" - Found: margin_check_failed due to insufficient buying power
+- [x] Add better error messaging to show specific Tastytrade rejection reasons to user
+- [x] Root cause identified: Existing positions ($441 short options) consuming margin that we're not accounting for
+- [x] Fetch existing positions and calculate their margin requirement
+- [x] Subtract existing position margin from available buying power display
+- [x] Add warning when new orders would exceed available BP after accounting for existing positions

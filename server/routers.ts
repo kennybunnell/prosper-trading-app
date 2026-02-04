@@ -906,7 +906,40 @@ Summary: [One sentence overall assessment]`;
         }
 
         const balances = await api.getBalances(account.account['account-number']);
-        const availableBuyingPower = Number(balances['derivative-buying-power'] || 0);
+        const rawBuyingPower = Number(balances['derivative-buying-power'] || 0);
+        
+        // Fetch existing positions to calculate margin used
+        const positions = await api.getPositions(account.account['account-number']);
+        
+        // Calculate margin requirement for existing short option positions
+        // For short options, margin = strike * 100 * quantity
+        // For spreads, margin = (short strike - long strike) * 100 * quantity
+        let existingMarginUsed = 0;
+        
+        for (const pos of positions) {
+          // Only count option positions (not stock)
+          if (pos['instrument-type'] === 'Equity Option') {
+            const quantity = Math.abs(pos.quantity);
+            const quantityDirection = pos['quantity-direction'];
+            
+            // Only short positions require margin
+            if (quantityDirection === 'Short') {
+              // Extract strike from option symbol (e.g., "PLTR  260213P00130000" -> 130)
+              const strikeMatch = pos.symbol.match(/P(\d{8})$/);
+              if (strikeMatch) {
+                const strike = parseInt(strikeMatch[1]) / 1000; // Convert from 00130000 to 130
+                const marginForPosition = strike * 100 * quantity;
+                existingMarginUsed += marginForPosition;
+                console.log(`[validateOrders] Existing position margin: ${pos.symbol} - ${quantity} contracts @ $${strike} = $${marginForPosition.toFixed(2)}`);
+              }
+            }
+          }
+        }
+        
+        // Subtract existing margin from available buying power
+        const availableBuyingPower = Math.max(0, rawBuyingPower - existingMarginUsed);
+        
+        console.log(`[validateOrders] Raw BP: $${rawBuyingPower.toFixed(2)}, Existing margin: $${existingMarginUsed.toFixed(2)}, Available BP: $${availableBuyingPower.toFixed(2)}`);
 
         // Check market hours (simplified - just check if it's a weekday during market hours)
         const now = new Date();
@@ -983,6 +1016,7 @@ Summary: [One sentence overall assessment]`;
           remainingBuyingPower,
           isMarketOpen,
           hasInsufficientBP,
+          existingMarginUsed, // Return this so frontend can display it
         };
       }),
     submitOrders: protectedProcedure
@@ -1213,10 +1247,17 @@ Summary: [One sentence overall assessment]`;
                 errorStack: error.stack,
                 errorResponse: error.response?.data || error.response || 'No response data',
               });
+              
+              // Extract detailed error message from Tastytrade response
+              let detailedError = error.message || 'Unknown error';
+              if (error.message?.includes('margin_check_failed') || error.message?.includes('insufficient buying power')) {
+                detailedError = 'Insufficient buying power. Check for working orders or account restrictions.';
+              }
+              
               return {
                 symbol: order.symbol,
                 success: false,
-                error: error.message || 'Unknown error',
+                error: detailedError,
               };
             }
           });

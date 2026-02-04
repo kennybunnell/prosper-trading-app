@@ -604,9 +604,15 @@ export default function CSPDashboard() {
   const roc = totalCollateral > 0 ? (totalPremium / totalCollateral) * 100 : 0;
 
   // Calculate buying power metrics
-  const availableBuyingPower = tradingMode === 'paper' 
-    ? (paperBalance?.buyingPower || 0)
-    : Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
+  // Use validation data's adjusted buying power if available (accounts for existing positions)
+  // Otherwise fall back to raw balance
+  const availableBuyingPower = validationData?.availableBuyingPower 
+    ? validationData.availableBuyingPower
+    : tradingMode === 'paper' 
+      ? (paperBalance?.buyingPower || 0)
+      : Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
+  
+  const existingMarginUsed = validationData?.existingMarginUsed || 0;
   const buyingPowerUsedPct = availableBuyingPower > 0 ? (totalCollateral / availableBuyingPower) * 100 : 0;
   const overLimit = totalCollateral > availableBuyingPower ? totalCollateral - availableBuyingPower : 0;
   const buyingPowerColor = buyingPowerUsedPct < 80 ? 'text-green-500' : buyingPowerUsedPct < 90 ? 'text-yellow-500' : 'text-red-500';
@@ -2131,6 +2137,12 @@ export default function CSPDashboard() {
             <div className="text-xs text-muted-foreground mt-1">
               available
             </div>
+            {existingMarginUsed > 0 && (
+              <div className="text-xs text-yellow-400 font-semibold mt-1 flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400" />
+                ${existingMarginUsed.toFixed(0)} used by existing positions
+              </div>
+            )}
             {overLimit > 0 && (
               <div className="text-xs text-red-400 font-semibold mt-1 flex items-center gap-1">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />

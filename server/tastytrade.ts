@@ -269,6 +269,11 @@ export class TastytradeAPI {
           responseStatus: error.response?.status,
           responseData: error.response?.data,
         });
+        
+        // Log the specific errors array if it exists
+        if (error.response?.data?.error?.errors) {
+          console.error('[Tastytrade submitOrder] Preflight check errors:', JSON.stringify(error.response.data.error.errors, null, 2));
+        }
         throw new Error(`Failed to submit order: ${error.response?.data?.error?.message || error.message}`);
       }
     });
