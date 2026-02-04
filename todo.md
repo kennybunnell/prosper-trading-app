@@ -3905,3 +3905,7 @@
 - [x] Add color coding: red zone (too conservative), green zone (likely to fill), yellow zone (too aggressive)
 - [x] Show current price position on the continuum
 - [x] Make it immediately obvious where the price is relative to market
+
+## Bug Fix: TOTALS Row Display
+- [x] Fix TOTALS row in order preview to show total premium (not limit price total)
+- [x] Ensure adjusted prices are used in premium calculation

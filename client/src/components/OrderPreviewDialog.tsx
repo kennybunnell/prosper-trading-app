@@ -396,7 +396,14 @@ export function OrderPreviewDialog({
               <TableRow className="bg-muted/50 font-bold">
                 <TableCell colSpan={6} className="text-right">TOTALS</TableCell>
                 <TableCell className="text-right text-green-600">
-                  ${totalPremium.toFixed(2)}
+                  ${(() => {
+                    // Calculate total premium with adjusted prices
+                    const total = orders.reduce((sum, order, idx) => {
+                      const currentPrice = adjustedPrices.get(idx) ?? order.premium;
+                      return sum + (currentPrice * 100); // Multiply by 100 for per-contract value
+                    }, 0);
+                    return total.toFixed(2);
+                  })()}
                 </TableCell>
                 <TableCell></TableCell>
                 <TableCell className="text-right">
