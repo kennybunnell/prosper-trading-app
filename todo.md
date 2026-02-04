@@ -3921,3 +3921,9 @@
 - [x] Fetch existing positions and calculate their margin requirement
 - [x] Subtract existing position margin from available buying power display
 - [x] Add warning when new orders would exceed available BP after accounting for existing positions
+
+## Bug Fix: Buying Power Showing $0 Instead of Actual Value
+- [x] Investigate why availableBuyingPower is calculated as $0 when user has $285,000
+- [x] Fix margin calculation for existing positions (was over-calculating by $1.28M)
+- [x] Reverted to using Tastytrade's buying power directly (already accounts for positions)
+- [x] Test with actual account data to ensure correct buying power display
