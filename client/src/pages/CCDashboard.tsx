@@ -412,7 +412,7 @@ export default function CCDashboard() {
     .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
     .filter((opp): opp is CCOpportunity => opp !== undefined);
   
-  const totalPremium = selectedOppsList.reduce((sum, opp) => sum + (opp.premium * 100), 0);
+  const totalPremium = selectedOppsList.reduce((sum, opp) => sum + opp.premium, 0);
   
   // For spreads, use capitalAtRisk; for covered calls, use stock value
   const totalCollateral = strategyType === 'spread'
@@ -1726,7 +1726,7 @@ export default function CCDashboard() {
                 </CardHeader>
                 <CardContent className="relative">
                   <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
-                    ${filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0).toFixed(2)}
+                    ${filteredOpportunities.reduce((sum, opp) => sum + opp.premium, 0).toFixed(2)}
                   </div>
                 </CardContent>
               </Card>
@@ -1766,7 +1766,7 @@ export default function CCDashboard() {
                 <CardContent className="relative">
                   <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
                     {(() => {
-                      const totalPrem = filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
+                      const totalPrem = filteredOpportunities.reduce((sum, opp) => sum + opp.premium, 0);
                       const totalColl = strategyType === 'spread'
                         ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
                         : filteredOpportunities.reduce((sum, opp) => sum + (opp.currentPrice * 100), 0);
@@ -2251,7 +2251,7 @@ export default function CCDashboard() {
                           ${Array.from(selectedOpportunities)
                             .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
                             .filter((opp): opp is CCOpportunity => opp !== undefined)
-                            .reduce((sum, opp) => sum + (opp.premium * 100), 0)
+                            .reduce((sum, opp) => sum + opp.premium, 0)
                             .toFixed(2)}
                         </p>
                       </div>

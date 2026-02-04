@@ -3786,3 +3786,11 @@
 - [x] Add +/− buttons to DTE filter on CSP Dashboard
 - [x] Verify buttons work correctly and update filter values
 - [x] Test on both CSP and BPS modes (both use same component)
+
+## Fix CC Dashboard Premium Calculation (Still Off by 100x)
+
+- [x] Investigate where Total Premium is still being multiplied by 100 in Portfolio Positions panel (lines 1729, 1769)
+- [x] Investigate where Total Premium is still being multiplied by 100 in Order Summary panel (lines 415, 2254)
+- [x] Fix the calculation to show $612.50 instead of $61,250.00 (removed × 100 from all 4 locations)
+- [x] Verify ROC calculation updates correctly with fixed premium
+- [x] Test with real data to confirm correct display (5/5 tests passing)
