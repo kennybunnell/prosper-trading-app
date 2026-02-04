@@ -3909,3 +3909,7 @@
 ## Bug Fix: TOTALS Row Display
 - [x] Fix TOTALS row in order preview to show total premium (not limit price total)
 - [x] Ensure adjusted prices are used in premium calculation
+
+## Bug Fix: TOTALS Calculation (Decimal Point)
+- [x] Remove incorrect multiplication by 100 in TOTALS row calculation
+- [x] Premium values are already in correct units (per-contract dollars)

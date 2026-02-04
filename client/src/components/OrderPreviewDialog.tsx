@@ -400,7 +400,7 @@ export function OrderPreviewDialog({
                     // Calculate total premium with adjusted prices
                     const total = orders.reduce((sum, order, idx) => {
                       const currentPrice = adjustedPrices.get(idx) ?? order.premium;
-                      return sum + (currentPrice * 100); // Multiply by 100 for per-contract value
+                      return sum + currentPrice; // Premium values are already in per-contract dollars
                     }, 0);
                     return total.toFixed(2);
                   })()}
