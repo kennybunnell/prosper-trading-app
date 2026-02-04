@@ -3927,3 +3927,9 @@
 - [x] Fix margin calculation for existing positions (was over-calculating by $1.28M)
 - [x] Reverted to using Tastytrade's buying power directly (already accounts for positions)
 - [x] Test with actual account data to ensure correct buying power display
+
+## Bug Fix: Fix Total Stock Value/Collateral Card in CC Dashboard
+- [x] Change card to show values for SELECTED opportunities only (not all filtered)
+- [x] For Covered Calls: Show "Total Stock Value" = currentPrice × 100 × contracts (for selected)
+- [x] For Bear Call Spreads: Show "Total Collateral" = spread width × 100 × contracts (for selected)
+- [x] Update card title and calculation based on strategy type

@@ -2216,20 +2216,24 @@ export default function CCDashboard() {
                     <div className="p-2 rounded-lg bg-blue-500/20">
                       <Wallet className="w-4 h-4 text-blue-400" />
                     </div>
-                    <span className="text-muted-foreground">Total Stock Value</span>
+                    <span className="text-muted-foreground">{strategyType === 'spread' ? 'Total Collateral' : 'Total Stock Value'}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="relative">
                   <div className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
                     ${(() => {
-                      const totalStockValue = strategyType === 'spread'
-                        ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                        : filteredOpportunities.reduce((sum, opp) => sum + (opp.currentPrice * 100), 0);
-                      return totalStockValue.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                      const selectedOppsList = Array.from(selectedOpportunities).map(id => 
+                        filteredOpportunities.find(opp => getOpportunityKey(opp) === id)
+                      ).filter(Boolean) as typeof filteredOpportunities;
+                      
+                      const totalValue = strategyType === 'spread'
+                        ? selectedOppsList.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                        : selectedOppsList.reduce((sum, opp) => sum + (opp.currentPrice * 100), 0);
+                      return totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 });
                     })()}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    {strategyType === 'spread' ? 'capital at risk' : 'in eligible positions'}
+                    {strategyType === 'spread' ? 'for selected spreads' : 'for selected stocks'}
                   </div>
                 </CardContent>
               </Card>
