@@ -3946,3 +3946,8 @@
 ## Order Preview Dialog Default Price Positioning (User Reported Feb 4)
 - [x] Change default price position from Bid to Fill zone (85% between bid and mid)
 - [x] Update logic so orders start at optimal fill position instead of most conservative
+
+## Order Preview Dialog Initialization Not Working (User Reported Feb 4)
+- [x] Debug why Fill zone initialization logic isn't positioning sliders correctly
+- [x] Fixed: useState initialization only runs once - needed useEffect to reinitialize on dialog open
+- [x] Now uses useEffect with [open, orders] dependencies to recalculate Fill zone prices

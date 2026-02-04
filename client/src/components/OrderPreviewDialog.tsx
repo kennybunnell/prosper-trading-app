@@ -18,7 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, Clock, XCircle, Sparkles, Plus, Minus } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Streamdown } from "streamdown";
 import { Slider } from "@/components/ui/slider";
 
@@ -73,8 +73,12 @@ export function OrderPreviewDialog({
   const [analysis, setAnalysis] = useState<string | null>(null);
   
   // Track adjusted prices for each order (indexed by order index)
-  // Initialize with Fill zone prices (85% between bid and mid) for better fill rates
-  const [adjustedPrices, setAdjustedPrices] = useState<Map<number, number>>(() => {
+  const [adjustedPrices, setAdjustedPrices] = useState<Map<number, number>>(new Map());
+  
+  // Initialize Fill zone prices (85% between bid and mid) when dialog opens or orders change
+  useEffect(() => {
+    if (!open) return; // Only initialize when dialog is open
+    
     const initialPrices = new Map<number, number>();
     orders.forEach((order, idx) => {
       if (order.bid && order.mid) {
@@ -86,8 +90,8 @@ export function OrderPreviewDialog({
       }
       // If no market data, fall back to order.premium (backend calculated price)
     });
-    return initialPrices;
-  });
+    setAdjustedPrices(initialPrices);
+  }, [open, orders]); // Reinitialize when dialog opens or orders change
   
   const evaluateOrder = trpc.csp.evaluateOrder.useMutation({
     onSuccess: (data) => {
