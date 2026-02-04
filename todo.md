@@ -3768,3 +3768,21 @@
 - [x] Replace Buying Power with Total Stock Value metric
 - [x] Test corrected metrics with real data
 - [x] Verify calculations match expected values (5/5 tests passing)
+
+## Add Increment Buttons to CSP/BPS Range Filters
+
+- [x] Investigate CC Dashboard range filter implementation (how +/− buttons work)
+- [x] Add +/− buttons to Score filter on CSP Dashboard
+- [x] Add +/− buttons to Delta filter on CSP Dashboard
+- [x] Add +/− buttons to DTE filter on CSP Dashboard
+- [x] Verify buttons work correctly and update filter values
+- [x] Test on both CSP and BPS modes (both use same component)
+
+## Add Increment Buttons to CSP/BPS Range Filters
+
+- [x] Investigate CC Dashboard range filter implementation (how +/− buttons work)
+- [x] Add +/− buttons to Score filter on CSP Dashboard
+- [x] Add +/− buttons to Delta filter on CSP Dashboard
+- [x] Add +/− buttons to DTE filter on CSP Dashboard
+- [x] Verify buttons work correctly and update filter values
+- [x] Test on both CSP and BPS modes (both use same component)
