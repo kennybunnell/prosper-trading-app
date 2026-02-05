@@ -2172,19 +2172,57 @@ export default function CSPDashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          {/* Dry Run Checkbox - moved to top */}
+          {/* Dry Run Checkbox and Test Button - moved to top */}
           {selectedOppsList.length > 0 && (
-            <div className="mb-4 flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
-              <Checkbox
-                id="dry-run-top"
-                checked={tradingMode === 'paper' ? true : dryRun}
-                onCheckedChange={(checked) => setDryRun(checked as boolean)}
-                disabled={tradingMode === 'paper'}
-              />
-              <Label htmlFor="dry-run-top" className="cursor-pointer text-sm flex items-center gap-1">
-                Dry Run (test without submitting real orders)
-                <HelpDialog title="Dry Run Mode" content={HELP_CONTENT.DRY_RUN_MODE_DIALOG} />
-              </Label>
+            <div className="mb-4 flex items-center justify-between gap-4 p-3 bg-muted/30 rounded-lg border border-border/50">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="dry-run-top"
+                  checked={tradingMode === 'paper' ? true : dryRun}
+                  onCheckedChange={(checked) => setDryRun(checked as boolean)}
+                  disabled={tradingMode === 'paper'}
+                />
+                <Label htmlFor="dry-run-top" className="cursor-pointer text-sm flex items-center gap-1">
+                  Dry Run (test without submitting real orders)
+                  <HelpDialog title="Dry Run Mode" content={HELP_CONTENT.DRY_RUN_MODE_DIALOG} />
+                </Label>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                {tradingMode === 'paper' && (
+                  <p className="text-sm text-blue-500 font-semibold">
+                    ⓘ Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.
+                  </p>
+                )}
+                {overLimit > 0 && tradingMode !== 'paper' && (
+                  <p className="text-sm text-red-500 font-semibold">
+                    Cannot submit orders: Total collateral exceeds buying power by ${overLimit.toFixed(2)}
+                  </p>
+                )}
+                <Button
+                  onClick={handleSubmitOrders}
+                  disabled={submitOrders.isPending || overLimit > 0 || (tradingMode === 'paper' && !dryRun)}
+                  size="lg"
+                  className={cn(
+                    dryRun 
+                      ? "bg-blue-600 hover:bg-blue-700" 
+                      : "bg-red-600 hover:bg-red-700 font-bold"
+                  )}
+                  title={(tradingMode === 'paper' && !dryRun) ? 'Order submission is disabled in Paper Trading mode. Enable Dry Run to test orders.' : undefined}
+                >
+                  {submitOrders.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      {dryRun ? 'Testing...' : 'Submitting LIVE Orders...'}
+                    </>
+                  ) : (
+                    <>
+                      {!dryRun && '⚠️ '}
+                      {dryRun ? 'Test' : 'Submit LIVE'} {selectedOppsList.length} Order(s)
+                      {!dryRun && ' ⚠️'}
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           )}
           <div className="overflow-x-auto">
@@ -2473,59 +2511,7 @@ export default function CSPDashboard() {
             </Table>
           </div>
 
-          {/* Submit Orders Button */}
-          {selectedOppsList.length > 0 && (
-            <div className="mt-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="dry-run"
-                  checked={tradingMode === 'paper' ? true : dryRun}
-                  onCheckedChange={(checked) => setDryRun(checked as boolean)}
-                  disabled={tradingMode === 'paper'}
-                />
-                <Label htmlFor="dry-run" className="cursor-pointer text-sm flex items-center gap-1">
-                  Dry Run (test without submitting real orders)
-                  <HelpDialog title="Dry Run Mode" content={HELP_CONTENT.DRY_RUN_MODE_DIALOG} />
-                </Label>
-              </div>
-              <div className="flex flex-col items-end gap-2">
-                {tradingMode === 'paper' && (
-                  <p className="text-sm text-blue-500 font-semibold">
-                    ⓘ Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.
-                  </p>
-                )}
-                {overLimit > 0 && tradingMode !== 'paper' && (
-                  <p className="text-sm text-red-500 font-semibold">
-                    Cannot submit orders: Total collateral exceeds buying power by ${overLimit.toFixed(2)}
-                  </p>
-                )}
-                <Button
-                  onClick={handleSubmitOrders}
-                  disabled={submitOrders.isPending || overLimit > 0 || (tradingMode === 'paper' && !dryRun)}
-                  size="lg"
-                  className={cn(
-                    dryRun 
-                      ? "bg-blue-600 hover:bg-blue-700" 
-                      : "bg-red-600 hover:bg-red-700 font-bold"
-                  )}
-                  title={(tradingMode === 'paper' && !dryRun) ? 'Order submission is disabled in Paper Trading mode. Enable Dry Run to test orders.' : undefined}
-                >
-                  {submitOrders.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {dryRun ? 'Testing...' : 'Submitting LIVE Orders...'}
-                    </>
-                  ) : (
-                    <>
-                      {!dryRun && '⚠️ '}
-                      {dryRun ? 'Test' : 'Submit LIVE'} {selectedOppsList.length} Order(s)
-                      {!dryRun && ' ⚠️'}
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
+
         </CardContent>
       </Card>
 

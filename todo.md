@@ -4048,3 +4048,9 @@
 - [x] Fixed by dividing bid/ask/mid/limitPrice by 100 in OrderPreviewDialog when passing to validation
 - [x] Validation now correctly receives per-share values and compares accurately
 - [x] UI continues to display per-contract values for user clarity
+
+## CSP Dashboard UI Layout Fix (User Requested Feb 5)
+- [x] Rollback to checkpoint 2c5c7cde with working validation UI
+- [x] Move Test button to top of opportunities table (with Dry Run checkbox)
+- [x] Remove Test button and Dry Run checkbox from bottom of table
+- [x] Both controls now appear above opportunities, below data panel in a single row
