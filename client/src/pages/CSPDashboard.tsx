@@ -2591,6 +2591,7 @@ export default function CSPDashboard() {
           isMarketOpen={validationData.isMarketOpen}
           onSubmit={executeOrderSubmission}
           isDryRun={dryRun}
+          strategy="csp"
         />
       )}
 

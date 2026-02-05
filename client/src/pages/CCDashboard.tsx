@@ -2862,6 +2862,7 @@ export default function CCDashboard() {
           isMarketOpen={validationData.isMarketOpen}
           onSubmit={executeOrderSubmission}
           isDryRun={dryRun}
+          strategy={strategyType === 'spread' ? 'bcs' : 'cc'}
         />
       )}
 

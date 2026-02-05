@@ -4054,3 +4054,11 @@
 - [x] Move Test button to top of opportunities table (with Dry Run checkbox)
 - [x] Remove Test button and Dry Run checkbox from bottom of table
 - [x] Both controls now appear above opportunities, below data panel in a single row
+
+## Validation Price Bug & UI Label Fix (User Reported Feb 5 - Second Report)
+- [x] Fix validation price comparison showing wrong bid/ask (e.g., limit $7.10 vs bid $21.30 instead of $7.05)
+- [x] Investigate data flow from OrderPreviewDialog to validation engine for CC orders
+- [x] Root cause: CC backend returns per-share prices, CSP backend returns per-contract (×100)
+- [x] Solution: Added strategy prop to OrderPreviewDialog to conditionally divide by 100 only for CSP/BPS
+- [x] Change "Total Stock Value" label to "Available Buying Power" in OrderPreviewDialog for CC strategy
+- [x] Show actual buying power instead of stock value in bottom section totals

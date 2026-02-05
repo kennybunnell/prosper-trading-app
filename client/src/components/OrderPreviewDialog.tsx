@@ -59,6 +59,7 @@ interface OrderPreviewDialogProps {
   isMarketOpen: boolean;
   onSubmit: (adjustedPrices?: Map<number, number>) => void;
   isDryRun: boolean;
+  strategy: 'cc' | 'csp' | 'bcs' | 'bps'; // Strategy type to determine price unit conversion
 }
 
 export function OrderPreviewDialog({
@@ -72,6 +73,7 @@ export function OrderPreviewDialog({
   isMarketOpen,
   onSubmit,
   isDryRun,
+  strategy,
 }: OrderPreviewDialogProps) {
 
   
@@ -191,26 +193,27 @@ export function OrderPreviewDialog({
     setIsValidating(true);
     try {
       // Build validation input from orders
+      // CRITICAL: CC/BCS backend returns per-share prices, CSP/BPS returns per-contract (×100)
+      const needsDivision = strategy === 'csp' || strategy === 'bps';
+      
       const validationInput = orders.map((order, idx) => ({
         id: `${order.symbol}-${order.strike}-${order.expiration}-${idx}`,
         symbol: order.symbol,
         strike: order.strike,
         expiration: order.expiration,
         quantity: order.quantity,
-        limitPrice: getCurrentPrice(idx) / 100, // Convert per-contract to per-share for validation
-        optionType: 'call' as const, // Will be determined by strategy
-        strategy: order.isSpread 
-          ? (order.spreadType === 'bull_put' ? 'bps' as const : 'bcs' as const)
-          : 'cc' as const,
+        limitPrice: needsDivision ? getCurrentPrice(idx) / 100 : getCurrentPrice(idx),
+        optionType: strategy === 'csp' || strategy === 'bps' ? 'put' as const : 'call' as const,
+        strategy: strategy,
         longStrike: order.longStrike,
         originalBid: order.bid || 0,
         originalAsk: order.ask || 0,
         originalMid: order.mid || 0,
         // Pass current market data from UI so validation matches what user sees
-        // Note: UI displays per-contract values, but validation expects per-share
-        currentBid: order.bid ? order.bid / 100 : undefined,
-        currentAsk: order.ask ? order.ask / 100 : undefined,
-        currentMid: order.mid ? order.mid / 100 : undefined,
+        // CC/BCS: already per-share, pass as-is. CSP/BPS: per-contract, divide by 100
+        currentBid: order.bid ? (needsDivision ? order.bid / 100 : order.bid) : undefined,
+        currentAsk: order.ask ? (needsDivision ? order.ask / 100 : order.ask) : undefined,
+        currentMid: order.mid ? (needsDivision ? order.mid / 100 : order.mid) : undefined,
         currentUnderlyingPrice: order.currentPrice,
       }));
       
@@ -567,10 +570,10 @@ export function OrderPreviewDialog({
           ) : (
             <>
               <div className="border rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-1">Total Stock Value</p>
-                <p className="text-2xl font-bold">${totalCollateral.toLocaleString()}</p>
+                <p className="text-sm text-muted-foreground mb-1">Available Buying Power</p>
+                <p className="text-2xl font-bold">${availableBuyingPower.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {orders.reduce((sum, o) => sum + o.quantity, 0)} contracts × 100 shares
+                  For selling covered calls
                 </p>
               </div>
               <div className="border rounded-lg p-4">
