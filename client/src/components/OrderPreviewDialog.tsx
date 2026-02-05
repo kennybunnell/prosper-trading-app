@@ -16,10 +16,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Clock, XCircle, Sparkles, Plus, Minus, RotateCcw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, XCircle, Plus, Minus, RotateCcw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect } from "react";
-import { Streamdown } from "streamdown";
+
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 
@@ -70,8 +70,7 @@ export function OrderPreviewDialog({
   onSubmit,
   isDryRun,
 }: OrderPreviewDialogProps) {
-  const [showAnalysis, setShowAnalysis] = useState(false);
-  const [analysis, setAnalysis] = useState<string | null>(null);
+
   
   // Track adjusted prices for each order (indexed by order index)
   const [adjustedPrices, setAdjustedPrices] = useState<Map<number, number>>(new Map());
@@ -105,30 +104,7 @@ export function OrderPreviewDialog({
     }
   }, [open, orders]); // Reinitialize when dialog opens or orders change
   
-  const evaluateOrder = trpc.csp.evaluateOrder.useMutation({
-    onSuccess: (data) => {
-      setAnalysis(typeof data.analysis === 'string' ? data.analysis : JSON.stringify(data.analysis));
-      setShowAnalysis(true);
-    },
-  });
-  
-  const handleAnalyze = () => {
-    // Map orders to the format expected by the API
-    const orderData = orders.map(order => ({
-      symbol: order.symbol,
-      strike: order.strike,
-      expiration: order.expiration,
-      premium: order.premium,
-      currentPrice: order.currentPrice || 0,
-      ivRank: order.ivRank,
-      isSpread: order.isSpread,
-      spreadType: order.spreadType,
-      longStrike: order.longStrike,
-      spreadWidth: order.spreadWidth,
-    }));
-    
-    evaluateOrder.mutate({ orders: orderData });
-  };
+
   
   // Adjust price by increment (nickel increments = $0.05)
   const adjustPrice = (orderIdx: number, delta: number) => {
@@ -526,29 +502,10 @@ export function OrderPreviewDialog({
           </div>
         </div>
 
-        {/* AI Analysis Section */}
-        {showAnalysis && analysis && (
-          <div className="mt-4 p-4 bg-blue-950/30 border border-blue-500/30 rounded-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="h-5 w-5 text-blue-400" />
-              <h3 className="text-lg font-semibold text-blue-400">AI Order Analysis</h3>
-            </div>
-            <div className="prose prose-invert prose-sm max-w-none">
-              <Streamdown>{analysis}</Streamdown>
-            </div>
-          </div>
-        )}
+
 
         <DialogFooter className="gap-2">
-          <Button 
-            variant="outline" 
-            onClick={handleAnalyze}
-            disabled={evaluateOrder.isPending || hasErrors}
-            className="border-blue-500 text-blue-400 hover:bg-blue-950/30"
-          >
-            <Sparkles className="h-4 w-4 mr-2" />
-            {evaluateOrder.isPending ? "Analyzing..." : "Analyze Order"}
-          </Button>
+
           <Button 
             variant="outline" 
             onClick={resetToFillZone}

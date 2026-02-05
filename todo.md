@@ -3977,3 +3977,8 @@
 - [x] Created DEFINITIVE documentation in docs/PREMIUM_MULTIPLIER_RULES.md
 - [x] Added comprehensive regression test suite (28 tests) in server/premium-multiplier.test.ts
 - [x] Locked in with clear rules, decision tree, code templates, and real-world examples
+
+## Remove AI Order Analysis from Order Preview Dialog (User Requested Feb 4)
+- [x] Remove "AI Order Analysis" section from OrderPreviewDialog component
+- [x] Removed: showAnalysis state, analysis state, evaluateOrder mutation, handleAnalyze function, Analyze Order button, AI Analysis display section
+- [x] Kept per-contract AI score evaluation in opportunities table (more accurate and useful)
