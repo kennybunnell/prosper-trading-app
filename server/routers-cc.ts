@@ -317,7 +317,7 @@ export const ccRouter = router({
                       bid,
                       ask,
                       mid,
-                      premium: mid * 100, // Per contract
+                      premium: mid, // Per-share dollars (industry standard)
                       returnPct,
                       weeklyReturn,
                       volume,

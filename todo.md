@@ -3982,3 +3982,21 @@
 - [x] Remove "AI Order Analysis" section from OrderPreviewDialog component
 - [x] Removed: showAnalysis state, analysis state, evaluateOrder mutation, handleAnalyze function, Analyze Order button, AI Analysis display section
 - [x] Kept per-contract AI score evaluation in opportunities table (more accurate and useful)
+
+## CRITICAL: Order Summary Total Premium Double Multiplication Bug (User Reported Feb 4 - RECURRING)
+- [ ] Fix Order Summary showing $14,750 instead of $147.50 (multiplied by 100 TWICE!)
+- [ ] Top card shows $147.50 (correct), Order Summary shows $14,750 (wrong)
+- [ ] Trace entire data flow from backend → top card → Order Summary
+- [ ] Find where premium is being multiplied by 100 upstream BEFORE Order Summary
+- [ ] Add runtime validation checks to prevent double multiplication
+- [ ] Add comprehensive regression tests with assertions for exact values
+- [ ] USER EXTREMELY FRUSTRATED - THIS MUST BE FIXED PERMANENTLY
+
+## CRITICAL: Order Summary Total Premium Double Multiplication (User Reported Feb 4 - FIXED)
+- [x] Fix Order Summary showing $14,750 instead of $147.50 (multiplied by 100 TWICE)
+- [x] Root cause identified: Backend was multiplying by 100 (line 320 routers-cc.ts)
+- [x] Fixed backend to return per-share dollars (removed * 100)
+- [x] Fixed frontend to multiply by 100 in display contexts (Dashboard top card, Order Summary)
+- [x] Updated PREMIUM_MULTIPLIER_RULES.md with correct behavior
+- [x] Created comprehensive regression test suite (17 tests) in premium-double-multiplication.test.ts
+- [x] All tests passing - permanent safeguards in place

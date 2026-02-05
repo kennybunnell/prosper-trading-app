@@ -412,7 +412,11 @@ export default function CCDashboard() {
     .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
     .filter((opp): opp is CCOpportunity => opp !== undefined);
   
-  const totalPremium = selectedOppsList.reduce((sum, opp) => sum + opp.premium, 0);
+  // PREMIUM MULTIPLIER RULE: MULTIPLY
+  // Context: Dashboard top card "Total Premium"
+  // Reason: Show total money user will receive (not per-share)
+  // Example: $1.4750/share × 100 shares = $147.50 total credit per contract
+  const totalPremium = selectedOppsList.reduce((sum, opp) => sum + (opp.premium * 100), 0);
   
   // For spreads, use capitalAtRisk; for covered calls, use stock value
   const totalCollateral = strategyType === 'spread'

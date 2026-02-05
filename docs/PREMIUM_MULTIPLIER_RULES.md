@@ -52,7 +52,14 @@ const opportunity = {
    - **Example**: $1.37 × 100 = **$137** ✅
    - **File**: `client/src/components/OrderPreviewDialog.tsx` line ~450
 
-3. **Final Order Submission**
+3. **Dashboard Top Card "Total Premium"**
+   - **Location**: CC Dashboard → Top summary cards (for selected opportunities)
+   - **Purpose**: Show total money user will receive for selected contracts
+   - **Formula**: `sum(opp.premium × 100)`
+   - **Example**: $1.4750/share × 100 = **$147.50** ✅
+   - **File**: `client/src/pages/CCDashboard.tsx` line ~419
+
+4. **Final Order Submission**
    - **Location**: Backend order submission logic
    - **Purpose**: Send correct limit price to broker API
    - **Formula**: `premium × 100`
@@ -61,14 +68,7 @@ const opportunity = {
 
 ### ❌ DO NOT MULTIPLY in these contexts:
 
-1. **Dashboard Top Cards "Total Premium"**
-   - **Location**: CC Dashboard → Top summary cards
-   - **Purpose**: Show per-share premium for quick scanning
-   - **Formula**: `sum(opp.premium)` (NO × 100)
-   - **Example**: **$1.37** ❌ (per-share, not total)
-   - **File**: `client/src/pages/CCDashboard.tsx` line ~415
-
-2. **Opportunities Table "Net Credit" Column**
+1. **Opportunities Table "Net Credit" Column**
    - **Location**: CC Dashboard → Opportunities table
    - **Purpose**: Show per-share premium for comparison
    - **Formula**: `opp.premium` (NO × 100)
