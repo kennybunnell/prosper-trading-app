@@ -3970,3 +3970,10 @@
 - [x] Verified Capital Risk calculation: currentPrice × 100 per contract
 - [x] Verified totals row calculations: sum of adjusted prices (per-share dollars)
 - [x] Created comprehensive audit documentation in docs/order-preview-calculations.md
+
+## Order Summary Total Premium Multiplier Issue (User Reported Feb 4 - CRITICAL FIX NEEDED)
+- [x] Fix Order Summary "Total Premium" to show actual net credit per contract ($1.37 × 100 = $137)
+- [x] Fixed: Now correctly showing $137 for $1.37 premium (was showing $1.37)
+- [x] Created DEFINITIVE documentation in docs/PREMIUM_MULTIPLIER_RULES.md
+- [x] Added comprehensive regression test suite (28 tests) in server/premium-multiplier.test.ts
+- [x] Locked in with clear rules, decision tree, code templates, and real-world examples
