@@ -316,7 +316,7 @@ export function OrderPreviewDialog({
                           {order.spreadType === 'bull_put' ? 'Bull Put Spread' : 'Bear Call Spread'}
                         </Badge>
                       ) : (
-                        <Badge variant="outline">CSP</Badge>
+                        <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-300">CC</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
@@ -468,19 +468,55 @@ export function OrderPreviewDialog({
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground mb-1">Available Buying Power</p>
-            <p className="text-2xl font-bold">${availableBuyingPower.toLocaleString()}</p>
-          </div>
-          <div className="border rounded-lg p-4">
-            <p className="text-sm text-muted-foreground mb-1">Remaining After Orders</p>
-            <p className={`text-2xl font-bold ${remainingBuyingPower < availableBuyingPower * 0.2 ? 'text-red-600' : 'text-green-600'}`}>
-              ${remainingBuyingPower.toLocaleString()}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              ({((remainingBuyingPower / availableBuyingPower) * 100).toFixed(1)}% remaining)
-            </p>
-          </div>
+          {/* For spreads, show buying power. For covered calls, show stock value */}
+          {orders.some(o => o.isSpread) ? (
+            <>
+              <div className="border rounded-lg p-4">
+                <p className="text-sm text-muted-foreground mb-1">Available Buying Power</p>
+                <p className="text-2xl font-bold">${availableBuyingPower.toLocaleString()}</p>
+              </div>
+              <div className="border rounded-lg p-4">
+                <p className="text-sm text-muted-foreground mb-1">Remaining After Orders</p>
+                <p className={`text-2xl font-bold ${remainingBuyingPower < availableBuyingPower * 0.2 ? 'text-red-600' : 'text-green-600'}`}>
+                  ${remainingBuyingPower.toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  ({((remainingBuyingPower / availableBuyingPower) * 100).toFixed(1)}% remaining)
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="border rounded-lg p-4">
+                <p className="text-sm text-muted-foreground mb-1">Total Stock Value</p>
+                <p className="text-2xl font-bold">${totalCollateral.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {orders.reduce((sum, o) => sum + o.quantity, 0)} contracts × 100 shares
+                </p>
+              </div>
+              <div className="border rounded-lg p-4">
+                <p className="text-sm text-muted-foreground mb-1">Total Premium Income</p>
+                <p className="text-2xl font-bold text-green-600">
+                  ${(() => {
+                    const total = orders.reduce((sum, order, idx) => {
+                      const currentPrice = adjustedPrices.get(idx) ?? order.premium;
+                      return sum + currentPrice;
+                    }, 0);
+                    return total.toFixed(2);
+                  })()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {(((() => {
+                    const total = orders.reduce((sum, order, idx) => {
+                      const currentPrice = adjustedPrices.get(idx) ?? order.premium;
+                      return sum + currentPrice;
+                    }, 0);
+                    return total;
+                  })() / totalCollateral) * 100).toFixed(2)}% return on stock value
+                </p>
+              </div>
+            </>
+          )}
           <div className="border rounded-lg p-4">
             <p className="text-sm text-muted-foreground mb-1">Total Orders</p>
             <p className="text-2xl font-bold">{orders.length}</p>

@@ -3961,3 +3961,12 @@
 - [x] Investigated root cause: opp.premium is already in per-contract dollars, not per-share cents
 - [x] Added inline documentation explaining why NOT to multiply by 100
 - [x] Added comprehensive regression test suite (10 tests) to catch this bug automatically
+
+## Order Preview Dialog Covered Call Issues (User Reported Feb 4)
+- [x] Remove/hide "Available Buying Power" and "Remaining After Orders" for covered calls (no BP required for owned stocks)
+- [x] Replaced with "Total Stock Value" and "Total Premium Income" cards showing relevant CC metrics
+- [x] Audit all calculations in Order Preview Dialog for covered calls
+- [x] Fixed strategy badge to show "CC" instead of "CSP" for covered calls
+- [x] Verified Capital Risk calculation: currentPrice × 100 per contract
+- [x] Verified totals row calculations: sum of adjusted prices (per-share dollars)
+- [x] Created comprehensive audit documentation in docs/order-preview-calculations.md
