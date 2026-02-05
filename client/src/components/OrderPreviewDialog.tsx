@@ -18,7 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, Clock, XCircle, Plus, Minus, RotateCcw, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import type { OrderValidationResult, ValidationSummary } from "../../../shared/validation-types";
 import { ValidationSummaryCard } from "./ValidationSummaryCard";
 import { ValidationDetailsRow } from "./ValidationDetailsRow";
@@ -358,8 +358,8 @@ export function OrderPreviewDialog({
                 const isExpanded = expandedRows.has(idx);
                 
                 return (
-                  <>
-                  <TableRow key={idx} className="cursor-pointer hover:bg-muted/50" onClick={() => validation && toggleRowExpansion(idx)}>
+                  <Fragment key={idx}>
+                  <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => validation && toggleRowExpansion(idx)}>
                     <TableCell>
                       {order.status === 'valid' && (
                         <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -511,7 +511,7 @@ export function OrderPreviewDialog({
                       onToggle={() => toggleRowExpansion(idx)}
                     />
                   )}
-                  </>
+                  </Fragment>
                 );
               })}
               {/* Totals Row */}

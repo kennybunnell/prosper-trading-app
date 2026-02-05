@@ -4013,3 +4013,8 @@
 - [x] Phase 3: Implement strategy-specific rules (CC, CSP, BCS, BPS, PMCC)
 - [x] Phase 4: Integrate validation into OrderPreviewDialog UI (status column, summary, refresh button)
 - [x] Phase 5: Test validation across all strategies and create comprehensive test suite (13 tests passing)
+
+## React Key Prop Warning in OrderPreviewDialog (User Reported Feb 5)
+- [x] Fix missing key prop on Fragment wrapper around table rows
+- [x] Added Fragment import from react and applied key={idx} to Fragment wrapper
+- [x] TypeScript compilation successful - no errors
