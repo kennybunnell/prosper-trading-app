@@ -4018,3 +4018,8 @@
 - [x] Fix missing key prop on Fragment wrapper around table rows
 - [x] Added Fragment import from react and applied key={idx} to Fragment wrapper
 - [x] TypeScript compilation successful - no errors
+
+## Validation Buying Power Bug (User Reported Feb 5)
+- [x] Fix validation receiving $0 for buying power instead of actual $306,388
+- [x] Added availableBuyingPower parameter to validateOrdersMutation.mutateAsync call
+- [x] Validation now correctly receives actual buying power from OrderPreviewDialog props

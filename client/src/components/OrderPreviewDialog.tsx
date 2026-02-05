@@ -208,7 +208,10 @@ export function OrderPreviewDialog({
         originalMid: order.mid || 0,
       }));
       
-      const result = await validateOrdersMutation.mutateAsync({ orders: validationInput });
+      const result = await validateOrdersMutation.mutateAsync({ 
+        orders: validationInput,
+        availableBuyingPower: availableBuyingPower 
+      });
       
       setValidationResults(result.results);
       setValidationSummary(result.summary);
