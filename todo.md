@@ -4006,3 +4006,10 @@
 - [x] Removed hardcoded placeholder on line 808 of CCDashboard.tsx
 - [x] Now uses real buying power from Tastytrade account (already fetched at component level)
 - [x] User's actual buying power (~$305,049) now displays correctly
+
+## Dry Run Order Validation Engine (User Requested Feb 4)
+- [x] Phase 1: Design validation framework (types, interfaces, validation result format)
+- [x] Phase 2: Build core validation engine (option chain lookup, pricing validation, fill probability)
+- [x] Phase 3: Implement strategy-specific rules (CC, CSP, BCS, BPS, PMCC)
+- [x] Phase 4: Integrate validation into OrderPreviewDialog UI (status column, summary, refresh button)
+- [x] Phase 5: Test validation across all strategies and create comprehensive test suite (13 tests passing)

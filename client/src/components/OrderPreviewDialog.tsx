@@ -16,9 +16,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Clock, XCircle, Plus, Minus, RotateCcw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, XCircle, Plus, Minus, RotateCcw, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect } from "react";
+import type { OrderValidationResult, ValidationSummary } from "../../../shared/validation-types";
+import { ValidationSummaryCard } from "./ValidationSummaryCard";
+import { ValidationDetailsRow } from "./ValidationDetailsRow";
 
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
@@ -74,6 +77,34 @@ export function OrderPreviewDialog({
   
   // Track adjusted prices for each order (indexed by order index)
   const [adjustedPrices, setAdjustedPrices] = useState<Map<number, number>>(new Map());
+  
+  // Validation state
+  const [validationResults, setValidationResults] = useState<OrderValidationResult[]>([]);
+  const [validationSummary, setValidationSummary] = useState<ValidationSummary | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [lastValidated, setLastValidated] = useState<Date | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  
+  // Toggle row expansion
+  const toggleRowExpansion = (idx: number) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(idx)) {
+      newExpanded.delete(idx);
+    } else {
+      newExpanded.add(idx);
+    }
+    setExpandedRows(newExpanded);
+  };
+  
+  // Validation mutation
+  const validateOrdersMutation = trpc.validation.validateOrders.useMutation();
+  
+  // Run validation when dialog opens
+  useEffect(() => {
+    if (open && orders.length > 0 && !validationSummary) {
+      runValidation();
+    }
+  }, [open, orders.length]); // Run when dialog opens or order count changes
   
   // Initialize Fill zone prices (85% between bid and mid) when dialog opens or orders change
   useEffect(() => {
@@ -155,6 +186,49 @@ export function OrderPreviewDialog({
     });
   };
   
+  // Run validation
+  const runValidation = async () => {
+    setIsValidating(true);
+    try {
+      // Build validation input from orders
+      const validationInput = orders.map((order, idx) => ({
+        id: `${order.symbol}-${order.strike}-${order.expiration}-${idx}`,
+        symbol: order.symbol,
+        strike: order.strike,
+        expiration: order.expiration,
+        quantity: order.quantity,
+        limitPrice: getCurrentPrice(idx),
+        optionType: 'call' as const, // Will be determined by strategy
+        strategy: order.isSpread 
+          ? (order.spreadType === 'bull_put' ? 'bps' as const : 'bcs' as const)
+          : 'cc' as const,
+        longStrike: order.longStrike,
+        originalBid: order.bid || 0,
+        originalAsk: order.ask || 0,
+        originalMid: order.mid || 0,
+      }));
+      
+      const result = await validateOrdersMutation.mutateAsync({ orders: validationInput });
+      
+      setValidationResults(result.results);
+      setValidationSummary(result.summary);
+      setLastValidated(new Date());
+      
+      toast.success('Validation complete', {
+        description: `${result.summary.valid} valid, ${result.summary.warnings} warnings, ${result.summary.errors} errors`,
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Validation error:', error);
+      toast.error('Validation failed', {
+        description: 'Could not validate orders. Please try again.',
+        duration: 3000,
+      });
+    } finally {
+      setIsValidating(false);
+    }
+  };
+  
   // Calculate percentage of mid
   const getPercentOfMid = (orderIdx: number) => {
     const order = orders[orderIdx];
@@ -224,6 +298,15 @@ export function OrderPreviewDialog({
             </div>
           </div>
         )}
+        
+        {/* Validation Summary */}
+        {validationSummary && (
+          <ValidationSummaryCard
+            summary={validationSummary}
+            onRefresh={runValidation}
+            isValidating={isValidating}
+          />
+        )}
 
         {/* Safety Warnings */}
         {highBuyingPowerUsage && (
@@ -271,9 +354,12 @@ export function OrderPreviewDialog({
                 const currentPrice = getCurrentPrice(idx);
                 const percentOfMid = getPercentOfMid(idx);
                 const hasMarketData = order.bid && order.ask && order.mid;
+                const validation = validationResults[idx];
+                const isExpanded = expandedRows.has(idx);
                 
                 return (
-                  <TableRow key={idx}>
+                  <>
+                  <TableRow key={idx} className="cursor-pointer hover:bg-muted/50" onClick={() => validation && toggleRowExpansion(idx)}>
                     <TableCell>
                       {order.status === 'valid' && (
                         <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -418,6 +504,14 @@ export function OrderPreviewDialog({
                       ${order.collateral.toLocaleString()}
                     </TableCell>
                   </TableRow>
+                  {validation && (
+                    <ValidationDetailsRow
+                      validation={validation}
+                      isExpanded={isExpanded}
+                      onToggle={() => toggleRowExpansion(idx)}
+                    />
+                  )}
+                  </>
                 );
               })}
               {/* Totals Row */}
