@@ -2264,7 +2264,10 @@ export default function CCDashboard() {
                           ${(Array.from(selectedOpportunities)
                             .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
                             .filter((opp): opp is CCOpportunity => opp !== undefined)
-                            .reduce((sum, opp) => sum + (opp.premium * 100), 0))
+                            // CRITICAL: opp.premium is already in per-contract dollars, DO NOT multiply by 100
+                            // For covered calls: premium = bid price per share (e.g., $2.61)
+                            // This represents the total premium per contract (already accounts for 100 shares)
+                            .reduce((sum, opp) => sum + opp.premium, 0))
                             .toFixed(2)}
                         </p>
                       </div>

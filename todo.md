@@ -3955,3 +3955,9 @@
 ## Order Preview Dialog UX Enhancements (User Requested Feb 4)
 - [x] Add toast notification when dialog opens showing "Prices optimized for fill zone (85%)"
 - [x] Add "Reset to Fill Zone" button to reset all prices back to 85% default
+
+## Covered Call Dashboard Total Premium Multiplier Bug (User Reported Feb 4 - RECURRING ISSUE)
+- [x] Fix Total Premium showing $26,100 instead of $261 (removed incorrect * 100 multiplier)
+- [x] Investigated root cause: opp.premium is already in per-contract dollars, not per-share cents
+- [x] Added inline documentation explaining why NOT to multiply by 100
+- [x] Added comprehensive regression test suite (10 tests) to catch this bug automatically
