@@ -266,13 +266,32 @@ export async function validateOrder(
 ): Promise<OrderValidationResult> {
   const checks: ValidationCheck[] = [];
   
-  // Fetch current market data
-  const marketData = await fetchOptionMarketData(
-    order.symbol,
-    order.strike,
-    order.expiration,
-    order.optionType
-  );
+  // Use current market data from UI if provided, otherwise fetch fresh data
+  let marketData: OptionMarketData | null = null;
+  
+  if (order.currentBid !== undefined && order.currentAsk !== undefined && order.currentMid !== undefined && order.currentUnderlyingPrice !== undefined) {
+    // Use current market data from UI
+    marketData = {
+      symbol: order.symbol,
+      strike: order.strike,
+      expiration: order.expiration,
+      optionType: order.optionType,
+      bid: order.currentBid,
+      ask: order.currentAsk,
+      mid: order.currentMid,
+      underlyingPrice: order.currentUnderlyingPrice,
+      timestamp: new Date(),
+      isAvailable: true,
+    };
+  } else {
+    // Fetch fresh market data from API
+    marketData = await fetchOptionMarketData(
+      order.symbol,
+      order.strike,
+      order.expiration,
+      order.optionType
+    );
+  }
   
   // Run core validation checks
   checks.push(validateStrikeAvailable(order, marketData));

@@ -4023,3 +4023,12 @@
 - [x] Fix validation receiving $0 for buying power instead of actual $306,388
 - [x] Added availableBuyingPower parameter to validateOrdersMutation.mutateAsync call
 - [x] Validation now correctly receives actual buying power from OrderPreviewDialog props
+
+## Validation Data Mismatch and Logic Errors (User Reported Feb 5)
+- [x] Fix validation using stale market data (shows ask $17.65 vs actual $180.00)
+- [x] Validation now uses current market data from order preview UI
+- [x] Added currentBid/currentAsk/currentMid/currentUnderlyingPrice fields to OrderToValidate
+- [x] Validation engine checks for current data first, falls back to API fetch if not provided
+- [x] Fix covered call strike position logic - ITM strikes are GOOD for CC (not high risk)
+- [x] Changed ITM strike check from 'warning' to 'valid' with positive message
+- [x] Message now says "High probability of assignment and profit on shares" for ITM calls

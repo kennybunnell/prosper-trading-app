@@ -206,6 +206,11 @@ export function OrderPreviewDialog({
         originalBid: order.bid || 0,
         originalAsk: order.ask || 0,
         originalMid: order.mid || 0,
+        // Pass current market data from UI so validation matches what user sees
+        currentBid: order.bid,
+        currentAsk: order.ask,
+        currentMid: order.mid,
+        currentUnderlyingPrice: order.currentPrice,
       }));
       
       const result = await validateOrdersMutation.mutateAsync({ 

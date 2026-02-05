@@ -136,6 +136,18 @@ export interface OrderToValidate {
   
   /** Original mid price when order was created */
   originalMid: number;
+  
+  /** Current bid price (from UI) - optional, if not provided validation will fetch fresh data */
+  currentBid?: number;
+  
+  /** Current ask price (from UI) - optional, if not provided validation will fetch fresh data */
+  currentAsk?: number;
+  
+  /** Current mid price (from UI) - optional, if not provided validation will fetch fresh data */
+  currentMid?: number;
+  
+  /** Current underlying price (from UI) - optional, if not provided validation will fetch fresh data */
+  currentUnderlyingPrice?: number;
 }
 
 /**

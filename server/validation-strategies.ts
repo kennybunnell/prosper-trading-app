@@ -52,9 +52,9 @@ export function validateCoveredCall(
     checks.push({
       id: 'cc_strike_above_price',
       name: 'Strike above current price',
-      status: 'warning',
-      severity: 'warning',
-      message: `Strike $${order.strike} is ${percentITM}% below current price (ITM call). Very high assignment risk.`,
+      status: 'valid',
+      severity: 'info',
+      message: `Strike $${order.strike} is ${percentITM}% below current price (ITM call). High probability of assignment and profit on shares.`,
       details: { percentITM: parseFloat(percentITM) },
     });
   }
