@@ -2172,6 +2172,21 @@ export default function CSPDashboard() {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Dry Run Checkbox - moved to top */}
+          {selectedOppsList.length > 0 && (
+            <div className="mb-4 flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
+              <Checkbox
+                id="dry-run-top"
+                checked={tradingMode === 'paper' ? true : dryRun}
+                onCheckedChange={(checked) => setDryRun(checked as boolean)}
+                disabled={tradingMode === 'paper'}
+              />
+              <Label htmlFor="dry-run-top" className="cursor-pointer text-sm flex items-center gap-1">
+                Dry Run (test without submitting real orders)
+                <HelpDialog title="Dry Run Mode" content={HELP_CONTENT.DRY_RUN_MODE_DIALOG} />
+              </Label>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>

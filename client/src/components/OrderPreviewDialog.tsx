@@ -197,7 +197,7 @@ export function OrderPreviewDialog({
         strike: order.strike,
         expiration: order.expiration,
         quantity: order.quantity,
-        limitPrice: getCurrentPrice(idx),
+        limitPrice: getCurrentPrice(idx) / 100, // Convert per-contract to per-share for validation
         optionType: 'call' as const, // Will be determined by strategy
         strategy: order.isSpread 
           ? (order.spreadType === 'bull_put' ? 'bps' as const : 'bcs' as const)
@@ -207,9 +207,10 @@ export function OrderPreviewDialog({
         originalAsk: order.ask || 0,
         originalMid: order.mid || 0,
         // Pass current market data from UI so validation matches what user sees
-        currentBid: order.bid,
-        currentAsk: order.ask,
-        currentMid: order.mid,
+        // Note: UI displays per-contract values, but validation expects per-share
+        currentBid: order.bid ? order.bid / 100 : undefined,
+        currentAsk: order.ask ? order.ask / 100 : undefined,
+        currentMid: order.mid ? order.mid / 100 : undefined,
         currentUnderlyingPrice: order.currentPrice,
       }));
       

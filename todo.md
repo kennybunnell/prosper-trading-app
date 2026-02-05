@@ -4032,3 +4032,19 @@
 - [x] Fix covered call strike position logic - ITM strikes are GOOD for CC (not high risk)
 - [x] Changed ITM strike check from 'warning' to 'valid' with positive message
 - [x] Message now says "High probability of assignment and profit on shares" for ITM calls
+
+## CSP Dashboard and Validation Issues (User Reported Feb 5)
+- [ ] Move "Dry Run" checkbox to top of opportunities table (right below data panel)
+- [ ] Currently at bottom of table, should be at top for better UX
+- [ ] Fix validation price comparison logic - showing wrong market data
+- [ ] Validation says "Limit price $628.80 is above ask $23.00" but actual ask is $635.00
+- [ ] Validation is using incorrect bid/ask data for price spread check
+- [ ] TSLA CC example: bid $625, ask $635, limit $628.80 (within spread) but validation shows error
+
+## CSP Dashboard and Validation Price Logic Bugs (User Reported Feb 5)
+- [x] Move dry run checkbox from bottom to top of opportunities table
+- [x] Dry run checkbox now appears at top of CardContent when orders are selected
+- [x] Fix validation price comparison showing wrong values (e.g., "$628.80 above ask $23")
+- [x] Fixed by dividing bid/ask/mid/limitPrice by 100 in OrderPreviewDialog when passing to validation
+- [x] Validation now correctly receives per-share values and compares accurately
+- [x] UI continues to display per-contract values for user clarity
