@@ -805,7 +805,7 @@ export default function CCDashboard() {
     const totalCollateral = orders.reduce((sum, o) => sum + o.collateral, 0);
 
     // Set validation data for preview dialog
-    const availableBuyingPower = 100000; // Placeholder - will be fetched from account in future
+    // Use real buying power from Tastytrade account (already fetched at component level)
     setValidationData({
       orders,
       totalPremium,

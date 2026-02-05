@@ -4000,3 +4000,9 @@
 - [x] Updated PREMIUM_MULTIPLIER_RULES.md with correct behavior
 - [x] Created comprehensive regression test suite (17 tests) in premium-double-multiplication.test.ts
 - [x] All tests passing - permanent safeguards in place
+
+## BCS Dashboard Order Preview Buying Power (User Reported Feb 4)
+- [x] Fix Order Preview Dialog showing hardcoded $100,000 instead of actual buying power
+- [x] Removed hardcoded placeholder on line 808 of CCDashboard.tsx
+- [x] Now uses real buying power from Tastytrade account (already fetched at component level)
+- [x] User's actual buying power (~$305,049) now displays correctly
