@@ -3951,3 +3951,7 @@
 - [x] Debug why Fill zone initialization logic isn't positioning sliders correctly
 - [x] Fixed: useState initialization only runs once - needed useEffect to reinitialize on dialog open
 - [x] Now uses useEffect with [open, orders] dependencies to recalculate Fill zone prices
+
+## Order Preview Dialog UX Enhancements (User Requested Feb 4)
+- [x] Add toast notification when dialog opens showing "Prices optimized for fill zone (85%)"
+- [x] Add "Reset to Fill Zone" button to reset all prices back to 85% default

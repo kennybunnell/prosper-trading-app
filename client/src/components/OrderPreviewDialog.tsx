@@ -16,11 +16,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Clock, XCircle, Sparkles, Plus, Minus } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, XCircle, Sparkles, Plus, Minus, RotateCcw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect } from "react";
 import { Streamdown } from "streamdown";
 import { Slider } from "@/components/ui/slider";
+import { toast } from "sonner";
 
 interface OrderPreviewItem {
   symbol: string;
@@ -80,6 +81,8 @@ export function OrderPreviewDialog({
     if (!open) return; // Only initialize when dialog is open
     
     const initialPrices = new Map<number, number>();
+    let ordersWithFillZone = 0;
+    
     orders.forEach((order, idx) => {
       if (order.bid && order.mid) {
         // Calculate Fill zone price: 85% between bid and mid
@@ -87,10 +90,19 @@ export function OrderPreviewDialog({
         const fillPrice = order.bid + (priceRange * 0.85);
         const roundedPrice = Math.round(fillPrice * 100) / 100; // Round to nearest cent
         initialPrices.set(idx, roundedPrice);
+        ordersWithFillZone++;
       }
       // If no market data, fall back to order.premium (backend calculated price)
     });
     setAdjustedPrices(initialPrices);
+    
+    // Show confirmation toast
+    if (ordersWithFillZone > 0) {
+      toast.success(`Prices optimized for fill zone (85%)`, {
+        description: `${ordersWithFillZone} order${ordersWithFillZone > 1 ? 's' : ''} positioned for optimal execution`,
+        duration: 3000,
+      });
+    }
   }, [open, orders]); // Reinitialize when dialog opens or orders change
   
   const evaluateOrder = trpc.csp.evaluateOrder.useMutation({
@@ -143,6 +155,28 @@ export function OrderPreviewDialog({
   // Get current price for an order (adjusted or original)
   const getCurrentPrice = (orderIdx: number) => {
     return adjustedPrices.get(orderIdx) ?? orders[orderIdx].premium;
+  };
+  
+  // Reset all prices to Fill zone (85%)
+  const resetToFillZone = () => {
+    const resetPrices = new Map<number, number>();
+    let resetCount = 0;
+    
+    orders.forEach((order, idx) => {
+      if (order.bid && order.mid) {
+        const priceRange = order.mid - order.bid;
+        const fillPrice = order.bid + (priceRange * 0.85);
+        const roundedPrice = Math.round(fillPrice * 100) / 100;
+        resetPrices.set(idx, roundedPrice);
+        resetCount++;
+      }
+    });
+    
+    setAdjustedPrices(resetPrices);
+    toast.success('Prices reset to fill zone', {
+      description: `${resetCount} order${resetCount > 1 ? 's' : ''} reset to 85% position`,
+      duration: 2000,
+    });
   };
   
   // Calculate percentage of mid
@@ -478,6 +512,15 @@ export function OrderPreviewDialog({
           >
             <Sparkles className="h-4 w-4 mr-2" />
             {evaluateOrder.isPending ? "Analyzing..." : "Analyze Order"}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={resetToFillZone}
+            disabled={hasErrors}
+            className="border-orange-500 text-orange-400 hover:bg-orange-950/30"
+          >
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Reset to Fill Zone
           </Button>
           <div className="flex-1" />
           <Button variant="outline" onClick={() => onOpenChange(false)}>
