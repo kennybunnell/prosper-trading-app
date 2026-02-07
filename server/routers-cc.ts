@@ -512,17 +512,25 @@ export const ccRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Check if user is in paper trading mode
-      const { getDb } = await import('./db');
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
-      const [user] = await db.select().from((await import('../drizzle/schema.js')).users).where((await import('drizzle-orm')).eq((await import('../drizzle/schema.js')).users.id, ctx.user.id));
-      if (user?.tradingMode === 'paper') {
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: 'Order submission is disabled in Paper Trading mode',
+      try {
+        console.log('[CC submitOrders] Starting order submission', {
+          accountNumber: input.accountNumber,
+          orderCount: input.orders.length,
+          dryRun: input.dryRun,
+          userId: ctx.user.id,
         });
-      }
+        
+        // Check if user is in paper trading mode
+        const { getDb } = await import('./db');
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+        const [user] = await db.select().from((await import('../drizzle/schema.js')).users).where((await import('drizzle-orm')).eq((await import('../drizzle/schema.js')).users.id, ctx.user.id));
+        if (user?.tradingMode === 'paper') {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Order submission is disabled in Paper Trading mode',
+          });
+        }
       
       // Validate contract limits before submission (both dry run and live)
       const { getApiCredentials } = await import('./db');
@@ -554,6 +562,10 @@ export const ccRouter = router({
 
       // Calculate maxContracts for each stock position
       const maxContractsMap: Record<string, number> = {};
+      console.log('[CC submitOrders] Position analysis:');
+      console.log('[CC submitOrders] Stock positions:', stockPositions.map((p: any) => ({ symbol: p.symbol, quantity: p.quantity })));
+      console.log('[CC submitOrders] Existing short calls:', shortCalls);
+      
       for (const pos of stockPositions) {
         const symbol = (pos as any).symbol;
         const quantity = parseFloat((pos as any).quantity);
@@ -561,7 +573,10 @@ export const ccRouter = router({
           const existingContracts = shortCalls[symbol] || 0;
           const sharesCovered = existingContracts * 100;
           const availableShares = Math.max(0, quantity - sharesCovered);
-          maxContractsMap[symbol] = Math.floor(availableShares / 100);
+          const maxContracts = Math.floor(availableShares / 100);
+          maxContractsMap[symbol] = maxContracts;
+          
+          console.log(`[CC submitOrders] ${symbol}: ${quantity} shares, ${existingContracts} existing contracts, ${availableShares} available shares, ${maxContracts} max contracts`);
         }
       }
 
@@ -573,8 +588,10 @@ export const ccRouter = router({
 
       // Validate each symbol doesn't exceed maxContracts
       const validationErrors: string[] = [];
+      console.log('[CC submitOrders] Validating contract limits:');
       for (const [symbol, requestedContracts] of Object.entries(contractsPerSymbol)) {
         const maxContracts = maxContractsMap[symbol] || 0;
+        console.log(`[CC submitOrders] ${symbol}: Requesting ${requestedContracts} contracts, max available: ${maxContracts}`);
         if (requestedContracts > maxContracts) {
           validationErrors.push(
             `${symbol}: Requested ${requestedContracts} contracts but only ${maxContracts} available`
@@ -610,6 +627,15 @@ export const ccRouter = router({
           const strikeStr = (order.strike * 1000).toFixed(0).padStart(8, '0');
           const optionSymbol = `${order.symbol.padEnd(6)}${expStr}C${strikeStr}`;
 
+          console.log('[CC submitOrders] Submitting order to Tastytrade API:', {
+            symbol: order.symbol,
+            strike: order.strike,
+            expiration: order.expiration,
+            quantity: order.quantity,
+            price: order.price,
+            optionSymbol,
+          });
+
           // Submit sell-to-open order
           const result = await api.submitOrder({
             accountNumber: input.accountNumber,
@@ -627,6 +653,13 @@ export const ccRouter = router({
             ],
           });
 
+          console.log('[CC submitOrders] Tastytrade API response:', {
+            symbol: order.symbol,
+            orderId: result.id,
+            status: result.status,
+            fullResult: JSON.stringify(result),
+          });
+
           results.push({
             success: true,
             symbol: order.symbol,
@@ -641,12 +674,31 @@ export const ccRouter = router({
             symbol: order.symbol,
             strike: order.strike,
             quantity: order.quantity,
-            message: error.message,
-          });
-        }
+          message: error.message,
+        });
       }
+    }
 
+      console.log('[CC submitOrders] Order submission complete', {
+        totalOrders: results.length,
+        successful: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+      });
+      
       return results;
+      } catch (error: any) {
+        console.error('[CC submitOrders] CRITICAL ERROR - Order submission crashed:', {
+          errorMessage: error.message,
+          errorStack: error.stack,
+          accountNumber: input.accountNumber,
+          orderCount: input.orders.length,
+          dryRun: input.dryRun,
+        });
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Order submission failed: ${error.message}`,
+        });
+      }
     }),
 
   /**

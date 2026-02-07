@@ -356,16 +356,24 @@ export const appRouter = router({
             endDateStr
           );
           
-          // Process each transaction
+          // Log first few transactions to understand data structure
+          if (transactions.length > 0) {
+            console.log('[Dashboard] Sample transactions:', JSON.stringify(transactions.slice(0, 3), null, 2));
+          }
+          
+          // Process each transaction individually
+          // Each leg of a multi-leg order has its own cash impact and should be counted separately
+          // The CSV export shows each leg as a separate transaction with its own net value
           for (const txn of transactions) {
             const txnType = txn['transaction-type'];
-            if (!['Trade', 'Receive Deliver'].includes(txnType)) continue;
+            // Only count Trade transactions (actual trades, not money movements or transfers)
+            if (txnType !== 'Trade') continue;
             
-            const action = txn.action;
-            const value = Math.abs(parseFloat(txn.value || '0'));
+            const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
+            const netValueEffect = txn['net-value-effect'];
             const executedAt = txn['executed-at'];
             
-            if (!executedAt || value === 0) continue;
+            if (!executedAt || netValue === 0 || !netValueEffect) continue;
             
             // Parse date and create month key
             const txnDate = new Date(executedAt);
@@ -375,12 +383,13 @@ export const appRouter = router({
               monthlyData[monthKey] = { credits: 0, debits: 0 };
             }
             
-            // Categorize by action (value is already in dollars, no need to multiply)
-            // STO = credit received, BTC = debit paid to close
-            if (action === 'Sell to Open') {
-              monthlyData[monthKey].credits += value;
-            } else if (action === 'Buy to Close') {
-              monthlyData[monthKey].debits += value;
+            // Use net-value-effect to determine if this is income or expense
+            // Credit = money received (selling options, assignments, etc.)
+            // Debit = money paid (buying to close, buying options, etc.)
+            if (netValueEffect === 'Credit') {
+              monthlyData[monthKey].credits += netValue;
+            } else if (netValueEffect === 'Debit') {
+              monthlyData[monthKey].debits += netValue;
             }
           }
         }

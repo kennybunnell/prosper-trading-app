@@ -4062,3 +4062,38 @@
 - [x] Solution: Added strategy prop to OrderPreviewDialog to conditionally divide by 100 only for CSP/BPS
 - [x] Change "Total Stock Value" label to "Available Buying Power" in OrderPreviewDialog for CC strategy
 - [x] Show actual buying power instead of stock value in bottom section totals
+
+## CC Order Submission Crash (User Reported Feb 6)
+- [x] Server crashes during CC order submission with 502 errors
+- [x] Orders show "submitted successfully" in UI but never reach Tastytrade
+- [x] No error logs - server crashes silently before logging
+- [x] Investigate CC order submission code for bugs causing crash
+- [x] Added comprehensive error logging to submitOrders mutation
+- [ ] Intermittent server crashes with 502 errors during/after order submission
+- [ ] Orders sometimes submit successfully, sometimes fail
+- [ ] Need to identify root cause of Node.js process crashes
+- [ ] Investigate validation logic and API calls for unhandled promise rejections
+
+## CC Order Pricing Issue (User Reported Feb 6)
+- [x] Orders being cancelled immediately by Tastytrade due to unmarketable prices
+- [x] Prices too low ($0.02-0.03 credit) - below natural bid
+- [x] Review pricing logic in CC dashboard order submission
+- [x] Root cause: Incorrect /100 division in CCDashboard line 867
+- [x] Backend returns premium in dollars ($2.48), but frontend was dividing by 100 → $0.0248
+- [x] Fix: Removed /100 division - prices now correctly submitted in dollars
+
+## CC Order Price Increment Issue (User Reported Feb 6 - Follow-up)
+- [x] Tastytrade rejecting orders with invalid_price_increment error
+- [x] Prices must be in $0.05 increments (nickels)
+- [x] Example: $5.76 rejected, should be $5.75 or $5.80
+- [x] Add rounding logic to round all prices to nearest $0.05 before submission
+- [x] Fix: Added Math.round(rawPrice / 0.05) * 0.05 to round to nearest nickel
+
+## Dashboard Monthly Premium Calculation Issue (User Reported Feb 6)
+- [ ] Dashboard showing incorrect monthly premium numbers (off by 50-300%)
+- [ ] November shows $20,513 but should be ~$45-68k
+- [ ] Need to investigate Tastytrade API transaction data structure
+- [ ] Fix getMonthlyPremiumData to handle multi-leg orders (spreads/rolls) correctly
+- [ ] Ensure using correct date field for grouping (execution date, not expiration)
+- [ ] Test calculation against user's verified data
+- [ ] Net Premium = STO credits - BTC debits (per month)

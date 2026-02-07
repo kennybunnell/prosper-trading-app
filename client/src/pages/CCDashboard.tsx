@@ -859,13 +859,19 @@ export default function CCDashboard() {
         });
       } else {
         // Regular CC orders
-        const orders = validationData.orders.map((order: any, idx: number) => ({
-          symbol: order.symbol,
-          strike: order.strike,
-          expiration: order.expiration,
-          quantity: 1,
-          price: (adjustedPrices?.get(idx) ?? order.premium) / 100, // Use adjusted price or default premium
-        }));
+        const orders = validationData.orders.map((order: any, idx: number) => {
+          const rawPrice = adjustedPrices?.get(idx) ?? order.premium;
+          // Round to nearest $0.05 increment (nickels) as required by Tastytrade
+          const roundedPrice = Math.round(rawPrice / 0.05) * 0.05;
+          
+          return {
+            symbol: order.symbol,
+            strike: order.strike,
+            expiration: order.expiration,
+            quantity: 1,
+            price: roundedPrice,
+          };
+        });
 
         results = await utils.client.cc.submitOrders.mutate({
           accountNumber: selectedAccountId!,

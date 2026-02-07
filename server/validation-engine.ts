@@ -31,10 +31,14 @@ export async function fetchOptionMarketData(
   expiration: string,
   optionType: 'call' | 'put'
 ): Promise<OptionMarketData | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+  
   try {
     const apiKey = process.env.TRADIER_API_KEY;
     if (!apiKey) {
       console.error('[Validation] TRADIER_API_KEY not configured');
+      clearTimeout(timeoutId);
       return null;
     }
 
@@ -44,8 +48,22 @@ export async function fetchOptionMarketData(
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Accept': 'application/json'
+      },
+      signal: controller.signal
+    }).catch(err => {
+      // Handle abort/network errors gracefully
+      if (err.name === 'AbortError') {
+        console.warn(`[Validation] Fetch timeout for ${symbol} option chain`);
+      } else {
+        console.warn(`[Validation] Network error fetching ${symbol} option chain:`, err.message);
       }
+      return null;
     });
+    
+    if (!chainResponse) {
+      clearTimeout(timeoutId);
+      return null;
+    };
 
     if (!chainResponse.ok) {
       console.error(`[Validation] Failed to fetch option chain: ${chainResponse.statusText}`);
@@ -72,11 +90,22 @@ export async function fetchOptionMarketData(
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Accept': 'application/json'
+      },
+      signal: controller.signal
+    }).catch(err => {
+      // Handle abort/network errors gracefully
+      if (err.name === 'AbortError') {
+        console.warn(`[Validation] Fetch timeout for ${symbol} quote`);
+      } else {
+        console.warn(`[Validation] Network error fetching ${symbol} quote:`, err.message);
       }
+      return null;
     });
+    
+    clearTimeout(timeoutId);
 
     let underlyingPrice = 0;
-    if (quoteResponse.ok) {
+    if (quoteResponse && quoteResponse.ok) {
       const quoteData = await quoteResponse.json();
       underlyingPrice = quoteData?.quotes?.quote?.last || 0;
     }
@@ -93,8 +122,12 @@ export async function fetchOptionMarketData(
       timestamp: new Date(),
       isAvailable: option.bid > 0 && option.ask > 0,
     };
-  } catch (error) {
-    console.error('[Validation] Error fetching market data:', error);
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    // Don't log abort errors as they're expected on timeout
+    if (error.name !== 'AbortError') {
+      console.error('[Validation] Error fetching market data:', error.message || error);
+    }
     return null;
   }
 }
