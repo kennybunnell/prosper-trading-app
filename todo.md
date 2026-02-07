@@ -4097,3 +4097,10 @@
 - [ ] Ensure using correct date field for grouping (execution date, not expiration)
 - [ ] Test calculation against user's verified data
 - [ ] Net Premium = STO credits - BTC debits (per month)
+
+## Dashboard Year Selector
+- [x] Update dashboard API to accept optional year parameter
+- [x] Add year selector dropdown to dashboard page (2025, 2026, Last 6 Months)
+- [x] Filter monthly premium data by selected year
+- [x] Default to current year (2026)
+- [x] Test year filtering with historical data

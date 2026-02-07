@@ -314,11 +314,15 @@ export const appRouter = router({
      * Returns last 6 months of premium data for the main dashboard chart
      * Uses Tastytrade API to fetch real transaction data
      */
-    getMonthlyPremiumData: protectedProcedure.query(async ({ ctx }) => {
-      const { getTastytradeAPI } = await import('./tastytrade');
-      const { getApiCredentials } = await import('./db');
-      
-      try {
+    getMonthlyPremiumData: protectedProcedure
+      .input(z.object({
+        year: z.number().optional(), // Optional year filter (e.g., 2025, 2026). If not provided, shows last 6 months
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        const { getTastytradeAPI } = await import('./tastytrade');
+        const { getApiCredentials } = await import('./db');
+        
+        try {
         // Get Tastytrade credentials
         const credentials = await getApiCredentials(ctx.user.id);
         if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
@@ -335,15 +339,28 @@ export const appRouter = router({
           return { monthlyData: [], error: 'No accounts found' };
         }
         
-        // Calculate date range (last 6 months)
+        // Calculate date range based on year filter
         const now = new Date();
-        const startMonth = now.getMonth() - 5; // 6 months including current
-        const startYear = now.getFullYear() + Math.floor(startMonth / 12);
-        const adjustedStartMonth = ((startMonth % 12) + 12) % 12;
-        const startDate = new Date(startYear, adjustedStartMonth, 1);
+        const selectedYear = input?.year;
+        
+        let startDate: Date;
+        let endDate: Date;
+        
+        if (selectedYear) {
+          // Filter by specific year (Jan 1 - Dec 31)
+          startDate = new Date(selectedYear, 0, 1); // Jan 1
+          endDate = new Date(selectedYear, 11, 31); // Dec 31
+        } else {
+          // Default: last 6 months
+          const startMonth = now.getMonth() - 5;
+          const startYear = now.getFullYear() + Math.floor(startMonth / 12);
+          const adjustedStartMonth = ((startMonth % 12) + 12) % 12;
+          startDate = new Date(startYear, adjustedStartMonth, 1);
+          endDate = now;
+        }
         
         const startDateStr = startDate.toISOString().split('T')[0];
-        const endDateStr = now.toISOString().split('T')[0];
+        const endDateStr = endDate.toISOString().split('T')[0];
         
         // Aggregate transactions from all accounts
         const monthlyData: Record<string, { credits: number; debits: number }> = {};
@@ -394,14 +411,24 @@ export const appRouter = router({
           }
         }
         
-        // Generate last 6 months list
+        // Generate month list based on filter
         const months: string[] = [];
-        for (let i = 5; i >= 0; i--) {
-          const m = now.getMonth() - i;
-          const y = now.getFullYear() + Math.floor(m / 12);
-          const adjustedM = ((m % 12) + 12) % 12;
-          const monthKey = `${y}-${String(adjustedM + 1).padStart(2, '0')}`;
-          months.push(monthKey);
+        
+        if (selectedYear) {
+          // Generate all 12 months for the selected year
+          for (let month = 0; month < 12; month++) {
+            const monthKey = `${selectedYear}-${String(month + 1).padStart(2, '0')}`;
+            months.push(monthKey);
+          }
+        } else {
+          // Generate last 6 months
+          for (let i = 5; i >= 0; i--) {
+            const m = now.getMonth() - i;
+            const y = now.getFullYear() + Math.floor(m / 12);
+            const adjustedM = ((m % 12) + 12) % 12;
+            const monthKey = `${y}-${String(adjustedM + 1).padStart(2, '0')}`;
+            months.push(monthKey);
+          }
         }
         
         // Build result with cumulative calculation

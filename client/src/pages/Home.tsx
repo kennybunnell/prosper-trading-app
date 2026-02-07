@@ -1,3 +1,4 @@
+import React from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +10,10 @@ import { trpc } from "@/lib/trpc";
 import { MonthlyPremiumChart } from "@/components/MonthlyPremiumChart";
 
 function MonthlyPremiumChartSection() {
-  const { data, isLoading, error } = trpc.dashboard.getMonthlyPremiumData.useQuery();
+  const [selectedYear, setSelectedYear] = React.useState<number | undefined>(new Date().getFullYear());
+  const { data, isLoading, error } = trpc.dashboard.getMonthlyPremiumData.useQuery(
+    selectedYear ? { year: selectedYear } : undefined
+  );
   
   if (isLoading) {
     return (
@@ -27,7 +31,23 @@ function MonthlyPremiumChartSection() {
     return null; // Hide chart if no data available
   }
   
-  return <MonthlyPremiumChart data={data.monthlyData} />;
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Monthly Premium Earnings - All Accounts Combined</h2>
+        <select
+          value={selectedYear || 'all'}
+          onChange={(e) => setSelectedYear(e.target.value === 'all' ? undefined : Number(e.target.value))}
+          className="px-4 py-2 rounded-md border border-border bg-background text-foreground"
+        >
+          <option value="all">Last 6 Months</option>
+          <option value="2026">2026</option>
+          <option value="2025">2025</option>
+        </select>
+      </div>
+      <MonthlyPremiumChart data={data.monthlyData} />
+    </div>
+  );
 }
 
 export default function Home() {
