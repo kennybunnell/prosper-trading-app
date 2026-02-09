@@ -4104,3 +4104,9 @@
 - [x] Filter monthly premium data by selected year
 - [x] Default to current year (2026)
 - [x] Test year filtering with historical data
+
+## Order Submission Error Handling
+- [x] Investigate call spread order submission failure on HeLock account
+- [x] Check Tastytrade API error response details in logs
+- [x] Update order submission to display API error messages in toast alerts
+- [x] Root cause: Account not approved for spreads (requires margin account)

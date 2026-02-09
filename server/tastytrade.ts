@@ -274,7 +274,24 @@ export class TastytradeAPI {
         if (error.response?.data?.error?.errors) {
           console.error('[Tastytrade submitOrder] Preflight check errors:', JSON.stringify(error.response.data.error.errors, null, 2));
         }
-        throw new Error(`Failed to submit order: ${error.response?.data?.error?.message || error.message}`);
+        
+        // Extract detailed error message from API response
+        let errorMessage = 'Failed to submit order';
+        
+        // Check for preflight check errors (most common)
+        if (error.response?.data?.error?.errors && Array.isArray(error.response.data.error.errors)) {
+          const errors = error.response.data.error.errors;
+          if (errors.length > 0) {
+            // Use the first error's message (usually the most relevant)
+            errorMessage = errors[0].message || errors[0].code || errorMessage;
+          }
+        } else if (error.response?.data?.error?.message) {
+          errorMessage = error.response.data.error.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        throw new Error(errorMessage);
       }
     });
   }
