@@ -4110,3 +4110,7 @@
 - [x] Check Tastytrade API error response details in logs
 - [x] Update order submission to display API error messages in toast alerts
 - [x] Root cause: Account not approved for spreads (requires margin account)
+
+## Remove Paper Trading Message from Live Mode
+- [x] Remove "Using mock MAG7 positions for paper trading" message from CC dashboard
+- [x] Message completely removed to avoid confusion in live trading mode

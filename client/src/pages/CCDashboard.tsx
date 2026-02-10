@@ -1218,11 +1218,6 @@ export default function CCDashboard() {
                       Please select an account from the sidebar
                     </p>
                   )}
-                  {tradingMode === 'paper' && (
-                    <p className="text-sm text-blue-400 text-center mt-2">
-                      Using mock MAG7 positions for paper trading
-                    </p>
-                  )}
                 </CardContent>
               </Card>
             )}
