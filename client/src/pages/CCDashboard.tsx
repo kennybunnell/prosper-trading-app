@@ -1734,7 +1734,7 @@ export default function CCDashboard() {
                 </CardHeader>
                 <CardContent className="relative">
                   <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
-                    ${filteredOpportunities.reduce((sum, opp) => sum + opp.premium, 0).toFixed(2)}
+                    ${filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0).toFixed(2)}
                   </div>
                 </CardContent>
               </Card>

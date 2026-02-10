@@ -4114,3 +4114,53 @@
 ## Remove Paper Trading Message from Live Mode
 - [x] Remove "Using mock MAG7 positions for paper trading" message from CC dashboard
 - [x] Message completely removed to avoid confusion in live trading mode
+
+## Fix CC Summary Panel Premium Calculation
+- [ ] Summary panel showing per-contract premium instead of total aggregated premium
+- [ ] Need to multiply premium by quantity and contract multiplier (100)
+- [ ] Fix applies to both dry run and live order submission panels
+
+## Quantity Selector & Streamlined Workflow Implementation
+
+### Phase 1: CSP Quantity Selector & Streamlined Workflow
+- [x] Create UnifiedOrderPreviewModal component with quantity controls
+- [x] Add real-time premium/collateral calculation logic
+- [x] Implement buying power validation for CSP
+- [x] Add dry-run/live mode toggle with streamlined workflow
+- [ ] Integrate UnifiedOrderPreviewModal into CSP Dashboard (paused - need safer approach)
+- [ ] Test with real CSP opportunities (multiple scenarios)
+- [ ] Verify no regressions in existing CSP functionality
+- [ ] Get user approval before proceeding to Phase 2
+
+### Phase 2: CC Quantity Selector (Covered Calls)
+- [ ] Add stock ownership validation to UnifiedOrderPreviewModal
+- [ ] Integrate into CC Dashboard for covered calls
+- [ ] Test with real portfolio positions
+- [ ] Verify no regressions
+
+### Phase 3: BCS Quantity Selector (Bear Call Spreads)
+- [ ] Add spread collateral validation to UnifiedOrderPreviewModal
+- [ ] Integrate into CC Dashboard for bear call spreads
+- [ ] Test with real BCS opportunities
+- [ ] Verify no regressions
+
+### Phase 4: BPS Quantity Selector (Bull Put Spreads)
+- [ ] Integrate UnifiedOrderPreviewModal into BPS Dashboard
+- [ ] Test with real BPS opportunities
+- [ ] Verify no regressions
+
+### Phase 5: Closing Orders Preview & Quantity
+- [ ] Integrate UnifiedOrderPreviewModal into Performance page
+- [ ] Disable quantity editing for closing orders (fixed by position)
+- [ ] Test with real positions to close
+- [ ] Verify no regressions
+
+### Phase 6: Roll Orders Unified Modal
+- [ ] Replace OrderPreviewModal with UnifiedOrderPreviewModal in Action Items
+- [ ] Test roll workflow with real positions
+- [ ] Verify no regressions
+
+### Phase 7: PMCC Unified Modal
+- [ ] Replace custom dialog with UnifiedOrderPreviewModal in PMCC Dashboard
+- [ ] Test with real LEAP opportunities
+- [ ] Verify no regressions
