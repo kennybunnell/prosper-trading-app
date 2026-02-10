@@ -80,6 +80,13 @@ export function OrderPreviewDialog({
   // Track adjusted prices for each order (indexed by order index)
   const [adjustedPrices, setAdjustedPrices] = useState<Map<number, number>>(new Map());
   
+  // Track quantities for each order (indexed by order index)
+  const [orderQuantities, setOrderQuantities] = useState<Map<number, number>>(new Map());
+  
+  // Track dry-run vs live mode
+  const [isLiveMode, setIsLiveMode] = useState(false);
+  const [dryRunSuccess, setDryRunSuccess] = useState(false);
+  
   // Validation state
   const [validationResults, setValidationResults] = useState<OrderValidationResult[]>([]);
   const [validationSummary, setValidationSummary] = useState<ValidationSummary | null>(null);
@@ -108,9 +115,20 @@ export function OrderPreviewDialog({
     }
   }, [open, orders.length]); // Run when dialog opens or order count changes
   
-  // Initialize Fill zone prices (85% between bid and mid) when dialog opens or orders change
+  // Initialize quantities and Fill zone prices when dialog opens or orders change
   useEffect(() => {
     if (!open) return; // Only initialize when dialog is open
+    
+    // Initialize quantities from orders
+    const initialQuantities = new Map<number, number>();
+    orders.forEach((order, idx) => {
+      initialQuantities.set(idx, order.quantity);
+    });
+    setOrderQuantities(initialQuantities);
+    
+    // Reset mode states
+    setIsLiveMode(false);
+    setDryRunSuccess(false);
     
     const initialPrices = new Map<number, number>();
     let ordersWithFillZone = 0;
@@ -136,6 +154,63 @@ export function OrderPreviewDialog({
       });
     }
   }, [open, orders]); // Reinitialize when dialog opens or orders change
+  
+  // Get current quantity for an order
+  const getCurrentQuantity = (orderIdx: number) => {
+    return orderQuantities.get(orderIdx) ?? orders[orderIdx].quantity;
+  };
+  
+  // Adjust quantity
+  const adjustQuantity = (orderIdx: number, delta: number) => {
+    const currentQty = getCurrentQuantity(orderIdx);
+    const newQty = Math.max(1, currentQty + delta);
+    const maxQty = getMaxQuantity(orderIdx);
+    const finalQty = maxQty ? Math.min(newQty, maxQty) : newQty;
+    
+    setOrderQuantities(new Map(orderQuantities.set(orderIdx, finalQty)));
+  };
+  
+  // Calculate max quantity based on strategy and available buying power
+  const getMaxQuantity = (orderIdx: number): number | null => {
+    const order = orders[orderIdx];
+    
+    if (strategy === 'csp' || strategy === 'bps') {
+      // For CSP/BPS: max = available BP / collateral per contract
+      const collateralPerContract = order.collateral / order.quantity;
+      return Math.floor(availableBuyingPower / collateralPerContract);
+    }
+    
+    if (strategy === 'cc' || strategy === 'bcs') {
+      // For CC/BCS: would need stock ownership data (not available in current props)
+      // Return null to allow unlimited for now
+      return null;
+    }
+    
+    return null;
+  };
+  
+  // Calculate total premium with current quantities and prices
+  const calculateTotalPremium = () => {
+    return orders.reduce((sum, order, idx) => {
+      const currentPrice = adjustedPrices.get(idx) ?? order.premium;
+      const currentQty = getCurrentQuantity(idx);
+      return sum + (currentPrice * currentQty);
+    }, 0);
+  };
+  
+  // Calculate total collateral with current quantities
+  const calculateTotalCollateral = () => {
+    return orders.reduce((sum, order, idx) => {
+      const collateralPerContract = order.collateral / order.quantity;
+      const currentQty = getCurrentQuantity(idx);
+      return sum + (collateralPerContract * currentQty);
+    }, 0);
+  };
+  
+  // Recalculated totals
+  const adjustedTotalPremium = calculateTotalPremium();
+  const adjustedTotalCollateral = calculateTotalCollateral();
+  const adjustedRemainingBP = availableBuyingPower - adjustedTotalCollateral;
   
 
   
@@ -260,25 +335,29 @@ export function OrderPreviewDialog({
     return [Math.max(0, Math.min(100, position))];
   };
   
-  const buyingPowerUsagePercent = (totalCollateral / availableBuyingPower) * 100;
+  const buyingPowerUsagePercent = (adjustedTotalCollateral / availableBuyingPower) * 100;
   const highBuyingPowerUsage = buyingPowerUsagePercent > 80;
   
   // Check for concentration risk (>20% in single symbol)
-  const symbolConcentration = orders.reduce((acc, order) => {
+  const symbolConcentration = orders.reduce((acc, order, idx) => {
+    const collateralPerContract = order.collateral / order.quantity;
+    const currentQty = getCurrentQuantity(idx);
+    const totalCollateral = collateralPerContract * currentQty;
+    
     const existing = acc.find(item => item.symbol === order.symbol);
     if (existing) {
-      existing.collateral += order.collateral;
+      existing.collateral += totalCollateral;
     } else {
-      acc.push({ symbol: order.symbol, collateral: order.collateral });
+      acc.push({ symbol: order.symbol, collateral: totalCollateral });
     }
     return acc;
   }, [] as { symbol: string; collateral: number }[]);
   
   const concentrationWarnings = symbolConcentration
-    .filter(item => (item.collateral / totalCollateral) > 0.20)
+    .filter(item => (item.collateral / adjustedTotalCollateral) > 0.20)
     .map(item => ({
       symbol: item.symbol,
-      percent: ((item.collateral / totalCollateral) * 100).toFixed(1),
+      percent: ((item.collateral / adjustedTotalCollateral) * 100).toFixed(1),
     }));
 
   const hasErrors = orders.some(o => o.status === 'error');
@@ -289,14 +368,41 @@ export function OrderPreviewDialog({
       <DialogContent className="w-fit min-w-[900px] max-w-[98vw] max-h-[90vh] overflow-y-auto border-2 border-orange-500">
         <DialogHeader>
           <DialogTitle className="text-2xl">
-            {isDryRun ? "Dry Run Preview" : "Order Confirmation"}
+            Order Preview
           </DialogTitle>
           <DialogDescription>
-            {isDryRun 
-              ? "Review your orders before submission. No real orders will be placed."
-              : "Review and confirm your orders. Real orders will be submitted to Tastytrade."}
+            Adjust quantities and prices, then choose Dry Run or Live submission
           </DialogDescription>
         </DialogHeader>
+        
+        {/* Dry Run / Live Mode Toggle */}
+        <div className="flex items-center justify-center gap-4 p-4 bg-muted/30 rounded-lg border">
+          <span className="text-sm font-medium">Mode:</span>
+          <div className="flex gap-2">
+            <Button
+              variant={!isLiveMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => setIsLiveMode(false)}
+              className={!isLiveMode ? "bg-blue-600 hover:bg-blue-700" : ""}
+            >
+              Dry Run
+            </Button>
+            <Button
+              variant={isLiveMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => setIsLiveMode(true)}
+              disabled={!dryRunSuccess}
+              className={isLiveMode ? "bg-green-600 hover:bg-green-700" : ""}
+            >
+              Live {!dryRunSuccess && "(Run Dry Run First)"}
+            </Button>
+          </div>
+          {dryRunSuccess && (
+            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+              ✓ Dry Run Passed
+            </Badge>
+          )}
+        </div>
 
         {/* Market Status Banner */}
         {!isMarketOpen && (
@@ -390,7 +496,9 @@ export function OrderPreviewDialog({
                           {order.spreadType === 'bull_put' ? 'Bull Put Spread' : 'Bear Call Spread'}
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-300">CC</Badge>
+                        <Badge variant="outline" className={strategy === 'csp' ? "bg-purple-500/10 text-purple-700 dark:text-purple-300" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}>
+                          {strategy.toUpperCase()}
+                        </Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
@@ -404,7 +512,48 @@ export function OrderPreviewDialog({
                       )}
                     </TableCell>
                     <TableCell>{new Date(order.expiration).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-right">{order.quantity}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            adjustQuantity(idx, -1);
+                          }}
+                          disabled={getCurrentQuantity(idx) <= 1}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="font-mono font-bold min-w-[2ch] text-center">
+                          {getCurrentQuantity(idx)}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            adjustQuantity(idx, 1);
+                          }}
+                          disabled={(() => {
+                            const maxQty = getMaxQuantity(idx);
+                            return maxQty !== null && getCurrentQuantity(idx) >= maxQty;
+                          })()}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      {(() => {
+                        const maxQty = getMaxQuantity(idx);
+                        return maxQty !== null ? (
+                          <div className="text-[10px] text-muted-foreground text-center mt-0.5">
+                            max: {maxQty}
+                          </div>
+                        ) : null;
+                      })()}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end">
                         <span className={`font-semibold ${adjustedPrices.has(idx) ? 'text-blue-600' : 'text-green-600'}`}>
@@ -530,18 +679,11 @@ export function OrderPreviewDialog({
               <TableRow className="bg-muted/50 font-bold">
                 <TableCell colSpan={6} className="text-right">TOTALS</TableCell>
                 <TableCell className="text-right text-green-600">
-                  ${(() => {
-                    // Calculate total premium with adjusted prices
-                    const total = orders.reduce((sum, order, idx) => {
-                      const currentPrice = adjustedPrices.get(idx) ?? order.premium;
-                      return sum + currentPrice; // Premium values are already in per-contract dollars
-                    }, 0);
-                    return total.toFixed(2);
-                  })()}
+                  ${adjustedTotalPremium.toFixed(2)}
                 </TableCell>
                 <TableCell></TableCell>
                 <TableCell className="text-right">
-                  ${totalCollateral.toLocaleString()}
+                  ${adjustedTotalCollateral.toLocaleString()}
                 </TableCell>
               </TableRow>
             </TableBody>
@@ -550,60 +692,63 @@ export function OrderPreviewDialog({
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* For spreads, show buying power. For covered calls, show stock value */}
-          {orders.some(o => o.isSpread) ? (
-            <>
-              <div className="border rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-1">Available Buying Power</p>
-                <p className="text-2xl font-bold">${availableBuyingPower.toLocaleString()}</p>
-              </div>
-              <div className="border rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-1">Remaining After Orders</p>
-                <p className={`text-2xl font-bold ${remainingBuyingPower < availableBuyingPower * 0.2 ? 'text-red-600' : 'text-green-600'}`}>
-                  ${remainingBuyingPower.toLocaleString()}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  ({((remainingBuyingPower / availableBuyingPower) * 100).toFixed(1)}% remaining)
-                </p>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="border rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-1">Available Buying Power</p>
-                <p className="text-2xl font-bold">${availableBuyingPower.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  For selling covered calls
-                </p>
-              </div>
-              <div className="border rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-1">Total Premium Income</p>
-                <p className="text-2xl font-bold text-green-600">
-                  ${(() => {
-                    const total = orders.reduce((sum, order, idx) => {
-                      const currentPrice = adjustedPrices.get(idx) ?? order.premium;
-                      return sum + currentPrice;
-                    }, 0);
-                    return total.toFixed(2);
-                  })()}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {(((() => {
-                    const total = orders.reduce((sum, order, idx) => {
-                      const currentPrice = adjustedPrices.get(idx) ?? order.premium;
-                      return sum + currentPrice;
-                    }, 0);
-                    return total;
-                  })() / totalCollateral) * 100).toFixed(2)}% return on stock value
-                </p>
-              </div>
-            </>
-          )}
+          {/* Detect strategy type: Spread, CSP, or CC */}
+          {(() => {
+            const isSpread = orders.some(o => o.isSpread);
+            const isCSP = !isSpread && orders.some(o => (o as any).strategy === 'CSP' || (!(o as any).strategy && o.collateral));
+            const isCC = !isSpread && !isCSP;
+
+            if (isSpread || isCSP) {
+              // For spreads and CSP: show buying power with remaining
+              return (
+                <>
+                  <div className="border rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground mb-1">Available Buying Power</p>
+                    <p className="text-2xl font-bold">${availableBuyingPower.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {isCSP ? 'For cash-secured puts' : 'For spreads'}
+                    </p>
+                  </div>
+                  <div className="border rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground mb-1">Remaining After Orders</p>
+                    <p className={`text-2xl font-bold ${adjustedRemainingBP < availableBuyingPower * 0.2 ? 'text-red-600' : 'text-green-600'}`}>
+                      ${adjustedRemainingBP.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ({((adjustedRemainingBP / availableBuyingPower) * 100).toFixed(1)}% remaining)
+                    </p>
+                  </div>
+                </>
+              );
+            } else {
+              // For covered calls: show stock value
+              return (
+                <>
+                  <div className="border rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground mb-1">Total Stock Value</p>
+                    <p className="text-2xl font-bold">${adjustedTotalCollateral.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      For selling covered calls
+                    </p>
+                  </div>
+                  <div className="border rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground mb-1">Total Premium Income</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      ${adjustedTotalPremium.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {((adjustedTotalPremium / adjustedTotalCollateral) * 100).toFixed(2)}% return on stock value
+                    </p>
+                  </div>
+                </>
+              );
+            }
+          })()}
           <div className="border rounded-lg p-4">
             <p className="text-sm text-muted-foreground mb-1">Total Orders</p>
             <p className="text-2xl font-bold">{orders.length}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {orders.reduce((sum, o) => sum + o.quantity, 0)} contracts
+              {orders.reduce((sum, o, idx) => sum + getCurrentQuantity(idx), 0)} contracts
             </p>
           </div>
         </div>
@@ -626,17 +771,27 @@ export function OrderPreviewDialog({
             Cancel
           </Button>
           <Button
-            onClick={() => {
-              onSubmit(adjustedPrices);
-              onOpenChange(false);
+            onClick={async () => {
+              if (isLiveMode) {
+                // Live submission - close modal after success
+                await onSubmit(adjustedPrices);
+                onOpenChange(false);
+              } else {
+                // Dry run - run validation and keep modal open
+                await runValidation();
+                setDryRunSuccess(true);
+                setIsLiveMode(true); // Enable live mode after successful dry run
+                toast.success("Dry run successful! Review and submit when ready.");
+                // Modal stays open!
+              }
             }}
             disabled={hasErrors}
-            className={isDryRun 
+            className={!isLiveMode
               ? "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-              : "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+              : "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700"
             }
           >
-            {isDryRun ? "Run Dry Run" : "Submit Real Orders"}
+            {!isLiveMode ? "Run Dry Run" : "Submit Live Orders"}
           </Button>
         </DialogFooter>
       </DialogContent>

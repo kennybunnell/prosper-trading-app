@@ -843,9 +843,13 @@ export default function CSPDashboard() {
       symbol: opp.symbol,
       strike: opp.strike,
       expiration: opp.expiration,
+      quantity: 1, // Default quantity, can be adjusted in preview dialog
       premium: opp.premium,
       bid: opp.bid,
       ask: opp.ask,
+      mid: (opp.bid + opp.ask) / 2,
+      collateral: strategyType === 'spread' ? (opp as any).capitalAtRisk : (opp.strike * 100),
+      status: 'valid' as const,
       currentPrice: opp.currentPrice,
       ivRank: opp.ivRank,
       // Spread-specific fields

@@ -4164,3 +4164,24 @@
 - [ ] Replace custom dialog with UnifiedOrderPreviewModal in PMCC Dashboard
 - [ ] Test with real LEAP opportunities
 - [ ] Verify no regressions
+
+### Phase 1 CSP Testing - Bugs Found
+- [x] Fix available buying power to update dynamically with quantity changes
+- [x] Fix strategy label to show correct type (should say "For selling cash-secured puts" not "For selling covered calls")
+- [x] Ensure remaining BP uses adjusted quantities and collateral
+
+### Phase 1 CSP Testing - Additional Bugs
+- [x] Fix strategy column in order table to show "CSP" instead of "CC"
+- [x] Implement streamlined workflow: keep modal open after successful dry run
+- [x] Change "Run Dry Run" button to "Submit Live Orders" (red) after dry run succeeds
+- [x] Ensure all strategy references throughout modal match actual strategy type
+
+### Phase 2: CC Dashboard Order Preview Enhancements (CC + BCS)
+- [x] Verify OrderPreviewDialog is already being used with strategy='cc' or 'bcs'
+- [x] Confirm quantity controls work for both CC and BCS modes
+- [x] Verify strategy badge shows "CC" for covered calls and "Bear Call Spread" for spreads
+- [x] Test real-time premium/collateral calculations for both modes
+- [x] Verify buying power calculations (CC uses stock value, BCS uses spread collateral)
+- [x] Test streamlined dry-run workflow (modal stays open, button turns red)
+- [x] Verify all strategy labels are correct throughout modal
+- [ ] User testing and approval before Phase 3
