@@ -1312,13 +1312,13 @@ export function WorkingOrdersTab() {
       strike: order.strike,
       expiration: order.expiration,
       quantity: order.quantity,
-      premium: order.suggestedPrice, // Use suggested price as starting point
+      premium: order.suggestedPrice * 100, // Convert per-share to per-contract dollars
       collateral: 0, // Working orders don't have collateral
       status: 'valid' as const,
-      // Market data for price adjustment
-      bid: order.bid,
-      ask: order.ask,
-      mid: order.mid,
+      // Market data for price adjustment (also convert to per-contract)
+      bid: order.bid * 100,
+      ask: order.ask * 100,
+      mid: order.mid * 100,
       // Store original order data for submission
       orderId: order.orderId,
       accountNumber: order.accountNumber,
@@ -1362,7 +1362,7 @@ export function WorkingOrdersTab() {
         orderId: String(order.orderId),
         accountNumber: String(order.accountNumber),
         symbol: order.symbol,
-        suggestedPrice: adjustedPrice,
+        suggestedPrice: adjustedPrice / 100, // Convert back to per-share dollars for API
         rawOrder: order.rawOrder,
       };
     });
@@ -1633,11 +1633,11 @@ export function WorkingOrdersTab() {
               Cancel Selected ({selectedOrders.size})
             </Button>
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
               onClick={handleReplaceSelected}
               disabled={selectedOrders.size === 0 || !safeToReplace || replaceOrdersMutation.isPending}
-              className="border-green-500/50 hover:bg-green-500/20 text-green-400"
+              className="bg-green-600 hover:bg-green-700 text-white border-green-500"
             >
               {replaceOrdersMutation.isPending ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

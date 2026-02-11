@@ -4274,3 +4274,10 @@
 - [ ] Enable quantity and price adjustment
 - [ ] Implement dry run workflow
 - [ ] Test LEAP purchase workflow: Select LEAP → Click "Purchase" → Adjust → Dry run → Submit live
+
+## CRITICAL BUGS - Working Orders Replace Workflow (FIXED)
+- [x] Premium calculation bug: Total Premium Income now shows $157 (multiply by 100 for display, divide by 100 for API)
+- [x] Replace Selected button now visually prominent with solid green background (bg-green-600)
+- [x] Replace order API is correct: Uses two-step cancel+resubmit (tastytrade.ts lines 434-486)
+- [x] SHOP order failure was due to account permissions, not code bug ("not approved for selling uncovered options")
+- [x] Code is working correctly - cancelReplaceOrder does: 1) Cancel existing order, 2) Submit new order with adjusted price
