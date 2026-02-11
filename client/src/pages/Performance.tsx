@@ -16,6 +16,7 @@ import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 import { RecoveryProgressChart } from '@/components/StockBasisRecoveryChart';
 import { StockPositionsTable } from '@/components/StockPositionsTable';
 import { UnderwaterPositionMetrics } from '@/components/UnderwaterPositionMetrics';
+import { OrderPreviewDialog } from '@/components/OrderPreviewDialog';
 import { LockedInIncomeCards } from '@/components/projections/LockedInIncomeCards';
 import { ThetaDecayCards } from '@/components/projections/ThetaDecayCards';
 import { InteractiveROICalculator } from '@/components/projections/InteractiveROICalculator';
@@ -1015,6 +1016,11 @@ export function WorkingOrdersTab() {
   const [actionResults, setActionResults] = useState<any>(null);
   const [showFillRateAnalytics, setShowFillRateAnalytics] = useState(false);
   const [groupBySymbol, setGroupBySymbol] = useState(true);
+  
+  // OrderPreviewDialog state
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [validationData, setValidationData] = useState<any>(null);
+  const [dryRun, setDryRun] = useState(true);
 
   // Poll for order fill status updates
   const orderIds = useMemo(() => {
@@ -1287,6 +1293,92 @@ export function WorkingOrdersTab() {
     setShowCancelDialog(false);
   };
 
+  // Open OrderPreviewDialog for replace orders
+  const handleReplaceSelected = () => {
+    if (selectedOrders.size === 0) {
+      toast.error('Please select orders to replace');
+      return;
+    }
+    if (!safeToReplace) {
+      toast.error('Not safe to replace orders after 3:55 PM ET');
+      return;
+    }
+
+    // Transform selected working orders into OrderPreviewDialog format
+    const selectedOrdersList = Array.from(selectedOrders).map(idx => orders[idx]);
+    
+    const previewOrders = selectedOrdersList.map(order => ({
+      symbol: order.underlyingSymbol,
+      strike: order.strike,
+      expiration: order.expiration,
+      quantity: order.quantity,
+      premium: order.suggestedPrice, // Use suggested price as starting point
+      collateral: 0, // Working orders don't have collateral
+      status: 'valid' as const,
+      // Market data for price adjustment
+      bid: order.bid,
+      ask: order.ask,
+      mid: order.mid,
+      // Store original order data for submission
+      orderId: order.orderId,
+      accountNumber: order.accountNumber,
+      rawOrder: (order as any).rawOrder,
+    }));
+
+    // Calculate totals
+    const totalPremium = previewOrders.reduce((sum, o) => sum + o.premium, 0);
+    
+    // Set validation data
+    setValidationData({
+      orders: previewOrders,
+      totalPremium,
+      totalCollateral: 0,
+      availableBuyingPower: 0, // Not relevant for replace orders
+      remainingBuyingPower: 0,
+      isMarketOpen: true,
+    });
+
+    setShowPreviewDialog(true);
+  };
+
+  // Execute order replacement after preview confirmation
+  const executeOrderSubmission = async (adjustedPrices?: Map<number, number>, isDryRun?: boolean) => {
+    const effectiveDryRun = isDryRun !== undefined ? isDryRun : dryRun;
+    
+    // Only close modal for live submissions, keep open for dry runs
+    if (!effectiveDryRun) {
+      setShowPreviewDialog(false);
+    }
+
+    if (!validationData) {
+      toast.error("Validation data not available");
+      return;
+    }
+
+    // Build orders to replace with adjusted prices
+    const ordersToReplace = validationData.orders.map((order: any, idx: number) => {
+      const adjustedPrice = adjustedPrices?.get(idx) ?? order.premium;
+      return {
+        orderId: String(order.orderId),
+        accountNumber: String(order.accountNumber),
+        symbol: order.symbol,
+        suggestedPrice: adjustedPrice,
+        rawOrder: order.rawOrder,
+      };
+    });
+
+    if (effectiveDryRun) {
+      // Dry run validation
+      toast.success(`✓ Dry run successful! ${ordersToReplace.length} order(s) validated and ready to submit.`, {
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Live submission
+    replaceOrdersMutation.mutate({ orders: ordersToReplace });
+  };
+
   const confirmReplace = () => {
     // If there are selected orders, replace only those; otherwise replace all that need replacement
     const ordersToReplace = selectedOrders.size > 0
@@ -1543,17 +1635,7 @@ export function WorkingOrdersTab() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                if (selectedOrders.size === 0) {
-                  toast.error('Please select orders to replace');
-                  return;
-                }
-                if (!safeToReplace) {
-                  toast.error('Not safe to replace orders after 3:55 PM ET');
-                  return;
-                }
-                setShowReplaceDialog(true);
-              }}
+              onClick={handleReplaceSelected}
               disabled={selectedOrders.size === 0 || !safeToReplace || replaceOrdersMutation.isPending}
               className="border-green-500/50 hover:bg-green-500/20 text-green-400"
             >
@@ -2222,6 +2304,23 @@ export function WorkingOrdersTab() {
             </div>
           </div>
         </Card>
+      )}
+
+      {/* OrderPreviewDialog for Replace Orders */}
+      {validationData && (
+        <OrderPreviewDialog
+          open={showPreviewDialog}
+          onOpenChange={setShowPreviewDialog}
+          orders={validationData.orders}
+          totalPremium={validationData.totalPremium}
+          totalCollateral={validationData.totalCollateral}
+          availableBuyingPower={validationData.availableBuyingPower}
+          remainingBuyingPower={validationData.remainingBuyingPower}
+          isMarketOpen={validationData.isMarketOpen}
+          onSubmit={executeOrderSubmission}
+          isDryRun={dryRun}
+          strategy="csp"
+        />
       )}
     </div>
   );

@@ -4236,3 +4236,41 @@
 - [x] Root cause: bid/ask/mid were NOT multiplied by 100, so slider calculated per-share prices
 - [x] Fix: Multiply bid/ask/mid by 100 in CCDashboard lines 805-807 before passing to dialog
 - [x] Now slider works with per-contract dollars and calculateTotalPremium() shows correct values
+
+## Apply Unified OrderPreviewDialog to All Order Operations (Phases 5-7)
+
+### Phase 5A: Working Orders - Replace Functionality
+- [x] Read current Working Orders replace implementation in Performance.tsx
+- [x] Identify where "Replace Selected" button triggers order replacement
+- [x] Replace custom confirmation modal with OrderPreviewDialog
+- [x] Pass working orders as "orders" prop with current price, bid, ask, mid
+- [x] Enable price adjustment slider (bid to mid range)
+- [x] Implement dry run workflow (stays open, button turns red)
+- [ ] Test replace workflow: Select order → Click "Replace Selected" → Adjust price → Dry run → Submit live
+
+### Phase 5B: Active Positions - Close Functionality  
+- [ ] Read current Active Positions close implementation in Performance.tsx
+- [ ] Identify where "Close Selected" button triggers position closing
+- [ ] Replace custom confirmation modal with OrderPreviewDialog
+- [ ] Pass positions as "orders" prop with close price calculation
+- [ ] Disable quantity editing (fixed by position size)
+- [ ] Enable price adjustment for close orders
+- [ ] Implement dry run workflow
+- [ ] Test close workflow: Select position → Click "Close Selected" → Adjust price → Dry run → Submit live
+
+### Phase 6: Action Items - Roll Functionality
+- [ ] Read current Action Items roll implementation in ActionItems.tsx
+- [ ] Identify where roll orders are submitted
+- [ ] Replace OrderPreviewModal with unified OrderPreviewDialog
+- [ ] Pass roll orders (close current + open new) as two separate order groups
+- [ ] Enable price adjustment for both legs
+- [ ] Implement dry run workflow
+- [ ] Test roll workflow: Select position → Click "Roll" → Adjust prices → Dry run → Submit live
+
+### Phase 7: PMCC Dashboard - LEAP Purchase
+- [ ] Read current PMCC Dashboard LEAP purchase implementation
+- [ ] Replace custom dialog with OrderPreviewDialog
+- [ ] Pass LEAP opportunities as "orders" prop
+- [ ] Enable quantity and price adjustment
+- [ ] Implement dry run workflow
+- [ ] Test LEAP purchase workflow: Select LEAP → Click "Purchase" → Adjust → Dry run → Submit live
