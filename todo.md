@@ -4185,3 +4185,9 @@
 - [x] Test streamlined dry-run workflow (modal stays open, button turns red)
 - [x] Verify all strategy labels are correct throughout modal
 - [ ] User testing and approval before Phase 3
+
+### New Issues to Fix
+- [x] Verify Order Summary premium calculation is correct (appears to be working)
+- [x] Fix Order Preview Dialog premium calculation bug (multiplier issue) - Fixed by multiplying in dashboard before passing to dialog
+- [x] Add account selection validation before fetching opportunities (CC Dashboard)
+- [x] CSP Dashboard already has account validation built-in

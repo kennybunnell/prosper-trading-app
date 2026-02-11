@@ -540,6 +540,12 @@ export default function CCDashboard() {
 
   // Scan for opportunities (CC mode uses stock positions, spread mode uses watchlist)
   const scanOpportunities = async () => {
+    // Validate account is selected
+    if (!selectedAccountId) {
+      toast.error('Please select an account before fetching opportunities');
+      return;
+    }
+    
     setIsScanning(true);
     setScanStartTime(Date.now());
     setScanProgress(0);
@@ -801,7 +807,11 @@ export default function CCDashboard() {
       mid: (opp.bid + opp.ask) / 2,
     }));
 
-    const totalPremium = orders.reduce((sum, o) => sum + o.premium, 0);
+    // PREMIUM MULTIPLIER RULE: MULTIPLY HERE (not in dialog)
+    // Context: Passing to OrderPreviewDialog
+    // Reason: Dialog expects per-contract dollars, not per-share
+    // Example: $2.10/share × 100 = $210 per contract
+    const totalPremium = orders.reduce((sum, o) => sum + (o.premium * 100), 0);
     const totalCollateral = orders.reduce((sum, o) => sum + o.collateral, 0);
 
     // Set validation data for preview dialog

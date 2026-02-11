@@ -190,10 +190,14 @@ export function OrderPreviewDialog({
   };
   
   // Calculate total premium with current quantities and prices
+  // Note: order.premium is already in per-contract dollars from the dashboard
+  // CSP/BPS: Already multiplied by 100 in dashboard
+  // CC/BCS: Already multiplied by 100 in dashboard (as of latest fix)
   const calculateTotalPremium = () => {
     return orders.reduce((sum, order, idx) => {
       const currentPrice = adjustedPrices.get(idx) ?? order.premium;
       const currentQty = getCurrentQuantity(idx);
+      // No multiplier needed - dashboard already converted to per-contract dollars
       return sum + (currentPrice * currentQty);
     }, 0);
   };
