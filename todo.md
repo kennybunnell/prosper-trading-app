@@ -4191,3 +4191,10 @@
 - [x] Fix Order Preview Dialog premium calculation bug (multiplier issue) - Fixed by multiplying in dashboard before passing to dialog
 - [x] Add account selection validation before fetching opportunities (CC Dashboard)
 - [x] CSP Dashboard already has account validation built-in
+
+### Buying Power Utilization Percentage
+- [x] Add utilization percentage to "Buying Power Available" card in CC Dashboard
+- [x] Calculate: (Total Collateral / Total Buying Power) × 100
+- [x] Display percentage below the dollar amount
+- [x] CSP Dashboard already has this feature built-in
+- [x] Test with various opportunity selections - CONFIRMED WORKING

@@ -2256,6 +2256,18 @@ export default function CCDashboard() {
                   <div className="text-xs text-muted-foreground mt-1">
                     {strategyType === 'spread' ? 'for selected spreads' : 'for selected stocks'}
                   </div>
+                  {strategyType === 'spread' && selectedOpportunities.size > 0 && (() => {
+                    const selectedOppsList = Array.from(selectedOpportunities).map(id => 
+                      filteredOpportunities.find(opp => getOpportunityKey(opp) === id)
+                    ).filter(Boolean) as typeof filteredOpportunities;
+                    const totalCollateral = selectedOppsList.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0);
+                    const utilizationPct = availableBuyingPower > 0 ? (totalCollateral / availableBuyingPower) * 100 : 0;
+                    return (
+                      <div className="text-sm font-semibold mt-2 text-amber-400">
+                        {utilizationPct.toFixed(2)}% of buying power
+                      </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
       </div>
