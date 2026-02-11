@@ -793,7 +793,6 @@ export default function CCDashboard() {
       strike: opp.strike,
       expiration: opp.expiration,
       quantity: 1,
-      bid: opp.bid,
       premium: opp.premium * 100, // Convert per-share to per-contract dollars
       collateral: strategyType === 'spread' ? (opp.capitalAtRisk || 0) : (opp.currentPrice * 100),
       status: 'valid' as const,
@@ -802,9 +801,10 @@ export default function CCDashboard() {
       spreadType: strategyType === 'spread' ? ('bear_call' as const) : undefined,
       longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
       spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
-      // Market data for price adjustment
-      ask: opp.ask,
-      mid: (opp.bid + opp.ask) / 2,
+      // Market data for price adjustment (multiply by 100 for per-contract)
+      bid: opp.bid * 100,
+      ask: opp.ask * 100,
+      mid: ((opp.bid + opp.ask) / 2) * 100,
     }));
 
     // PREMIUM MULTIPLIER RULE: MULTIPLY HERE (not in dialog)

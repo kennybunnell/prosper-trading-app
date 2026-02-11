@@ -4229,3 +4229,10 @@
 - [x] Order Preview Workflow: Fixed modal closing bug (lines 838-841) - modal now stays open after dry run
 - [x] Correct Workflow Implemented: Click "Test Orders" → Modal opens → Adjust qty/price → Click "Run Dry Run" → Modal STAYS OPEN → Button turns RED → Click red "Submit Live Orders" → Actually submits live orders → Modal closes with success toast
 - [x] Root Cause: Line 815 was multiplying by 100 twice, and line 837 was closing modal for both dry run and live submissions
+
+### PREMIUM CALCULATION FIXED
+- [x] Total Premium Income card now shows $261 instead of $2.61 in OrderPreviewDialog
+- [x] Workflow is fixed (modal stays open, button turns red) ✓
+- [x] Root cause: bid/ask/mid were NOT multiplied by 100, so slider calculated per-share prices
+- [x] Fix: Multiply bid/ask/mid by 100 in CCDashboard lines 805-807 before passing to dialog
+- [x] Now slider works with per-contract dollars and calculateTotalPremium() shows correct values
