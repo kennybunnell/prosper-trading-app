@@ -4223,3 +4223,9 @@
 - [ ] Button just shows "Dry run completed successfully" toast instead of submitting
 - [ ] Need to fix the live order submission workflow in OrderPreviewDialog
 - [ ] Test with covered call orders to verify live submission works
+
+### CRITICAL BUGS FIXED (Priority 1 - User Reported)
+- [x] CC Premium Calculation: Fixed double multiplication bug (line 815) - now correctly shows $182 instead of $1.82
+- [x] Order Preview Workflow: Fixed modal closing bug (lines 838-841) - modal now stays open after dry run
+- [x] Correct Workflow Implemented: Click "Test Orders" → Modal opens → Adjust qty/price → Click "Run Dry Run" → Modal STAYS OPEN → Button turns RED → Click red "Submit Live Orders" → Actually submits live orders → Modal closes with success toast
+- [x] Root Cause: Line 815 was multiplying by 100 twice, and line 837 was closing modal for both dry run and live submissions

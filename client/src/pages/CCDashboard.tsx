@@ -811,9 +811,9 @@ export default function CCDashboard() {
     // Context: Passing to OrderPreviewDialog
     // Reason: Dialog expects per-contract dollars, not per-share
     // Example: $2.10/share × 100 = $210 per contract
-    console.log('[CC Dashboard] First order premium (per-share):', orders[0]?.premium);
-    const totalPremium = orders.reduce((sum, o) => sum + (o.premium * 100), 0);
-    console.log('[CC Dashboard] Total premium after ×100:', totalPremium);
+    console.log('[CC Dashboard] First order premium (already ×100):', orders[0]?.premium);
+    const totalPremium = orders.reduce((sum, o) => sum + o.premium, 0);
+    console.log('[CC Dashboard] Total premium (sum of per-contract):', totalPremium);
     const totalCollateral = orders.reduce((sum, o) => sum + o.collateral, 0);
 
     // Set validation data for preview dialog
@@ -834,7 +834,12 @@ export default function CCDashboard() {
   const executeOrderSubmission = async (adjustedPrices?: Map<number, number>, isDryRun?: boolean) => {
     // Use the isDryRun parameter if provided, otherwise fall back to the dryRun state
     const effectiveDryRun = isDryRun !== undefined ? isDryRun : dryRun;
-    setShowPreviewDialog(false);
+    
+    // Only close modal for live submissions, keep open for dry runs
+    if (!effectiveDryRun) {
+      setShowPreviewDialog(false);
+    }
+    
     setIsSubmitting(true);
 
     if (!validationData) {
