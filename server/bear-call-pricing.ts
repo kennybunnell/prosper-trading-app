@@ -122,11 +122,8 @@ export function calculateBearCallSpread(
     delta: netDelta,
     // Override premium to show net credit
     premium: netCredit,
-    // For spreads: bid/ask should be for the NET CREDIT, not just the short call
-    // Spread bid = short call bid - long call ask (what we actually receive)
-    // Spread ask = short call ask - long call bid (conservative estimate)
-    bid: shortPremium - longPremium, // Net credit using bid for short, ask for long
-    ask: ccOpp.ask - longCallQuote.bid, // Net credit using ask for short, bid for long
+    bid: shortPremium,
+    ask: ccOpp.ask,
     // Override spreadPct to show combined spread for both legs
     spreadPct,
     // Spread-specific fields

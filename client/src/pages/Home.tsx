@@ -12,11 +12,7 @@ import { MonthlyPremiumChart } from "@/components/MonthlyPremiumChart";
 function MonthlyPremiumChartSection() {
   const [selectedYear, setSelectedYear] = React.useState<number | undefined>(new Date().getFullYear());
   const { data, isLoading, error } = trpc.dashboard.getMonthlyPremiumData.useQuery(
-    selectedYear ? { year: selectedYear } : undefined,
-    {
-      retry: false, // Don't retry if Tastytrade credentials are missing
-      refetchOnWindowFocus: false, // Don't refetch when switching tabs
-    }
+    selectedYear ? { year: selectedYear } : undefined
   );
   
   if (isLoading) {

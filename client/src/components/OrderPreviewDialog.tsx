@@ -57,7 +57,7 @@ interface OrderPreviewDialogProps {
   availableBuyingPower: number;
   remainingBuyingPower: number;
   isMarketOpen: boolean;
-  onSubmit: (adjustedPrices?: Map<number, number>, isDryRun?: boolean) => void | Promise<void>;
+  onSubmit: (adjustedPrices?: Map<number, number>) => void;
   isDryRun: boolean;
   strategy: 'cc' | 'csp' | 'bcs' | 'bps'; // Strategy type to determine price unit conversion
 }
@@ -190,14 +190,10 @@ export function OrderPreviewDialog({
   };
   
   // Calculate total premium with current quantities and prices
-  // Note: order.premium is already in per-contract dollars from the dashboard
-  // CSP/BPS: Already multiplied by 100 in dashboard
-  // CC/BCS: Already multiplied by 100 in dashboard (as of latest fix)
   const calculateTotalPremium = () => {
     return orders.reduce((sum, order, idx) => {
       const currentPrice = adjustedPrices.get(idx) ?? order.premium;
       const currentQty = getCurrentQuantity(idx);
-      // No multiplier needed - dashboard already converted to per-contract dollars
       return sum + (currentPrice * currentQty);
     }, 0);
   };
@@ -703,18 +699,9 @@ export function OrderPreviewDialog({
             const isCC = !isSpread && !isCSP;
 
             if (isSpread || isCSP) {
-              // For spreads and CSP: show buying power with remaining AND total premium
+              // For spreads and CSP: show buying power with remaining
               return (
                 <>
-                  <div className="border rounded-lg p-4">
-                    <p className="text-sm text-muted-foreground mb-1">Total Premium Income</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      ${adjustedTotalPremium.toFixed(2)}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {((adjustedTotalPremium / adjustedTotalCollateral) * 100).toFixed(2)}% ROC
-                    </p>
-                  </div>
                   <div className="border rounded-lg p-4">
                     <p className="text-sm text-muted-foreground mb-1">Available Buying Power</p>
                     <p className="text-2xl font-bold">${availableBuyingPower.toLocaleString()}</p>
@@ -786,12 +773,12 @@ export function OrderPreviewDialog({
           <Button
             onClick={async () => {
               if (isLiveMode) {
-                // Live submission - pass isDryRun=false to force live submission
-                await onSubmit(adjustedPrices, false);
+                // Live submission - close modal after success
+                await onSubmit(adjustedPrices);
                 onOpenChange(false);
               } else {
-                // Dry run - pass isDryRun=true
-                await onSubmit(adjustedPrices, true);
+                // Dry run - run validation and keep modal open
+                await runValidation();
                 setDryRunSuccess(true);
                 setIsLiveMode(true); // Enable live mode after successful dry run
                 toast.success("Dry run successful! Review and submit when ready.");

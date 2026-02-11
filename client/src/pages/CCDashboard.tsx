@@ -449,21 +449,7 @@ export default function CCDashboard() {
       
       toast.success(`Found ${result.breakdown.eligiblePositions} eligible positions`);
     } catch (error: any) {
-      // Check if it's a Tastytrade authentication error
-      if (error.message?.includes('Tastytrade') && (error.message?.includes('credentials') || error.message?.includes('login') || error.message?.includes('token'))) {
-        toast.error(
-          'Tastytrade credentials are missing or invalid. Please configure them in Settings to fetch your stock positions.',
-          {
-            action: {
-              label: 'Go to Settings',
-              onClick: () => window.location.href = '/settings?tab=api',
-            },
-            duration: 10000,
-          }
-        );
-      } else {
-        toast.error(error.message || "Failed to fetch positions");
-      }
+      toast.error(error.message || "Failed to fetch positions");
     } finally {
       setIsLoadingPositions(false);
     }
@@ -554,12 +540,6 @@ export default function CCDashboard() {
 
   // Scan for opportunities (CC mode uses stock positions, spread mode uses watchlist)
   const scanOpportunities = async () => {
-    // Validate account is selected
-    if (!selectedAccountId) {
-      toast.error('Please select an account before fetching opportunities');
-      return;
-    }
-    
     setIsScanning(true);
     setScanStartTime(Date.now());
     setScanProgress(0);
@@ -661,21 +641,7 @@ export default function CCDashboard() {
       setScanProgress(100);
       toast.success(`Found ${finalOpportunities.length} opportunities`);
     } catch (error: any) {
-      // Check if it's a Tastytrade authentication error
-      if (error.message?.includes('Tastytrade login failed') || error.message?.includes('request token is missing')) {
-        toast.error(
-          'Tastytrade credentials are missing or invalid. Please configure them in Settings.',
-          {
-            action: {
-              label: 'Go to Settings',
-              onClick: () => window.location.href = '/settings?tab=api',
-            },
-            duration: 10000,
-          }
-        );
-      } else {
-        toast.error(error.message || "Failed to scan opportunities");
-      }
+      toast.error(error.message || "Failed to scan opportunities");
     } finally {
       setIsScanning(false);
       setScanStartTime(null);
@@ -821,7 +787,8 @@ export default function CCDashboard() {
       strike: opp.strike,
       expiration: opp.expiration,
       quantity: 1,
-      premium: opp.premium * 100, // Convert per-share to per-contract dollars
+      bid: opp.bid,
+      premium: opp.premium,
       collateral: strategyType === 'spread' ? (opp.capitalAtRisk || 0) : (opp.currentPrice * 100),
       status: 'valid' as const,
       // Spread-specific fields
@@ -829,19 +796,12 @@ export default function CCDashboard() {
       spreadType: strategyType === 'spread' ? ('bear_call' as const) : undefined,
       longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
       spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
-      // Market data for price adjustment (multiply by 100 for per-contract)
-      bid: opp.bid * 100,
-      ask: opp.ask * 100,
-      mid: ((opp.bid + opp.ask) / 2) * 100,
+      // Market data for price adjustment
+      ask: opp.ask,
+      mid: (opp.bid + opp.ask) / 2,
     }));
 
-    // PREMIUM MULTIPLIER RULE: MULTIPLY HERE (not in dialog)
-    // Context: Passing to OrderPreviewDialog
-    // Reason: Dialog expects per-contract dollars, not per-share
-    // Example: $2.10/share × 100 = $210 per contract
-    console.log('[CC Dashboard] First order premium (already ×100):', orders[0]?.premium);
     const totalPremium = orders.reduce((sum, o) => sum + o.premium, 0);
-    console.log('[CC Dashboard] Total premium (sum of per-contract):', totalPremium);
     const totalCollateral = orders.reduce((sum, o) => sum + o.collateral, 0);
 
     // Set validation data for preview dialog
@@ -859,15 +819,8 @@ export default function CCDashboard() {
   };
 
   // Execute order submission after preview confirmation
-  const executeOrderSubmission = async (adjustedPrices?: Map<number, number>, isDryRun?: boolean) => {
-    // Use the isDryRun parameter if provided, otherwise fall back to the dryRun state
-    const effectiveDryRun = isDryRun !== undefined ? isDryRun : dryRun;
-    
-    // Only close modal for live submissions, keep open for dry runs
-    if (!effectiveDryRun) {
-      setShowPreviewDialog(false);
-    }
-    
+  const executeOrderSubmission = async (adjustedPrices?: Map<number, number>) => {
+    setShowPreviewDialog(false);
     setIsSubmitting(true);
 
     if (!validationData) {
@@ -879,7 +832,7 @@ export default function CCDashboard() {
     // Show initial progress toast
     const orderCount = validationData.orders.length;
     toast.loading(
-      effectiveDryRun 
+      dryRun 
         ? `Validating ${orderCount} order${orderCount > 1 ? 's' : ''}...`
         : `Submitting ${orderCount} order${orderCount > 1 ? 's' : ''}...`,
       { id: 'cc-order-submission-progress' }
@@ -902,7 +855,7 @@ export default function CCDashboard() {
         results = await utils.client.cc.submitBearCallSpreadOrders.mutate({
           accountNumber: selectedAccountId!,
           orders: spreadOrders,
-          dryRun: effectiveDryRun,
+          dryRun,
         });
       } else {
         // Regular CC orders
@@ -923,7 +876,7 @@ export default function CCDashboard() {
         results = await utils.client.cc.submitOrders.mutate({
           accountNumber: selectedAccountId!,
           orders,
-          dryRun: effectiveDryRun,
+          dryRun,
         });
       }
 
@@ -934,97 +887,42 @@ export default function CCDashboard() {
       const failedCount = results.filter((r: any) => !r.success).length;
 
       if (failedCount === 0) {
-        if (effectiveDryRun) {
+        if (dryRun) {
           toast.success(`✓ ${results.length} order${results.length > 1 ? 's' : ''} validated successfully (Dry Run)`, {
             duration: 4000,
           });
         } else {
-          // Live submission - poll order status
-          const orderIds = results.filter((r: any) => r.success && r.orderId).map((r: any) => r.orderId);
+          toast.success(`✅ Successfully submitted ${results.length} order${results.length > 1 ? 's' : ''}!`, {
+            duration: 5000,
+          });
           
-          if (orderIds.length > 0) {
-            toast.loading(`Checking order status...`, { id: 'cc-order-status-check' });
-            
-            try {
-              const statusResults = await utils.client.orders.pollStatus.mutate({
-                accountNumber: selectedAccountId!,
-                orderIds,
-                maxAttempts: 10,
-                intervalMs: 1000,
-              });
-              
-              toast.dismiss('cc-order-status-check');
-              
-              const filledCount = statusResults.filter((r: any) => r.status === 'Filled').length;
-              const workingCount = statusResults.filter((r: any) => r.status === 'Live' || r.status === 'Received').length;
-              const rejectedCount = statusResults.filter((r: any) => r.status === 'Rejected' || r.status === 'Cancelled').length;
-              
-              if (filledCount === orderIds.length) {
-                // All orders filled!
-                toast.success(`🎉 All ${filledCount} order${filledCount > 1 ? 's' : ''} filled successfully!`, {
-                  duration: 6000,
-                });
-                
-                // Confetti animation
-                confetti({
-                  particleCount: 200,
-                  spread: 100,
-                  origin: { y: 0.6 },
-                  colors: ['#f59e0b', '#fbbf24', '#fcd34d'],
-                });
-                setTimeout(() => {
-                  confetti({
-                    particleCount: 100,
-                    angle: 60,
-                    spread: 55,
-                    origin: { x: 0 },
-                  });
-                  confetti({
-                    particleCount: 100,
-                    angle: 120,
-                    spread: 55,
-                    origin: { x: 1 },
-                  });
-                }, 250);
-              } else if (workingCount > 0) {
-                // Some orders still working
-                toast.info(
-                  `📋 ${workingCount} order${workingCount > 1 ? 's' : ''} submitted but not filled yet. View in Working Orders?`,
-                  {
-                    duration: 10000,
-                    action: {
-                      label: 'View Working Orders',
-                      onClick: () => {
-                        window.location.href = '/action-items?tab=working';
-                      },
-                    },
-                  }
-                );
-              } else if (rejectedCount > 0) {
-                // Some orders rejected
-                toast.error(`❌ ${rejectedCount} order${rejectedCount > 1 ? 's' : ''} rejected or cancelled`, {
-                  duration: 6000,
-                });
-              }
-            } catch (error: any) {
-              toast.dismiss('cc-order-status-check');
-              // Fallback to generic success message if polling fails
-              toast.success(`✅ Successfully submitted ${results.length} order${results.length > 1 ? 's' : ''}!`, {
-                duration: 5000,
-              });
-            }
-          } else {
-            // No order IDs returned (shouldn't happen)
-            toast.success(`✅ Successfully submitted ${results.length} order${results.length > 1 ? 's' : ''}!`, {
-              duration: 5000,
+          // Confetti animation
+          confetti({
+            particleCount: 200,
+            spread: 100,
+            origin: { y: 0.6 },
+            colors: ['#f59e0b', '#fbbf24', '#fcd34d'],
+          });
+          setTimeout(() => {
+            confetti({
+              particleCount: 100,
+              angle: 60,
+              spread: 55,
+              origin: { x: 0 },
             });
-          }
+            confetti({
+              particleCount: 100,
+              angle: 120,
+              spread: 55,
+              origin: { x: 1 },
+            });
+          }, 250);
           
           // Clear selections after successful submission
           setSelectedOpportunities(new Set());
         }
       } else {
-        if (effectiveDryRun) {
+        if (dryRun) {
           if (successCount > 0) {
             toast.warning(`⚠️ ${successCount} order(s) validated, ${failedCount} failed validation (Dry Run)`, {
               duration: 6000,
@@ -2348,18 +2246,6 @@ export default function CCDashboard() {
                   <div className="text-xs text-muted-foreground mt-1">
                     {strategyType === 'spread' ? 'for selected spreads' : 'for selected stocks'}
                   </div>
-                  {strategyType === 'spread' && selectedOpportunities.size > 0 && (() => {
-                    const selectedOppsList = Array.from(selectedOpportunities).map(id => 
-                      filteredOpportunities.find(opp => getOpportunityKey(opp) === id)
-                    ).filter(Boolean) as typeof filteredOpportunities;
-                    const totalCollateral = selectedOppsList.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0);
-                    const utilizationPct = availableBuyingPower > 0 ? (totalCollateral / availableBuyingPower) * 100 : 0;
-                    return (
-                      <div className="text-sm font-semibold mt-2 text-amber-400">
-                        {utilizationPct.toFixed(2)}% of buying power
-                      </div>
-                    );
-                  })()}
                 </CardContent>
               </Card>
       </div>

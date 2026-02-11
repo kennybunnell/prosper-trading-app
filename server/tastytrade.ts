@@ -865,21 +865,6 @@ export class TastytradeAPI {
   }
 
   /**
-   * Get order status by order ID
-   */
-  async getOrderStatus(accountNumber: string, orderId: string): Promise<TastytradeOrder> {
-    try {
-      const response = await this.retryWithBackoff(() =>
-        this.client.get(`/accounts/${accountNumber}/orders/${orderId}`)
-      );
-      return response.data.data;
-    } catch (error: any) {
-      console.error('[Tastytrade] Failed to get order status:', error.message);
-      throw new Error(`Failed to get order status: ${error.response?.data?.error?.message || error.message}`);
-    }
-  }
-
-  /**
    * Logout and destroy session
    */
   async logout(): Promise<void> {
@@ -947,56 +932,4 @@ export async function submitCloseOrder(params: {
 }): Promise<{ orderId: string }> {
   const api = getTastytradeAPI();
   return api.submitCloseOrder(params);
-}
-
-/**
- * Poll order status until filled, rejected, or timeout
- * Returns final order status: 'Filled', 'Live', 'Rejected', 'Cancelled', etc.
- */
-export async function pollOrderStatus(
-  api: TastytradeAPI,
-  accountNumber: string,
-  orderId: string,
-  options: {
-    maxAttempts?: number; // Default: 10
-    intervalMs?: number;  // Default: 1000 (1 second)
-  } = {}
-): Promise<{
-  status: string;
-  order: TastytradeOrder;
-}> {
-  const maxAttempts = options.maxAttempts ?? 10;
-  const intervalMs = options.intervalMs ?? 1000;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const order = await api.getOrderStatus(accountNumber, orderId);
-      const status = order.status;
-
-      console.log(`[Tastytrade] Poll attempt ${attempt}/${maxAttempts}: Order ${orderId} status = ${status}`);
-
-      // Terminal statuses - stop polling
-      if (status === 'Filled' || status === 'Rejected' || status === 'Cancelled' || status === 'Expired') {
-        return { status, order };
-      }
-
-      // Non-terminal statuses - continue polling
-      // 'Live', 'Received', 'Routed', 'In Flight', 'Contingent', etc.
-      if (attempt < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, intervalMs));
-      }
-    } catch (error: any) {
-      console.error(`[Tastytrade] Poll attempt ${attempt} failed:`, error.message);
-      // If we can't get status, return error after last attempt
-      if (attempt === maxAttempts) {
-        throw error;
-      }
-      // Otherwise retry after interval
-      await new Promise(resolve => setTimeout(resolve, intervalMs));
-    }
-  }
-
-  // Timeout - return last known status
-  const finalOrder = await api.getOrderStatus(accountNumber, orderId);
-  return { status: finalOrder.status, order: finalOrder };
 }

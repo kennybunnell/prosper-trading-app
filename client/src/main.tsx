@@ -31,7 +31,11 @@ queryClient.getQueryCache().subscribe(event => {
     const isAccountNotFoundError = error && typeof error === 'object' && 'message' in error && error.message === 'Account not found';
     const isQueryDisabled = event.query.state.fetchStatus === 'idle';
     
-    if (!isAccountNotFoundError || !isQueryDisabled) {
+    // Suppress Tastytrade authentication errors (handled gracefully by backend)
+    const isTastytradeAuthError = error && typeof error === 'object' && 'message' in error && 
+      (error.message.includes('Tastytrade login failed') || error.message.includes('Tastytrade authentication failed'));
+    
+    if ((!isAccountNotFoundError || !isQueryDisabled) && !isTastytradeAuthError) {
       console.error("[API Query Error]", error);
     }
   }
