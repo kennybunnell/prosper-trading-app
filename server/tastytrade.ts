@@ -1000,18 +1000,3 @@ export async function pollOrderStatus(
   const finalOrder = await api.getOrderStatus(accountNumber, orderId);
   return { status: finalOrder.status, order: finalOrder };
 }
-
-/**
- * Safely authenticate with Tastytrade API
- * Returns true if authentication succeeds, false if it fails
- * Logs errors but does not throw them
- */
-export async function safeLogin(api: TastytradeAPI, username: string, password: string): Promise<boolean> {
-  try {
-    await api.login(username, password);
-    return true;
-  } catch (error: any) {
-    console.error('[Tastytrade] Authentication failed:', error.message);
-    return false;
-  }
-}

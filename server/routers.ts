@@ -44,29 +44,16 @@ function parseOptionSymbol(symbol: string): { underlying: string; expiration: st
 
 const projectionsRouter = router({
   getLockedInIncome: protectedProcedure.query(async ({ ctx }) => {
-    const { getTastytradeAPI, safeLogin } = await import('./tastytrade');
+    const { getTastytradeAPI } = await import('./tastytrade');
     const { getApiCredentials, getTastytradeAccounts } = await import('./db');
     
     const credentials = await getApiCredentials(ctx.user.id);
     if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
-      return {
-        thisWeek: { premium: 0, positions: 0 },
-        thisMonth: { premium: 0, positions: 0 },
-        nextMonth: { premium: 0, positions: 0 },
-        totalOpen: { premium: 0, positions: 0 },
-      };
+      throw new Error('Tastytrade credentials not found');
     }
     
     const api = getTastytradeAPI();
-    const loginSuccess = await safeLogin(api, credentials.tastytradeUsername, credentials.tastytradePassword);
-    if (!loginSuccess) {
-      return {
-        thisWeek: { premium: 0, positions: 0 },
-        thisMonth: { premium: 0, positions: 0 },
-        nextMonth: { premium: 0, positions: 0 },
-        totalOpen: { premium: 0, positions: 0 },
-      };
-    }
+    await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
     
     const accounts = await getTastytradeAccounts(ctx.user.id);
     if (!accounts || accounts.length === 0) {
@@ -138,29 +125,16 @@ const projectionsRouter = router({
   }),
 
   getThetaDecay: protectedProcedure.query(async ({ ctx }) => {
-    const { getTastytradeAPI, safeLogin } = await import('./tastytrade');
+    const { getTastytradeAPI } = await import('./tastytrade');
     const { getApiCredentials, getTastytradeAccounts } = await import('./db');
     
     const credentials = await getApiCredentials(ctx.user.id);
     if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
-      return {
-        daily: 0,
-        weekly: 0,
-        monthly: 0,
-        totalTheta: 0,
-      };
+      throw new Error('Tastytrade credentials not found');
     }
     
     const api = getTastytradeAPI();
-    const loginSuccess = await safeLogin(api, credentials.tastytradeUsername, credentials.tastytradePassword);
-    if (!loginSuccess) {
-      return {
-        daily: 0,
-        weekly: 0,
-        monthly: 0,
-        totalTheta: 0,
-      };
-    }
+    await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
     
     const accounts = await getTastytradeAccounts(ctx.user.id);
     if (!accounts || accounts.length === 0) {
@@ -225,35 +199,16 @@ const projectionsRouter = router({
   }),
 
   getHistoricalPerformance: protectedProcedure.query(async ({ ctx }) => {
-    const { getTastytradeAPI, safeLogin } = await import('./tastytrade');
+    const { getTastytradeAPI } = await import('./tastytrade');
     const { getApiCredentials, getTastytradeAccounts } = await import('./db');
     
     const credentials = await getApiCredentials(ctx.user.id);
     if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
-      return {
-        totalCredits: 0,
-        totalDebits: 0,
-        netPremium: 0,
-        avgMonthlyPremium: 0,
-        monthsAnalyzed: 0,
-        winRate: 0,
-        monthlyBreakdown: [],
-      };
+      throw new Error('Tastytrade credentials not found');
     }
     
     const api = getTastytradeAPI();
-    const loginSuccess = await safeLogin(api, credentials.tastytradeUsername, credentials.tastytradePassword);
-    if (!loginSuccess) {
-      return {
-        totalCredits: 0,
-        totalDebits: 0,
-        netPremium: 0,
-        avgMonthlyPremium: 0,
-        monthsAnalyzed: 0,
-        winRate: 0,
-        monthlyBreakdown: [],
-      };
-    }
+    await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
     
     const accounts = await getTastytradeAccounts(ctx.user.id);
     if (!accounts || accounts.length === 0) {
@@ -374,13 +329,9 @@ export const appRouter = router({
           return { monthlyData: [], error: 'Tastytrade credentials not configured' };
         }
         
-        // Initialize API and login with safe authentication
-        const { safeLogin } = await import('./tastytrade');
+        // Initialize API and login
         const api = getTastytradeAPI();
-        const loginSuccess = await safeLogin(api, credentials.tastytradeUsername, credentials.tastytradePassword);
-        if (!loginSuccess) {
-          return { monthlyData: [], error: 'Tastytrade authentication failed - please verify your credentials in Settings' };
-        }
+        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
         
         // Get all accounts
         const accounts = await api.getAccounts();
@@ -555,7 +506,7 @@ export const appRouter = router({
       }),
     testTastytradeConnection: protectedProcedure.mutation(async ({ ctx }) => {
       const { getApiCredentials } = await import('./db');
-      const { getTastytradeAPI, safeLogin } = await import('./tastytrade');
+      const { getTastytradeAPI } = await import('./tastytrade');
       
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
@@ -563,10 +514,7 @@ export const appRouter = router({
       }
 
       const api = getTastytradeAPI();
-      const loginSuccess = await safeLogin(api, credentials.tastytradeUsername, credentials.tastytradePassword);
-      if (!loginSuccess) {
-        throw new Error('Tastytrade authentication failed - please verify your credentials');
-      }
+      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
       return { success: true, message: 'Connection successful' };
     }),
     testTradierConnection: protectedProcedure.mutation(async ({ ctx }) => {
@@ -643,7 +591,7 @@ export const appRouter = router({
     }),
     sync: protectedProcedure.mutation(async ({ ctx }) => {
       const { getApiCredentials, upsertTastytradeAccount } = await import('./db');
-      const { getTastytradeAPI, safeLogin } = await import('./tastytrade');
+      const { getTastytradeAPI } = await import('./tastytrade');
 
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
@@ -651,10 +599,7 @@ export const appRouter = router({
       }
 
       const api = getTastytradeAPI();
-      const loginSuccess = await safeLogin(api, credentials.tastytradeUsername, credentials.tastytradePassword);
-      if (!loginSuccess) {
-        throw new Error('Tastytrade authentication failed - please verify your credentials');
-      }
+      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
       const accounts = await api.getAccounts();
 
       console.log('[Account Sync] Retrieved accounts from Tastytrade:', JSON.stringify(accounts, null, 2));
@@ -975,7 +920,7 @@ Summary: [One sentence overall assessment]`;
       )
       .mutation(async ({ ctx, input }) => {
         const { getApiCredentials } = await import('./db');
-        const { getTastytradeAPI, safeLogin } = await import('./tastytrade');
+        const { getTastytradeAPI } = await import('./tastytrade');
 
         const credentials = await getApiCredentials(ctx.user.id);
         if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
@@ -983,10 +928,7 @@ Summary: [One sentence overall assessment]`;
         }
 
         const api = getTastytradeAPI();
-        const loginSuccess = await safeLogin(api, credentials.tastytradeUsername, credentials.tastytradePassword);
-        if (!loginSuccess) {
-          throw new Error('Tastytrade authentication failed - please verify your credentials');
-        }
+        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
 
         // Get account balances for buying power
         const accounts = await api.getAccounts();
@@ -1166,7 +1108,7 @@ Summary: [One sentence overall assessment]`;
 
         // Live mode - proceed with actual API calls
         const { getApiCredentials } = await import('./db');
-        const { getTastytradeAPI, safeLogin } = await import('./tastytrade');
+        const { getTastytradeAPI } = await import('./tastytrade');
 
         const credentials = await getApiCredentials(ctx.user.id);
         if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
@@ -1174,10 +1116,7 @@ Summary: [One sentence overall assessment]`;
         }
 
         const api = getTastytradeAPI();
-        const loginSuccess = await safeLogin(api, credentials.tastytradeUsername, credentials.tastytradePassword);
-        if (!loginSuccess) {
-          throw new Error('Tastytrade authentication failed - please verify your credentials');
-        }
+        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
 
         const results: Array<{ symbol: string; success: boolean; orderId?: string; error?: string }> = [];
         const BATCH_SIZE = 10; // Process 10 orders per batch
@@ -1708,7 +1647,7 @@ Summary: [One sentence overall assessment]`;
       .input(z.object({ accountNumber: z.string() }))
       .query(async ({ ctx, input }) => {
         const { getApiCredentials } = await import('./db');
-        const { getTastytradeAPI, safeLogin } = await import('./tastytrade');
+        const { getTastytradeAPI } = await import('./tastytrade');
 
         const credentials = await getApiCredentials(ctx.user.id);
         if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
@@ -1716,10 +1655,7 @@ Summary: [One sentence overall assessment]`;
         }
 
         const api = getTastytradeAPI();
-        const loginSuccess = await safeLogin(api, credentials.tastytradeUsername, credentials.tastytradePassword);
-        if (!loginSuccess) {
-          throw new Error('Tastytrade authentication failed - please verify your credentials');
-        }
+        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
         
         const balances = await api.getBalances(input.accountNumber);
         return balances;
@@ -1951,7 +1887,7 @@ Summary: [One sentence overall assessment]`;
     // Get all stock positions with current prices
     getStockPositions: protectedProcedure
       .query(async ({ ctx }) => {
-        const { getTastytradeAPI, safeLogin } = await import('./tastytrade');
+        const { getTastytradeAPI } = await import('./tastytrade');
         const { getApiCredentials, getTastytradeAccounts } = await import('./db');
         const { TRPCError } = await import('@trpc/server');
         
@@ -1961,10 +1897,7 @@ Summary: [One sentence overall assessment]`;
         }
 
         const api = getTastytradeAPI();
-        const loginSuccess = await safeLogin(api, credentials.tastytradeUsername, credentials.tastytradePassword);
-        if (!loginSuccess) {
-          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Tastytrade authentication failed - please verify your credentials' });
-        }
+        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
 
         const accounts = await getTastytradeAccounts(ctx.user.id);
         if (!accounts || accounts.length === 0) {
@@ -2005,7 +1938,7 @@ Summary: [One sentence overall assessment]`;
     getCCPremiums: protectedProcedure
       .input(z.object({ lookbackDays: z.number().default(365) }))
       .query(async ({ ctx, input }) => {
-        const { getTastytradeAPI, safeLogin } = await import('./tastytrade');
+        const { getTastytradeAPI } = await import('./tastytrade');
         const { getApiCredentials, getTastytradeAccounts } = await import('./db');
         const { TRPCError } = await import('@trpc/server');
         
@@ -2015,10 +1948,7 @@ Summary: [One sentence overall assessment]`;
         }
 
         const api = getTastytradeAPI();
-        const loginSuccess = await safeLogin(api, credentials.tastytradeUsername, credentials.tastytradePassword);
-        if (!loginSuccess) {
-          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Tastytrade authentication failed - please verify your credentials' });
-        }
+        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
 
         const accounts = await getTastytradeAccounts(ctx.user.id);
         if (!accounts || accounts.length === 0) {
@@ -2075,7 +2005,7 @@ Summary: [One sentence overall assessment]`;
     // Calculate recovery metrics for underwater positions
     getRecoveryMetrics: protectedProcedure
       .query(async ({ ctx }) => {
-        const { getTastytradeAPI, safeLogin } = await import('./tastytrade');
+        const { getTastytradeAPI } = await import('./tastytrade');
         const { getApiCredentials, getTastytradeAccounts } = await import('./db');
         const { TRPCError } = await import('@trpc/server');
         
@@ -2085,10 +2015,7 @@ Summary: [One sentence overall assessment]`;
         }
 
         const api = getTastytradeAPI();
-        const loginSuccess = await safeLogin(api, credentials.tastytradeUsername, credentials.tastytradePassword);
-        if (!loginSuccess) {
-          throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Tastytrade authentication failed - please verify your credentials' });
-        }
+        await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
 
         const accounts = await getTastytradeAccounts(ctx.user.id);
         if (!accounts || accounts.length === 0) {
