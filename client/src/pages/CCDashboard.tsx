@@ -911,31 +911,86 @@ export default function CCDashboard() {
             duration: 4000,
           });
         } else {
-          toast.success(`✅ Successfully submitted ${results.length} order${results.length > 1 ? 's' : ''}!`, {
-            duration: 5000,
-          });
+          // Live submission - poll order status
+          const orderIds = results.filter((r: any) => r.success && r.orderId).map((r: any) => r.orderId);
           
-          // Confetti animation
-          confetti({
-            particleCount: 200,
-            spread: 100,
-            origin: { y: 0.6 },
-            colors: ['#f59e0b', '#fbbf24', '#fcd34d'],
-          });
-          setTimeout(() => {
-            confetti({
-              particleCount: 100,
-              angle: 60,
-              spread: 55,
-              origin: { x: 0 },
+          if (orderIds.length > 0) {
+            toast.loading(`Checking order status...`, { id: 'cc-order-status-check' });
+            
+            try {
+              const statusResults = await utils.client.orders.pollStatus.mutate({
+                accountNumber: selectedAccountId!,
+                orderIds,
+                maxAttempts: 10,
+                intervalMs: 1000,
+              });
+              
+              toast.dismiss('cc-order-status-check');
+              
+              const filledCount = statusResults.filter((r: any) => r.status === 'Filled').length;
+              const workingCount = statusResults.filter((r: any) => r.status === 'Live' || r.status === 'Received').length;
+              const rejectedCount = statusResults.filter((r: any) => r.status === 'Rejected' || r.status === 'Cancelled').length;
+              
+              if (filledCount === orderIds.length) {
+                // All orders filled!
+                toast.success(`🎉 All ${filledCount} order${filledCount > 1 ? 's' : ''} filled successfully!`, {
+                  duration: 6000,
+                });
+                
+                // Confetti animation
+                confetti({
+                  particleCount: 200,
+                  spread: 100,
+                  origin: { y: 0.6 },
+                  colors: ['#f59e0b', '#fbbf24', '#fcd34d'],
+                });
+                setTimeout(() => {
+                  confetti({
+                    particleCount: 100,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0 },
+                  });
+                  confetti({
+                    particleCount: 100,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1 },
+                  });
+                }, 250);
+              } else if (workingCount > 0) {
+                // Some orders still working
+                toast.info(
+                  `📋 ${workingCount} order${workingCount > 1 ? 's' : ''} submitted but not filled yet. View in Working Orders?`,
+                  {
+                    duration: 10000,
+                    action: {
+                      label: 'View Working Orders',
+                      onClick: () => {
+                        window.location.href = '/action-items?tab=working';
+                      },
+                    },
+                  }
+                );
+              } else if (rejectedCount > 0) {
+                // Some orders rejected
+                toast.error(`❌ ${rejectedCount} order${rejectedCount > 1 ? 's' : ''} rejected or cancelled`, {
+                  duration: 6000,
+                });
+              }
+            } catch (error: any) {
+              toast.dismiss('cc-order-status-check');
+              // Fallback to generic success message if polling fails
+              toast.success(`✅ Successfully submitted ${results.length} order${results.length > 1 ? 's' : ''}!`, {
+                duration: 5000,
+              });
+            }
+          } else {
+            // No order IDs returned (shouldn't happen)
+            toast.success(`✅ Successfully submitted ${results.length} order${results.length > 1 ? 's' : ''}!`, {
+              duration: 5000,
             });
-            confetti({
-              particleCount: 100,
-              angle: 120,
-              spread: 55,
-              origin: { x: 1 },
-            });
-          }, 250);
+          }
           
           // Clear selections after successful submission
           setSelectedOpportunities(new Set());

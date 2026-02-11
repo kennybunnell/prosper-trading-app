@@ -4295,3 +4295,19 @@
 - [x] Spread bid = short call bid - long call ask (what we actually receive)
 - [x] Spread ask = short call ask - long call bid (conservative estimate)
 - [x] Now slider works with correct spread net credit range
+
+## NEW FEATURE - Order Status Polling After Submission (User Requested)
+- [ ] Create shared `pollOrderStatus()` utility function in server/tastytrade.ts
+- [ ] Poll Tastytrade API for order status: GET /accounts/{account}/orders/{order-id}
+- [ ] Poll every 1-2 seconds for up to 10 seconds after submission
+- [ ] Return status: `filled`, `working`, `rejected`, `cancelled`, `pending`
+- [ ] Integrate polling into OrderPreviewDialog after successful submission
+- [ ] Show different UI based on status:
+  * Filled → Confetti + "Order filled successfully!"
+  * Working → Alert: "Order submitted but not filled yet. View in Working Orders?" with navigation button
+  * Rejected → Error toast with rejection reason
+  * Cancelled → Error toast
+- [ ] Add navigation from alert to Action Items → Working Orders tab
+- [ ] Test across all strategy dashboards: CSP, BPS, CC, BCS
+- [ ] Test in Working Orders replace workflow
+- [ ] Test in Active Positions close workflow (when implemented)
