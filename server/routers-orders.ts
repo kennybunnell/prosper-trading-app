@@ -147,6 +147,7 @@ export const ordersRouter = router({
       for (const orderId of input.orderIds) {
         try {
           const result = await pollOrderStatus(
+            api,
             input.accountNumber,
             orderId,
             {

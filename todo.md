@@ -4318,3 +4318,10 @@
 - [x] Prevent page crash when Tastytrade API returns authentication error
 - [x] Error now shows: "Tastytrade credentials are missing or invalid. Please configure them in Settings to fetch your stock positions." with "Go to Settings" button
 - [ ] Test with missing credentials and invalid credentials
+
+## CRITICAL BUG - Order Status Polling Breaks Tastytrade Authentication (FIXED)
+- [x] Identified bug: pollOrderStatus was calling getTastytradeAPI() to create new unauthenticated instance
+- [x] Fixed: Changed pollOrderStatus to accept authenticated API instance as first parameter
+- [x] Updated routers-orders.ts to pass authenticated API to pollOrderStatus
+- [x] Polling now uses existing Tastytrade session from mutation
+- [ ] Test order submission with polling enabled

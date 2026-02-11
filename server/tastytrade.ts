@@ -954,6 +954,7 @@ export async function submitCloseOrder(params: {
  * Returns final order status: 'Filled', 'Live', 'Rejected', 'Cancelled', etc.
  */
 export async function pollOrderStatus(
+  api: TastytradeAPI,
   accountNumber: string,
   orderId: string,
   options: {
@@ -966,7 +967,6 @@ export async function pollOrderStatus(
 }> {
   const maxAttempts = options.maxAttempts ?? 10;
   const intervalMs = options.intervalMs ?? 1000;
-  const api = getTastytradeAPI();
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
