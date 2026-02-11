@@ -1299,10 +1299,6 @@ export function WorkingOrdersTab() {
       toast.error('Please select orders to replace');
       return;
     }
-    if (!safeToReplace) {
-      toast.error('Not safe to replace orders after 3:55 PM ET');
-      return;
-    }
 
     // Transform selected working orders into OrderPreviewDialog format
     const selectedOrdersList = Array.from(selectedOrders).map(idx => orders[idx]);
@@ -1636,7 +1632,7 @@ export function WorkingOrdersTab() {
               variant="default"
               size="sm"
               onClick={handleReplaceSelected}
-              disabled={selectedOrders.size === 0 || !safeToReplace || replaceOrdersMutation.isPending}
+              disabled={selectedOrders.size === 0 || replaceOrdersMutation.isPending}
               className="bg-green-600 hover:bg-green-700 text-white border-green-500"
             >
               {replaceOrdersMutation.isPending ? (

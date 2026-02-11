@@ -4281,3 +4281,8 @@
 - [x] Replace order API is correct: Uses two-step cancel+resubmit (tastytrade.ts lines 434-486)
 - [x] SHOP order failure was due to account permissions, not code bug ("not approved for selling uncovered options")
 - [x] Code is working correctly - cancelReplaceOrder does: 1) Cancel existing order, 2) Submit new order with adjusted price
+
+## BUG - Replace Selected Button Disabled After 3:55 PM ET (FIXED)
+- [x] Remove !safeToReplace restriction from Replace Selected button
+- [x] Button should only be disabled if no orders selected or mutation pending
+- [x] Users can now replace orders anytime during market hours (GTC orders stay active)
