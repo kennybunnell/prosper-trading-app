@@ -449,7 +449,21 @@ export default function CCDashboard() {
       
       toast.success(`Found ${result.breakdown.eligiblePositions} eligible positions`);
     } catch (error: any) {
-      toast.error(error.message || "Failed to fetch positions");
+      // Check if it's a Tastytrade authentication error
+      if (error.message?.includes('Tastytrade') && (error.message?.includes('credentials') || error.message?.includes('login') || error.message?.includes('token'))) {
+        toast.error(
+          'Tastytrade credentials are missing or invalid. Please configure them in Settings to fetch your stock positions.',
+          {
+            action: {
+              label: 'Go to Settings',
+              onClick: () => window.location.href = '/settings?tab=api',
+            },
+            duration: 10000,
+          }
+        );
+      } else {
+        toast.error(error.message || "Failed to fetch positions");
+      }
     } finally {
       setIsLoadingPositions(false);
     }
@@ -647,7 +661,21 @@ export default function CCDashboard() {
       setScanProgress(100);
       toast.success(`Found ${finalOpportunities.length} opportunities`);
     } catch (error: any) {
-      toast.error(error.message || "Failed to scan opportunities");
+      // Check if it's a Tastytrade authentication error
+      if (error.message?.includes('Tastytrade login failed') || error.message?.includes('request token is missing')) {
+        toast.error(
+          'Tastytrade credentials are missing or invalid. Please configure them in Settings.',
+          {
+            action: {
+              label: 'Go to Settings',
+              onClick: () => window.location.href = '/settings?tab=api',
+            },
+            duration: 10000,
+          }
+        );
+      } else {
+        toast.error(error.message || "Failed to scan opportunities");
+      }
     } finally {
       setIsScanning(false);
       setScanStartTime(null);

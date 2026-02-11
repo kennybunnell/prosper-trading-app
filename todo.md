@@ -4311,3 +4311,10 @@
 - [ ] Test across all strategy dashboards: CSP, BPS, CC, BCS
 - [ ] Test in Working Orders replace workflow
 - [ ] Test in Active Positions close workflow (when implemented)
+
+## BUG - Tastytrade Authentication Error on CC Dashboard (FIXED)
+- [x] Add error handling for missing/invalid Tastytrade credentials
+- [x] Show user-friendly message with link to Settings when credentials are missing
+- [x] Prevent page crash when Tastytrade API returns authentication error
+- [x] Error now shows: "Tastytrade credentials are missing or invalid. Please configure them in Settings to fetch your stock positions." with "Go to Settings" button
+- [ ] Test with missing credentials and invalid credentials
