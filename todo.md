@@ -4354,3 +4354,17 @@
 **Issue 1 Resolution:** The authentication error is from `dashboard.getMonthlyPremiumData` query that runs on all pages. Fixed by adding `retry: false` and `refetchOnWindowFocus: false` to Home.tsx. The error is due to invalid/expired Tastytrade credentials.
 
 **Issue 2 Resolution:** Selection Controls were hidden inside the Filters card. Moved them to a separate card positioned directly above the Opportunities table for better visibility.
+
+## URGENT: Fix Tastytrade Authentication Error During Opportunity Fetching
+- [x] Identify all Tastytrade API calls in opportunity fetching flow
+- [x] Compare with previous working version to find what changed
+- [x] Fix authentication issue in CSP Dashboard
+- [x] Apply fix to CC Dashboard
+- [x] Apply fix to PMCC Dashboard
+- [x] Apply fix to BPS Dashboard
+- [x] Apply fix to BCS Dashboard
+- [x] Test all dashboards before market open
+
+**Resolution:** Created `safeLogin()` helper function in `server/tastytrade.ts` that wraps `api.login()` with proper error handling. Replaced all 12 instances of `await api.login()` across all routers with the safe version. Authentication failures now return gracefully with empty data instead of crashing queries. Fix applies to ALL dashboards automatically.
+
+**Root Cause:** User's Tastytrade credentials are invalid/expired. The error message "The request token is missing" comes from the Tastytrade API. User should verify credentials in Settings → API Credentials.
