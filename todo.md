@@ -4286,3 +4286,12 @@
 - [x] Remove !safeToReplace restriction from Replace Selected button
 - [x] Button should only be disabled if no orders selected or mutation pending
 - [x] Users can now replace orders anytime during market hours (GTC orders stay active)
+
+## CRITICAL BUG - BCS Dashboard Premium Calculation (FIXED)
+- [x] Modal was showing $684 for Total Premium Income (WRONG)
+- [x] Order Summary card showed $315 (CORRECT)
+- [x] Root cause: Backend returned SHORT CALL bid/ask instead of SPREAD NET CREDIT bid/ask
+- [x] Fix: Changed bear-call-pricing.ts lines 128-129 to return spread bid/ask (net credit)
+- [x] Spread bid = short call bid - long call ask (what we actually receive)
+- [x] Spread ask = short call ask - long call bid (conservative estimate)
+- [x] Now slider works with correct spread net credit range
