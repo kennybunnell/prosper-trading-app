@@ -57,7 +57,7 @@ interface OrderPreviewDialogProps {
   availableBuyingPower: number;
   remainingBuyingPower: number;
   isMarketOpen: boolean;
-  onSubmit: (adjustedPrices?: Map<number, number>) => void;
+  onSubmit: (adjustedPrices?: Map<number, number>, isDryRun?: boolean) => void | Promise<void>;
   isDryRun: boolean;
   strategy: 'cc' | 'csp' | 'bcs' | 'bps'; // Strategy type to determine price unit conversion
 }
@@ -786,12 +786,12 @@ export function OrderPreviewDialog({
           <Button
             onClick={async () => {
               if (isLiveMode) {
-                // Live submission - close modal after success
-                await onSubmit(adjustedPrices);
+                // Live submission - pass isDryRun=false to force live submission
+                await onSubmit(adjustedPrices, false);
                 onOpenChange(false);
               } else {
-                // Dry run - run validation and keep modal open
-                await runValidation();
+                // Dry run - pass isDryRun=true
+                await onSubmit(adjustedPrices, true);
                 setDryRunSuccess(true);
                 setIsLiveMode(true); // Enable live mode after successful dry run
                 toast.success("Dry run successful! Review and submit when ready.");

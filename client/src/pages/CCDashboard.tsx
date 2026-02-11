@@ -794,7 +794,7 @@ export default function CCDashboard() {
       expiration: opp.expiration,
       quantity: 1,
       bid: opp.bid,
-      premium: opp.premium,
+      premium: opp.premium * 100, // Convert per-share to per-contract dollars
       collateral: strategyType === 'spread' ? (opp.capitalAtRisk || 0) : (opp.currentPrice * 100),
       status: 'valid' as const,
       // Spread-specific fields
@@ -811,7 +811,9 @@ export default function CCDashboard() {
     // Context: Passing to OrderPreviewDialog
     // Reason: Dialog expects per-contract dollars, not per-share
     // Example: $2.10/share × 100 = $210 per contract
+    console.log('[CC Dashboard] First order premium (per-share):', orders[0]?.premium);
     const totalPremium = orders.reduce((sum, o) => sum + (o.premium * 100), 0);
+    console.log('[CC Dashboard] Total premium after ×100:', totalPremium);
     const totalCollateral = orders.reduce((sum, o) => sum + o.collateral, 0);
 
     // Set validation data for preview dialog
@@ -829,7 +831,9 @@ export default function CCDashboard() {
   };
 
   // Execute order submission after preview confirmation
-  const executeOrderSubmission = async (adjustedPrices?: Map<number, number>) => {
+  const executeOrderSubmission = async (adjustedPrices?: Map<number, number>, isDryRun?: boolean) => {
+    // Use the isDryRun parameter if provided, otherwise fall back to the dryRun state
+    const effectiveDryRun = isDryRun !== undefined ? isDryRun : dryRun;
     setShowPreviewDialog(false);
     setIsSubmitting(true);
 
@@ -842,7 +846,7 @@ export default function CCDashboard() {
     // Show initial progress toast
     const orderCount = validationData.orders.length;
     toast.loading(
-      dryRun 
+      effectiveDryRun 
         ? `Validating ${orderCount} order${orderCount > 1 ? 's' : ''}...`
         : `Submitting ${orderCount} order${orderCount > 1 ? 's' : ''}...`,
       { id: 'cc-order-submission-progress' }
@@ -865,7 +869,7 @@ export default function CCDashboard() {
         results = await utils.client.cc.submitBearCallSpreadOrders.mutate({
           accountNumber: selectedAccountId!,
           orders: spreadOrders,
-          dryRun,
+          dryRun: effectiveDryRun,
         });
       } else {
         // Regular CC orders
@@ -886,7 +890,7 @@ export default function CCDashboard() {
         results = await utils.client.cc.submitOrders.mutate({
           accountNumber: selectedAccountId!,
           orders,
-          dryRun,
+          dryRun: effectiveDryRun,
         });
       }
 
@@ -897,7 +901,7 @@ export default function CCDashboard() {
       const failedCount = results.filter((r: any) => !r.success).length;
 
       if (failedCount === 0) {
-        if (dryRun) {
+        if (effectiveDryRun) {
           toast.success(`✓ ${results.length} order${results.length > 1 ? 's' : ''} validated successfully (Dry Run)`, {
             duration: 4000,
           });
@@ -932,7 +936,7 @@ export default function CCDashboard() {
           setSelectedOpportunities(new Set());
         }
       } else {
-        if (dryRun) {
+        if (effectiveDryRun) {
           if (successCount > 0) {
             toast.warning(`⚠️ ${successCount} order(s) validated, ${failedCount} failed validation (Dry Run)`, {
               duration: 6000,

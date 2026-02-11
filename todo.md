@@ -4204,3 +4204,22 @@
 - [x] Add "Total Premium" card to summary section for CSP
 - [x] Match the covered calls layout (show premium with ROC percentage)
 - [ ] Test with CSP, BPS, and BCS orders to verify display
+
+### Add Select All / Clear All Buttons to Opportunities Tables
+- [ ] Add "Select All" button to CC Dashboard opportunities table
+- [ ] Add "Clear All" button to CC Dashboard opportunities table
+- [ ] Position buttons next to "Show Technical Columns" toggle
+- [ ] Apply same buttons to CSP Dashboard for consistency
+- [ ] Test bulk selection with large opportunity lists
+
+### CRITICAL BUG: CC Premium Calculation Missing ×100 Multiplier
+- [ ] Fix covered call (CC) premium calculation - showing $1.31 instead of $131.00 for 1 contract
+- [ ] Ensure bear call spread (BCS) premium calculation remains correct
+- [ ] Root cause: Removed multiplier when fixing BCS bug, but CC still needs it
+- [ ] Test both CC and BCS after fix to ensure both work correctly
+
+### CRITICAL: Submit Live Orders Button Not Working
+- [ ] After dry run completes, "Submit Live Orders" button shows but doesn't submit live orders
+- [ ] Button just shows "Dry run completed successfully" toast instead of submitting
+- [ ] Need to fix the live order submission workflow in OrderPreviewDialog
+- [ ] Test with covered call orders to verify live submission works
