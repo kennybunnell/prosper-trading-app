@@ -4325,3 +4325,23 @@
 - [x] Updated routers-orders.ts to pass authenticated API to pollOrderStatus
 - [x] Polling now uses existing Tastytrade session from mutation
 - [ ] Test order submission with polling enabled
+
+## BUG - CSP Dashboard Tastytrade Authentication Error
+- [ ] Identify where authentication error is occurring in CSP Dashboard
+- [ ] Check if CSP has same polling issue as CC Dashboard
+- [ ] Fix authentication context
+- [ ] Test CSP Dashboard with valid credentials
+
+## BUG FIX: CSP Dashboard Tastytrade Authentication Error
+- [x] Identify where authentication error is occurring
+- [x] Fix query retry behavior to prevent error spam
+- [x] Add graceful error handling
+
+**Root Cause:** The error "Tastytrade login failed: The request token is missing" was coming from `dashboard.getMonthlyPremiumData` query in Home.tsx. This query runs on page load and was retrying failed authentication attempts, causing error spam in the console.
+
+**Fix Applied:**
+1. Added `retry: false` and `refetchOnWindowFocus: false` to the query options to prevent automatic retries
+2. The query already has graceful error handling (returns empty data and hides chart on error)
+3. The underlying issue is that the user's Tastytrade credentials appear to be invalid or expired and need to be refreshed in Settings
+
+**Note:** The error is not a code bug - it's a Tastytrade API authentication failure. The user should verify their credentials in Settings.
