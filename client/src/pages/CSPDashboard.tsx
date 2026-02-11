@@ -41,6 +41,7 @@ import {
   X,
   Download,
   Sparkles,
+  CheckSquare,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 
@@ -1976,50 +1977,7 @@ export default function CSPDashboard() {
             </div>
           </div>
 
-          {/* Selection Controls */}
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
-                size="default"
-                onClick={() => {
-                  // Select all filtered opportunities
-                  const newSelection = new Set(selectedOpportunities);
-                  filteredOpportunities.forEach(opp => {
-                    const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
-                    newSelection.add(key);
-                  });
-                  setSelectedOpportunities(newSelection);
-                  toast.success(`Selected ${filteredOpportunities.length} opportunities`);
-                }}
-                disabled={filteredOpportunities.length === 0}
-              >
-                ✓ Select All Filtered ({filteredOpportunities.length})
-              </Button>
-              <Button
-                className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
-                size="default"
-                onClick={() => {
-                  setSelectedOpportunities(new Set());
-                  toast.success('Selection cleared');
-                }}
-                disabled={selectedOpportunities.size === 0}
-              >
-                ✕ Clear Selection ({selectedOpportunities.size})
-              </Button>
-            </div>
-            <div className="flex items-center gap-3 p-3 bg-accent/20 rounded-lg">
-              <Checkbox
-                id="selected-only"
-                checked={showSelectedOnly}
-                onCheckedChange={(checked) => setShowSelectedOnly(checked as boolean)}
-                className="w-5 h-5"
-              />
-              <Label htmlFor="selected-only" className="cursor-pointer text-base font-medium">
-                Show Selected Only
-              </Label>
-            </div>
-          </div>
+
         </CardContent>
       </Card>
 
@@ -2144,6 +2102,61 @@ export default function CSPDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Selection Controls - Moved above table for better visibility */}
+      {opportunities.length > 0 && (
+        <Card className="bg-card/50 backdrop-blur border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckSquare className="w-5 h-5" />
+              Selection Controls
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+                size="default"
+                onClick={() => {
+                  // Select all filtered opportunities
+                  const newSelection = new Set(selectedOpportunities);
+                  filteredOpportunities.forEach(opp => {
+                    const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+                    newSelection.add(key);
+                  });
+                  setSelectedOpportunities(newSelection);
+                  toast.success(`Selected ${filteredOpportunities.length} opportunities`);
+                }}
+                disabled={filteredOpportunities.length === 0}
+              >
+                ✓ Select All Filtered ({filteredOpportunities.length})
+              </Button>
+              <Button
+                className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+                size="default"
+                onClick={() => {
+                  setSelectedOpportunities(new Set());
+                  toast.success('Selection cleared');
+                }}
+                disabled={selectedOpportunities.size === 0}
+              >
+                ✕ Clear Selection ({selectedOpportunities.size})
+              </Button>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-accent/20 rounded-lg">
+              <Checkbox
+                id="selected-only"
+                checked={showSelectedOnly}
+                onCheckedChange={(checked) => setShowSelectedOnly(checked as boolean)}
+                className="w-5 h-5"
+              />
+              <Label htmlFor="selected-only" className="cursor-pointer text-base font-medium">
+                Show Selected Only
+              </Label>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Opportunities Table */}
       <Card className="bg-card/50 backdrop-blur border-border/50">

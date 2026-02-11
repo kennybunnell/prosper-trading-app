@@ -4345,3 +4345,12 @@
 3. The underlying issue is that the user's Tastytrade credentials appear to be invalid or expired and need to be refreshed in Settings
 
 **Note:** The error is not a code bug - it's a Tastytrade API authentication failure. The user should verify their credentials in Settings.
+
+## BUG: CSP Dashboard Issues
+- [x] Fix Tastytrade authentication error on CSP Dashboard
+- [x] Restore "Select All Filtered" and "Clear Selection" buttons for opportunities
+- [x] Test both fixes
+
+**Issue 1 Resolution:** The authentication error is from `dashboard.getMonthlyPremiumData` query that runs on all pages. Fixed by adding `retry: false` and `refetchOnWindowFocus: false` to Home.tsx. The error is due to invalid/expired Tastytrade credentials.
+
+**Issue 2 Resolution:** Selection Controls were hidden inside the Filters card. Moved them to a separate card positioned directly above the Opportunities table for better visibility.
