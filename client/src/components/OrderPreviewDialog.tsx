@@ -703,9 +703,18 @@ export function OrderPreviewDialog({
             const isCC = !isSpread && !isCSP;
 
             if (isSpread || isCSP) {
-              // For spreads and CSP: show buying power with remaining
+              // For spreads and CSP: show buying power with remaining AND total premium
               return (
                 <>
+                  <div className="border rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground mb-1">Total Premium Income</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      ${adjustedTotalPremium.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {((adjustedTotalPremium / adjustedTotalCollateral) * 100).toFixed(2)}% ROC
+                    </p>
+                  </div>
                   <div className="border rounded-lg p-4">
                     <p className="text-sm text-muted-foreground mb-1">Available Buying Power</p>
                     <p className="text-2xl font-bold">${availableBuyingPower.toLocaleString()}</p>

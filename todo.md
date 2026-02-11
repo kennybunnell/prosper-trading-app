@@ -4198,3 +4198,9 @@
 - [x] Display percentage below the dollar amount
 - [x] CSP Dashboard already has this feature built-in
 - [x] Test with various opportunity selections - CONFIRMED WORKING
+
+### Add Total Premium Display to OrderPreviewDialog Summary
+- [x] Add "Total Premium" card to summary section for spreads (BCS/BPS)
+- [x] Add "Total Premium" card to summary section for CSP
+- [x] Match the covered calls layout (show premium with ROC percentage)
+- [ ] Test with CSP, BPS, and BCS orders to verify display
