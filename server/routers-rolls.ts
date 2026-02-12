@@ -30,8 +30,8 @@ export const rollsRouter = router({
       throw new Error('Tastytrade credentials not found');
     }
     
-    const api = getTastytradeAPI();
-    await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+    const { authenticateTastytrade } = await import('./tastytrade');
+      const api = await authenticateTastytrade(credentials);
     
     // Get all accounts
     const accounts = await getTastytradeAccounts(ctx.user.id);
@@ -192,8 +192,8 @@ export const rollsRouter = router({
         throw new Error('Tastytrade credentials not found');
       }
       
-      const api = getTastytradeAPI();
-      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const api = await authenticateTastytrade(credentials);
       
       // Use Tradier API for option chains and Greeks
       const { TradierAPI } = await import('./tradier');

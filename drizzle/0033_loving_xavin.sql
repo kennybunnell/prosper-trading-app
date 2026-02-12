@@ -1,0 +1,1 @@
+ALTER TABLE `apiCredentials` ADD `tastytradeRefreshToken` text;

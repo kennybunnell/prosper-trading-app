@@ -143,8 +143,14 @@ export type InsertPremiumTracking = typeof premiumTracking.$inferInsert;
 export const apiCredentials = mysqlTable("apiCredentials", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
+  // Tastytrade OAuth2 credentials (new authentication method)
+  tastytradeClientId: varchar("tastytradeClientId", { length: 255 }),
+  tastytradeClientSecret: varchar("tastytradeClientSecret", { length: 255 }),
+  tastytradeRefreshToken: text("tastytradeRefreshToken"),
+  // Legacy fields (deprecated - kept for backward compatibility during migration)
   tastytradeUsername: varchar("tastytradeUsername", { length: 255 }),
   tastytradePassword: varchar("tastytradePassword", { length: 255 }),
+  // Tradier API credentials
   tradierApiKey: varchar("tradierApiKey", { length: 255 }),
   tradierAccountId: varchar("tradierAccountId", { length: 255 }),
   defaultTastytradeAccountId: varchar("defaultTastytradeAccountId", { length: 255 }),

@@ -218,6 +218,20 @@
       "when": 1770182287252,
       "tag": "0031_perpetual_leech",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1770876415046,
+      "tag": "0032_dark_wong",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1770877872486,
+      "tag": "0033_loving_xavin",
+      "breakpoints": true
     }
   ]
 }

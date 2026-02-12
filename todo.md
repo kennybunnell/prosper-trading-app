@@ -4211,3 +4211,38 @@
 - [ ] Implement fix to restore working authentication
 
 **Issue:** User's Tastytrade credentials have been working for weeks but suddenly stopped working. The Tastytrade API is returning "The request token is missing" error. This is NOT a credentials issue - the credentials are in the database and haven't changed.
+
+## CRITICAL: Migrate Tastytrade Authentication to OAuth2
+- [ ] Update database schema to add tastytradeClientId and tastytradeClientSecret fields
+- [ ] Remove old tastytradeUsername and tastytradePassword fields
+- [ ] Rewrite tastytrade.ts authentication to use OAuth2 flow
+- [ ] Update Settings page to accept Client ID and Client Secret
+- [ ] Migrate user's credentials to new OAuth2 system
+- [ ] Test authentication with new OAuth2 credentials
+- [ ] Verify all dashboards work with new authentication
+
+**Root Cause:** Tastytrade changed their API authentication from username/password to OAuth2 (Client ID/Secret). This is why all authentication was failing with "The request token is missing" error. User has generated OAuth2 credentials and provided them.
+
+## CRITICAL: OAuth2 Migration Progress (Option A - Full Migration)
+- [x] Add OAuth2 fields to database schema (clientId, clientSecret, refreshToken)
+- [x] Update user's credentials with OAuth2 values  
+- [x] Implement OAuth2 token generation in tastytrade.ts
+- [x] Create authenticateTastytrade() helper function
+- [x] Update testTastytradeConnection to use OAuth2
+- [x] Update dashboard.getMonthlyPremiumData to use OAuth2
+- [x] Update projections router (getLockedInIncome, getThetaDecay, getHistoricalPerformance)
+- [x] Update accounts.sync to use OAuth2
+- [x] Update account.getBalances to use OAuth2
+- [x] Update CC router procedures (3 procedures)
+- [x] Update CSP/BullPut router procedures (included in routers.ts)
+- [x] Update Performance router procedures (3 procedures)
+- [x] Update PMCC router procedures (2 procedures)
+- [x] Update Working Orders router procedures (included in routers.ts)
+- [x] Update Rolls router procedures (2 procedures)
+- [x] Update Stock Basis router procedures (included in routers.ts)
+- [ ] Test all dashboards with OAuth2 authentication (ready for user testing when market opens)
+- [ ] Save checkpoint
+
+**Total Procedures Migrated**: 21 api.login() calls across 5 router files
+**Files Updated**: routers.ts (11), routers-cc.ts (3), routers-performance.ts (3), routers-pmcc.ts (2), routers-rolls.ts (2)
+**Status**: ✅ COMPLETE - All api.login() calls have been migrated to OAuth2 authenticateTastytrade() helper

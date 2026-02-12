@@ -7,6 +7,14 @@ import axios, { AxiosInstance } from 'axios';
 
 const TASTYTRADE_API_BASE = 'https://api.tastyworks.com';
 
+export interface TastytradeOAuth2Token {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  expiresAt?: number; // Calculated expiration timestamp
+}
+
+// Legacy interface - kept for backward compatibility
 export interface TastytradeSession {
   sessionToken: string;
   rememberToken: string;
@@ -98,6 +106,9 @@ export interface TastytradeOrder {
 
 export class TastytradeAPI {
   private client: AxiosInstance;
+  private accessToken: string | null = null;
+  private tokenExpiresAt: number | null = null;
+  // Legacy fields - kept for backward compatibility
   private sessionToken: string | null = null;
   private rememberToken: string | null = null;
 
@@ -151,33 +162,58 @@ export class TastytradeAPI {
   }
 
   /**
-   * Authenticate with Tastytrade API
+   * Get access token using OAuth2 refresh token
    */
-  async login(username: string, password: string): Promise<TastytradeSession> {
+  async getAccessToken(refreshToken: string, clientSecret: string): Promise<TastytradeOAuth2Token> {
     try {
+      console.log('[Tastytrade] Requesting OAuth2 access token...');
+      
       const response = await this.retryWithBackoff(() =>
-        this.client.post('/sessions', {
-          login: username,
-          password: password,
-          'remember-me': true,
+        this.client.post('/oauth/token', {
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+          client_secret: clientSecret,
         })
       );
-
-      const data = response.data.data;
-      this.sessionToken = data['session-token'];
-      this.rememberToken = data['remember-token'];
-
-      // Set auth header for subsequent requests
-      this.client.defaults.headers.common['Authorization'] = this.sessionToken;
-
-      return {
-        sessionToken: this.sessionToken!,
-        rememberToken: this.rememberToken!,
-        user: data.user,
+      
+      const token: TastytradeOAuth2Token = {
+        access_token: response.data.access_token,
+        token_type: response.data.token_type,
+        expires_in: response.data.expires_in,
+        expiresAt: Date.now() + (response.data.expires_in * 1000),
       };
+      
+      // Store token and set auth header
+      this.accessToken = token.access_token;
+      this.tokenExpiresAt = token.expiresAt!;
+      this.client.defaults.headers.common['Authorization'] = `Bearer ${token.access_token}`;
+      
+      console.log('[Tastytrade] OAuth2 access token obtained successfully');
+      return token;
     } catch (error: any) {
-      throw new Error(`Tastytrade login failed: ${error.response?.data?.error?.message || error.message}`);
+      console.error('[Tastytrade] OAuth2 token request failed');
+      console.error('[Tastytrade] Error response status:', error.response?.status);
+      console.error('[Tastytrade] Error response data:', JSON.stringify(error.response?.data, null, 2));
+      console.error('[Tastytrade] Error message:', error.message);
+      throw new Error(`Tastytrade OAuth2 authentication failed: ${error.response?.data?.error?.message || error.message}`);
     }
+  }
+
+  /**
+   * Check if current access token is expired or about to expire
+   */
+  isTokenExpired(): boolean {
+    if (!this.tokenExpiresAt) return true;
+    // Consider token expired if less than 1 minute remaining
+    return Date.now() >= (this.tokenExpiresAt - 60000);
+  }
+
+  /**
+   * Legacy login method - deprecated, kept for backward compatibility
+   * @deprecated Use getAccessToken() with OAuth2 credentials instead
+   */
+  async login(username: string, password: string): Promise<TastytradeSession> {
+    throw new Error('Username/password authentication is deprecated. Please use OAuth2 authentication with Client ID, Client Secret, and Refresh Token.');
   }
 
   /**
@@ -888,6 +924,40 @@ export function getTastytradeAPI(): TastytradeAPI {
     tastytradeInstance = new TastytradeAPI();
   }
   return tastytradeInstance;
+}
+
+/**
+ * Helper function to authenticate with Tastytrade using OAuth2
+ * This replaces the old username/password login method
+ */
+export async function authenticateTastytrade(credentials: {
+  tastytradeClientId?: string | null;
+  tastytradeClientSecret?: string | null;
+  tastytradeRefreshToken?: string | null;
+  // Legacy fields - will be removed in future
+  tastytradeUsername?: string | null;
+  tastytradePassword?: string | null;
+}): Promise<TastytradeAPI> {
+  const api = getTastytradeAPI();
+  
+  // Check if OAuth2 credentials are available
+  if (credentials.tastytradeClientSecret && credentials.tastytradeRefreshToken) {
+    // Use OAuth2 authentication
+    if (api.isTokenExpired()) {
+      await api.getAccessToken(
+        credentials.tastytradeRefreshToken,
+        credentials.tastytradeClientSecret
+      );
+    }
+    return api;
+  }
+  
+  // Fallback to legacy authentication (will throw error)
+  if (credentials.tastytradeUsername && credentials.tastytradePassword) {
+    throw new Error('Username/password authentication is deprecated. Please configure OAuth2 credentials in Settings.');
+  }
+  
+  throw new Error('Tastytrade credentials not configured. Please add OAuth2 credentials in Settings.');
 }
 
 /**

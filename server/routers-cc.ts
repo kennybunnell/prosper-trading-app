@@ -68,8 +68,8 @@ export const ccRouter = router({
         throw new Error('Tastytrade credentials not configured');
       }
 
-      const api = getTastytradeAPI();
-      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const api = await authenticateTastytrade(credentials);
 
       // Fetch all positions
       const positions = await api.getPositions(input.accountNumber);
@@ -541,8 +541,8 @@ export const ccRouter = router({
         throw new Error('Tastytrade credentials not configured');
       }
 
-      const api = getTastytradeAPI();
-      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const api = await authenticateTastytrade(credentials);
 
       // Fetch current positions to get maxContracts for each symbol
       const positions = await api.getPositions(input.accountNumber);
@@ -730,8 +730,8 @@ export const ccRouter = router({
         throw new Error('Tastytrade credentials not configured');
       }
 
-      const api = getTastytradeAPI();
-      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const api = await authenticateTastytrade(credentials);
 
       if (input.dryRun) {
         // Dry run - return success without submitting

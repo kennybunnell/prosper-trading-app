@@ -238,8 +238,8 @@ export const pmccRouter = router({
       }
 
       // Initialize Tastytrade API
-      const api = getTastytradeAPI();
-      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const api = await authenticateTastytrade(credentials);
 
       // Get accounts
       const accounts = await api.getAccounts();
@@ -379,8 +379,8 @@ export const pmccRouter = router({
       }
 
       // Initialize Tastytrade API
-      const api = getTastytradeAPI();
-      await api.login(credentials.tastytradeUsername, credentials.tastytradePassword);
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const api = await authenticateTastytrade(credentials);
 
       // Get accounts
       const accounts = await api.getAccounts();

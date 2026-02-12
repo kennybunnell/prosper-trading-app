@@ -12,8 +12,9 @@ import { cn } from "@/lib/utils";
 
 export default function Settings() {
   const { user, loading: authLoading } = useAuth();
-  const [tastytradeUsername, setTastytradeUsername] = useState("");
-  const [tastytradePassword, setTastytradePassword] = useState("");
+  const [tastytradeClientId, setTastytradeClientId] = useState("");
+  const [tastytradeClientSecret, setTastytradeClientSecret] = useState("");
+  const [tastytradeRefreshToken, setTastytradeRefreshToken] = useState("");
   const [tradierApiKey, setTradierApiKey] = useState("");
   const [tradierAccountId, setTradierAccountId] = useState("");
   const [defaultTastytradeAccountId, setDefaultTastytradeAccountId] = useState("");
@@ -109,8 +110,9 @@ export default function Settings() {
   useEffect(() => {
     if (credentials) {
       console.log('[Settings] Loading credentials from database:', credentials);
-      setTastytradeUsername(credentials.tastytradeUsername || "");
-      setTastytradePassword(credentials.tastytradePassword || "");
+      setTastytradeClientId(credentials.tastytradeClientId || "");
+      setTastytradeClientSecret(credentials.tastytradeClientSecret || "");
+      setTastytradeRefreshToken(credentials.tastytradeRefreshToken || "");
       setTradierApiKey(credentials.tradierApiKey || "");
       setTradierAccountId(credentials.tradierAccountId || "");
     }
@@ -127,8 +129,9 @@ export default function Settings() {
 
   const handleSave = () => {
     saveCredentials.mutate({
-      tastytradeUsername: tastytradeUsername || undefined,
-      tastytradePassword: tastytradePassword || undefined,
+      tastytradeClientId: tastytradeClientId || undefined,
+      tastytradeClientSecret: tastytradeClientSecret || undefined,
+      tastytradeRefreshToken: tastytradeRefreshToken || undefined,
       tradierApiKey: tradierApiKey || undefined,
       tradierAccountId: tradierAccountId || undefined,
       defaultTastytradeAccountId: defaultTastytradeAccountId || undefined,
@@ -202,47 +205,72 @@ export default function Settings() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              Tastytrade API
-              {credentials?.tastytradeUsername && credentials?.tastytradePassword && (
+              Tastytrade API (OAuth2)
+              {credentials?.tastytradeClientId && credentials?.tastytradeRefreshToken && (
                 <CheckCircle2 className="h-5 w-5 text-green-500" />
               )}
             </CardTitle>
             <CardDescription>
-              Used for order execution and account management. Your credentials are stored securely.
+              Used for order execution and account management. Create an OAuth2 app at{" "}
+              <a
+                href="https://my.tastytrade.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                my.tastytrade.com
+              </a>
+              {" "}→ My Profile → API → OAuth Applications
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="tastytrade-username">Username</Label>
+              <Label htmlFor="tastytrade-client-id">Client ID</Label>
               <Input
-                id="tastytrade-username"
+                id="tastytrade-client-id"
                 type="text"
-                value={tastytradeUsername}
+                value={tastytradeClientId}
                 onChange={(e) => {
-                  setTastytradeUsername(e.target.value);
+                  setTastytradeClientId(e.target.value);
                   handleInputChange();
                 }}
-                placeholder="your-username"
+                placeholder="64e7a9e5-962d-405c-86e2-0d0052ec22f6"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tastytrade-password">Password</Label>
+              <Label htmlFor="tastytrade-client-secret">Client Secret</Label>
               <Input
-                id="tastytrade-password"
+                id="tastytrade-client-secret"
                 type="password"
-                value={tastytradePassword}
+                value={tastytradeClientSecret}
                 onChange={(e) => {
-                  setTastytradePassword(e.target.value);
+                  setTastytradeClientSecret(e.target.value);
                   handleInputChange();
                 }}
-                placeholder="••••••••"
+                placeholder="9452a71cba2bc68e8b911164e1edadbb446df0e6"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tastytrade-refresh-token">Refresh Token</Label>
+              <Input
+                id="tastytrade-refresh-token"
+                type="password"
+                value={tastytradeRefreshToken}
+                onChange={(e) => {
+                  setTastytradeRefreshToken(e.target.value);
+                  handleInputChange();
+                }}
+                placeholder="eyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6IkxsbHMyWnJPdW5TZ2RDOF9oU2VBWjQyX1d4cWtQUmV3QnRnMTFSRG9sdnMiLCJqa3UiOiJodHRwczovL2ludGVyaW9yLWFwaS5hcjIudGFzdHl0cmFkZS5zeXN0ZW1zL29hdXRoL2p3a3MifQ..."
+              />
+              <p className="text-xs text-muted-foreground">
+                Generate a personal grant in your OAuth app to get the refresh token
+              </p>
             </div>
             <div className="flex gap-2">
               <Button
                 variant="outline"
                 onClick={() => testTastytrade.mutate()}
-                disabled={!credentials?.tastytradeUsername || !credentials?.tastytradePassword || testTastytrade.isPending || hasChanges}
+                disabled={!credentials?.tastytradeClientId || !credentials?.tastytradeRefreshToken || testTastytrade.isPending || hasChanges}
               >
                 {testTastytrade.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Test Connection
@@ -250,7 +278,7 @@ export default function Settings() {
               <Button
                 variant="outline"
                 onClick={() => syncAccounts.mutate()}
-                disabled={!credentials?.tastytradeUsername || !credentials?.tastytradePassword || syncAccounts.isPending || hasChanges}
+                disabled={!credentials?.tastytradeClientId || !credentials?.tastytradeRefreshToken || syncAccounts.isPending || hasChanges}
               >
                 {syncAccounts.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sync Accounts
