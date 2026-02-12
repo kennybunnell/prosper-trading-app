@@ -181,7 +181,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { OrderPreviewDialog } from "@/components/OrderPreviewDialog";
+import { UnifiedOrderPreviewModal, UnifiedOrder } from "@/components/UnifiedOrderPreviewModal";
 import { HelpBadge } from "@/components/HelpBadge";
 import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
@@ -319,7 +319,7 @@ export default function CSPDashboard() {
     endTime: number | null;
   }>({ isOpen: false, current: 0, total: 0, completed: 0, startTime: null, endTime: null });
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
-  const [validationData, setValidationData] = useState<any>(null);
+  const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
   const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{ symbol: string; strike: number; score: number; explanation: string | any[] } | null>(null);
   const [aiMode, setAiMode] = useState<'conservative' | 'aggressive'>('conservative');
@@ -620,7 +620,23 @@ export default function CSPDashboard() {
   // Validate orders mutation
   const validateOrders = trpc.csp.validateOrders.useMutation({
     onSuccess: (data) => {
-      setValidationData(data);
+      // Convert validation data to UnifiedOrder array
+      const orders: UnifiedOrder[] = data.orders.map((order: any) => ({
+        symbol: order.symbol,
+        strike: order.strike,
+        expiration: order.expiration,
+        premium: order.premium / 100, // Convert cents to dollars per share
+        action: "STO" as const,
+        optionType: "PUT" as const,
+        bid: order.bid / 100,
+        ask: order.ask / 100,
+        currentPrice: order.currentPrice,
+        // For spreads, include long leg
+        longStrike: order.longStrike,
+        longPremium: order.longPremium ? order.longPremium / 100 : undefined,
+      }));
+      
+      setUnifiedOrders(orders);
       setShowPreviewDialog(true);
     },
     onError: (error) => {
@@ -867,15 +883,17 @@ export default function CSPDashboard() {
   };
 
   // Execute order submission with midpoint pricing from validation
-  const executeOrderSubmission = (adjustedPrices?: Map<number, number>, isDryRunOverride?: boolean) => {
-    // Use isDryRunOverride from dialog if provided, otherwise fall back to component state
-    const effectiveDryRun = isDryRunOverride !== undefined ? isDryRunOverride : dryRun;
-    
+  // Signature matches UnifiedOrderPreviewModal onSubmit callback
+  const executeOrderSubmission = async (
+    orders: UnifiedOrder[],
+    quantities: Map<string, number>,
+    isDryRun: boolean
+  ) => {
     setShowPreviewDialog(false);
     setShowProgressDialog(true);
     
-    if (!validationData) {
-      toast.error("Validation data not available");
+    if (orders.length === 0) {
+      toast.error("No orders to submit");
       return;
     }
 
@@ -892,50 +910,49 @@ export default function CSPDashboard() {
         return `${ticker}${expShort}P${strikeFormatted}`;
       };
       
-      const orderLegs = validationData.orders.map((validatedOrder: any, idx: number) => {
-      const opp = selectedOppsList.find(
-        o => o.symbol === validatedOrder.symbol && 
-             o.strike === validatedOrder.strike && 
-             o.expiration === validatedOrder.expiration
-      );
+      const orderLegs = orders.map((order, idx) => {
+      const orderKey = `${order.symbol}-${order.strike}-${order.expiration}`;
+      const quantity = quantities.get(orderKey) || 1;
       
       // Check if this is a spread order
-      const isSpread = validatedOrder.isSpread || strategyType === 'spread';
+      const isSpread = !!order.longStrike || strategyType === 'spread';
       
       if (isSpread) {
         // Bull Put Spread: Two legs
         return {
-          symbol: validatedOrder.symbol,
-          strike: validatedOrder.strike,
-          expiration: validatedOrder.expiration,
-          premium: roundToNickel((adjustedPrices?.get(idx) ?? validatedOrder.premium) / 100),
+          symbol: order.symbol,
+          strike: order.strike,
+          expiration: order.expiration,
+          premium: roundToNickel(order.premium),
           isSpread: true,
+          quantity,
           // Leg 1: Sell to Open (short put at higher strike)
           shortLeg: {
-            optionSymbol: buildOptionSymbol(validatedOrder.symbol, validatedOrder.expiration, validatedOrder.strike),
+            optionSymbol: buildOptionSymbol(order.symbol, order.expiration, order.strike),
             action: 'Sell to Open' as const,
           },
           // Leg 2: Buy to Open (long put at lower strike)
           longLeg: {
-            optionSymbol: buildOptionSymbol(validatedOrder.symbol, validatedOrder.expiration, validatedOrder.longStrike || (validatedOrder.strike - (validatedOrder.spreadWidth || spreadWidth))),
+            optionSymbol: buildOptionSymbol(order.symbol, order.expiration, order.longStrike || (order.strike - spreadWidth)),
             action: 'Buy to Open' as const,
           },
         };
       } else {
-        // Regular CSP: Single leg
+        // Cash-Secured Put: Single leg
         return {
-          symbol: validatedOrder.symbol,
-          strike: validatedOrder.strike,
-          expiration: validatedOrder.expiration,
-          premium: roundToNickel((adjustedPrices?.get(idx) ?? validatedOrder.premium) / 100),
+          symbol: order.symbol,
+          strike: order.strike,
+          expiration: order.expiration,
+          premium: roundToNickel(order.premium),
           isSpread: false,
-          optionSymbol: buildOptionSymbol(validatedOrder.symbol, validatedOrder.expiration, validatedOrder.strike),
+          quantity,
+          optionSymbol: buildOptionSymbol(order.symbol, order.expiration, order.strike),
+          action: 'Sell to Open' as const,
         };
       }
     });
-
-    setOrderProgress({
-      current: 0,
+    
+    setProgressResults({
       total: orderLegs.length,
       results: orderLegs.map((o: any) => ({ symbol: o.symbol, status: 'pending' })),
     });
@@ -2586,19 +2603,17 @@ export default function CSPDashboard() {
       </Dialog>
 
       {/* Order Preview Dialog with Validation */}
-      {validationData && (
-        <OrderPreviewDialog
+      {unifiedOrders.length > 0 && (
+        <UnifiedOrderPreviewModal
           open={showPreviewDialog}
           onOpenChange={setShowPreviewDialog}
-          orders={validationData.orders}
-          totalPremium={validationData.totalPremium}
-          totalCollateral={validationData.totalCollateral}
-          availableBuyingPower={validationData.availableBuyingPower}
-          remainingBuyingPower={validationData.remainingBuyingPower}
-          isMarketOpen={validationData.isMarketOpen}
+          orders={unifiedOrders}
+          strategy={strategyType === 'spread' ? 'bps' : 'csp'}
+          accountId={selectedAccountId || ''}
+          availableBuyingPower={availableBuyingPower}
           onSubmit={executeOrderSubmission}
-          isDryRun={dryRun}
-          strategy="csp"
+          allowQuantityEdit={true}
+          tradingMode={isLiveTrading ? 'live' : 'paper'}
         />
       )}
 

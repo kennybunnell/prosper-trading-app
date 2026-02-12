@@ -429,6 +429,19 @@ export class TastytradeAPI {
   }
 
   /**
+   * Get order details by ID
+   * Returns order with status (Received, Live, Filled, Cancelled, Rejected, etc.)
+   */
+  async getOrderById(accountNumber: string, orderId: string): Promise<any> {
+    try {
+      const response = await this.client.get(`/accounts/${accountNumber}/orders/${orderId}`);
+      return response.data.data;
+    } catch (error: any) {
+      throw new Error(`Failed to fetch order ${orderId}: ${error.response?.data?.error?.message || error.message}`);
+    }
+  }
+
+  /**
    * Get option quotes for multiple symbols
    * Uses the /market-data/by-type endpoint with equity-option parameters
    */

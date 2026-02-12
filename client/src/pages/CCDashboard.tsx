@@ -48,7 +48,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { OrderPreviewDialog } from "@/components/OrderPreviewDialog";
+import { UnifiedOrderPreviewModal, UnifiedOrder } from "@/components/UnifiedOrderPreviewModal";
 import { HelpBadge } from "@/components/HelpBadge";
 import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
@@ -266,7 +266,7 @@ export default function CCDashboard() {
   
   // Order preview dialog state
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
-  const [validationData, setValidationData] = useState<any>(null);
+  const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
   
   // Fetch progress dialog state
   const [fetchProgress, setFetchProgress] = useState<{
@@ -781,64 +781,49 @@ export default function CCDashboard() {
       .map(key => filteredOpportunities.find(opp => getOpportunityKey(opp) === key))
       .filter((opp): opp is CCOpportunity => opp !== undefined);
 
-    // Build order preview data
-    const orders = selectedOpps.map(opp => ({
+    // Build UnifiedOrder array for UnifiedOrderPreviewModal
+    const orders: UnifiedOrder[] = selectedOpps.map(opp => ({
       symbol: opp.symbol,
       strike: opp.strike,
       expiration: opp.expiration,
-      quantity: 1,
-      // For spreads, bid/premium/ask/mid all use netCredit (opp.premium already contains netCredit)
-      // For CC, use individual leg prices
-      bid: (strategyType === 'spread' ? opp.premium : opp.bid) * 100, // Convert per-share to per-contract
-      premium: opp.premium * 100, // Convert per-share to per-contract (netCredit for spreads)
-      collateral: strategyType === 'spread' ? (opp.capitalAtRisk || 0) : (opp.currentPrice * 100),
-      status: 'valid' as const,
-      // Spread-specific fields
-      isSpread: strategyType === 'spread',
-      spreadType: strategyType === 'spread' ? ('bear_call' as const) : undefined,
+      premium: opp.premium, // Already in dollars per share
+      action: "STO" as const, // Sell to Open for CC and BCS
+      optionType: "CALL" as const,
+      // For spreads, include long leg
       longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
-      spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
+      longPremium: strategyType === 'spread' ? (opp.longAsk || 0) : undefined,
       // Market data for price adjustment
-      // For spreads, use netCredit for ask/mid; for CC, use individual leg prices
-      ask: (strategyType === 'spread' ? opp.premium : opp.ask) * 100,
-      mid: (strategyType === 'spread' ? opp.premium : ((opp.bid + opp.ask) / 2)) * 100
+      bid: strategyType === 'spread' ? opp.premium : opp.bid,
+      ask: strategyType === 'spread' ? opp.premium : opp.ask,
+      currentPrice: opp.currentPrice,
     }));
 
-    const totalPremium = orders.reduce((sum, o) => sum + o.premium, 0);
-    const totalCollateral = orders.reduce((sum, o) => sum + o.collateral, 0);
-
-    // Set validation data for preview dialog
-    // Use real buying power from Tastytrade account (already fetched at component level)
-    setValidationData({
-      orders,
-      totalPremium,
-      totalCollateral,
-      availableBuyingPower,
-      remainingBuyingPower: availableBuyingPower - totalCollateral,
-      isMarketOpen: true, // Assume market is open for now
-    });
+    // Set orders for preview dialog
+    setUnifiedOrders(orders);
 
     setShowPreviewDialog(true);
   };
 
   // Execute order submission after preview confirmation
-  const executeOrderSubmission = async (adjustedPrices?: Map<number, number>, isDryRunOverride?: boolean) => {
-    // Use isDryRunOverride from dialog if provided, otherwise fall back to component state
-    const effectiveDryRun = isDryRunOverride !== undefined ? isDryRunOverride : dryRun;
-    
+  // Signature matches UnifiedOrderPreviewModal onSubmit callback
+  const executeOrderSubmission = async (
+    orders: UnifiedOrder[],
+    quantities: Map<string, number>,
+    isDryRun: boolean
+  ) => {
     setShowPreviewDialog(false);
     setIsSubmitting(true);
 
-    if (!validationData) {
-      toast.error("Validation data not available");
+    if (orders.length === 0) {
+      toast.error("No orders to submit");
       setIsSubmitting(false);
       return;
     }
 
     // Show initial progress toast
-    const orderCount = validationData.orders.length;
+    const orderCount = orders.length;
     toast.loading(
-      effectiveDryRun 
+      isDryRun 
         ? `Validating ${orderCount} order${orderCount > 1 ? 's' : ''}...`
         : `Submitting ${orderCount} order${orderCount > 1 ? 's' : ''}...`,
       { id: 'cc-order-submission-progress' }
@@ -849,40 +834,46 @@ export default function CCDashboard() {
       
       if (strategyType === 'spread') {
         // Bear call spread orders
-        const spreadOrders = validationData.orders.map((order: any, idx: number) => ({
-          symbol: order.symbol,
-          shortStrike: order.strike,
-          longStrike: order.longStrike,
-          expiration: order.expiration,
-          quantity: 1,
-          netCredit: (adjustedPrices?.get(idx) ?? order.premium) / 100, // Convert cents to dollars
-        }));
+        const spreadOrders = orders.map((order, idx) => {
+          const orderKey = `${order.symbol}-${order.strike}-${order.expiration}`;
+          const quantity = quantities.get(orderKey) || 1;
+          
+          return {
+            symbol: order.symbol,
+            shortStrike: order.strike,
+            longStrike: order.longStrike!,
+            expiration: order.expiration,
+            quantity,
+            netCredit: order.premium, // Already in dollars per share
+          };
+        });
 
         results = await utils.client.cc.submitBearCallSpreadOrders.mutate({
           accountNumber: selectedAccountId!,
           orders: spreadOrders,
-          dryRun: effectiveDryRun,
+          dryRun: isDryRun,
         });
       } else {
         // Regular CC orders
-        const orders = validationData.orders.map((order: any, idx: number) => {
-          const rawPrice = adjustedPrices?.get(idx) ?? order.premium;
+        const ccOrders = orders.map((order) => {
+          const orderKey = `${order.symbol}-${order.strike}-${order.expiration}`;
+          const quantity = quantities.get(orderKey) || 1;
           // Round to nearest $0.05 increment (nickels) as required by Tastytrade
-          const roundedPrice = Math.round(rawPrice / 0.05) * 0.05;
+          const roundedPrice = Math.round(order.premium / 0.05) * 0.05;
           
           return {
             symbol: order.symbol,
             strike: order.strike,
             expiration: order.expiration,
-            quantity: 1,
+            quantity,
             price: roundedPrice,
           };
         });
 
         results = await utils.client.cc.submitOrders.mutate({
           accountNumber: selectedAccountId!,
-          orders,
-          dryRun: effectiveDryRun,
+          orders: ccOrders,
+          dryRun: isDryRun,
         });
       }
 
@@ -893,7 +884,7 @@ export default function CCDashboard() {
       const failedCount = results.filter((r: any) => !r.success).length;
 
       if (failedCount === 0) {
-        if (effectiveDryRun) {
+        if (isDryRun) {
           toast.success(`✓ ${results.length} order${results.length > 1 ? 's' : ''} validated successfully (Dry Run)`, {
             duration: 4000,
           });
@@ -928,7 +919,7 @@ export default function CCDashboard() {
           setSelectedOpportunities(new Set());
         }
       } else {
-        if (effectiveDryRun) {
+        if (isDryRun) {
           if (successCount > 0) {
             toast.warning(`⚠️ ${successCount} order(s) validated, ${failedCount} failed validation (Dry Run)`, {
               duration: 6000,
@@ -2857,19 +2848,22 @@ export default function CCDashboard() {
       </Dialog>
 
       {/* Order Preview Dialog */}
-      {validationData && (
-        <OrderPreviewDialog
+      {unifiedOrders.length > 0 && (
+        <UnifiedOrderPreviewModal
           open={showPreviewDialog}
           onOpenChange={setShowPreviewDialog}
-          orders={validationData.orders}
-          totalPremium={validationData.totalPremium}
-          totalCollateral={validationData.totalCollateral}
-          availableBuyingPower={validationData.availableBuyingPower}
-          remainingBuyingPower={validationData.remainingBuyingPower}
-          isMarketOpen={validationData.isMarketOpen}
-          onSubmit={executeOrderSubmission}
-          isDryRun={dryRun}
+          orders={unifiedOrders}
           strategy={strategyType === 'spread' ? 'bcs' : 'cc'}
+          accountId={selectedAccountId || ''}
+          availableBuyingPower={availableBuyingPower}
+          holdings={stockPositions.map(pos => ({
+            symbol: pos.symbol,
+            quantity: pos.quantity,
+            maxContracts: Math.floor(pos.quantity / 100),
+          }))}
+          onSubmit={executeOrderSubmission}
+          allowQuantityEdit={true}
+          tradingMode={isLiveTrading ? 'live' : 'paper'}
         />
       )}
 

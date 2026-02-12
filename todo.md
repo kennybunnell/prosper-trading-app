@@ -4352,3 +4352,23 @@
 - [x] Verify transaction categorization logic (Credits vs Debits)
 - [x] Confirmed debits include Buy to Close + Buy to Open (long legs of spreads)
 - [x] Calculation is correct - spreads properly assessed
+
+## Universal Order Submission System - Resume After OAuth2 Fix
+- [ ] Audit UnifiedOrderPreviewModal component - verify it's complete
+- [ ] Check OrderPreviewModal, RollCandidateModal, RollsTable components
+- [ ] Verify checkOrderStatus procedure supports all order types
+- [ ] Identify which dashboards are using UnifiedOrderPreviewModal vs old OrderPreviewDialog
+- [ ] List missing integrations (Working Orders, Rolls, BTC actions)
+- [ ] Test complete workflow with fixed OAuth2 authentication
+
+## Universal Order Submission System - Resume After OAuth2 Fix
+- [x] Audit UnifiedOrderPreviewModal component - verify it's complete
+- [x] Check OrderPreviewModal, RollCandidateModal, RollsTable components  
+- [x] Verify checkOrderStatus procedure supports all order types
+- [x] Enhanced checkOrderStatus with individual order lookups (Filled/Cancelled/Rejected detection)
+- [x] Migrate CC Dashboard to use UnifiedOrderPreviewModal
+- [x] Migrate CSP Dashboard to use UnifiedOrderPreviewModal
+- [ ] Migrate PMCC Dashboard to use UnifiedOrderPreviewModal
+- [ ] Integrate UnifiedOrderPreviewModal with Performance page BTC actions
+- [ ] Integrate UnifiedOrderPreviewModal with Roll actions
+- [ ] Test complete workflow with fixed OAuth2 authentication

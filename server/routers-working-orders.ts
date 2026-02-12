@@ -588,6 +588,7 @@ export const workingOrdersRouter = router({
   /**
    * Check order fill status for multiple orders
    * Used by replacement log to update badges from Working to Filled
+   * Enhanced version that fetches individual order details for accurate status
    */
   checkOrderStatus: protectedProcedure
     .input(z.object({
@@ -596,30 +597,25 @@ export const workingOrdersRouter = router({
     }))
     .query(async ({ input }) => {
       const { accountId, orderIds } = input;
-      const api = getTastytradeAPI();
+      const { checkOrderStatusBatch } = await import('./tastytrade-order-status');
 
       try {
-        // Fetch all live orders for the account
-        const liveOrders = await api.getLiveOrders(accountId);
+        // Use enhanced order status checking with individual order lookups
+        const statusMap = await checkOrderStatusBatch(accountId, orderIds);
         
-        // Check status for each requested order ID
-        const statusMap: Record<string, { status: string; filledAt?: string }> = {};
+        // Convert to expected format (status string + optional filledAt)
+        const result: Record<string, { status: string; filledAt?: string; cancelledAt?: string; rejectedReason?: string }> = {};
         
-        for (const orderId of orderIds) {
-          const order = liveOrders.find((o: any) => o.id === orderId);
-          
-          if (order) {
-            // Order still exists in live orders - it's working
-            statusMap[orderId] = { status: 'Working' };
-          } else {
-            // Order not in live orders - could be filled, canceled, or rejected
-            // Without additional API calls, we can't determine the exact status
-            // Keep as Working to avoid false positives - user can check Tastytrade directly
-            statusMap[orderId] = { status: 'Working' };
-          }
+        for (const [orderId, orderStatus] of Object.entries(statusMap)) {
+          result[orderId] = {
+            status: orderStatus.status,
+            filledAt: orderStatus.filledAt,
+            cancelledAt: orderStatus.cancelledAt,
+            rejectedReason: orderStatus.rejectedReason,
+          };
         }
 
-        return statusMap;
+        return result;
       } catch (error: any) {
         console.error('[WorkingOrders] Error checking order status:', error);
         throw new Error(`Failed to check order status: ${error.message}`);
