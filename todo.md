@@ -4312,3 +4312,12 @@
 - [x] Fix saveCredentials mutation schema to remove tastytradeClientId
 - [x] Verify credentials are properly saved in database
 - [x] Verify dashboards load data from Tastytrade successfully
+
+## Bear Call Spread Order Submission OAuth2 Error - RESOLVED ✅
+- [x] Check server logs for exact API endpoint failing during BCS order submission
+- [x] Identify which Tastytrade API call requires additional scopes
+- [x] Verify refresh token has all required scopes (read, trade, openid)
+- [x] User regenerated refresh token with all three scopes
+- [x] Server restarted to clear cached tokens
+- [x] Connection test successful
+- [x] Dashboard loading real data from Tastytrade

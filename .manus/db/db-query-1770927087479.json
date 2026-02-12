@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, userId, \n  LENGTH(tastytradeRefreshToken) as refresh_token_length,\n  LENGTH(tastytradeClientSecret) as client_secret_length,\n  SUBSTR(tastytradeRefreshToken, 1, 20) as refresh_token_start\nFROM apiCredentials WHERE userId = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT id, userId, \n  LENGTH(tastytradeRefreshToken) as refresh_token_length,\n  LENGTH(tastytradeClientSecret) as client_secret_length,\n  SUBSTR(tastytradeRefreshToken, 1, 20) as refresh_token_start\nFROM apiCredentials WHERE userId = 1;",
+  "rows": [
+    {
+      "id": "30023",
+      "userId": "1",
+      "refresh_token_length": "1160",
+      "client_secret_length": "40",
+      "refresh_token_start": "eyJhbGciOiJFZERTQSIs"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\trefresh_token_length\tclient_secret_length\trefresh_token_start\n30023\t1\t1160\t40\teyJhbGciOiJFZERTQSIs\n",
+  "stderr": "",
+  "execution_time_ms": 111
+}
