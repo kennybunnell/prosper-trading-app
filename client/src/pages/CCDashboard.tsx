@@ -822,7 +822,10 @@ export default function CCDashboard() {
   };
 
   // Execute order submission after preview confirmation
-  const executeOrderSubmission = async (adjustedPrices?: Map<number, number>) => {
+  const executeOrderSubmission = async (adjustedPrices?: Map<number, number>, isDryRunOverride?: boolean) => {
+    // Use isDryRunOverride from dialog if provided, otherwise fall back to component state
+    const effectiveDryRun = isDryRunOverride !== undefined ? isDryRunOverride : dryRun;
+    
     setShowPreviewDialog(false);
     setIsSubmitting(true);
 
@@ -835,7 +838,7 @@ export default function CCDashboard() {
     // Show initial progress toast
     const orderCount = validationData.orders.length;
     toast.loading(
-      dryRun 
+      effectiveDryRun 
         ? `Validating ${orderCount} order${orderCount > 1 ? 's' : ''}...`
         : `Submitting ${orderCount} order${orderCount > 1 ? 's' : ''}...`,
       { id: 'cc-order-submission-progress' }
@@ -858,7 +861,7 @@ export default function CCDashboard() {
         results = await utils.client.cc.submitBearCallSpreadOrders.mutate({
           accountNumber: selectedAccountId!,
           orders: spreadOrders,
-          dryRun,
+          dryRun: effectiveDryRun,
         });
       } else {
         // Regular CC orders
@@ -879,7 +882,7 @@ export default function CCDashboard() {
         results = await utils.client.cc.submitOrders.mutate({
           accountNumber: selectedAccountId!,
           orders,
-          dryRun,
+          dryRun: effectiveDryRun,
         });
       }
 
@@ -890,7 +893,7 @@ export default function CCDashboard() {
       const failedCount = results.filter((r: any) => !r.success).length;
 
       if (failedCount === 0) {
-        if (dryRun) {
+        if (effectiveDryRun) {
           toast.success(`✓ ${results.length} order${results.length > 1 ? 's' : ''} validated successfully (Dry Run)`, {
             duration: 4000,
           });
@@ -925,7 +928,7 @@ export default function CCDashboard() {
           setSelectedOpportunities(new Set());
         }
       } else {
-        if (dryRun) {
+        if (effectiveDryRun) {
           if (successCount > 0) {
             toast.warning(`⚠️ ${successCount} order(s) validated, ${failedCount} failed validation (Dry Run)`, {
               duration: 6000,

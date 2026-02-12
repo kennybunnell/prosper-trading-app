@@ -57,7 +57,7 @@ interface OrderPreviewDialogProps {
   availableBuyingPower: number;
   remainingBuyingPower: number;
   isMarketOpen: boolean;
-  onSubmit: (adjustedPrices?: Map<number, number>) => void;
+  onSubmit: (adjustedPrices?: Map<number, number>, isDryRun?: boolean) => void;
   isDryRun: boolean;
   strategy: 'cc' | 'csp' | 'bcs' | 'bps'; // Strategy type to determine price unit conversion
 }
@@ -752,7 +752,7 @@ export function OrderPreviewDialog({
             onClick={async () => {
               if (isLiveMode) {
                 // Live submission - close modal after success
-                await onSubmit(adjustedPrices);
+                await onSubmit(adjustedPrices, false); // Pass isDryRun=false for live orders
                 onOpenChange(false);
               } else {
                 // Dry run - run validation and keep modal open

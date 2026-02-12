@@ -4293,3 +4293,6 @@
 
 ## OAuth2 Authentication Fixes
 - [x] Fix OAuth2 credential validation - replace all checks for tastytradeUsername/tastytradePassword with OAuth2 credential checks (tastytradeClientSecret/tastytradeRefreshToken)
+
+## Bear Call Spread Order Submission Bug
+- [x] Fix BCS order submission - "Submit Live Orders" button performs dry run instead of submitting real orders
