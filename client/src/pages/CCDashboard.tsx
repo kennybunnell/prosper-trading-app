@@ -787,8 +787,10 @@ export default function CCDashboard() {
       strike: opp.strike,
       expiration: opp.expiration,
       quantity: 1,
-      bid: opp.bid * 100, // Convert per-share to per-contract
-      premium: opp.premium * 100, // Convert per-share to per-contract
+      // For spreads, bid/premium/ask/mid all use netCredit (opp.premium already contains netCredit)
+      // For CC, use individual leg prices
+      bid: (strategyType === 'spread' ? opp.premium : opp.bid) * 100, // Convert per-share to per-contract
+      premium: opp.premium * 100, // Convert per-share to per-contract (netCredit for spreads)
       collateral: strategyType === 'spread' ? (opp.capitalAtRisk || 0) : (opp.currentPrice * 100),
       status: 'valid' as const,
       // Spread-specific fields
@@ -797,8 +799,9 @@ export default function CCDashboard() {
       longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
       spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
       // Market data for price adjustment
-      ask: opp.ask * 100, // Convert per-share to per-contract
-      mid: ((opp.bid + opp.ask) / 2) * 100, // Convert per-share to per-contract
+      // For spreads, use netCredit for ask/mid; for CC, use individual leg prices
+      ask: (strategyType === 'spread' ? opp.premium : opp.ask) * 100,
+      mid: (strategyType === 'spread' ? opp.premium : ((opp.bid + opp.ask) / 2)) * 100
     }));
 
     const totalPremium = orders.reduce((sum, o) => sum + o.premium, 0);

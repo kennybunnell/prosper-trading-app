@@ -4263,3 +4263,11 @@
   - Scopes are embedded in the refresh token when the personal grant is created
   - Adding scope parameter causes 403 "Token has insufficient scopes for this request" error
   - ✅ FIXED: Removed scope parameter, OAuth2 authentication now working successfully
+
+## BCS Premium Calculation Fix (Feb 12, 2026 - URGENT)
+- [x] Fix Bear Call Spread premium calculation in order preview
+  - Currently showing $333.38 (using mid price $3.38 × 100)
+  - Should show $156.00 (using net credit $1.56 × 100)
+  - For spreads, premium = (Short leg premium - Long leg premium) × 100
+  - Need to use the "Net Credit" column value, not the individual leg's mid price
+  - ✅ FIXED: Updated CCDashboard.tsx to use opp.premium (netCredit) for bid/ask/mid when strategyType === 'spread'
