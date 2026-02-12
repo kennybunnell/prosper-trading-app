@@ -4372,3 +4372,35 @@
 - [ ] Integrate UnifiedOrderPreviewModal with Performance page BTC actions
 - [ ] Integrate UnifiedOrderPreviewModal with Roll actions
 - [ ] Test complete workflow with fixed OAuth2 authentication
+
+## Performance Page BTC (Buy to Close) Integration - PRIORITY
+- [ ] Locate BTC functionality in Performance page
+- [ ] Identify where positions at 80-90% profit are flagged
+- [ ] Build UnifiedOrder[] array for BTC actions (action: "BTC")
+- [ ] Handle single-leg positions (CSP, CC)
+- [ ] Handle spread positions (BPS, BCS) - ensure both legs close together
+- [ ] Add UnifiedOrderPreviewModal before closePositions mutation
+- [ ] Set allowQuantityEdit=false (quantity fixed by position size)
+- [ ] Test BTC workflow for single-leg positions
+- [ ] Test BTC workflow for spread positions
+- [ ] Verify spread legs close atomically (both or neither)
+
+## Working Orders Replacement Integration - PRIORITY
+- [ ] Locate Working Orders management page/component
+- [ ] Identify replace order functionality
+- [ ] Build UnifiedOrder[] array for replacement orders
+- [ ] Add individual selection checkboxes
+- [ ] Add "Select All" / "Clear Selection" buttons
+- [ ] Integrate UnifiedOrderPreviewModal for batch replacement
+- [ ] Add order status polling after submission
+- [ ] Display real-time status updates (Filled/Cancelled/Rejected)
+- [ ] Show rejection reasons when orders fail
+- [ ] Test single order replacement
+- [ ] Test batch order replacement
+- [ ] Verify status polling accuracy
+
+## Working Orders Replace Mode Integration
+- [ ] Extend UnifiedOrderPreviewModal to support "replace" mode
+- [ ] Add oldOrderId tracking for cancel + resubmit workflow
+- [ ] Integrate UnifiedOrderPreviewModal with Working Orders replacement
+- [ ] Test replace workflow with order status polling
