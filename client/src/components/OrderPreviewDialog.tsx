@@ -690,62 +690,38 @@ export function OrderPreviewDialog({
           </Table>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Detect strategy type: Spread, CSP, or CC */}
-          {(() => {
-            // Use strategy prop instead of guessing from order data
-            const isCSP = strategy === 'csp';
-            const isBPS = strategy === 'bps';
-            const isCC = strategy === 'cc';
-            const isBCS = strategy === 'bcs';
+        {/* Summary Cards - 4 cards showing both buying power and stock value */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Available Buying Power */}
+          <div className="border rounded-lg p-4">
+            <p className="text-sm text-muted-foreground mb-1">Available Buying Power</p>
+            <p className="text-2xl font-bold">${availableBuyingPower.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {strategy === 'csp' ? 'For cash-secured puts' : strategy === 'bps' || strategy === 'bcs' ? 'For spreads' : 'For options'}
+            </p>
+          </div>
 
-            if (isCSP || isBPS) {
-              // For spreads and CSP: show buying power with remaining
-              return (
-                <>
-                  <div className="border rounded-lg p-4">
-                    <p className="text-sm text-muted-foreground mb-1">Available Buying Power</p>
-                    <p className="text-2xl font-bold">${availableBuyingPower.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {isCSP ? 'For cash-secured puts' : 'For spreads'}
-                    </p>
-                  </div>
-                  <div className="border rounded-lg p-4">
-                    <p className="text-sm text-muted-foreground mb-1">Remaining After Orders</p>
-                    <p className={`text-2xl font-bold ${adjustedRemainingBP < availableBuyingPower * 0.2 ? 'text-red-600' : 'text-green-600'}`}>
-                      ${adjustedRemainingBP.toLocaleString()}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      ({((adjustedRemainingBP / availableBuyingPower) * 100).toFixed(1)}% remaining)
-                    </p>
-                  </div>
-                </>
-              );
-            } else {
-              // For covered calls: show stock value
-              return (
-                <>
-                  <div className="border rounded-lg p-4">
-                    <p className="text-sm text-muted-foreground mb-1">Total Stock Value</p>
-                    <p className="text-2xl font-bold">${adjustedTotalCollateral.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      For selling covered calls
-                    </p>
-                  </div>
-                  <div className="border rounded-lg p-4">
-                    <p className="text-sm text-muted-foreground mb-1">Total Premium Income</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      ${adjustedTotalPremium.toFixed(2)}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {((adjustedTotalPremium / adjustedTotalCollateral) * 100).toFixed(2)}% return on stock value
-                    </p>
-                  </div>
-                </>
-              );
-            }
-          })()}
+          {/* Card 2: Total Stock Value */}
+          <div className="border rounded-lg p-4">
+            <p className="text-sm text-muted-foreground mb-1">Total Stock Value</p>
+            <p className="text-2xl font-bold">${adjustedTotalCollateral.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {strategy === 'cc' ? 'For selling covered calls' : 'Collateral required'}
+            </p>
+          </div>
+
+          {/* Card 3: Total Premium Income */}
+          <div className="border rounded-lg p-4">
+            <p className="text-sm text-muted-foreground mb-1">Total Premium Income</p>
+            <p className="text-2xl font-bold text-green-600">
+              ${adjustedTotalPremium.toFixed(2)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {adjustedTotalCollateral > 0 ? `${((adjustedTotalPremium / adjustedTotalCollateral) * 100).toFixed(2)}% return` : 'Net credit'}
+            </p>
+          </div>
+
+          {/* Card 4: Total Orders */}
           <div className="border rounded-lg p-4">
             <p className="text-sm text-muted-foreground mb-1">Total Orders</p>
             <p className="text-2xl font-bold">{orders.length}</p>

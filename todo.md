@@ -4271,3 +4271,15 @@
   - For spreads, premium = (Short leg premium - Long leg premium) × 100
   - Need to use the "Net Credit" column value, not the individual leg's mid price
   - ✅ FIXED: Updated CCDashboard.tsx to use opp.premium (netCredit) for bid/ask/mid when strategyType === 'spread'
+
+## OAuth2 403 Error Investigation (Feb 12, 2026 - CRITICAL)
+- [ ] Verify tastytrade.ts OAuth2 token request is still correct (no scope parameter)
+- [ ] Check if user's refresh token expired or was regenerated
+- [ ] Test OAuth2 authentication with current credentials
+- [ ] Document root cause and permanent solution
+
+## Order Preview Display Update (Feb 12, 2026)
+- [x] Update OrderPreviewDialog left section to show BOTH buying power and stock value
+  - Currently only shows one or the other based on strategy
+  - User wants to see both metrics simultaneously for all strategies
+  - ✅ FIXED: Changed to 4-card layout showing: Buying Power, Stock Value, Premium Income, Total Orders

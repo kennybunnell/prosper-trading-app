@@ -168,12 +168,18 @@ export class TastytradeAPI {
     try {
       console.log('[Tastytrade] Requesting OAuth2 access token...');
       
+      const requestBody = {
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_secret: clientSecret,
+      };
+      console.log('[Tastytrade] Request body keys:', Object.keys(requestBody));
+      console.log('[Tastytrade] Grant type:', requestBody.grant_type);
+      console.log('[Tastytrade] Refresh token length:', refreshToken?.length || 0);
+      console.log('[Tastytrade] Client secret length:', clientSecret?.length || 0);
+      
       const response = await this.retryWithBackoff(() =>
-        this.client.post('/oauth/token', {
-          grant_type: 'refresh_token',
-          refresh_token: refreshToken,
-          client_secret: clientSecret,
-        })
+        this.client.post('/oauth/token', requestBody)
       );
       
       const token: TastytradeOAuth2Token = {
