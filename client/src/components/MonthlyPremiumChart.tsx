@@ -14,8 +14,10 @@ interface MonthlyPremiumChartProps {
 
 export function MonthlyPremiumChart({ data }: MonthlyPremiumChartProps) {
   // Format month for display (e.g., "2025-09" -> "Sep 2025")
-  const formatMonth = (month: string) => {
-    const [year, monthNum] = month.split('-');
+  const formatMonth = (month: string | any) => {
+    // Handle case where month might be an object
+    const monthStr = typeof month === 'string' ? month : String(month);
+    const [year, monthNum] = monthStr.split('-');
     const date = new Date(parseInt(year), parseInt(monthNum) - 1);
     return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   };

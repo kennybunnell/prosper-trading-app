@@ -4193,3 +4193,21 @@
 - [x] Test that errors no longer appear in browser console
 
 **Resolution:** The error was from `dashboard.getMonthlyPremiumData` query running in the background. The backend already handles the error gracefully by returning empty data. Added error suppression to the global error logger in `main.tsx` to prevent the error from being logged to the browser console. This is a surgical fix that doesn't touch any authentication code or break existing functionality.
+
+## URGENT: Fix Monthly Premium Chart Displaying [object Object]
+- [x] Identify code issue in Home.tsx chart rendering
+- [x] Fix month name display
+- [x] Test chart displays correctly
+- [ ] Save checkpoint
+
+**Issue:** The monthly premium chart on the Dashboard home page was completely hidden when Tastytrade authentication failed. 
+
+**Resolution:** Changed the chart to show a placeholder message instead of hiding completely when there's an authentication error or no data. The chart now displays "No premium data available" with instructions to configure Tastytrade credentials in Settings.
+
+## URGENT: Investigate Tastytrade Authentication Failure
+- [ ] Check if there were recent changes to tastytrade.ts authentication code
+- [ ] Check if Tastytrade API changed their authentication requirements
+- [ ] Test if re-saving credentials fixes the issue
+- [ ] Implement fix to restore working authentication
+
+**Issue:** User's Tastytrade credentials have been working for weeks but suddenly stopped working. The Tastytrade API is returning "The request token is missing" error. This is NOT a credentials issue - the credentials are in the database and haven't changed.

@@ -12,7 +12,11 @@ import { MonthlyPremiumChart } from "@/components/MonthlyPremiumChart";
 function MonthlyPremiumChartSection() {
   const [selectedYear, setSelectedYear] = React.useState<number | undefined>(new Date().getFullYear());
   const { data, isLoading, error } = trpc.dashboard.getMonthlyPremiumData.useQuery(
-    selectedYear ? { year: selectedYear } : undefined
+    selectedYear ? { year: selectedYear } : undefined,
+    {
+      retry: false, // Don't retry if Tastytrade credentials are missing
+      refetchOnWindowFocus: false, // Don't refetch when switching tabs
+    }
   );
   
   if (isLoading) {
@@ -24,11 +28,30 @@ function MonthlyPremiumChartSection() {
   }
   
   if (error || !data || data.error) {
-    return null; // Silently hide chart if no data or error
+    // Show placeholder message instead of hiding chart
+    return (
+      <Card className="p-6 bg-card/70 backdrop-blur-sm border-border/30">
+        <h2 className="text-2xl font-bold text-foreground mb-4">Monthly Premium Earnings - All Accounts Combined</h2>
+        <div className="flex items-center justify-center py-12 text-muted-foreground">
+          <div className="text-center space-y-2">
+            <p className="text-lg">No premium data available</p>
+            <p className="text-sm">Configure your Tastytrade credentials in Settings to view your monthly premium earnings</p>
+          </div>
+        </div>
+      </Card>
+    );
   }
   
   if (data.monthlyData.length === 0) {
-    return null; // Hide chart if no data available
+    // Show placeholder for empty data
+    return (
+      <Card className="p-6 bg-card/70 backdrop-blur-sm border-border/30">
+        <h2 className="text-2xl font-bold text-foreground mb-4">Monthly Premium Earnings - All Accounts Combined</h2>
+        <div className="flex items-center justify-center py-12 text-muted-foreground">
+          <p className="text-lg">No trading activity found for the selected period</p>
+        </div>
+      </Card>
+    );
   }
   
   return (
