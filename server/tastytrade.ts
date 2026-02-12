@@ -173,7 +173,6 @@ export class TastytradeAPI {
           grant_type: 'refresh_token',
           refresh_token: refreshToken,
           client_secret: clientSecret,
-          scope: 'read trade openid',
         })
       );
       

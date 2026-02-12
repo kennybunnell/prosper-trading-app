@@ -4256,3 +4256,10 @@
   - ✅ CSP/BPS: Already correct - backend returns per-contract values
   - ✅ PMCC: No order preview yet
   - ✅ Rolls (Action Items): Appears correct - uses metrics.currentValue and candidate.newPremium (already per-contract)
+
+## OAuth2 Scope Parameter Fix (Feb 12, 2026 - URGENT)
+- [x] Remove `scope` parameter from OAuth2 refresh token request in tastytrade.ts
+  - Tastytrade docs do NOT require scope parameter for refresh_token grant type
+  - Scopes are embedded in the refresh token when the personal grant is created
+  - Adding scope parameter causes 403 "Token has insufficient scopes for this request" error
+  - ✅ FIXED: Removed scope parameter, OAuth2 authentication now working successfully
