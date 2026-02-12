@@ -16,7 +16,6 @@ import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 import { RecoveryProgressChart } from '@/components/StockBasisRecoveryChart';
 import { StockPositionsTable } from '@/components/StockPositionsTable';
 import { UnderwaterPositionMetrics } from '@/components/UnderwaterPositionMetrics';
-import { UnifiedOrderPreviewModal, UnifiedOrder } from '@/components/UnifiedOrderPreviewModal';
 import { LockedInIncomeCards } from '@/components/projections/LockedInIncomeCards';
 import { ThetaDecayCards } from '@/components/projections/ThetaDecayCards';
 import { InteractiveROICalculator } from '@/components/projections/InteractiveROICalculator';
@@ -91,8 +90,7 @@ export function ActivePositionsTab() {
   const [spreadFilter, setSpreadFilter] = useState<'all' | 'spreads' | 'single-leg'>('all');
   const [selectedPositions, setSelectedPositions] = useState<Set<number>>(new Set());
   const [dryRun, setDryRun] = useState(true);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [closeResults, setCloseResults] = useState<any>(null);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -321,37 +319,13 @@ export function ActivePositionsTab() {
       toast.error('Please select at least one position to close');
       return;
     }
-    
-    // Build UnifiedOrder array from selected positions
-    const orders: UnifiedOrder[] = selectedPositionsData.map(pos => ({
-      symbol: pos.symbol,
-      strike: pos.strike,
-      expiration: pos.expiration,
-      premium: pos.currentPrice, // Current market price for BTC
-      action: "BTC" as const,
-      optionType: pos.type === 'PUT' ? 'PUT' as const : 'CALL' as const,
-      bid: pos.currentPrice * 0.95, // Estimate bid (5% below mark)
-      ask: pos.currentPrice * 1.05, // Estimate ask (5% above mark)
-      currentPrice: pos.currentPrice,
-      // For spreads, include long leg
-      longStrike: pos.longStrike,
-      longPremium: pos.longStrike ? pos.currentPrice * 0.5 : undefined, // Estimate for spread
-    }));
-    
-    setUnifiedOrders(orders);
-    setShowPreviewModal(true);
+    setShowConfirmDialog(true);
   };
 
-  // Callback for UnifiedOrderPreviewModal
-  const handleConfirmClose = async (
-    orders: UnifiedOrder[],
-    quantities: Map<string, number>,
-    isDryRun: boolean
-  ) => {
-    setShowPreviewModal(false);
+  const handleConfirmClose = async () => {
+    setShowConfirmDialog(false);
     setCloseResults(null);
 
-    // Map UnifiedOrders back to position data for closePositions mutation
     const positionsToClose = selectedPositionsData.map(pos => ({
       accountId: pos.accountId,
       optionSymbol: pos.optionSymbol,
@@ -367,7 +341,7 @@ export function ActivePositionsTab() {
 
     await closePositionsMutation.mutateAsync({
       positions: positionsToClose,
-      dryRun: isDryRun,
+      dryRun,
     });
   };
 
@@ -709,20 +683,50 @@ export function ActivePositionsTab() {
         </TabsContent>
       </Tabs>
 
-      {/* Unified Order Preview Modal for BTC */}
-      {unifiedOrders.length > 0 && (
-        <UnifiedOrderPreviewModal
-          open={showPreviewModal}
-          onOpenChange={setShowPreviewModal}
-          orders={unifiedOrders}
-          strategy="btc"
-          accountId={selectedAccountId || ''}
-          availableBuyingPower={data?.summary?.totalPremiumAtRisk || 0}
-          onSubmit={handleConfirmClose}
-          allowQuantityEdit={false}
-          tradingMode={tradingMode === 'live' ? 'live' : 'paper'}
-        />
-      )}
+      {/* Close Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{dryRun ? 'Validate Close Orders' : 'Confirm Close Orders'}</DialogTitle>
+            <DialogDescription>
+              {dryRun 
+                ? `This will validate ${selectedSummary.count} close order(s) without submitting them to Tastytrade.`
+                : `This will submit ${selectedSummary.count} buy-to-close order(s) to Tastytrade. Are you sure?`
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Positions to close:</span>
+                <span className="font-medium">{selectedSummary.count}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Total cost:</span>
+                <span className="font-medium">${selectedSummary.totalCost.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Premium collected:</span>
+                <span className="font-medium text-green-400">${selectedSummary.totalPremium.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Net profit:</span>
+                <span className="font-medium text-green-400">
+                  ${(selectedSummary.totalPremium - selectedSummary.totalCost).toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmClose} className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/50">
+              {dryRun ? 'Validate Orders' : 'Submit Orders'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Results Dialog */}
       {closeResults && (
