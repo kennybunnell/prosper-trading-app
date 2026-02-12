@@ -64,8 +64,8 @@ export const ccRouter = router({
       const { getTastytradeAPI } = await import('./tastytrade');
 
       const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
-        throw new Error('Tastytrade credentials not configured');
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new Error('Tastytrade OAuth2 credentials not configured. Please add them in Settings.');
       }
 
       const { authenticateTastytrade } = await import('./tastytrade');
@@ -537,8 +537,8 @@ export const ccRouter = router({
       const { getTastytradeAPI } = await import('./tastytrade');
 
       const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
-        throw new Error('Tastytrade credentials not configured');
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new Error('Tastytrade OAuth2 credentials not configured. Please add them in Settings.');
       }
 
       const { authenticateTastytrade } = await import('./tastytrade');
@@ -726,8 +726,8 @@ export const ccRouter = router({
       const { getTastytradeAPI } = await import('./tastytrade');
 
       const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
-        throw new Error('Tastytrade credentials not configured');
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new Error('Tastytrade OAuth2 credentials not configured. Please add them in Settings.');
       }
 
       const { authenticateTastytrade } = await import('./tastytrade');

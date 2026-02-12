@@ -26,7 +26,7 @@ export const rollsRouter = router({
     
     // Get Tastytrade credentials
     const credentials = await getApiCredentials(ctx.user.id);
-    if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
+    if (!credentials || !credentials.tastytradeClientSecret || !credentials.tastytradeRefreshToken) {
       throw new Error('Tastytrade credentials not found');
     }
     
@@ -188,7 +188,7 @@ export const rollsRouter = router({
       
       // Get Tastytrade credentials
       const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials || !credentials.tastytradeUsername || !credentials.tastytradePassword) {
+      if (!credentials || !credentials.tastytradeClientSecret || !credentials.tastytradeRefreshToken) {
         throw new Error('Tastytrade credentials not found');
       }
       

@@ -4283,3 +4283,13 @@
   - Currently only shows one or the other based on strategy
   - User wants to see both metrics simultaneously for all strategies
   - ✅ FIXED: Changed to 4-card layout showing: Buying Power, Stock Value, Premium Income, Total Orders
+
+## OAuth2 Scope Error During Order Submission (Feb 12, 2026 - CRITICAL)
+- [ ] Comprehensive code review of ALL OAuth2 authentication usage
+- [ ] Search for any scope parameters being added to token requests
+- [ ] Verify tastytrade.ts OAuth2 token request has NO scope parameter
+- [ ] Check if there are multiple places where OAuth2 tokens are requested
+- [ ] Test order submission after fixes
+
+## OAuth2 Authentication Fixes
+- [x] Fix OAuth2 credential validation - replace all checks for tastytradeUsername/tastytradePassword with OAuth2 credential checks (tastytradeClientSecret/tastytradeRefreshToken)

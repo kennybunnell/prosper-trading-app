@@ -47,7 +47,7 @@ export const performanceRouter = router({
 
       // Get API credentials
       const credentials = await getApiCredentials(userId);
-      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'Tastytrade API credentials not configured',
@@ -209,7 +209,7 @@ export const performanceRouter = router({
 
       // Get Tastytrade credentials
       const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'Tastytrade credentials not configured. Please add them in Settings.',
@@ -566,7 +566,7 @@ export const performanceRouter = router({
 
       // Get Tastytrade credentials
       const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'Tastytrade credentials not configured. Please add them in Settings.',
@@ -782,7 +782,7 @@ export const performanceRouter = router({
 
       // Get API credentials
       const credentials = await getApiCredentials(userId);
-      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'Tastytrade API credentials not configured',

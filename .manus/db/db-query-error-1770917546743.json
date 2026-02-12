@@ -1,0 +1,8 @@
+{
+  "query": "SELECT \n  LENGTH(tastytrade_client_id) as client_id_length,\n  LENGTH(tastytrade_client_secret) as client_secret_length,\n  LENGTH(tastytrade_refresh_token) as refresh_token_length,\n  updated_at\nFROM api_credentials \nWHERE user_id = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT \n  LENGTH(tastytrade_client_id) as client_id_length,\n  LENGTH(tastytrade_client_secret) as client_secret_length,\n  LENGTH(tastytrade_refresh_token) as refresh_token_length,\n  updated_at\nFROM api_credentials \nWHERE user_id = 1;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table 'da3lrtuethsvlvlz3wfwfj.api_credentials' doesn't exist"
+  ]
+}

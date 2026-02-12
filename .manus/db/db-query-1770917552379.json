@@ -1,0 +1,13 @@
+{
+  "query": "SHOW TABLES LIKE '%credential%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SHOW TABLES LIKE '%credential%';",
+  "rows": [
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ (%credential%)": "apiCredentials"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ (%credential%)\napiCredentials\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

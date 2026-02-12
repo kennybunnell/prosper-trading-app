@@ -1,0 +1,82 @@
+{
+  "query": "SHOW TABLES;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SHOW TABLES;",
+  "rows": [
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "apiCredentials"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "broadcastReads"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "broadcasts"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "chatConversations"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "chatMessages"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "cspFilterPresets"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "feedback"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "feedbackReplies"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "filterPresets"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "orderHistory"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "paperTradingPerformance"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "paperTradingPositions"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "pmccLeapPositions"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "positions"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "premiumTracking"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "scanConfigurations"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "tastytradeAccounts"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "trades"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "userActivity"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "userPreferences"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "users"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "watchlistSelections"
+    },
+    {
+      "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ": "watchlists"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_dA3LRtUEtHSvLVLz3WfwfJ\n__drizzle_migrations\napiCredentials\nbroadcastReads\nbroadcasts\nchatConversations\nchatMessages\ncspFilterPresets\nfeedback\nfeedbackReplies\nfilterPresets\norderHistory\npaperTradingPerformance\npaperTradingPositions\npmccLeapPositions\npositions\npremiumTracking\nscanConfigurations\ntastytradeAccounts\ntrades\nuserActivity\nuserPreferences\nusers\nwatchlistSelections\nwatchlists\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

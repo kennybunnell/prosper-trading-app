@@ -230,7 +230,7 @@ export const pmccRouter = router({
 
       // Get Tastytrade credentials
       const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message: "Tastytrade credentials not configured. Please add them in Settings.",
@@ -356,7 +356,7 @@ export const pmccRouter = router({
 
       // Get Tastytrade credentials
       const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message: "Tastytrade credentials not configured. Please add them in Settings.",
