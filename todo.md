@@ -4417,3 +4417,10 @@
 - [x] Fix TypeScript error in Performance.tsx (option type mapping for BTC workflow)
 - [x] Fix TypeScript errors in CC Dashboard (stockPositions, isLiveTrading references)
 - [x] Fix TypeScript errors in CSP Dashboard (setProgressResults, effectiveDryRun, isLiveTrading references)
+
+## Working Orders Replace Mode Integration
+- [ ] Analyze current Working Orders replacement workflow and requirements
+- [ ] Design replace mode interface and data structure for UnifiedOrderPreviewModal
+- [ ] Add replace mode support to UnifiedOrderPreviewModal component
+- [ ] Integrate UnifiedOrderPreviewModal with Working Orders tab
+- [ ] Test replace workflow end-to-end with OAuth2

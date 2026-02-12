@@ -329,7 +329,7 @@ export function ActivePositionsTab() {
       expiration: pos.expiration,
       premium: pos.currentPrice, // Current market price for BTC
       action: "BTC" as const,
-      optionType: pos.optionSymbol.includes('P') ? 'PUT' as const : 'CALL' as const,
+      optionType: pos.optionSymbol?.includes('P') ? 'PUT' as const : 'CALL' as const,
       bid: pos.currentPrice * 0.95, // Estimate bid (5% below mark)
       ask: pos.currentPrice * 1.05, // Estimate ask (5% above mark)
       currentPrice: pos.currentPrice,
@@ -1011,6 +1011,11 @@ export function WorkingOrdersTab() {
   const [actionResults, setActionResults] = useState<any>(null);
   const [showFillRateAnalytics, setShowFillRateAnalytics] = useState(false);
   const [groupBySymbol, setGroupBySymbol] = useState(true);
+  
+  // UnifiedOrderPreviewModal state
+  const [unifiedModalOpen, setUnifiedModalOpen] = useState(false);
+  const [unifiedModalOrders, setUnifiedModalOrders] = useState<UnifiedOrder[]>([]);
+  const [oldOrderIds, setOldOrderIds] = useState<string[]>([]);
 
   // Poll for order fill status updates
   const orderIds = useMemo(() => {
@@ -1221,13 +1226,13 @@ export function WorkingOrdersTab() {
     }
     setShowCancelDialog(true);
   };
-
-  const handleReplaceAll = () => {
+  
+  const handleReplaceSelected = () => {
     if (tradingMode === 'paper') {
       toast.error('Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.');
       return;
     }
-    if (orders.length === 0) {
+    if (selectedOrders.size === 0 && summary.needsReplacement === 0) {
       toast.error('No orders to replace');
       return;
     }
@@ -1235,7 +1240,31 @@ export function WorkingOrdersTab() {
       toast.error('Not safe to replace orders after 3:55 PM ET');
       return;
     }
-    setShowReplaceDialog(true);
+    
+    // Build UnifiedOrder array from working orders
+    const ordersToReplace = selectedOrders.size > 0
+      ? Array.from(selectedOrders).map(idx => orders[idx])
+      : orders.filter(order => order.needsReplacement);
+    
+    const unifiedOrders: UnifiedOrder[] = ordersToReplace.map(order => ({
+      symbol: order.underlyingSymbol,
+      strike: order.strike,
+      expiration: order.expiration,
+      premium: order.suggestedPrice,
+      action: order.action.replace('Buy to Close', 'BTC').replace('Sell to Open', 'STO').replace('Sell to Close', 'STC').replace('Buy to Open', 'BTO'),
+      optionType: order.optionType as 'CALL' | 'PUT',
+      bid: order.bid,
+      ask: order.ask,
+      currentPrice: order.currentPrice,
+      oldPrice: order.currentPrice,
+      oldOrderId: String(order.orderId),
+    }));
+    
+    const orderIds = ordersToReplace.map(order => String(order.orderId));
+    
+    setUnifiedModalOrders(unifiedOrders);
+    setOldOrderIds(orderIds);
+    setUnifiedModalOpen(true);
   };
 
   const handleFillNow = () => {
@@ -1283,6 +1312,44 @@ export function WorkingOrdersTab() {
     setShowCancelDialog(false);
   };
 
+  // UnifiedOrderPreviewModal replace callback
+  const handleReplaceSubmit = async (
+    unifiedOrders: UnifiedOrder[],
+    quantities: Map<string, number>,
+    oldOrderIds: string[],
+    isDryRun: boolean
+  ) => {
+    // Build orders for replaceOrders mutation
+    const ordersToReplace = unifiedOrders.map((order, idx) => {
+      const matchingOrder = orders.find(o => String(o.orderId) === oldOrderIds[idx]);
+      return {
+        orderId: oldOrderIds[idx],
+        accountNumber: String(matchingOrder?.accountNumber || ''),
+        symbol: order.symbol,
+        suggestedPrice: order.premium,
+        rawOrder: matchingOrder?.rawOrder,
+      };
+    });
+
+    return new Promise<{ successCount: number; failedCount: number; results: any[] }>((resolve, reject) => {
+      replaceOrdersMutation.mutate(
+        { orders: ordersToReplace },
+        {
+          onSuccess: (result) => {
+            resolve({
+              successCount: result.successCount,
+              failedCount: result.failedCount,
+              results: result.results,
+            });
+          },
+          onError: (error) => {
+            reject(error);
+          },
+        }
+      );
+    });
+  };
+  
   const confirmReplace = () => {
     // If there are selected orders, replace only those; otherwise replace all that need replacement
     const ordersToReplace = selectedOrders.size > 0
@@ -2122,6 +2189,21 @@ export function WorkingOrdersTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* UnifiedOrderPreviewModal for Replace Mode */}
+      <UnifiedOrderPreviewModal
+        open={unifiedModalOpen}
+        onOpenChange={setUnifiedModalOpen}
+        orders={unifiedModalOrders}
+        strategy="csp" // Strategy doesn't matter for replace mode
+        operationMode="replace"
+        oldOrderIds={oldOrderIds}
+        accountId={selectedAccountId || ''}
+        availableBuyingPower={0} // Not needed for replace mode
+        onSubmit={async () => {}} // Not used in replace mode
+        onReplaceSubmit={handleReplaceSubmit}
+        tradingMode={tradingMode}
+      />
 
       {/* Replacement Log Panel */}
       {actionResults && actionResults.results && actionResults.results.length > 0 && (

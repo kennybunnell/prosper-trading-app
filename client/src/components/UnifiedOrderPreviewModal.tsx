@@ -33,6 +33,10 @@ export interface UnifiedOrder {
   bid?: number;
   ask?: number;
   currentPrice?: number;
+  
+  // Optional fields for replace mode
+  oldPrice?: number;      // Original order price (for comparison)
+  oldOrderId?: string;    // Original order ID (for tracking)
 }
 
 // Holding interface for stock ownership validation (CC strategy)
@@ -55,7 +59,7 @@ export interface UnifiedOrderPreviewModalProps {
   
   // Order data
   orders: UnifiedOrder[];
-  strategy: "csp" | "cc" | "bcs" | "bps" | "pmcc" | "btc" | "roll";
+  strategy: "csp" | "cc" | "bcs" | "bps" | "pmcc" | "btc" | "roll" | "replace";
   
   // Account context
   accountId: string;
@@ -64,6 +68,16 @@ export interface UnifiedOrderPreviewModalProps {
   
   // Callbacks
   onSubmit: (orders: UnifiedOrder[], quantities: Map<string, number>, isDryRun: boolean) => Promise<void>;
+  
+  // Replace mode specific
+  operationMode?: "new" | "replace";  // Default: "new"
+  oldOrderIds?: string[];              // Old order IDs to cancel (for replace mode)
+  onReplaceSubmit?: (                  // Replace-specific callback
+    orders: UnifiedOrder[],
+    quantities: Map<string, number>,
+    oldOrderIds: string[],
+    isDryRun: boolean
+  ) => Promise<{ successCount: number; failedCount: number; results: any[] }>;
   
   // Optional
   defaultQuantities?: Map<string, number>;
@@ -80,6 +94,9 @@ export function UnifiedOrderPreviewModal({
   availableBuyingPower,
   holdings = [],
   onSubmit,
+  operationMode = "new",
+  oldOrderIds = [],
+  onReplaceSubmit,
   defaultQuantities,
   allowQuantityEdit = true,
   tradingMode = "live",
@@ -87,7 +104,7 @@ export function UnifiedOrderPreviewModal({
   const { toast } = useToast();
   
   // State
-  const [mode, setMode] = useState<"dry-run" | "live">("dry-run");
+  const [submissionMode, setSubmissionMode] = useState<"dry-run" | "live">("dry-run");
   const [dryRunSuccess, setDryRunSuccess] = useState(false);
   const [orderQuantities, setOrderQuantities] = useState<Map<string, number>>(new Map());
   const [adjustedPrices, setAdjustedPrices] = useState<Map<string, number>>(new Map());
@@ -117,8 +134,8 @@ export function UnifiedOrderPreviewModal({
       });
       setAdjustedPrices(initialPrices);
       
-      // Reset mode and dry run success when modal opens
-      setMode("dry-run");
+      // Reset submission mode and dry run success when modal opens
+      setSubmissionMode("dry-run");
       setDryRunSuccess(false);
     }
   }, [open, orders, defaultQuantities]);
@@ -338,11 +355,21 @@ export function UnifiedOrderPreviewModal({
   const handleLiveSubmit = async () => {
     setIsSubmitting(true);
     try {
-      await onSubmit(orders, orderQuantities, false);
-      toast({
-        title: "Orders Submitted",
-        description: `${orders.length} orders submitted successfully!`,
-      });
+      if (operationMode === "replace" && onReplaceSubmit) {
+        // Replace mode - call onReplaceSubmit
+        const result = await onReplaceSubmit(orders, orderQuantities, oldOrderIds, false);
+        toast({
+          title: "Orders Replaced",
+          description: `${result.successCount} of ${orders.length} orders replaced successfully!`,
+        });
+      } else {
+        // New order mode - call onSubmit
+        await onSubmit(orders, orderQuantities, false);
+        toast({
+          title: "Orders Submitted",
+          description: `${orders.length} orders submitted successfully!`,
+        });
+      }
       onOpenChange(false); // Close modal after successful submission
     } catch (error: any) {
       toast({
@@ -363,9 +390,14 @@ export function UnifiedOrderPreviewModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Order Preview - Review and Adjust</DialogTitle>
+          <DialogTitle>
+            {operationMode === "replace" ? "Replace Orders - Review Changes" : "Order Preview - Review and Adjust"}
+          </DialogTitle>
           <DialogDescription>
-            Adjust quantities and prices before submitting
+            {operationMode === "replace" 
+              ? `Review pricing details before replacing ${orders.length} order${orders.length > 1 ? 's' : ''}`
+              : "Adjust quantities and prices before submitting"
+            }
           </DialogDescription>
         </DialogHeader>
         
@@ -373,7 +405,7 @@ export function UnifiedOrderPreviewModal({
           {/* Mode Toggle */}
           <div className="p-4 bg-muted/50 rounded-lg border">
             <Label className="text-sm font-medium mb-3 block">Trading Mode</Label>
-            <RadioGroup value={mode} onValueChange={(v) => setMode(v as "dry-run" | "live")}>
+            <RadioGroup value={submissionMode} onValueChange={(v) => setSubmissionMode(v as "dry-run" | "live")}>
               <div className="flex items-center space-x-6">
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="dry-run" id="dry-run" />
@@ -396,12 +428,12 @@ export function UnifiedOrderPreviewModal({
               </div>
             </RadioGroup>
             
-            {dryRunSuccess && mode === "dry-run" && (
+            {dryRunSuccess && submissionMode === "dry-run" && (
               <Alert className="mt-3 border-green-500/50 bg-green-500/10">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
                 <AlertTitle className="text-green-500">Dry Run Successful</AlertTitle>
                 <AlertDescription className="text-green-500/80">
-                  All orders validated. Toggle to Live mode to submit real orders.
+                  All orders validated. Toggle to Live submission mode to submit real orders.
                 </AlertDescription>
               </Alert>
             )}
@@ -475,8 +507,19 @@ export function UnifiedOrderPreviewModal({
                     
                     {/* Price */}
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-2 block">Price</Label>
+                      <Label className="text-xs text-muted-foreground mb-2 block">
+                        {operationMode === "replace" ? "New Price" : "Price"}
+                      </Label>
                       <div className="text-sm font-medium">${price.toFixed(2)}</div>
+                      {operationMode === "replace" && order.oldPrice && (
+                        <div className="text-xs">
+                          <span className="text-muted-foreground">Was: ${order.oldPrice.toFixed(2)}</span>
+                          {" "}
+                          <span className={price !== order.oldPrice ? (price > order.oldPrice ? "text-red-400" : "text-green-400") : "text-muted-foreground"}>
+                            {price > order.oldPrice ? "+" : ""}{(price - order.oldPrice).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
                       {order.bid && order.ask && (
                         <div className="text-xs text-muted-foreground">
                           Bid ${order.bid.toFixed(2)} / Ask ${order.ask.toFixed(2)}
@@ -543,12 +586,12 @@ export function UnifiedOrderPreviewModal({
             Cancel
           </Button>
           <Button
-            onClick={mode === "dry-run" ? handleDryRun : handleLiveSubmit}
-            variant={mode === "dry-run" ? "default" : "destructive"}
+            onClick={submissionMode === "dry-run" ? handleDryRun : handleLiveSubmit}
+            variant={submissionMode === "dry-run" ? "default" : "destructive"}
             disabled={!canSubmit}
           >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {mode === "dry-run" ? "Execute Dry Run" : "Submit Orders"}
+            {submissionMode === "dry-run" ? "Execute Dry Run" : "Submit Orders"}
           </Button>
         </DialogFooter>
       </DialogContent>
