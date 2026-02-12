@@ -339,6 +339,11 @@ export const appRouter = router({
           return { monthlyData: [], error: 'No accounts found' };
         }
         
+        console.log(`[Dashboard] Aggregating premium data across ${accounts.length} account(s):`);
+        accounts.forEach((acc, idx) => {
+          console.log(`  ${idx + 1}. ${acc.account['account-number']} (${acc.account.nickname || 'No nickname'})`);
+        });
+        
         // Calculate date range based on year filter
         const now = new Date();
         const selectedYear = input?.year;
@@ -437,6 +442,11 @@ export const appRouter = router({
           const data = monthlyData[month] || { credits: 0, debits: 0 };
           const netPremium = data.credits - data.debits;
           cumulative += netPremium;
+          
+          // Log detailed breakdown for debugging
+          if (data.credits > 0 || data.debits > 0) {
+            console.log(`[Dashboard] ${month}: Credits=$${data.credits.toFixed(2)}, Debits=$${data.debits.toFixed(2)}, Net=$${netPremium.toFixed(2)}`);
+          }
           
           return {
             month,

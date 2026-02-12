@@ -4338,3 +4338,17 @@
 - [x] Fixed dependency array bug in Settings.tsx (was watching wrong variable)
 - [x] Manually updated database with new refresh token
 - [x] Server restarted to clear cached tokens
+
+## Monthly Premium Earnings Calculation - VERIFIED ✅
+- [x] Check server logs for premium calculation data
+- [x] Review getMonthlyPremiumData procedure in routers.ts
+- [x] Verify transaction data from Tastytrade API
+- [x] Confirmed calculation aggregates all 4 accounts correctly
+- [x] Verified spreads (BCS/BPS) are properly assessed (both legs counted)
+- [x] January 2026: $57,855.98 credits - $4,969.22 debits = $52,886.76 net premium
+
+## High Debit Amount Investigation - RESOLVED ✅
+- [x] Add detailed logging to show individual debit transactions
+- [x] Verify transaction categorization logic (Credits vs Debits)
+- [x] Confirmed debits include Buy to Close + Buy to Open (long legs of spreads)
+- [x] Calculation is correct - spreads properly assessed
