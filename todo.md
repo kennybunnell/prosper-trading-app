@@ -4296,3 +4296,8 @@
 
 ## Bear Call Spread Order Submission Bug
 - [x] Fix BCS order submission - "Submit Live Orders" button performs dry run instead of submitting real orders
+
+## Order Submission Fix - Apply to All Dashboards
+- [x] Update CSP dashboard (CSPDashboard.tsx) - apply isDryRun override fix
+- [x] Update Bull Put Spread dashboard (handled within CSPDashboard) - apply isDryRun override fix
+- [x] Search for any other dashboards using OrderPreviewDialog and apply fix (PMCCDashboard and AdminDashboard don't use it)

@@ -867,7 +867,10 @@ export default function CSPDashboard() {
   };
 
   // Execute order submission with midpoint pricing from validation
-  const executeOrderSubmission = (adjustedPrices?: Map<number, number>) => {
+  const executeOrderSubmission = (adjustedPrices?: Map<number, number>, isDryRunOverride?: boolean) => {
+    // Use isDryRunOverride from dialog if provided, otherwise fall back to component state
+    const effectiveDryRun = isDryRunOverride !== undefined ? isDryRunOverride : dryRun;
+    
     setShowPreviewDialog(false);
     setShowProgressDialog(true);
     
@@ -945,7 +948,7 @@ export default function CSPDashboard() {
     submitOrders.mutate({
       orders: orderLegs,
       accountId: selectedAccountId,
-      dryRun: dryRun,
+      dryRun: effectiveDryRun,
     });
   };
 
