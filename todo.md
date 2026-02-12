@@ -4321,3 +4321,12 @@
 - [x] Server restarted to clear cached tokens
 - [x] Connection test successful
 - [x] Dashboard loading real data from Tastytrade
+
+## Intermittent OAuth2 Authentication Failures - RESOLVED ✅
+- [x] Check current server logs for OAuth2 errors
+- [x] Verify credentials are still in database
+- [x] Check if access token is expiring and not being refreshed
+- [x] Verify Client ID is not required (OAuth2 refresh token flow only needs Client Secret + Refresh Token)
+- [x] Added detailed logging to saveCredentials mutation
+- [x] User refreshed interface and credentials now working
+- [x] Test connection working consistently

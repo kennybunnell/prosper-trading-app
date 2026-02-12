@@ -500,8 +500,16 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        console.log('[Settings] saveCredentials called with input:', {
+          hasClientSecret: !!input.tastytradeClientSecret,
+          clientSecretLength: input.tastytradeClientSecret?.length || 0,
+          hasRefreshToken: !!input.tastytradeRefreshToken,
+          refreshTokenLength: input.tastytradeRefreshToken?.length || 0,
+          refreshTokenStart: input.tastytradeRefreshToken?.substring(0, 50) || 'none',
+        });
         const { upsertApiCredentials } = await import('./db');
         await upsertApiCredentials(ctx.user.id, input);
+        console.log('[Settings] Credentials saved successfully');
         return { success: true };
       }),
     testTastytradeConnection: protectedProcedure.mutation(async ({ ctx }) => {

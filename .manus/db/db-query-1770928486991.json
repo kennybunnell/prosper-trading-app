@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, userId, \n  LENGTH(tastytradeRefreshToken) as token_length,\n  CASE \n    WHEN tastytradeRefreshToken LIKE 'eyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6IlRvaGQ5WV85ZXE4TG5LbF9saHgwQ0NtakExakZoOXo1STJPVzFBZG54Z1UiLCJqa3UiOiJodHRwczovL2ludGVyaW9yLWFwaS5hcjIudGFzdHl0cmFkZS5zeXN0ZW1zL29hdXRoL2p3a3MifQ%' \n    THEN 'NEW TOKEN' \n    ELSE 'OLD TOKEN' \n  END as token_status,\n  SUBSTR(tastytradeRefreshToken, 1, 100) as token_start\nFROM apiCredentials WHERE userId = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT id, userId, \n  LENGTH(tastytradeRefreshToken) as token_length,\n  CASE \n    WHEN tastytradeRefreshToken LIKE 'eyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6IlRvaGQ5WV85ZXE4TG5LbF9saHgwQ0NtakExakZoOXo1STJPVzFBZG54Z1UiLCJqa3UiOiJodHRwczovL2ludGVyaW9yLWFwaS5hcjIudGFzdHl0cmFkZS5zeXN0ZW1zL29hdXRoL2p3a3MifQ%' \n    THEN 'NEW TOKEN' \n    ELSE 'OLD TOKEN' \n  END as token_status,\n  SUBSTR(tastytradeRefreshToken, 1, 100) as token_start\nFROM apiCredentials WHERE userId = 1;",
+  "rows": [
+    {
+      "id": "30023",
+      "userId": "1",
+      "token_length": "580",
+      "token_status": "NEW TOKEN",
+      "token_start": "eyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6IlRvaGQ5WV85ZXE4TG5LbF9saHgwQ0NtakExakZoOXo1STJPVzFB"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\ttoken_length\ttoken_status\ttoken_start\n30023\t1\t580\tNEW TOKEN\teyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6IlRvaGQ5WV85ZXE4TG5LbF9saHgwQ0NtakExakZoOXo1STJPVzFB\n",
+  "stderr": "",
+  "execution_time_ms": 51
+}
