@@ -2856,14 +2856,14 @@ export default function CCDashboard() {
           strategy={strategyType === 'spread' ? 'bcs' : 'cc'}
           accountId={selectedAccountId || ''}
           availableBuyingPower={availableBuyingPower}
-          holdings={stockPositions.map(pos => ({
+          holdings={holdings.map(pos => ({
             symbol: pos.symbol,
             quantity: pos.quantity,
             maxContracts: Math.floor(pos.quantity / 100),
           }))}
           onSubmit={executeOrderSubmission}
           allowQuantityEdit={true}
-          tradingMode={isLiveTrading ? 'live' : 'paper'}
+          tradingMode={tradingMode}
         />
       )}
 

@@ -951,11 +951,6 @@ export default function CSPDashboard() {
         };
       }
     });
-    
-    setProgressResults({
-      total: orderLegs.length,
-      results: orderLegs.map((o: any) => ({ symbol: o.symbol, status: 'pending' })),
-    });
 
     if (!selectedAccountId) {
       toast.error("Please select an account");
@@ -965,7 +960,7 @@ export default function CSPDashboard() {
     submitOrders.mutate({
       orders: orderLegs,
       accountId: selectedAccountId,
-      dryRun: effectiveDryRun,
+      dryRun: isDryRun,
     });
   };
 
@@ -2613,7 +2608,7 @@ export default function CSPDashboard() {
           availableBuyingPower={availableBuyingPower}
           onSubmit={executeOrderSubmission}
           allowQuantityEdit={true}
-          tradingMode={isLiveTrading ? 'live' : 'paper'}
+          tradingMode={tradingMode}
         />
       )}
 

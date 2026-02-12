@@ -42,10 +42,6 @@ export function MonthlyPremiumChart({ data }: MonthlyPremiumChartProps) {
 
   return (
     <Card className="p-6 bg-card/70 backdrop-blur-sm border-border/30">
-      <h2 className="text-2xl font-bold text-foreground mb-6">
-        Monthly Premium Earnings - All Accounts Combined
-      </h2>
-      
       <div className="relative">
       <ResponsiveContainer width="100%" height={450}>
         <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>

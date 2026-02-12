@@ -4411,3 +4411,9 @@
 - [x] Document intermittent OAuth2 authentication behavior
 - [x] Create troubleshooting guide for future OAuth2 issues
 - [x] Test logging with actual OAuth2 requests
+
+## UI Bug Fixes
+- [x] Remove duplicate "Monthly Premium Earnings - All Accounts Combined" header on Dashboard
+- [x] Fix TypeScript error in Performance.tsx (option type mapping for BTC workflow)
+- [x] Fix TypeScript errors in CC Dashboard (stockPositions, isLiveTrading references)
+- [x] Fix TypeScript errors in CSP Dashboard (setProgressResults, effectiveDryRun, isLiveTrading references)
