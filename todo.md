@@ -4330,3 +4330,11 @@
 - [x] Added detailed logging to saveCredentials mutation
 - [x] User refreshed interface and credentials now working
 - [x] Test connection working consistently
+
+## BCS Scan OAuth2 Error - RESOLVED ✅
+- [x] Check server logs for BCS scan error at 20:51:52
+- [x] Identify which API call fails during BCS scan (onboarding process)
+- [x] Found root cause: Settings page not saving new refresh token to database
+- [x] Fixed dependency array bug in Settings.tsx (was watching wrong variable)
+- [x] Manually updated database with new refresh token
+- [x] Server restarted to clear cached tokens

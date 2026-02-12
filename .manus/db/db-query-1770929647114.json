@@ -1,0 +1,17 @@
+{
+  "query": "SELECT \n  id,\n  userId,\n  LENGTH(tastytradeRefreshToken) as token_length,\n  SUBSTR(tastytradeRefreshToken, 1, 150) as token_start,\n  CASE \n    WHEN tastytradeRefreshToken LIKE '%\"scope\":\"read trade openid\"%' THEN 'HAS ALL SCOPES'\n    ELSE 'CHECK SCOPES'\n  END as scope_status\nFROM apiCredentials \nWHERE userId = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT \n  id,\n  userId,\n  LENGTH(tastytradeRefreshToken) as token_length,\n  SUBSTR(tastytradeRefreshToken, 1, 150) as token_start,\n  CASE \n    WHEN tastytradeRefreshToken LIKE '%\"scope\":\"read trade openid\"%' THEN 'HAS ALL SCOPES'\n    ELSE 'CHECK SCOPES'\n  END as scope_status\nFROM apiCredentials \nWHERE userId = 1;",
+  "rows": [
+    {
+      "id": "30023",
+      "userId": "1",
+      "token_length": "580",
+      "token_start": "eyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6IlRvaGQ5WV85ZXE4TG5LbF9saHgwQ0NtakExakZoOXo1STJPVzFBZG54Z1UiLCJqa3UiOiJodHRwczovL2ludGVyaW9yLWFwaS5hcj",
+      "scope_status": "CHECK SCOPES"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\ttoken_length\ttoken_start\tscope_status\n30023\t1\t580\teyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6IlRvaGQ5WV85ZXE4TG5LbF9saHgwQ0NtakExakZoOXo1STJPVzFBZG54Z1UiLCJqa3UiOiJodHRwczovL2ludGVyaW9yLWFwaS5hcj\tCHECK SCOPES\n",
+  "stderr": "",
+  "execution_time_ms": 80
+}
