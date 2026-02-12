@@ -492,7 +492,6 @@ export const appRouter = router({
     saveCredentials: protectedProcedure
       .input(
         z.object({
-          tastytradeClientId: z.string().optional(),
           tastytradeClientSecret: z.string().optional(),
           tastytradeRefreshToken: z.string().optional(),
           tradierApiKey: z.string().optional(),

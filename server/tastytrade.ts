@@ -120,6 +120,36 @@ export class TastytradeAPI {
       },
       timeout: 30000, // 30 second timeout for all requests
     });
+    
+    // Add request interceptor for detailed logging
+    this.client.interceptors.request.use(
+      (config) => {
+        console.log(`[Tastytrade API] ${config.method?.toUpperCase()} ${config.url}`);
+        if (config.data && config.url !== '/oauth/token') {
+          console.log(`[Tastytrade API] Request body:`, JSON.stringify(config.data).substring(0, 200));
+        }
+        return config;
+      },
+      (error) => {
+        console.error('[Tastytrade API] Request error:', error.message);
+        return Promise.reject(error);
+      }
+    );
+    
+    // Add response interceptor for detailed logging
+    this.client.interceptors.response.use(
+      (response) => {
+        console.log(`[Tastytrade API] ${response.status} ${response.config.url}`);
+        return response;
+      },
+      (error) => {
+        console.error(`[Tastytrade API] ${error.response?.status || 'ERROR'} ${error.config?.url}`);
+        if (error.response?.data) {
+          console.error('[Tastytrade API] Error response:', JSON.stringify(error.response.data));
+        }
+        return Promise.reject(error);
+      }
+    );
   }
 
   /**
@@ -174,6 +204,7 @@ export class TastytradeAPI {
         client_secret: clientSecret,
       };
       console.log('[Tastytrade] Request body keys:', Object.keys(requestBody));
+      console.log('[Tastytrade] FULL REQUEST BODY:', JSON.stringify(requestBody, null, 2));
       console.log('[Tastytrade] Grant type:', requestBody.grant_type);
       console.log('[Tastytrade] Refresh token length:', refreshToken?.length || 0);
       console.log('[Tastytrade] Client secret length:', clientSecret?.length || 0);

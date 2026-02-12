@@ -4301,3 +4301,14 @@
 - [x] Update CSP dashboard (CSPDashboard.tsx) - apply isDryRun override fix
 - [x] Update Bull Put Spread dashboard (handled within CSPDashboard) - apply isDryRun override fix
 - [x] Search for any other dashboards using OrderPreviewDialog and apply fix (PMCCDashboard and AdminDashboard don't use it)
+
+## OAuth2 Error Investigation - RESOLVED ✅
+- [x] Add detailed logging to track EVERY authentication attempt
+- [x] Audit ALL places where Tastytrade authentication is triggered
+- [x] Verify OAuth2 token request is NOT including scope parameter (scopes are in the token itself)
+- [x] Check if getAccessToken is being called correctly without scope parameter
+- [x] Fix upsertApiCredentials to accept OAuth2 credentials (tastytradeClientSecret, tastytradeRefreshToken)
+- [x] Fix Settings.tsx to remove tastytradeClientId field (not needed for OAuth2)
+- [x] Fix saveCredentials mutation schema to remove tastytradeClientId
+- [x] Verify credentials are properly saved in database
+- [x] Verify dashboards load data from Tastytrade successfully

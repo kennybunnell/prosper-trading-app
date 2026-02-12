@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 export default function Settings() {
   const { user, loading: authLoading } = useAuth();
-  const [tastytradeClientId, setTastytradeClientId] = useState("");
+  // Client ID not needed - only Client Secret and Refresh Token
   const [tastytradeClientSecret, setTastytradeClientSecret] = useState("");
   const [tastytradeRefreshToken, setTastytradeRefreshToken] = useState("");
   const [tradierApiKey, setTradierApiKey] = useState("");
@@ -110,7 +110,7 @@ export default function Settings() {
   useEffect(() => {
     if (credentials) {
       console.log('[Settings] Loading credentials from database:', credentials);
-      setTastytradeClientId(credentials.tastytradeClientId || "");
+      // Client ID not needed - only Client Secret and Refresh Token
       setTastytradeClientSecret(credentials.tastytradeClientSecret || "");
       setTastytradeRefreshToken(credentials.tastytradeRefreshToken || "");
       setTradierApiKey(credentials.tradierApiKey || "");
@@ -129,7 +129,7 @@ export default function Settings() {
 
   const handleSave = () => {
     saveCredentials.mutate({
-      tastytradeClientId: tastytradeClientId || undefined,
+      // Client ID not needed - only Client Secret and Refresh Token
       tastytradeClientSecret: tastytradeClientSecret || undefined,
       tastytradeRefreshToken: tastytradeRefreshToken || undefined,
       tradierApiKey: tradierApiKey || undefined,
@@ -206,7 +206,7 @@ export default function Settings() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               Tastytrade API (OAuth2)
-              {credentials?.tastytradeClientId && credentials?.tastytradeRefreshToken && (
+              {credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken && (
                 <CheckCircle2 className="h-5 w-5 text-green-500" />
               )}
             </CardTitle>
@@ -224,19 +224,7 @@ export default function Settings() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="tastytrade-client-id">Client ID</Label>
-              <Input
-                id="tastytrade-client-id"
-                type="text"
-                value={tastytradeClientId}
-                onChange={(e) => {
-                  setTastytradeClientId(e.target.value);
-                  handleInputChange();
-                }}
-                placeholder="64e7a9e5-962d-405c-86e2-0d0052ec22f6"
-              />
-            </div>
+            {/* Client ID field removed - not needed for OAuth2 token refresh */}
             <div className="space-y-2">
               <Label htmlFor="tastytrade-client-secret">Client Secret</Label>
               <Input
@@ -270,7 +258,7 @@ export default function Settings() {
               <Button
                 variant="outline"
                 onClick={() => testTastytrade.mutate()}
-                disabled={!credentials?.tastytradeClientId || !credentials?.tastytradeRefreshToken || testTastytrade.isPending || hasChanges}
+                disabled={!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken || testTastytrade.isPending || hasChanges}
               >
                 {testTastytrade.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Test Connection
@@ -278,7 +266,7 @@ export default function Settings() {
               <Button
                 variant="outline"
                 onClick={() => syncAccounts.mutate()}
-                disabled={!credentials?.tastytradeClientId || !credentials?.tastytradeRefreshToken || syncAccounts.isPending || hasChanges}
+                disabled={!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken || syncAccounts.isPending || hasChanges}
               >
                 {syncAccounts.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sync Accounts
