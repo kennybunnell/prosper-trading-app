@@ -4246,3 +4246,13 @@
 **Total Procedures Migrated**: 21 api.login() calls across 5 router files
 **Files Updated**: routers.ts (11), routers-cc.ts (3), routers-performance.ts (3), routers-pmcc.ts (2), routers-rolls.ts (2)
 **Status**: ✅ COMPLETE - All api.login() calls have been migrated to OAuth2 authenticateTastytrade() helper
+
+## Order Preview Panel Fixes (Feb 12, 2026)
+- [x] Fix CC premium calculation - multiply by 100 (showing $12.30 instead of $1,230)
+- [x] Fix BCS premium calculation - multiply by 100 (showing $3.61 instead of $361)
+- [x] Fix CC buying power display - should show "Stock Collateral Required" not "Available Buying Power"
+- [x] Review all strategy order preview panels for correct calculations
+  - ✅ CC/BCS: Fixed - multiplied bid/premium/ask/mid by 100 in CCDashboard.tsx
+  - ✅ CSP/BPS: Already correct - backend returns per-contract values
+  - ✅ PMCC: No order preview yet
+  - ✅ Rolls (Action Items): Appears correct - uses metrics.currentValue and candidate.newPremium (already per-contract)

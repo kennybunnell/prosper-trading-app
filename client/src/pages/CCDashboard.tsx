@@ -787,8 +787,8 @@ export default function CCDashboard() {
       strike: opp.strike,
       expiration: opp.expiration,
       quantity: 1,
-      bid: opp.bid,
-      premium: opp.premium,
+      bid: opp.bid * 100, // Convert per-share to per-contract
+      premium: opp.premium * 100, // Convert per-share to per-contract
       collateral: strategyType === 'spread' ? (opp.capitalAtRisk || 0) : (opp.currentPrice * 100),
       status: 'valid' as const,
       // Spread-specific fields
@@ -797,8 +797,8 @@ export default function CCDashboard() {
       longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
       spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
       // Market data for price adjustment
-      ask: opp.ask,
-      mid: (opp.bid + opp.ask) / 2,
+      ask: opp.ask * 100, // Convert per-share to per-contract
+      mid: ((opp.bid + opp.ask) / 2) * 100, // Convert per-share to per-contract
     }));
 
     const totalPremium = orders.reduce((sum, o) => sum + o.premium, 0);

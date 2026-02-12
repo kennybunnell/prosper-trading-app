@@ -694,11 +694,13 @@ export function OrderPreviewDialog({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Detect strategy type: Spread, CSP, or CC */}
           {(() => {
-            const isSpread = orders.some(o => o.isSpread);
-            const isCSP = !isSpread && orders.some(o => (o as any).strategy === 'CSP' || (!(o as any).strategy && o.collateral));
-            const isCC = !isSpread && !isCSP;
+            // Use strategy prop instead of guessing from order data
+            const isCSP = strategy === 'csp';
+            const isBPS = strategy === 'bps';
+            const isCC = strategy === 'cc';
+            const isBCS = strategy === 'bcs';
 
-            if (isSpread || isCSP) {
+            if (isCSP || isBPS) {
               // For spreads and CSP: show buying power with remaining
               return (
                 <>
