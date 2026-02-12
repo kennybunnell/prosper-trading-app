@@ -263,7 +263,7 @@ export default function Settings() {
                 placeholder="eyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6IkxsbHMyWnJPdW5TZ2RDOF9oU2VBWjQyX1d4cWtQUmV3QnRnMTFSRG9sdnMiLCJqa3UiOiJodHRwczovL2ludGVyaW9yLWFwaS5hcjIudGFzdHl0cmFkZS5zeXN0ZW1zL29hdXRoL2p3a3MifQ..."
               />
               <p className="text-xs text-muted-foreground">
-                Generate a personal grant in your OAuth app to get the refresh token
+                Generate a personal grant in your OAuth app with <strong>all scopes selected</strong> (read, trade, openid) to get the refresh token
               </p>
             </div>
             <div className="flex gap-2">
