@@ -196,6 +196,16 @@ export class TastytradeAPI {
    */
   async getAccessToken(refreshToken: string, clientSecret: string): Promise<TastytradeOAuth2Token> {
     try {
+      // Log current token state BEFORE requesting new token
+      console.log('[Tastytrade OAuth2] === TOKEN REFRESH REQUEST START ===');
+      console.log('[Tastytrade OAuth2] Current token state:', {
+        hasAccessToken: !!this.accessToken,
+        accessTokenLength: this.accessToken?.length || 0,
+        tokenExpiresAt: this.tokenExpiresAt ? new Date(this.tokenExpiresAt).toISOString() : 'not set',
+        isExpired: this.isTokenExpired(),
+        timeUntilExpiry: this.tokenExpiresAt ? Math.round((this.tokenExpiresAt - Date.now()) / 1000) : 0,
+        timestamp: new Date().toISOString(),
+      });
       console.log('[Tastytrade] Requesting OAuth2 access token...');
       
       const requestBody = {
@@ -226,8 +236,25 @@ export class TastytradeAPI {
       this.client.defaults.headers.common['Authorization'] = `Bearer ${token.access_token}`;
       
       console.log('[Tastytrade] OAuth2 access token obtained successfully');
+      console.log('[Tastytrade OAuth2] New token state:', {
+        accessTokenLength: token.access_token.length,
+        tokenType: token.token_type,
+        expiresIn: token.expires_in,
+        expiresAt: new Date(token.expiresAt!).toISOString(),
+        timeUntilExpiry: Math.round(token.expires_in),
+        timestamp: new Date().toISOString(),
+      });
+      console.log('[Tastytrade OAuth2] === TOKEN REFRESH REQUEST SUCCESS ===');
       return token;
     } catch (error: any) {
+      console.error('[Tastytrade OAuth2] === TOKEN REFRESH REQUEST FAILED ===');
+      console.error('[Tastytrade OAuth2] Error details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        errorMessage: error.response?.data?.error?.message || error.message,
+        errorData: error.response?.data,
+        timestamp: new Date().toISOString(),
+      });
       console.error('[Tastytrade] OAuth2 token request failed');
       console.error('[Tastytrade] Error response status:', error.response?.status);
       console.error('[Tastytrade] Error response data:', JSON.stringify(error.response?.data, null, 2));
@@ -988,17 +1015,37 @@ export async function authenticateTastytrade(credentials: {
   tastytradeUsername?: string | null;
   tastytradePassword?: string | null;
 }): Promise<TastytradeAPI> {
+  console.log('[Tastytrade OAuth2] === AUTHENTICATION START ===');
+  console.log('[Tastytrade OAuth2] Credentials check:', {
+    hasClientSecret: !!credentials.tastytradeClientSecret,
+    clientSecretLength: credentials.tastytradeClientSecret?.length || 0,
+    hasRefreshToken: !!credentials.tastytradeRefreshToken,
+    refreshTokenLength: credentials.tastytradeRefreshToken?.length || 0,
+    timestamp: new Date().toISOString(),
+  });
+  
   const api = getTastytradeAPI();
   
   // Check if OAuth2 credentials are available
   if (credentials.tastytradeClientSecret && credentials.tastytradeRefreshToken) {
     // Use OAuth2 authentication
-    if (api.isTokenExpired()) {
+    const isExpired = api.isTokenExpired();
+    console.log('[Tastytrade OAuth2] Token expiration check:', {
+      isExpired,
+      willRefresh: isExpired,
+      timestamp: new Date().toISOString(),
+    });
+    
+    if (isExpired) {
       await api.getAccessToken(
         credentials.tastytradeRefreshToken,
         credentials.tastytradeClientSecret
       );
+    } else {
+      console.log('[Tastytrade OAuth2] Using existing valid token (no refresh needed)');
     }
+    
+    console.log('[Tastytrade OAuth2] === AUTHENTICATION SUCCESS ===');
     return api;
   }
   

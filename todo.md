@@ -4404,3 +4404,10 @@
 - [ ] Add oldOrderId tracking for cancel + resubmit workflow
 - [ ] Integrate UnifiedOrderPreviewModal with Working Orders replacement
 - [ ] Test replace workflow with order status polling
+
+## OAuth2 Token State Logging & Documentation
+- [x] Add comprehensive token state logging to TastytradeAPI class
+- [x] Log token lifecycle events (creation, refresh, expiration, errors)
+- [x] Document intermittent OAuth2 authentication behavior
+- [x] Create troubleshooting guide for future OAuth2 issues
+- [x] Test logging with actual OAuth2 requests
