@@ -4527,3 +4527,8 @@
 - [x] Fix orderId type mismatch in handlePollStatuses - endpoint expects string but receives number
 - [x] Update CSP Dashboard to convert orderId to string before calling pollStatus
 - [x] Test polling functionality after fix
+
+## CC Dashboard Uncovered Option Bug (CRITICAL)
+- [x] Fix CC Dashboard order validation - prevent submitting orders when availableShares < quantity * 100
+- [x] Add pre-submission filter to remove uncovered orders before Tastytrade API call
+- [ ] Test CC order submission to ensure no "risk_check_failed" errors

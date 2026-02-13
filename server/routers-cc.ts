@@ -586,6 +586,21 @@ export const ccRouter = router({
         contractsPerSymbol[order.symbol] = (contractsPerSymbol[order.symbol] || 0) + order.quantity;
       }
 
+      // Filter out orders where maxContracts is insufficient (prevents uncovered options)
+      const filteredOrders = input.orders.filter(order => {
+        const maxContracts = maxContractsMap[order.symbol] || 0;
+        if (order.quantity > maxContracts) {
+          console.log(`[CC submitOrders] FILTERED OUT ${order.symbol}: Requested ${order.quantity} contracts but only ${maxContracts} available (would be uncovered)`);
+          return false;
+        }
+        return true;
+      });
+
+      // If all orders were filtered out, return error
+      if (filteredOrders.length === 0) {
+        throw new Error('All orders filtered out: insufficient shares to cover requested contracts. Please ensure you have at least 100 shares per contract.');
+      }
+
       // Validate each symbol doesn't exceed maxContracts
       const validationErrors: string[] = [];
       console.log('[CC submitOrders] Validating contract limits:');
@@ -606,7 +621,7 @@ export const ccRouter = router({
 
       if (input.dryRun) {
         // Dry run - validation passed, return success
-        return input.orders.map(order => ({
+        return filteredOrders.map(order => ({
           success: true,
           symbol: order.symbol,
           strike: order.strike,
@@ -619,7 +634,7 @@ export const ccRouter = router({
       // Live mode - submit real orders (api and credentials already initialized above)
       const results = [];
 
-      for (const order of input.orders) {
+      for (const order of filteredOrders) {
         try {
           // Format option symbol (e.g., "AAPL  250131C00175000")
           const expDate = new Date(order.expiration);
