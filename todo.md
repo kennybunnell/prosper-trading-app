@@ -4470,3 +4470,11 @@
 - [x] Fix dry run workflow - modal should stay open after dry run, button should turn red for live submit
 - [x] Remove test checkbox requirement - should be able to submit live without unchecking dry run checkbox
 - [x] Verify workflow: Dry Run → Modal Stays Open → Button Turns Red → Click to Submit Live
+
+## UnifiedOrderPreviewModal Slider & Workflow Fixes (URGENT)
+- [x] Fix slider not draggable - should be interactive and respond to drag
+- [x] Add click-to-jump on Fill marker - clicking "Fill" should move slider to 70% position
+- [x] Fix +/- buttons increment - currently $0.01, should be $0.05
+- [x] Add modal max-height with scroll for 15-20 orders
+- [x] Replace browser alert with toast notification for dry run success
+- [x] Fix dry run workflow - after successful dry run, clicking red button should submit live (not re-validate)

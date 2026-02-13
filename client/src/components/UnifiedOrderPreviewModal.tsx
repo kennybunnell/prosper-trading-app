@@ -432,7 +432,7 @@ export function UnifiedOrderPreviewModal({
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {operationMode === "replace" ? "Replace Orders - Review Changes" : "Order Preview - Review and Adjust"}
@@ -445,7 +445,7 @@ export function UnifiedOrderPreviewModal({
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-6">
+        <div className="space-y-6 overflow-y-auto flex-1 px-1">
           {/* Dry Run Success Banner */}
           {dryRunSuccess && (
             <Alert className="border-green-500/50 bg-green-500/10">
@@ -557,7 +557,7 @@ export function UnifiedOrderPreviewModal({
                     {order.bid && order.ask && (
                       <div className="space-y-2">
                         <Label className="text-xs text-muted-foreground">Price Adjustment (Bid to Midpoint)</Label>
-                        <div className="relative px-2">
+                        <div className="relative px-2 py-4">
                           {/* Bid Marker */}
                           <div 
                             className="absolute h-3 w-0.5 bg-red-400/50" 
@@ -571,17 +571,23 @@ export function UnifiedOrderPreviewModal({
                             <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-red-400 font-bold whitespace-nowrap">Bid</div>
                           </div>
                           
-                          {/* 70% Fill Zone Marker */}
+                          {/* 70% Fill Zone Marker - Clickable */}
                           <div 
-                            className="absolute h-3 w-0.5 bg-emerald-400/70" 
+                            className="absolute h-3 w-0.5 bg-emerald-400/70 cursor-pointer hover:bg-emerald-400" 
                             style={{ 
                               left: '70%', 
                               top: '50%', 
                               transform: 'translateY(-50%)',
-                              zIndex: 0
+                              zIndex: 10
                             }}
+                            onClick={() => setPriceFromSlider(order, [70])}
                           >
-                            <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-emerald-400 font-bold whitespace-nowrap">Fill</div>
+                            <div 
+                              className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-emerald-400 font-bold whitespace-nowrap cursor-pointer hover:text-emerald-300"
+                              onClick={() => setPriceFromSlider(order, [70])}
+                            >
+                              Fill
+                            </div>
                           </div>
                           
                           {/* Mid Marker */}
@@ -601,7 +607,7 @@ export function UnifiedOrderPreviewModal({
                             onValueChange={(value) => setPriceFromSlider(order, value)}
                             max={100}
                             step={1}
-                            className="relative z-10"
+                            className="relative z-20"
                             disabled={isSubmitting}
                           />
                         </div>

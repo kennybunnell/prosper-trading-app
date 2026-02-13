@@ -348,7 +348,10 @@ export function ActivePositionsTab() {
     quantities: Map<string, number>,
     isDryRun: boolean
   ) => {
-    setShowPreviewModal(false);
+    // Only close preview modal if submitting live orders (not dry run)
+    if (!isDryRun) {
+      setShowPreviewModal(false);
+    }
     setCloseResults(null);
 
     // Map UnifiedOrders back to position data for closePositions mutation

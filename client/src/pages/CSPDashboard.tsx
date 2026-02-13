@@ -889,8 +889,11 @@ export default function CSPDashboard() {
     quantities: Map<string, number>,
     isDryRun: boolean
   ) => {
-    setShowPreviewDialog(false);
-    setShowProgressDialog(true);
+    // Only close preview modal if submitting live orders (not dry run)
+    if (!isDryRun) {
+      setShowPreviewDialog(false);
+      setShowProgressDialog(true);
+    }
     
     if (orders.length === 0) {
       toast.error("No orders to submit");

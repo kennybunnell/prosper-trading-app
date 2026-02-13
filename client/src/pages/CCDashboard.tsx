@@ -811,7 +811,10 @@ export default function CCDashboard() {
     quantities: Map<string, number>,
     isDryRun: boolean
   ) => {
-    setShowPreviewDialog(false);
+    // Only close preview modal if submitting live orders (not dry run)
+    if (!isDryRun) {
+      setShowPreviewDialog(false);
+    }
     setIsSubmitting(true);
 
     if (orders.length === 0) {
