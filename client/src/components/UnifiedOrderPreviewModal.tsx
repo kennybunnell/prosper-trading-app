@@ -557,7 +557,7 @@ export function UnifiedOrderPreviewModal({
                     {order.bid && order.ask && (
                       <div className="space-y-2">
                         <Label className="text-xs text-muted-foreground">Price Adjustment (Bid to Midpoint)</Label>
-                        <div className="relative px-2 py-4">
+                        <div className="relative px-1">
                           {/* Bid Marker */}
                           <div 
                             className="absolute h-3 w-0.5 bg-red-400/50" 
@@ -571,30 +571,26 @@ export function UnifiedOrderPreviewModal({
                             <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-red-400 font-bold whitespace-nowrap">Bid</div>
                           </div>
                           
-                          {/* 70% Fill Zone Marker - Clickable */}
+                          {/* Fill Zone Marker (85% - optimal fill zone) */}
                           <div 
-                            className="absolute h-3 w-0.5 bg-emerald-400/70 cursor-pointer hover:bg-emerald-400" 
+                            className="absolute h-4 w-1 bg-emerald-400 rounded-full shadow-lg cursor-pointer hover:bg-emerald-300" 
                             style={{ 
-                              left: '70%', 
+                              left: '85%', 
                               top: '50%', 
-                              transform: 'translateY(-50%)',
-                              zIndex: 10
+                              transform: 'translate(-50%, -50%)',
+                              zIndex: 1
                             }}
-                            onClick={() => setPriceFromSlider(order, [70])}
+                            onClick={() => setPriceFromSlider(order, [85])}
+                            title="Optimal fill zone (~85% of mid)"
                           >
-                            <div 
-                              className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-emerald-400 font-bold whitespace-nowrap cursor-pointer hover:text-emerald-300"
-                              onClick={() => setPriceFromSlider(order, [70])}
-                            >
-                              Fill
-                            </div>
+                            <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-emerald-400 font-bold whitespace-nowrap">Fill</div>
                           </div>
                           
                           {/* Mid Marker */}
                           <div 
                             className="absolute h-3 w-0.5 bg-blue-400/50" 
                             style={{ 
-                              left: '100%', 
+                              left: '50%', 
                               top: '50%', 
                               transform: 'translate(-50%, -50%)',
                               zIndex: 0
@@ -607,7 +603,7 @@ export function UnifiedOrderPreviewModal({
                             onValueChange={(value) => setPriceFromSlider(order, value)}
                             max={100}
                             step={1}
-                            className="relative z-20"
+                            className="relative z-10"
                             disabled={isSubmitting}
                           />
                         </div>

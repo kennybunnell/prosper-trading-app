@@ -2,8 +2,56 @@ import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from './_core/trpc.js';
 import { TRPCError } from '@trpc/server';
 import { submitRollOrder, submitCloseOrder } from './tastytrade.js';
+import { checkOrderStatus, pollOrderStatus, checkOrderStatusBatch } from './tastytrade-order-status.js';
 
 export const ordersRouter = router({
+  /**
+   * Check order status by order ID
+   */
+  checkStatus: protectedProcedure
+    .input(
+      z.object({
+        accountId: z.string(),
+        orderId: z.string(),
+      })
+    )
+    .query(async ({ input }) => {
+      return await checkOrderStatus(input.accountId, input.orderId);
+    }),
+
+  /**
+   * Poll order status until it's no longer "Working"
+   */
+  pollStatus: protectedProcedure
+    .input(
+      z.object({
+        accountId: z.string(),
+        orderId: z.string(),
+        maxAttempts: z.number().optional(),
+        intervalMs: z.number().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      return await pollOrderStatus(input.accountId, input.orderId, {
+        maxAttempts: input.maxAttempts,
+        intervalMs: input.intervalMs,
+      });
+    }),
+
+  /**
+   * Check status for multiple orders in batch
+   */
+  checkStatusBatch: protectedProcedure
+    .input(
+      z.object({
+        accountId: z.string(),
+        orderIds: z.array(z.string()),
+      })
+    )
+    .query(async ({ input }) => {
+      return await checkOrderStatusBatch(input.accountId, input.orderIds);
+    }),
+
   /**
    * Submit a roll order (2-leg: close existing + open new)
    */

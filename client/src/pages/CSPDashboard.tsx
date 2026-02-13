@@ -711,7 +711,7 @@ export default function CSPDashboard() {
         toast.error(`Order submission failed: ${error.message}`);
       }
     },
-    onSuccess: (data, variables) => {
+    onSuccess: async (data, variables) => {
       // Dismiss progress toast
       toast.dismiss('order-submission-progress');
       
@@ -752,6 +752,54 @@ export default function CSPDashboard() {
           }, 250);
           setSelectedOpportunities(new Set());
           utils.csp.opportunities.invalidate();
+          
+          // Poll order status for submitted orders
+          const successfulOrders = data.results.filter((r: any) => r.success && r.orderId);
+          if (successfulOrders.length > 0 && selectedAccountId) {
+            toast.loading(`Checking order status for ${successfulOrders.length} order(s)...`, {
+              id: 'order-status-poll',
+            });
+            
+            try {
+              // Poll each order (max 30 attempts = 2.5 minutes at 5-second intervals)
+              const statusPromises = successfulOrders.map((order: any) =>
+                utils.client.orders.pollStatus.mutate({
+                  accountId: selectedAccountId,
+                  orderId: order.orderId,
+                  maxAttempts: 30,
+                  intervalMs: 5000,
+                })
+              );
+              
+              const statuses = await Promise.all(statusPromises);
+              
+              // Summarize results
+              const filled = statuses.filter(s => s.status === 'Filled').length;
+              const working = statuses.filter(s => s.status === 'Working').length;
+              const cancelled = statuses.filter(s => s.status === 'Cancelled').length;
+              const rejected = statuses.filter(s => s.status === 'Rejected').length;
+              
+              toast.dismiss('order-status-poll');
+              
+              if (filled === successfulOrders.length) {
+                toast.success(`🎉 All ${filled} orders filled!`, { duration: 6000 });
+              } else if (filled > 0) {
+                toast.success(`✅ ${filled} filled, ${working} working, ${cancelled} cancelled, ${rejected} rejected`, {
+                  duration: 8000,
+                });
+              } else if (working > 0) {
+                toast.info(`⏳ ${working} orders still working. Check Tastytrade for updates.`, {
+                  duration: 6000,
+                });
+              } else {
+                toast.warning(`⚠️ ${cancelled} cancelled, ${rejected} rejected`, { duration: 6000 });
+              }
+            } catch (error: any) {
+              toast.dismiss('order-status-poll');
+              console.error('[Order Status Poll] Failed:', error);
+              toast.info('Orders submitted. Check Tastytrade for status.', { duration: 4000 });
+            }
+          }
         }
       } else {
         const failedCount = data.results.filter(r => !r.success).length;

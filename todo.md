@@ -4478,3 +4478,9 @@
 - [x] Add modal max-height with scroll for 15-20 orders
 - [x] Replace browser alert with toast notification for dry run success
 - [x] Fix dry run workflow - after successful dry run, clicking red button should submit live (not re-validate)
+
+## Critical Slider and Polling Issues
+- [x] Revert to old working slider implementation (small slider that worked perfectly)
+- [x] Restore post-submit order status polling (check: filled, working, cancelled, market closed)
+- [x] Test slider drag functionality with old implementation
+- [x] Test post-submit polling across all dashboards (CSP, CC, Performance)
