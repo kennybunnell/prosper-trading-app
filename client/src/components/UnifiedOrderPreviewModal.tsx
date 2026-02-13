@@ -385,7 +385,7 @@ export function UnifiedOrderPreviewModal({
       const initialStatuses: OrderSubmissionStatus[] = result.results
         .filter((r: any) => r.success && r.orderId)
         .map((r: any) => ({
-          orderId: r.orderId,
+          orderId: String(r.orderId), // Convert to string for tRPC endpoint
           symbol: r.symbol || 'Unknown',
           status: 'Pending' as const,
           message: 'Checking status...'

@@ -4522,3 +4522,8 @@
   - [ ] Phase 3: Token refresh and rotation
   - [ ] Phase 4: Security hardening and production deployment
 - [x] Add authentication status indicator to header (green/yellow/red with countdown timer)
+
+## OrderId Type Mismatch Bug (CRITICAL)
+- [x] Fix orderId type mismatch in handlePollStatuses - endpoint expects string but receives number
+- [x] Update CSP Dashboard to convert orderId to string before calling pollStatus
+- [x] Test polling functionality after fix
