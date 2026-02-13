@@ -405,12 +405,18 @@ export function UnifiedOrderPreviewModal({
       });
       
       setOrderStatuses(allStatuses);
+      console.log('[UnifiedOrderPreviewModal] Initial order statuses set:', allStatuses);
       
       // Poll order statuses if callback provided (only for successful submissions)
       const successfulStatuses = allStatuses.filter(s => s.orderId !== 'FAILED');
+      console.log('[UnifiedOrderPreviewModal] Successful statuses to poll:', successfulStatuses);
+      console.log('[UnifiedOrderPreviewModal] onPollStatuses callback exists:', !!onPollStatuses);
+      
       if (onPollStatuses && successfulStatuses.length > 0) {
         const orderIds = successfulStatuses.map(s => s.orderId);
+        console.log('[UnifiedOrderPreviewModal] Calling onPollStatuses with orderIds:', orderIds, 'accountId:', accountId);
         const polledStatuses = await onPollStatuses(orderIds, accountId);
+        console.log('[UnifiedOrderPreviewModal] Polling completed, received statuses:', polledStatuses);
         
         // Merge polled statuses with failed statuses
         const failedStatuses = allStatuses.filter(s => s.orderId === 'FAILED');

@@ -4562,3 +4562,11 @@
 - [x] Ensure button only changes after polling completes (not immediately after submission)
 - [x] Added submissionComplete state that gets set to true after setIsPolling(false)
 - [ ] Test with successful order submission
+
+## CC Dashboard Polling Still Not Working (CRITICAL)
+- [x] Check browser console logs for polling errors
+- [x] Check server logs for pollStatus procedure calls - no calls found
+- [x] Add comprehensive console logging to UnifiedOrderPreviewModal
+- [ ] User to test order submission and check console logs
+- [ ] Diagnose issue based on console output
+- [ ] Fix the issue preventing polling from executing
