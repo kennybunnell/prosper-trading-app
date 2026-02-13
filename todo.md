@@ -4497,7 +4497,7 @@
 - [x] Phase 3: Live submit - modal stays open, button turns red
 - [x] Phase 4: Real-time polling - display order status (Filled/Working/Cancelled/Market Closed)
 - [x] Phase 5: Confetti only when orders filled (not on dry run)
-- [ ] Apply workflow to CSP Dashboard
+- [x] Apply workflow to CSP Dashboard
 - [ ] Apply workflow to CC Dashboard
 - [ ] Apply workflow to Performance (Resubmit Working Orders)
 - [ ] Apply workflow to Performance (Close Early)

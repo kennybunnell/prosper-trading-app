@@ -725,86 +725,9 @@ export default function CSPDashboard() {
             duration: 4000,
           });
         } else {
-          // Live order submission success
-          toast.success(`✅ Successfully submitted ${data.results.length} order${data.results.length > 1 ? 's' : ''}!`, {
-            duration: 5000,
-          });
-          playSuccessSound();
-          confetti({
-            particleCount: 200,
-            spread: 100,
-            origin: { y: 0.6 },
-            colors: ['#10b981', '#3b82f6', '#8b5cf6'],
-          });
-          setTimeout(() => {
-            confetti({
-              particleCount: 100,
-              angle: 60,
-              spread: 55,
-              origin: { x: 0 },
-            });
-            confetti({
-              particleCount: 100,
-              angle: 120,
-              spread: 55,
-              origin: { x: 1 },
-            });
-          }, 250);
+          // Live order submission success - modal handles confetti and polling
           setSelectedOpportunities(new Set());
           utils.csp.opportunities.invalidate();
-          
-          // Poll order status for submitted orders
-          const successfulOrders = data.results.filter((r: any) => r.success && r.orderId);
-          if (successfulOrders.length > 0 && selectedAccountId) {
-            toast.loading(`Checking order status for ${successfulOrders.length} order(s)...`, {
-              id: 'order-status-poll',
-            });
-            
-            try {
-              // Poll each order (max 30 attempts = 2.5 minutes at 5-second intervals)
-              const statusPromises = successfulOrders.map(async (order: any) => {
-                return await utils.client.orders.pollStatus.mutate({
-                  accountId: selectedAccountId,
-                  orderId: order.orderId,
-                  maxAttempts: 30,
-                  intervalMs: 5000,
-                });
-              });
-              
-              const statuses = await Promise.all(statusPromises);
-              
-              // Summarize results
-              const filled = statuses.filter((s: any) => s.status === 'Filled').length;
-              const working = statuses.filter((s: any) => s.status === 'Working').length;
-              const cancelled = statuses.filter((s: any) => s.status === 'Cancelled').length;
-              const rejected = statuses.filter((s: any) => s.status === 'Rejected').length;
-              const marketClosed = statuses.filter((s: any) => s.status === 'MarketClosed').length;
-              
-              toast.dismiss('order-status-poll');
-              
-              if (marketClosed > 0) {
-                toast.warning(`🕐 Market is closed. ${successfulOrders.length} order(s) will be processed when market opens.`, {
-                  duration: 8000,
-                });
-              } else if (filled === successfulOrders.length) {
-                toast.success(`🎉 All ${filled} orders filled!`, { duration: 6000 });
-              } else if (filled > 0) {
-                toast.success(`✅ ${filled} filled, ${working} working, ${cancelled} cancelled, ${rejected} rejected`, {
-                  duration: 8000,
-                });
-              } else if (working > 0) {
-                toast.info(`⏳ ${working} orders still working. Check Tastytrade for updates.`, {
-                  duration: 6000,
-                });
-              } else {
-                toast.warning(`⚠️ ${cancelled} cancelled, ${rejected} rejected`, { duration: 6000 });
-              }
-            } catch (error: any) {
-              toast.dismiss('order-status-poll');
-              console.error('[Order Status Poll] Failed:', error);
-              toast.info('Orders submitted. Check Tastytrade for status.', { duration: 4000 });
-            }
-          }
         }
       } else {
         const failedCount = data.results.filter(r => !r.success).length;
@@ -935,6 +858,37 @@ export default function CSPDashboard() {
     });
   };
 
+  // Poll order statuses after submission
+  const handlePollStatuses = async (
+    orderIds: string[],
+    accountId: string
+  ): Promise<Array<{ orderId: string; symbol: string; status: 'Filled' | 'Working' | 'Cancelled' | 'Rejected' | 'MarketClosed' | 'Pending'; message?: string }>> => {
+    try {
+      // Poll each order
+      const statusPromises = orderIds.map(async (orderId) => {
+        return await utils.client.orders.pollStatus.mutate({
+          accountId,
+          orderId,
+          maxAttempts: 30,
+          intervalMs: 5000,
+        });
+      });
+      
+      const statuses = await Promise.all(statusPromises);
+      
+      // Map to expected format
+      return statuses.map((s: any) => ({
+        orderId: s.orderId || '',
+        symbol: s.symbol || 'Unknown',
+        status: s.status as any,
+        message: s.message
+      }));
+    } catch (error: any) {
+      console.error('[handlePollStatuses] Error:', error);
+      return [];
+    }
+  };
+  
   // Execute order submission with midpoint pricing from validation
   // Signature matches UnifiedOrderPreviewModal onSubmit callback
   const executeOrderSubmission = async (
@@ -2670,6 +2624,7 @@ export default function CSPDashboard() {
           accountId={selectedAccountId || ''}
           availableBuyingPower={availableBuyingPower}
           onSubmit={executeOrderSubmission}
+          onPollStatuses={handlePollStatuses}
           allowQuantityEdit={true}
           tradingMode={tradingMode}
         />
