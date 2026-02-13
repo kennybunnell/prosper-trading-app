@@ -38,10 +38,12 @@ export const ccRouter = router({
             currentPrice: price,
             marketValue: qty * price,
             existingContracts: 0,
+            workingContracts: 0,
             sharesCovered: 0,
             availableShares: qty,
             maxContracts: Math.floor(qty / 100),
             hasExistingCalls: false,
+            hasWorkingOrders: false,
           };
         });
 
@@ -74,12 +76,15 @@ export const ccRouter = router({
       // Fetch all positions
       const positions = await api.getPositions(input.accountNumber);
 
+      // Fetch working orders to account for pending short calls
+      const workingOrders = await api.getWorkingOrders(input.accountNumber);
+
       // Separate stock positions and option positions
       // Tastytrade API returns hyphenated field names like 'instrument-type', not camelCase
       const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
       const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
 
-      // Identify short calls (covered calls already sold)
+      // Identify short calls (covered calls already sold) from POSITIONS
       const shortCalls: Record<string, { contracts: number; details: any[] }> = {};
       
       for (const opt of optionPositions) {
@@ -101,6 +106,30 @@ export const ccRouter = router({
         }
       }
 
+      // Identify short calls in WORKING ORDERS (pending, not yet filled)
+      const workingShortCalls: Record<string, { contracts: number; details: any[] }> = {};
+      for (const order of workingOrders) {
+        // Check if order has legs (multi-leg orders)
+        const legs = (order as any).legs || [];
+        for (const leg of legs) {
+          // Short calls: action = "Sell to Open" and instrument type = "Equity Option" and symbol contains 'C'
+          if (leg.action === 'Sell to Open' && leg['instrument-type'] === 'Equity Option' && leg.symbol.includes('C')) {
+            const underlying = (order as any)['underlying-symbol'];
+            if (!workingShortCalls[underlying]) {
+              workingShortCalls[underlying] = { contracts: 0, details: [] };
+            }
+            const qty = Math.abs(parseFloat(leg.quantity));
+            workingShortCalls[underlying].contracts += qty;
+            workingShortCalls[underlying].details.push({
+              symbol: leg.symbol,
+              quantity: qty,
+              orderId: (order as any).id,
+              status: (order as any).status,
+            });
+          }
+        }
+      }
+
       // Build holdings list - include ALL stock positions (not just ≥100 shares)
       // This matches Streamlit logic: all stocks are added, then filter by maxContracts > 0
       const holdings = stockPositions
@@ -111,9 +140,15 @@ export const ccRouter = router({
           const currentPrice = parseFloat(p['close-price']);
           const marketValue = quantity * currentPrice;
 
-          // Calculate contracts covered by existing short calls
+          // Calculate contracts covered by existing short calls (filled positions)
           const existingContracts = shortCalls[symbol]?.contracts || 0;
-          const sharesCovered = existingContracts * 100;
+          
+          // Calculate contracts tied up in working orders (pending, not yet filled)
+          const workingContracts = workingShortCalls[symbol]?.contracts || 0;
+          
+          // Total contracts that reduce available shares
+          const totalUsedContracts = existingContracts + workingContracts;
+          const sharesCovered = totalUsedContracts * 100;
           
           // Calculate available shares and max new contracts
           const availableShares = Math.max(0, quantity - sharesCovered);
@@ -125,10 +160,12 @@ export const ccRouter = router({
             currentPrice,
             marketValue,
             existingContracts,
+            workingContracts,
             sharesCovered,
             availableShares,
             maxContracts,
             hasExistingCalls: existingContracts > 0,
+            hasWorkingOrders: workingContracts > 0,
           };
         });
 

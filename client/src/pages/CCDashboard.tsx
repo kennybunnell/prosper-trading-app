@@ -147,16 +147,18 @@ function getLiquidityColor(value: number, type: 'oi' | 'vol'): string {
   return "bg-red-500/20 text-red-500 border-red-500/50";
 }
 
-type StockPosition = {
+type Holding = {
   symbol: string;
   quantity: number;
   currentPrice: number;
   marketValue: number;
   existingContracts: number;
+  workingContracts: number;
   sharesCovered: number;
   availableShares: number;
   maxContracts: number;
   hasExistingCalls: boolean;
+  hasWorkingOrders: boolean;
 };
 
 type PositionBreakdown = {
@@ -223,7 +225,7 @@ export default function CCDashboard() {
   const [isLoadingPositions, setIsLoadingPositions] = useState(false);
   const [scanStartTime, setScanStartTime] = useState<number | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
-  const [holdings, setHoldings] = useState<StockPosition[]>([]);
+  const [holdings, setHoldings] = useState<Holding[]>([]);
   const [breakdown, setBreakdown] = useState<PositionBreakdown | null>(null);
   const [selectedStocks, setSelectedStocks] = useState<string[]>([]);
   const [isPositionsSectionExpanded, setIsPositionsSectionExpanded] = useState(true);

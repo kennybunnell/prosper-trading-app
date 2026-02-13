@@ -4539,3 +4539,13 @@
 - [x] Modal displays ALL order results (success + failures) instead of only successful orders
 - [x] Polling still works for successful orders while failed orders show immediate feedback
 - [ ] Test live order submission to verify error messages display correctly
+
+## Working Order Detection for CC Dashboard (COMPLETED)
+- [x] Add Tastytrade API endpoint to fetch working orders for account (getWorkingOrders already existed)
+- [x] Modify getEligiblePositions to fetch working orders alongside positions
+- [x] Calculate contracts tied up in working short call orders
+- [x] Subtract working order contracts from maxContracts calculation
+- [x] Add workingContracts and hasWorkingOrders fields to Holding type
+- [x] Update paper trading mock data to include new fields
+- [ ] Display working order info in position table UI (e.g., "2 contracts (1 working)")
+- [ ] Test with account that has working CC orders
