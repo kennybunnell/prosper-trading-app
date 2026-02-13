@@ -12,8 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Minus, Plus, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, Minus, Plus, AlertCircle, CheckCircle2, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // Order interface - flexible for all strategies
@@ -104,7 +105,6 @@ export function UnifiedOrderPreviewModal({
   const { toast } = useToast();
   
   // State
-  const [submissionMode, setSubmissionMode] = useState<"dry-run" | "live">("dry-run");
   const [dryRunSuccess, setDryRunSuccess] = useState(false);
   const [orderQuantities, setOrderQuantities] = useState<Map<string, number>>(new Map());
   const [adjustedPrices, setAdjustedPrices] = useState<Map<string, number>>(new Map());
@@ -134,8 +134,7 @@ export function UnifiedOrderPreviewModal({
       });
       setAdjustedPrices(initialPrices);
       
-      // Reset submission mode and dry run success when modal opens
-      setSubmissionMode("dry-run");
+      // Reset dry run success when modal opens
       setDryRunSuccess(false);
     }
   }, [open, orders, defaultQuantities]);
@@ -338,7 +337,7 @@ export function UnifiedOrderPreviewModal({
       setDryRunSuccess(true);
       toast({
         title: "Dry Run Successful",
-        description: `${orders.length} orders validated`,
+        description: `${orders.length} orders validated. Click Submit Live to execute.`,
       });
     } catch (error: any) {
       toast({
@@ -377,9 +376,54 @@ export function UnifiedOrderPreviewModal({
         description: error.message,
         variant: "destructive",
       });
+      setDryRunSuccess(false); // Reset on failure
     } finally {
       setIsSubmitting(false);
     }
+  };
+  
+  // Adjust price by increment
+  const adjustPrice = (order: UnifiedOrder, increment: number) => {
+    const key = getOrderKey(order);
+    const currentPrice = adjustedPrices.get(key) || order.premium;
+    const newPrice = Math.max(0.01, currentPrice + increment);
+    const roundedPrice = Math.round(newPrice * 100) / 100;
+    setAdjustedPrices(prev => new Map(prev).set(key, roundedPrice));
+  };
+  
+  // Set price via slider (between bid and mid)
+  const setPriceFromSlider = (order: UnifiedOrder, value: number[]) => {
+    if (!order.bid || !order.ask) return;
+    const mid = (order.bid + order.ask) / 2;
+    
+    // Map slider value (0-100) to price range (bid to mid)
+    const priceRange = mid - order.bid;
+    const newPrice = order.bid + (priceRange * value[0] / 100);
+    const roundedPrice = Math.round(newPrice * 100) / 100;
+    
+    const key = getOrderKey(order);
+    setAdjustedPrices(prev => new Map(prev).set(key, roundedPrice));
+  };
+  
+  // Calculate slider position (0-100) based on current price
+  const getSliderPosition = (order: UnifiedOrder): number[] => {
+    if (!order.bid || !order.ask) return [50];
+    const mid = (order.bid + order.ask) / 2;
+    const key = getOrderKey(order);
+    const currentPrice = adjustedPrices.get(key) || order.premium;
+    
+    const priceRange = mid - order.bid;
+    if (priceRange === 0) return [50];
+    
+    const position = ((currentPrice - order.bid) / priceRange) * 100;
+    return [Math.max(0, Math.min(100, position))];
+  };
+  
+  // Get fill zone guidance based on slider position
+  const getFillZoneGuidance = (sliderPos: number) => {
+    if (sliderPos < 70) return { text: "⚠️ Too conservative", color: "text-red-400" };
+    if (sliderPos >= 70 && sliderPos < 95) return { text: "✓ Good fill zone", color: "text-green-400" };
+    return { text: "⚠️ Too aggressive", color: "text-yellow-400" };
   };
   
   // Check if can submit
@@ -402,42 +446,16 @@ export function UnifiedOrderPreviewModal({
         </DialogHeader>
         
         <div className="space-y-6">
-          {/* Mode Toggle */}
-          <div className="p-4 bg-muted/50 rounded-lg border">
-            <Label className="text-sm font-medium mb-3 block">Trading Mode</Label>
-            <RadioGroup value={submissionMode} onValueChange={(v) => setSubmissionMode(v as "dry-run" | "live")}>
-              <div className="flex items-center space-x-6">
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="dry-run" id="dry-run" />
-                  <Label htmlFor="dry-run" className="cursor-pointer">Dry Run (Test)</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem 
-                    value="live" 
-                    id="live" 
-                    disabled={!dryRunSuccess || tradingMode === "paper"}
-                  />
-                  <Label 
-                    htmlFor="live" 
-                    className={`cursor-pointer ${(!dryRunSuccess || tradingMode === "paper") ? "text-muted-foreground" : ""}`}
-                  >
-                    Live (Real Orders)
-                    {tradingMode === "paper" && <span className="ml-2 text-xs">(Disabled in Paper Mode)</span>}
-                  </Label>
-                </div>
-              </div>
-            </RadioGroup>
-            
-            {dryRunSuccess && submissionMode === "dry-run" && (
-              <Alert className="mt-3 border-green-500/50 bg-green-500/10">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <AlertTitle className="text-green-500">Dry Run Successful</AlertTitle>
-                <AlertDescription className="text-green-500/80">
-                  All orders validated. Toggle to Live submission mode to submit real orders.
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
+          {/* Dry Run Success Banner */}
+          {dryRunSuccess && (
+            <Alert className="border-green-500/50 bg-green-500/10">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <AlertTitle className="text-green-500">Dry Run Successful</AlertTitle>
+              <AlertDescription className="text-green-500/80">
+                All orders validated. Click Submit Live to execute real orders.
+              </AlertDescription>
+            </Alert>
+          )}
           
           {/* Orders List */}
           <div className="space-y-4">
@@ -462,76 +480,167 @@ export function UnifiedOrderPreviewModal({
                     </Badge>
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-4">
-                    {/* Quantity Controls */}
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-2 block">Quantity</Label>
-                      {allowQuantityEdit ? (
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => decrementQuantity(order)}
-                            disabled={qty <= 1 || isSubmitting}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      {/* Quantity Controls */}
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-2 block">Quantity</Label>
+                        {allowQuantityEdit ? (
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => decrementQuantity(order)}
+                              disabled={qty <= 1 || isSubmitting}
+                            >
+                              <Minus className="w-3 h-3" />
+                            </Button>
+                            
+                            <Input 
+                              type="number"
+                              min={1}
+                              max={maxQty}
+                              value={qty}
+                              onChange={(e) => setQuantity(order, parseInt(e.target.value) || 1)}
+                              className="w-16 text-center"
+                              disabled={isSubmitting}
+                            />
+                            
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => incrementQuantity(order)}
+                              disabled={qty >= maxQty || isSubmitting}
+                            >
+                              <Plus className="w-3 h-3" />
+                            </Button>
+                            
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              (max: {maxQty})
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="text-sm font-medium">{qty} contract{qty > 1 ? "s" : ""}</div>
+                        )}
+                      </div>
+                      
+                      {/* Price */}
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-2 block">
+                          {operationMode === "replace" ? "New Price" : "Price"}
+                        </Label>
+                        <div className="text-sm font-medium">${price.toFixed(2)}</div>
+                        {operationMode === "replace" && order.oldPrice && (
+                          <div className="text-xs">
+                            <span className="text-muted-foreground">Was: ${order.oldPrice.toFixed(2)}</span>
+                            {" "}
+                            <span className={price !== order.oldPrice ? (price > order.oldPrice ? "text-red-400" : "text-green-400") : "text-muted-foreground"}>
+                              {price > order.oldPrice ? "+" : ""}{(price - order.oldPrice).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                        {order.bid && order.ask && (
+                          <div className="text-xs text-muted-foreground">
+                            Bid ${order.bid.toFixed(2)} / Ask ${order.ask.toFixed(2)}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Total Premium */}
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-2 block">Total</Label>
+                        <div className="text-sm font-medium text-green-500">${totalPremium.toFixed(2)}</div>
+                      </div>
+                    </div>
+                    
+                    {/* Midpoint Slider (only if bid/ask available) */}
+                    {order.bid && order.ask && (
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Price Adjustment (Bid to Midpoint)</Label>
+                        <div className="relative px-2">
+                          {/* Bid Marker */}
+                          <div 
+                            className="absolute h-3 w-0.5 bg-red-400/50" 
+                            style={{ 
+                              left: '0%', 
+                              top: '50%', 
+                              transform: 'translateY(-50%)',
+                              zIndex: 0
+                            }}
                           >
-                            <Minus className="w-3 h-3" />
-                          </Button>
+                            <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-red-400 font-bold whitespace-nowrap">Bid</div>
+                          </div>
                           
-                          <Input 
-                            type="number"
-                            min={1}
-                            max={maxQty}
-                            value={qty}
-                            onChange={(e) => setQuantity(order, parseInt(e.target.value) || 1)}
-                            className="w-16 text-center"
-                            disabled={isSubmitting}
+                          {/* 70% Fill Zone Marker */}
+                          <div 
+                            className="absolute h-3 w-0.5 bg-emerald-400/70" 
+                            style={{ 
+                              left: '70%', 
+                              top: '50%', 
+                              transform: 'translateY(-50%)',
+                              zIndex: 0
+                            }}
+                          >
+                            <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-emerald-400 font-bold whitespace-nowrap">Fill</div>
+                          </div>
+                          
+                          {/* Mid Marker */}
+                          <div 
+                            className="absolute h-3 w-0.5 bg-blue-400/50" 
+                            style={{ 
+                              left: '100%', 
+                              top: '50%', 
+                              transform: 'translate(-50%, -50%)',
+                              zIndex: 0
+                            }}
                           />
                           
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => incrementQuantity(order)}
-                            disabled={qty >= maxQty || isSubmitting}
-                          >
-                            <Plus className="w-3 h-3" />
-                          </Button>
-                          
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            (max: {maxQty})
-                          </span>
+                          {/* Slider */}
+                          <Slider
+                            value={getSliderPosition(order)}
+                            onValueChange={(value) => setPriceFromSlider(order, value)}
+                            max={100}
+                            step={1}
+                            className="relative z-10"
+                            disabled={isSubmitting}
+                          />
                         </div>
-                      ) : (
-                        <div className="text-sm font-medium">{qty} contract{qty > 1 ? "s" : ""}</div>
-                      )}
-                    </div>
-                    
-                    {/* Price */}
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-2 block">
-                        {operationMode === "replace" ? "New Price" : "Price"}
-                      </Label>
-                      <div className="text-sm font-medium">${price.toFixed(2)}</div>
-                      {operationMode === "replace" && order.oldPrice && (
-                        <div className="text-xs">
-                          <span className="text-muted-foreground">Was: ${order.oldPrice.toFixed(2)}</span>
-                          {" "}
-                          <span className={price !== order.oldPrice ? (price > order.oldPrice ? "text-red-400" : "text-green-400") : "text-muted-foreground"}>
-                            {price > order.oldPrice ? "+" : ""}{(price - order.oldPrice).toFixed(2)}
-                          </span>
+                        
+                        {/* Current Price and Position Indicator */}
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 w-6 p-0"
+                              onClick={() => adjustPrice(order, -0.05)}
+                              disabled={isSubmitting}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="text-xs font-mono font-bold text-blue-400">
+                              ${price.toFixed(2)}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 w-6 p-0"
+                              onClick={() => adjustPrice(order, 0.05)}
+                              disabled={isSubmitting}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {(() => {
+                              const sliderPos = getSliderPosition(order)[0];
+                              const guidance = getFillZoneGuidance(sliderPos);
+                              return <span className={guidance.color}>{guidance.text}</span>;
+                            })()}
+                          </div>
                         </div>
-                      )}
-                      {order.bid && order.ask && (
-                        <div className="text-xs text-muted-foreground">
-                          Bid ${order.bid.toFixed(2)} / Ask ${order.ask.toFixed(2)}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Total Premium */}
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-2 block">Total</Label>
-                      <div className="text-sm font-medium text-green-500">${totalPremium.toFixed(2)}</div>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -585,14 +694,26 @@ export function UnifiedOrderPreviewModal({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button
-            onClick={submissionMode === "dry-run" ? handleDryRun : handleLiveSubmit}
-            variant={submissionMode === "dry-run" ? "default" : "destructive"}
-            disabled={!canSubmit}
-          >
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {submissionMode === "dry-run" ? "Execute Dry Run" : "Submit Orders"}
-          </Button>
+          {!dryRunSuccess ? (
+            <Button
+              onClick={handleDryRun}
+              variant="default"
+              disabled={!canSubmit}
+            >
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Execute Dry Run
+            </Button>
+          ) : (
+            <Button
+              onClick={handleLiveSubmit}
+              variant="destructive"
+              disabled={!canSubmit || tradingMode === "paper"}
+            >
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Submit Live
+              {tradingMode === "paper" && <span className="ml-2 text-xs">(Disabled in Paper Mode)</span>}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

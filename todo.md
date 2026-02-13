@@ -4464,3 +4464,9 @@
 - [x] Fix TypeScript error in Performance.tsx line 332 (strategy type mismatch)
 - [x] Mark HTTP keep-alive fix as complete
 - [x] Save checkpoint with all OAuth2 reliability improvements
+
+## UnifiedOrderPreviewModal Bug Fixes (CRITICAL)
+- [x] Restore midpoint slider for bid-ask price adjustment (missing entirely)
+- [x] Fix dry run workflow - modal should stay open after dry run, button should turn red for live submit
+- [x] Remove test checkbox requirement - should be able to submit live without unchecking dry run checkbox
+- [x] Verify workflow: Dry Run → Modal Stays Open → Button Turns Red → Click to Submit Live
