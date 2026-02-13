@@ -35,6 +35,21 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  
+  // Dev utilities endpoint (development only)
+  if (process.env.NODE_ENV === "development") {
+    app.post("/api/dev/restart", (req, res) => {
+      console.log("[Dev] Restart requested via API");
+      res.json({ success: true, message: "Server restarting..." });
+      
+      // Delay restart to allow response to be sent
+      setTimeout(() => {
+        console.log("[Dev] Restarting server...");
+        process.exit(0); // Process manager will restart the server
+      }, 500);
+    });
+  }
+  
   // tRPC API
   app.use(
     "/api/trpc",

@@ -4507,3 +4507,10 @@
 - [ ] Test Resubmit Working Orders end-to-end
 - [ ] Test Close Early end-to-end
 - [ ] Test Roll Orders end-to-end
+
+## OAuth2 Development Workflow Improvements
+- [x] Make "Force Token Refresh" button restart dev server automatically
+- [x] Implement automatic checkpoint policy after every delivery
+- [x] Document OAuth2 behavior and dev server hibernation in fix-credentials doc
+- [x] Design persistent refresh token solution (encrypt and store in database)
+- [ ] Add clear UI messaging about dev server state and authentication status
