@@ -542,6 +542,52 @@ export const appRouter = router({
       const api = await authenticateTastytrade(credentials, ctx.user.id);
       return { success: true, message: 'Connection successful' };
     }),
+    forceTokenRefresh: protectedProcedure.mutation(async ({ ctx }) => {
+      console.log('[Force Refresh] === FORCE TOKEN REFRESH START ===');
+      console.log('[Force Refresh] User ID:', ctx.user.id);
+      
+      const { getApiCredentials, loadAccessToken } = await import('./db');
+      const { authenticateTastytrade } = await import('./tastytrade');
+      
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeClientId || !credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new Error('Tastytrade credentials not configured');
+      }
+
+      console.log('[Force Refresh] Clearing cached token from database to force refresh...');
+      
+      // Clear the cached token from database to force a fresh refresh
+      const { apiCredentials } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const db = await (await import('./db')).getDb();
+      if (db) {
+        await db
+          .update(apiCredentials)
+          .set({
+            tastytradeAccessToken: null,
+            tastytradeAccessTokenExpiresAt: null,
+          })
+          .where(eq(apiCredentials.userId, ctx.user.id));
+      }
+
+      console.log('[Force Refresh] Forcing token refresh with retry logic...');
+      
+      // This will trigger a fresh token refresh since database token is now cleared
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+      
+      // Wait a moment for async token save to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Load the newly refreshed token from database to get expiry time
+      const refreshedToken = await loadAccessToken(ctx.user.id);
+      
+      console.log('[Force Refresh] Token refreshed successfully, saved to database');
+      return { 
+        success: true, 
+        message: 'Token refreshed and saved to database',
+        expiresAt: refreshedToken?.expiresAt?.toISOString()
+      };
+    }),
     testTradierConnection: protectedProcedure.mutation(async ({ ctx }) => {
       const { getApiCredentials } = await import('./db');
       const { createTradierAPI } = await import('./tradier');

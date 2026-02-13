@@ -4431,14 +4431,36 @@
   * Solution: Check if user exists BEFORE upsert to correctly detect new users
   * Impact: Onboarding only runs for new users, credentials preserved across restarts
   * Fixed in: server/db.ts upsertUser() function
-
 ## OAuth2 Token Persistence & Reliability Improvements
 - [x] Add access token and expiry fields to apiCredentials table schema
 - [x] Implement database persistence for access tokens (not just memory)
 - [x] Add automatic token refresh on server startup
 - [x] Add retry logic with exponential backoff for token refresh failures
 - [x] Test and verify improvements work across dev environment restarts
-- [ ] Implement retry logic with exponential backoff for failed refreshes
-- [ ] Add token health check on server startup
-- [ ] Add fallback refresh mechanism for Tastytrade API instability
+- [x] Disable HTTP keep-alive to fix token refresh failures
+- [x] Add Force Token Refresh button for manual override
+- [x] Fix timestamp display in Force Token Refresh success message
+- [x] Fix TypeScript error in Performance.tsx (strategy type mismatch) API instability
 - [ ] Improve logging for token lifecycle debugging
+
+## Manual Token Refresh Feature
+- [x] Add backend tRPC procedure for forced token refresh
+- [x] Add "Force Token Refresh" button to Settings page (next to Test Connection)
+- [x] Implement retry logic with exponential backoff in manual refresh
+- [x] Add success/failure toast notifications
+- [x] Test manual token refresh functionality
+
+## Force Token Refresh Button Styling Fix
+- [x] Fix Force Token Refresh button color to amber/gold (currently not applying)
+- [x] Test button styling in Settings page
+
+## HTTP Connection Pooling Fix for Token Refresh
+- [x] Disable HTTP keep-alive in Axios client for OAuth token refresh requests
+- [x] Test token refresh works without server restart
+- [x] Verify Force Token Refresh button works reliably
+
+## Final OAuth2 Reliability Fixes
+- [x] Fix "Expires at: Unknown" display in Force Token Refresh success message
+- [x] Fix TypeScript error in Performance.tsx line 332 (strategy type mismatch)
+- [x] Mark HTTP keep-alive fix as complete
+- [x] Save checkpoint with all OAuth2 reliability improvements

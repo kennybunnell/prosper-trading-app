@@ -4,6 +4,8 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
+import http from 'http';
+import https from 'https';
 
 const TASTYTRADE_API_BASE = 'https://api.tastyworks.com';
 
@@ -118,8 +120,12 @@ export class TastytradeAPI {
       baseURL: TASTYTRADE_API_BASE,
       headers: {
         'Content-Type': 'application/json',
+        'Connection': 'close', // Force fresh connections (disable keep-alive)
       },
       timeout: 30000, // 30 second timeout for all requests
+      // Disable HTTP keep-alive to prevent connection-level rate limiting
+      httpAgent: new http.Agent({ keepAlive: false }),
+      httpsAgent: new https.Agent({ keepAlive: false }),
     });
     
     // Add request interceptor for detailed logging

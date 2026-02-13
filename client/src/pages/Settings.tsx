@@ -66,6 +66,16 @@ export default function Settings() {
     },
   });
 
+  const forceTokenRefresh = trpc.settings.forceTokenRefresh.useMutation({
+    onSuccess: (data) => {
+      const expiresAt = data.expiresAt ? new Date(data.expiresAt).toLocaleString() : 'Unknown';
+      toast.success(`Token refreshed successfully! Expires at: ${expiresAt}`);
+    },
+    onError: (error) => {
+      toast.error(`Token refresh failed: ${error.message}`);
+    },
+  });
+
   const testTradier = trpc.settings.testTradierConnection.useMutation({
     onSuccess: () => {
       toast.success("Tradier connection successful!");
@@ -254,7 +264,7 @@ export default function Settings() {
                 Generate a personal grant in your OAuth app with <strong>all scopes selected</strong> (read, trade, openid) to get the refresh token
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button
                 variant="outline"
                 onClick={() => testTastytrade.mutate()}
@@ -262,6 +272,14 @@ export default function Settings() {
               >
                 {testTastytrade.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Test Connection
+              </Button>
+              <Button
+                onClick={() => forceTokenRefresh.mutate()}
+                disabled={!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken || forceTokenRefresh.isPending || hasChanges}
+                className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0"
+              >
+                {forceTokenRefresh.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Force Token Refresh
               </Button>
               <Button
                 variant="outline"
