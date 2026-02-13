@@ -4431,3 +4431,14 @@
   * Solution: Check if user exists BEFORE upsert to correctly detect new users
   * Impact: Onboarding only runs for new users, credentials preserved across restarts
   * Fixed in: server/db.ts upsertUser() function
+
+## OAuth2 Token Persistence & Reliability Improvements
+- [x] Add access token and expiry fields to apiCredentials table schema
+- [x] Implement database persistence for access tokens (not just memory)
+- [x] Add automatic token refresh on server startup
+- [x] Add retry logic with exponential backoff for token refresh failures
+- [x] Test and verify improvements work across dev environment restarts
+- [ ] Implement retry logic with exponential backoff for failed refreshes
+- [ ] Add token health check on server startup
+- [ ] Add fallback refresh mechanism for Tastytrade API instability
+- [ ] Improve logging for token lifecycle debugging

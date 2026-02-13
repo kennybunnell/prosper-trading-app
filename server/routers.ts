@@ -53,7 +53,7 @@ const projectionsRouter = router({
     }
     
     const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
     
     const accounts = await getTastytradeAccounts(ctx.user.id);
     if (!accounts || accounts.length === 0) {
@@ -134,7 +134,7 @@ const projectionsRouter = router({
     }
     
     const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
     
     const accounts = await getTastytradeAccounts(ctx.user.id);
     if (!accounts || accounts.length === 0) {
@@ -208,7 +208,7 @@ const projectionsRouter = router({
     }
     
     const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
     
     const accounts = await getTastytradeAccounts(ctx.user.id);
     if (!accounts || accounts.length === 0) {
@@ -331,7 +331,7 @@ export const appRouter = router({
         
         // Initialize API and login
         const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
         
         // Get all accounts
         const accounts = await api.getAccounts();
@@ -523,6 +523,14 @@ export const appRouter = router({
         return { success: true };
       }),
     testTastytradeConnection: protectedProcedure.mutation(async ({ ctx }) => {
+      console.log('[Test Connection] === TEST CONNECTION START ===');
+      console.log('[Test Connection] ctx.user:', {
+        id: ctx.user.id,
+        openId: ctx.user.openId,
+        email: ctx.user.email,
+        name: ctx.user.name,
+      });
+      
       const { getApiCredentials } = await import('./db');
       const { authenticateTastytrade } = await import('./tastytrade');
       
@@ -531,7 +539,7 @@ export const appRouter = router({
         throw new Error('Tastytrade credentials not configured');
       }
 
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
       return { success: true, message: 'Connection successful' };
     }),
     testTradierConnection: protectedProcedure.mutation(async ({ ctx }) => {
@@ -616,7 +624,7 @@ export const appRouter = router({
       }
 
       const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
       const accounts = await api.getAccounts();
 
       console.log('[Account Sync] Retrieved accounts from Tastytrade:', JSON.stringify(accounts, null, 2));
@@ -945,7 +953,7 @@ Summary: [One sentence overall assessment]`;
         }
 
         const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
 
         // Get account balances for buying power
         const accounts = await api.getAccounts();
@@ -1133,7 +1141,7 @@ Summary: [One sentence overall assessment]`;
         }
 
         const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
 
         const results: Array<{ symbol: string; success: boolean; orderId?: string; error?: string }> = [];
         const BATCH_SIZE = 10; // Process 10 orders per batch
@@ -1672,7 +1680,7 @@ Summary: [One sentence overall assessment]`;
         }
 
         const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
         
         const balances = await api.getBalances(input.accountNumber);
         return balances;
@@ -1914,7 +1922,7 @@ Summary: [One sentence overall assessment]`;
         }
 
         const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
 
         const accounts = await getTastytradeAccounts(ctx.user.id);
         if (!accounts || accounts.length === 0) {
@@ -1965,7 +1973,7 @@ Summary: [One sentence overall assessment]`;
         }
 
         const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
 
         const accounts = await getTastytradeAccounts(ctx.user.id);
         if (!accounts || accounts.length === 0) {
@@ -2032,7 +2040,7 @@ Summary: [One sentence overall assessment]`;
         }
 
         const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
 
         const accounts = await getTastytradeAccounts(ctx.user.id);
         if (!accounts || accounts.length === 0) {

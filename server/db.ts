@@ -281,12 +281,110 @@ export async function removeFromWatchlist(userId: number, symbol: string) {
 
 // API Credentials queries
 export async function getApiCredentials(userId: number) {
+  console.log('[getApiCredentials] === CREDENTIALS QUERY START ===');
+  console.log('[getApiCredentials] Querying for userId:', userId);
+  
   const db = await getDb();
-  if (!db) return null;
+  if (!db) {
+    console.log('[getApiCredentials] Database not available');
+    return null;
+  }
+  
   const { apiCredentials } = await import('../drizzle/schema');
   const { eq } = await import('drizzle-orm');
   const result = await db.select().from(apiCredentials).where(eq(apiCredentials.userId, userId)).limit(1);
+  
+  if (result.length > 0) {
+    console.log('[getApiCredentials] Credentials found:', {
+      id: result[0].id,
+      userId: result[0].userId,
+      hasClientSecret: !!result[0].tastytradeClientSecret,
+      clientSecretLength: result[0].tastytradeClientSecret?.length || 0,
+      hasRefreshToken: !!result[0].tastytradeRefreshToken,
+      refreshTokenLength: result[0].tastytradeRefreshToken?.length || 0,
+      refreshTokenStart: result[0].tastytradeRefreshToken?.substring(0, 50) || 'none',
+      refreshTokenEnd: result[0].tastytradeRefreshToken?.substring(result[0].tastytradeRefreshToken.length - 50) || 'none',
+    });
+  } else {
+    console.log('[getApiCredentials] No credentials found for userId:', userId);
+  }
+  
+  console.log('[getApiCredentials] === CREDENTIALS QUERY END ===');
   return result.length > 0 ? result[0] : null;
+}
+
+/**
+ * Save access token to database for persistence across restarts
+ */
+export async function saveAccessToken(userId: number, accessToken: string, expiresAt: Date) {
+  console.log('[DB] Saving access token to database:', {
+    userId,
+    accessTokenLength: accessToken.length,
+    expiresAt: expiresAt.toISOString(),
+  });
+  
+  const db = await getDb();
+  if (!db) return;
+  
+  const { apiCredentials } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  
+  await db
+    .update(apiCredentials)
+    .set({
+      tastytradeAccessToken: accessToken,
+      tastytradeAccessTokenExpiresAt: expiresAt,
+      updatedAt: new Date(),
+    })
+    .where(eq(apiCredentials.userId, userId));
+  
+  console.log('[DB] Access token saved successfully');
+}
+
+/**
+ * Load access token from database (used on server startup)
+ */
+export async function loadAccessToken(userId: number): Promise<{
+  accessToken: string | null;
+  expiresAt: Date | null;
+} | null> {
+  console.log('[DB] Loading access token from database for userId:', userId);
+  
+  const db = await getDb();
+  if (!db) {
+    console.log('[DB] Database not available');
+    return null;
+  }
+  
+  const { apiCredentials } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  
+  const result = await db
+    .select({
+      accessToken: apiCredentials.tastytradeAccessToken,
+      expiresAt: apiCredentials.tastytradeAccessTokenExpiresAt,
+    })
+    .from(apiCredentials)
+    .where(eq(apiCredentials.userId, userId))
+    .limit(1);
+  
+  if (result.length === 0) {
+    console.log('[DB] No access token found in database');
+    return null;
+  }
+  
+  const token = result[0];
+  console.log('[DB] Access token loaded:', {
+    hasToken: !!token.accessToken,
+    tokenLength: token.accessToken?.length || 0,
+    expiresAt: token.expiresAt?.toISOString() || 'null',
+    isExpired: token.expiresAt ? new Date() >= token.expiresAt : true,
+  });
+  
+  return {
+    accessToken: token.accessToken || null,
+    expiresAt: token.expiresAt || null,
+  };
 }
 
 export async function upsertApiCredentials(userId: number, credentials: { 

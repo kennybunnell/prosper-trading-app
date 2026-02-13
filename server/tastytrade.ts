@@ -108,6 +108,7 @@ export class TastytradeAPI {
   private client: AxiosInstance;
   private accessToken: string | null = null;
   private tokenExpiresAt: number | null = null;
+  private userId: number | null = null; // For database persistence
   // Legacy fields - kept for backward compatibility
   private sessionToken: string | null = null;
   private rememberToken: string | null = null;
@@ -192,9 +193,9 @@ export class TastytradeAPI {
   }
 
   /**
-   * Get access token using OAuth2 refresh token
+   * Get access token using OAuth2 refresh token with retry logic
    */
-  async getAccessToken(refreshToken: string, clientSecret: string): Promise<TastytradeOAuth2Token> {
+  async getAccessToken(refreshToken: string, clientSecret: string, retryCount: number = 0): Promise<TastytradeOAuth2Token> {
     try {
       // Log current token state BEFORE requesting new token
       console.log('[Tastytrade OAuth2] === TOKEN REFRESH REQUEST START ===');
@@ -223,6 +224,11 @@ export class TastytradeAPI {
         this.client.post('/oauth/token', requestBody)
       );
       
+      console.log('[Tastytrade OAuth2] === FULL API RESPONSE ===');
+      console.log('[Tastytrade OAuth2] Response keys:', Object.keys(response.data));
+      console.log('[Tastytrade OAuth2] Response data:', JSON.stringify(response.data, null, 2));
+      console.log('[Tastytrade OAuth2] Has refresh_token in response?', 'refresh_token' in response.data);
+      
       const token: TastytradeOAuth2Token = {
         access_token: response.data.access_token,
         token_type: response.data.token_type,
@@ -230,10 +236,23 @@ export class TastytradeAPI {
         expiresAt: Date.now() + (response.data.expires_in * 1000),
       };
       
-      // Store token and set auth header
+      // Store token in memory and set auth header
       this.accessToken = token.access_token;
       this.tokenExpiresAt = token.expiresAt!;
       this.client.defaults.headers.common['Authorization'] = `Bearer ${token.access_token}`;
+      
+      // Save token to database for persistence across restarts (async, don't block)
+      if (this.userId) {
+        import('./db').then(async ({ saveAccessToken }) => {
+          try {
+            await saveAccessToken(this.userId!, token.access_token, new Date(token.expiresAt!));
+          } catch (error) {
+            console.error('[Tastytrade] Failed to save access token to database:', error);
+          }
+        }).catch(error => {
+          console.error('[Tastytrade] Failed to import saveAccessToken:', error);
+        });
+      }
       
       console.log('[Tastytrade] OAuth2 access token obtained successfully');
       console.log('[Tastytrade OAuth2] New token state:', {
@@ -259,6 +278,18 @@ export class TastytradeAPI {
       console.error('[Tastytrade] Error response status:', error.response?.status);
       console.error('[Tastytrade] Error response data:', JSON.stringify(error.response?.data, null, 2));
       console.error('[Tastytrade] Error message:', error.message);
+      
+      // Retry logic for 403 errors (Tastytrade API instability)
+      const is403Error = error.response?.status === 403;
+      const maxRetries = 3;
+      
+      if (is403Error && retryCount < maxRetries) {
+        const delay = 2000 * Math.pow(2, retryCount); // 2s, 4s, 8s
+        console.log(`[Tastytrade OAuth2] Retrying token refresh (attempt ${retryCount + 1}/${maxRetries}) after ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.getAccessToken(refreshToken, clientSecret, retryCount + 1);
+      }
+      
       throw new Error(`Tastytrade OAuth2 authentication failed: ${error.response?.data?.error?.message || error.message}`);
     }
   }
@@ -278,6 +309,13 @@ export class TastytradeAPI {
    */
   async login(username: string, password: string): Promise<TastytradeSession> {
     throw new Error('Username/password authentication is deprecated. Please use OAuth2 authentication with Client ID, Client Secret, and Refresh Token.');
+  }
+
+  /**
+   * Set user ID for database persistence
+   */
+  setUserId(userId: number): void {
+    this.userId = userId;
   }
 
   /**
@@ -1007,14 +1045,17 @@ export function getTastytradeAPI(): TastytradeAPI {
  * Helper function to authenticate with Tastytrade using OAuth2
  * This replaces the old username/password login method
  */
-export async function authenticateTastytrade(credentials: {
-  tastytradeClientId?: string | null;
-  tastytradeClientSecret?: string | null;
-  tastytradeRefreshToken?: string | null;
-  // Legacy fields - will be removed in future
-  tastytradeUsername?: string | null;
-  tastytradePassword?: string | null;
-}): Promise<TastytradeAPI> {
+export async function authenticateTastytrade(
+  credentials: {
+    tastytradeClientId?: string | null;
+    tastytradeClientSecret?: string | null;
+    tastytradeRefreshToken?: string | null;
+    // Legacy fields - will be removed in future
+    tastytradeUsername?: string | null;
+    tastytradePassword?: string | null;
+  },
+  userId?: number
+): Promise<TastytradeAPI> {
   console.log('[Tastytrade OAuth2] === AUTHENTICATION START ===');
   console.log('[Tastytrade OAuth2] Credentials check:', {
     hasClientSecret: !!credentials.tastytradeClientSecret,
@@ -1026,8 +1067,42 @@ export async function authenticateTastytrade(credentials: {
   
   const api = getTastytradeAPI();
   
+  // Set userId for database persistence
+  if (userId) {
+    api.setUserId(userId);
+  }
+  
   // Check if OAuth2 credentials are available
   if (credentials.tastytradeClientSecret && credentials.tastytradeRefreshToken) {
+    // Try to load persisted access token from database
+    let loadedToken: { accessToken: string | null; expiresAt: Date | null; } | null = null;
+    if (userId) {
+      try {
+        const { loadAccessToken } = await import('./db');
+        loadedToken = await loadAccessToken(userId);
+        
+        if (loadedToken?.accessToken && loadedToken?.expiresAt) {
+          const isExpired = new Date() >= loadedToken.expiresAt;
+          console.log('[Tastytrade OAuth2] Loaded persisted token from database:', {
+            hasToken: true,
+            expiresAt: loadedToken.expiresAt.toISOString(),
+            isExpired,
+          });
+          
+          if (!isExpired) {
+            // Use persisted token (still valid)
+            api['accessToken'] = loadedToken.accessToken;
+            api['tokenExpiresAt'] = loadedToken.expiresAt.getTime();
+            api['client'].defaults.headers.common['Authorization'] = `Bearer ${loadedToken.accessToken}`;
+            console.log('[Tastytrade OAuth2] Using persisted token (no refresh needed)');
+            console.log('[Tastytrade OAuth2] === AUTHENTICATION SUCCESS ===');
+            return api;
+          }
+        }
+      } catch (error) {
+        console.error('[Tastytrade OAuth2] Failed to load persisted token:', error);
+      }
+    }
     // Use OAuth2 authentication
     const isExpired = api.isTokenExpired();
     console.log('[Tastytrade OAuth2] Token expiration check:', {

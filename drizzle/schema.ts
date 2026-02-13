@@ -147,6 +147,9 @@ export const apiCredentials = mysqlTable("apiCredentials", {
   tastytradeClientId: varchar("tastytradeClientId", { length: 255 }),
   tastytradeClientSecret: varchar("tastytradeClientSecret", { length: 255 }),
   tastytradeRefreshToken: text("tastytradeRefreshToken"),
+  // Tastytrade OAuth2 access token (persisted to survive restarts)
+  tastytradeAccessToken: text("tastytradeAccessToken"),
+  tastytradeAccessTokenExpiresAt: timestamp("tastytradeAccessTokenExpiresAt"),
   // Legacy fields (deprecated - kept for backward compatibility during migration)
   tastytradeUsername: varchar("tastytradeUsername", { length: 255 }),
   tastytradePassword: varchar("tastytradePassword", { length: 255 }),
