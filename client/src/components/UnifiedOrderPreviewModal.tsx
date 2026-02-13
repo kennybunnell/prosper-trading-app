@@ -55,6 +55,14 @@ export interface ValidationError {
   severity: "error" | "warning";
 }
 
+// Order status after submission
+export interface OrderSubmissionStatus {
+  orderId: string;
+  symbol: string;
+  status: 'Filled' | 'Working' | 'Cancelled' | 'Rejected' | 'MarketClosed' | 'Pending';
+  message?: string;
+}
+
 export interface UnifiedOrderPreviewModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -69,7 +77,8 @@ export interface UnifiedOrderPreviewModalProps {
   holdings?: Holding[]; // Required for CC validation
   
   // Callbacks
-  onSubmit: (orders: UnifiedOrder[], quantities: Map<string, number>, isDryRun: boolean) => Promise<void>;
+  onSubmit: (orders: UnifiedOrder[], quantities: Map<string, number>, isDryRun: boolean) => Promise<{ results: any[] }>;
+  onPollStatuses?: (orderIds: string[], accountId: string) => Promise<OrderSubmissionStatus[]>; // Callback for parent to poll order statuses
   
   // Replace mode specific
   operationMode?: "new" | "replace";  // Default: "new"
@@ -96,6 +105,7 @@ export function UnifiedOrderPreviewModal({
   availableBuyingPower,
   holdings = [],
   onSubmit,
+  onPollStatuses,
   operationMode = "new",
   oldOrderIds = [],
   onReplaceSubmit,
@@ -111,6 +121,8 @@ export function UnifiedOrderPreviewModal({
   const [adjustedPrices, setAdjustedPrices] = useState<Map<string, number>>(new Map());
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+  const [orderStatuses, setOrderStatuses] = useState<OrderSubmissionStatus[]>([]);
   
   // Initialize quantities from defaults or set to 1
   useEffect(() => {
@@ -135,8 +147,10 @@ export function UnifiedOrderPreviewModal({
       });
       setAdjustedPrices(initialPrices);
       
-      // Reset dry run success when modal opens
+      // Reset dry run success and polling state when modal opens
       setDryRunSuccess(false);
+      setIsPolling(false);
+      setOrderStatuses([]);
     }
   }, [open, orders, defaultQuantities]);
   
@@ -354,30 +368,60 @@ export function UnifiedOrderPreviewModal({
   // Handle live submission
   const handleLiveSubmit = async () => {
     setIsSubmitting(true);
+    setIsPolling(true);
+    
     try {
+      let result: any;
+      
       if (operationMode === "replace" && onReplaceSubmit) {
         // Replace mode - call onReplaceSubmit
-        const result = await onReplaceSubmit(orders, orderQuantities, oldOrderIds, false);
-        toast({
-          title: "Orders Replaced",
-          description: `${result.successCount} of ${orders.length} orders replaced successfully!`,
-        });
+        result = await onReplaceSubmit(orders, orderQuantities, oldOrderIds, false);
       } else {
         // New order mode - call onSubmit
-        await onSubmit(orders, orderQuantities, false);
-        toast({
-          title: "Orders Submitted",
-          description: `${orders.length} orders submitted successfully!`,
-        });
+        result = await onSubmit(orders, orderQuantities, false);
       }
-      onOpenChange(false); // Close modal after successful submission
+      
+      // Extract order IDs and initialize status tracking
+      const initialStatuses: OrderSubmissionStatus[] = result.results
+        .filter((r: any) => r.success && r.orderId)
+        .map((r: any) => ({
+          orderId: r.orderId,
+          symbol: r.symbol || 'Unknown',
+          status: 'Pending' as const,
+          message: 'Checking status...'
+        }));
+      
+      setOrderStatuses(initialStatuses);
+      
+      // Poll order statuses if callback provided
+      if (onPollStatuses && initialStatuses.length > 0) {
+        const orderIds = initialStatuses.map(s => s.orderId);
+        const finalStatuses = await onPollStatuses(orderIds, accountId);
+        setOrderStatuses(finalStatuses);
+        
+        // Show confetti only if at least one order filled
+        const filledCount = finalStatuses.filter(s => s.status === 'Filled').length;
+        if (filledCount > 0) {
+          const confetti = (await import('canvas-confetti')).default;
+          confetti({
+            particleCount: 200,
+            spread: 100,
+            origin: { y: 0.6 },
+            colors: ['#10b981', '#3b82f6', '#8b5cf6'],
+          });
+        }
+      }
+      
+      setIsPolling(false);
+      
     } catch (error: any) {
       toast({
         title: "Submission Failed",
         description: error.message,
         variant: "destructive",
       });
-      setDryRunSuccess(false); // Reset on failure
+      setDryRunSuccess(false);
+      setIsPolling(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -666,29 +710,54 @@ export function UnifiedOrderPreviewModal({
           )}
           
           {/* Summary */}
-          <div className="p-4 bg-muted/30 rounded-lg border space-y-2">
-            <h4 className="font-semibold mb-3">Summary</h4>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Premium:</span>
-                <span className="font-medium text-green-500">${calculateTotalPremium().toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Collateral:</span>
-                <span className="font-medium">${calculateTotalCollateral().toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Available BP:</span>
-                <span className="font-medium">${availableBuyingPower.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Remaining BP:</span>
-                <span className={`font-medium ${(availableBuyingPower - calculateTotalCollateral()) < 0 ? "text-red-500" : "text-green-500"}`}>
-                  ${(availableBuyingPower - calculateTotalCollateral()).toFixed(2)}
-                </span>
+          {!isPolling && (
+            <div className="p-4 bg-muted/30 rounded-lg border space-y-2">
+              <h4 className="font-semibold mb-3">Summary</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Premium:</span>
+                  <span className="font-medium text-green-500">${calculateTotalPremium().toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Collateral:</span>
+                  <span className="font-medium">${calculateTotalCollateral().toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Available BP:</span>
+                  <span className="font-medium">${availableBuyingPower.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Remaining BP:</span>
+                  <span className={`font-medium ${(availableBuyingPower - calculateTotalCollateral()) < 0 ? "text-red-500" : "text-green-500"}`}>
+                    ${(availableBuyingPower - calculateTotalCollateral()).toFixed(2)}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
+          
+          {/* Order Status Display (after live submission) */}
+          {isPolling && orderStatuses.length > 0 && (
+            <div className="p-4 bg-muted/30 rounded-lg border space-y-3">
+              <h4 className="font-semibold mb-3">Order Status</h4>
+              <div className="space-y-2">
+                {orderStatuses.map((status, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-2 rounded bg-background/50">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{status.symbol}</span>
+                      {status.status === 'Filled' && <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">Filled ✓</Badge>}
+                      {status.status === 'Working' && <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/30">Working</Badge>}
+                      {status.status === 'Cancelled' && <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30">Cancelled</Badge>}
+                      {status.status === 'Rejected' && <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30">Rejected</Badge>}
+                      {status.status === 'MarketClosed' && <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">Market Closed</Badge>}
+                      {status.status === 'Pending' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                    </div>
+                    {status.message && <span className="text-sm text-muted-foreground">{status.message}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         
         <DialogFooter>

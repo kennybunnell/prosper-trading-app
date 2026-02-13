@@ -4490,3 +4490,20 @@
 - [x] Remove ALL browser alerts - replaced with sonner toast, added Toaster component to main.tsx
 - [x] Fix polling to actually execute - fixed endpoint call from utils.client.orders to utils.orders
 - [x] Add market hours detection to polling - added isMarketOpen() check and MarketClosed status
+
+## Universal Order Preview Modal Workflow (CRITICAL)
+- [x] Phase 1: Modal opens immediately on "Submit Orders" click (never auto-closes)
+- [x] Phase 2: Dry run validation - modal stays open, toast only (no confetti)
+- [x] Phase 3: Live submit - modal stays open, button turns red
+- [x] Phase 4: Real-time polling - display order status (Filled/Working/Cancelled/Market Closed)
+- [x] Phase 5: Confetti only when orders filled (not on dry run)
+- [ ] Apply workflow to CSP Dashboard
+- [ ] Apply workflow to CC Dashboard
+- [ ] Apply workflow to Performance (Resubmit Working Orders)
+- [ ] Apply workflow to Performance (Close Early)
+- [ ] Apply workflow to Performance (Roll Orders)
+- [ ] Test CSP order submission end-to-end
+- [ ] Test CC order submission end-to-end
+- [ ] Test Resubmit Working Orders end-to-end
+- [ ] Test Close Early end-to-end
+- [ ] Test Roll Orders end-to-end

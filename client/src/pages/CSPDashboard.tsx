@@ -941,16 +941,16 @@ export default function CSPDashboard() {
     orders: UnifiedOrder[],
     quantities: Map<string, number>,
     isDryRun: boolean
-  ) => {
-    // Only close preview modal if submitting live orders (not dry run)
+  ): Promise<{ results: any[] }> => {
+    // Modal stays open for both dry run and live submission
+    // Only show progress dialog for live orders
     if (!isDryRun) {
-      setShowPreviewDialog(false);
       setShowProgressDialog(true);
     }
     
     if (orders.length === 0) {
       toast.error("No orders to submit");
-      return;
+      return { results: [] };
     }
 
     // Use validated orders with midpoint pricing
@@ -1010,14 +1010,21 @@ export default function CSPDashboard() {
 
     if (!selectedAccountId) {
       toast.error("Please select an account");
-      return;
+      return { results: [] };
     }
 
-    submitOrders.mutate({
-      orders: orderLegs,
-      accountId: selectedAccountId,
-      dryRun: isDryRun,
-    });
+    // Use mutateAsync to get the response
+    try {
+      const response = await submitOrders.mutateAsync({
+        orders: orderLegs,
+        accountId: selectedAccountId,
+        dryRun: isDryRun,
+      });
+      return { results: response.results || [] };
+    } catch (error: any) {
+      console.error('[executeOrderSubmission] Error:', error);
+      return { results: [] };
+    }
   };
 
   if (authLoading) {

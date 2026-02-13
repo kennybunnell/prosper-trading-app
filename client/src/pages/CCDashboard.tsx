@@ -810,17 +810,14 @@ export default function CCDashboard() {
     orders: UnifiedOrder[],
     quantities: Map<string, number>,
     isDryRun: boolean
-  ) => {
-    // Only close preview modal if submitting live orders (not dry run)
-    if (!isDryRun) {
-      setShowPreviewDialog(false);
-    }
+  ): Promise<{ results: any[] }> => {
+    // Modal stays open for both dry run and live submission
     setIsSubmitting(true);
 
     if (orders.length === 0) {
       toast.error("No orders to submit");
       setIsSubmitting(false);
-      return;
+      return { results: [] };
     }
 
     // Show initial progress toast
@@ -944,12 +941,16 @@ export default function CCDashboard() {
           }
         }
       }
+      
+      // Return results for modal polling
+      return { results };
     } catch (error: any) {
       // Dismiss progress toast
       toast.dismiss('cc-order-submission-progress');
       toast.error(error.message || "Failed to submit orders", {
         duration: 6000,
       });
+      return { results: [] };
     } finally {
       setIsSubmitting(false);
     }

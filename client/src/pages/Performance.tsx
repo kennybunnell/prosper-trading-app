@@ -347,11 +347,8 @@ export function ActivePositionsTab() {
     orders: UnifiedOrder[],
     quantities: Map<string, number>,
     isDryRun: boolean
-  ) => {
-    // Only close preview modal if submitting live orders (not dry run)
-    if (!isDryRun) {
-      setShowPreviewModal(false);
-    }
+  ): Promise<{ results: any[] }> => {
+    // Modal stays open for both dry run and live submission
     setCloseResults(null);
 
     // Map UnifiedOrders back to position data for closePositions mutation
@@ -368,10 +365,16 @@ export function ActivePositionsTab() {
       spreadWidth: pos.spreadWidth,
     }));
 
-    await closePositionsMutation.mutateAsync({
-      positions: positionsToClose,
-      dryRun: isDryRun,
-    });
+    try {
+      const response = await closePositionsMutation.mutateAsync({
+        positions: positionsToClose,
+        dryRun: isDryRun,
+      });
+      return { results: response.results || [] };
+    } catch (error: any) {
+      console.error('[handleConfirmClose] Error:', error);
+      return { results: [] };
+    }
   };
 
   const summary = data?.summary || {
@@ -2203,7 +2206,7 @@ export function WorkingOrdersTab() {
         oldOrderIds={oldOrderIds}
         accountId={selectedAccountId || ''}
         availableBuyingPower={0} // Not needed for replace mode
-        onSubmit={async () => {}} // Not used in replace mode
+        onSubmit={async () => ({ results: [] })} // Not used in replace mode
         onReplaceSubmit={handleReplaceSubmit}
         tradingMode={tradingMode}
       />
