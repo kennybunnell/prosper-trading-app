@@ -14,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, Minus, Plus, AlertCircle, CheckCircle2, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -457,196 +458,194 @@ export function UnifiedOrderPreviewModal({
             </Alert>
           )}
           
-          {/* Orders List */}
-          <div className="space-y-4">
-            {orders.map((order, idx) => {
-              const key = getOrderKey(order);
-              const qty = getQuantity(order);
-              const maxQty = getMaxQuantity(order);
-              const price = adjustedPrices.get(key) || order.premium;
-              const totalPremium = price * 100 * qty;
-              
-              return (
-                <div key={idx} className="p-4 border rounded-lg bg-card">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h4 className="font-semibold">
-                        {order.symbol} ${order.strike} {order.optionType} - {new Date(order.expiration).toLocaleDateString()}
-                      </h4>
-                      <p className="text-sm text-muted-foreground">{order.action}</p>
-                    </div>
-                    <Badge variant={order.action.includes("BTC") ? "destructive" : "default"}>
-                      {order.action}
-                    </Badge>
-                  </div>
+          {/* Orders Table */}
+          <div className="border rounded-lg overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-20">Symbol</TableHead>
+                  <TableHead className="w-28">Strategy</TableHead>
+                  <TableHead className="text-right w-24">Strike</TableHead>
+                  <TableHead className="w-24">Expiration</TableHead>
+                  <TableHead className="text-right w-20">Qty</TableHead>
+                  <TableHead className="text-right w-28">Limit Price</TableHead>
+                  <TableHead className="w-64">Price Adjustment</TableHead>
+                  <TableHead className="text-right w-28">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orders.map((order, idx) => {
+                  const key = getOrderKey(order);
+                  const qty = getQuantity(order);
+                  const maxQty = getMaxQuantity(order);
+                  const price = adjustedPrices.get(key) || order.premium;
+                  const totalPremium = price * 100 * qty;
+                  const hasMarketData = order.bid && order.ask;
                   
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-3 gap-4">
-                      {/* Quantity Controls */}
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-2 block">Quantity</Label>
+                  return (
+                    <TableRow key={idx}>
+                      {/* Symbol */}
+                      <TableCell className="font-semibold">{order.symbol}</TableCell>
+                      
+                      {/* Strategy */}
+                      <TableCell>
+                        <Badge variant={order.action.includes("BTC") ? "destructive" : "default"}>
+                          {order.action}
+                        </Badge>
+                      </TableCell>
+                      
+                      {/* Strike */}
+                      <TableCell className="text-right">
+                        ${order.strike.toFixed(2)}
+                      </TableCell>
+                      
+                      {/* Expiration */}
+                      <TableCell>{new Date(order.expiration).toLocaleDateString()}</TableCell>
+                      
+                      {/* Quantity */}
+                      <TableCell className="text-right">
                         {allowQuantityEdit ? (
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              size="sm" 
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
                               variant="outline"
+                              className="h-6 w-6 p-0"
                               onClick={() => decrementQuantity(order)}
                               disabled={qty <= 1 || isSubmitting}
                             >
-                              <Minus className="w-3 h-3" />
-                            </Button>
-                            
-                            <Input 
-                              type="number"
-                              min={1}
-                              max={maxQty}
-                              value={qty}
-                              onChange={(e) => setQuantity(order, parseInt(e.target.value) || 1)}
-                              className="w-16 text-center"
-                              disabled={isSubmitting}
-                            />
-                            
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => incrementQuantity(order)}
-                              disabled={qty >= maxQty || isSubmitting}
-                            >
-                              <Plus className="w-3 h-3" />
-                            </Button>
-                            
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">
-                              (max: {maxQty})
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="text-sm font-medium">{qty} contract{qty > 1 ? "s" : ""}</div>
-                        )}
-                      </div>
-                      
-                      {/* Price */}
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-2 block">
-                          {operationMode === "replace" ? "New Price" : "Price"}
-                        </Label>
-                        <div className="text-sm font-medium">${price.toFixed(2)}</div>
-                        {operationMode === "replace" && order.oldPrice && (
-                          <div className="text-xs">
-                            <span className="text-muted-foreground">Was: ${order.oldPrice.toFixed(2)}</span>
-                            {" "}
-                            <span className={price !== order.oldPrice ? (price > order.oldPrice ? "text-red-400" : "text-green-400") : "text-muted-foreground"}>
-                              {price > order.oldPrice ? "+" : ""}{(price - order.oldPrice).toFixed(2)}
-                            </span>
-                          </div>
-                        )}
-                        {order.bid && order.ask && (
-                          <div className="text-xs text-muted-foreground">
-                            Bid ${order.bid.toFixed(2)} / Ask ${order.ask.toFixed(2)}
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Total Premium */}
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-2 block">Total</Label>
-                        <div className="text-sm font-medium text-green-500">${totalPremium.toFixed(2)}</div>
-                      </div>
-                    </div>
-                    
-                    {/* Midpoint Slider (only if bid/ask available) */}
-                    {order.bid && order.ask && (
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Price Adjustment (Bid to Midpoint)</Label>
-                        <div className="relative px-1">
-                          {/* Bid Marker */}
-                          <div 
-                            className="absolute h-3 w-0.5 bg-red-400/50" 
-                            style={{ 
-                              left: '0%', 
-                              top: '50%', 
-                              transform: 'translateY(-50%)',
-                              zIndex: 0
-                            }}
-                          >
-                            <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-red-400 font-bold whitespace-nowrap">Bid</div>
-                          </div>
-                          
-                          {/* Fill Zone Marker (85% - optimal fill zone) */}
-                          <div 
-                            className="absolute h-4 w-1 bg-emerald-400 rounded-full shadow-lg cursor-pointer hover:bg-emerald-300" 
-                            style={{ 
-                              left: '85%', 
-                              top: '50%', 
-                              transform: 'translate(-50%, -50%)',
-                              zIndex: 1
-                            }}
-                            onClick={() => setPriceFromSlider(order, [85])}
-                            title="Optimal fill zone (~85% of mid)"
-                          >
-                            <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-emerald-400 font-bold whitespace-nowrap">Fill</div>
-                          </div>
-                          
-                          {/* Mid Marker */}
-                          <div 
-                            className="absolute h-3 w-0.5 bg-blue-400/50" 
-                            style={{ 
-                              left: '50%', 
-                              top: '50%', 
-                              transform: 'translate(-50%, -50%)',
-                              zIndex: 0
-                            }}
-                          />
-                          
-                          {/* Slider */}
-                          <Slider
-                            value={getSliderPosition(order)}
-                            onValueChange={(value) => setPriceFromSlider(order, value)}
-                            max={100}
-                            step={1}
-                            className="relative z-10"
-                            disabled={isSubmitting}
-                          />
-                        </div>
-                        
-                        {/* Current Price and Position Indicator */}
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 w-6 p-0"
-                              onClick={() => adjustPrice(order, -0.05)}
-                              disabled={isSubmitting}
-                            >
                               <Minus className="h-3 w-3" />
                             </Button>
-                            <span className="text-xs font-mono font-bold text-blue-400">
-                              ${price.toFixed(2)}
+                            <span className="font-mono font-bold min-w-[2ch] text-center">
+                              {qty}
                             </span>
                             <Button
                               size="sm"
                               variant="outline"
                               className="h-6 w-6 p-0"
-                              onClick={() => adjustPrice(order, 0.05)}
-                              disabled={isSubmitting}
+                              onClick={() => incrementQuantity(order)}
+                              disabled={qty >= maxQty || isSubmitting}
                             >
                               <Plus className="h-3 w-3" />
                             </Button>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {(() => {
-                              const sliderPos = getSliderPosition(order)[0];
-                              const guidance = getFillZoneGuidance(sliderPos);
-                              return <span className={guidance.color}>{guidance.text}</span>;
-                            })()}
+                        ) : (
+                          <span className="font-mono font-bold">{qty}</span>
+                        )}
+                        {allowQuantityEdit && (
+                          <div className="text-[10px] text-muted-foreground text-center mt-0.5">
+                            max: {maxQty}
                           </div>
+                        )}
+                      </TableCell>
+                      
+                      {/* Limit Price */}
+                      <TableCell className="text-right">
+                        <div className="flex flex-col items-end">
+                          <span className="font-semibold text-green-600">
+                            ${price.toFixed(2)}
+                          </span>
+                          {hasMarketData && (
+                            <div className="text-xs text-muted-foreground">
+                              <div>Mid: ${((order.bid! + order.ask!) / 2).toFixed(2)}</div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                      </TableCell>
+                      
+                      {/* Price Adjustment Slider */}
+                      <TableCell>
+                        {hasMarketData ? (
+                          <div className="flex flex-col gap-3 py-2">
+                            {/* Visual Continuum with Markers */}
+                            <div className="relative">
+                              {/* Slider with Visual Zones */}
+                              <div className="relative px-1">
+                                {/* Fill Zone Marker (around 85% of mid) */}
+                                <div 
+                                  className="absolute h-4 w-1 bg-emerald-400 rounded-full shadow-lg cursor-pointer hover:bg-emerald-300" 
+                                  style={{ 
+                                    left: '85%', 
+                                    top: '50%', 
+                                    transform: 'translate(-50%, -50%)',
+                                    zIndex: 1
+                                  }}
+                                  onClick={() => setPriceFromSlider(order, [85])}
+                                  title="Optimal fill zone (~85% of mid)"
+                                >
+                                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-emerald-400 font-bold whitespace-nowrap">Fill</div>
+                                </div>
+                                
+                                {/* Mid Marker */}
+                                <div 
+                                  className="absolute h-3 w-0.5 bg-blue-400/50" 
+                                  style={{ 
+                                    left: '50%', 
+                                    top: '50%', 
+                                    transform: 'translate(-50%, -50%)',
+                                    zIndex: 0
+                                  }}
+                                />
+                                
+                                {/* Slider */}
+                                <Slider
+                                  value={getSliderPosition(order)}
+                                  onValueChange={(value) => setPriceFromSlider(order, value)}
+                                  max={100}
+                                  step={1}
+                                  className="relative z-10"
+                                  disabled={isSubmitting}
+                                />
+                              </div>
+                              
+                              {/* Current Price and Position Indicator */}
+                              <div className="flex justify-between items-center mt-2">
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 w-6 p-0"
+                                    onClick={() => adjustPrice(order, -0.05)}
+                                    disabled={isSubmitting}
+                                  >
+                                    <Minus className="h-3 w-3" />
+                                  </Button>
+                                  <span className="text-xs font-mono font-bold text-blue-400">
+                                    ${price.toFixed(2)}
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 w-6 p-0"
+                                    onClick={() => adjustPrice(order, 0.05)}
+                                    disabled={isSubmitting}
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {(() => {
+                                    const sliderPos = getSliderPosition(order)[0];
+                                    const guidance = getFillZoneGuidance(sliderPos);
+                                    return <span className={guidance.color}>{guidance.text}</span>;
+                                  })()}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No market data</span>
+                        )}
+                      </TableCell>
+                      
+                      {/* Total */}
+                      <TableCell className="text-right font-semibold text-green-500">
+                        ${totalPremium.toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </div>
           
           {/* Validation Errors */}

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { toast as sonnerToast } from 'sonner';
 
 export interface ToastOptions {
   title: string;
@@ -8,27 +8,22 @@ export interface ToastOptions {
 }
 
 export function useToast() {
-  const [toasts, setToasts] = useState<ToastOptions[]>([]);
-
-  const toast = useCallback((options: ToastOptions) => {
-    // For now, just use console.log
-    // In production, this would integrate with a toast UI library
-    console.log('[Toast]', options.title, options.description);
+  const toast = (options: ToastOptions) => {
+    const { title, description, variant, duration } = options;
     
-    // Also show browser alert for important errors
-    if (options.variant === 'destructive') {
-      alert(`${options.title}: ${options.description}`);
+    // Use sonner toast instead of browser alerts
+    if (variant === 'destructive') {
+      sonnerToast.error(title, {
+        description,
+        duration: duration || 5000,
+      });
     } else {
-      alert(`${options.title}${options.description ? ': ' + options.description : ''}`);
+      sonnerToast(title, {
+        description,
+        duration: duration || 5000,
+      });
     }
-    
-    setToasts(prev => [...prev, options]);
-    
-    // Auto-dismiss after duration
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t !== options));
-    }, options.duration || 5000);
-  }, []);
+  };
 
-  return { toast, toasts };
+  return { toast };
 }

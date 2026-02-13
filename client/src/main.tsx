@@ -8,6 +8,7 @@ import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
 import { TradingModeProvider } from "./contexts/TradingModeContext";
+import { Toaster } from "sonner";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,7 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <TradingModeProvider>
         <App />
+        <Toaster richColors position="top-right" />
       </TradingModeProvider>
     </QueryClientProvider>
   </trpc.Provider>

@@ -762,26 +762,31 @@ export default function CSPDashboard() {
             
             try {
               // Poll each order (max 30 attempts = 2.5 minutes at 5-second intervals)
-              const statusPromises = successfulOrders.map((order: any) =>
-                utils.client.orders.pollStatus.mutate({
+              const statusPromises = successfulOrders.map(async (order: any) => {
+                return await utils.client.orders.pollStatus.mutate({
                   accountId: selectedAccountId,
                   orderId: order.orderId,
                   maxAttempts: 30,
                   intervalMs: 5000,
-                })
-              );
+                });
+              });
               
               const statuses = await Promise.all(statusPromises);
               
               // Summarize results
-              const filled = statuses.filter(s => s.status === 'Filled').length;
-              const working = statuses.filter(s => s.status === 'Working').length;
-              const cancelled = statuses.filter(s => s.status === 'Cancelled').length;
-              const rejected = statuses.filter(s => s.status === 'Rejected').length;
+              const filled = statuses.filter((s: any) => s.status === 'Filled').length;
+              const working = statuses.filter((s: any) => s.status === 'Working').length;
+              const cancelled = statuses.filter((s: any) => s.status === 'Cancelled').length;
+              const rejected = statuses.filter((s: any) => s.status === 'Rejected').length;
+              const marketClosed = statuses.filter((s: any) => s.status === 'MarketClosed').length;
               
               toast.dismiss('order-status-poll');
               
-              if (filled === successfulOrders.length) {
+              if (marketClosed > 0) {
+                toast.warning(`🕐 Market is closed. ${successfulOrders.length} order(s) will be processed when market opens.`, {
+                  duration: 8000,
+                });
+              } else if (filled === successfulOrders.length) {
                 toast.success(`🎉 All ${filled} orders filled!`, { duration: 6000 });
               } else if (filled > 0) {
                 toast.success(`✅ ${filled} filled, ${working} working, ${cancelled} cancelled, ${rejected} rejected`, {

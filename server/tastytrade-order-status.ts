@@ -11,10 +11,36 @@
 import { getTastytradeAPI } from './tastytrade';
 
 export interface OrderStatus {
-  status: 'Working' | 'Filled' | 'Cancelled' | 'Rejected' | 'Unknown';
+  status: 'Working' | 'Filled' | 'Cancelled' | 'Rejected' | 'MarketClosed' | 'Unknown';
   filledAt?: string;
   cancelledAt?: string;
   rejectedReason?: string;
+  marketClosedMessage?: string;
+}
+
+/**
+ * Check if market is currently open for options trading
+ * Options market hours: 9:30 AM - 4:00 PM ET (Monday-Friday)
+ */
+function isMarketOpen(): boolean {
+  const now = new Date();
+  const etTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  
+  // Check if weekend
+  const dayOfWeek = etTime.getDay();
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    return false;
+  }
+  
+  // Check if within market hours (9:30 AM - 4:00 PM ET)
+  const hours = etTime.getHours();
+  const minutes = etTime.getMinutes();
+  const timeInMinutes = hours * 60 + minutes;
+  
+  const marketOpen = 9 * 60 + 30; // 9:30 AM
+  const marketClose = 16 * 60; // 4:00 PM
+  
+  return timeInMinutes >= marketOpen && timeInMinutes < marketClose;
 }
 
 /**
@@ -26,6 +52,14 @@ export async function checkOrderStatus(
   orderId: string
 ): Promise<OrderStatus> {
   const api = getTastytradeAPI();
+  
+  // Check if market is closed first
+  if (!isMarketOpen()) {
+    return {
+      status: 'MarketClosed',
+      marketClosedMessage: 'Market is currently closed. Orders will be processed when market opens.',
+    };
+  }
   
   try {
     // Fetch specific order details using the order ID endpoint

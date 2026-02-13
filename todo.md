@@ -4484,3 +4484,9 @@
 - [x] Restore post-submit order status polling (check: filled, working, cancelled, market closed)
 - [x] Test slider drag functionality with old implementation
 - [x] Test post-submit polling across all dashboards (CSP, CC, Performance)
+
+## CRITICAL BUGS - User Reported
+- [x] Restore EXACT old small slider implementation - converted from Card to Table layout
+- [x] Remove ALL browser alerts - replaced with sonner toast, added Toaster component to main.tsx
+- [x] Fix polling to actually execute - fixed endpoint call from utils.client.orders to utils.orders
+- [x] Add market hours detection to polling - added isMarketOpen() check and MarketClosed status
