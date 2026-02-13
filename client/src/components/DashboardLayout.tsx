@@ -28,6 +28,7 @@ import { Switch } from "@/components/ui/switch";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
+import { AuthStatusIndicator } from './AuthStatusIndicator';
 import { Button } from "./ui/button";
 
 const menuItems = [
@@ -328,6 +329,7 @@ function DashboardLayoutContent({
                 </div>
               </div>
             </div>
+            <AuthStatusIndicator />
           </div>
         )}
         <main className="flex-1 p-4 relative z-10">{children}</main>

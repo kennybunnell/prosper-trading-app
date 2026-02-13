@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS oauthTokens (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  userId INT NOT NULL,\n  provider VARCHAR(50) NOT NULL,\n  refreshToken TEXT NOT NULL,\n  accessToken TEXT,\n  expiresAt TIMESTAMP NULL,\n  scopes TEXT,\n  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  UNIQUE KEY unique_user_provider (userId, provider),\n  INDEX oauthTokens_userId_idx (userId),\n  FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute CREATE TABLE IF NOT EXISTS oauthTokens (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  userId INT NOT NULL,\n  provider VARCHAR(50) NOT NULL,\n  refreshToken TEXT NOT NULL,\n  accessToken TEXT,\n  expiresAt TIMESTAMP NULL,\n  scopes TEXT,\n  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  UNIQUE KEY unique_user_provider (userId, provider),\n  INDEX oauthTokens_userId_idx (userId),\n  FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 349
+}

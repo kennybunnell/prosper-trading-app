@@ -1,4 +1,4 @@
-import { boolean, index, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, index, int, mysqlEnum, mysqlTable, text, timestamp, unique, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -537,3 +537,25 @@ export const chatMessages = mysqlTable("chatMessages", {
 
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = typeof chatMessages.$inferInsert;
+
+/**
+ * OAuth2 tokens for persistent authentication
+ * Stores encrypted refresh tokens to survive server hibernation
+ */
+export const oauthTokens = mysqlTable("oauthTokens", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  provider: varchar("provider", { length: 50 }).notNull(), // 'tastytrade', 'tradier', etc.
+  refreshToken: text("refreshToken").notNull(), // Encrypted refresh token
+  accessToken: text("accessToken"), // Encrypted access token (optional)
+  expiresAt: timestamp("expiresAt"), // Access token expiration
+  scopes: text("scopes"), // OAuth scopes granted (comma-separated)
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  uniqueUserProvider: unique("unique_user_provider").on(table.userId, table.provider),
+  userIdIdx: index("oauthTokens_userId_idx").on(table.userId),
+}));
+
+export type OAuthToken = typeof oauthTokens.$inferSelect;
+export type InsertOAuthToken = typeof oauthTokens.$inferInsert;

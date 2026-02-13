@@ -889,32 +889,7 @@ export default function CCDashboard() {
             duration: 4000,
           });
         } else {
-          toast.success(`✅ Successfully submitted ${results.length} order${results.length > 1 ? 's' : ''}!`, {
-            duration: 5000,
-          });
-          
-          // Confetti animation
-          confetti({
-            particleCount: 200,
-            spread: 100,
-            origin: { y: 0.6 },
-            colors: ['#f59e0b', '#fbbf24', '#fcd34d'],
-          });
-          setTimeout(() => {
-            confetti({
-              particleCount: 100,
-              angle: 60,
-              spread: 55,
-              origin: { x: 0 },
-            });
-            confetti({
-              particleCount: 100,
-              angle: 120,
-              spread: 55,
-              origin: { x: 1 },
-            });
-          }, 250);
-          
+          // Success toast removed - modal will handle polling and confetti
           // Clear selections after successful submission
           setSelectedOpportunities(new Set());
         }
@@ -953,6 +928,34 @@ export default function CCDashboard() {
       return { results: [] };
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Handle order status polling after live submission
+  const handlePollStatuses = async (orderIds: string[], accountId: string) => {
+    const utils = trpc.useUtils();
+    
+    try {
+      // Poll each order status
+      const statusPromises = orderIds.map(orderId => 
+        utils.client.orders.pollStatus.mutate({ 
+          accountId,
+          orderId 
+        })
+      );
+      
+      const statuses = await Promise.all(statusPromises);
+      
+      // Map OrderStatus to OrderSubmissionStatus
+      return statuses.map((status, index) => ({
+        orderId: orderIds[index],
+        symbol: '', // Symbol not available from polling endpoint
+        status: status.status as any,
+        message: status.marketClosedMessage || status.rejectedReason,
+      }));
+    } catch (error: any) {
+      console.error('[CC Dashboard] Polling error:', error);
+      return [];
     }
   };
 
@@ -2866,6 +2869,7 @@ export default function CCDashboard() {
             maxContracts: Math.floor(pos.quantity / 100),
           }))}
           onSubmit={executeOrderSubmission}
+          onPollStatuses={handlePollStatuses}
           allowQuantityEdit={true}
           tradingMode={tradingMode}
         />

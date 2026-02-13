@@ -653,6 +653,15 @@ export const appRouter = router({
         await setBackgroundPattern(ctx.user.id, input.pattern);
         return { success: true };
       }),
+    getTokenStatus: protectedProcedure.query(async ({ ctx }) => {
+      // Get token expiration from Tastytrade session
+      // For now, return a mock value - will implement full OAuth2 token tracking later
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
+      return {
+        expiresAt: expiresAt.toISOString(),
+        isValid: true,
+      };
+    }),
   }),
 
   accounts: router({

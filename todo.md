@@ -4514,3 +4514,11 @@
 - [x] Document OAuth2 behavior and dev server hibernation in fix-credentials doc
 - [x] Design persistent refresh token solution (encrypt and store in database)
 - [ ] Add clear UI messaging about dev server state and authentication status
+
+## Three New Features Implementation
+- [x] Apply universal order preview workflow to CC Dashboard (add handlePollStatuses, remove duplicate confetti)
+- [x] Implement persistent refresh tokens - Phase 1 complete (database table, encryption utils, tests)
+  - [ ] Phase 2: OAuth2 integration (save tokens after callback, restore on startup)
+  - [ ] Phase 3: Token refresh and rotation
+  - [ ] Phase 4: Security hardening and production deployment
+- [x] Add authentication status indicator to header (green/yellow/red with countdown timer)
