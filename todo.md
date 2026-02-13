@@ -4549,3 +4549,10 @@
 - [x] Update paper trading mock data to include new fields
 - [ ] Display working order info in position table UI (e.g., "2 contracts (1 working)")
 - [ ] Test with account that has working CC orders
+
+## CC Dashboard Polling Not Executing (FIXED)
+- [x] Diagnose why pollStatus is never called after successful order submission - React hooks rule violation
+- [x] Check if handlePollStatuses callback is being passed to UnifiedOrderPreviewModal - callback was passed correctly
+- [x] Verify pollStatus tRPC procedure exists and is wired correctly - procedure exists in routers-orders.ts
+- [x] Fix illegal React hook call - removed `trpc.useUtils()` from inside handlePollStatuses callback
+- [ ] Test polling after fixing the issue

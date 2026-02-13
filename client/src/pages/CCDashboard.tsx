@@ -935,8 +935,6 @@ export default function CCDashboard() {
 
   // Handle order status polling after live submission
   const handlePollStatuses = async (orderIds: string[], accountId: string) => {
-    const utils = trpc.useUtils();
-    
     try {
       // Poll each order status
       const statusPromises = orderIds.map(orderId => 
