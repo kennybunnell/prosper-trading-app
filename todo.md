@@ -4424,3 +4424,10 @@
 - [ ] Add replace mode support to UnifiedOrderPreviewModal component
 - [ ] Integrate UnifiedOrderPreviewModal with Working Orders tab
 - [ ] Test replace workflow end-to-end with OAuth2
+
+## Critical Bug Fixes
+- [x] Fixed database persistence issue - OAuth2 credentials now persist across dev environment restarts
+  * Root cause: MySQL onDuplicateKeyUpdate returns insertId for both INSERT and UPDATE operations
+  * Solution: Check if user exists BEFORE upsert to correctly detect new users
+  * Impact: Onboarding only runs for new users, credentials preserved across restarts
+  * Fixed in: server/db.ts upsertUser() function

@@ -30,6 +30,16 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 
   try {
+    // Check if user already exists BEFORE upsert to detect new users correctly
+    const { eq } = await import('drizzle-orm');
+    const existingUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.openId, user.openId))
+      .limit(1);
+
+    const isNewUser = existingUser.length === 0;
+
     const values: InsertUser = {
       openId: user.openId,
     };
@@ -72,12 +82,11 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       set: updateSet,
     });
 
-    // Trigger onboarding for new users
-    // Check if this was an INSERT (new user) vs UPDATE (existing user)
-    // For MySQL, insertId is available when a new row is inserted
-    const insertId = (result as any)[0]?.insertId;
-    if (insertId) {
-      const userId = Number(insertId);
+    // Trigger onboarding for new users only
+    // MySQL's onDuplicateKeyUpdate returns insertId for both INSERT and UPDATE,
+    // so we check if user existed BEFORE the upsert operation
+    if (isNewUser) {
+      const userId = existingUser.length > 0 ? existingUser[0].id : Number((result as any)[0]?.insertId);
       console.log(`[Database] New user created with ID ${userId}, triggering onboarding`);
       
       // Import and run onboarding asynchronously (don't block login)
@@ -95,6 +104,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       }).catch(error => {
         console.error(`[Database] Failed to import onboarding module:`, error);
       });
+    } else {
+      console.log(`[Database] Existing user logged in (openId: ${user.openId.substring(0, 10)}...), skipping onboarding`);
     }
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);

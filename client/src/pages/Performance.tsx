@@ -329,7 +329,7 @@ export function ActivePositionsTab() {
       expiration: pos.expiration,
       premium: pos.currentPrice, // Current market price for BTC
       action: "BTC" as const,
-      optionType: pos.optionSymbol?.includes('P') ? 'PUT' as const : 'CALL' as const,
+      optionType: (pos.optionSymbol?.includes('P') ? 'PUT' : 'CALL') as "CALL" | "PUT",
       bid: pos.currentPrice * 0.95, // Estimate bid (5% below mark)
       ask: pos.currentPrice * 1.05, // Estimate ask (5% above mark)
       currentPrice: pos.currentPrice,
