@@ -381,22 +381,38 @@ export function UnifiedOrderPreviewModal({
         result = await onSubmit(orders, orderQuantities, false);
       }
       
-      // Extract order IDs and initialize status tracking
-      const initialStatuses: OrderSubmissionStatus[] = result.results
-        .filter((r: any) => r.success && r.orderId)
-        .map((r: any) => ({
-          orderId: String(r.orderId), // Convert to string for tRPC endpoint
-          symbol: r.symbol || 'Unknown',
-          status: 'Pending' as const,
-          message: 'Checking status...'
-        }));
+      // Extract ALL order results (success + failures) and initialize status tracking
+      const allStatuses: OrderSubmissionStatus[] = result.results.map((r: any) => {
+        if (r.success && r.orderId) {
+          // Successful submission - will poll for status
+          return {
+            orderId: String(r.orderId),
+            symbol: r.symbol || 'Unknown',
+            status: 'Pending' as const,
+            message: 'Checking status...'
+          };
+        } else {
+          // Failed submission - show error message immediately
+          return {
+            orderId: 'FAILED',
+            symbol: r.symbol || 'Unknown',
+            status: 'Rejected' as const,
+            message: r.message || 'Order submission failed'
+          };
+        }
+      });
       
-      setOrderStatuses(initialStatuses);
+      setOrderStatuses(allStatuses);
       
-      // Poll order statuses if callback provided
-      if (onPollStatuses && initialStatuses.length > 0) {
-        const orderIds = initialStatuses.map(s => s.orderId);
-        const finalStatuses = await onPollStatuses(orderIds, accountId);
+      // Poll order statuses if callback provided (only for successful submissions)
+      const successfulStatuses = allStatuses.filter(s => s.orderId !== 'FAILED');
+      if (onPollStatuses && successfulStatuses.length > 0) {
+        const orderIds = successfulStatuses.map(s => s.orderId);
+        const polledStatuses = await onPollStatuses(orderIds, accountId);
+        
+        // Merge polled statuses with failed statuses
+        const failedStatuses = allStatuses.filter(s => s.orderId === 'FAILED');
+        const finalStatuses = [...polledStatuses, ...failedStatuses];
         setOrderStatuses(finalStatuses);
         
         // Show confetti only if at least one order filled
@@ -410,6 +426,9 @@ export function UnifiedOrderPreviewModal({
             colors: ['#10b981', '#3b82f6', '#8b5cf6'],
           });
         }
+      } else if (allStatuses.length > 0) {
+        // No polling callback, but we have failed orders - keep them displayed
+        // (allStatuses already set above)
       }
       
       setIsPolling(false);

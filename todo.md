@@ -4532,3 +4532,10 @@
 - [x] Fix CC Dashboard order validation - prevent submitting orders when availableShares < quantity * 100
 - [x] Add pre-submission filter to remove uncovered orders before Tastytrade API call
 - [ ] Test CC order submission to ensure no "risk_check_failed" errors
+
+## Order Submission Error Reporting (COMPLETED)
+- [x] Modified UnifiedOrderPreviewModal to display failed orders with Tastytrade API error messages
+- [x] Failed orders now show status "Rejected" with detailed error message (e.g., "Your account is not approved for selling uncovered options")
+- [x] Modal displays ALL order results (success + failures) instead of only successful orders
+- [x] Polling still works for successful orders while failed orders show immediate feedback
+- [ ] Test live order submission to verify error messages display correctly
