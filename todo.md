@@ -4556,3 +4556,9 @@
 - [x] Verify pollStatus tRPC procedure exists and is wired correctly - procedure exists in routers-orders.ts
 - [x] Fix illegal React hook call - removed `trpc.useUtils()` from inside handlePollStatuses callback
 - [ ] Test polling after fixing the issue
+
+## Modal UX Improvement - Close Button After Submission (COMPLETED)
+- [x] Change "Submit Live" button to green "Close" button after successful submission
+- [x] Ensure button only changes after polling completes (not immediately after submission)
+- [x] Added submissionComplete state that gets set to true after setIsPolling(false)
+- [ ] Test with successful order submission

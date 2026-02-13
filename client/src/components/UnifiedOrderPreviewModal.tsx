@@ -123,6 +123,7 @@ export function UnifiedOrderPreviewModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [orderStatuses, setOrderStatuses] = useState<OrderSubmissionStatus[]>([]);
+  const [submissionComplete, setSubmissionComplete] = useState(false);
   
   // Initialize quantities from defaults or set to 1
   useEffect(() => {
@@ -147,10 +148,11 @@ export function UnifiedOrderPreviewModal({
       });
       setAdjustedPrices(initialPrices);
       
-      // Reset dry run success and polling state when modal opens
+      // Reset dry run success, polling state, and submission complete when modal opens
       setDryRunSuccess(false);
       setIsPolling(false);
       setOrderStatuses([]);
+      setSubmissionComplete(false);
     }
   }, [open, orders, defaultQuantities]);
   
@@ -432,6 +434,7 @@ export function UnifiedOrderPreviewModal({
       }
       
       setIsPolling(false);
+      setSubmissionComplete(true);
       
     } catch (error: any) {
       toast({
@@ -791,6 +794,14 @@ export function UnifiedOrderPreviewModal({
             >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Execute Dry Run
+            </Button>
+          ) : submissionComplete ? (
+            <Button
+              onClick={() => onOpenChange(false)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Close
             </Button>
           ) : (
             <Button
