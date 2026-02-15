@@ -27,12 +27,14 @@ export function ConnectionStatusIndicator() {
     },
   });
   
-  // Update countdown timer every second
+  // Update countdown timer every second AND auto-refresh when < 2 minutes remaining
   useEffect(() => {
     if (!connectionStatus?.tastytrade.expiresAt) {
       setTimeRemaining('');
       return;
     }
+    
+    let hasAutoRefreshed = false; // Prevent multiple auto-refresh attempts
     
     const updateCountdown = () => {
       const now = new Date();
@@ -46,6 +48,14 @@ export function ConnectionStatusIndicator() {
       
       const minutes = Math.floor(diffMs / 60000);
       const seconds = Math.floor((diffMs % 60000) / 1000);
+      
+      // Auto-refresh when < 2 minutes remaining (120 seconds)
+      if (diffMs < 120000 && !hasAutoRefreshed && !forceTokenRefresh.isPending) {
+        hasAutoRefreshed = true;
+        console.log('[ConnectionStatusIndicator] Auto-refreshing token (< 2 minutes remaining)');
+        toast.info('Refreshing authentication token...');
+        forceTokenRefresh.mutate();
+      }
       
       if (minutes > 60) {
         const hours = Math.floor(minutes / 60);
@@ -62,7 +72,7 @@ export function ConnectionStatusIndicator() {
     const interval = setInterval(updateCountdown, 1000);
     
     return () => clearInterval(interval);
-  }, [connectionStatus?.tastytrade.expiresAt]);
+  }, [connectionStatus?.tastytrade.expiresAt, forceTokenRefresh]);
 
   if (isLoading) {
     return null;

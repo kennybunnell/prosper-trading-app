@@ -4745,3 +4745,10 @@
   * Blue "Market Closed - Orders Queued" - when market is closed
 - [x] Add "Close" button at bottom of modal after submission completes (already exists)
 - [ ] Test all status scenarios with user (filled, working, rejected, market closed)
+
+## Automatic Token Refresh (Proactive)
+- [x] Implement background timer in ConnectionStatusIndicator to check token expiration
+- [x] Auto-refresh token when < 2 minutes remaining (before it expires)
+- [x] Show toast notification when auto-refresh happens ("Refreshing authentication token...")
+- [x] Handle auto-refresh failures gracefully (shows error toast with message)
+- [ ] Test that auto-refresh prevents API failures during active usage (ready for user testing)
