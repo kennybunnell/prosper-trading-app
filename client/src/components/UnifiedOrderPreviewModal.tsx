@@ -149,12 +149,13 @@ export function UnifiedOrderPreviewModal({
   const prevOpenRef = useRef(false);
   
   // Reset submission state when modal opens (only if using external state)
+  // BUT do NOT reset if submission is already complete
   useEffect(() => {
     const isOpening = open && !prevOpenRef.current;
-    if (isOpening && onSubmissionStateChange) {
+    if (isOpening && onSubmissionStateChange && !submissionComplete) {
       setSubmissionState(false, null);
     }
-  }, [open]);
+  }, [open, submissionComplete]);
   
   // Initialize quantities from defaults or set to 1
   useEffect(() => {
@@ -162,7 +163,8 @@ export function UnifiedOrderPreviewModal({
     const isOpening = open && !prevOpenRef.current;
     prevOpenRef.current = open;
     
-    if (isOpening && orders.length > 0) {
+    // Do NOT reset if submission is already complete (prevents reset after live submission)
+    if (isOpening && orders.length > 0 && !submissionComplete) {
       const initialQuantities = new Map<string, number>();
       orders.forEach(order => {
         const key = getOrderKey(order);
@@ -184,12 +186,13 @@ export function UnifiedOrderPreviewModal({
       setAdjustedPrices(initialPrices);
       
       // Reset dry run success, polling state, and submission complete when modal FIRST opens
+      // BUT only if submission is NOT already complete
       setDryRunSuccess(false);
       setIsPolling(false);
       setOrderStatuses([]);
       setSubmissionState(false, null);
     }
-  }, [open]); // Only depend on open state - reset only when modal first opens, not when orders array changes
+  }, [open, submissionComplete]); // Check submissionComplete to prevent reset after live submission
   
   // Real-time validation whenever quantities change
   useEffect(() => {

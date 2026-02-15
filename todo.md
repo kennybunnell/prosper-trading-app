@@ -4759,15 +4759,17 @@
 - [x] Verified token refresh now works (200 OK response from Tastytrade)
 - [x] Auto-refresh at < 2 minutes will now work correctly
 
-## Order Preview Modal - Status Banner Not Persisting (FIXED - Feb 15, 2026 v3 - FINAL)
+## Order Preview Modal - Status Banner Not Persisting (FIX v4 - Feb 15, 2026)
 - [x] Lifted finalOrderStatus and submissionComplete state to PARENT components (CSPDashboard, CCDashboard)
 - [x] Pass submission state as props to UnifiedOrderPreviewModal via submissionComplete, finalOrderStatus, onSubmissionStateChange
 - [x] Modal now uses external state from parent, ensuring state persists across parent re-renders
-- [x] USER TESTED TWICE: Modal STILL reset - found ACTUAL root cause
-- [x] ACTUAL ROOT CAUSE: useEffect dependency array had `[open, orders]` - when parent re-renders with new orders array reference, useEffect fires and calls setSubmissionState(false, null), resetting the modal
-- [x] FINAL SOLUTION: Changed useEffect deps from `[open, orders]` to `[open]` - now only resets when modal FIRST opens, not when orders array changes
-- [x] Modal now stays open after submission with status banner and Close button
-- [ ] User needs to test AGAIN: Submit live order and verify status banner persists (THIS should finally work!)
+- [x] Removed unifiedOrders.length check from modal open condition
+- [x] Changed useEffect deps from `[open, orders]` to `[open]`
+- [x] USER TESTED 3 TIMES: Modal STILL reset - found the issue
+- [x] ROOT CAUSE: TWO useEffects reset state when modal "opens" - they check `isOpening = open && !prevOpenRef.current`
+- [x] SOLUTION v4: Added `&& !submissionComplete` check to BOTH useEffects - now they won't reset if submission is already complete
+- [x] This prevents the modal from resetting state after live submission completes
+- [ ] User needs to test: Submit live order and verify status banner persists (checking submissionComplete should finally work!)
 
 ## Price Adjustment Slider Issues (FIXED - Feb 15, 2026)
 - [x] Removed Fill marker from slider (not needed per user request)
