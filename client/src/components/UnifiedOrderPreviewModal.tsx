@@ -412,6 +412,7 @@ export function UnifiedOrderPreviewModal({
   const executeLiveSubmission = async () => {
     setIsSubmitting(true);
     setIsPolling(true);
+    setDryRunSuccess(false); // Clear dry run banner when submitting live orders
     
     try {
       let result: any;
@@ -464,9 +465,18 @@ export function UnifiedOrderPreviewModal({
         const finalStatuses = [...polledStatuses, ...failedStatuses];
         setOrderStatuses(finalStatuses);
         
-        // Show confetti only if at least one order filled
+        // Show confetti and play sound for successful submissions (Filled OR Working)
         const filledCount = finalStatuses.filter(s => s.status === 'Filled').length;
-        if (filledCount > 0) {
+        const workingCount = finalStatuses.filter(s => s.status === 'Working').length;
+        const successCount = filledCount + workingCount;
+        
+        if (successCount > 0) {
+          // Play cha-ching sound
+          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3');
+          audio.volume = 0.5;
+          audio.play().catch(err => console.log('Audio play failed:', err));
+          
+          // Show confetti
           const confetti = (await import('canvas-confetti')).default;
           confetti({
             particleCount: 200,

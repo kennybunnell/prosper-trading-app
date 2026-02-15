@@ -4723,3 +4723,9 @@
 - [x] Improved error message for expired/revoked refresh tokens (guides user to "Reconnect Tastytrade")
 - [x] Added ConnectionStatusIndicator to Settings page for API status visibility
 - [x] Documented authentication breakthrough in fix-credentials.md
+
+## Order Preview Modal Fixes
+- [x] Fix "Dry Run Successful" banner to show "Live Order Submitted Successfully" after live order submission
+- [x] Add confetti animation for successful live order submissions (Filled OR Working)
+- [x] Add cha-ching sound effect for successful live order submissions
+- [ ] Test across all strategies (CSP, CC, PMCC, spreads)
