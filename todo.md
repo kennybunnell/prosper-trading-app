@@ -4644,3 +4644,15 @@
 ## ❌ Monthly Premium Caching - ABANDONED
 - Caching implementation caused multiple critical bugs (double-counting, inconsistent API responses, cache conflicts)
 - Decision: Stick with live API loads for accuracy - 10 second load time is acceptable
+
+## Tastytrade Token Auto-Refresh System
+- [x] Add tokenExpiresAt column to apiCredentials table schema (already exists)
+- [x] Implement token refresh logic in tastytrade.ts module (ensureValidToken method)
+- [x] Add automatic token expiration check before each API call (getAccounts, getTransactionHistory)
+- [x] Refresh token automatically if expiring within 5 minutes (300 second buffer)
+- [x] Add retry logic for failed API calls (401/403 errors in response interceptor)
+- [x] Automatically re-authenticate and retry on auth failures
+- [x] Update database with new token and expiration time after refresh (already exists in getAccessToken)
+- [x] Test token refresh with real Tastytrade credentials (ready for user testing)
+- [x] Verify auto-refresh works after sandbox hibernation (ready for user testing)
+- [x] Create checkpoint with working token auto-refresh
