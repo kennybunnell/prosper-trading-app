@@ -4729,3 +4729,9 @@
 - [x] Add confetti animation for successful live order submissions (Filled OR Working)
 - [x] Add cha-ching sound effect for successful live order submissions
 - [ ] Test across all strategies (CSP, CC, PMCC, spreads)
+
+## ConnectionStatusIndicator Improvements
+- [x] Add token expiration countdown timer (e.g., "Expires in 12 minutes")
+- [x] Fix status text: change "Setup Required" to "Refresh Token" when credentials exist but token expired
+- [x] Verify inline "Refresh Token" button uses correct OAuth logic (URLSearchParams with application/x-www-form-urlencoded)
+- [ ] Test token refresh from ConnectionStatusIndicator across all pages (ready for user testing)

@@ -2,6 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { CheckCircle2, XCircle, Settings, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -12,6 +13,7 @@ import { Button } from "@/components/ui/button";
 
 export function ConnectionStatusIndicator() {
   const { data: connectionStatus, isLoading, refetch } = trpc.settings.getConnectionStatus.useQuery();
+  const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [, setLocation] = useLocation();
   
   const forceTokenRefresh = trpc.settings.forceTokenRefresh.useMutation({
@@ -24,6 +26,43 @@ export function ConnectionStatusIndicator() {
       toast.error(`Token refresh failed: ${error.message}`);
     },
   });
+  
+  // Update countdown timer every second
+  useEffect(() => {
+    if (!connectionStatus?.tastytrade.expiresAt) {
+      setTimeRemaining('');
+      return;
+    }
+    
+    const updateCountdown = () => {
+      const now = new Date();
+      const expiresAt = new Date(connectionStatus.tastytrade.expiresAt!);
+      const diffMs = expiresAt.getTime() - now.getTime();
+      
+      if (diffMs <= 0) {
+        setTimeRemaining('Expired');
+        return;
+      }
+      
+      const minutes = Math.floor(diffMs / 60000);
+      const seconds = Math.floor((diffMs % 60000) / 1000);
+      
+      if (minutes > 60) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        setTimeRemaining(`${hours}h ${mins}m`);
+      } else if (minutes > 0) {
+        setTimeRemaining(`${minutes}m ${seconds}s`);
+      } else {
+        setTimeRemaining(`${seconds}s`);
+      }
+    };
+    
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    
+    return () => clearInterval(interval);
+  }, [connectionStatus?.tastytrade.expiresAt]);
 
   if (isLoading) {
     return null;
@@ -53,7 +92,7 @@ export function ConnectionStatusIndicator() {
               <>
                 <XCircle className="h-4 w-4 text-red-500" />
                 <span className="text-xs text-muted-foreground hidden sm:inline">
-                  Setup Required
+                  {connectionStatus?.tastytrade.status === 'expired' ? 'Refresh Token' : 'Setup Required'}
                 </span>
               </>
             )}
@@ -70,7 +109,9 @@ export function ConnectionStatusIndicator() {
                   <XCircle className="h-3 w-3 text-red-500" />
                 )}
                 <span>
-                  Tastytrade: {connectionStatus?.tastytrade.connected ? "Connected" : (connectionStatus?.tastytrade.configured ? "Token Expired" : "Not configured")}
+                  Tastytrade: {connectionStatus?.tastytrade.connected ? (
+                    timeRemaining ? `Connected (${timeRemaining})` : "Connected"
+                  ) : (connectionStatus?.tastytrade.configured ? "Token Expired" : "Not configured")}
                 </span>
               </div>
               <div className="flex items-center gap-2">

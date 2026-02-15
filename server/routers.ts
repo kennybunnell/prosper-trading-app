@@ -629,11 +629,25 @@ export const appRouter = router({
       
       const tradierConfigured = !!credentials?.tradierApiKey;
       
+      // Get token expiration time for countdown
+      let tokenExpiresAt: Date | null = null;
+      if (tastytradeConfigured) {
+        try {
+          const token = await loadAccessToken(ctx.user.id);
+          if (token?.expiresAt) {
+            tokenExpiresAt = token.expiresAt;
+          }
+        } catch (error) {
+          // Already logged above
+        }
+      }
+      
       return {
         tastytrade: {
           configured: tastytradeConfigured,
           connected: tastytradeConnected,
           status: tastytradeConnected ? 'connected' : (tastytradeConfigured ? 'expired' : 'disconnected'),
+          expiresAt: tokenExpiresAt,
         },
         tradier: {
           configured: tradierConfigured,
