@@ -11,13 +11,23 @@ import { MonthlyPremiumChart } from "@/components/MonthlyPremiumChart";
 
 function MonthlyPremiumChartSection() {
   const [selectedYear, setSelectedYear] = React.useState<number | undefined>(new Date().getFullYear());
+  const [forceRefresh, setForceRefresh] = React.useState(false);
+  const utils = trpc.useUtils();
+  
   const { data, isLoading, error } = trpc.dashboard.getMonthlyPremiumData.useQuery(
-    selectedYear ? { year: selectedYear } : undefined,
+    selectedYear ? { year: selectedYear, forceRefresh } : { forceRefresh },
     {
       retry: false, // Don't retry if Tastytrade credentials are missing
       refetchOnWindowFocus: false, // Don't refetch when switching tabs
     }
   );
+  
+  const handleRefreshAll = async () => {
+    setForceRefresh(true);
+    await utils.dashboard.getMonthlyPremiumData.invalidate();
+    // Reset forceRefresh after invalidation completes
+    setTimeout(() => setForceRefresh(false), 100);
+  };
   
   if (isLoading) {
     return (
@@ -58,15 +68,31 @@ function MonthlyPremiumChartSection() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Monthly Premium Earnings - All Accounts Combined</h2>
-        <select
-          value={selectedYear || 'all'}
-          onChange={(e) => setSelectedYear(e.target.value === 'all' ? undefined : Number(e.target.value))}
-          className="px-4 py-2 rounded-md border border-border bg-background text-foreground"
-        >
-          <option value="all">Last 6 Months</option>
-          <option value="2026">2026</option>
-          <option value="2025">2025</option>
-        </select>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefreshAll}
+            disabled={isLoading}
+            className="gap-2"
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+            )}
+            Refresh All
+          </Button>
+          <select
+            value={selectedYear || 'all'}
+            onChange={(e) => setSelectedYear(e.target.value === 'all' ? undefined : Number(e.target.value))}
+            className="px-4 py-2 rounded-md border border-border bg-background text-foreground"
+          >
+            <option value="all">Last 6 Months</option>
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+          </select>
+        </div>
       </div>
       <MonthlyPremiumChart data={data.monthlyData} />
     </div>

@@ -317,6 +317,7 @@ export const appRouter = router({
     getMonthlyPremiumData: protectedProcedure
       .input(z.object({
         year: z.number().optional(), // Optional year filter (e.g., 2025, 2026). If not provided, shows last 6 months
+        forceRefresh: z.boolean().optional(), // Force refresh all data from API (bypass cache)
       }).optional())
       .query(async ({ ctx, input }) => {
         const { getTastytradeAPI } = await import('./tastytrade');
@@ -347,6 +348,7 @@ export const appRouter = router({
         // Calculate date range based on year filter
         const now = new Date();
         const selectedYear = input?.year;
+        const forceRefresh = input?.forceRefresh || false;
         
         let startDate: Date;
         let endDate: Date;
@@ -364,17 +366,94 @@ export const appRouter = router({
           endDate = now;
         }
         
-        const startDateStr = startDate.toISOString().split('T')[0];
-        const endDateStr = endDate.toISOString().split('T')[0];
+        // Determine current month (YYYY-MM format)
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        console.log(`[Cache] Current month: ${currentMonth}, Force refresh: ${forceRefresh}`);
+        
+        // Generate list of months to fetch
+        const months: string[] = [];
+        if (selectedYear) {
+          for (let month = 0; month < 12; month++) {
+            const monthKey = `${selectedYear}-${String(month + 1).padStart(2, '0')}`;
+            months.push(monthKey);
+          }
+        } else {
+          for (let i = 5; i >= 0; i--) {
+            const m = now.getMonth() - i;
+            const y = now.getFullYear() + Math.floor(m / 12);
+            const adjustedM = ((m % 12) + 12) % 12;
+            const monthKey = `${y}-${String(adjustedM + 1).padStart(2, '0')}`;
+            months.push(monthKey);
+          }
+        }
         
         // Aggregate transactions from all accounts
-        const monthlyData: Record<string, { credits: number; debits: number }> = {};
+        const monthlyData: Record<string, { credits: number; debits: number; transactionCount: number }> = {};
         const failedAccounts: string[] = [];
+        
+        // Import database utilities
+        const { getDb } = await import('./db');
+        const { monthlyPremiumCache } = await import('../drizzle/schema');
+        const { eq, and } = await import('drizzle-orm');
         
         for (const account of accounts) {
           const accountNumber = account.account['account-number'];
           
+          // Step 1: Try to load cached data for completed months
+          if (!forceRefresh) {
+            const db = await getDb();
+            if (db) {
+              for (const month of months) {
+                const isCurrentMonth = month === currentMonth;
+                if (isCurrentMonth) continue; // Skip current month, always fetch fresh
+                
+                try {
+                  const cached = await db.select()
+                    .from(monthlyPremiumCache)
+                    .where(and(
+                      eq(monthlyPremiumCache.userId, ctx.user.id),
+                      eq(monthlyPremiumCache.accountId, accountNumber),
+                      eq(monthlyPremiumCache.month, month)
+                    ))
+                    .limit(1);
+                  
+                  if (cached.length > 0) {
+                    const cache = cached[0];
+                    console.log(`[Cache] ✓ Using cached data for ${accountNumber} ${month}: $${cache.netPremium}`);
+                    
+                    if (!monthlyData[month]) {
+                      monthlyData[month] = { credits: 0, debits: 0, transactionCount: 0 };
+                    }
+                    monthlyData[month].credits += parseFloat(cache.credits);
+                    monthlyData[month].debits += parseFloat(cache.debits);
+                    monthlyData[month].transactionCount += cache.transactionCount;
+                  }
+                } catch (error: any) {
+                  console.error(`[Cache] Error loading cache for ${accountNumber} ${month}:`, error.message);
+                }
+              }
+            }
+          }
+          
+          // Step 2: Determine which months need API fetch
+          const monthsToFetch = months.filter(month => {
+            const isCurrentMonth = month === currentMonth;
+            const hasCachedData = monthlyData[month] !== undefined;
+            return forceRefresh || isCurrentMonth || !hasCachedData;
+          });
+          
+          if (monthsToFetch.length === 0) {
+            console.log(`[Cache] ✓ All months cached for account ${accountNumber}, skipping API fetch`);
+            continue;
+          }
+          
+          console.log(`[API] Fetching ${monthsToFetch.length} month(s) from API for ${accountNumber}: ${monthsToFetch.join(', ')}`);
+          
+          // Step 3: Fetch from API
           try {
+            const startDateStr = startDate.toISOString().split('T')[0];
+            const endDateStr = endDate.toISOString().split('T')[0];
+            
             const transactions = await api.getTransactionHistory(
               accountNumber,
               startDateStr,
@@ -387,8 +466,8 @@ export const appRouter = router({
           }
           
           // Process each transaction individually
-          // Each leg of a multi-leg order has its own cash impact and should be counted separately
-          // The CSV export shows each leg as a separate transaction with its own net value
+          const monthTransactionCounts: Record<string, number> = {};
+          
           for (const txn of transactions) {
             const txnType = txn['transaction-type'];
             // Only count Trade transactions (actual trades, not money movements or transfers)
@@ -404,17 +483,67 @@ export const appRouter = router({
             const txnDate = new Date(executedAt);
             const monthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
             
+            // Only process months we're supposed to fetch (skip cached months unless forceRefresh)
+            if (!forceRefresh && !monthsToFetch.includes(monthKey)) continue;
+            
             if (!monthlyData[monthKey]) {
-              monthlyData[monthKey] = { credits: 0, debits: 0 };
+              monthlyData[monthKey] = { credits: 0, debits: 0, transactionCount: 0 };
             }
             
+            // Track transaction count
+            monthTransactionCounts[monthKey] = (monthTransactionCounts[monthKey] || 0) + 1;
+            
             // Use net-value-effect to determine if this is income or expense
-            // Credit = money received (selling options, assignments, etc.)
-            // Debit = money paid (buying to close, buying options, etc.)
             if (netValueEffect === 'Credit') {
               monthlyData[monthKey].credits += netValue;
             } else if (netValueEffect === 'Debit') {
               monthlyData[monthKey].debits += netValue;
+            }
+          }
+          
+          // Update transaction counts
+          for (const monthKey in monthTransactionCounts) {
+            if (monthlyData[monthKey]) {
+              monthlyData[monthKey].transactionCount += monthTransactionCounts[monthKey];
+            }
+          }
+          
+          // Step 4: Cache completed months (not current month)
+          const db = await getDb();
+          if (db) {
+            for (const monthKey of monthsToFetch) {
+              if (monthKey !== currentMonth && monthlyData[monthKey]) {
+                const data = monthlyData[monthKey];
+                const netPremium = data.credits - data.debits;
+                
+                try {
+                  // Upsert cache entry
+                  await db.insert(monthlyPremiumCache)
+                    .values({
+                      userId: ctx.user.id,
+                      accountId: accountNumber,
+                      month: monthKey,
+                      netPremium: netPremium.toFixed(2),
+                      credits: data.credits.toFixed(2),
+                      debits: data.debits.toFixed(2),
+                      transactionCount: data.transactionCount,
+                      isLocked: 1,
+                    })
+                    .onDuplicateKeyUpdate({
+                      set: {
+                        netPremium: netPremium.toFixed(2),
+                        credits: data.credits.toFixed(2),
+                        debits: data.debits.toFixed(2),
+                        transactionCount: data.transactionCount,
+                        lastUpdated: new Date(),
+                      },
+                    });
+                  
+                  console.log(`[Cache] ✓ Saved ${accountNumber} ${monthKey}: $${netPremium.toFixed(2)} (${data.transactionCount} txns)`);
+                } catch (error: any) {
+                  console.error(`[Cache] Error saving cache for ${accountNumber} ${monthKey}:`, error.message);
+                }
+              }
             }
           }
           } catch (error: any) {
@@ -424,25 +553,7 @@ export const appRouter = router({
           }
         }
         
-        // Generate month list based on filter
-        const months: string[] = [];
-        
-        if (selectedYear) {
-          // Generate all 12 months for the selected year
-          for (let month = 0; month < 12; month++) {
-            const monthKey = `${selectedYear}-${String(month + 1).padStart(2, '0')}`;
-            months.push(monthKey);
-          }
-        } else {
-          // Generate last 6 months
-          for (let i = 5; i >= 0; i--) {
-            const m = now.getMonth() - i;
-            const y = now.getFullYear() + Math.floor(m / 12);
-            const adjustedM = ((m % 12) + 12) % 12;
-            const monthKey = `${y}-${String(adjustedM + 1).padStart(2, '0')}`;
-            months.push(monthKey);
-          }
-        }
+        // Month list already generated earlier
         
         // Build result with cumulative calculation
         let cumulative = 0;

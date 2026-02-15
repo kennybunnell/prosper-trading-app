@@ -4641,13 +4641,13 @@
 - [x] Design database schema for monthly premium cache (monthlyPremiumCache table)
 - [x] Add columns: userId, accountId, month (YYYY-MM), netPremium, credits, debits, transactionCount, lastUpdated, isLocked
 - [x] Create database migration and push schema changes
-- [ ] Implement cache-first data fetching logic in getMonthlyPremiumData procedure
-- [ ] Add logic to determine current month vs completed months
-- [ ] Fetch completed months from cache, only query API for current month
-- [ ] Implement cache update logic when API data is fetched
-- [ ] Add "Refresh All" button to Dashboard UI
-- [ ] Create backend procedure to clear cache and force full API refresh
-- [ ] Add loading state for refresh operation
+- [x] Implement cache-first data fetching logic in getMonthlyPremiumData procedure
+- [x] Add logic to determine current month vs completed months
+- [x] Fetch completed months from cache, only query API for current month
+- [x] Implement cache update logic when API data is fetched
+- [x] Add "Refresh All" button to Dashboard UI
+- [x] Add forceRefresh parameter to bypass cache
+- [x] Add loading state for refresh operation
 - [ ] Test caching system with real data
 - [ ] Verify performance improvement (should load instantly from cache)
 - [ ] Create checkpoint after caching implementation
