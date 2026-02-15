@@ -151,7 +151,7 @@ export async function pollOrderStatus(
     intervalMs?: number;
     onUpdate?: (status: OrderStatus, attempt: number) => void;
   } = {}
-): Promise<OrderStatus & { symbol?: string; orderId: string; message?: string }> {
+): Promise<OrderStatus> {
   const {
     maxAttempts = 60, // 60 attempts = 5 minutes at 5-second intervals
     intervalMs = 5000, // 5 seconds
@@ -165,25 +165,9 @@ export async function pollOrderStatus(
       onUpdate(status, attempt);
     }
     
-    // Stop polling if order is no longer working or market is closed
+    // Stop polling if order is no longer working
     if (status.status !== 'Working') {
-      // Build user-friendly message based on status
-      let message = '';
-      if (status.status === 'Filled') {
-        message = `Order filled at ${status.filledAt || 'unknown time'}`;
-      } else if (status.status === 'Rejected') {
-        message = `Order rejected: ${status.rejectedReason || 'Unknown reason'}`;
-      } else if (status.status === 'MarketClosed') {
-        message = status.marketClosedMessage || 'Market is currently closed';
-      } else if (status.status === 'Cancelled') {
-        message = `Order cancelled at ${status.cancelledAt || 'unknown time'}`;
-      }
-      
-      return {
-        ...status,
-        orderId,
-        message,
-      };
+      return status;
     }
     
     // Wait before next attempt (except on last attempt)
@@ -193,9 +177,5 @@ export async function pollOrderStatus(
   }
   
   // Max attempts reached, order still working
-  return {
-    status: 'Working',
-    orderId,
-    message: 'Order is still working (pending execution)',
-  };
+  return { status: 'Working' };
 }

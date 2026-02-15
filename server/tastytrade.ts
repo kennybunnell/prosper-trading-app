@@ -143,41 +143,17 @@ export class TastytradeAPI {
       }
     );
     
-    // Add response interceptor for detailed logging and automatic retry on auth errors
+    // Add response interceptor for detailed logging
     this.client.interceptors.response.use(
       (response) => {
         console.log(`[Tastytrade API] ${response.status} ${response.config.url}`);
         return response;
       },
-      async (error) => {
-        const originalRequest = error.config;
+      (error) => {
         console.error(`[Tastytrade API] ${error.response?.status || 'ERROR'} ${error.config?.url}`);
         if (error.response?.data) {
           console.error('[Tastytrade API] Error response:', JSON.stringify(error.response.data));
         }
-
-        // Check if error is 401/403 (auth failure) and we haven't already retried
-        const isAuthError = error.response?.status === 401 || error.response?.status === 403;
-        const hasNotRetried = !originalRequest._retry;
-        
-        if (isAuthError && hasNotRetried && this.userId) {
-          originalRequest._retry = true;
-          console.log('[Tastytrade Auto-Retry] Auth error detected, attempting token refresh...');
-          
-          try {
-            // Force token refresh
-            this.tokenExpiresAt = null; // Force refresh by marking token as expired
-            await this.ensureValidToken();
-            
-            // Retry the original request with new token
-            console.log('[Tastytrade Auto-Retry] Retrying original request with refreshed token...');
-            return this.client.request(originalRequest);
-          } catch (refreshError) {
-            console.error('[Tastytrade Auto-Retry] Token refresh failed:', refreshError);
-            return Promise.reject(error); // Return original error if refresh fails
-          }
-        }
-
         return Promise.reject(error);
       }
     );
@@ -329,35 +305,8 @@ export class TastytradeAPI {
    */
   isTokenExpired(): boolean {
     if (!this.tokenExpiresAt) return true;
-    // Consider token expired if less than 5 minutes remaining (increased buffer)
-    return Date.now() >= (this.tokenExpiresAt - 300000);
-  }
-
-  /**
-   * Ensure we have a valid token before making API calls
-   * Automatically refreshes if token is expired or about to expire
-   */
-  private async ensureValidToken(): Promise<void> {
-    if (!this.isTokenExpired()) {
-      return; // Token is still valid
-    }
-
-    console.log('[Tastytrade Auto-Refresh] Token expired or expiring soon, refreshing...');
-    
-    // Get refresh token and client secret from database
-    const { getApiCredentials } = await import('./db');
-    if (!this.userId) {
-      throw new Error('User ID not set - cannot refresh token');
-    }
-
-    const credentials = await getApiCredentials(this.userId);
-    if (!credentials?.tastytradeRefreshToken || !credentials?.tastytradeClientSecret) {
-      throw new Error('Missing Tastytrade credentials - please re-authenticate in Settings');
-    }
-
-    // Refresh the token
-    await this.getAccessToken(credentials.tastytradeRefreshToken, credentials.tastytradeClientSecret);
-    console.log('[Tastytrade Auto-Refresh] Token refreshed successfully');
+    // Consider token expired if less than 1 minute remaining
+    return Date.now() >= (this.tokenExpiresAt - 60000);
   }
 
   /**
@@ -401,7 +350,6 @@ export class TastytradeAPI {
    * Get all accounts for the authenticated user
    */
   async getAccounts(): Promise<TastytradeAccount[]> {
-    await this.ensureValidToken();
     try {
       const response = await this.client.get('/customers/me/accounts');
       return response.data.data.items;
@@ -829,7 +777,6 @@ export class TastytradeAPI {
     endDate: string,
     perPage: number = 1000
   ): Promise<any[]> {
-    await this.ensureValidToken();
     try {
       let allTransactions: any[] = [];
       let pageNumber = 0; // Changed from pageOffset to pageNumber
