@@ -4735,3 +4735,13 @@
 - [x] Fix status text: change "Setup Required" to "Refresh Token" when credentials exist but token expired
 - [x] Verify inline "Refresh Token" button uses correct OAuth logic (URLSearchParams with application/x-www-form-urlencoded)
 - [ ] Test token refresh from ConnectionStatusIndicator across all pages (ready for user testing)
+
+## Order Preview Modal - Status Banner Fixes
+- [x] Fix status banners to appear after live order submission
+- [x] Show appropriate banner based on order status:
+  * Green "Successfully Submitted and Filled" - when orders are filled
+  * Yellow "Successfully Submitted - Working" - when orders are queued/working
+  * Red "Order Rejected - [reason]" - when orders are rejected
+  * Blue "Market Closed - Orders Queued" - when market is closed
+- [x] Add "Close" button at bottom of modal after submission completes (already exists)
+- [ ] Test all status scenarios with user (filled, working, rejected, market closed)

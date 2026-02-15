@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -128,9 +128,16 @@ export function UnifiedOrderPreviewModal({
   const [showMarketClosedWarning, setShowMarketClosedWarning] = useState(false);
   const [marketStatus, setMarketStatus] = useState<{ isOpen: boolean; description: string } | null>(null);
   
+  // Track previous open state to detect modal opening
+  const prevOpenRef = useRef(false);
+  
   // Initialize quantities from defaults or set to 1
   useEffect(() => {
-    if (open && orders.length > 0) {
+    // Only reset state when modal transitions from closed to open
+    const isOpening = open && !prevOpenRef.current;
+    prevOpenRef.current = open;
+    
+    if (isOpening && orders.length > 0) {
       const initialQuantities = new Map<string, number>();
       orders.forEach(order => {
         const key = getOrderKey(order);
@@ -151,7 +158,7 @@ export function UnifiedOrderPreviewModal({
       });
       setAdjustedPrices(initialPrices);
       
-      // Reset dry run success, polling state, and submission complete when modal opens
+      // Reset dry run success, polling state, and submission complete when modal FIRST opens
       setDryRunSuccess(false);
       setIsPolling(false);
       setOrderStatuses([]);
@@ -607,9 +614,9 @@ export function UnifiedOrderPreviewModal({
           {finalOrderStatus === 'Filled' && (
             <Alert className="border-green-500/50 bg-green-500/10">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <AlertTitle className="text-green-500">Order Successfully Filled</AlertTitle>
+              <AlertTitle className="text-green-500">Successfully Submitted and Filled</AlertTitle>
               <AlertDescription className="text-green-500/80">
-                Your order has been filled successfully.
+                Your order has been submitted and filled successfully.
               </AlertDescription>
             </Alert>
           )}
@@ -617,9 +624,9 @@ export function UnifiedOrderPreviewModal({
           {finalOrderStatus === 'Working' && (
             <Alert className="border-yellow-500/50 bg-yellow-500/10">
               <AlertCircle className="h-4 w-4 text-yellow-500" />
-              <AlertTitle className="text-yellow-500">Order Working</AlertTitle>
+              <AlertTitle className="text-yellow-500">Successfully Submitted - Working</AlertTitle>
               <AlertDescription className="text-yellow-500/80">
-                Your order has been submitted and is currently working.
+                Your order has been submitted successfully and is currently in working status (queued for execution).
               </AlertDescription>
             </Alert>
           )}
@@ -629,7 +636,7 @@ export function UnifiedOrderPreviewModal({
               <AlertCircle className="h-4 w-4 text-red-500" />
               <AlertTitle className="text-red-500">Order Rejected</AlertTitle>
               <AlertDescription className="text-red-500/80">
-                Your order was rejected. Check the details below.
+                Your order was rejected by the broker. Check the rejection reason in the order details below.
               </AlertDescription>
             </Alert>
           )}
@@ -637,9 +644,9 @@ export function UnifiedOrderPreviewModal({
           {finalOrderStatus === 'MarketClosed' && (
             <Alert className="border-blue-500/50 bg-blue-500/10">
               <AlertCircle className="h-4 w-4 text-blue-500" />
-              <AlertTitle className="text-blue-500">Market Closed</AlertTitle>
+              <AlertTitle className="text-blue-500">Market Closed - Orders Queued</AlertTitle>
               <AlertDescription className="text-blue-500/80">
-                The market is closed. Your order cannot be submitted at this time.
+                Your order has been submitted successfully. The market is currently closed, so your order is queued and will be executed when the market opens.
               </AlertDescription>
             </Alert>
           )}
