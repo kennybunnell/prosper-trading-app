@@ -1,0 +1,18 @@
+{
+  "query": "SELECT month, SUM(CAST(netPremium AS DECIMAL(10,2))) as total FROM monthlyPremiumCache WHERE month LIKE '2026-%' GROUP BY month ORDER BY month;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT month, SUM(CAST(netPremium AS DECIMAL(10,2))) as total FROM monthlyPremiumCache WHERE month LIKE '2026-%' GROUP BY month ORDER BY month;",
+  "rows": [
+    {
+      "month": "2026-01",
+      "total": "71021.32"
+    },
+    {
+      "month": "2026-02",
+      "total": "52954.23"
+    }
+  ],
+  "messages": [],
+  "stdout": "month\ttotal\n2026-01\t71021.32\n2026-02\t52954.23\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}
