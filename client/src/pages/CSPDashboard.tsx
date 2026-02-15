@@ -182,6 +182,7 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { UnifiedOrderPreviewModal, UnifiedOrder } from "@/components/UnifiedOrderPreviewModal";
+import { OrderStatusModal, OrderSubmissionStatus } from "@/components/OrderStatusModal";
 import { HelpBadge } from "@/components/HelpBadge";
 import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
@@ -329,6 +330,10 @@ export default function CSPDashboard() {
   // Lifted state for modal persistence (prevents reset on parent re-render)
   const [modalSubmissionComplete, setModalSubmissionComplete] = useState(false);
   const [modalFinalOrderStatus, setModalFinalOrderStatus] = useState<string | null>(null);
+  
+  // Order Status Modal state
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [submissionStatuses, setSubmissionStatuses] = useState<OrderSubmissionStatus[]>([]);
 
   const utils = trpc.useUtils();
 
@@ -866,7 +871,7 @@ export default function CSPDashboard() {
   const handlePollStatuses = async (
     orderIds: string[],
     accountId: string
-  ): Promise<Array<{ orderId: string; symbol: string; status: 'Filled' | 'Working' | 'Cancelled' | 'Rejected' | 'MarketClosed' | 'Pending'; message?: string }>> => {
+  ): Promise<OrderSubmissionStatus[]> => {
     try {
       // Poll each order
       const statusPromises = orderIds.map(async (orderId) => {
@@ -885,7 +890,7 @@ export default function CSPDashboard() {
         orderId: s.orderId || '',
         symbol: s.symbol || 'Unknown',
         status: s.status as any,
-        message: s.message
+        message: s.message || 'Status unknown'
       }));
     } catch (error: any) {
       console.error('[handlePollStatuses] Error:', error);
@@ -978,6 +983,32 @@ export default function CSPDashboard() {
         accountId: selectedAccountId,
         dryRun: isDryRun,
       });
+      
+      // For LIVE submissions: close preview modal and open status modal
+      if (!isDryRun && response.results) {
+        // Map results to OrderSubmissionStatus format
+        const statuses: OrderSubmissionStatus[] = response.results.map((result: any, index: number) => {
+          const order = orders[index];
+          return {
+            orderId: result.orderId || result.id || '',
+            symbol: order.symbol,
+            status: result.status === 'Received' ? 'Working' : 
+                   result.status === 'Filled' ? 'Filled' :
+                   result.status === 'Rejected' ? 'Rejected' :
+                   result.message?.includes('market') || result.message?.includes('closed') ? 'MarketClosed' :
+                   'Pending',
+            message: result.message || `${order.strike} strike ${order.expiration} - ${result.status || 'Submitted'}`,
+          };
+        });
+        
+        // Close preview modal
+        setShowPreviewDialog(false);
+        
+        // Open status modal with results
+        setSubmissionStatuses(statuses);
+        setShowStatusModal(true);
+      }
+      
       return { results: response.results || [] };
     } catch (error: any) {
       console.error('[executeOrderSubmission] Error:', error);
@@ -2636,6 +2667,15 @@ export default function CSPDashboard() {
           setModalSubmissionComplete(complete);
           setModalFinalOrderStatus(status);
         }}
+      />
+
+      {/* Order Status Modal - Shows results after live submission */}
+      <OrderStatusModal
+        open={showStatusModal}
+        onOpenChange={setShowStatusModal}
+        orderStatuses={submissionStatuses}
+        onPollStatuses={handlePollStatuses}
+        accountId={selectedAccountId || ''}
       />
 
       {/* Progress Dialog */}

@@ -4759,17 +4759,21 @@
 - [x] Verified token refresh now works (200 OK response from Tastytrade)
 - [x] Auto-refresh at < 2 minutes will now work correctly
 
-## Order Preview Modal - Status Banner Not Persisting (FIX v4 - Feb 15, 2026)
-- [x] Lifted finalOrderStatus and submissionComplete state to PARENT components (CSPDashboard, CCDashboard)
-- [x] Pass submission state as props to UnifiedOrderPreviewModal via submissionComplete, finalOrderStatus, onSubmissionStateChange
-- [x] Modal now uses external state from parent, ensuring state persists across parent re-renders
-- [x] Removed unifiedOrders.length check from modal open condition
-- [x] Changed useEffect deps from `[open, orders]` to `[open]`
-- [x] USER TESTED 3 TIMES: Modal STILL reset - found the issue
-- [x] ROOT CAUSE: TWO useEffects reset state when modal "opens" - they check `isOpening = open && !prevOpenRef.current`
-- [x] SOLUTION v4: Added `&& !submissionComplete` check to BOTH useEffects - now they won't reset if submission is already complete
-- [x] This prevents the modal from resetting state after live submission completes
-- [ ] User needs to test: Submit live order and verify status banner persists (checking submissionComplete should finally work!)
+## Order Preview Modal - NEW ARCHITECTURAL APPROACH (Feb 15, 2026)
+- [x] USER TESTED 4 TIMES: All previous fixes failed - React re-rendering makes it impossible to keep preview modal state
+- [x] USER DECISION: Change architecture - close preview modal after submission, open NEW dedicated status modal
+- [x] Created OrderStatusModal component:
+  - Shows order submission results (success/pending/failed)
+  - Displays status banner (Working/Filled/Rejected/MarketClosed)
+  - Plays confetti + cha-ching for successful submissions
+  - Lists all submitted orders with their statuses
+  - Single "Close" button at bottom
+  - Independent component - no state conflicts with preview modal
+  - Polls order statuses every 2 seconds until filled/rejected
+- [x] Updated CSPDashboard: After live submission, close preview modal and open status modal
+- [x] Updated CCDashboard: Same pattern as CSPDashboard
+- [x] This solves the problem by separating concerns: preview modal for review, status modal for results
+- [ ] User needs to test: Submit live order and verify status modal appears with confetti and persists until closed
 
 ## Price Adjustment Slider Issues (FIXED - Feb 15, 2026)
 - [x] Removed Fill marker from slider (not needed per user request)

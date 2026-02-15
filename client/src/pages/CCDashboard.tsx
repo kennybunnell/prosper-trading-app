@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { UnifiedOrderPreviewModal, UnifiedOrder } from "@/components/UnifiedOrderPreviewModal";
+import { OrderStatusModal, OrderSubmissionStatus } from "@/components/OrderStatusModal";
 import { HelpBadge } from "@/components/HelpBadge";
 import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
@@ -273,6 +274,10 @@ export default function CCDashboard() {
   // Lifted state for modal persistence (prevents reset on parent re-render)
   const [modalSubmissionComplete, setModalSubmissionComplete] = useState(false);
   const [modalFinalOrderStatus, setModalFinalOrderStatus] = useState<string | null>(null);
+  
+  // Order Status Modal state
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [submissionStatuses, setSubmissionStatuses] = useState<OrderSubmissionStatus[]>([]);
   
   // Fetch progress dialog state
   const [fetchProgress, setFetchProgress] = useState<{
@@ -923,6 +928,31 @@ export default function CCDashboard() {
         }
       }
       
+      // For LIVE submissions: close preview modal and open status modal
+      if (!isDryRun && results) {
+        // Map results to OrderSubmissionStatus format
+        const statuses: OrderSubmissionStatus[] = results.map((result: any, index: number) => {
+          const order = orders[index];
+          return {
+            orderId: result.orderId || result.id || '',
+            symbol: order.symbol,
+            status: result.status === 'Received' ? 'Working' : 
+                   result.status === 'Filled' ? 'Filled' :
+                   result.status === 'Rejected' ? 'Rejected' :
+                   result.message?.includes('market') || result.message?.includes('closed') ? 'MarketClosed' :
+                   'Pending',
+            message: result.message || `${order.strike} strike ${order.expiration} - ${result.status || 'Submitted'}`,
+          };
+        });
+        
+        // Close preview modal
+        setShowPreviewDialog(false);
+        
+        // Open status modal with results
+        setSubmissionStatuses(statuses);
+        setShowStatusModal(true);
+      }
+      
       // Return results for modal polling
       return { results };
     } catch (error: any) {
@@ -938,7 +968,7 @@ export default function CCDashboard() {
   };
 
   // Handle order status polling after live submission
-  const handlePollStatuses = async (orderIds: string[], accountId: string) => {
+  const handlePollStatuses = async (orderIds: string[], accountId: string): Promise<OrderSubmissionStatus[]> => {
     try {
       // Poll each order status
       const statusPromises = orderIds.map(orderId => 
@@ -955,7 +985,7 @@ export default function CCDashboard() {
         orderId: orderIds[index],
         symbol: '', // Symbol not available from polling endpoint
         status: status.status as any,
-        message: status.marketClosedMessage || status.rejectedReason,
+        message: status.marketClosedMessage || status.rejectedReason || 'Status unknown',
       }));
     } catch (error: any) {
       console.error('[CC Dashboard] Polling error:', error);
@@ -2881,6 +2911,15 @@ export default function CCDashboard() {
           setModalSubmissionComplete(complete);
           setModalFinalOrderStatus(status);
         }}
+      />
+
+      {/* Order Status Modal - Shows results after live submission */}
+      <OrderStatusModal
+        open={showStatusModal}
+        onOpenChange={setShowStatusModal}
+        orderStatuses={submissionStatuses}
+        onPollStatuses={handlePollStatuses}
+        accountId={selectedAccountId || ''}
       />
 
       {/* AI Analysis Modal */}
