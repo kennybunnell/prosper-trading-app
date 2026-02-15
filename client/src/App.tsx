@@ -24,12 +24,17 @@ import { SupportWidget } from "./components/SupportWidget";
 import { LegalAcceptanceModal } from "./components/LegalAcceptanceModal";
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { useHeartbeat } from "@/hooks/useHeartbeat";
 
 function Router() {
   const [location] = useLocation();
   const isAdminRoute = location.startsWith('/admin');
   const [showLegalModal, setShowLegalModal] = useState(false);
   const { data: user, refetch } = trpc.auth.me.useQuery();
+  
+  // Enable heartbeat in development to prevent sandbox hibernation
+  const isDevelopment = import.meta.env.DEV;
+  useHeartbeat(isDevelopment);
 
   useEffect(() => {
     if (user && !user.acceptedTermsAt && !user.acceptedRiskDisclosureAt) {

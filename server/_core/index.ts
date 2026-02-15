@@ -36,6 +36,15 @@ async function startServer() {
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   
+  // Heartbeat endpoint to keep server awake
+  app.get("/api/heartbeat", (req, res) => {
+    res.json({ 
+      status: "alive", 
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime()
+    });
+  });
+  
   // Dev utilities endpoint (development only)
   if (process.env.NODE_ENV === "development") {
     app.post("/api/dev/restart", (req, res) => {
@@ -48,6 +57,36 @@ async function startServer() {
         process.exit(0); // Process manager will restart the server
       }, 500);
     });
+    
+    // Server-side self-ping to prevent hibernation (randomized intervals)
+    let heartbeatTimeout: NodeJS.Timeout;
+    const scheduleNextHeartbeat = () => {
+      // Random interval between 3-7 minutes (180-420 seconds)
+      const minInterval = 3 * 60 * 1000; // 3 minutes
+      const maxInterval = 7 * 60 * 1000; // 7 minutes
+      const randomInterval = Math.floor(Math.random() * (maxInterval - minInterval + 1)) + minInterval;
+      
+      heartbeatTimeout = setTimeout(async () => {
+        try {
+          const port = parseInt(process.env.PORT || "3000");
+          const response = await fetch(`http://localhost:${port}/api/heartbeat`);
+          const data = await response.json();
+          const nextPingIn = Math.floor(randomInterval / 60000);
+          console.log(`[Heartbeat] Server self-ping successful - uptime: ${Math.floor(data.uptime)}s, next ping in ~${nextPingIn} minutes`);
+        } catch (error) {
+          console.error('[Heartbeat] Server self-ping failed:', error);
+        }
+        
+        // Schedule next heartbeat with new random interval
+        scheduleNextHeartbeat();
+      }, randomInterval);
+    };
+    
+    // Start heartbeat after server is running
+    setTimeout(() => {
+      console.log('[Heartbeat] Server-side heartbeat started (randomized 3-7 minute intervals)');
+      scheduleNextHeartbeat();
+    }, 10000); // Wait 10 seconds after server starts
   }
   
   // tRPC API

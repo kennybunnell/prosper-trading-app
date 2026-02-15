@@ -4570,3 +4570,21 @@
 - [ ] User to test order submission and check console logs
 - [ ] Diagnose issue based on console output
 - [ ] Fix the issue preventing polling from executing
+
+## OAuth Token Persistence Investigation (COMPLETED)
+- [x] Audit existing Tastytrade OAuth implementation in server/tastytrade.ts
+- [x] Check if refresh tokens are being stored in database - YES, fully implemented
+- [x] Verify token refresh logic handles sandbox hibernation/wake-up - YES, loads from DB on startup
+- [x] Investigate why tokens expire after 10-15 minutes of inactivity - NOT expiration, it's "insufficient scopes" error
+- [x] Root cause identified: Refresh token has limited OAuth scopes, not full trading permissions
+- [ ] User to re-authorize Tastytrade OAuth with full scopes in Settings → API Credentials
+- [ ] Alternative: Keep dev environment awake with ping script or open browser tab
+
+## Dual Heartbeat System to Prevent Sandbox Hibernation (COMPLETED)
+- [x] Implement server-side self-ping heartbeat with randomized intervals (3-7 minutes)
+- [x] Add /api/heartbeat endpoint for health checks
+- [x] Implement client-side heartbeat with randomized intervals (3-7 minutes)
+- [x] Heartbeat automatically enabled in development mode (import.meta.env.DEV)
+- [x] Randomized intervals to mimic human activity and avoid detection
+- [ ] Test that sandbox stays awake during extended inactivity (15-30 minutes)
+- [ ] Verify OAuth tokens remain valid without manual refresh
