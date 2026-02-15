@@ -189,7 +189,7 @@ export function UnifiedOrderPreviewModal({
       setOrderStatuses([]);
       setSubmissionState(false, null);
     }
-  }, [open, orders]); // Removed defaultQuantities from deps to prevent reset on parent re-render
+  }, [open]); // Only depend on open state - reset only when modal first opens, not when orders array changes
   
   // Real-time validation whenever quantities change
   useEffect(() => {
