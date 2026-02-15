@@ -610,18 +610,22 @@ export function UnifiedOrderPreviewModal({
   
   // Reset all prices to midpoint
   const handleResetAllToMidpoint = () => {
-    const newPrices = new Map<string, number>();
+    const newPrices = new Map(adjustedPrices); // Start with existing prices
+    let updatedCount = 0;
+    
     orders.forEach(order => {
       if (order.bid && order.ask) {
         const mid = (order.bid + order.ask) / 2;
         const key = getOrderKey(order);
         newPrices.set(key, Math.round(mid * 100) / 100);
+        updatedCount++;
       }
     });
+    
     setAdjustedPrices(newPrices);
     toast({
       title: "Prices Reset",
-      description: `All ${orders.length} orders set to midpoint`,
+      description: `${updatedCount} order${updatedCount !== 1 ? 's' : ''} set to midpoint`,
     });
   };
   

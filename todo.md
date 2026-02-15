@@ -4794,4 +4794,8 @@
 - [x] Show icon (↔) to indicate centering action
 - [x] Update all adjustedPrices state to midpoint values when clicked
 - [x] Show toast notification confirming reset
-- [ ] User needs to test: Open order preview with multiple orders, click Reset All to Midpoint, verify all sliders center
+- [x] USER TESTED: Button only reset a couple sliders out of 16 - most stayed at "Too aggressive" position
+- [x] BUG FOUND: handleResetAllToMidpoint created new Map with ONLY orders that have bid/ask, losing other prices
+- [x] FIX APPLIED: Changed to `new Map(adjustedPrices)` to preserve existing prices, then update only orders with market data
+- [x] Toast now shows count of updated orders (e.g., "16 orders set to midpoint")
+- [ ] User needs to test: Click Reset All to Midpoint with multiple orders, verify ALL sliders center
