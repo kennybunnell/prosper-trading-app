@@ -974,7 +974,7 @@ export default function CCDashboard() {
       const statusPromises = orderIds.map(orderId => 
         utils.client.orders.pollStatus.mutate({ 
           accountId,
-          orderId 
+          orderId: orderId.toString() // Ensure orderId is string
         })
       );
       

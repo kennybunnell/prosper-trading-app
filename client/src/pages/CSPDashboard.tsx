@@ -877,7 +877,7 @@ export default function CSPDashboard() {
       const statusPromises = orderIds.map(async (orderId) => {
         return await utils.client.orders.pollStatus.mutate({
           accountId,
-          orderId,
+          orderId: orderId.toString(), // Ensure orderId is string
           maxAttempts: 30,
           intervalMs: 5000,
         });

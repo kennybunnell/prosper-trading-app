@@ -4781,3 +4781,8 @@
 - [x] Added cursor-grab and active:cursor-grabbing classes for better UX
 - [x] Removed pointer-events interference from marker overlays
 - [ ] User needs to test: Drag slider smoothly between bid/ask values
+
+## OrderId Type Conversion Error (Feb 15, 2026)
+- [x] Fix handlePollStatuses in CSPDashboard - orderId being sent as number but API expects string
+- [x] Fix handlePollStatuses in CCDashboard - same issue
+- [x] Convert orderId to string using .toString() before passing to pollStatus mutation
