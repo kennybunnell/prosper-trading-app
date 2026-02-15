@@ -346,7 +346,6 @@ export const appRouter = router({
         
         // Calculate date range based on year filter
         const now = new Date();
-        const currentYear = now.getFullYear();
         const selectedYear = input?.year;
         
         let startDate: Date;
@@ -365,21 +364,8 @@ export const appRouter = router({
           endDate = now;
         }
         
-        // Determine which years are involved in the date range
-        const startYear = startDate.getFullYear();
-        const endYear = endDate.getFullYear();
-        const yearsInRange: number[] = [];
-        for (let y = startYear; y <= endYear; y++) {
-          yearsInRange.push(y);
-        }
-        
-        console.log(`[Cache] Date range: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
-        console.log(`[Cache] Years in range: ${yearsInRange.join(', ')}. Current year: ${currentYear}`);
-        
-        // Import database utilities for caching
-        const { getDb } = await import('./db');
-        const { monthlyPremiumCache } = await import('../drizzle/schema');
-        const { eq, and } = await import('drizzle-orm');
+        const startDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = endDate.toISOString().split('T')[0];
         
         // Aggregate transactions from all accounts
         const monthlyData: Record<string, { credits: number; debits: number }> = {};
@@ -388,153 +374,53 @@ export const appRouter = router({
         for (const account of accounts) {
           const accountNumber = account.account['account-number'];
           
-          // Step 1: Try to load cached data for completed years (not current year)
-          const db = await getDb();
-          const yearsMissingCache: number[] = [];
+          try {
+            const transactions = await api.getTransactionHistory(
+              accountNumber,
+              startDateStr,
+              endDateStr
+            );
           
-          if (db) {
-            for (const year of yearsInRange) {
-              if (year < currentYear) {
-                // This is a completed year, try to load from cache
-                console.log(`[Cache] Checking cache for ${accountNumber} year ${year}...`);
-                
-                let cacheHitCount = 0;
-                try {
-                  // Load all 12 months for this year from cache
-                  for (let month = 1; month <= 12; month++) {
-                    const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-                    
-                    const cached = await db.select()
-                      .from(monthlyPremiumCache)
-                      .where(and(
-                        eq(monthlyPremiumCache.userId, ctx.user.id),
-                        eq(monthlyPremiumCache.accountId, accountNumber),
-                        eq(monthlyPremiumCache.month, monthKey)
-                      ))
-                      .limit(1);
-                    
-                    if (cached.length > 0) {
-                      const cache = cached[0];
-                      if (!monthlyData[monthKey]) {
-                        monthlyData[monthKey] = { credits: 0, debits: 0 };
-                      }
-                      monthlyData[monthKey].credits += parseFloat(cache.credits);
-                      monthlyData[monthKey].debits += parseFloat(cache.debits);
-                      console.log(`[Cache] ✓ Loaded ${monthKey} from cache: $${cache.netPremium}`);
-                      cacheHitCount++;
-                    }
-                  }
-                  
-                  // If we didn't get all 12 months from cache, mark this year for API fetch
-                  if (cacheHitCount === 0) {
-                    console.log(`[Cache] No cache found for ${accountNumber} year ${year}, will fetch from API`);
-                    yearsMissingCache.push(year);
-                  } else if (cacheHitCount < 12) {
-                    console.log(`[Cache] Partial cache for ${accountNumber} year ${year} (${cacheHitCount}/12 months), will refresh from API`);
-                    yearsMissingCache.push(year);
-                  }
-                } catch (error: any) {
-                  console.error(`[Cache] Error loading cache for ${accountNumber} year ${year}:`, error.message);
-                  yearsMissingCache.push(year);
-                }
-              }
-            }
+          // Log first few transactions to understand data structure
+          if (transactions.length > 0) {
+            console.log('[Dashboard] Sample transactions:', JSON.stringify(transactions.slice(0, 3), null, 2));
           }
           
-          // Step 2: Fetch missing years and current year from API
-          const yearsToFetch = [...yearsMissingCache, currentYear];
-          
-          for (const yearToFetch of yearsToFetch) {
-            try {
-              const yearStart = new Date(yearToFetch, 0, 1).toISOString().split('T')[0];
-              const yearEnd = yearToFetch === currentYear 
-                ? endDate.toISOString().split('T')[0]
-                : new Date(yearToFetch, 11, 31).toISOString().split('T')[0];
-              
-              console.log(`[API] Fetching year ${yearToFetch} for ${accountNumber} (${yearStart} to ${yearEnd})`);
-              
-              const transactions = await api.getTransactionHistory(
-                accountNumber,
-                yearStart,
-                yearEnd
-              );
-              
-              console.log(`[API] Fetched ${transactions.length} transactions for ${accountNumber} year ${yearToFetch}`);
-              
-              // Process transactions and cache them
-              const yearMonthData: Record<string, { credits: number; debits: number; transactionCount: number }> = {};
-              
-              for (const txn of transactions) {
-                const txnType = txn['transaction-type'];
-                if (txnType !== 'Trade') continue;
-                
-                const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
-                const netValueEffect = txn['net-value-effect'];
-                const executedAt = txn['executed-at'];
-                
-                if (!executedAt || netValue === 0 || !netValueEffect) continue;
-                
-                const txnDate = new Date(executedAt);
-                const monthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
-                
-                // Only process transactions for the year we're fetching
-                if (txnDate.getFullYear() !== yearToFetch) continue;
-                
-                if (!monthlyData[monthKey]) {
-                  monthlyData[monthKey] = { credits: 0, debits: 0 };
-                }
-                if (!yearMonthData[monthKey]) {
-                  yearMonthData[monthKey] = { credits: 0, debits: 0, transactionCount: 0 };
-                }
-                
-                if (netValueEffect === 'Credit') {
-                  monthlyData[monthKey].credits += netValue;
-                  yearMonthData[monthKey].credits += netValue;
-                } else if (netValueEffect === 'Debit') {
-                  monthlyData[monthKey].debits += netValue;
-                  yearMonthData[monthKey].debits += netValue;
-                }
-                yearMonthData[monthKey].transactionCount++;
-              }
-              
-              // Step 3: Cache this year's data
-              if (db) {
-                for (const monthKey in yearMonthData) {
-                  const data = yearMonthData[monthKey];
-                  const netPremium = data.credits - data.debits;
-                  
-                  try {
-                    await db.insert(monthlyPremiumCache)
-                      .values({
-                        userId: ctx.user.id,
-                        accountId: accountNumber,
-                        month: monthKey,
-                        netPremium: netPremium.toFixed(2),
-                        credits: data.credits.toFixed(2),
-                        debits: data.debits.toFixed(2),
-                        transactionCount: data.transactionCount,
-                        isLocked: yearToFetch < currentYear ? 1 : 0, // Lock completed years
-                      })
-                      .onDuplicateKeyUpdate({
-                        set: {
-                          netPremium: netPremium.toFixed(2),
-                          credits: data.credits.toFixed(2),
-                          debits: data.debits.toFixed(2),
-                          transactionCount: data.transactionCount,
-                          lastUpdated: new Date(),
-                        },
-                  });
-                
-                    console.log(`[Cache] ✓ Updated cache for ${accountNumber} ${monthKey}: $${netPremium.toFixed(2)}`);
-                  } catch (error: any) {
-                    console.error(`[Cache] Error saving cache for ${accountNumber} ${monthKey}:`, error.message);
-                  }
-                }
-              }
-            } catch (error: any) {
-              console.error(`[API] Failed to fetch year ${yearToFetch} for account ${accountNumber}:`, error.message);
-              failedAccounts.push(`${accountNumber} (year ${yearToFetch})`);
+          // Process each transaction individually
+          // Each leg of a multi-leg order has its own cash impact and should be counted separately
+          // The CSV export shows each leg as a separate transaction with its own net value
+          for (const txn of transactions) {
+            const txnType = txn['transaction-type'];
+            // Only count Trade transactions (actual trades, not money movements or transfers)
+            if (txnType !== 'Trade') continue;
+            
+            const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
+            const netValueEffect = txn['net-value-effect'];
+            const executedAt = txn['executed-at'];
+            
+            if (!executedAt || netValue === 0 || !netValueEffect) continue;
+            
+            // Parse date and create month key
+            const txnDate = new Date(executedAt);
+            const monthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
+            
+            if (!monthlyData[monthKey]) {
+              monthlyData[monthKey] = { credits: 0, debits: 0 };
             }
+            
+            // Use net-value-effect to determine if this is income or expense
+            // Credit = money received (selling options, assignments, etc.)
+            // Debit = money paid (buying to close, buying options, etc.)
+            if (netValueEffect === 'Credit') {
+              monthlyData[monthKey].credits += netValue;
+            } else if (netValueEffect === 'Debit') {
+              monthlyData[monthKey].debits += netValue;
+            }
+          }
+          } catch (error: any) {
+            console.error(`[Dashboard] Failed to fetch transactions for account ${accountNumber}:`, error.message);
+            failedAccounts.push(accountNumber);
+            // Continue with next account instead of failing entirely
           }
         }
         
