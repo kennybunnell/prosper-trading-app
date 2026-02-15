@@ -608,6 +608,23 @@ export function UnifiedOrderPreviewModal({
     return { text: "⚠️ Too aggressive", color: "text-yellow-400" };
   };
   
+  // Reset all prices to midpoint
+  const handleResetAllToMidpoint = () => {
+    const newPrices = new Map<string, number>();
+    orders.forEach(order => {
+      if (order.bid && order.ask) {
+        const mid = (order.bid + order.ask) / 2;
+        const key = getOrderKey(order);
+        newPrices.set(key, Math.round(mid * 100) / 100);
+      }
+    });
+    setAdjustedPrices(newPrices);
+    toast({
+      title: "Prices Reset",
+      description: `All ${orders.length} orders set to midpoint`,
+    });
+  };
+  
   // Check if can submit
   const hasErrors = validationErrors.some(e => e.severity === "error");
   const canSubmit = !hasErrors && !isSubmitting;
@@ -925,10 +942,20 @@ export function UnifiedOrderPreviewModal({
           )}
         </div>
         
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-            Cancel
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleResetAllToMidpoint}
+            disabled={isSubmitting || submissionComplete}
+            className="w-full sm:w-auto"
+          >
+            <span className="mr-2">↔</span>
+            Reset All to Midpoint
           </Button>
+          <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
           {!dryRunSuccess ? (
             <Button
               onClick={handleDryRun}
@@ -957,6 +984,7 @@ export function UnifiedOrderPreviewModal({
               {tradingMode === "paper" && <span className="ml-2 text-xs">(Disabled in Paper Mode)</span>}
             </Button>
           )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -4786,3 +4786,12 @@
 - [x] Fix handlePollStatuses in CSPDashboard - orderId being sent as number but API expects string
 - [x] Fix handlePollStatuses in CCDashboard - same issue
 - [x] Convert orderId to string using .toString() before passing to pollStatus mutation
+
+## Reset All to Midpoint Button (Feb 15, 2026)
+- [x] Add "Reset All to Midpoint" button in UnifiedOrderPreviewModal
+- [x] Place button above Cancel/Execute buttons in the modal footer
+- [x] Button resets all price adjustment sliders to their midpoint values with one click
+- [x] Show icon (↔) to indicate centering action
+- [x] Update all adjustedPrices state to midpoint values when clicked
+- [x] Show toast notification confirming reset
+- [ ] User needs to test: Open order preview with multiple orders, click Reset All to Midpoint, verify all sliders center
