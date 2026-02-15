@@ -279,6 +279,9 @@ export default function CCDashboard() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [submissionStatuses, setSubmissionStatuses] = useState<OrderSubmissionStatus[]>([]);
   
+  // Bulk quantity controls - track quantities for opportunities before opening preview modal
+  const [opportunityQuantities, setOpportunityQuantities] = useState<Map<string, number>>(new Map());
+  
   // Fetch progress dialog state
   const [fetchProgress, setFetchProgress] = useState<{
     isOpen: boolean;
@@ -793,22 +796,26 @@ export default function CCDashboard() {
       .filter((opp): opp is CCOpportunity => opp !== undefined);
 
     // Build UnifiedOrder array for UnifiedOrderPreviewModal
-    const orders: UnifiedOrder[] = selectedOpps.map(opp => ({
-      symbol: opp.symbol,
-      strike: opp.strike,
-      expiration: opp.expiration,
-      premium: opp.premium, // Already in dollars per share
-      action: "STO" as const, // Sell to Open for CC and BCS
-      optionType: "CALL" as const,
-      // For spreads, include long leg
-      longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
-      longPremium: strategyType === 'spread' ? (opp.longAsk || 0) : undefined,
-      // Market data for price adjustment
-      bid: strategyType === 'spread' ? opp.premium : opp.bid,
-      ask: strategyType === 'spread' ? opp.premium : opp.ask,
-      currentPrice: opp.currentPrice,
-    }));
-
+    const orders: UnifiedOrder[] = selectedOpps.map((opp) => {
+      const orderKey = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+      return {
+        symbol: opp.symbol,
+        strike: opp.strike,
+        expiration: opp.expiration,
+        premium: opp.premium, // Already in dollars per share
+        action: "STO" as const, // Sell to Open for CC and BCS
+        optionType: "CALL" as const,
+        // Use quantity from bulk controls if set, otherwise default to 1
+        quantity: opportunityQuantities.get(orderKey) || 1,
+        // For spreads, include long leg
+        longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
+        longPremium: strategyType === 'spread' ? (opp.longAsk || 0) : undefined,
+        // Market data for price adjustment
+        bid: strategyType === 'spread' ? opp.premium : opp.bid,
+        ask: strategyType === 'spread' ? opp.premium : opp.ask,
+        currentPrice: opp.currentPrice,
+      };
+    });
     // Set orders for preview dialog
     setUnifiedOrders(orders);
 
@@ -2165,6 +2172,79 @@ export default function CCDashboard() {
                 ✕ Clear Selection ({selectedOpportunities.size})
               </Button>
             </div>
+            
+            {/* Bulk Quantity Controls */}
+            {selectedOpportunities.size > 0 && (
+              <div className="flex flex-wrap items-center gap-3 p-3 bg-accent/20 rounded-lg border border-border/50">
+                <span className="text-sm font-medium text-muted-foreground">Quantity Controls:</span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newQuantities = new Map(opportunityQuantities);
+                      selectedOpportunities.forEach(key => {
+                        const current = newQuantities.get(key) || 1;
+                        if (current > 1) {
+                          newQuantities.set(key, current - 1);
+                        }
+                      });
+                      setOpportunityQuantities(newQuantities);
+                      toast.success('Decreased quantities for selected opportunities');
+                    }}
+                  >
+                    −
+                  </Button>
+                  <span className="text-sm font-mono min-w-[3ch] text-center">
+                    {Array.from(selectedOpportunities).reduce((sum, key) => sum + (opportunityQuantities.get(key) || 1), 0)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newQuantities = new Map(opportunityQuantities);
+                      selectedOpportunities.forEach(key => {
+                        const current = newQuantities.get(key) || 1;
+                        newQuantities.set(key, current + 1);
+                      });
+                      setOpportunityQuantities(newQuantities);
+                      toast.success('Increased quantities for selected opportunities');
+                    }}
+                  >
+                    +
+                  </Button>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const newQuantities = new Map(opportunityQuantities);
+                    selectedOpportunities.forEach(key => {
+                      newQuantities.set(key, 1);
+                    });
+                    setOpportunityQuantities(newQuantities);
+                    toast.success('Set all selected to 1 contract');
+                  }}
+                >
+                  Set All to 1
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const newQuantities = new Map(opportunityQuantities);
+                    selectedOpportunities.forEach(key => {
+                      const current = newQuantities.get(key) || 1;
+                      newQuantities.set(key, current * 2);
+                    });
+                    setOpportunityQuantities(newQuantities);
+                    toast.success('Doubled quantities for selected opportunities');
+                  }}
+                >
+                  Double All
+                </Button>
+              </div>
+            )}
             <div className="flex items-center gap-3 p-3 bg-accent/20 rounded-lg">
               <Checkbox
                 id="selected-only"
