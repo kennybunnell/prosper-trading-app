@@ -4651,3 +4651,13 @@
 - [ ] Test caching system with real data
 - [ ] Verify performance improvement (should load instantly from cache)
 - [ ] Create checkpoint after caching implementation
+
+## Year-Boundary Caching System (Option 2)
+- [x] Modify getMonthlyPremiumData to detect current year vs completed years
+- [x] Cache complete years (2025 and earlier) after first API fetch
+- [x] Always fetch current year (2026) fresh from API
+- [x] Load cached years from database, combine with fresh current year data
+- [x] Test with 2025 data (should load from cache after first fetch)
+- [x] Test with 2026 data (should always fetch fresh from API)
+- [x] Verify January 2026 still shows $71,021 after caching
+- [ ] Create checkpoint with working year-boundary cache
