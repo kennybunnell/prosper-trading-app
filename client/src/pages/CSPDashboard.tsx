@@ -2615,20 +2615,18 @@ export default function CSPDashboard() {
       </Dialog>
 
       {/* Order Preview Dialog with Validation */}
-      {unifiedOrders.length > 0 && (
-        <UnifiedOrderPreviewModal
-          open={showPreviewDialog}
-          onOpenChange={setShowPreviewDialog}
-          orders={unifiedOrders}
-          strategy={strategyType === 'spread' ? 'bps' : 'csp'}
-          accountId={selectedAccountId || ''}
-          availableBuyingPower={availableBuyingPower}
-          onSubmit={executeOrderSubmission}
-          onPollStatuses={handlePollStatuses}
-          allowQuantityEdit={true}
-          tradingMode={tradingMode}
-        />
-      )}
+      <UnifiedOrderPreviewModal
+        open={showPreviewDialog && unifiedOrders.length > 0}
+        onOpenChange={setShowPreviewDialog}
+        orders={unifiedOrders}
+        strategy={strategyType === 'spread' ? 'bps' : 'csp'}
+        accountId={selectedAccountId || ''}
+        availableBuyingPower={availableBuyingPower}
+        onSubmit={executeOrderSubmission}
+        onPollStatuses={handlePollStatuses}
+        allowQuantityEdit={true}
+        tradingMode={tradingMode}
+      />
 
       {/* Progress Dialog */}
       <Dialog open={showProgressDialog} onOpenChange={setShowProgressDialog}>

@@ -2855,25 +2855,23 @@ export default function CCDashboard() {
       </Dialog>
 
       {/* Order Preview Dialog */}
-      {unifiedOrders.length > 0 && (
-        <UnifiedOrderPreviewModal
-          open={showPreviewDialog}
-          onOpenChange={setShowPreviewDialog}
-          orders={unifiedOrders}
-          strategy={strategyType === 'spread' ? 'bcs' : 'cc'}
-          accountId={selectedAccountId || ''}
-          availableBuyingPower={availableBuyingPower}
-          holdings={holdings.map(pos => ({
-            symbol: pos.symbol,
-            quantity: pos.quantity,
-            maxContracts: Math.floor(pos.quantity / 100),
-          }))}
-          onSubmit={executeOrderSubmission}
-          onPollStatuses={handlePollStatuses}
-          allowQuantityEdit={true}
-          tradingMode={tradingMode}
-        />
-      )}
+      <UnifiedOrderPreviewModal
+        open={showPreviewDialog && unifiedOrders.length > 0}
+        onOpenChange={setShowPreviewDialog}
+        orders={unifiedOrders}
+        strategy={strategyType === 'spread' ? 'bcs' : 'cc'}
+        accountId={selectedAccountId || ''}
+        availableBuyingPower={availableBuyingPower}
+        holdings={holdings.map(pos => ({
+          symbol: pos.symbol,
+          quantity: pos.quantity,
+          maxContracts: Math.floor(pos.quantity / 100),
+        }))}
+        onSubmit={executeOrderSubmission}
+        onPollStatuses={handlePollStatuses}
+        allowQuantityEdit={true}
+        tradingMode={tradingMode}
+      />
 
       {/* AI Analysis Modal */}
       <Dialog open={showAiAnalysisModal} onOpenChange={setShowAiAnalysisModal}>

@@ -755,7 +755,7 @@ export function UnifiedOrderPreviewModal({
                               <div className="relative px-1">
                                 {/* Fill Zone Marker (around 85% of mid) */}
                                 <div 
-                                  className="absolute h-4 w-1 bg-emerald-400 rounded-full shadow-lg cursor-pointer hover:bg-emerald-300" 
+                                  className="absolute h-4 w-1 bg-emerald-400 rounded-full shadow-lg cursor-pointer hover:bg-emerald-300 pointer-events-auto" 
                                   style={{ 
                                     left: '85%', 
                                     top: '50%', 
@@ -765,12 +765,12 @@ export function UnifiedOrderPreviewModal({
                                   onClick={() => setPriceFromSlider(order, [85])}
                                   title="Optimal fill zone (~85% of mid)"
                                 >
-                                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-emerald-400 font-bold whitespace-nowrap">Fill</div>
+                                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-emerald-400 font-bold whitespace-nowrap pointer-events-none">Fill</div>
                                 </div>
                                 
                                 {/* Mid Marker */}
                                 <div 
-                                  className="absolute h-3 w-0.5 bg-blue-400/50" 
+                                  className="absolute h-3 w-0.5 bg-blue-400/50 pointer-events-none" 
                                   style={{ 
                                     left: '50%', 
                                     top: '50%', 

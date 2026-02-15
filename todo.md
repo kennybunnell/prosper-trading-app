@@ -4760,8 +4760,13 @@
 - [x] Auto-refresh at < 2 minutes will now work correctly
 
 ## Order Preview Modal - Status Banner Not Persisting (URGENT)
-- [x] Fix modal resetting to "Execute Dry Run" state after live order submission (removed defaultQuantities from useEffect deps)
-- [x] Ensure status banners (Working/Filled/Rejected/MarketClosed) persist after submission
-- [x] Ensure Close button appears after submission completes
-- [x] Verify confetti and sound play on successful submission
-- [ ] Test complete workflow: Dry Run → Submit Live → Override Warning → See Status Banner → Click Close
+- [ ] Fix modal resetting to "Execute Dry Run" state after live order submission (previous fix didn't work - need different approach)
+- [ ] Investigate WHY parent component is re-rendering and causing modal reset
+- [ ] Try different approach: use modal-level state that persists across re-renders
+- [ ] Ensure status banners (Working/Filled/Rejected/MarketClosed) persist after submission
+- [ ] Ensure Close button appears after submission completes
+
+## Price Adjustment Slider Issues
+- [x] Enable dragging on price adjustment slider (added pointer-events handling to prevent marker interference)
+- [x] Allow smooth dragging between bid and ask values
+- [x] Fix slider to respond to mouse drag events
