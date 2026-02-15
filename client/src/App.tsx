@@ -27,7 +27,7 @@ import { trpc } from "@/lib/trpc";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 
 function Router() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const isAdminRoute = location.startsWith('/admin');
   const [showLegalModal, setShowLegalModal] = useState(false);
   const { data: user, refetch } = trpc.auth.me.useQuery();
@@ -35,6 +35,23 @@ function Router() {
   // Enable heartbeat in development to prevent sandbox hibernation
   const isDevelopment = import.meta.env.DEV;
   useHeartbeat(isDevelopment);
+
+  // Save current page to localStorage whenever location changes
+  useEffect(() => {
+    if (location !== '/settings' && location !== '/') {
+      localStorage.setItem('lastVisitedPage', location);
+    }
+  }, [location]);
+
+  // Redirect to last visited page after authentication
+  useEffect(() => {
+    if (user && location === '/') {
+      const lastPage = localStorage.getItem('lastVisitedPage');
+      if (lastPage && lastPage !== '/') {
+        setLocation(lastPage);
+      }
+    }
+  }, [user, location, setLocation]);
 
   useEffect(() => {
     if (user && !user.acceptedTermsAt && !user.acceptedRiskDisclosureAt) {

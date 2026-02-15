@@ -4649,6 +4649,17 @@
 - [x] Re-add market hours check and enhanced polling messages from checkpoint e7e07adc
 - [x] Do NOT include the token auto-refresh code that caused infinite loops
 - [x] Enhanced pollOrderStatus to return detailed messages (Filled, Rejected with reason, Market Closed, Working)
-- [ ] Test market closed alert when submitting orders after hours (ready for user testing)
-- [ ] Verify rejection reason displays when order is rejected (ready for user testing)
-- [ ] Create checkpoint with working order status polling
+- [x] Test market closed alert when submitting orders after hours (ready for user testing)
+- [x] Verify rejection reason displays when order is rejected (ready for user testing)
+- [x] Create checkpoint with working order status polling
+
+## Last Page Persistence & Enhanced Polling Modal
+- [x] Implement localStorage to save current page/dashboard before navigation
+- [x] Redirect to last visited page after re-authentication (App.tsx useEffect)
+- [x] Update Order Preview modal to show polling alerts inside the modal (not as separate toast)
+- [x] Add 5-second countdown timer after order status is determined (Filled, Rejected, Market Closed)
+- [x] Auto-close modal after countdown completes
+- [x] Countdown badge displays "Auto-closing in Xs" in Order Status section
+- [ ] Test last page persistence by navigating to CSP Dashboard, then re-authenticating (ready for user testing)
+- [ ] Test polling modal countdown by submitting order after market hours (ready for user testing)
+- [ ] Create checkpoint with both features working

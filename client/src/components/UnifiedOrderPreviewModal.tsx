@@ -124,6 +124,7 @@ export function UnifiedOrderPreviewModal({
   const [isPolling, setIsPolling] = useState(false);
   const [orderStatuses, setOrderStatuses] = useState<OrderSubmissionStatus[]>([]);
   const [submissionComplete, setSubmissionComplete] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
   
   // Initialize quantities from defaults or set to 1
   useEffect(() => {
@@ -422,6 +423,21 @@ export function UnifiedOrderPreviewModal({
         const failedStatuses = allStatuses.filter(s => s.orderId === 'FAILED');
         const finalStatuses = [...polledStatuses, ...failedStatuses];
         setOrderStatuses(finalStatuses);
+        
+        // Start 5-second countdown before auto-close
+        setCountdown(5);
+        const countdownInterval = setInterval(() => {
+          setCountdown(prev => {
+            if (prev === null || prev <= 1) {
+              clearInterval(countdownInterval);
+              onOpenChange(false); // Auto-close modal
+              return null;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+        
+        return () => clearInterval(countdownInterval);
         
         // Show confetti only if at least one order filled
         const filledCount = finalStatuses.filter(s => s.status === 'Filled').length;
@@ -767,7 +783,14 @@ export function UnifiedOrderPreviewModal({
           {/* Order Status Display (after live submission) */}
           {isPolling && orderStatuses.length > 0 && (
             <div className="p-4 bg-muted/30 rounded-lg border space-y-3">
-              <h4 className="font-semibold mb-3">Order Status</h4>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-semibold">Order Status</h4>
+                {countdown !== null && countdown > 0 && (
+                  <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">
+                    Auto-closing in {countdown}s
+                  </Badge>
+                )}
+              </div>
               <div className="space-y-2">
                 {orderStatuses.map((status, idx) => (
                   <div key={idx} className="flex items-center justify-between p-2 rounded bg-background/50">
