@@ -2620,7 +2620,7 @@ export default function CSPDashboard() {
 
       {/* Order Preview Dialog with Validation */}
       <UnifiedOrderPreviewModal
-        open={showPreviewDialog && unifiedOrders.length > 0}
+        open={showPreviewDialog}
         onOpenChange={setShowPreviewDialog}
         orders={unifiedOrders}
         strategy={strategyType === 'spread' ? 'bps' : 'csp'}

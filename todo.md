@@ -4759,13 +4759,15 @@
 - [x] Verified token refresh now works (200 OK response from Tastytrade)
 - [x] Auto-refresh at < 2 minutes will now work correctly
 
-## Order Preview Modal - Status Banner Not Persisting (FIXED - Feb 15, 2026)
+## Order Preview Modal - Status Banner Not Persisting (FIXED - Feb 15, 2026 v2)
 - [x] Lifted finalOrderStatus and submissionComplete state to PARENT components (CSPDashboard, CCDashboard)
 - [x] Pass submission state as props to UnifiedOrderPreviewModal via submissionComplete, finalOrderStatus, onSubmissionStateChange
 - [x] Modal now uses external state from parent, ensuring state persists across parent re-renders
-- [x] Status banners (Working/Filled/Rejected/MarketClosed) now persist after submission
-- [x] Close button appears after submission completes
-- [ ] User needs to test: Submit live order and verify status banner persists with Close button
+- [x] USER TESTED: Modal STILL reset after first fix - found root cause
+- [x] ROOT CAUSE: Modal had `open={showPreviewDialog && unifiedOrders.length > 0}` - the unifiedOrders.length check caused modal to close when parent re-rendered
+- [x] SOLUTION: Removed unifiedOrders.length check from open condition - now modal is controlled ONLY by showPreviewDialog state
+- [x] Modal now stays open after submission and shows status banner with Close button
+- [ ] User needs to test: Submit live order and verify status banner persists (should work now!)
 
 ## Price Adjustment Slider Issues (FIXED - Feb 15, 2026)
 - [x] Removed Fill marker from slider (not needed per user request)

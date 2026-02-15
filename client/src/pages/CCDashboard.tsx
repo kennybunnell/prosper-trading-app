@@ -2860,7 +2860,7 @@ export default function CCDashboard() {
 
       {/* Order Preview Dialog */}
       <UnifiedOrderPreviewModal
-        open={showPreviewDialog && unifiedOrders.length > 0}
+        open={showPreviewDialog}
         onOpenChange={setShowPreviewDialog}
         orders={unifiedOrders}
         strategy={strategyType === 'spread' ? 'bcs' : 'cc'}
