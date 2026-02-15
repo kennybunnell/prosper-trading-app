@@ -603,7 +603,10 @@ export default function CSPDashboard() {
   const selectedOppsList = opportunities.filter(opp => 
     selectedOpportunities.has(`${opp.symbol}-${opp.strike}-${opp.expiration}`)
   );
-  const totalPremium = selectedOppsList.reduce((sum, opp) => sum + (opp.premium * 100), 0);
+  // For spreads, use netCredit; for CSP, use premium
+  const totalPremium = strategyType === 'spread'
+    ? selectedOppsList.reduce((sum, opp) => sum + ((opp as any).netCredit * 100 || 0), 0)
+    : selectedOppsList.reduce((sum, opp) => sum + (opp.premium * 100), 0);
   
   // For spreads, use capitalAtRisk instead of full collateral
   const totalCollateral = strategyType === 'spread'
@@ -845,7 +848,8 @@ export default function CSPDashboard() {
       strike: opp.strike,
       expiration: opp.expiration,
       quantity: 1, // Default quantity, can be adjusted in preview dialog
-      premium: opp.premium,
+      // For spreads, use netCredit; for CSP, use premium
+      premium: strategyType === 'spread' ? (opp as any).netCredit : opp.premium,
       bid: opp.bid,
       ask: opp.ask,
       mid: (opp.bid + opp.ask) / 2,
@@ -1592,7 +1596,9 @@ export default function CSPDashboard() {
             </CardHeader>
             <CardContent className="relative">
               <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
-                ${opportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0).toFixed(2)}
+                ${strategyType === 'spread'
+                  ? opportunities.reduce((sum, opp) => sum + ((opp as any).netCredit * 100 || 0), 0).toFixed(2)
+                  : opportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0).toFixed(2)}
               </div>
             </CardContent>
           </Card>
@@ -1632,7 +1638,9 @@ export default function CSPDashboard() {
             <CardContent className="relative">
               <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
                 {(() => {
-                  const totalPrem = opportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
+                  const totalPrem = strategyType === 'spread'
+                    ? opportunities.reduce((sum, opp) => sum + ((opp as any).netCredit * 100 || 0), 0)
+                    : opportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
                   const totalColl = strategyType === 'spread'
                     ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
                     : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);

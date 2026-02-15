@@ -427,7 +427,10 @@ export default function CCDashboard() {
   // Context: Dashboard top card "Total Premium"
   // Reason: Show total money user will receive (not per-share)
   // Example: $1.4750/share × 100 shares = $147.50 total credit per contract
-  const totalPremium = selectedOppsList.reduce((sum, opp) => sum + (opp.premium * 100), 0);
+  // For spreads, use netCredit; for CC, use premium
+  const totalPremium = strategyType === 'spread'
+    ? selectedOppsList.reduce((sum, opp) => sum + ((opp.netCredit || 0) * 100), 0)
+    : selectedOppsList.reduce((sum, opp) => sum + (opp.premium * 100), 0);
   
   // For spreads, use capitalAtRisk; for covered calls, use stock value
   const totalCollateral = strategyType === 'spread'
@@ -797,7 +800,8 @@ export default function CCDashboard() {
       symbol: opp.symbol,
       strike: opp.strike,
       expiration: opp.expiration,
-      premium: opp.premium, // Already in dollars per share
+      // For spreads, use netCredit; for CC, use premium
+      premium: strategyType === 'spread' ? (opp.netCredit || 0) : opp.premium,
       action: "STO" as const, // Sell to Open for CC and BCS
       optionType: "CALL" as const,
       // For spreads, include long leg
@@ -1772,7 +1776,9 @@ export default function CCDashboard() {
                 </CardHeader>
                 <CardContent className="relative">
                   <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
-                    ${filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0).toFixed(2)}
+                    ${strategyType === 'spread'
+                      ? filteredOpportunities.reduce((sum, opp) => sum + ((opp.netCredit || 0) * 100), 0).toFixed(2)
+                      : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0).toFixed(2)}
                   </div>
                 </CardContent>
               </Card>
@@ -1812,7 +1818,9 @@ export default function CCDashboard() {
                 <CardContent className="relative">
                   <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
                     {(() => {
-                      const totalPrem = filteredOpportunities.reduce((sum, opp) => sum + opp.premium, 0);
+                      const totalPrem = strategyType === 'spread'
+                        ? filteredOpportunities.reduce((sum, opp) => sum + ((opp.netCredit || 0) * 100), 0)
+                        : filteredOpportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
                       const totalColl = strategyType === 'spread'
                         ? filteredOpportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
                         : filteredOpportunities.reduce((sum, opp) => sum + (opp.currentPrice * 100), 0);
@@ -2310,7 +2318,7 @@ export default function CCDashboard() {
                             // CRITICAL: opp.premium is per-share dollars (e.g., $1.37)
                             // Order Summary shows TOTAL net credit = per-share × 100 shares
                             // Example: $1.37/share × 100 shares = $137 total credit per contract
-                            .reduce((sum, opp) => sum + (opp.premium * 100), 0))
+                            .reduce((sum, opp) => sum + (strategyType === 'spread' ? (opp.netCredit || 0) * 100 : opp.premium * 100), 0))
                             .toFixed(2)}
                         </p>
                       </div>

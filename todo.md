@@ -4799,3 +4799,10 @@
 - [x] FIX APPLIED: Changed to `new Map(adjustedPrices)` to preserve existing prices, then update only orders with market data
 - [x] Toast now shows count of updated orders (e.g., "16 orders set to midpoint")
 - [ ] User needs to test: Click Reset All to Midpoint with multiple orders, verify ALL sliders center
+
+## Bull Put Spread Premium Calculation Fix
+- [x] Fixed CSPDashboard to use netCredit instead of premium for Bull Put Spread calculations
+- [x] Fixed CCDashboard to use netCredit instead of premium for Bear Call Spread calculations
+- [x] Updated summary cards (Total Premium, ROC) to correctly calculate using netCredit for spreads
+- [x] Updated order construction to pass netCredit as premium for spread orders
+- [x] Verified UnifiedOrderPreviewModal correctly displays premium using the netCredit value passed from dashboards
