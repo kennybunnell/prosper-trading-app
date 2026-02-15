@@ -325,6 +325,10 @@ export default function CSPDashboard() {
   const [aiMode, setAiMode] = useState<'conservative' | 'aggressive'>('conservative');
   const [showTechnicalColumns, setShowTechnicalColumns] = useState(false);
   const [analyzingRowKey, setAnalyzingRowKey] = useState<string | null>(null);
+  
+  // Lifted state for modal persistence (prevents reset on parent re-render)
+  const [modalSubmissionComplete, setModalSubmissionComplete] = useState(false);
+  const [modalFinalOrderStatus, setModalFinalOrderStatus] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -2626,6 +2630,12 @@ export default function CSPDashboard() {
         onPollStatuses={handlePollStatuses}
         allowQuantityEdit={true}
         tradingMode={tradingMode}
+        submissionComplete={modalSubmissionComplete}
+        finalOrderStatus={modalFinalOrderStatus}
+        onSubmissionStateChange={(complete, status) => {
+          setModalSubmissionComplete(complete);
+          setModalFinalOrderStatus(status);
+        }}
       />
 
       {/* Progress Dialog */}

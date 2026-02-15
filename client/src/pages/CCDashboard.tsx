@@ -270,6 +270,10 @@ export default function CCDashboard() {
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
   
+  // Lifted state for modal persistence (prevents reset on parent re-render)
+  const [modalSubmissionComplete, setModalSubmissionComplete] = useState(false);
+  const [modalFinalOrderStatus, setModalFinalOrderStatus] = useState<string | null>(null);
+  
   // Fetch progress dialog state
   const [fetchProgress, setFetchProgress] = useState<{
     isOpen: boolean;
@@ -2871,6 +2875,12 @@ export default function CCDashboard() {
         onPollStatuses={handlePollStatuses}
         allowQuantityEdit={true}
         tradingMode={tradingMode}
+        submissionComplete={modalSubmissionComplete}
+        finalOrderStatus={modalFinalOrderStatus}
+        onSubmissionStateChange={(complete, status) => {
+          setModalSubmissionComplete(complete);
+          setModalFinalOrderStatus(status);
+        }}
       />
 
       {/* AI Analysis Modal */}

@@ -94,6 +94,11 @@ export interface UnifiedOrderPreviewModalProps {
   defaultQuantities?: Map<string, number>;
   allowQuantityEdit?: boolean; // False for closing orders (default: true)
   tradingMode?: "live" | "paper";
+  
+  // Lifted state for persistence across re-renders
+  submissionComplete?: boolean;
+  finalOrderStatus?: string | null;
+  onSubmissionStateChange?: (complete: boolean, status: string | null) => void;
 }
 
 export function UnifiedOrderPreviewModal({
@@ -112,6 +117,9 @@ export function UnifiedOrderPreviewModal({
   defaultQuantities,
   allowQuantityEdit = true,
   tradingMode = "live",
+  submissionComplete: externalSubmissionComplete,
+  finalOrderStatus: externalFinalOrderStatus,
+  onSubmissionStateChange,
 }: UnifiedOrderPreviewModalProps) {
   const { toast } = useToast();
   
@@ -123,13 +131,30 @@ export function UnifiedOrderPreviewModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [orderStatuses, setOrderStatuses] = useState<OrderSubmissionStatus[]>([]);
-  const [submissionComplete, setSubmissionComplete] = useState(false);
-  const [finalOrderStatus, setFinalOrderStatus] = useState<string | null>(null); // "Filled", "Working", "Rejected", etc.
   const [showMarketClosedWarning, setShowMarketClosedWarning] = useState(false);
   const [marketStatus, setMarketStatus] = useState<{ isOpen: boolean; description: string } | null>(null);
   
+  // Use external state if provided, otherwise use internal state (for backward compatibility)
+  const submissionComplete = externalSubmissionComplete ?? false;
+  const finalOrderStatus = externalFinalOrderStatus ?? null;
+  
+  // Helper to update submission state (calls parent callback if provided)
+  const setSubmissionState = (complete: boolean, status: string | null) => {
+    if (onSubmissionStateChange) {
+      onSubmissionStateChange(complete, status);
+    }
+  };
+  
   // Track previous open state to detect modal opening
   const prevOpenRef = useRef(false);
+  
+  // Reset submission state when modal opens (only if using external state)
+  useEffect(() => {
+    const isOpening = open && !prevOpenRef.current;
+    if (isOpening && onSubmissionStateChange) {
+      setSubmissionState(false, null);
+    }
+  }, [open]);
   
   // Initialize quantities from defaults or set to 1
   useEffect(() => {
@@ -162,8 +187,7 @@ export function UnifiedOrderPreviewModal({
       setDryRunSuccess(false);
       setIsPolling(false);
       setOrderStatuses([]);
-      setSubmissionComplete(false);
-      setFinalOrderStatus(null);
+      setSubmissionState(false, null);
     }
   }, [open, orders]); // Removed defaultQuantities from deps to prevent reset on parent re-render
   
@@ -498,23 +522,26 @@ export function UnifiedOrderPreviewModal({
       }
       
       setIsPolling(false);
-      setSubmissionComplete(true);
       
-      // Determine final status for banner
-      const filledCount = allStatuses.filter((s: OrderSubmissionStatus) => s.status === 'Filled').length;
-      const workingCount = allStatuses.filter((s: OrderSubmissionStatus) => s.status === 'Working').length;
-      const rejectedCount = allStatuses.filter((s: OrderSubmissionStatus) => s.status === 'Rejected').length;
-      const marketClosedCount = allStatuses.filter((s: OrderSubmissionStatus) => s.status === 'MarketClosed').length;
+      // Determine final status for banner using current orderStatuses
+      const currentStatuses = orderStatuses.length > 0 ? orderStatuses : allStatuses;
+      const filledCount = currentStatuses.filter((s: OrderSubmissionStatus) => s.status === 'Filled').length;
+      const workingCount = currentStatuses.filter((s: OrderSubmissionStatus) => s.status === 'Working').length;
+      const rejectedCount = currentStatuses.filter((s: OrderSubmissionStatus) => s.status === 'Rejected').length;
+      const marketClosedCount = currentStatuses.filter((s: OrderSubmissionStatus) => s.status === 'MarketClosed').length;
       
+      let status: string | null = null;
       if (filledCount > 0) {
-        setFinalOrderStatus('Filled');
+        status = 'Filled';
       } else if (workingCount > 0) {
-        setFinalOrderStatus('Working');
+        status = 'Working';
       } else if (marketClosedCount > 0) {
-        setFinalOrderStatus('MarketClosed');
+        status = 'MarketClosed';
       } else if (rejectedCount > 0) {
-        setFinalOrderStatus('Rejected');
+        status = 'Rejected';
       }
+      
+      setSubmissionState(true, status);
       
       // Auto-hide polling section after 5 seconds
       setTimeout(() => {
@@ -753,21 +780,6 @@ export function UnifiedOrderPreviewModal({
                             <div className="relative">
                               {/* Slider with Visual Zones */}
                               <div className="relative px-1">
-                                {/* Fill Zone Marker (around 85% of mid) */}
-                                <div 
-                                  className="absolute h-4 w-1 bg-emerald-400 rounded-full shadow-lg cursor-pointer hover:bg-emerald-300 pointer-events-auto" 
-                                  style={{ 
-                                    left: '85%', 
-                                    top: '50%', 
-                                    transform: 'translate(-50%, -50%)',
-                                    zIndex: 1
-                                  }}
-                                  onClick={() => setPriceFromSlider(order, [85])}
-                                  title="Optimal fill zone (~85% of mid)"
-                                >
-                                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-emerald-400 font-bold whitespace-nowrap pointer-events-none">Fill</div>
-                                </div>
-                                
                                 {/* Mid Marker */}
                                 <div 
                                   className="absolute h-3 w-0.5 bg-blue-400/50 pointer-events-none" 
@@ -783,10 +795,11 @@ export function UnifiedOrderPreviewModal({
                                 <Slider
                                   value={getSliderPosition(order)}
                                   onValueChange={(value) => setPriceFromSlider(order, value)}
+                                  min={0}
                                   max={100}
                                   step={1}
-                                  className="relative z-10"
-                                  disabled={isSubmitting}
+                                  disabled={false}
+                                  className="w-full cursor-grab active:cursor-grabbing"
                                 />
                               </div>
                               

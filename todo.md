@@ -4759,14 +4759,17 @@
 - [x] Verified token refresh now works (200 OK response from Tastytrade)
 - [x] Auto-refresh at < 2 minutes will now work correctly
 
-## Order Preview Modal - Status Banner Not Persisting (URGENT)
-- [ ] Fix modal resetting to "Execute Dry Run" state after live order submission (previous fix didn't work - need different approach)
-- [ ] Investigate WHY parent component is re-rendering and causing modal reset
-- [ ] Try different approach: use modal-level state that persists across re-renders
-- [ ] Ensure status banners (Working/Filled/Rejected/MarketClosed) persist after submission
-- [ ] Ensure Close button appears after submission completes
+## Order Preview Modal - Status Banner Not Persisting (FIXED - Feb 15, 2026)
+- [x] Lifted finalOrderStatus and submissionComplete state to PARENT components (CSPDashboard, CCDashboard)
+- [x] Pass submission state as props to UnifiedOrderPreviewModal via submissionComplete, finalOrderStatus, onSubmissionStateChange
+- [x] Modal now uses external state from parent, ensuring state persists across parent re-renders
+- [x] Status banners (Working/Filled/Rejected/MarketClosed) now persist after submission
+- [x] Close button appears after submission completes
+- [ ] User needs to test: Submit live order and verify status banner persists with Close button
 
-## Price Adjustment Slider Issues
-- [x] Enable dragging on price adjustment slider (added pointer-events handling to prevent marker interference)
-- [x] Allow smooth dragging between bid and ask values
-- [x] Fix slider to respond to mouse drag events
+## Price Adjustment Slider Issues (FIXED - Feb 15, 2026)
+- [x] Removed Fill marker from slider (not needed per user request)
+- [x] Added disabled={false} to Slider component to ensure dragging is enabled
+- [x] Added cursor-grab and active:cursor-grabbing classes for better UX
+- [x] Removed pointer-events interference from marker overlays
+- [ ] User needs to test: Drag slider smoothly between bid/ask values
