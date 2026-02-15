@@ -129,6 +129,12 @@ export function aggregateMonthlyData(transactions: Transaction[]): MonthlyData[]
     calledAway: number;
   }>();
 
+  // Debug counters for January 2026
+  let jan2026Total = 0;
+  let jan2026NoDate = 0;
+  let jan2026NoOptionType = 0;
+  let jan2026Processed = 0;
+
   for (const txn of transactions) {
     const txnType = txn['transaction-type'] || '';
     const symbol = txn.symbol || '';
@@ -136,7 +142,14 @@ export function aggregateMonthlyData(transactions: Transaction[]): MonthlyData[]
     const value = Math.abs(parseFloat(String(txn.value || 0)));
     const executedAt = txn['executed-at'] || '';
 
-    if (!executedAt) continue;
+    if (!executedAt) {
+      // Track January transactions with no date
+      const txnDate = new Date();
+      if (txn.symbol && txn.symbol.includes('260117')) {
+        jan2026NoDate++;
+      }
+      continue;
+    }
 
     // Parse date
     let txnDate: Date;
@@ -168,9 +181,25 @@ export function aggregateMonthlyData(transactions: Transaction[]): MonthlyData[]
 
     const monthData = monthlyTotals.get(monthKey)!;
 
+    // Track January 2026 transactions
+    if (monthKey === '2026-01') {
+      jan2026Total++;
+    }
+
     // Determine option type
     const optionType = parseOptionType(symbol);
-    if (!optionType) continue;
+    if (!optionType) {
+      // Track January transactions that fail option type parsing
+      if (monthKey === '2026-01') {
+        jan2026NoOptionType++;
+      }
+      continue;
+    }
+    
+    // Track successfully processed January transactions
+    if (monthKey === '2026-01') {
+      jan2026Processed++;
+    }
 
     // Track trades
     if (txnType === 'Trade') {
@@ -234,6 +263,17 @@ export function aggregateMonthlyData(transactions: Transaction[]): MonthlyData[]
         calledAway: data.calledAway,
       });
     }
+  }
+
+  // Log January 2026 filtering stats
+  if (jan2026Total > 0) {
+    console.log('[aggregateMonthlyData] January 2026 Transaction Filtering:', {
+      totalJan2026Transactions: jan2026Total,
+      noExecutedAt: jan2026NoDate,
+      failedOptionTypeParsing: jan2026NoOptionType,
+      successfullyProcessed: jan2026Processed,
+      droppedTransactions: jan2026Total - jan2026Processed,
+    });
   }
 
   return results;

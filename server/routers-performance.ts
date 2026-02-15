@@ -153,6 +153,42 @@ export const performanceRouter = router({
 
       // Aggregate data
       const monthlyData = aggregateMonthlyData(allTransactions);
+      
+      // Debug logging for January 2026
+      const jan2026 = monthlyData.find(m => m.monthKey === '2026-01');
+      if (jan2026) {
+        console.log('[Performance] January 2026 Data:', {
+          monthKey: jan2026.monthKey,
+          cspCredits: jan2026.cspCredits,
+          ccCredits: jan2026.ccCredits,
+          totalCredits: jan2026.cspCredits + jan2026.ccCredits,
+          cspDebits: jan2026.cspDebits,
+          ccDebits: jan2026.ccDebits,
+          totalDebits: jan2026.cspDebits + jan2026.ccDebits,
+          totalNet: jan2026.totalNet,
+          cspTrades: jan2026.cspTrades,
+          ccTrades: jan2026.ccTrades,
+        });
+        
+        // Count January transactions
+        const jan2026Txns = allTransactions.filter(t => {
+          const executedAt = t['executed-at'] || '';
+          return executedAt.startsWith('2026-01');
+        });
+        console.log(`[Performance] January 2026 has ${jan2026Txns.length} transactions`);
+        
+        // Log first few January transactions for debugging
+        console.log('[Performance] Sample January 2026 transactions:', jan2026Txns.slice(0, 5).map(t => ({
+          type: t['transaction-type'],
+          action: t.action,
+          symbol: t.symbol,
+          value: t.value,
+          executedAt: t['executed-at'],
+        })));
+      } else {
+        console.log('[Performance] WARNING: No January 2026 data found in monthlyData');
+      }
+      
       const symbolPerformance = aggregateBySymbol(allTransactions);
       const performanceMetrics = calculatePerformanceMetrics(allTransactions, monthlyData);
       const assignmentImpact = calculateAssignmentImpact(allTransactions);

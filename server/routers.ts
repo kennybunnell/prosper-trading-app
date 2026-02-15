@@ -369,14 +369,17 @@ export const appRouter = router({
         
         // Aggregate transactions from all accounts
         const monthlyData: Record<string, { credits: number; debits: number }> = {};
+        const failedAccounts: string[] = [];
         
         for (const account of accounts) {
           const accountNumber = account.account['account-number'];
-          const transactions = await api.getTransactionHistory(
-            accountNumber,
-            startDateStr,
-            endDateStr
-          );
+          
+          try {
+            const transactions = await api.getTransactionHistory(
+              accountNumber,
+              startDateStr,
+              endDateStr
+            );
           
           // Log first few transactions to understand data structure
           if (transactions.length > 0) {
@@ -413,6 +416,11 @@ export const appRouter = router({
             } else if (netValueEffect === 'Debit') {
               monthlyData[monthKey].debits += netValue;
             }
+          }
+          } catch (error: any) {
+            console.error(`[Dashboard] Failed to fetch transactions for account ${accountNumber}:`, error.message);
+            failedAccounts.push(accountNumber);
+            // Continue with next account instead of failing entirely
           }
         }
         

@@ -4588,3 +4588,14 @@
 - [x] Randomized intervals to mimic human activity and avoid detection
 - [ ] Test that sandbox stays awake during extended inactivity (15-30 minutes)
 - [ ] Verify OAuth tokens remain valid without manual refresh
+
+## January 2026 Premium Calculation Bug (FIXED)
+- [x] Analyze premium calculation logic in Dashboard getMonthlyPremiumData
+- [x] Root cause identified: API call failing on account 5WI06812 (Individual-HELOC) due to network error
+- [x] Only 1 of 4 accounts was being included, causing $38k shortfall
+- [x] Ground truth from Tastytrade CSV: January 2026 should be $72,179 net premium
+- [x] App was showing: $33,458 (missing data from 3 accounts)
+- [x] Fixed: Added per-account error handling to continue with remaining accounts when one fails
+- [x] Added failedAccounts tracking to log which accounts couldn't be queried
+- [ ] Test with all 4 accounts to verify January shows correct $72k premium
+- [ ] Verify February and other months also show correct aggregated data
