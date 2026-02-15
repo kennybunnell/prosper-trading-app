@@ -778,18 +778,58 @@ export class TastytradeAPI {
     perPage: number = 1000
   ): Promise<any[]> {
     try {
-      const params = {
-        'start-date': startDate,
-        'end-date': endDate,
-        'per-page': perPage,
-      };
+      let allTransactions: any[] = [];
+      let pageNumber = 0; // Changed from pageOffset to pageNumber
+      let hasMore = true;
 
-      const response = await this.client.get(
-        `/accounts/${accountNumber}/transactions`,
-        { params }
-      );
+      // Fetch all pages until we get less than perPage results
+      while (hasMore) {
+        const params: any = {
+          'start-date': startDate,
+          'end-date': endDate,
+          'per-page': perPage,
+          'page-offset': pageNumber, // Use page number (0, 1, 2...) not item offset
+        };
+        
+        console.log(`[Tastytrade Pagination] Fetching page ${pageNumber}...`);
 
-      return response.data.data?.items || [];
+        const response = await this.client.get(
+          `/accounts/${accountNumber}/transactions`,
+          { params }
+        );
+
+        // Log response structure to find pagination metadata
+        if (pageNumber === 0) {
+          console.log(`[Tastytrade Pagination] Response structure:`, {
+            dataKeys: Object.keys(response.data || {}),
+            paginationKeys: Object.keys(response.data.pagination || {}),
+            pagination: response.data.pagination,
+          });
+        }
+
+        const items = response.data.data?.items || [];
+        allTransactions = allTransactions.concat(items);
+
+        console.log(`[Tastytrade Pagination] Page ${pageNumber}: Fetched ${items.length} transactions (total so far: ${allTransactions.length})`);
+
+        // Check pagination metadata
+        const totalPages = response.data.pagination?.['total-pages'] || 1;
+        const currentPage = response.data.pagination?.['page-offset'] || 0;
+        
+        console.log(`[Tastytrade Pagination] API reports: page ${currentPage} of ${totalPages} total pages`);
+
+        // If we got less than perPage results OR we've reached the last page, we're done
+        if (items.length < perPage || pageNumber >= totalPages - 1) {
+          console.log(`[Tastytrade Pagination] Reached end of data`);
+          hasMore = false;
+        } else {
+          pageNumber++; // Increment page number (not by perPage)
+          console.log(`[Tastytrade Pagination] More data available, fetching page ${pageNumber}...`);
+        }
+      }
+
+      console.log(`[Tastytrade] Total transactions fetched for account ${accountNumber}: ${allTransactions.length}`);
+      return allTransactions;
     } catch (error: any) {
       console.error(`[Tastytrade] Transaction history error:`, error.response?.data?.error?.message || error.message);
       throw new Error(`Failed to fetch transaction history: ${error.response?.data?.error?.message || error.message}`);

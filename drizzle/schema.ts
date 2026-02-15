@@ -559,3 +559,28 @@ export const oauthTokens = mysqlTable("oauthTokens", {
 
 export type OAuthToken = typeof oauthTokens.$inferSelect;
 export type InsertOAuthToken = typeof oauthTokens.$inferInsert;
+
+/**
+ * Monthly premium cache to reduce API load and improve performance
+ * Stores aggregated premium data for completed months
+ */
+export const monthlyPremiumCache = mysqlTable("monthlyPremiumCache", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  accountId: varchar("accountId", { length: 64 }).notNull(),
+  month: varchar("month", { length: 7 }).notNull(), // Format: YYYY-MM (e.g., "2026-01")
+  netPremium: varchar("netPremium", { length: 20 }).notNull(), // Credits - Debits
+  credits: varchar("credits", { length: 20 }).notNull(), // Total credits (money received)
+  debits: varchar("debits", { length: 20 }).notNull(), // Total debits (money paid)
+  transactionCount: int("transactionCount").notNull(), // Number of transactions included
+  isLocked: int("isLocked").default(0).notNull(), // 1 = locked (completed month), 0 = current month
+  lastUpdated: timestamp("lastUpdated").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  uniqueUserAccountMonth: unique("unique_user_account_month").on(table.userId, table.accountId, table.month),
+  userIdIdx: index("monthlyPremiumCache_userId_idx").on(table.userId),
+  monthIdx: index("monthlyPremiumCache_month_idx").on(table.month),
+}));
+
+export type MonthlyPremiumCache = typeof monthlyPremiumCache.$inferSelect;
+export type InsertMonthlyPremiumCache = typeof monthlyPremiumCache.$inferInsert;

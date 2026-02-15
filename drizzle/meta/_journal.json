@@ -246,6 +246,13 @@
       "when": 1771007305102,
       "tag": "0035_secret_ikaris",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1771125291997,
+      "tag": "0036_nosy_forgotten_one",
+      "breakpoints": true
     }
   ]
 }

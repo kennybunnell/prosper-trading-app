@@ -4599,3 +4599,55 @@
 - [x] Added failedAccounts tracking to log which accounts couldn't be queried
 - [ ] Test with all 4 accounts to verify January shows correct $72k premium
 - [ ] Verify February and other months also show correct aggregated data
+
+## January 2026 Premium API Discrepancy (FIXED)
+- [x] Add logging to track total transactions fetched per account for January 2026
+- [x] Add logging to show how many transactions are skipped by transaction-type filter
+- [x] Root cause identified: API pagination limit of 1000 transactions
+- [x] Account 5WZ77313 had 1000+ transactions, only first 1000 were fetched
+- [x] Missing 105+ January transactions beyond the 1000-transaction limit
+- [x] Implemented pagination loop in getTransactionHistory to fetch ALL transactions
+- [x] Added page-offset parameter to fetch subsequent pages
+- [ ] Test with Dashboard reload to verify January shows correct $72k net premium
+
+## January 2026 Root Cause Investigation (IN PROGRESS)
+- [x] Confirmed: January 2026 was showing $72k correctly 3 days ago
+- [x] Confirmed: CSV export has 367 January transactions across all 4 accounts
+- [x] Confirmed: API is returning only 262 January transactions (missing 105)
+- [x] Theory: Account 5WZ77313 crossed 1000-transaction threshold in last 3 days
+- [ ] Test Tastytrade API with different pagination parameters (page-number, cursor, etc.)
+- [ ] Find working pagination method to fetch beyond 1000 transactions
+- [ ] Implement proper pagination in getTransactionHistory
+- [ ] Verify January 2026 shows correct $72k premium after fix
+
+## Monthly Premium Caching System (DEFERRED)
+- [ ] Create database schema for monthly_premium_cache table
+- [ ] Add fields: month (PK), credits, debits, net_premium, cached_at
+- [ ] Implement cache-first logic in getMonthlyPremiumData
+- [ ] Check cache for historical months (before current month)
+- [ ] Fetch only current month from Tastytrade API
+- [ ] Store completed months in cache when month rolls over
+- [ ] Add manual "Refresh All Data" button to Dashboard
+- [ ] Test that January 2026 loads from cache instantly
+- [ ] Verify current month (Feb 2026) fetches fresh data from API
+
+## Tastytrade API Pagination Fix
+- [x] Fixed pagination to use page number instead of item offset
+- [x] January 2026 premium now shows $71,021 (was $33,458)
+- [x] All 1247 transactions fetched successfully (1000 + 247 across 2 pages)
+- [x] Verified all 4 Tastytrade accounts are being queried
+
+## Monthly Premium Caching System
+- [x] Design database schema for monthly premium cache (monthlyPremiumCache table)
+- [x] Add columns: userId, accountId, month (YYYY-MM), netPremium, credits, debits, transactionCount, lastUpdated, isLocked
+- [x] Create database migration and push schema changes
+- [ ] Implement cache-first data fetching logic in getMonthlyPremiumData procedure
+- [ ] Add logic to determine current month vs completed months
+- [ ] Fetch completed months from cache, only query API for current month
+- [ ] Implement cache update logic when API data is fetched
+- [ ] Add "Refresh All" button to Dashboard UI
+- [ ] Create backend procedure to clear cache and force full API refresh
+- [ ] Add loading state for refresh operation
+- [ ] Test caching system with real data
+- [ ] Verify performance improvement (should load instantly from cache)
+- [ ] Create checkpoint after caching implementation
