@@ -125,6 +125,8 @@ export function UnifiedOrderPreviewModal({
   const [orderStatuses, setOrderStatuses] = useState<OrderSubmissionStatus[]>([]);
   const [submissionComplete, setSubmissionComplete] = useState(false);
   const [finalOrderStatus, setFinalOrderStatus] = useState<string | null>(null); // "Filled", "Working", "Rejected", etc.
+  const [showMarketClosedWarning, setShowMarketClosedWarning] = useState(false);
+  const [marketStatus, setMarketStatus] = useState<{ isOpen: boolean; description: string } | null>(null);
   
   // Initialize quantities from defaults or set to 1
   useEffect(() => {
@@ -369,8 +371,41 @@ export function UnifiedOrderPreviewModal({
     }
   };
   
+  // Check market hours before live submission
+  const checkMarketHours = async () => {
+    try {
+      const { trpc } = await import('@/lib/trpc');
+      const utils = trpc.useUtils();
+      const status = await utils.client.market.getMarketStatus.query();
+      setMarketStatus(status);
+      
+      if (!status.isOpen) {
+        // Market is closed - show warning dialog
+        setShowMarketClosedWarning(true);
+        return false; // Block submission
+      }
+      
+      return true; // Allow submission
+    } catch (error) {
+      console.error('[Market Hours Check] Error:', error);
+      // If check fails, allow submission (fail open)
+      return true;
+    }
+  };
+  
   // Handle live submission
   const handleLiveSubmit = async () => {
+    // Check market hours first
+    const canProceed = await checkMarketHours();
+    if (!canProceed) {
+      return; // Wait for user confirmation
+    }
+    
+    await executeLiveSubmission();
+  };
+  
+  // Execute live submission (after market hours check)
+  const executeLiveSubmission = async () => {
     setIsSubmitting(true);
     setIsPolling(true);
     
@@ -527,6 +562,7 @@ export function UnifiedOrderPreviewModal({
   const canSubmit = !hasErrors && !isSubmitting;
   
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
@@ -887,5 +923,48 @@ export function UnifiedOrderPreviewModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    
+    {/* Market Closed Warning Dialog */}
+    <Dialog open={showMarketClosedWarning} onOpenChange={setShowMarketClosedWarning}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertCircle className="h-5 w-5 text-yellow-500" />
+            Market is Closed
+          </DialogTitle>
+          <DialogDescription className="space-y-3 pt-2">
+            <p>
+              The market is currently closed. Your orders will be queued and will execute when the market opens.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {marketStatus?.description || 'Market hours: Monday-Friday, 9:30 AM - 4:00 PM ET'}
+            </p>
+            <p className="text-sm font-medium text-yellow-600">
+              ⚠️ You can cancel queued orders in the Working Orders view before market open.
+            </p>
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex-row gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowMarketClosedWarning(false)}
+            className="flex-1"
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={async () => {
+              setShowMarketClosedWarning(false);
+              await executeLiveSubmission();
+            }}
+            className="flex-1"
+          >
+            Submit Anyway
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

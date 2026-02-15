@@ -13,6 +13,42 @@ interface NewsItem {
 }
 
 export const marketRouter = router({
+  /**
+   * Get current market status (open/closed) from Tradier API
+   */
+  getMarketStatus: publicProcedure.query(async () => {
+    try {
+      const { createTradierAPI } = await import('./tradier');
+      
+      const tradierApiKey = process.env.TRADIER_API_KEY;
+      if (!tradierApiKey) {
+        throw new Error('Tradier API key not configured');
+      }
+      
+      const tradier = createTradierAPI(tradierApiKey, false);
+      const status = await tradier.getMarketStatus();
+      return {
+        isOpen: status.open,
+        description: status.description,
+      };
+    } catch (error) {
+      console.error('[Market Status] Error fetching market status:', error);
+      // Fallback to time-based check if Tradier API fails
+      const now = new Date();
+      const etTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      const dayOfWeek = etTime.getDay();
+      const hours = etTime.getHours();
+      const minutes = etTime.getMinutes();
+      const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+      const isDuringMarketHours = (hours > 9 || (hours === 9 && minutes >= 30)) && hours < 16;
+      const isOpen = isWeekday && isDuringMarketHours;
+      return {
+        isOpen,
+        description: isOpen ? 'Market is open' : 'Market is closed',
+      };
+    }
+  }),
+
   getMarketNews: publicProcedure.query(async () => {
     try {
       // Use LLM to analyze recent financial news and generate summaries

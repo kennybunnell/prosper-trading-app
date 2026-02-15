@@ -4704,3 +4704,16 @@
 - [ ] Test authentication persists across 3+ server restarts within 15 minutes
 - [ ] Update fix-credentials.md with correct troubleshooting (remove incorrect scope regeneration steps)
 - [ ] Create checkpoint with working authentication persistence
+
+## Working Orders View Verification & Order Status Polling
+- [x] Check Working Orders view shows "Received" status orders (queued for market open) - CONFIRMED WORKING
+- [x] Check Working Orders view shows "Live" status orders (working orders) - CONFIRMED WORKING
+- [x] Verify cancel order functionality exists in Working Orders view - CONFIRMED WORKING
+- [x] Order status polling already implemented in tastytrade-order-status.ts (polls every 5 seconds)
+- [x] Polling parses all statuses: Filled, Live, Received, Rejected, Cancelled, MarketClosed
+- [x] Preview modal banner updates based on final status (already implemented)
+- [x] Auto-close polling section after 5 seconds (already implemented)
+- [ ] Add market hours check before live order submission
+- [ ] Show warning dialog when market is closed with "Submit Anyway" confirmation
+- [ ] Test complete live order flow with market-hours warning
+- [ ] Create checkpoint with market hours safety check
