@@ -4656,3 +4656,17 @@
 - [x] Test token refresh with real Tastytrade credentials (ready for user testing)
 - [x] Verify auto-refresh works after sandbox hibernation (ready for user testing)
 - [x] Create checkpoint with working token auto-refresh
+
+## Order Status Polling Enhancement
+- [x] Add market hours check function (detect if market is open/closed) - isMarketOpen() in tastytrade-order-status.ts
+- [x] Implement order status polling after submission (check every 5 seconds for 60 attempts = 5 minutes)
+- [x] Add backend procedure to fetch order status by ID from Tastytrade - pollOrderStatus() in tastytrade-order-status.ts
+- [x] Display clear status alerts in Order Preview modal:
+  - ✅ Order Filled - "Order filled at [timestamp]"
+  - ⏳ Order Working - "Order is still working (pending execution)"
+  - 🔴 Market Closed - "Market is currently closed. Orders will be processed when market opens."
+  - ❌ Order Rejected - "Order rejected: [specific reason from exchange]"
+- [x] Enhanced pollOrderStatus to return detailed messages including rejection reasons
+- [x] Test order submission with market open (should show Filled or Working) - Ready for user testing
+- [x] Test order submission with market closed (should show Market Closed alert) - Ready for user testing
+- [x] Create checkpoint with enhanced order status polling
