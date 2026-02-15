@@ -936,7 +936,7 @@ export function UnifiedOrderPreviewModal({
             <AlertCircle className="h-5 w-5 text-yellow-500" />
             Market is Closed
           </DialogTitle>
-          <DialogDescription className="space-y-3 pt-2">
+          <div className="space-y-3 pt-2 text-sm text-muted-foreground">
             <div>
               The market is currently closed. Your orders will be queued and will execute when the market opens.
             </div>
@@ -946,7 +946,7 @@ export function UnifiedOrderPreviewModal({
             <div className="text-sm font-medium text-yellow-600">
               ⚠️ You can cancel queued orders in the Working Orders view before market open.
             </div>
-          </DialogDescription>
+          </div>
         </DialogHeader>
         <DialogFooter className="flex-row gap-2">
           <Button
