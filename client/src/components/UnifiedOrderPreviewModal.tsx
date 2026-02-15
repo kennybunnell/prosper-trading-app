@@ -374,9 +374,14 @@ export function UnifiedOrderPreviewModal({
   // Check market hours before live submission
   const checkMarketHours = async () => {
     try {
-      const { trpc } = await import('@/lib/trpc');
-      const utils = trpc.useUtils();
-      const status = await utils.client.market.getMarketStatus.query();
+      // Call API endpoint directly (can't use React hooks inside event handler)
+      const response = await fetch('/api/trpc/market.getMarketStatus');
+      if (!response.ok) {
+        throw new Error('Failed to fetch market status');
+      }
+      
+      const data = await response.json();
+      const status = data.result.data;
       setMarketStatus(status);
       
       if (!status.isOpen) {
@@ -388,8 +393,7 @@ export function UnifiedOrderPreviewModal({
       return true; // Allow submission
     } catch (error) {
       console.error('[Market Hours Check] Error:', error);
-      // If check fails, allow submission (fail open)
-      return true;
+      return true; // Allow submission on error (fail open)
     }
   };
   
@@ -933,15 +937,15 @@ export function UnifiedOrderPreviewModal({
             Market is Closed
           </DialogTitle>
           <DialogDescription className="space-y-3 pt-2">
-            <p>
+            <div>
               The market is currently closed. Your orders will be queued and will execute when the market opens.
-            </p>
-            <p className="text-sm text-muted-foreground">
+            </div>
+            <div className="text-sm text-muted-foreground">
               {marketStatus?.description || 'Market hours: Monday-Friday, 9:30 AM - 4:00 PM ET'}
-            </p>
-            <p className="text-sm font-medium text-yellow-600">
+            </div>
+            <div className="text-sm font-medium text-yellow-600">
               ⚠️ You can cancel queued orders in the Working Orders view before market open.
-            </p>
+            </div>
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex-row gap-2">
