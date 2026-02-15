@@ -4652,3 +4652,9 @@
 - [ ] Test market closed alert when submitting orders after hours (ready for user testing)
 - [ ] Verify rejection reason displays when order is rejected (ready for user testing)
 - [ ] Create checkpoint with working order status polling
+
+## Simple Tastytrade Reconnect Button
+- [x] Add "Reconnect Tastytrade" button to Settings page (Tastytrade API section)
+- [x] Simplify forceTokenRefresh to call getAccessToken directly (no complex clearing logic)
+- [ ] Test reconnection after sandbox hibernation
+- [ ] Create checkpoint with working reconnect button

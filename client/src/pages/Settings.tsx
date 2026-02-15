@@ -67,27 +67,12 @@ export default function Settings() {
   });
 
   const forceTokenRefresh = trpc.settings.forceTokenRefresh.useMutation({
-    onSuccess: async (data) => {
-      // Token refresh succeeded - show success message
+    onSuccess: (data) => {
       const expiresAt = data.expiresAt ? new Date(data.expiresAt).toLocaleString() : 'Unknown';
       toast.success(`Token refreshed successfully! Expires at: ${expiresAt}`);
     },
-    onError: async (error) => {
-      // Token refresh failed - restart dev server and redirect to OAuth2 login
-      toast.error(`Token refresh failed. Restarting server and redirecting to login...`);
-      
-      try {
-        // Call restart server endpoint
-        await fetch('/api/dev/restart', { method: 'POST' });
-        
-        // Wait 2 seconds for server to start restarting
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Redirect to OAuth2 login flow
-        window.location.href = '/api/oauth/login';
-      } catch (restartError) {
-        toast.error('Failed to restart server. Please refresh the page manually.');
-      }
+    onError: (error) => {
+      toast.error(`Token refresh failed: ${error.message}`);
     },
   });
 
@@ -294,7 +279,7 @@ export default function Settings() {
                 className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0"
               >
                 {forceTokenRefresh.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Force Token Refresh
+                Reconnect Tastytrade
               </Button>
               <Button
                 variant="outline"
