@@ -290,8 +290,17 @@ export class TastytradeAPI {
       console.error('[Tastytrade] Error response data:', JSON.stringify(error.response?.data, null, 2));
       console.error('[Tastytrade] Error message:', error.message);
       
-      // Retry logic for 403 errors (Tastytrade API instability)
+      // Check if this is a refresh token expiration/revocation error
       const is403Error = error.response?.status === 403;
+      const errorMessage = error.response?.data?.error?.message || error.message;
+      const isInsufficientScopes = errorMessage.includes('insufficient scopes');
+      
+      // If refresh token is expired/revoked, provide clear guidance
+      if (is403Error && isInsufficientScopes) {
+        throw new Error('Your Tastytrade refresh token has expired or been revoked. Please click "Reconnect Tastytrade" in Settings to re-authenticate.');
+      }
+      
+      // Retry logic for other 403 errors (Tastytrade API instability)
       const maxRetries = 3;
       
       if (is403Error && retryCount < maxRetries) {
@@ -301,7 +310,7 @@ export class TastytradeAPI {
         return this.getAccessToken(refreshToken, clientSecret, retryCount + 1);
       }
       
-      throw new Error(`Tastytrade OAuth2 authentication failed: ${error.response?.data?.error?.message || error.message}`);
+      throw new Error(`Tastytrade OAuth2 authentication failed: ${errorMessage}`);
     }
   }
 

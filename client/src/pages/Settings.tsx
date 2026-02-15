@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -204,11 +205,14 @@ export default function Settings() {
         />
       )}
       <div className="max-w-4xl mx-auto space-y-8 relative z-10">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-          <p className="text-muted-foreground mt-2">
-            Configure your API credentials for Tastytrade and Tradier
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+            <p className="text-muted-foreground mt-2">
+              Configure your API credentials for Tastytrade and Tradier
+            </p>
+          </div>
+          <ConnectionStatusIndicator />
         </div>
 
         {/* Tastytrade Credentials */}

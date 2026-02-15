@@ -4717,3 +4717,9 @@
 - [ ] Show warning dialog when market is closed with "Submit Anyway" confirmation
 - [ ] Test complete live order flow with market-hours warning
 - [ ] Create checkpoint with market hours safety check
+
+## Authentication & Error Handling
+- [x] Fixed Tastytrade OAuth2 authentication persistence bug (application/x-www-form-urlencoded format)
+- [x] Improved error message for expired/revoked refresh tokens (guides user to "Reconnect Tastytrade")
+- [x] Added ConnectionStatusIndicator to Settings page for API status visibility
+- [x] Documented authentication breakthrough in fix-credentials.md
