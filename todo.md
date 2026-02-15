@@ -4644,3 +4644,11 @@
 ## ❌ Monthly Premium Caching - ABANDONED
 - Caching implementation caused multiple critical bugs (double-counting, inconsistent API responses, cache conflicts)
 - Decision: Stick with live API loads for accuracy - 10 second load time is acceptable
+
+## Re-implement Order Status Polling (Without Token Auto-Refresh)
+- [x] Re-add market hours check and enhanced polling messages from checkpoint e7e07adc
+- [x] Do NOT include the token auto-refresh code that caused infinite loops
+- [x] Enhanced pollOrderStatus to return detailed messages (Filled, Rejected with reason, Market Closed, Working)
+- [ ] Test market closed alert when submitting orders after hours (ready for user testing)
+- [ ] Verify rejection reason displays when order is rejected (ready for user testing)
+- [ ] Create checkpoint with working order status polling
