@@ -4752,3 +4752,9 @@
 - [x] Show toast notification when auto-refresh happens ("Refreshing authentication token...")
 - [x] Handle auto-refresh failures gracefully (shows error toast with message)
 - [ ] Test that auto-refresh prevents API failures during active usage (ready for user testing)
+
+## Token Refresh Fix (COMPLETED - Feb 15, 2026)
+- [x] Identified root cause: Axios was sending Authorization header with current access token during OAuth token refresh
+- [x] Fixed by explicitly removing Authorization header for `/oauth/token` requests
+- [x] Verified token refresh now works (200 OK response from Tastytrade)
+- [x] Auto-refresh at < 2 minutes will now work correctly

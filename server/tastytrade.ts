@@ -119,7 +119,8 @@ export class TastytradeAPI {
     this.client = axios.create({
       baseURL: TASTYTRADE_API_BASE,
       headers: {
-        'Content-Type': 'application/json',
+        // DO NOT set default Content-Type here - it breaks OAuth token requests
+        // Each endpoint sets its own Content-Type (JSON for API calls, form-urlencoded for OAuth)
         'Connection': 'close', // Force fresh connections (disable keep-alive)
       },
       timeout: 30000, // 30 second timeout for all requests
@@ -127,13 +128,15 @@ export class TastytradeAPI {
       httpAgent: new http.Agent({ keepAlive: false }),
       httpsAgent: new https.Agent({ keepAlive: false }),
     });
-    
-    // Add request interceptor for detailed logging
+       // Add request interceptor for detailed logging
     this.client.interceptors.request.use(
       (config) => {
         console.log(`[Tastytrade API] ${config.method?.toUpperCase()} ${config.url}`);
-        if (config.data && config.url !== '/oauth/token') {
-          console.log(`[Tastytrade API] Request body:`, JSON.stringify(config.data).substring(0, 200));
+        if (config.url === '/oauth/token') {
+          console.log('[Tastytrade API] OAuth request headers:', JSON.stringify(config.headers, null, 2));
+          console.log('[Tastytrade API] OAuth request data type:', typeof config.data);
+          console.log('[Tastytrade API] OAuth request data (first 100 chars):', 
+            typeof config.data === 'string' ? config.data.substring(0, 100) : JSON.stringify(config.data).substring(0, 100));
         }
         return config;
       },
@@ -227,10 +230,15 @@ export class TastytradeAPI {
         client_secret_length: clientSecret?.length || 0,
       });
       
+      const requestBody = params.toString();
+      console.log('[Tastytrade OAuth2] Request body (first 100 chars):', requestBody.substring(0, 100));
+      console.log('[Tastytrade OAuth2] Request Content-Type: application/x-www-form-urlencoded');
+      
       const response = await this.retryWithBackoff(() =>
-        this.client.post('/oauth/token', params.toString(), {
+        this.client.post('/oauth/token', requestBody, {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': undefined, // Remove Authorization header for OAuth token requests
           },
         })
       );
@@ -415,6 +423,9 @@ export class TastytradeAPI {
               quantity: leg.quantity,
               action: leg.action,
             })),
+          },
+          {
+            headers: { 'Content-Type': 'application/json' },
           }
         );
 
@@ -472,6 +483,9 @@ export class TastytradeAPI {
             quantity: leg.quantity,
             action: leg.action,
           })),
+        },
+        {
+          headers: { 'Content-Type': 'application/json' },
         }
       );
 
@@ -755,7 +769,9 @@ export class TastytradeAPI {
         ? `/accounts/${accountNumber}/orders/dry-run`
         : `/accounts/${accountNumber}/orders`;
       
-      const response = await this.client.post(endpoint, orderPayload);
+      const response = await this.client.post(endpoint, orderPayload, {
+        headers: { 'Content-Type': 'application/json' },
+      });
 
       const orderId = response.data.data?.order?.id || response.data.data?.id;
       
@@ -962,7 +978,9 @@ export class TastytradeAPI {
       console.log('[Tastytrade] Submitting roll order:', JSON.stringify(orderPayload, null, 2));
 
       const response = await this.retryWithBackoff(() =>
-        this.client.post(`/accounts/${params.accountNumber}/orders`, orderPayload)
+        this.client.post(`/accounts/${params.accountNumber}/orders`, orderPayload, {
+          headers: { 'Content-Type': 'application/json' },
+        })
       );
 
       const orderId = response.data.data.order.id;
@@ -1051,7 +1069,9 @@ export class TastytradeAPI {
       console.log('[Tastytrade] Submitting close order:', JSON.stringify(orderPayload, null, 2));
 
       const response = await this.retryWithBackoff(() =>
-        this.client.post(`/accounts/${params.accountNumber}/orders`, orderPayload)
+        this.client.post(`/accounts/${params.accountNumber}/orders`, orderPayload, {
+          headers: { 'Content-Type': 'application/json' },
+        })
       );
 
       const orderId = response.data.data.order.id;
