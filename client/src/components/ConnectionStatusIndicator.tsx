@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
-import { CheckCircle2, XCircle, Settings } from "lucide-react";
+import { CheckCircle2, XCircle, Settings, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { useLocation } from "wouter";
 import {
   Tooltip,
@@ -10,15 +11,26 @@ import {
 import { Button } from "@/components/ui/button";
 
 export function ConnectionStatusIndicator() {
-  const { data: connectionStatus, isLoading } = trpc.settings.getConnectionStatus.useQuery();
+  const { data: connectionStatus, isLoading, refetch } = trpc.settings.getConnectionStatus.useQuery();
   const [, setLocation] = useLocation();
+  
+  const forceTokenRefresh = trpc.settings.forceTokenRefresh.useMutation({
+    onSuccess: (data) => {
+      const expiresAt = data.expiresAt ? new Date(data.expiresAt).toLocaleString() : 'Unknown';
+      toast.success(`Token refreshed! Expires at: ${expiresAt}`);
+      refetch(); // Update the indicator immediately
+    },
+    onError: (error) => {
+      toast.error(`Token refresh failed: ${error.message}`);
+    },
+  });
 
   if (isLoading) {
     return null;
   }
 
-  const allConnected = connectionStatus?.tastytrade.configured && connectionStatus?.tradier.configured;
-  const someDisconnected = !connectionStatus?.tastytrade.configured || !connectionStatus?.tradier.configured;
+  const allConnected = connectionStatus?.tastytrade.connected && connectionStatus?.tradier.connected;
+  const someDisconnected = !connectionStatus?.tastytrade.connected || !connectionStatus?.tradier.connected;
 
   return (
     <TooltipProvider>
@@ -58,7 +70,7 @@ export function ConnectionStatusIndicator() {
                   <XCircle className="h-3 w-3 text-red-500" />
                 )}
                 <span>
-                  Tastytrade: {connectionStatus?.tastytrade.configured ? "Connected" : "Not configured"}
+                  Tastytrade: {connectionStatus?.tastytrade.connected ? "Connected" : (connectionStatus?.tastytrade.configured ? "Token Expired" : "Not configured")}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -68,11 +80,37 @@ export function ConnectionStatusIndicator() {
                   <XCircle className="h-3 w-3 text-red-500" />
                 )}
                 <span>
-                  Tradier: {connectionStatus?.tradier.configured ? "Connected" : "Not configured"}
+                  Tradier: {connectionStatus?.tradier.connected ? "Connected" : "Not configured"}
                 </span>
               </div>
             </div>
-            {someDisconnected && (
+            {connectionStatus?.tastytrade.status === 'expired' && (
+              <div className="pt-2 border-t">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full flex items-center gap-2"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    forceTokenRefresh.mutate();
+                  }}
+                  disabled={forceTokenRefresh.isPending}
+                >
+                  {forceTokenRefresh.isPending ? (
+                    <>
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      Refreshing...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-3 w-3" />
+                      Refresh Token
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+            {someDisconnected && connectionStatus?.tastytrade.status !== 'expired' && (
               <div className="text-xs text-muted-foreground pt-1 border-t">
                 Click to configure in Settings
               </div>

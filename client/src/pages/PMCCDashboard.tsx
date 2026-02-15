@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { HelpBadge } from "@/components/HelpBadge";
 import { HELP_CONTENT } from "@/lib/helpContent";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
+import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { trpc } from "@/lib/trpc";
 import { useTradingMode } from "@/contexts/TradingModeContext";
 import { toast } from "sonner";
@@ -361,15 +362,18 @@ export default function PMCCDashboard() {
               <TrendingUp className="h-8 w-8 text-purple-500" />
               <h1 className="text-3xl font-bold">PMCC Dashboard</h1>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.location.reload()}
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh Page
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.location.reload()}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh Page
+              </Button>
+              <ConnectionStatusIndicator />
+            </div>
           </div>
           <p className="text-muted-foreground">
             Poor Man's Covered Call - Buy LEAPs and sell short calls for income

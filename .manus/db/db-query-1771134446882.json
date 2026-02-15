@@ -1,0 +1,16 @@
+{
+  "query": "SELECT LENGTH(tastytradeClientSecret) as clientSecretLen, LENGTH(tastytradeRefreshToken) as refreshTokenLen, LENGTH(tastytradeAccessToken) as accessTokenLen, tastytradeAccessTokenExpiresAt FROM apiCredentials WHERE userId = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT LENGTH(tastytradeClientSecret) as clientSecretLen, LENGTH(tastytradeRefreshToken) as refreshTokenLen, LENGTH(tastytradeAccessToken) as accessTokenLen, tastytradeAccessTokenExpiresAt FROM apiCredentials WHERE userId = 1;",
+  "rows": [
+    {
+      "clientSecretLen": "40",
+      "refreshTokenLen": "580",
+      "accessTokenLen": "1130",
+      "tastytradeAccessTokenExpiresAt": "2026-02-15 05:38:43"
+    }
+  ],
+  "messages": [],
+  "stdout": "clientSecretLen\trefreshTokenLen\taccessTokenLen\ttastytradeAccessTokenExpiresAt\n40\t580\t1130\t2026-02-15 05:38:43\n",
+  "stderr": "",
+  "execution_time_ms": 50
+}

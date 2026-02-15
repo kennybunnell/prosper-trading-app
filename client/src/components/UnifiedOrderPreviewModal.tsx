@@ -124,6 +124,7 @@ export function UnifiedOrderPreviewModal({
   const [isPolling, setIsPolling] = useState(false);
   const [orderStatuses, setOrderStatuses] = useState<OrderSubmissionStatus[]>([]);
   const [submissionComplete, setSubmissionComplete] = useState(false);
+  const [finalOrderStatus, setFinalOrderStatus] = useState<string | null>(null); // "Filled", "Working", "Rejected", etc.
   
   // Initialize quantities from defaults or set to 1
   useEffect(() => {
@@ -153,6 +154,7 @@ export function UnifiedOrderPreviewModal({
       setIsPolling(false);
       setOrderStatuses([]);
       setSubmissionComplete(false);
+      setFinalOrderStatus(null);
     }
   }, [open, orders, defaultQuantities]);
   
@@ -442,6 +444,27 @@ export function UnifiedOrderPreviewModal({
       setIsPolling(false);
       setSubmissionComplete(true);
       
+      // Determine final status for banner
+      const filledCount = allStatuses.filter((s: OrderSubmissionStatus) => s.status === 'Filled').length;
+      const workingCount = allStatuses.filter((s: OrderSubmissionStatus) => s.status === 'Working').length;
+      const rejectedCount = allStatuses.filter((s: OrderSubmissionStatus) => s.status === 'Rejected').length;
+      const marketClosedCount = allStatuses.filter((s: OrderSubmissionStatus) => s.status === 'MarketClosed').length;
+      
+      if (filledCount > 0) {
+        setFinalOrderStatus('Filled');
+      } else if (workingCount > 0) {
+        setFinalOrderStatus('Working');
+      } else if (marketClosedCount > 0) {
+        setFinalOrderStatus('MarketClosed');
+      } else if (rejectedCount > 0) {
+        setFinalOrderStatus('Rejected');
+      }
+      
+      // Auto-hide polling section after 5 seconds
+      setTimeout(() => {
+        setIsPolling(false);
+      }, 5000);
+      
     } catch (error: any) {
       toast({
         title: "Submission Failed",
@@ -519,13 +542,54 @@ export function UnifiedOrderPreviewModal({
         </DialogHeader>
         
         <div className="space-y-6 overflow-y-auto flex-1 px-1">
-          {/* Dry Run Success Banner */}
-          {dryRunSuccess && (
+          {/* Status Banner */}
+          {dryRunSuccess && !finalOrderStatus && (
             <Alert className="border-green-500/50 bg-green-500/10">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
               <AlertTitle className="text-green-500">Dry Run Successful</AlertTitle>
               <AlertDescription className="text-green-500/80">
                 All orders validated. Click Submit Live to execute real orders.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {/* Final Order Status Banner */}
+          {finalOrderStatus === 'Filled' && (
+            <Alert className="border-green-500/50 bg-green-500/10">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <AlertTitle className="text-green-500">Order Successfully Filled</AlertTitle>
+              <AlertDescription className="text-green-500/80">
+                Your order has been filled successfully.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {finalOrderStatus === 'Working' && (
+            <Alert className="border-yellow-500/50 bg-yellow-500/10">
+              <AlertCircle className="h-4 w-4 text-yellow-500" />
+              <AlertTitle className="text-yellow-500">Order Working</AlertTitle>
+              <AlertDescription className="text-yellow-500/80">
+                Your order has been submitted and is currently working.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {finalOrderStatus === 'Rejected' && (
+            <Alert className="border-red-500/50 bg-red-500/10">
+              <AlertCircle className="h-4 w-4 text-red-500" />
+              <AlertTitle className="text-red-500">Order Rejected</AlertTitle>
+              <AlertDescription className="text-red-500/80">
+                Your order was rejected. Check the details below.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {finalOrderStatus === 'MarketClosed' && (
+            <Alert className="border-blue-500/50 bg-blue-500/10">
+              <AlertCircle className="h-4 w-4 text-blue-500" />
+              <AlertTitle className="text-blue-500">Market Closed</AlertTitle>
+              <AlertDescription className="text-blue-500/80">
+                The market is closed. Your order cannot be submitted at this time.
               </AlertDescription>
             </Alert>
           )}

@@ -22,6 +22,7 @@ import { ThetaDecayCards } from '@/components/projections/ThetaDecayCards';
 import { InteractiveROICalculator } from '@/components/projections/InteractiveROICalculator';
 import { DollarSign, Package, TrendingUp as TrendingUpIcon, TrendingDown as TrendingDownIcon } from 'lucide-react';
 import { useLocation } from 'wouter';
+import { ConnectionStatusIndicator } from '@/components/ConnectionStatusIndicator';
 
 export default function Performance() {
   const [location] = useLocation();
@@ -47,6 +48,18 @@ export default function Performance() {
           <p className="text-muted-foreground mt-1">
             Track your trading performance, active positions, and premium realization
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh Page
+          </Button>
+          <ConnectionStatusIndicator />
         </div>
       </div>
 

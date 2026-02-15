@@ -1,0 +1,15 @@
+{
+  "query": "SELECT tastytradeAccessTokenExpiresAt, updatedAt, SUBSTRING(tastytradeAccessToken, 1, 30) as tokenStart FROM apiCredentials WHERE userId = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT tastytradeAccessTokenExpiresAt, updatedAt, SUBSTRING(tastytradeAccessToken, 1, 30) as tokenStart FROM apiCredentials WHERE userId = 1;",
+  "rows": [
+    {
+      "tastytradeAccessTokenExpiresAt": "2026-02-15 05:38:43",
+      "updatedAt": "2026-02-15 05:23:43",
+      "tokenStart": "eyJhbGciOiJFZERTQSIsInR5cCI6Im"
+    }
+  ],
+  "messages": [],
+  "stdout": "tastytradeAccessTokenExpiresAt\tupdatedAt\ttokenStart\n2026-02-15 05:38:43\t2026-02-15 05:23:43\teyJhbGciOiJFZERTQSIsInR5cCI6Im\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

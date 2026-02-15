@@ -1,0 +1,20 @@
+{
+  "query": "SELECT \n  SUBSTRING(tastytradeClientSecret, 1, 10) as clientSecretStart,\n  SUBSTRING(tastytradeClientSecret, -10) as clientSecretEnd,\n  LENGTH(tastytradeClientSecret) as clientSecretLen,\n  SUBSTRING(tastytradeRefreshToken, 1, 50) as refreshTokenStart,\n  SUBSTRING(tastytradeRefreshToken, -50) as refreshTokenEnd,\n  LENGTH(tastytradeRefreshToken) as refreshTokenLen,\n  tastytradeAccessTokenExpiresAt,\n  updatedAt\nFROM apiCredentials \nWHERE userId = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT \n  SUBSTRING(tastytradeClientSecret, 1, 10) as clientSecretStart,\n  SUBSTRING(tastytradeClientSecret, -10) as clientSecretEnd,\n  LENGTH(tastytradeClientSecret) as clientSecretLen,\n  SUBSTRING(tastytradeRefreshToken, 1, 50) as refreshTokenStart,\n  SUBSTRING(tastytradeRefreshToken, -50) as refreshTokenEnd,\n  LENGTH(tastytradeRefreshToken) as refreshTokenLen,\n  tastytradeAccessTokenExpiresAt,\n  updatedAt\nFROM apiCredentials \nWHERE userId = 1;",
+  "rows": [
+    {
+      "clientSecretStart": "9452a71cba",
+      "clientSecretEnd": "bb446df0e6",
+      "clientSecretLen": "40",
+      "refreshTokenStart": "eyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6Il",
+      "refreshTokenEnd": "KEGDMevJVeLGQxbSm_5QOesVgxES2Ix4ctQBp2bTuGEhiCVJDQ",
+      "refreshTokenLen": "580",
+      "tastytradeAccessTokenExpiresAt": "2026-02-15 05:38:43",
+      "updatedAt": "2026-02-15 05:23:43"
+    }
+  ],
+  "messages": [],
+  "stdout": "clientSecretStart\tclientSecretEnd\tclientSecretLen\trefreshTokenStart\trefreshTokenEnd\trefreshTokenLen\ttastytradeAccessTokenExpiresAt\tupdatedAt\n9452a71cba\tbb446df0e6\t40\teyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6Il\tKEGDMevJVeLGQxbSm_5QOesVgxES2Ix4ctQBp2bTuGEhiCVJDQ\t580\t2026-02-15 05:38:43\t2026-02-15 05:23:43\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

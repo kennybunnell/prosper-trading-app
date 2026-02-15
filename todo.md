@@ -4657,4 +4657,50 @@
 - [x] Add "Reconnect Tastytrade" button to Settings page (Tastytrade API section)
 - [x] Simplify forceTokenRefresh to call getAccessToken directly (no complex clearing logic)
 - [ ] Test reconnection after sandbox hibernation
-- [ ] Create checkpoint with working reconnect button
+- [x] Create checkpoint with working reconnect button
+
+## Root Cause Fix: Token Persistence Across Server Restarts
+- [ ] Diagnose why authenticateTastytrade doesn't load saved tokens from database on server restart
+- [ ] Fix authenticateTastytrade to check database for valid saved token before requesting new one
+- [ ] Ensure TastytradeAPI constructor loads saved tokens when userId is set
+- [ ] Test that tokens persist across server restarts (code changes during development)
+- [ ] Create checkpoint with working token persistence
+
+## API Connection Status Indicator
+- [x] Find where "APIs Connected" indicator is implemented (ConnectionStatusIndicator.tsx)
+- [x] Fix getConnectionStatus to check actual token validity (not just credentials existence)
+- [x] Update indicator to show "Token Expired" when Tastytrade token is expired
+- [x] Add indicator to PMCC Dashboard
+- [x] Add indicator to Performance page
+- [x] Indicator already exists on CSP and CC Dashboards
+- [ ] Test indicator shows "Token Expired" when appropriate
+- [ ] Test indicator updates after clicking Reconnect button
+- [ ] Create checkpoint with working status indicator
+
+## Inline Token Refresh Button
+- [x] Add "Refresh Token" button to ConnectionStatusIndicator tooltip
+- [x] Only show button when Tastytrade token is expired (not when disconnected)
+- [x] Button calls forceTokenRefresh mutation
+- [x] Show loading spinner while refreshing
+- [x] Update indicator immediately after success
+- [ ] Test inline refresh works without navigating to Settings
+- [ ] Create checkpoint with working inline refresh
+
+## Live Order Submission Flow Fix
+- [x] Fix banner to show final order status instead of always "Dry Run Successful"
+- [x] Add finalOrderStatus state to track Filled/Working/Rejected/MarketClosed
+- [x] Update handleLiveSubmit to set finalOrderStatus based on polling results
+- [x] Create separate status banners for each final status (Filled, Working, Rejected, MarketClosed)
+- [x] Auto-hide polling section after 5 seconds when final status received
+- [x] Reset finalOrderStatus when modal opens
+- [ ] Test complete flow: Dry Run → Submit Live → Polling → Status Update
+- [ ] Create checkpoint with working live order flow
+
+## Authentication Persistence Root Cause Fix
+- [ ] Trace database loading logic in authenticateTastytrade function
+- [ ] Verify refresh token is being loaded from apiCredentials table correctly
+- [ ] Check if loaded refresh token is being passed to TastytradeAPI instance
+- [ ] Fix any issues preventing stored refresh token from being used on server restart
+- [ ] Test authentication persists across 3+ server restarts within 15 minutes
+- [ ] Update fix-credentials.md with correct troubleshooting (remove incorrect scope regeneration steps)
+- [ ] Create checkpoint with working authentication persistence

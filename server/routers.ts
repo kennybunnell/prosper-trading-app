@@ -607,19 +607,37 @@ export const appRouter = router({
       }
     }),
     getConnectionStatus: protectedProcedure.query(async ({ ctx }) => {
-      const { getApiCredentials } = await import('./db');
+      const { getApiCredentials, loadAccessToken } = await import('./db');
       const credentials = await getApiCredentials(ctx.user.id);
       
+      // Check if Tastytrade credentials are configured
       const tastytradeConfigured = !!(credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken);
+      
+      // Check if Tastytrade access token is valid (not expired)
+      let tastytradeConnected = false;
+      if (tastytradeConfigured) {
+        try {
+          const token = await loadAccessToken(ctx.user.id);
+          if (token?.accessToken && token?.expiresAt) {
+            const isExpired = new Date() >= token.expiresAt;
+            tastytradeConnected = !isExpired;
+          }
+        } catch (error) {
+          console.error('[ConnectionStatus] Failed to load Tastytrade token:', error);
+        }
+      }
+      
       const tradierConfigured = !!credentials?.tradierApiKey;
       
       return {
         tastytrade: {
           configured: tastytradeConfigured,
-          status: tastytradeConfigured ? 'connected' : 'disconnected',
+          connected: tastytradeConnected,
+          status: tastytradeConnected ? 'connected' : (tastytradeConfigured ? 'expired' : 'disconnected'),
         },
         tradier: {
           configured: tradierConfigured,
+          connected: tradierConfigured, // Tradier uses API key, no expiration
           status: tradierConfigured ? 'connected' : 'disconnected',
         },
       };

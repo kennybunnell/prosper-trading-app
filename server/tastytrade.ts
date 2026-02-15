@@ -215,19 +215,24 @@ export class TastytradeAPI {
       });
       console.log('[Tastytrade] Requesting OAuth2 access token...');
       
-      const requestBody = {
+      // Tastytrade OAuth2 endpoint requires application/x-www-form-urlencoded (NOT JSON)
+      const params = new URLSearchParams();
+      params.append('grant_type', 'refresh_token');
+      params.append('refresh_token', refreshToken);
+      params.append('client_secret', clientSecret);
+      
+      console.log('[Tastytrade] Request params:', {
         grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_secret: clientSecret,
-      };
-      console.log('[Tastytrade] Request body keys:', Object.keys(requestBody));
-      console.log('[Tastytrade] FULL REQUEST BODY:', JSON.stringify(requestBody, null, 2));
-      console.log('[Tastytrade] Grant type:', requestBody.grant_type);
-      console.log('[Tastytrade] Refresh token length:', refreshToken?.length || 0);
-      console.log('[Tastytrade] Client secret length:', clientSecret?.length || 0);
+        refresh_token_length: refreshToken?.length || 0,
+        client_secret_length: clientSecret?.length || 0,
+      });
       
       const response = await this.retryWithBackoff(() =>
-        this.client.post('/oauth/token', requestBody)
+        this.client.post('/oauth/token', params.toString(), {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        })
       );
       
       console.log('[Tastytrade OAuth2] === FULL API RESPONSE ===');
