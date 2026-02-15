@@ -165,7 +165,7 @@ export function UnifiedOrderPreviewModal({
       setSubmissionComplete(false);
       setFinalOrderStatus(null);
     }
-  }, [open, orders, defaultQuantities]);
+  }, [open, orders]); // Removed defaultQuantities from deps to prevent reset on parent re-render
   
   // Real-time validation whenever quantities change
   useEffect(() => {

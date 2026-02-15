@@ -4758,3 +4758,10 @@
 - [x] Fixed by explicitly removing Authorization header for `/oauth/token` requests
 - [x] Verified token refresh now works (200 OK response from Tastytrade)
 - [x] Auto-refresh at < 2 minutes will now work correctly
+
+## Order Preview Modal - Status Banner Not Persisting (URGENT)
+- [x] Fix modal resetting to "Execute Dry Run" state after live order submission (removed defaultQuantities from useEffect deps)
+- [x] Ensure status banners (Working/Filled/Rejected/MarketClosed) persist after submission
+- [x] Ensure Close button appears after submission completes
+- [x] Verify confetti and sound play on successful submission
+- [ ] Test complete workflow: Dry Run → Submit Live → Override Warning → See Status Banner → Click Close
