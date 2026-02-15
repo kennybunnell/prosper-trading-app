@@ -177,7 +177,8 @@ export function UnifiedOrderPreviewModal({
       const initialPrices = new Map<string, number>();
       orders.forEach(order => {
         const key = getOrderKey(order);
-        if (order.bid && order.ask) {
+        // For spreads (bid=0, ask=0), use premium directly; otherwise calculate midpoint
+        if (order.bid && order.ask && order.bid > 0 && order.ask > 0) {
           initialPrices.set(key, (order.bid + order.ask) / 2);
         } else {
           initialPrices.set(key, order.premium);
@@ -724,7 +725,8 @@ export function UnifiedOrderPreviewModal({
                   const maxQty = getMaxQuantity(order);
                   const price = adjustedPrices.get(key) || order.premium;
                   const totalPremium = price * 100 * qty;
-                  const hasMarketData = order.bid && order.ask;
+                  // For spreads (bid=0, ask=0), disable price adjustment slider
+                  const hasMarketData = order.bid && order.ask && order.bid > 0 && order.ask > 0;
                   
                   return (
                     <TableRow key={idx}>

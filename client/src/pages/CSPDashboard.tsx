@@ -850,9 +850,10 @@ export default function CSPDashboard() {
       quantity: 1, // Default quantity, can be adjusted in preview dialog
       // For spreads, use netCredit; for CSP, use premium
       premium: strategyType === 'spread' ? (opp as any).netCredit : opp.premium,
-      bid: opp.bid,
-      ask: opp.ask,
-      mid: (opp.bid + opp.ask) / 2,
+      // For spreads, set bid/ask to 0 so modal uses premium (netCredit) instead of calculating midpoint from short leg
+      bid: strategyType === 'spread' ? 0 : opp.bid,
+      ask: strategyType === 'spread' ? 0 : opp.ask,
+      mid: strategyType === 'spread' ? (opp as any).netCredit : (opp.bid + opp.ask) / 2,
       collateral: strategyType === 'spread' ? (opp as any).capitalAtRisk : (opp.strike * 100),
       status: 'valid' as const,
       currentPrice: opp.currentPrice,

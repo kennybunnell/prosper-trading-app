@@ -4806,3 +4806,11 @@
 - [x] Updated summary cards (Total Premium, ROC) to correctly calculate using netCredit for spreads
 - [x] Updated order construction to pass netCredit as premium for spread orders
 - [x] Verified UnifiedOrderPreviewModal correctly displays premium using the netCredit value passed from dashboards
+
+## Bull Put Spread Net Credit Modal Fix
+- [x] Analyze UnifiedOrderPreviewModal price adjustment logic for spreads
+- [x] Fix modal to display net credit ($1.53) instead of short leg premium ($2.16) for Bull Put Spreads
+- [x] Ensure price adjustment slider is disabled for spreads (bid/ask = 0)
+- [x] Updated CSPDashboard to pass bid=0, ask=0 for spreads so modal uses premium (netCredit)
+- [x] Updated CCDashboard to pass bid=0, ask=0 for spreads
+- [x] Updated UnifiedOrderPreviewModal to skip midpoint calculation when bid/ask are 0
