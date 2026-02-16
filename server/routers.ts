@@ -19,6 +19,7 @@ import { feedbackRouter } from "./routers-feedback";
 import { inboxRouter } from "./routers-inbox";
 import { chatRouter } from "./routers-chat";
 import { validationRouter } from "./routers-validation";
+import { stripeRouter } from "./routers-stripe";
 
 // Helper function to parse OCC option symbols
 function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
@@ -298,6 +299,7 @@ export const appRouter = router({
   inbox: inboxRouter,
   chat: chatRouter,
   validation: validationRouter,
+  stripe: stripeRouter,
   demo: demoRouter,
   paperTrading: paperTradingRouter,
   pmcc: pmccRouter,

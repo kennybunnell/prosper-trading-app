@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { AccountProvider } from "./contexts/AccountContext";
 import Home from "./pages/Home";
 import Settings from "./pages/Settings";
+import Subscription from "./pages/Subscription";
 import CSPDashboard from "./pages/CSPDashboard";
 import CCDashboard from "./pages/CCDashboard";
 import PMCCDashboard from "./pages/PMCCDashboard";
@@ -23,6 +24,7 @@ import { Sidebar } from "./components/Sidebar";
 import { PaperTradingBanner } from "./components/PaperTradingBanner";
 import { SupportWidget } from "./components/SupportWidget";
 import { LegalAcceptanceModal } from "./components/LegalAcceptanceModal";
+import { TrialExpirationModal } from "./components/TrialExpirationModal";
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
@@ -31,7 +33,9 @@ function Router() {
   const [location] = useLocation();
   const isAdminRoute = location.startsWith('/admin');
   const [showLegalModal, setShowLegalModal] = useState(false);
+  const [showTrialModal, setShowTrialModal] = useState(false);
   const { data: user, refetch } = trpc.auth.me.useQuery();
+  const subscriptionStatus = trpc.stripe.getSubscriptionStatus.useQuery();
   
   // Enable heartbeat in development to prevent sandbox hibernation
   const isDevelopment = import.meta.env.DEV;
@@ -42,6 +46,23 @@ function Router() {
       setShowLegalModal(true);
     }
   }, [user]);
+
+  // Show trial expiration modal when trial is expiring or expired
+  useEffect(() => {
+    if (!subscriptionStatus.data) return;
+    
+    const { tier, trialEndsAt } = subscriptionStatus.data;
+    if (tier !== 'free_trial' || !trialEndsAt) return;
+
+    const now = new Date();
+    const trialEnd = new Date(trialEndsAt);
+    const daysRemaining = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Show modal if trial expires in 3 days or less, or has expired
+    if (daysRemaining <= 3) {
+      setShowTrialModal(true);
+    }
+  }, [subscriptionStatus.data]);
 
   const handleLegalAccepted = () => {
     setShowLegalModal(false);
@@ -65,6 +86,11 @@ function Router() {
   return (
     <>
       <LegalAcceptanceModal open={showLegalModal} onAccepted={handleLegalAccepted} />
+      <TrialExpirationModal 
+        open={showTrialModal} 
+        daysRemaining={subscriptionStatus.data?.trialEndsAt ? Math.max(0, Math.ceil((new Date(subscriptionStatus.data.trialEndsAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0}
+        onClose={() => setShowTrialModal(false)}
+      />
       <div className="flex h-screen">
         <Sidebar />
         <div className="flex-1 overflow-auto relative">
@@ -72,6 +98,7 @@ function Router() {
           <SupportWidget />
         <Switch>          <Route path={"/"} component={Home} />
           <Route path={"/settings"} component={Settings} />
+          <Route path={"/subscription"} component={Subscription} />
           <Route path="/inbox" component={Inbox} />
           <Route path="/action-items" component={ActionItems} />
           <Route path={"/csp"} component={CSPDashboard} />

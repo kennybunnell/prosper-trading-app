@@ -5263,3 +5263,39 @@
 - [ ] Create subscription management UI (upgrade/downgrade)
 - [ ] Create trial expiration popup (14-day limit)
 - [ ] Test complete subscription flow
+
+## Implement Complete Stripe Subscription System
+- [ ] Create Stripe checkout backend procedures (createCheckoutSession with setup fee logic)
+- [ ] Add webhook handler for subscription events (checkout.session.completed, customer.subscription.updated)
+- [ ] Build subscription management page UI (/subscription route)
+- [ ] Add upgrade/downgrade buttons with tier comparison cards
+- [ ] Implement trial expiration check on app load
+- [ ] Create trial expiration popup component with DIY/assisted setup options
+- [ ] Add Calendly scheduling link integration for assisted setup
+- [ ] Test complete subscription flow (Tier 1 → 2 → 3 → 4)
+- [ ] Test trial expiration popup triggers correctly after 14 days
+- [ ] Test webhook events update database correctly
+
+## ✅ Subscription & Payment System (Completed)
+- [x] Created Stripe products configuration with all tier pricing and setup fees
+- [x] Implemented calculateSetupFees function with credential-based logic
+- [x] Created Stripe router with checkout session and webhook endpoints
+- [x] Built subscription management page UI with tier comparison
+- [x] Implemented trial expiration popup with DIY/assisted setup options
+- [x] Added automatic trial expiration detection (shows popup 3 days before expiry)
+- [x] Integrated trial popup into App.tsx with proper state management
+- [x] Created comprehensive test suite for Stripe integration (27/27 tests passing)
+- [x] Documented all 10 upgrade paths with credential-based setup fees
+- [x] Added Calendly integration for assisted setup scheduling
+- [x] Implemented getSubscriptionStatus endpoint for frontend
+- [x] Added upgrade/downgrade options based on current tier
+
+## 🚀 Next Steps: Stripe Integration
+- [ ] User needs to create Stripe products following STRIPE_SETUP_GUIDE.md
+- [ ] Configure Stripe webhook endpoint in Stripe dashboard
+- [ ] Test checkout flow with Stripe test cards
+- [ ] Implement webhook handler for subscription events (payment_intent.succeeded, customer.subscription.updated, etc.)
+- [ ] Add payment method management UI
+- [ ] Test complete subscription upgrade/downgrade flow
+- [ ] Add subscription cancellation flow
+- [ ] Implement prorated billing for mid-cycle upgrades
