@@ -63,8 +63,8 @@ export default function IronCondorDashboard() {
   const [selectedPortfolioSizes, setSelectedPortfolioSizes] = useState<string[]>(['small', 'medium', 'large']);
   
   // Filter parameters
-  const [minDte, setMinDte] = useState(30);
-  const [maxDte, setMaxDte] = useState(60);
+  const [minDte, setMinDte] = useState(7);
+  const [maxDte, setMaxDte] = useState(45);
   const [spreadWidth, setSpreadWidth] = useState(5);
   
   // Range filter state (for UI sliders)
@@ -588,10 +588,10 @@ export default function IronCondorDashboard() {
       {opportunities.length > 0 && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <Card>
+            <Card className="bg-gradient-to-br from-green-500/10 to-green-600/10 border-green-500/20">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Premium</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <DollarSign className="h-4 w-4 text-green-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-500">
@@ -603,10 +603,10 @@ export default function IronCondorDashboard() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Collateral</CardTitle>
-                <Target className="h-4 w-4 text-muted-foreground" />
+                <Target className="h-4 w-4 text-blue-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
@@ -615,10 +615,10 @@ export default function IronCondorDashboard() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/10 border-purple-500/20">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Weighted ROC</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <TrendingUp className="h-4 w-4 text-purple-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
@@ -627,10 +627,10 @@ export default function IronCondorDashboard() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/10 border-orange-500/20">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Opportunities</CardTitle>
-                <Sparkles className="h-4 w-4 text-muted-foreground" />
+                <Sparkles className="h-4 w-4 text-orange-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
@@ -642,10 +642,10 @@ export default function IronCondorDashboard() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Buying Power</CardTitle>
-                <Target className="h-4 w-4 text-muted-foreground" />
+                <Target className="h-4 w-4 text-blue-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
@@ -847,7 +847,7 @@ export default function IronCondorDashboard() {
         orders={ordersForPreview}
         strategy="bps"
         accountId={selectedAccountId || ""}
-        availableBuyingPower={0}
+        availableBuyingPower={availableBuyingPower}
         onSubmit={async () => {
           toast.info("Order submission coming soon");
           return { results: [] };

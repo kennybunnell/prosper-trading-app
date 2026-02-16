@@ -4964,3 +4964,41 @@
   - [ ] Test Show Selected Only toggles table view
   - [ ] Verify buying power validation works
   - [ ] Save checkpoint for completed Iron Condor dashboard
+
+## Iron Condor Dashboard Fixes (Feb 15, 2026)
+
+- [x] Fix 1: Change default DTE values
+  - [x] Change Min DTE from 30 to 7
+  - [x] Change Max DTE from 60 to 45
+
+- [x] Fix 2: Fix buying power in order preview
+  - [x] Pass actual buying power value to UnifiedOrderPreviewModal
+  - [ ] Verify buying power displays correctly in order preview summary
+
+- [x] Fix 3: Add colored backgrounds to summary cards
+  - [x] Total Premium card - green background
+  - [x] Total Collateral card - blue background
+  - [x] ROC card - purple background
+  - [x] Opportunities card - orange background
+  - [x] Buying Power card - blue background with usage percentage color
+
+- [x] Fix 4: Analyze and fix scoring algorithm
+  - [x] Reduce IV Rank weight from 15% to 10%
+  - [x] Increase POP weight from 15% to 20%
+  - [x] Increase DTE weight from 10% to 15%
+  - [x] Increase BB weight from 5% to 10%
+  - [x] Adjust ROC normalization: 10% max (not 100%) - 5% ROC now = 10 points
+  - [x] Adjust R/R normalization: 5% max (not 50%) - 2% R/R now = 6 points
+  - [x] New formula: ROC 20% + R/R 15% + POP 20% + IV 10% + DTE 15% + RSI 10% + BB 10%
+  - [ ] Target: scores should range 60-85 for typical opportunities
+
+- [x] Fix 5: Verify collateral calculation
+  - [x] Check why all collateral shows $500 - CORRECT: All using 5pt spread width
+  - [x] Verify: 2pt spread = $200, 5pt = $500, 10pt = $1000 - Formula is correct
+  - [x] Ensure collateral = max(put spread width, call spread width) × 100 - Implemented correctly
+  - [x] Net credit display is correct: (totalNetCredit × 100) shown in table
+  - Note: Collateral is same for all ICs with same spread width - this is expected behavior
+
+- [ ] Fix 6: Add progress bar (DEFERRED - requires backend streaming)
+  - [ ] Show "Processing X of Y symbols..." with progress percentage
+  - [ ] Display time estimate or completion percentage

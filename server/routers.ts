@@ -1877,25 +1877,28 @@ Summary: [One sentence overall assessment]`;
         console.log(`[Iron Condor] Formed ${ironCondors.length} Iron Condor opportunities`);
 
         // Score Iron Condors using enhanced scoring algorithm with technical indicators
-        // Formula: (ROC × 25) + (Risk/Reward × 20) + (POP × 15) + (IV Rank × 15) + (DTE × 10) + (RSI × 10) + (BB × 5)
+        // Formula: (ROC × 20) + (Risk/Reward × 15) + (POP × 20) + (IV Rank × 10) + (DTE × 15) + (RSI × 10) + (BB × 10)
+        // Adjusted normalization for realistic Iron Condor metrics
         const scoredIronCondors = ironCondors.map(ic => {
-          // ROC score (0-100, normalized to 0-25)
-          const rocScore = Math.min(ic.roc / 100 * 25, 25);
+          // ROC score (normalize against 10% ROC as max, not 100%)
+          // Typical Iron Condor ROC: 2-5%, excellent: 8-10%
+          const rocScore = Math.min((ic.roc / 10) * 20, 20);
           
-          // Risk/Reward score (net credit / collateral, normalized to 0-20)
+          // Risk/Reward score (normalize against 5% ratio as max, not 50%)
+          // Typical Iron Condor R/R: 1-2%, excellent: 3-5%
           const riskReward = (ic.totalNetCredit * 100) / ic.totalCollateral;
-          const riskRewardScore = Math.min(riskReward / 50 * 20, 20);
+          const riskRewardScore = Math.min((riskReward / 5) * 15, 15);
           
           // POP (Probability of Profit) score - estimate based on profit zone width
-          // Wider profit zone = higher POP (normalized to 0-15)
+          // Wider profit zone = higher POP (normalized to 0-20, increased weight)
           const profitZonePct = (ic.profitZone / ic.currentPrice) * 100;
-          const popScore = Math.min(profitZonePct / 20 * 15, 15);
+          const popScore = Math.min(profitZonePct / 20 * 20, 20);
           
-          // IV Rank score (0-100, normalized to 0-15)
-          const ivRankScore = ic.ivRank !== null ? (ic.ivRank / 100) * 15 : 7.5;
+          // IV Rank score (reduced weight from 15% to 10%)
+          const ivRankScore = ic.ivRank !== null ? (ic.ivRank / 100) * 10 : 5;
           
-          // DTE score (prefer 30-45 DTE, normalized to 0-10)
-          const dteScore = ic.dte >= 30 && ic.dte <= 45 ? 10 : Math.max(0, 10 - Math.abs(ic.dte - 37.5) / 5);
+          // DTE score (prefer 30-45 DTE, increased weight to 15%)
+          const dteScore = ic.dte >= 30 && ic.dte <= 45 ? 15 : Math.max(0, 15 - Math.abs(ic.dte - 37.5) / 3);
           
           // RSI score (prefer neutral 40-60 range for Iron Condors, normalized to 0-10)
           let rsiScore = 5; // Default if RSI not available
@@ -1911,15 +1914,15 @@ Summary: [One sentence overall assessment]`;
             }
           }
           
-          // Bollinger Band %B score (prefer middle range 0.3-0.7, normalized to 0-5)
-          let bbScore = 2.5; // Default if BB not available
+          // Bollinger Band %B score (prefer middle range 0.3-0.7, increased weight to 10)
+          let bbScore = 5; // Default if BB not available
           if (ic.bbPctB !== null) {
             if (ic.bbPctB >= 0.3 && ic.bbPctB <= 0.7) {
-              bbScore = 5; // Perfect middle range
+              bbScore = 10; // Perfect middle range
             } else if (ic.bbPctB >= 0.2 && ic.bbPctB <= 0.8) {
-              bbScore = 3; // Acceptable
+              bbScore = 6; // Acceptable
             } else {
-              bbScore = 1; // Too extreme (near bands)
+              bbScore = 2; // Too extreme (near bands)
             }
           }
           
