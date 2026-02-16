@@ -804,12 +804,14 @@ export default function CCDashboard() {
       premium: strategyType === 'spread' ? (opp.netCredit || 0) : opp.premium,
       action: "STO" as const, // Sell to Open for CC and BCS
       optionType: "CALL" as const,
-      // For spreads, include long leg
+      // For spreads, include long leg with bid/ask for net credit range calculation
       longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
       longPremium: strategyType === 'spread' ? (opp.longAsk || 0) : undefined,
-      // For spreads, set bid/ask to 0 so modal uses premium (netCredit) instead of calculating midpoint
-      bid: strategyType === 'spread' ? 0 : opp.bid,
-      ask: strategyType === 'spread' ? 0 : opp.ask,
+      longBid: strategyType === 'spread' ? opp.longBid : undefined,
+      longAsk: strategyType === 'spread' ? opp.longAsk : undefined,
+      // For spreads, pass short leg bid/ask so modal can calculate net credit range
+      bid: strategyType === 'spread' ? opp.bid : opp.bid,
+      ask: strategyType === 'spread' ? opp.ask : opp.ask,
       currentPrice: opp.currentPrice,
     }));
 

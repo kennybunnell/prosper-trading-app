@@ -30,10 +30,12 @@ export interface UnifiedOrder {
   // Optional fields for spreads
   longStrike?: number;
   longPremium?: number;
+  longBid?: number;  // Long leg bid (for spread net credit range calculation)
+  longAsk?: number;  // Long leg ask (for spread net credit range calculation)
   
   // Optional fields for validation
-  bid?: number;
-  ask?: number;
+  bid?: number;  // Short leg bid
+  ask?: number;  // Short leg ask
   currentPrice?: number;
   
   // Optional fields for replace mode
@@ -177,10 +179,21 @@ export function UnifiedOrderPreviewModal({
       const initialPrices = new Map<string, number>();
       orders.forEach(order => {
         const key = getOrderKey(order);
-        // For spreads (bid=0, ask=0), use premium directly; otherwise calculate midpoint
-        if (order.bid && order.ask && order.bid > 0 && order.ask > 0) {
+        
+        // For spreads, calculate net credit midpoint from both legs
+        if (order.longStrike && order.bid && order.ask && order.longBid && order.longAsk) {
+          // Net credit range: (shortBid - longAsk) to (shortAsk - longBid)
+          const minCredit = order.bid - order.longAsk;  // Most aggressive
+          const maxCredit = order.ask - order.longBid;  // Most conservative
+          const midCredit = (minCredit + maxCredit) / 2;
+          initialPrices.set(key, midCredit);
+        }
+        // For single-leg options, use bid/ask midpoint
+        else if (order.bid && order.ask && order.bid > 0 && order.ask > 0) {
           initialPrices.set(key, (order.bid + order.ask) / 2);
-        } else {
+        }
+        // Fallback to premium if no market data
+        else {
           initialPrices.set(key, order.premium);
         }
       });
@@ -577,11 +590,25 @@ export function UnifiedOrderPreviewModal({
   // Set price via slider (between bid and mid)
   const setPriceFromSlider = (order: UnifiedOrder, value: number[]) => {
     if (!order.bid || !order.ask) return;
-    const mid = (order.bid + order.ask) / 2;
     
-    // Map slider value (0-100) to price range (bid to mid)
-    const priceRange = mid - order.bid;
-    const newPrice = order.bid + (priceRange * value[0] / 100);
+    let minPrice, midPrice;
+    
+    // For spreads, calculate net credit range from both legs
+    if (order.longStrike && order.longBid && order.longAsk) {
+      // Net credit range: (shortBid - longAsk) to (shortAsk - longBid)
+      minPrice = order.bid - order.longAsk;  // Most aggressive (what we can realistically get)
+      const maxPrice = order.ask - order.longBid;  // Most conservative
+      midPrice = (minPrice + maxPrice) / 2;
+    }
+    // For single-leg options, use bid/ask
+    else {
+      minPrice = order.bid;
+      midPrice = (order.bid + order.ask) / 2;
+    }
+    
+    // Map slider value (0-100) to price range (min to mid)
+    const priceRange = midPrice - minPrice;
+    const newPrice = minPrice + (priceRange * value[0] / 100);
     const roundedPrice = Math.round(newPrice * 100) / 100;
     
     const key = getOrderKey(order);
@@ -591,14 +618,28 @@ export function UnifiedOrderPreviewModal({
   // Calculate slider position (0-100) based on current price
   const getSliderPosition = (order: UnifiedOrder): number[] => {
     if (!order.bid || !order.ask) return [50];
-    const mid = (order.bid + order.ask) / 2;
+    
+    let minPrice, midPrice;
+    
+    // For spreads, calculate net credit range from both legs
+    if (order.longStrike && order.longBid && order.longAsk) {
+      minPrice = order.bid - order.longAsk;  // Most aggressive
+      const maxPrice = order.ask - order.longBid;  // Most conservative
+      midPrice = (minPrice + maxPrice) / 2;
+    }
+    // For single-leg options, use bid/ask
+    else {
+      minPrice = order.bid;
+      midPrice = (order.bid + order.ask) / 2;
+    }
+    
     const key = getOrderKey(order);
     const currentPrice = adjustedPrices.get(key) || order.premium;
     
-    const priceRange = mid - order.bid;
+    const priceRange = midPrice - minPrice;
     if (priceRange === 0) return [50];
     
-    const position = ((currentPrice - order.bid) / priceRange) * 100;
+    const position = ((currentPrice - minPrice) / priceRange) * 100;
     return [Math.max(0, Math.min(100, position))];
   };
   
@@ -616,7 +657,19 @@ export function UnifiedOrderPreviewModal({
     
     orders.forEach(order => {
       if (order.bid && order.ask) {
-        const mid = (order.bid + order.ask) / 2;
+        let mid;
+        
+        // For spreads, calculate net credit midpoint from both legs
+        if (order.longStrike && order.longBid && order.longAsk) {
+          const minCredit = order.bid - order.longAsk;
+          const maxCredit = order.ask - order.longBid;
+          mid = (minCredit + maxCredit) / 2;
+        }
+        // For single-leg options, use bid/ask midpoint
+        else {
+          mid = (order.bid + order.ask) / 2;
+        }
+        
         const key = getOrderKey(order);
         newPrices.set(key, Math.round(mid * 100) / 100);
         updatedCount++;
@@ -725,8 +778,11 @@ export function UnifiedOrderPreviewModal({
                   const maxQty = getMaxQuantity(order);
                   const price = adjustedPrices.get(key) || order.premium;
                   const totalPremium = price * 100 * qty;
-                  // For spreads (bid=0, ask=0), disable price adjustment slider
-                  const hasMarketData = order.bid && order.ask && order.bid > 0 && order.ask > 0;
+                  // Check if we have market data for price adjustment slider
+                  // For spreads: need both legs' bid/ask; for single-leg: just bid/ask
+                  const hasMarketData = order.longStrike 
+                    ? (order.bid && order.ask && order.longBid && order.longAsk)
+                    : (order.bid && order.ask && order.bid > 0 && order.ask > 0);
                   
                   return (
                     <TableRow key={idx}>
@@ -792,7 +848,16 @@ export function UnifiedOrderPreviewModal({
                           </span>
                           {hasMarketData && (
                             <div className="text-xs text-muted-foreground">
-                              <div>Mid: ${((order.bid! + order.ask!) / 2).toFixed(2)}</div>
+                              <div>Mid: ${(() => {
+                                // For spreads, show net credit midpoint
+                                if (order.longStrike && order.longBid && order.longAsk) {
+                                  const minCredit = order.bid! - order.longAsk;
+                                  const maxCredit = order.ask! - order.longBid;
+                                  return ((minCredit + maxCredit) / 2).toFixed(2);
+                                }
+                                // For single-leg, show bid/ask midpoint
+                                return ((order.bid! + order.ask!) / 2).toFixed(2);
+                              })()}</div>
                             </div>
                           )}
                         </div>

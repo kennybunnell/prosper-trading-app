@@ -4814,3 +4814,24 @@
 - [x] Updated CSPDashboard to pass bid=0, ask=0 for spreads so modal uses premium (netCredit)
 - [x] Updated CCDashboard to pass bid=0, ask=0 for spreads
 - [x] Updated UnifiedOrderPreviewModal to skip midpoint calculation when bid/ask are 0
+
+## Bull Put Spread Net Credit Slider Fix (Proper Implementation)
+- [x] Analyze Bull Put Spread opportunity data structure to find both legs' bid/ask (found longBid, longAsk in backend)
+- [x] Update CSPDashboard to pass short leg bid/ask AND long leg bid/ask to modal
+- [x] Update UnifiedOrder interface to include longBid and longAsk fields
+- [x] Update UnifiedOrderPreviewModal to calculate spread net credit range: (shortBid - longAsk) to (shortAsk - longBid)
+- [x] Update setPriceFromSlider to handle spread net credit range
+- [x] Update getSliderPosition to calculate position based on spread net credit range
+- [x] Update handleResetAllToMidpoint to reset to spread net credit midpoint
+- [x] Update mid price display to show spread net credit midpoint
+- [x] Test with real AMZN Bull Put Spread data and verify slider adjusts net credit correctly (USER CONFIRMED WORKING)
+- [x] Apply same fix to Bear Call Spreads in CCDashboard (added longBid/longAsk to order construction)
+
+## URGENT: Debug longBid/longAsk Not Reaching Modal
+- [x] Check if spread opportunities from backend actually contain longBid/longAsk fields (YES - in spread-pricing.ts)
+- [x] Verify CSPDashboard is correctly accessing (opp as any).longBid and (opp as any).longAsk (YES - lines 865-866)
+- [x] Found issue: validateOrders mutation was stripping out longBid/longAsk fields
+- [x] Added longBid/longAsk to validateOrders input schema (server/routers.ts)
+- [x] Added longBid/longAsk to validateOrders return object (server/routers.ts)
+- [x] Added longBid/longAsk to validateOrders.onSuccess mapping (CSPDashboard.tsx)
+- [x] Test with real AMZN Bull Put Spread to confirm slider appears and calculates net credit correctly (USER CONFIRMED WORKING)

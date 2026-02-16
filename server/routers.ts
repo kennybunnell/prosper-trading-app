@@ -1017,6 +1017,8 @@ Summary: [One sentence overall assessment]`;
             isSpread: z.boolean().optional(),
             spreadType: z.enum(['bull_put', 'bear_call']).optional(),
             longStrike: z.number().optional(),
+            longBid: z.number().optional(),
+            longAsk: z.number().optional(),
             spreadWidth: z.number().optional(),
             capitalAtRisk: z.number().optional(),
           })),
@@ -1103,6 +1105,8 @@ Summary: [One sentence overall assessment]`;
             isSpread: order.isSpread,
             spreadType: order.spreadType,
             longStrike: order.longStrike,
+            longBid: order.longBid ? order.longBid * 100 : undefined, // Long leg bid per contract
+            longAsk: order.longAsk ? order.longAsk * 100 : undefined, // Long leg ask per contract
             spreadWidth: order.spreadWidth,
             // Market data for price adjustment
             bid: order.bid * 100, // Bid per contract

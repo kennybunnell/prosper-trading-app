@@ -646,6 +646,8 @@ export default function CSPDashboard() {
         // For spreads, include long leg
         longStrike: order.longStrike,
         longPremium: order.longPremium ? order.longPremium / 100 : undefined,
+        longBid: order.longBid ? order.longBid / 100 : undefined,
+        longAsk: order.longAsk ? order.longAsk / 100 : undefined,
       }));
       
       setUnifiedOrders(orders);
@@ -850,9 +852,9 @@ export default function CSPDashboard() {
       quantity: 1, // Default quantity, can be adjusted in preview dialog
       // For spreads, use netCredit; for CSP, use premium
       premium: strategyType === 'spread' ? (opp as any).netCredit : opp.premium,
-      // For spreads, set bid/ask to 0 so modal uses premium (netCredit) instead of calculating midpoint from short leg
-      bid: strategyType === 'spread' ? 0 : opp.bid,
-      ask: strategyType === 'spread' ? 0 : opp.ask,
+      // For spreads, pass both legs' bid/ask so modal can calculate net credit range
+      bid: opp.bid, // Short leg bid
+      ask: opp.ask, // Short leg ask
       mid: strategyType === 'spread' ? (opp as any).netCredit : (opp.bid + opp.ask) / 2,
       collateral: strategyType === 'spread' ? (opp as any).capitalAtRisk : (opp.strike * 100),
       status: 'valid' as const,
@@ -862,6 +864,8 @@ export default function CSPDashboard() {
       isSpread: strategyType === 'spread',
       spreadType: strategyType === 'spread' ? 'bull_put' as const : undefined,
       longStrike: strategyType === 'spread' ? (opp as any).longStrike : undefined,
+      longBid: strategyType === 'spread' ? (opp as any).longBid : undefined,
+      longAsk: strategyType === 'spread' ? (opp as any).longAsk : undefined,
       spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
       capitalAtRisk: strategyType === 'spread' ? (opp as any).capitalAtRisk : undefined,
     }));
