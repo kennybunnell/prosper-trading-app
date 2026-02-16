@@ -4835,3 +4835,18 @@
 - [x] Added longBid/longAsk to validateOrders return object (server/routers.ts)
 - [x] Added longBid/longAsk to validateOrders.onSuccess mapping (CSPDashboard.tsx)
 - [x] Test with real AMZN Bull Put Spread to confirm slider appears and calculates net credit correctly (USER CONFIRMED WORKING)
+
+## Iron Condor Dashboard Implementation
+- [x] Create backend `ironCondor.opportunities` tRPC procedure in server/routers.ts
+- [x] Combine Bull Put Spread and Bear Call Spread scanners in backend
+- [x] Calculate combined net credit, ROC, breakevens, and profit zone
+- [x] Add `calculateBearCallSpread` function to server/spread-pricing.ts
+- [x] Fix TypeScript errors (CCOpportunity import, Array.from for Map iteration)
+- [ ] Create IronCondorDashboard.tsx component (copy from CSPDashboard structure)
+- [ ] Design table to show 4 strikes (put short/long, call short/long)
+- [ ] Reuse watchlist, filters, and selection logic from existing dashboards
+- [ ] Build 4-leg order construction for Iron Condor submission
+- [ ] Add "Iron Condor" navigation item to sidebar (between Covered Calls and PMCC)
+- [ ] Test Iron Condor scanning with real market data
+- [ ] Test 4-leg order submission to Tastytrade
+- [ ] Verify order preview modal displays all 4 legs correctly

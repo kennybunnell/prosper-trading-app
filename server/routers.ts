@@ -1590,6 +1590,267 @@ Summary: [One sentence overall assessment]`;
       }),
   }),
 
+  // Iron Condor (4-leg strategy: Bull Put Spread + Bear Call Spread)
+  ironCondor: router({
+    opportunities: protectedProcedure
+      .input(
+        z.object({
+          symbols: z.array(z.string()).optional(),
+          minDelta: z.number().optional(),
+          maxDelta: z.number().optional(),
+          minDte: z.number().optional(),
+          maxDte: z.number().optional(),
+          minVolume: z.number().optional(),
+          minOI: z.number().optional(),
+          spreadWidth: z.number(), // 2, 5, or 10 (same width for both sides)
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        const { getApiCredentials } = await import('./db');
+        const { createTradierAPI } = await import('./tradier');
+        const { scoreOpportunities } = await import('./scoring');
+        const { calculateBullPutSpread, calculateBearCallSpread } = await import('./spread-pricing');
+
+        const credentials = await getApiCredentials(ctx.user.id);
+        
+        // Determine if user can use system API key (only free trial users)
+        const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+        const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
+        
+        if (!tradierApiKey) {
+          if (isFreeTrialUser) {
+            throw new Error('System Tradier API key not configured. Please contact support.');
+          } else {
+            throw new Error('Please configure your Tradier API key in Settings to access live market data.');
+          }
+        }
+
+        const api = createTradierAPI(tradierApiKey);
+        const symbols = input.symbols || [];
+        
+        if (symbols.length === 0) {
+          return [];
+        }
+
+        console.log(`[Iron Condor] Scanning ${symbols.length} symbols for Iron Condor opportunities...`);
+
+        // Fetch CSP opportunities (these will be the put side short strikes)
+        const cspOpportunities = await api.fetchCSPOpportunities(
+          symbols,
+          input.minDelta || 0.15,
+          input.maxDelta || 0.35,
+          input.minDte || 7,
+          input.maxDte || 45,
+          input.minVolume || 5,
+          input.minOI || 50
+        );
+
+        console.log(`[Iron Condor] Found ${cspOpportunities.length} CSP opportunities`);
+
+        // Pre-fetch all unique option chains for both puts and calls
+        const chainCache = new Map<string, any[]>();
+        const uniqueChains = new Map<string, { symbol: string; expiration: string }>();
+        
+        for (const opp of cspOpportunities) {
+          const key = `${opp.symbol}|${opp.expiration}`;
+          if (!uniqueChains.has(key)) {
+            uniqueChains.set(key, { symbol: opp.symbol, expiration: opp.expiration });
+          }
+        }
+        
+        console.log(`[Iron Condor] Fetching ${uniqueChains.size} unique option chains...`);
+        
+        // Fetch all chains in parallel (with concurrency limit)
+        const CONCURRENT_CHAINS = 5;
+        const chainEntries = Array.from(uniqueChains.entries());
+        
+        for (let i = 0; i < chainEntries.length; i += CONCURRENT_CHAINS) {
+          const batch = chainEntries.slice(i, i + CONCURRENT_CHAINS);
+          const batchPromises = batch.map(async ([key, { symbol, expiration }]) => {
+            try {
+              const options = await api.getOptionChain(symbol, expiration, true);
+              chainCache.set(key, options);
+              console.log(`[Iron Condor] Cached chain for ${symbol} ${expiration} (${options.length} contracts)`);
+            } catch (error) {
+              console.error(`[Iron Condor] Failed to fetch chain for ${symbol} ${expiration}:`, error);
+              chainCache.set(key, []); // Cache empty array to avoid retry
+            }
+          });
+          await Promise.all(batchPromises);
+        }
+        
+        console.log(`[Iron Condor] Cached ${chainCache.size} option chains, now calculating spreads...`);
+        
+        // Calculate Bull Put Spreads
+        const bullPutSpreads = new Map<string, any>();
+        for (const cspOpp of cspOpportunities) {
+          try {
+            const longStrike = cspOpp.strike - input.spreadWidth;
+            const key = `${cspOpp.symbol}|${cspOpp.expiration}`;
+            const options = chainCache.get(key) || [];
+            
+            if (options.length === 0) continue;
+            
+            const longPut = options.find(
+              opt => opt.option_type === 'put' && opt.strike === longStrike
+            );
+            
+            if (!longPut || !longPut.bid || !longPut.ask) continue;
+            
+            const spreadOpp = calculateBullPutSpread(
+              cspOpp,
+              input.spreadWidth,
+              {
+                bid: longPut.bid,
+                ask: longPut.ask,
+                delta: Math.abs(longPut.greeks?.delta || 0),
+              }
+            );
+            
+            if (spreadOpp.netCredit > 0) {
+              bullPutSpreads.set(key, spreadOpp);
+            }
+          } catch (error) {
+            console.error(`[Iron Condor] Error calculating BPS for ${cspOpp.symbol}:`, error);
+          }
+        }
+
+        // Calculate Bear Call Spreads from the same option chains
+        const bearCallSpreads = new Map<string, any>();
+        for (const bps of Array.from(bullPutSpreads.values())) {
+          try {
+            const key = `${bps.symbol}|${bps.expiration}`;
+            const options = chainCache.get(key) || [];
+            
+            if (options.length === 0) continue;
+            
+            // Find OTM calls with similar delta to our puts (symmetric Iron Condor)
+            // Look for calls with delta between minDelta and maxDelta
+            const callCandidates = options.filter(
+              opt => opt.option_type === 'call' && 
+                     opt.strike > bps.currentPrice && // OTM
+                     Math.abs(opt.greeks?.delta || 0) >= (input.minDelta || 0.15) &&
+                     Math.abs(opt.greeks?.delta || 0) <= (input.maxDelta || 0.35) &&
+                     (opt.volume || 0) >= (input.minVolume || 5) &&
+                     (opt.open_interest || 0) >= (input.minOI || 50) &&
+                     opt.bid && opt.ask
+            );
+            
+            if (callCandidates.length === 0) continue;
+            
+            // Pick the call closest to our target delta (mirror of put side)
+            const targetDelta = Math.abs(bps.delta);
+            const shortCall = callCandidates.reduce((best, curr) => {
+              const currDiff = Math.abs(Math.abs(curr.greeks?.delta || 0) - targetDelta);
+              const bestDiff = Math.abs(Math.abs(best.greeks?.delta || 0) - targetDelta);
+              return currDiff < bestDiff ? curr : best;
+            });
+            
+            // Find the long call (protective call)
+            const longStrike = shortCall.strike + input.spreadWidth;
+            const longCall = options.find(
+              opt => opt.option_type === 'call' && opt.strike === longStrike
+            );
+            
+            if (!longCall || !longCall.bid || !longCall.ask) continue;
+            
+            // Create a CC-like opportunity object for calculateBearCallSpread
+            const ccOpp: any = {
+              symbol: bps.symbol,
+              currentPrice: bps.currentPrice,
+              strike: shortCall.strike,
+              expiration: bps.expiration,
+              dte: bps.dte,
+              premium: shortCall.bid,
+              bid: shortCall.bid,
+              ask: shortCall.ask,
+              delta: Math.abs(shortCall.greeks?.delta || 0),
+              volume: shortCall.volume || 0,
+              openInterest: shortCall.open_interest || 0,
+              ivRank: bps.ivRank,
+            };
+            
+            const spreadOpp = calculateBearCallSpread(
+              ccOpp,
+              input.spreadWidth,
+              {
+                bid: longCall.bid,
+                ask: longCall.ask,
+                delta: Math.abs(longCall.greeks?.delta || 0),
+              }
+            );
+            
+            if (spreadOpp.netCredit > 0) {
+              bearCallSpreads.set(key, spreadOpp);
+            }
+          } catch (error) {
+            console.error(`[Iron Condor] Error calculating BCS for ${bps.symbol}:`, error);
+          }
+        }
+
+        console.log(`[Iron Condor] Calculated ${bullPutSpreads.size} BPS, ${bearCallSpreads.size} BCS`);
+
+        // Pair Bull Put Spreads with Bear Call Spreads to form Iron Condors
+        const ironCondors = [];
+        for (const [key, bps] of Array.from(bullPutSpreads.entries())) {
+          const bcs = bearCallSpreads.get(key);
+          if (!bcs) continue; // Need both sides for Iron Condor
+
+          // Calculate combined metrics
+          const totalNetCredit = bps.netCredit + bcs.netCredit;
+          const totalCapitalAtRisk = bps.capitalAtRisk + bcs.capitalAtRisk;
+          const combinedROC = (totalNetCredit / totalCapitalAtRisk) * 100;
+
+          // Breakevens
+          const lowerBreakeven = bps.strike - totalNetCredit;
+          const upperBreakeven = bcs.strike + totalNetCredit;
+
+          ironCondors.push({
+            symbol: bps.symbol,
+            expiration: bps.expiration,
+            dte: bps.dte,
+            currentPrice: bps.currentPrice,
+            
+            // Put side (Bull Put Spread)
+            putShortStrike: bps.strike,
+            putLongStrike: bps.longStrike,
+            putNetCredit: bps.netCredit,
+            putShortBid: bps.bid,
+            putShortAsk: bps.ask,
+            putLongBid: bps.longBid,
+            putLongAsk: bps.longAsk,
+            
+            // Call side (Bear Call Spread)
+            callShortStrike: bcs.strike,
+            callLongStrike: bcs.longStrike,
+            callNetCredit: bcs.netCredit,
+            callShortBid: bcs.bid,
+            callShortAsk: bcs.ask,
+            callLongBid: bcs.longBid,
+            callLongAsk: bcs.longAsk,
+            
+            // Combined metrics
+            totalNetCredit,
+            totalCapitalAtRisk,
+            roc: combinedROC,
+            lowerBreakeven,
+            upperBreakeven,
+            profitZone: upperBreakeven - lowerBreakeven,
+            
+            // For scoring (use average of both sides)
+            volume: (bps.volume + bcs.volume) / 2,
+            openInterest: (bps.openInterest + bcs.openInterest) / 2,
+            ivRank: bps.ivRank, // Assume same for both
+          });
+        }
+
+        console.log(`[Iron Condor] Formed ${ironCondors.length} Iron Condor opportunities`);
+
+        // Return iron condors without scoring (they have different structure than CSP)
+        return ironCondors;
+      }),
+  }),
+
   // Bull Put Spreads (Phase 2: Backend Pricing)
   spread: router({
     opportunities: protectedProcedure

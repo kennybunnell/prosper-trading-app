@@ -133,3 +133,108 @@ export function calculateBullPutSpread(
     annualPct: ((netCredit / (capitalAtRisk / 100)) * 100 * 365) / cspOpp.dte,
   };
 }
+
+/**
+ * Bear Call Spread Pricing Logic
+ * Calculates spread opportunities based on CC opportunities
+ */
+
+import { CCOpportunity } from './bear-call-pricing';
+
+export interface BearCallSpreadOpportunity extends CCOpportunity {
+  // Spread-specific fields
+  spreadType: 'bear-call';
+  spreadWidth: number;
+  longStrike: number;
+  longPremium: number;
+  longBid: number;
+  longAsk: number;
+  longDelta: number;
+  netCredit: number;
+  capitalAtRisk: number;
+  maxProfit: number;
+  maxLoss: number;
+  spreadROC: number; // Return on capital at risk
+  breakeven: number;
+  profitZoneWidth: number;
+}
+
+/**
+ * Calculate bear call spread pricing from CC opportunity
+ * @param ccOpp - The short call (sold) opportunity
+ * @param spreadWidth - Width of the spread in points (2, 5, or 10)
+ * @param longCallQuote - Quote data for the long (protective) call
+ */
+export function calculateBearCallSpread(
+  ccOpp: CCOpportunity,
+  spreadWidth: number,
+  longCallQuote: {
+    bid: number;
+    ask: number;
+    delta: number;
+  }
+): BearCallSpreadOpportunity {
+  const shortStrike = ccOpp.strike;
+  const longStrike = shortStrike + spreadWidth;
+  
+  // Net credit = premium received from short call - premium paid for long call
+  // Use bid for selling (short call) and ask for buying (long call)
+  const shortPremium = ccOpp.bid; // What we receive (bid price)
+  const longPremium = longCallQuote.ask; // What we pay (ask price)
+  const netCredit = shortPremium - longPremium;
+  
+  // Capital at risk = spread width - net credit received
+  const capitalAtRisk = (spreadWidth - netCredit) * 100; // Per contract
+  
+  // Max profit = net credit received
+  const maxProfit = netCredit * 100;
+  
+  // Max loss = spread width - net credit
+  const maxLoss = capitalAtRisk;
+  
+  // Return on capital = max profit / capital at risk
+  const spreadROC = capitalAtRisk > 0 ? (maxProfit / capitalAtRisk) * 100 : 0;
+  
+  // Breakeven = short strike + net credit
+  const breakeven = shortStrike + netCredit;
+  
+  // Profit zone width = distance from breakeven to current price
+  const profitZoneWidth = breakeven - ccOpp.currentPrice;
+  
+  // Calculate net Delta for the spread
+  // Net Delta = |short call Delta| - |long call Delta|
+  const netDelta = Math.abs(Math.abs(ccOpp.delta) - Math.abs(longCallQuote.delta));
+  
+  // Calculate combined bid/ask spread for both legs
+  const shortSpread = ccOpp.ask - ccOpp.bid;
+  const longSpread = longCallQuote.ask - longCallQuote.bid;
+  const combinedSpread = shortSpread + longSpread;
+  const spreadPct = netCredit > 0 ? (combinedSpread / netCredit) * 100 : 0;
+  
+  return {
+    ...ccOpp,
+    // Override delta to show net Delta for the spread
+    delta: netDelta,
+    // Override premium to show net credit
+    premium: netCredit,
+    bid: shortPremium,
+    ask: ccOpp.ask,
+    // Override spreadPct to show combined spread for both legs
+    spreadPct,
+    // Spread-specific fields
+    spreadType: 'bear-call',
+    spreadWidth,
+    longStrike,
+    longPremium,
+    longBid: longCallQuote.bid,
+    longAsk: longCallQuote.ask,
+    longDelta: longCallQuote.delta,
+    netCredit,
+    capitalAtRisk,
+    maxProfit,
+    maxLoss,
+    spreadROC,
+    breakeven,
+    profitZoneWidth,
+  };
+}
