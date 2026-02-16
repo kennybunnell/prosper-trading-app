@@ -5002,3 +5002,12 @@
 - [ ] Fix 6: Add progress bar (DEFERRED - requires backend streaming)
   - [ ] Show "Processing X of Y symbols..." with progress percentage
   - [ ] Display time estimate or completion percentage
+
+## Iron Condor Order Construction Bug (CRITICAL)
+
+- [x] Fix order construction logic - 3 selected ICs generating 143 orders instead of 12
+  - [x] Investigate where orders are being built from selected opportunities
+  - [x] Expected: 3 ICs × 4 legs = 12 orders
+  - [x] Root cause: selectAllFiltered was using full opportunities array (143 items) instead of displayedOpportunities (filtered)
+  - [x] Fix: Changed selectAllFiltered to use displayedOpportunities which already has score/delta/DTE filters applied
+  - [ ] Test with 1, 3, and 10 selected opportunities to verify count

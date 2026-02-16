@@ -127,12 +127,9 @@ export default function IronCondorDashboard() {
 
   // Select all filtered
   const selectAllFiltered = () => {
-    const filtered = showSelectedOnly 
-      ? opportunities.filter((opp: any) => selectedOpportunities.has(`${opp.symbol}-${opp.expiration}`))
-      : opportunities;
-    
+    // Use displayedOpportunities which already has filters applied
     setSelectedOpportunities(new Set(
-      filtered.map((opp: any) => `${opp.symbol}-${opp.expiration}`)
+      displayedOpportunities.map((opp: any) => `${opp.symbol}-${opp.expiration}`)
     ));
   };
 
