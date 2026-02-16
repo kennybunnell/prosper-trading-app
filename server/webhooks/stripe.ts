@@ -1,0 +1,288 @@
+import type { Request, Response } from "express";
+import Stripe from "stripe";
+import { getDb } from "../db.js";
+import { users } from "../../drizzle/schema.js";
+import { eq } from "drizzle-orm";
+import type { SubscriptionTier } from "../../shared/products.js";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2026-01-28.clover',
+});
+
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+
+/**
+ * Map Stripe price ID to subscription tier
+ */
+function getTierFromPriceId(priceId: string): SubscriptionTier | null {
+  const priceToTier: Record<string, SubscriptionTier> = {
+    'price_1T1U5l6CoinGQAjo37JjN7uu': 'wheel_trading',      // Tier 2
+    'price_1T1WVi6CoinGQAjoY5DJ4sOz': 'live_trading_csp_cc', // Tier 3
+    'price_1T1XBM6CoinGQAjoxn9aoyDs': 'advanced',            // Tier 4
+    'price_1T1XPH6CoinGQAjoyZ86VnpR': 'vip',                 // VIP
+  };
+  
+  return priceToTier[priceId] || null;
+}
+
+/**
+ * Handle Stripe webhook events
+ */
+export async function handleStripeWebhook(req: Request, res: Response) {
+  const sig = req.headers['stripe-signature'];
+
+  if (!sig) {
+    console.error('[Stripe Webhook] Missing stripe-signature header');
+    return res.status(400).send('Missing stripe-signature header');
+  }
+
+  let event: Stripe.Event;
+
+  try {
+    // Verify webhook signature
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+  } catch (err: any) {
+    console.error('[Stripe Webhook] Signature verification failed:', err.message);
+    return res.status(400).send(`Webhook signature verification failed: ${err.message}`);
+  }
+
+  console.log('[Stripe Webhook] Received event:', event.type, 'ID:', event.id);
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed':
+        await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+        break;
+
+      case 'customer.subscription.created':
+        await handleSubscriptionCreated(event.data.object as Stripe.Subscription);
+        break;
+
+      case 'customer.subscription.updated':
+        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+        break;
+
+      case 'customer.subscription.deleted':
+        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+        break;
+
+      case 'invoice.payment_succeeded':
+        await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice);
+        break;
+
+      case 'invoice.payment_failed':
+        await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+        break;
+
+      default:
+        console.log('[Stripe Webhook] Unhandled event type:', event.type);
+    }
+
+    res.json({ received: true });
+  } catch (err: any) {
+    console.error('[Stripe Webhook] Error processing event:', err);
+    res.status(500).send(`Webhook processing error: ${err.message}`);
+  }
+}
+
+/**
+ * Handle successful checkout session
+ */
+async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
+  console.log('[Stripe Webhook] Checkout session completed:', session.id);
+
+  const userId = session.metadata?.user_id;
+  const targetTier = session.metadata?.target_tier as SubscriptionTier;
+
+  if (!userId) {
+    console.error('[Stripe Webhook] Missing user_id in session metadata');
+    return;
+  }
+
+  const db = await getDb();
+  if (!db) {
+    console.error('[Stripe Webhook] Database unavailable');
+    return;
+  }
+
+  // Update user with Stripe customer ID and subscription ID
+  const updateData: any = {
+    stripeCustomerId: session.customer as string,
+  };
+
+  if (session.subscription) {
+    updateData.stripeSubscriptionId = session.subscription as string;
+  }
+
+  // Update tier if specified in metadata
+  if (targetTier) {
+    updateData.subscriptionTier = targetTier;
+    console.log('[Stripe Webhook] Upgrading user', userId, 'to tier:', targetTier);
+  }
+
+  await db.update(users)
+    .set(updateData)
+    .where(eq(users.id, parseInt(userId)));
+
+  console.log('[Stripe Webhook] User updated successfully:', userId);
+}
+
+/**
+ * Handle subscription creation
+ */
+async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
+  console.log('[Stripe Webhook] Subscription created:', subscription.id);
+
+  const customerId = subscription.customer as string;
+  const priceId = subscription.items.data[0]?.price.id;
+
+  if (!priceId) {
+    console.error('[Stripe Webhook] No price ID found in subscription');
+    return;
+  }
+
+  const tier = getTierFromPriceId(priceId);
+  if (!tier) {
+    console.error('[Stripe Webhook] Unknown price ID:', priceId);
+    return;
+  }
+
+  const db = await getDb();
+  if (!db) {
+    console.error('[Stripe Webhook] Database unavailable');
+    return;
+  }
+
+  // Find user by Stripe customer ID
+  const userResult = await db.select()
+    .from(users)
+    .where(eq(users.stripeCustomerId, customerId))
+    .limit(1);
+
+  if (!userResult[0]) {
+    console.error('[Stripe Webhook] User not found for customer:', customerId);
+    return;
+  }
+
+  // Update user tier and subscription ID
+  await db.update(users)
+    .set({
+      subscriptionTier: tier,
+      stripeSubscriptionId: subscription.id,
+    })
+    .where(eq(users.id, userResult[0].id));
+
+  console.log('[Stripe Webhook] User', userResult[0].id, 'upgraded to tier:', tier);
+}
+
+/**
+ * Handle subscription updates (upgrades, downgrades, renewals)
+ */
+async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+  console.log('[Stripe Webhook] Subscription updated:', subscription.id);
+
+  const customerId = subscription.customer as string;
+  const priceId = subscription.items.data[0]?.price.id;
+
+  if (!priceId) {
+    console.error('[Stripe Webhook] No price ID found in subscription');
+    return;
+  }
+
+  const tier = getTierFromPriceId(priceId);
+  if (!tier) {
+    console.error('[Stripe Webhook] Unknown price ID:', priceId);
+    return;
+  }
+
+  const db = await getDb();
+  if (!db) {
+    console.error('[Stripe Webhook] Database unavailable');
+    return;
+  }
+
+  // Find user by Stripe customer ID
+  const userResult = await db.select()
+    .from(users)
+    .where(eq(users.stripeCustomerId, customerId))
+    .limit(1);
+
+  if (!userResult[0]) {
+    console.error('[Stripe Webhook] User not found for customer:', customerId);
+    return;
+  }
+
+  // Update user tier
+  await db.update(users)
+    .set({
+      subscriptionTier: tier,
+    })
+    .where(eq(users.id, userResult[0].id));
+
+  console.log('[Stripe Webhook] User', userResult[0].id, 'tier updated to:', tier);
+}
+
+/**
+ * Handle subscription deletion (cancellation)
+ */
+async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  console.log('[Stripe Webhook] Subscription deleted:', subscription.id);
+
+  const customerId = subscription.customer as string;
+
+  const db = await getDb();
+  if (!db) {
+    console.error('[Stripe Webhook] Database unavailable');
+    return;
+  }
+
+  // Find user by Stripe customer ID
+  const userResult = await db.select()
+    .from(users)
+    .where(eq(users.stripeCustomerId, customerId))
+    .limit(1);
+
+  if (!userResult[0]) {
+    console.error('[Stripe Webhook] User not found for customer:', customerId);
+    return;
+  }
+
+  // Downgrade user to free trial
+  await db.update(users)
+    .set({
+      subscriptionTier: 'free_trial',
+      stripeSubscriptionId: null,
+    })
+    .where(eq(users.id, userResult[0].id));
+
+  console.log('[Stripe Webhook] User', userResult[0].id, 'downgraded to free_trial');
+}
+
+/**
+ * Handle successful invoice payment (recurring payments)
+ */
+async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
+  console.log('[Stripe Webhook] Invoice payment succeeded:', invoice.id);
+
+  // Subscription renewals are handled by subscription.updated events
+  // This is mainly for logging and monitoring
+  const customerId = typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer as any)?.id;
+  const subscriptionId = typeof (invoice as any).subscription === 'string' ? (invoice as any).subscription : (invoice as any).subscription?.id;
+
+  console.log('[Stripe Webhook] Payment successful for customer:', customerId, 'subscription:', subscriptionId);
+}
+
+/**
+ * Handle failed invoice payment
+ */
+async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+  console.log('[Stripe Webhook] Invoice payment failed:', invoice.id);
+
+  const customerId = typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer as any)?.id;
+  const subscriptionId = typeof (invoice as any).subscription === 'string' ? (invoice as any).subscription : (invoice as any).subscription?.id;
+
+  console.error('[Stripe Webhook] Payment failed for customer:', customerId, 'subscription:', subscriptionId);
+
+  // TODO: Send notification to user about payment failure
+  // TODO: Consider downgrading user after multiple failed payments
+}

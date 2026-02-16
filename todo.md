@@ -5299,3 +5299,23 @@
 - [ ] Test complete subscription upgrade/downgrade flow
 - [ ] Add subscription cancellation flow
 - [ ] Implement prorated billing for mid-cycle upgrades
+
+## ✅ Stripe Webhook Handler (Completed)
+- [x] Implement webhook signature verification
+- [x] Handle checkout.session.completed event (update user tier after successful payment)
+- [x] Handle customer.subscription.updated event (tier upgrades/downgrades)
+- [x] Handle customer.subscription.deleted event (cancellations)
+- [x] Handle invoice.payment_succeeded event (recurring payments)
+- [x] Handle invoice.payment_failed event (payment failures)
+- [x] Add error handling and logging for webhook events
+- [x] Created webhook testing guide (STRIPE_WEBHOOK_TESTING.md)
+- [x] Comprehensive test suite (16/16 tests passing)
+- [x] Registered webhook endpoint in Express server (/api/webhooks/stripe)
+
+## 🧪 Next: Test Webhook with Stripe CLI
+- [ ] Install Stripe CLI
+- [ ] Forward webhooks to local server (stripe listen --forward-to localhost:3000/api/webhooks/stripe)
+- [ ] Trigger test events (stripe trigger checkout.session.completed)
+- [ ] Verify database updates after webhook events
+- [ ] Configure production webhook endpoint in Stripe dashboard
+- [ ] Add STRIPE_WEBHOOK_SECRET to production environment
