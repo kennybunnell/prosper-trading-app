@@ -1170,6 +1170,24 @@ Summary: [One sentence overall assessment]`;
               optionSymbol: z.string(),
               action: z.enum(['Sell to Open', 'Buy to Close', 'Buy to Open', 'Sell to Close']),
             }).optional(), // Spread: long leg
+            // Iron Condor: 4 legs
+            isIronCondor: z.boolean().optional(),
+            putShortLeg: z.object({
+              optionSymbol: z.string(),
+              action: z.enum(['Sell to Open', 'Buy to Close', 'Buy to Open', 'Sell to Close']),
+            }).optional(),
+            putLongLeg: z.object({
+              optionSymbol: z.string(),
+              action: z.enum(['Sell to Open', 'Buy to Close', 'Buy to Open', 'Sell to Close']),
+            }).optional(),
+            callShortLeg: z.object({
+              optionSymbol: z.string(),
+              action: z.enum(['Sell to Open', 'Buy to Close', 'Buy to Open', 'Sell to Close']),
+            }).optional(),
+            callLongLeg: z.object({
+              optionSymbol: z.string(),
+              action: z.enum(['Sell to Open', 'Buy to Close', 'Buy to Open', 'Sell to Close']),
+            }).optional(),
           })),
           accountId: z.string(),
           dryRun: z.boolean().optional(),
@@ -1209,7 +1227,14 @@ Summary: [One sentence overall assessment]`;
             });
             
             // Build legs to see what would be submitted
-            const legs = order.isSpread && order.shortLeg && order.longLeg
+            const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
+              ? [
+                  { symbol: order.putShortLeg.optionSymbol, action: order.putShortLeg.action },
+                  { symbol: order.putLongLeg.optionSymbol, action: order.putLongLeg.action },
+                  { symbol: order.callShortLeg.optionSymbol, action: order.callShortLeg.action },
+                  { symbol: order.callLongLeg.optionSymbol, action: order.callLongLeg.action },
+                ]
+              : order.isSpread && order.shortLeg && order.longLeg
               ? [
                   { symbol: order.shortLeg.optionSymbol, action: order.shortLeg.action },
                   { symbol: order.longLeg.optionSymbol, action: order.longLeg.action },
@@ -1308,7 +1333,38 @@ Summary: [One sentence overall assessment]`;
               }
               
               // Build legs based on order type
-              const legs = order.isSpread && order.shortLeg && order.longLeg
+              const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
+              ? [
+                    // Iron Condor: Leg 1 - Sell Put (short put)
+                    {
+                      instrumentType: 'Equity Option' as const,
+                      symbol: order.putShortLeg.optionSymbol,
+                      quantity: '1',
+                      action: order.putShortLeg.action,
+                    },
+                    // Iron Condor: Leg 2 - Buy Put (long put)
+                    {
+                      instrumentType: 'Equity Option' as const,
+                      symbol: order.putLongLeg.optionSymbol,
+                      quantity: '1',
+                      action: order.putLongLeg.action,
+                    },
+                    // Iron Condor: Leg 3 - Sell Call (short call)
+                    {
+                      instrumentType: 'Equity Option' as const,
+                      symbol: order.callShortLeg.optionSymbol,
+                      quantity: '1',
+                      action: order.callShortLeg.action,
+                    },
+                    // Iron Condor: Leg 4 - Buy Call (long call)
+                    {
+                      instrumentType: 'Equity Option' as const,
+                      symbol: order.callLongLeg.optionSymbol,
+                      quantity: '1',
+                      action: order.callLongLeg.action,
+                    },
+                  ]
+              : order.isSpread && order.shortLeg && order.longLeg
               ? [
                     // Bull Put Spread: Leg 1 - Sell to Open (short put)
                     {

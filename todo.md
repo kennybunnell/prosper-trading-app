@@ -4863,8 +4863,8 @@
 - [x] Integrate with UnifiedOrderPreviewModal for 4-leg display
 - [x] Add Iron Condor navigation to sidebar (between CC and PMCC)
 - [x] Add Iron Condor route to App.tsx (/iron-condor)
-- [ ] Test scanning with real watchlist data
-- [ ] Test order submission workflow
+- [x] Test scanning with real watchlist data (143 opportunities found)
+- [x] Test order submission workflow (dry run successful with 2 Iron Condors)
 
 ## Iron Condor Profit/Loss Diagram
 - [ ] Create ProfitLossDiagram component for visualizing Iron Condor P/L
@@ -5037,3 +5037,24 @@
   - [x] Fix: Changed flatMap to create 2 spread orders per IC (PUT spread + CALL spread)
   - [x] Added "iron_condor" to strategy type in UnifiedOrderPreviewModal
   - [ ] Test: 10 selected ICs should show "Preview Orders (20)" (2 spreads × 10 ICs)
+
+## Iron Condor 4-Leg Atomic Order Fix (CRITICAL)
+
+- [ ] Fix order preview to show each IC as ONE atomic 4-leg order
+  - [ ] Current behavior: 4 ICs = 8 separate 2-leg spread orders (2 per IC)
+  - [ ] Expected behavior: 4 ICs = 4 atomic 4-leg orders (1 per IC)
+  - [ ] Problem: UnifiedOrderPreviewModal only supports 2-leg spreads
+  - [ ] Solution options:
+    - [ ] Option A: Extend UnifiedOrderPreviewModal to support 4-leg orders
+    - [ ] Option B: Create dedicated IronCondorOrderPreviewModal
+  - [ ] Update order construction to create single 4-leg order objects
+  - [ ] Test: 4 selected ICs should show "Preview Orders (4)" with 4 rows (not 8)
+  - [ ] Each row should display all 4 legs: PUT short/long + CALL short/long
+
+## Iron Condor Order Submission Implementation
+- [ ] Implement order submission functionality in UnifiedOrderPreviewModal for Iron Condors
+- [ ] Add Tastytrade API integration for 4-leg Iron Condor order submission
+- [ ] Handle order construction with proper leg sequencing (sell put, buy put, sell call, buy call)
+- [ ] Add error handling and validation for order submission
+- [ ] Test live order submission with after-hours orders
+- [ ] Verify orders can be cancelled after submission

@@ -27,11 +27,21 @@ export interface UnifiedOrder {
   action: string; // "STO", "BTC", "BTO", "STC"
   optionType: "CALL" | "PUT";
   
-  // Optional fields for spreads
+  // Optional fields for spreads (2-leg)
   longStrike?: number;
   longPremium?: number;
   longBid?: number;  // Long leg bid (for spread net credit range calculation)
   longAsk?: number;  // Long leg ask (for spread net credit range calculation)
+  
+  // Optional fields for Iron Condors (4-leg) - second spread
+  callShortStrike?: number;   // Call side short strike
+  callShortPremium?: number;  // Call side short premium
+  callShortBid?: number;      // Call side short bid
+  callShortAsk?: number;      // Call side short ask
+  callLongStrike?: number;    // Call side long strike
+  callLongPremium?: number;   // Call side long premium
+  callLongBid?: number;       // Call side long bid
+  callLongAsk?: number;       // Call side long ask
   
   // Optional fields for validation
   bid?: number;  // Short leg bid
@@ -784,6 +794,9 @@ export function UnifiedOrderPreviewModal({
                     ? (order.bid && order.ask && order.longBid && order.longAsk)
                     : (order.bid && order.ask && order.bid > 0 && order.ask > 0);
                   
+                  // Check if this is an Iron Condor (has all 4 legs)
+                  const isIronCondor = order.callShortStrike && order.callLongStrike;
+                  
                   return (
                     <TableRow key={idx}>
                       {/* Symbol */}
@@ -791,14 +804,27 @@ export function UnifiedOrderPreviewModal({
                       
                       {/* Strategy */}
                       <TableCell>
-                        <Badge variant={order.action.includes("BTC") ? "destructive" : "default"}>
-                          {order.action}
-                        </Badge>
+                        {isIronCondor ? (
+                          <Badge variant="default" className="bg-purple-600">
+                            Iron Condor
+                          </Badge>
+                        ) : (
+                          <Badge variant={order.action.includes("BTC") ? "destructive" : "default"}>
+                            {order.action}
+                          </Badge>
+                        )}
                       </TableCell>
                       
-                      {/* Strike */}
+                      {/* Strike - show all 4 legs for Iron Condor */}
                       <TableCell className="text-right">
-                        ${order.strike.toFixed(2)}
+                        {isIronCondor ? (
+                          <div className="text-xs space-y-0.5">
+                            <div className="font-semibold text-green-600">PUT: ${order.strike.toFixed(2)}/${order.longStrike?.toFixed(2)}</div>
+                            <div className="font-semibold text-red-600">CALL: ${order.callShortStrike?.toFixed(2)}/${order.callLongStrike?.toFixed(2)}</div>
+                          </div>
+                        ) : (
+                          <>${order.strike.toFixed(2)}</>
+                        )}
                       </TableCell>
                       
                       {/* Expiration */}

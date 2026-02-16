@@ -191,6 +191,94 @@ export default function IronCondorDashboard() {
   // Order preview modal
   const [orderPreviewOpen, setOrderPreviewOpen] = useState(false);
 
+  // Order submission mutation
+  const submitOrders = trpc.csp.submitOrders.useMutation();
+
+  // Execute order submission for Iron Condors
+  const executeOrderSubmission = async (
+    orders: any[],
+    quantities: Map<string, number>,
+    isDryRun: boolean
+  ): Promise<{ results: any[] }> => {
+    if (orders.length === 0) {
+      toast.error("No orders to submit");
+      return { results: [] };
+    }
+
+    if (!selectedAccountId) {
+      toast.error("Please select an account");
+      return { results: [] };
+    }
+
+    // Round premium to nearest $0.05 (Tastytrade requirement)
+    const roundToNickel = (price: number) => Math.round(price * 20) / 20;
+    
+    // Helper function to build option symbol
+    const buildOptionSymbol = (symbol: string, expiration: string, strike: number, optionType: 'P' | 'C') => {
+      const expFormatted = expiration.replace(/-/g, ''); // YYYYMMDD
+      const expShort = expFormatted.substring(2); // YYMMDD
+      const strikeFormatted = (strike * 1000).toString().padStart(8, '0');
+      const ticker = symbol.padEnd(6, ' ');
+      return `${ticker}${expShort}${optionType}${strikeFormatted}`;
+    };
+    
+    // Build Iron Condor orders (4 legs each)
+    const orderLegs = orders.map((order) => {
+      const orderKey = `${order.symbol}-${order.strike}-${order.expiration}`;
+      const quantity = quantities.get(orderKey) || 1;
+      
+      // Iron Condor: 4 legs
+      // Leg 1: Sell Put (short put at higher strike)
+      // Leg 2: Buy Put (long put at lower strike)
+      // Leg 3: Sell Call (short call at lower strike)
+      // Leg 4: Buy Call (long call at higher strike)
+      return {
+        symbol: order.symbol,
+        strike: order.strike,
+        expiration: order.expiration,
+        premium: roundToNickel(order.premium),
+        isIronCondor: true,
+        quantity,
+        // Put spread legs
+        putShortLeg: {
+          optionSymbol: buildOptionSymbol(order.symbol, order.expiration, order.strike, 'P'),
+          action: 'Sell to Open' as const,
+        },
+        putLongLeg: {
+          optionSymbol: buildOptionSymbol(order.symbol, order.expiration, order.longStrike!, 'P'),
+          action: 'Buy to Open' as const,
+        },
+        // Call spread legs
+        callShortLeg: {
+          optionSymbol: buildOptionSymbol(order.symbol, order.expiration, order.callShortStrike!, 'C'),
+          action: 'Sell to Open' as const,
+        },
+        callLongLeg: {
+          optionSymbol: buildOptionSymbol(order.symbol, order.expiration, order.callLongStrike!, 'C'),
+          action: 'Buy to Open' as const,
+        },
+      };
+    });
+
+    try {
+      const response = await submitOrders.mutateAsync({
+        orders: orderLegs,
+        accountId: selectedAccountId,
+        dryRun: isDryRun,
+      });
+      
+      if (!isDryRun) {
+        toast.success(`Submitted ${orders.length} Iron Condor orders`);
+      }
+      
+      return { results: response.results || [] };
+    } catch (error: any) {
+      console.error('[executeOrderSubmission] Error:', error);
+      toast.error(error.message || "Order submission failed");
+      return { results: [] };
+    }
+  };
+
   // Handle opportunity selection
   const toggleOpportunity = (key: string) => {
     setSelectedOpportunities(prev => {
@@ -307,46 +395,40 @@ export default function IronCondorDashboard() {
   };
 
   // Build orders for preview modal
-  // Each Iron Condor creates 2 spread orders: Bull Put Spread + Bear Call Spread
+  // Each Iron Condor creates ONE atomic 4-leg order
   const ordersForPreview = useMemo(() => {
     const selected = opportunities.filter((opp: any) => 
       selectedOpportunities.has(`${opp.symbol}-${opp.expiration}`)
     );
 
-    return selected.flatMap((opp: any) => {
-      // Create 2 spread orders for each Iron Condor
-      return [
-        // Bull Put Spread (PUT short + PUT long)
-        {
-          symbol: opp.symbol,
-          action: "sell_to_open" as const,
-          strike: opp.putShortStrike,
-          expiration: opp.expiration,
-          premium: opp.putNetCredit * 100, // Convert to dollars
-          bid: opp.putShortBid,
-          ask: opp.putShortAsk,
-          optionType: "PUT" as const,
-          longStrike: opp.putLongStrike,
-          longPremium: opp.putLongAsk * 100, // Cost of long leg
-          longBid: opp.putLongBid,
-          longAsk: opp.putLongAsk,
-        },
-        // Bear Call Spread (CALL short + CALL long)
-        {
-          symbol: opp.symbol,
-          action: "sell_to_open" as const,
-          strike: opp.callShortStrike,
-          expiration: opp.expiration,
-          premium: opp.callNetCredit * 100, // Convert to dollars
-          bid: opp.callShortBid,
-          ask: opp.callShortAsk,
-          optionType: "CALL" as const,
-          longStrike: opp.callLongStrike,
-          longPremium: opp.callLongAsk * 100, // Cost of long leg
-          longBid: opp.callLongBid,
-          longAsk: opp.callLongAsk,
-        },
-      ];
+    return selected.map((opp: any) => {
+      // Create single 4-leg Iron Condor order
+      return {
+        symbol: opp.symbol,
+        action: "sell_to_open" as const,
+        strike: opp.putShortStrike,           // PUT short strike
+        expiration: opp.expiration,
+        premium: opp.totalNetCredit * 100,    // Total net credit for all 4 legs
+        bid: opp.putShortBid,
+        ask: opp.putShortAsk,
+        optionType: "PUT" as const,
+        
+        // PUT spread (legs 1 & 2)
+        longStrike: opp.putLongStrike,        // PUT long strike
+        longPremium: opp.putLongAsk * 100,    // PUT long cost
+        longBid: opp.putLongBid,
+        longAsk: opp.putLongAsk,
+        
+        // CALL spread (legs 3 & 4)
+        callShortStrike: opp.callShortStrike, // CALL short strike
+        callShortPremium: opp.callNetCredit * 100, // CALL short credit
+        callShortBid: opp.callShortBid,
+        callShortAsk: opp.callShortAsk,
+        callLongStrike: opp.callLongStrike,   // CALL long strike
+        callLongPremium: opp.callLongAsk * 100, // CALL long cost
+        callLongBid: opp.callLongBid,
+        callLongAsk: opp.callLongAsk,
+      };
     });
   }, [opportunities, selectedOpportunities]);
 
@@ -900,10 +982,8 @@ export default function IronCondorDashboard() {
         strategy="iron_condor"
         accountId={selectedAccountId || ""}
         availableBuyingPower={availableBuyingPower}
-        onSubmit={async () => {
-          toast.info("Order submission coming soon");
-          return { results: [] };
-        }}
+        onSubmit={executeOrderSubmission}
+        tradingMode={tradingMode}
       />
 
       {/* Fetch Progress Dialog */}
