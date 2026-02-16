@@ -101,12 +101,12 @@ export function Sidebar({ className }: SidebarProps) {
       icon: BarChart3,
     },
     {
-      name: 'CSP Dashboard',
+      name: 'CSP - BPS',
       path: '/csp',
       icon: TrendingDown,
     },
     {
-      name: 'CC Dashboard',
+      name: 'CC - BCS',
       path: '/cc',
       icon: TrendingUp,
     },
