@@ -5079,3 +5079,16 @@
 - [x] Calculate real-time net credit: (Put Short Bid - Put Long Ask) + (Call Short Bid - Call Long Ask)
 - [x] Apply 5% buffer for competitive pricing
 - [ ] Test live submission with fresh quotes and verify orders appear in Tastytrade
+
+## Iron Condor Watchlist Selection Bug
+- [x] Investigate why scan is using all 54 stocks instead of 3 selected
+- [x] Check IronCondorDashboard scan button click handler
+- [x] Compare with working CSP/CC watchlist selection logic
+- [x] Fix to only scan selected watchlist items (added selections query and filtering logic)
+- [ ] Test with 3 selected items to verify correct behavior
+
+## Iron Condor Order Submission Error
+- [ ] Check server logs for detailed error message
+- [ ] Investigate "Failed to submit order: Order submission failed" error
+- [ ] Fix the underlying issue causing submission failure
+- [ ] Test order submission end-to-end

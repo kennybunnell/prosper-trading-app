@@ -149,12 +149,28 @@ export default function IronCondorDashboard() {
     enabled: !!user,
   });
 
-  // Filter watchlist by portfolio size
+  // Fetch ticker selections
+  const { data: selections = [] } = trpc.watchlist.getSelections.useQuery(undefined, {
+    enabled: !!user,
+  });
+
+  // Filter watchlist by portfolio size AND selected symbols
   const filteredWatchlist = useMemo(() => {
-    return watchlist.filter((w: any) => 
+    let filtered = watchlist.filter((w: any) => 
       selectedPortfolioSizes.includes(w.portfolioSize || 'medium')
     );
-  }, [watchlist, selectedPortfolioSizes]);
+    
+    // Filter by selected tickers (if any are selected)
+    const selectedSymbols = selections
+      .filter((s: any) => s.isSelected === 1)
+      .map((s: any) => s.symbol);
+    
+    if (selectedSymbols.length > 0) {
+      filtered = filtered.filter((w: any) => selectedSymbols.includes(w.symbol));
+    }
+    
+    return filtered;
+  }, [watchlist, selectedPortfolioSizes, selections]);
 
   // Fetch Iron Condor opportunities
   const { data: opportunities = [], isLoading: loadingOpportunities, refetch: refetchOpportunities } = trpc.ironCondor.opportunities.useQuery(
