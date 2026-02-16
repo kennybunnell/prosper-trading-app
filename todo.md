@@ -4889,3 +4889,24 @@
 - [x] Add null/undefined checks before calling .toFixed() (|| 0 fallback)
 - [x] Add default values (0) for undefined numeric fields
 - [ ] Test Iron Condor dashboard to verify error is resolved
+
+## Iron Condor Backend Scanner Fixes (Critical)
+- [ ] Fix calculateBearCallSpread in spread-pricing.ts to return complete data (breakevens, ROC, scoring metrics)
+- [ ] Fix Iron Condor pairing logic in routers.ts to calculate total collateral correctly (max of put/call spread width × 100)
+- [ ] Calculate combined breakevens: putBreakeven = putShortStrike - totalNetCredit, callBreakeven = callShortStrike + totalNetCredit
+- [ ] Calculate combined ROC: (totalNetCredit × 100) / totalCollateral × 100
+- [ ] Implement Iron Condor scoring algorithm: (ROC × 30) + (Risk/Reward × 25) + (POP × 20) + (IV Rank × 15) + (DTE × 10)
+- [ ] Fix frontend progress dialog message from "covered call" to "iron condor"
+- [ ] Fix collateral validation in order preview to use correct buying power
+- [ ] Test with real watchlist (AAPL, SPY, TSLA) and verify all metrics display correctly
+
+## Iron Condor Backend Scanner Fixes (COMPLETED)
+- [x] Fix calculateBearCallSpread in spread-pricing.ts to return complete data (breakevens, ROC, scoring metrics) - Already complete
+- [x] Fix Iron Condor pairing logic in routers.ts to calculate total collateral correctly (max of put/call spread width × 100)
+- [x] Calculate combined breakevens: lowerBreakeven = putShortStrike - totalNetCredit, upperBreakeven = callShortStrike + totalNetCredit
+- [x] Calculate combined ROC: (totalNetCredit × 100) / totalCollateral × 100
+- [x] Implement Iron Condor scoring algorithm: (ROC × 30) + (Risk/Reward × 25) + (POP × 20) + (IV Rank × 15) + (DTE × 10)
+- [x] Fix frontend progress dialog message from "covered call" to "iron condor" - Already says "Scanning for Iron Condors..."
+- [x] Fix frontend field names to match backend (roc not totalROC, lowerBreakeven/upperBreakeven not putBreakeven/callBreakeven)
+- [x] Add delta fields for all 4 legs (putShortDelta, putLongDelta, callShortDelta, callLongDelta)
+- [ ] Test with real watchlist (AAPL, SPY, TSLA) and verify all metrics display correctly

@@ -1798,8 +1798,13 @@ Summary: [One sentence overall assessment]`;
 
           // Calculate combined metrics
           const totalNetCredit = bps.netCredit + bcs.netCredit;
-          const totalCapitalAtRisk = bps.capitalAtRisk + bcs.capitalAtRisk;
-          const combinedROC = (totalNetCredit / totalCapitalAtRisk) * 100;
+          
+          // For Iron Condors, collateral = max(put spread width, call spread width) × 100
+          // This is because you only need to cover the wider spread
+          const totalCollateral = Math.max(bps.spreadWidth, bcs.spreadWidth) * 100;
+          
+          // ROC = (total net credit × 100) / total collateral × 100
+          const combinedROC = totalCollateral > 0 ? ((totalNetCredit * 100) / totalCollateral) * 100 : 0;
 
           // Breakevens
           const lowerBreakeven = bps.strike - totalNetCredit;
@@ -1819,6 +1824,8 @@ Summary: [One sentence overall assessment]`;
             putShortAsk: bps.ask,
             putLongBid: bps.longBid,
             putLongAsk: bps.longAsk,
+            putShortDelta: bps.delta,
+            putLongDelta: bps.longDelta,
             
             // Call side (Bear Call Spread)
             callShortStrike: bcs.strike,
@@ -1828,10 +1835,12 @@ Summary: [One sentence overall assessment]`;
             callShortAsk: bcs.ask,
             callLongBid: bcs.longBid,
             callLongAsk: bcs.longAsk,
+            callShortDelta: bcs.delta,
+            callLongDelta: bcs.longDelta,
             
             // Combined metrics
             totalNetCredit,
-            totalCapitalAtRisk,
+            totalCollateral,
             roc: combinedROC,
             lowerBreakeven,
             upperBreakeven,
@@ -1846,8 +1855,40 @@ Summary: [One sentence overall assessment]`;
 
         console.log(`[Iron Condor] Formed ${ironCondors.length} Iron Condor opportunities`);
 
-        // Return iron condors without scoring (they have different structure than CSP)
-        return ironCondors;
+        // Score Iron Condors using custom scoring algorithm
+        // Formula: (ROC × 30) + (Risk/Reward × 25) + (POP × 20) + (IV Rank × 15) + (DTE × 10)
+        const scoredIronCondors = ironCondors.map(ic => {
+          // ROC score (0-100, normalized to 0-30)
+          const rocScore = Math.min(ic.roc / 100 * 30, 30);
+          
+          // Risk/Reward score (net credit / collateral, normalized to 0-25)
+          const riskReward = (ic.totalNetCredit * 100) / ic.totalCollateral;
+          const riskRewardScore = Math.min(riskReward / 50 * 25, 25);
+          
+          // POP (Probability of Profit) score - estimate based on profit zone width
+          // Wider profit zone = higher POP
+          const profitZonePct = (ic.profitZone / ic.currentPrice) * 100;
+          const popScore = Math.min(profitZonePct / 20 * 20, 20);
+          
+          // IV Rank score (0-100, normalized to 0-15)
+          const ivRankScore = (ic.ivRank / 100) * 15;
+          
+          // DTE score (prefer 30-45 DTE, normalized to 0-10)
+          const dteScore = ic.dte >= 30 && ic.dte <= 45 ? 10 : Math.max(0, 10 - Math.abs(ic.dte - 37.5) / 5);
+          
+          // Total score
+          const score = rocScore + riskRewardScore + popScore + ivRankScore + dteScore;
+          
+          return {
+            ...ic,
+            score: Math.round(score * 10) / 10, // Round to 1 decimal
+          };
+        });
+
+        // Sort by score descending
+        scoredIronCondors.sort((a, b) => b.score - a.score);
+
+        return scoredIronCondors;
       }),
   }),
 

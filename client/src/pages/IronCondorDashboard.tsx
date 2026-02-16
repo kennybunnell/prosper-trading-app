@@ -529,8 +529,8 @@ export default function IronCondorDashboard() {
                             </TableCell>
                             <TableCell>${(opp.totalCollateral || 0).toFixed(2)}</TableCell>
                             <TableCell>
-                              <Badge className={getROCColor(opp.totalROC)}>
-                                {(opp.totalROC || 0).toFixed(2)}%
+                              <Badge className={getROCColor(opp.roc)}>
+                                {(opp.roc || 0).toFixed(2)}%
                               </Badge>
                             </TableCell>
                             <TableCell>
@@ -538,8 +538,8 @@ export default function IronCondorDashboard() {
                             </TableCell>
                             <TableCell>
                               <div className="text-sm">
-                                <div>${(opp.putBreakeven || 0).toFixed(2)}</div>
-                                <div>${(opp.callBreakeven || 0).toFixed(2)}</div>
+                                <div>${(opp.lowerBreakeven || 0).toFixed(2)}</div>
+                                <div>${(opp.upperBreakeven || 0).toFixed(2)}</div>
                               </div>
                             </TableCell>
                             <TableCell>
