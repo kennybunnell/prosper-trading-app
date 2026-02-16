@@ -111,6 +111,11 @@ export function Sidebar({ className }: SidebarProps) {
       icon: TrendingUp,
     },
     {
+      name: 'Iron Condor',
+      path: '/iron-condor',
+      icon: Layers,
+    },
+    {
       name: 'PMCC Dashboard',
       path: '/pmcc',
       icon: Layers,

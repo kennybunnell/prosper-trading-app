@@ -4850,3 +4850,36 @@
 - [ ] Test Iron Condor scanning with real market data
 - [ ] Test 4-leg order submission to Tastytrade
 - [ ] Verify order preview modal displays all 4 legs correctly
+
+## Iron Condor Dashboard Frontend Implementation (Phase 2)
+- [x] Create IronCondorDashboard.tsx component (streamlined from scratch)
+- [x] Design table columns for 4 strikes: Put Short, Put Long, Call Short, Call Long
+- [x] Add columns for: Symbol, Current Price, Put Strikes, Call Strikes, DTE, Net Credit, Collateral, ROC, Profit Zone, Breakevens, IV Rank
+- [x] Implement watchlist management (reuse from CSP)
+- [x] Implement filter controls (Min DTE, Max DTE, Spread Width)
+- [x] Implement selection checkboxes and bulk selection
+- [x] Add summary cards (Total Premium, Collateral, Weighted ROC, Opportunities)
+- [x] Build 4-leg order construction (2 puts + 2 calls with proper action/optionType)
+- [x] Integrate with UnifiedOrderPreviewModal for 4-leg display
+- [x] Add Iron Condor navigation to sidebar (between CC and PMCC)
+- [x] Add Iron Condor route to App.tsx (/iron-condor)
+- [ ] Test scanning with real watchlist data
+- [ ] Test order submission workflow
+
+## Iron Condor Profit/Loss Diagram
+- [ ] Create ProfitLossDiagram component for visualizing Iron Condor P/L
+- [ ] Calculate P/L at different stock prices (from put long to call long)
+- [ ] Show breakeven points (put breakeven, call breakeven)
+- [ ] Highlight max profit zone (between short strikes)
+- [ ] Show max loss zones (below put long, above call long)
+- [ ] Add interactive hover to show P/L at specific prices
+- [ ] Integrate diagram into Iron Condor opportunity cards or modal
+- [ ] Test with real Iron Condor data
+
+## Iron Condor Quick Adjust Feature
+- [ ] Add "Widen Profit Zone" button (+$5 to strike distances)
+- [ ] Add "Narrow Profit Zone" button (-$5 to strike distances)
+- [ ] Implement real-time recalculation of net credit and ROC
+- [ ] Update profit zone width and breakevens after adjustment
+- [ ] Add visual feedback (loading state) during recalculation
+- [ ] Test quick adjust with different spread widths
