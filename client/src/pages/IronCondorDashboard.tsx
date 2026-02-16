@@ -38,6 +38,7 @@ import {
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { UnifiedOrderPreviewModal } from "@/components/UnifiedOrderPreviewModal";
+import { OrderStatusModal, OrderSubmissionStatus } from "@/components/OrderStatusModal";
 import {
   Dialog,
   DialogContent,
@@ -190,6 +191,10 @@ export default function IronCondorDashboard() {
 
   // Order preview modal
   const [orderPreviewOpen, setOrderPreviewOpen] = useState(false);
+  
+  // Order Status Modal state
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [submissionStatuses, setSubmissionStatuses] = useState<OrderSubmissionStatus[]>([]);
 
   // Order submission mutation
   const submitOrders = trpc.csp.submitOrders.useMutation();
@@ -267,8 +272,29 @@ export default function IronCondorDashboard() {
         dryRun: isDryRun,
       });
       
-      if (!isDryRun) {
-        toast.success(`Submitted ${orders.length} Iron Condor orders`);
+      // For LIVE submissions: close preview modal and open status modal
+      if (!isDryRun && response.results) {
+        // Map results to OrderSubmissionStatus format
+        const statuses: OrderSubmissionStatus[] = response.results.map((result: any, index: number) => {
+          const order = orders[index];
+          return {
+            orderId: result.orderId || result.id || '',
+            symbol: order.symbol,
+            status: result.status === 'Received' ? 'Working' : 
+                   result.status === 'Filled' ? 'Filled' :
+                   result.status === 'Rejected' ? 'Rejected' :
+                   result.message?.includes('market') || result.message?.includes('closed') ? 'MarketClosed' :
+                   'Pending',
+            message: result.message || `Iron Condor ${order.expiration} - ${result.status || 'Submitted'}`,
+          };
+        });
+        
+        // Close preview modal
+        setOrderPreviewOpen(false);
+        
+        // Open status modal with results
+        setSubmissionStatuses(statuses);
+        setShowStatusModal(true);
       }
       
       return { results: response.results || [] };
@@ -1038,6 +1064,14 @@ export default function IronCondorDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+      
+      {/* Order Status Modal */}
+      <OrderStatusModal
+        open={showStatusModal}
+        onOpenChange={setShowStatusModal}
+        orderStatuses={submissionStatuses}
+        accountId={selectedAccountId || ''}
+      />
     </div>
   );
 }

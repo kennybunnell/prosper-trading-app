@@ -5058,3 +5058,12 @@
 - [ ] Add error handling and validation for order submission
 - [ ] Test live order submission with after-hours orders
 - [ ] Verify orders can be cancelled after submission
+
+## Iron Condor Order Submission Polling Fix
+- [x] Compare Iron Condor executeOrderSubmission with CSP/CC implementations
+- [x] Add OrderStatusModal import and state variables
+- [x] Update executeOrderSubmission to close preview modal and open status modal after live submission
+- [x] Add OrderStatusModal component to JSX (handles polling automatically)
+- [x] OrderStatusModal polls order status every 2-5 seconds until completion
+- [x] Display final status for each order with appropriate icons (✓ Filled, ⏳ Pending, ✗ Rejected)
+- [ ] Test live order submission with status tracking (ready for user testing)
