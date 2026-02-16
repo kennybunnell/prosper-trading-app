@@ -7,7 +7,7 @@ export interface User {
   openId: string;
   email: string | null;
   name: string | null;
-  role: 'admin' | 'user';
+  role: 'admin' | 'user' | 'vip' | 'partner' | 'beta_tester' | 'lifetime';
   subscriptionTier?: 'free_trial' | 'wheel_view' | 'wheel_trading' | 'advanced' | null;
 }
 

@@ -218,6 +218,34 @@ export const adminRouter = router({
       return { success: true };
     }),
 
+  /**
+   * Update user role (admin, user, vip, partner, beta_tester, lifetime)
+   */
+  updateUserRole: adminProcedure
+    .input(z.object({
+      userId: z.number(),
+      role: z.enum(['user', 'admin', 'vip', 'partner', 'beta_tester', 'lifetime']),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import('./db');
+      const { users } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Database not available',
+        });
+      }
+
+      await db.update(users)
+        .set({ role: input.role })
+        .where(eq(users.id, input.userId));
+
+      return { success: true };
+    }),
+
   // ============================================
   // ONBOARDING MANAGEMENT
   // ============================================

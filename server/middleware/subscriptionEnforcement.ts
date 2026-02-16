@@ -30,9 +30,9 @@ export function canAccessStrategy(
   reason?: string;
   upgradeMessage?: string;
 } {
-  // Owner/admin bypass all checks
-  if (userRole === 'admin' || userRole === 'owner') {
-    console.log('[Subscription] Owner/admin detected - bypassing strategy access check');
+  // Owner/admin/special roles bypass all checks
+  if (userRole === 'admin' || userRole === 'owner' || userRole === 'vip' || userRole === 'partner' || userRole === 'beta_tester' || userRole === 'lifetime') {
+    console.log('[Subscription] Special role detected (%s) - bypassing strategy access check', userRole);
     return { allowed: true };
   }
 
@@ -101,9 +101,9 @@ export function canUseLiveTrading(
   reason?: string;
   upgradeMessage?: string;
 } {
-  // Owner/admin bypass all checks
-  if (userRole === 'admin' || userRole === 'owner') {
-    console.log('[Subscription] Owner/admin detected - bypassing live trading check');
+  // Owner/admin/special roles bypass all checks
+  if (userRole === 'admin' || userRole === 'owner' || userRole === 'vip' || userRole === 'partner' || userRole === 'beta_tester' || userRole === 'lifetime') {
+    console.log('[Subscription] Special role detected (%s) - bypassing live trading check', userRole);
     return { allowed: true };
   }
 
@@ -147,8 +147,8 @@ export function hasRequiredCredentials(
   missing?: string[];
   message?: string;
 } {
-  // Owner/admin bypass all checks
-  if (userRole === 'admin' || userRole === 'owner') {
+  // Owner/admin/special roles bypass all checks
+  if (userRole === 'admin' || userRole === 'owner' || userRole === 'vip' || userRole === 'partner' || userRole === 'beta_tester' || userRole === 'lifetime') {
     return { valid: true };
   }
 

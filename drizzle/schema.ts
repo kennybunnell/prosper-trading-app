@@ -16,7 +16,7 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  role: mysqlEnum("role", ["user", "admin", "vip", "partner", "beta_tester", "lifetime"]).default("user").notNull(),
   /** Trading mode: 'live' uses Tastytrade API, 'paper' uses Tradier API (read-only) */
   tradingMode: mysqlEnum("tradingMode", ["live", "paper"]).default("paper").notNull(),
   /** Paper trading balance for simulation (default $100,000) */

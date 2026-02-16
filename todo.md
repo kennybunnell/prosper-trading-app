@@ -5187,3 +5187,13 @@
 - [ ] Block Tier 2 upgrade if user hasn't provided Tradier API
 - [ ] Block Tier 3 upgrade if user hasn't provided Tastytrade credentials
 - [x] Update sidebar navigation labels: "CSP Dashboard" → "CSP - BPS" and "CC Dashboard" → "CC - BCS"
+
+## Role-Based Access System Implementation
+- [x] Update users table role enum to include: vip, partner, beta_tester, lifetime
+- [x] Update database schema with SQL ALTER statement
+- [x] Update subscription enforcement middleware to recognize special roles
+- [x] Update rate limiting middleware to bypass for special roles
+- [x] Add role selector dropdown in Admin Panel Users page
+- [x] Add role badge display in Admin Users table
+- [ ] Test role-based access with each special role
+- [x] Create Stripe product setup guide for user

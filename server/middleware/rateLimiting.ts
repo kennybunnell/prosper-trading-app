@@ -31,9 +31,9 @@ export async function checkRateLimit(userId: number, userTier: string | null, us
   limit: number;
   message?: string;
 }> {
-  // Owner/admin bypass all rate limiting
-  if (userRole === 'admin' || userRole === 'owner') {
-    console.log('[Rate Limit] Owner/admin detected - bypassing rate limit check');
+  // Owner/admin/special roles bypass all rate limiting
+  if (userRole === 'admin' || userRole === 'owner' || userRole === 'vip' || userRole === 'partner' || userRole === 'beta_tester' || userRole === 'lifetime') {
+    console.log('[Rate Limit] Special role detected (%s) - bypassing rate limit check', userRole);
     return { allowed: true, currentCount: 0, limit: TIER1_DAILY_SCAN_LIMIT };
   }
 
@@ -85,9 +85,9 @@ export async function checkRateLimit(userId: number, userTier: string | null, us
  * Should be called after a successful scan operation
  */
 export async function incrementScanCount(userId: number, userTier: string | null, userRole: string): Promise<void> {
-  // Owner/admin bypass all rate limiting
-  if (userRole === 'admin' || userRole === 'owner') {
-    console.log('[Rate Limit] Owner/admin detected - skipping scan count increment');
+  // Owner/admin/special roles bypass all rate limiting
+  if (userRole === 'admin' || userRole === 'owner' || userRole === 'vip' || userRole === 'partner' || userRole === 'beta_tester' || userRole === 'lifetime') {
+    console.log('[Rate Limit] Special role detected (%s) - skipping scan count increment', userRole);
     return;
   }
 
@@ -144,8 +144,8 @@ export async function getRemainingScans(userId: number, userTier: string | null,
   limit: number;
   used: number;
 }> {
-  // Owner/admin have unlimited scans
-  if (userRole === 'admin' || userRole === 'owner') {
+  // Owner/admin/special roles have unlimited scans
+  if (userRole === 'admin' || userRole === 'owner' || userRole === 'vip' || userRole === 'partner' || userRole === 'beta_tester' || userRole === 'lifetime') {
     return { remaining: 999, limit: 999, used: 0 };
   }
 

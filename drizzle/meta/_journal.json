@@ -267,6 +267,13 @@
       "when": 1771222045628,
       "tag": "0038_fair_talkback",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1771254591035,
+      "tag": "0039_fast_snowbird",
+      "breakpoints": true
     }
   ]
 }

@@ -74,6 +74,16 @@ export function AdminUsers() {
     },
   });
 
+  const updateUserRole = trpc.admin.updateUserRole.useMutation({
+    onSuccess: () => {
+      toast({ title: "User role updated successfully" });
+      refetch();
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const getTierBadge = (tier: string | null) => {
     const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline", label: string }> = {
       free_trial: { variant: "outline", label: "Free Trial" },
@@ -192,6 +202,7 @@ export function AdminUsers() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
                   <TableHead>Tier</TableHead>
                   <TableHead>Registered</TableHead>
                   <TableHead>Last Active</TableHead>
@@ -203,6 +214,26 @@ export function AdminUsers() {
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={user.role}
+                        onValueChange={(role: any) =>
+                          updateUserRole.mutate({ userId: user.id, role })
+                        }
+                      >
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="user">User</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="vip">VIP</SelectItem>
+                          <SelectItem value="partner">Partner</SelectItem>
+                          <SelectItem value="beta_tester">Beta Tester</SelectItem>
+                          <SelectItem value="lifetime">Lifetime</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
                     <TableCell>{getTierBadge(user.subscriptionTier)}</TableCell>
                     <TableCell>{formatDate(user.createdAt)}</TableCell>
                     <TableCell>
