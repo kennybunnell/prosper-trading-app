@@ -4910,3 +4910,57 @@
 - [x] Fix frontend field names to match backend (roc not totalROC, lowerBreakeven/upperBreakeven not putBreakeven/callBreakeven)
 - [x] Add delta fields for all 4 legs (putShortDelta, putLongDelta, callShortDelta, callLongDelta)
 - [ ] Test with real watchlist (AAPL, SPY, TSLA) and verify all metrics display correctly
+
+## Iron Condor Dashboard Enhancements (Match CSP/CC UX)
+- [x] Phase 1: Build Filters UI Section
+  - [x] Add Score slider (0-100) with Conservative (≥70), Aggressive (≥55), All buttons
+  - [x] Add Delta slider (0.00-1.00) with +/- buttons
+  - [x] Add DTE slider (0-90 days) with +/- buttons
+  - [x] Add Spread Width selector (2-point, 5-point, 10-point) - Already exists in watchlist section
+  - [x] Add "Select All Filtered" button (green) showing filtered count
+  - [x] Add "Clear Selection" button (red) showing selected count
+  - [x] Add "Show Selected Only" checkbox
+  - [x] Style sliders to match CSP dashboard (orange for score, blue for delta/DTE)
+  - [x] Wire sliders to filter opportunities in real-time
+  - [x] Remove watchlist auto-collapse after scan
+
+- [x] Phase 2: Summary Cards & Selection
+  - [x] Add Total Premium card (green icon)
+  - [x] Add Total Collateral card (blue icon)
+  - [x] Add ROC card (purple icon)
+  - [x] Add Opportunities card (orange icon) showing filtered count
+  - [x] Add Buying Power card showing available/used BP with color coding
+  - [x] Position cards between filters and opportunities table
+  - [x] Update cards in real-time as user selects/deselects opportunities
+  - [x] Fetch buying power from Tastytrade API
+  - [x] Add getBuyingPower procedure to accounts router
+
+- [x] Phase 3: Backend Scoring Enhancement
+  - [x] Add RSI fetching to Iron Condor scanner (from Tradier API) - Already included in CSP opportunities
+  - [x] Add Bollinger Band %B fetching to Iron Condor scanner - Already included in CSP opportunities
+  - [x] Update scoring algorithm to include RSI (prefer 40-60 for neutral)
+  - [x] Update scoring algorithm to include BB %B (prefer 0.3-0.7 for middle range)
+  - [x] Updated weights: ROC 25%, Risk/Reward 20%, POP 15%, IV Rank 15%, DTE 10%, RSI 10%, BB 5%
+  - [x] Add Score column to opportunities table with color-coded badges (Green 70+, Yellow 55-69, Red <55)
+  - [x] Add RSI column with color-coded badges
+  - [x] Add BB %B column with color-coded badges
+  - [ ] Make Score column sortable
+
+- [x] Phase 4: Progress Dialog & Polish
+  - [ ] Add progress dialog with spinner during scan - DEFERRED (requires backend streaming support)
+  - [ ] Show "Processing X symbols..." status message - DEFERRED
+  - [ ] Display completion summary: "Found X Iron Condor opportunities" - DEFERRED
+  - [x] Remove watchlist auto-collapse after scan
+  - [ ] Test all filters work correctly
+  - [ ] Test summary cards update in real-time
+  - [ ] Verify score-based filtering works
+
+- [ ] Phase 5: Testing & Validation
+  - [ ] Test with real watchlist (AAPL, SPY, TSLA)
+  - [ ] Verify Conservative filter shows only score ≥70
+  - [ ] Verify Aggressive filter shows only score ≥55
+  - [ ] Test Delta and DTE sliders filter correctly
+  - [ ] Test Select All Filtered selects all visible opportunities
+  - [ ] Test Show Selected Only toggles table view
+  - [ ] Verify buying power validation works
+  - [ ] Save checkpoint for completed Iron Condor dashboard

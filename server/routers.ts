@@ -735,6 +735,23 @@ export const appRouter = router({
 
       return { success: true, count: accounts.length };
     }),
+    getBuyingPower: protectedProcedure
+      .input(z.object({ accountId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const { getApiCredentials } = await import('./db');
+        const { authenticateTastytrade } = await import('./tastytrade');
+
+        const credentials = await getApiCredentials(ctx.user.id);
+        if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+          throw new Error('Tastytrade OAuth2 credentials not configured');
+        }
+
+        const api = await authenticateTastytrade(credentials, ctx.user.id);
+        const balances = await api.getBalances(input.accountId);
+        const buyingPower = Number(balances['derivative-buying-power'] || 0);
+
+        return { buyingPower };
+      }),
   }),
 
   watchlist: router({
@@ -1850,34 +1867,64 @@ Summary: [One sentence overall assessment]`;
             volume: (bps.volume + bcs.volume) / 2,
             openInterest: (bps.openInterest + bcs.openInterest) / 2,
             ivRank: bps.ivRank, // Assume same for both
+            
+            // Technical indicators (from underlying stock)
+            rsi: bps.rsi,
+            bbPctB: bps.bbPctB,
           });
         }
 
         console.log(`[Iron Condor] Formed ${ironCondors.length} Iron Condor opportunities`);
 
-        // Score Iron Condors using custom scoring algorithm
-        // Formula: (ROC × 30) + (Risk/Reward × 25) + (POP × 20) + (IV Rank × 15) + (DTE × 10)
+        // Score Iron Condors using enhanced scoring algorithm with technical indicators
+        // Formula: (ROC × 25) + (Risk/Reward × 20) + (POP × 15) + (IV Rank × 15) + (DTE × 10) + (RSI × 10) + (BB × 5)
         const scoredIronCondors = ironCondors.map(ic => {
-          // ROC score (0-100, normalized to 0-30)
-          const rocScore = Math.min(ic.roc / 100 * 30, 30);
+          // ROC score (0-100, normalized to 0-25)
+          const rocScore = Math.min(ic.roc / 100 * 25, 25);
           
-          // Risk/Reward score (net credit / collateral, normalized to 0-25)
+          // Risk/Reward score (net credit / collateral, normalized to 0-20)
           const riskReward = (ic.totalNetCredit * 100) / ic.totalCollateral;
-          const riskRewardScore = Math.min(riskReward / 50 * 25, 25);
+          const riskRewardScore = Math.min(riskReward / 50 * 20, 20);
           
           // POP (Probability of Profit) score - estimate based on profit zone width
-          // Wider profit zone = higher POP
+          // Wider profit zone = higher POP (normalized to 0-15)
           const profitZonePct = (ic.profitZone / ic.currentPrice) * 100;
-          const popScore = Math.min(profitZonePct / 20 * 20, 20);
+          const popScore = Math.min(profitZonePct / 20 * 15, 15);
           
           // IV Rank score (0-100, normalized to 0-15)
-          const ivRankScore = (ic.ivRank / 100) * 15;
+          const ivRankScore = ic.ivRank !== null ? (ic.ivRank / 100) * 15 : 7.5;
           
           // DTE score (prefer 30-45 DTE, normalized to 0-10)
           const dteScore = ic.dte >= 30 && ic.dte <= 45 ? 10 : Math.max(0, 10 - Math.abs(ic.dte - 37.5) / 5);
           
-          // Total score
-          const score = rocScore + riskRewardScore + popScore + ivRankScore + dteScore;
+          // RSI score (prefer neutral 40-60 range for Iron Condors, normalized to 0-10)
+          let rsiScore = 5; // Default if RSI not available
+          if (ic.rsi !== null) {
+            if (ic.rsi >= 40 && ic.rsi <= 60) {
+              rsiScore = 10; // Perfect neutral range
+            } else if (ic.rsi >= 35 && ic.rsi <= 65) {
+              rsiScore = 7; // Acceptable range
+            } else if (ic.rsi >= 30 && ic.rsi <= 70) {
+              rsiScore = 4; // Marginal
+            } else {
+              rsiScore = 2; // Too extreme (oversold or overbought)
+            }
+          }
+          
+          // Bollinger Band %B score (prefer middle range 0.3-0.7, normalized to 0-5)
+          let bbScore = 2.5; // Default if BB not available
+          if (ic.bbPctB !== null) {
+            if (ic.bbPctB >= 0.3 && ic.bbPctB <= 0.7) {
+              bbScore = 5; // Perfect middle range
+            } else if (ic.bbPctB >= 0.2 && ic.bbPctB <= 0.8) {
+              bbScore = 3; // Acceptable
+            } else {
+              bbScore = 1; // Too extreme (near bands)
+            }
+          }
+          
+          // Total score (max 100)
+          const score = rocScore + riskRewardScore + popScore + ivRankScore + dteScore + rsiScore + bbScore;
           
           return {
             ...ic,

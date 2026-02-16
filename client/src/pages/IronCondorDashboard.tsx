@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import {
   Tooltip,
   TooltipContent,
@@ -29,6 +30,10 @@ import {
   Target,
   HelpCircle,
   Sparkles,
+  Filter,
+  Plus,
+  Minus,
+  X,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
@@ -62,6 +67,13 @@ export default function IronCondorDashboard() {
   const [maxDte, setMaxDte] = useState(60);
   const [spreadWidth, setSpreadWidth] = useState(5);
   
+  // Range filter state (for UI sliders)
+  const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
+  const [deltaRange, setDeltaRange] = useState<[number, number]>([0, 1]);
+  const [dteRange, setDteRange] = useState<[number, number]>([0, 90]);
+  const [minDelta, setMinDelta] = useState(0.15);
+  const [maxDelta, setMaxDelta] = useState(0.35);
+  
   // Watchlist management
   const { data: watchlist = [], refetch: refetchWatchlist } = trpc.watchlist.get.useQuery(undefined, {
     enabled: !!user,
@@ -84,6 +96,14 @@ export default function IronCondorDashboard() {
     },
     { enabled: false }
   );
+
+  // Fetch buying power
+  const { data: buyingPowerData } = trpc.accounts.getBuyingPower.useQuery(
+    { accountId: selectedAccountId || '' },
+    { enabled: !!selectedAccountId, refetchInterval: 30000 }
+  );
+  
+  const availableBuyingPower = buyingPowerData?.buyingPower || 0;
 
   // Selection state
   const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
@@ -123,13 +143,36 @@ export default function IronCondorDashboard() {
 
   // Filter opportunities
   const displayedOpportunities = useMemo(() => {
+    let filtered = [...opportunities];
+    
+    // Apply score filter
+    filtered = filtered.filter((opp: any) => {
+      const score = opp.score || 0;
+      return score >= scoreRange[0] && score <= scoreRange[1];
+    });
+    
+    // Apply delta filter (check both put and call deltas)
+    filtered = filtered.filter((opp: any) => {
+      const putDelta = Math.abs(opp.putShortDelta || 0);
+      const callDelta = Math.abs(opp.callShortDelta || 0);
+      return (putDelta >= deltaRange[0] && putDelta <= deltaRange[1]) ||
+             (callDelta >= deltaRange[0] && callDelta <= deltaRange[1]);
+    });
+    
+    // Apply DTE filter
+    filtered = filtered.filter((opp: any) => {
+      return opp.dte >= dteRange[0] && opp.dte <= dteRange[1];
+    });
+    
+    // Apply "Show Selected Only" filter
     if (showSelectedOnly) {
-      return opportunities.filter((opp: any) => 
+      filtered = filtered.filter((opp: any) => 
         selectedOpportunities.has(`${opp.symbol}-${opp.expiration}`)
       );
     }
-    return opportunities;
-  }, [opportunities, showSelectedOnly, selectedOpportunities]);
+    
+    return filtered;
+  }, [opportunities, showSelectedOnly, selectedOpportunities, scoreRange, deltaRange, dteRange]);
 
   // Calculate summary metrics
   const summaryMetrics = useMemo(() => {
@@ -156,7 +199,7 @@ export default function IronCondorDashboard() {
       return;
     }
 
-    setWatchlistExpanded(false);
+    // Don't auto-collapse watchlist - let user keep it open
     await refetchOpportunities();
     toast.success(`Found ${opportunities.length} Iron Condor opportunities`);
   };
@@ -364,10 +407,187 @@ export default function IronCondorDashboard() {
         )}
       </Card>
 
+      {/* Filters Section */}
+      {opportunities.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              <CardTitle>Filters</CardTitle>
+            </div>
+            <CardDescription>Adjust sliders to filter opportunities</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Score Filter (Primary) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-orange-500">Score (Primary Filter)</label>
+                <span className="text-xs text-muted-foreground">0 - 100</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setScoreRange([Math.max(0, scoreRange[0] - 5), scoreRange[1]])}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <span className="text-sm font-mono w-8 text-center">{scoreRange[0]}</span>
+                <Slider
+                  value={scoreRange}
+                  onValueChange={(value) => setScoreRange(value as [number, number])}
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="flex-1"
+                />
+                <span className="text-sm font-mono w-8 text-center">{scoreRange[1]}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setScoreRange([scoreRange[0], Math.min(100, scoreRange[1] + 5)])}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setScoreRange([70, 100])}
+                  className="text-xs"
+                >
+                  Conservative (≥70)
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setScoreRange([55, 100])}
+                  className="text-xs"
+                >
+                  Aggressive (≥55)
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setScoreRange([0, 100])}
+                  className="text-xs"
+                >
+                  All
+                </Button>
+              </div>
+            </div>
+
+            {/* Delta Filter */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Delta (Δ)</label>
+                <span className="text-xs text-muted-foreground">0.00 - 1.00</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setDeltaRange([Math.max(0, deltaRange[0] - 0.05), deltaRange[1]])}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <span className="text-sm font-mono w-12 text-center">{deltaRange[0].toFixed(2)}</span>
+                <Slider
+                  value={deltaRange}
+                  onValueChange={(value) => setDeltaRange(value as [number, number])}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  className="flex-1"
+                />
+                <span className="text-sm font-mono w-12 text-center">{deltaRange[1].toFixed(2)}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setDeltaRange([deltaRange[0], Math.min(1, deltaRange[1] + 0.05)])}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* DTE Filter */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Days to Expiration (DTE)</label>
+                <span className="text-xs text-muted-foreground">0 - 90 days</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setDteRange([Math.max(0, dteRange[0] - 5), dteRange[1]])}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <span className="text-sm font-mono w-8 text-center">{dteRange[0]}</span>
+                <Slider
+                  value={dteRange}
+                  onValueChange={(value) => setDteRange(value as [number, number])}
+                  min={0}
+                  max={90}
+                  step={1}
+                  className="flex-1"
+                />
+                <span className="text-sm font-mono w-8 text-center">{dteRange[1]}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setDteRange([dteRange[0], Math.min(90, dteRange[1] + 5)])}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Selection Controls */}
+            <div className="flex gap-4 pt-4 border-t">
+              <Button
+                onClick={selectAllFiltered}
+                className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+              >
+                ✓ Select All Filtered ({displayedOpportunities.length})
+              </Button>
+              <Button
+                onClick={clearSelection}
+                variant="outline"
+                className="flex-1 bg-gradient-to-r from-red-500/10 to-red-600/10 hover:from-red-500/20 hover:to-red-600/20"
+              >
+                ✕ Clear Selection ({selectedOpportunities.size})
+              </Button>
+            </div>
+
+            {/* Show Selected Only Checkbox */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="show-selected"
+                checked={showSelectedOnly}
+                onCheckedChange={(checked) => setShowSelectedOnly(checked as boolean)}
+              />
+              <label htmlFor="show-selected" className="text-sm font-medium cursor-pointer">
+                Show Selected Only
+              </label>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Summary Cards */}
       {opportunities.length > 0 && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Premium</CardTitle>
@@ -414,10 +634,33 @@ export default function IronCondorDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {opportunities.length}
+                  {displayedOpportunities.length}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {summaryMetrics.count} selected
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Buying Power</CardTitle>
+                <Target className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  ${availableBuyingPower.toFixed(2)}
+                </div>
+                <p className={`text-xs font-medium ${
+                  summaryMetrics.totalCollateral === 0 ? 'text-muted-foreground' :
+                  (summaryMetrics.totalCollateral / availableBuyingPower) > 0.9 ? 'text-red-500' :
+                  (summaryMetrics.totalCollateral / availableBuyingPower) > 0.8 ? 'text-yellow-500' :
+                  'text-green-500'
+                }`}>
+                  {summaryMetrics.totalCollateral > 0 && availableBuyingPower > 0
+                    ? `${((summaryMetrics.totalCollateral / availableBuyingPower) * 100).toFixed(1)}% used`
+                    : 'Available'
+                  }
                 </p>
               </CardContent>
             </Card>
@@ -477,6 +720,7 @@ export default function IronCondorDashboard() {
                     <TableRow>
                       <TableHead className="w-12">Select</TableHead>
                       <TableHead>Symbol</TableHead>
+                      <TableHead>Score</TableHead>
                       <TableHead>Current</TableHead>
                       <TableHead>Put Strikes</TableHead>
                       <TableHead>Call Strikes</TableHead>
@@ -487,12 +731,14 @@ export default function IronCondorDashboard() {
                       <TableHead>Profit Zone</TableHead>
                       <TableHead>Breakevens</TableHead>
                       <TableHead>IV Rank</TableHead>
+                      <TableHead>RSI</TableHead>
+                      <TableHead>BB %B</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {displayedOpportunities.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={12} className="text-center text-muted-foreground">
+                        <TableCell colSpan={15} className="text-center text-muted-foreground">
                           No opportunities found
                         </TableCell>
                       </TableRow>
@@ -510,6 +756,15 @@ export default function IronCondorDashboard() {
                               />
                             </TableCell>
                             <TableCell className="font-medium">{opp.symbol}</TableCell>
+                            <TableCell>
+                              <Badge className={`${
+                                (opp.score || 0) >= 70 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
+                                (opp.score || 0) >= 55 ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
+                                'bg-red-500/20 text-red-500 border-red-500/50'
+                              }`}>
+                                {(opp.score || 0).toFixed(1)}
+                              </Badge>
+                            </TableCell>
                             <TableCell>${(opp.currentPrice || 0).toFixed(2)}</TableCell>
                             <TableCell>
                               <div className="text-sm">
@@ -546,6 +801,32 @@ export default function IronCondorDashboard() {
                               <Badge className={getIVRankColor(opp.ivRank)}>
                                 {opp.ivRank?.toFixed(0) ?? "N/A"}
                               </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {opp.rsi !== null && opp.rsi !== undefined ? (
+                                <Badge className={`${
+                                  opp.rsi >= 40 && opp.rsi <= 60 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
+                                  opp.rsi >= 35 && opp.rsi <= 65 ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
+                                  'bg-red-500/20 text-red-500 border-red-500/50'
+                                }`}>
+                                  {opp.rsi.toFixed(1)}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">N/A</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {opp.bbPctB !== null && opp.bbPctB !== undefined ? (
+                                <Badge className={`${
+                                  opp.bbPctB >= 0.3 && opp.bbPctB <= 0.7 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
+                                  opp.bbPctB >= 0.2 && opp.bbPctB <= 0.8 ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
+                                  'bg-red-500/20 text-red-500 border-red-500/50'
+                                }`}>
+                                  {opp.bbPctB.toFixed(2)}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">N/A</span>
+                              )}
                             </TableCell>
                           </TableRow>
                         );
