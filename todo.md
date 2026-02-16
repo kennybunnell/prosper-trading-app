@@ -5204,3 +5204,25 @@
 - [x] Update subscription enforcement middleware: restrict TRADING to tier-specific strategies
 - [ ] Add "View Only" badges in UI for locked strategies
 - [x] Update tier comparison table in documentation
+
+## Stripe Product Images for Checkout Page
+- [x] Generate Tier 2 (Wheel View) product image - $47/mo + $99 setup
+- [x] Generate Tier 3 (Wheel Trading) product image - $97/mo + $99 setup
+- [x] Generate Tier 4 (Advanced Spreads) product image - $200/mo
+
+## Crop Stripe Product Images
+- [x] Crop all three product images to remove shadows/borders and meet Stripe requirements
+
+## Tight Crop Stripe Product Images
+- [x] Remove all white background/padding from product images, keep only dark card content
+
+## Compress Stripe Images Under 2MB
+- [x] Compress Tier 2 (Wheel View) to under 2MB (137KB WebP ✓)
+- [x] Compress Tier 3 (Wheel Trading) to under 2MB (209KB WebP ✓)
+- [x] Compress Tier 4 (Advanced Spreads) to under 2MB (201KB WebP ✓)
+
+## VIP/Partner Lifetime Access Tier ($5,000 one-time)
+- [x] Update STRIPE_SETUP_GUIDE.md to include VIP/Partner tier product setup
+- [x] Update subscription tier documentation with VIP/Partner tier details
+- [x] Generate VIP/Partner product image for Stripe checkout
+- [x] Verify role-based access already supports 'lifetime' role

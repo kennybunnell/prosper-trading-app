@@ -12,6 +12,7 @@ This guide will walk you through setting up Stripe products and prices for your 
 | Tier 2 | Wheel View | $47/month | $99 one-time | All strategies | None (paper trading only) | Unlimited scans, requires your own Tradier API |
 | Tier 3 | Wheel Trading | $97/month | $99 one-time | All strategies | CSP + CC only (live trading) | Requires Tradier + Tastytrade APIs |
 | Tier 4 | Advanced Spreads | $200/month | $0 | All strategies | All strategies (live trading) | Full access: CSP, CC, BPS, BCS, Iron Condor, PMCC |
+| Tier 5 | VIP/Partner Lifetime | $5,000 one-time | $0 | All strategies | All strategies (live trading) | Lifetime access, no recurring fees, full platform access forever |
 
 ### Key Strategy
 
@@ -92,11 +93,22 @@ This guide will walk you through setting up Stripe products and prices for your 
 3. Click **Save product**
 4. **Copy the Price ID** - you'll need this later
 
+### 1.7 Create Product: VIP/Partner Lifetime Access (Tier 5)
+
+1. Click **+ Add product**
+2. Fill in the details:
+   - **Name**: `VIP/Partner Lifetime Access`
+   - **Description**: `One-time payment for lifetime access to all strategies and features. No recurring subscription fees ever.`
+   - **Pricing model**: `One-time`
+   - **Price**: `$5,000.00 USD`
+3. Click **Save product**
+4. **Copy the Price ID** - you'll need this later
+
 ---
 
 ## Step 2: Save Your Price IDs
 
-After creating all products, you should have **5 Price IDs**:
+After creating all products, you should have **6 Price IDs**:
 
 ```
 Wheel View (Monthly):         price_xxxxxxxxxxxxx
@@ -104,6 +116,7 @@ Wheel View Setup Fee:         price_xxxxxxxxxxxxx
 Wheel Trading (Monthly):      price_xxxxxxxxxxxxx
 Wheel Trading Setup Fee:      price_xxxxxxxxxxxxx
 Advanced Spreads (Monthly):   price_xxxxxxxxxxxxx
+VIP/Partner Lifetime:         price_xxxxxxxxxxxxx
 ```
 
 **Keep these Price IDs handy** - you'll need them when I implement the Stripe integration code.
@@ -224,6 +237,12 @@ You can create discount codes in Stripe Dashboard:
    - Unlock all strategies
    - Trade spreads, iron condors, PMCC
    - Full platform access
+
+5. **Upgrade to VIP/Partner Lifetime** ($5,000 one-time)
+   - One-time payment, no recurring fees
+   - Lifetime access to all current and future features
+   - Perfect for serious traders who want to eliminate monthly costs
+   - Best value for long-term users (pays for itself in ~25 months vs Tier 4)
 
 ---
 
