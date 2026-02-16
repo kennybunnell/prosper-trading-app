@@ -156,6 +156,11 @@ export const apiCredentials = mysqlTable("apiCredentials", {
   // Tradier API credentials
   tradierApiKey: varchar("tradierApiKey", { length: 255 }),
   tradierAccountId: varchar("tradierAccountId", { length: 255 }),
+  // Tradier account health monitoring
+  tradierAccountBalance: varchar("tradierAccountBalance", { length: 20 }), // Current account balance
+  tradierAccountStatus: varchar("tradierAccountStatus", { length: 50 }), // Account status (active, error, unknown)
+  tradierBuyingPower: varchar("tradierBuyingPower", { length: 20 }), // Available buying power
+  tradierLastHealthCheck: timestamp("tradierLastHealthCheck"), // Last time we checked account health
   defaultTastytradeAccountId: varchar("defaultTastytradeAccountId", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

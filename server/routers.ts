@@ -642,6 +642,23 @@ export const appRouter = router({
         }
       }
       
+      // Get Tradier account health data
+      let tradierHealth = null;
+      if (credentials?.tradierAccountBalance) {
+        const balance = parseFloat(credentials.tradierAccountBalance);
+        const lastChecked = credentials.tradierLastHealthCheck;
+        const needsCheck = !lastChecked || (new Date().getTime() - lastChecked.getTime()) > 24 * 60 * 60 * 1000;
+        
+        tradierHealth = {
+          balance: credentials.tradierAccountBalance,
+          status: credentials.tradierAccountStatus || 'unknown',
+          buyingPower: credentials.tradierBuyingPower,
+          lastChecked: lastChecked,
+          needsCheck,
+          warning: balance < 100,
+        };
+      }
+      
       return {
         tastytrade: {
           configured: tastytradeConfigured,
@@ -653,8 +670,55 @@ export const appRouter = router({
           configured: tradierConfigured,
           connected: tradierConfigured, // Tradier uses API key, no expiration
           status: tradierConfigured ? 'connected' : 'disconnected',
+          health: tradierHealth,
         },
       };
+    }),
+    refreshTradierHealth: protectedProcedure.mutation(async ({ ctx }) => {
+      const { getApiCredentials, upsertApiCredentials } = await import('./db');
+      const { createTradierAPI } = await import('./tradier');
+      
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tradierApiKey) {
+        throw new Error('Tradier API key not configured');
+      }
+      
+      if (!credentials?.tradierAccountId) {
+        throw new Error('Tradier account ID not configured');
+      }
+      
+      const api = createTradierAPI(credentials.tradierApiKey);
+      
+      try {
+        // Fetch account balance
+        const balanceData = await api.getAccountBalance(credentials.tradierAccountId);
+        
+        // Update credentials with health data
+        await upsertApiCredentials(ctx.user.id, {
+          tradierAccountBalance: balanceData.totalEquity.toString(),
+          tradierAccountStatus: 'active', // If API call succeeds, account is active
+          tradierBuyingPower: balanceData.optionBuyingPower.toString(),
+          tradierLastHealthCheck: new Date(),
+        });
+        
+        return {
+          success: true,
+          balance: balanceData.totalEquity.toString(),
+          status: 'active',
+          buyingPower: balanceData.optionBuyingPower.toString(),
+          warning: balanceData.totalEquity < 100,
+        };
+      } catch (error: any) {
+        console.error('[Tradier Health] Failed to fetch account balance:', error.message);
+        
+        // Update status to error
+        await upsertApiCredentials(ctx.user.id, {
+          tradierAccountStatus: 'error',
+          tradierLastHealthCheck: new Date(),
+        });
+        
+        throw new Error(`Failed to fetch Tradier account health: ${error.message}`);
+      }
     }),
     getBackgroundPreferences: protectedProcedure.query(async ({ ctx }) => {
       const { getUserPreferences } = await import('./db');

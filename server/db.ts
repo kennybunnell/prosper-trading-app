@@ -394,6 +394,10 @@ export async function upsertApiCredentials(userId: number, credentials: {
   tastytradeRefreshToken?: string; 
   tradierApiKey?: string; 
   tradierAccountId?: string; 
+  tradierAccountBalance?: string;
+  tradierAccountStatus?: string;
+  tradierBuyingPower?: string;
+  tradierLastHealthCheck?: Date;
   defaultTastytradeAccountId?: string 
 }) {
   const db = await getDb();

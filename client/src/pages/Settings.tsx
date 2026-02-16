@@ -86,6 +86,26 @@ export default function Settings() {
     },
   });
 
+  const connectionStatus = trpc.settings.getConnectionStatus.useQuery(
+    undefined,
+    { enabled: !!user, refetchInterval: 60000 } // Refetch every minute
+  );
+
+  const refreshTradierHealth = trpc.settings.refreshTradierHealth.useMutation({
+    onSuccess: (data) => {
+      if (data.warning) {
+        toast.warning(`Balance: $${data.balance} (Below $100 threshold)`);
+      } else {
+        toast.success(`Balance: $${data.balance}`);
+      }
+      // Refresh connection status to update UI
+      utils.settings.getConnectionStatus.invalidate();
+    },
+    onError: (error) => {
+      toast.error(`Failed to fetch account health: ${error.message}`);
+    },
+  });
+
   const syncAccounts = trpc.accounts.sync.useMutation({
     onSuccess: (data) => {
       toast.success(`Synced ${data.count} account(s) from Tastytrade`);
@@ -379,14 +399,81 @@ export default function Settings() {
                 Used to check account balance and avoid rate limits
               </p>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => testTradier.mutate()}
-              disabled={!credentials?.tradierApiKey || testTradier.isPending || hasChanges}
-            >
-              {testTradier.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Test Connection
-            </Button>
+            {/* Account Health Display */}
+            {connectionStatus.data?.tradier?.health && (
+              <div className="border rounded-lg p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium">Account Health</h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => refreshTradierHealth.mutate()}
+                    disabled={refreshTradierHealth.isPending}
+                  >
+                    {refreshTradierHealth.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Refresh"
+                    )}
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Balance</p>
+                    <p className={`font-medium ${connectionStatus.data.tradier.health.warning ? 'text-amber-500' : 'text-green-500'}`}>
+                      ${parseFloat(connectionStatus.data.tradier.health.balance).toFixed(2)}
+                      {connectionStatus.data.tradier.health.warning && (
+                        <span className="ml-2 text-xs">⚠️ Low</span>
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Buying Power</p>
+                    <p className="font-medium">
+                      ${connectionStatus.data.tradier.health.buyingPower ? parseFloat(connectionStatus.data.tradier.health.buyingPower).toFixed(2) : '0.00'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Status</p>
+                    <p className="font-medium capitalize">{connectionStatus.data.tradier.health.status}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Last Checked</p>
+                    <p className="text-xs">
+                      {connectionStatus.data.tradier.health.lastChecked
+                        ? new Date(connectionStatus.data.tradier.health.lastChecked).toLocaleString()
+                        : 'Never'}
+                    </p>
+                  </div>
+                </div>
+                {connectionStatus.data.tradier.health.warning && (
+                  <p className="text-xs text-amber-600 dark:text-amber-500 mt-2">
+                    ⚠️ Balance below $100. Tradier API access may be affected.
+                  </p>
+                )}
+              </div>
+            )}
+            
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => testTradier.mutate()}
+                disabled={!credentials?.tradierApiKey || testTradier.isPending || hasChanges}
+              >
+                {testTradier.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Test Connection
+              </Button>
+              {credentials?.tradierApiKey && credentials?.tradierAccountId && !hasChanges && (
+                <Button
+                  variant="outline"
+                  onClick={() => refreshTradierHealth.mutate()}
+                  disabled={refreshTradierHealth.isPending}
+                >
+                  {refreshTradierHealth.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Check Balance
+                </Button>
+              )}
+            </div>
             {hasChanges && (
               <p className="text-xs text-muted-foreground mt-2">
                 Save your credentials first before testing the connection

@@ -5226,3 +5226,11 @@
 - [x] Update subscription tier documentation with VIP/Partner tier details
 - [x] Generate VIP/Partner product image for Stripe checkout
 - [x] Verify role-based access already supports 'lifetime' role
+
+## Tradier Account Health Monitoring
+- [x] Add database fields for storing Tradier account health data (balance, status, buying power, last check time)
+- [x] Implement Tradier getAccountBalance API method
+- [x] Create tRPC endpoint for refreshing Tradier account health
+- [x] Update Settings page UI to display Tradier account health
+- [x] Add manual "Refresh Balance" button
+- [ ] Implement 24-hour background check (optional for now)

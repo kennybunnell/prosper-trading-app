@@ -437,7 +437,41 @@ export class TradierAPI {
   }
 
   /**
-   * Check if market is open
+   * Get account balance and buying power
+   */
+  async getAccountBalance(accountId: string): Promise<{
+    totalEquity: number;
+    accountType: string;
+    totalCash: number;
+    optionBuyingPower: number;
+  }> {
+    try {
+      const response = await this.client.get(`/accounts/${accountId}/balances`);
+      
+      const balances = response.data.balance?.balances;
+      if (!balances) {
+        throw new Error('Balance data not found in response');
+      }
+      
+      return {
+        totalEquity: balances.total_equity || 0,
+        accountType: balances.account_type || 'unknown',
+        totalCash: balances.total_cash || 0,
+        optionBuyingPower: balances.margin?.option_buying_power || balances.cash?.cash_available || 0,
+      };
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        throw new Error('Authentication failed: Invalid or expired API key');
+      }
+      if (error.response?.status === 404) {
+        throw new Error('Account not found or access denied');
+      }
+      throw new Error(`Failed to fetch account balance: ${error.response?.data?.fault?.faultstring || error.message}`);
+    }
+  }
+
+  /**
+   * Get market status (open/closed)
    */
   async getMarketStatus(): Promise<{ open: boolean; description: string }> {
     try {
