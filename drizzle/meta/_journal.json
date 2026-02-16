@@ -281,6 +281,13 @@
       "when": 1771274749021,
       "tag": "0040_eminent_tusk",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1771280901487,
+      "tag": "0041_powerful_firebird",
+      "breakpoints": true
     }
   ]
 }

@@ -5246,3 +5246,20 @@
 - [x] Add "Check Balance" button directly under "Tradier Connected"
 - [x] Show balance inline without complex conditions
 - [x] Remove overly complex Account ID dependencies
+
+## Bug Fix: Tradier Balance API Response Parsing
+- [ ] Add logging to see actual Tradier API response structure
+- [ ] Fix getAccountBalance response parsing to match actual API structure
+- [ ] Test balance check works correctly
+
+## Complete Stripe Integration with All Tiers
+- [x] Parse products.csv and map to tier structure
+- [x] Create products.ts file with all Stripe product/price IDs
+- [x] Update subscription enforcement to bypass for VIP Partner and Admin roles (already implemented)
+- [x] Update all tier names across codebase (wheel_view → wheel_trading, add live_trading_csp_cc, vip)
+- [x] Update database schema with new tier enum values
+- [x] Fix all TypeScript errors from tier name changes
+- [ ] Implement checkout logic with credential-based setup fees
+- [ ] Create subscription management UI (upgrade/downgrade)
+- [ ] Create trial expiration popup (14-day limit)
+- [ ] Test complete subscription flow

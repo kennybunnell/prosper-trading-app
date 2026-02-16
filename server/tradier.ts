@@ -448,8 +448,11 @@ export class TradierAPI {
     try {
       const response = await this.client.get(`/accounts/${accountId}/balances`);
       
-      const balances = response.data.balance?.balances;
+      console.log('[Tradier] Raw API response:', JSON.stringify(response.data, null, 2));
+      
+      const balances = response.data.balances;
       if (!balances) {
+        console.error('[Tradier] Balance data not found. Response structure:', Object.keys(response.data));
         throw new Error('Balance data not found in response');
       }
       

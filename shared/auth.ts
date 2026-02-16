@@ -8,7 +8,7 @@ export interface User {
   email: string | null;
   name: string | null;
   role: 'admin' | 'user' | 'vip' | 'partner' | 'beta_tester' | 'lifetime';
-  subscriptionTier?: 'free_trial' | 'wheel_view' | 'wheel_trading' | 'advanced' | null;
+  subscriptionTier?: 'free_trial' | 'wheel_trading' | 'live_trading_csp_cc' | 'advanced' | 'vip' | null;
 }
 
 /**

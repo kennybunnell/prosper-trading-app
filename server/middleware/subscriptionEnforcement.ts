@@ -6,10 +6,11 @@
  * All users can VIEW all strategies (CSP, CC, BPS, BCS, Iron Condor, PMCC) in all tiers.
  * Trading restrictions apply based on tier:
  * 
- * - Tier 1 (free_trial): View all strategies, paper trading only, 10 scans/day
- * - Tier 2 (wheel_view): View all strategies, paper trading only, unlimited scans
- * - Tier 3 (wheel_trading): View all strategies, TRADE CSP + CC only (live trading)
- * - Tier 4 (advanced): View all strategies, TRADE all strategies (live trading)
+ * - Tier 1 (free_trial): View all strategies, paper trading only, 10 scans/day, shared Tradier
+ * - Tier 2 (wheel_trading): View all strategies, paper trading only, unlimited scans, requires own Tradier
+ * - Tier 3 (live_trading_csp_cc): View all strategies, TRADE CSP + CC only (live trading), requires Tradier + Tastytrade
+ * - Tier 4 (advanced): View all strategies, TRADE all strategies (live trading), requires Tradier + Tastytrade
+ * - VIP (vip): Lifetime access, all strategies, all features
  * 
  * Special roles (admin, owner, vip, partner, beta_tester, lifetime) bypass all checks
  */
@@ -17,7 +18,7 @@
 import { TRPCError } from "@trpc/server";
 import { isOwnerAccount } from "../../shared/auth";
 
-export type SubscriptionTier = 'free_trial' | 'wheel_view' | 'wheel_trading' | 'advanced' | null;
+export type SubscriptionTier = 'free_trial' | 'wheel_trading' | 'live_trading_csp_cc' | 'advanced' | 'vip' | null;
 export type TradingStrategy = 'csp' | 'cc' | 'bps' | 'bcs' | 'iron_condor' | 'pmcc';
 export type TradingMode = 'live' | 'paper';
 
@@ -77,8 +78,8 @@ export function canTradeStrategy(
     return { allowed: true };
   }
 
-  // Tier 2 (wheel_view): Paper trading only, all strategies
-  if (tier === 'wheel_view') {
+  // Tier 2 (wheel_trading): Paper trading only, all strategies
+  if (tier === 'wheel_trading') {
     if (tradingMode === 'live') {
       return {
         allowed: false,
@@ -91,8 +92,8 @@ export function canTradeStrategy(
     return { allowed: true };
   }
 
-  // Tier 3 (wheel_trading): Live trading, CSP + CC only
-  if (tier === 'wheel_trading') {
+  // Tier 3 (live_trading_csp_cc): Live trading, CSP + CC only
+  if (tier === 'live_trading_csp_cc') {
     // CSP and CC allowed for live trading
     if (strategy === 'csp' || strategy === 'cc') {
       return { allowed: true };
@@ -144,7 +145,7 @@ export function canUseLiveTrading(
   }
 
   // Tier 1 and 2: Paper trading only
-  if (tier === 'free_trial' || tier === 'wheel_view') {
+  if (tier === 'free_trial' || tier === 'wheel_trading') {
     return {
       allowed: false,
       reason: 'Live trading not available on your current tier',
@@ -154,8 +155,8 @@ export function canUseLiveTrading(
     };
   }
 
-  // Tier 3 and 4: Live trading allowed
-  if (tier === 'wheel_trading' || tier === 'advanced') {
+  // Tier 3, 4, and VIP: Live trading allowed
+  if (tier === 'live_trading_csp_cc' || tier === 'advanced' || tier === 'vip') {
     return { allowed: true };
   }
 
@@ -196,7 +197,7 @@ export function hasRequiredCredentials(
   }
 
   // Tier 2: Requires own Tradier API
-  if (tier === 'wheel_view') {
+  if (tier === 'wheel_trading') {
     if (!credentials.tradierApiKey) {
       missing.push('Tradier API Key');
     }
@@ -211,8 +212,8 @@ export function hasRequiredCredentials(
     return { valid: true };
   }
 
-  // Tier 3 and 4: Requires Tradier + Tastytrade
-  if (tier === 'wheel_trading' || tier === 'advanced') {
+  // Tier 3, 4, and VIP: Requires Tradier + Tastytrade
+  if (tier === 'live_trading_csp_cc' || tier === 'advanced' || tier === 'vip') {
     if (!credentials.tradierApiKey) {
       missing.push('Tradier API Key');
     }
@@ -241,10 +242,12 @@ export function getTierDisplayName(tier: SubscriptionTier): string {
   switch (tier) {
     case 'free_trial':
       return 'Free Trial';
-    case 'wheel_view':
-      return 'Wheel View';
     case 'wheel_trading':
       return 'Wheel Trading';
+    case 'live_trading_csp_cc':
+      return 'Live Trading (CSP + CC)';
+    case 'vip':
+      return 'VIP/Partner';
     case 'advanced':
       return 'Advanced Spreads';
     default:
@@ -265,12 +268,12 @@ export function getViewableStrategies(tier: SubscriptionTier): TradingStrategy[]
  */
 export function getTradableStrategies(tier: SubscriptionTier, tradingMode: TradingMode): TradingStrategy[] {
   // Tier 1 and 2: All strategies in paper mode only
-  if ((tier === 'free_trial' || tier === 'wheel_view') && tradingMode === 'paper') {
+  if ((tier === 'free_trial' || tier === 'wheel_trading') && tradingMode === 'paper') {
     return ['csp', 'cc', 'bps', 'bcs', 'iron_condor', 'pmcc'];
   }
 
   // Tier 1 and 2: No live trading
-  if ((tier === 'free_trial' || tier === 'wheel_view') && tradingMode === 'live') {
+  if ((tier === 'free_trial' || tier === 'wheel_trading') && tradingMode === 'live') {
     return [];
   }
 

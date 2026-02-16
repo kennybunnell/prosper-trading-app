@@ -1,0 +1,2 @@
+ALTER TABLE `broadcasts` MODIFY COLUMN `targetTier` enum('all','free_trial','wheel_trading','live_trading_csp_cc','advanced','vip') NOT NULL DEFAULT 'all';--> statement-breakpoint
+ALTER TABLE `users` MODIFY COLUMN `subscriptionTier` enum('free_trial','wheel_trading','live_trading_csp_cc','advanced','vip') DEFAULT 'free_trial';

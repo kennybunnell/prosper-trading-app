@@ -21,8 +21,8 @@ export const users = mysqlTable("users", {
   tradingMode: mysqlEnum("tradingMode", ["live", "paper"]).default("paper").notNull(),
   /** Paper trading balance for simulation (default $100,000) */
   paperTradingBalance: int("paperTradingBalance").default(100000).notNull(),
-  /** Subscription tier: free_trial (14-day trial), wheel_view (paper trading $47/mo), wheel_trading (live CSP/CC $97/mo), advanced (all strategies $200/mo) */
-  subscriptionTier: mysqlEnum("subscriptionTier", ["free_trial", "wheel_view", "wheel_trading", "advanced"]).default("free_trial"),
+  /** Subscription tier: free_trial (14-day trial), wheel_trading (paper trading $47/mo), live_trading_csp_cc (live CSP/CC $97/mo), advanced (all strategies $197/mo), vip (lifetime $5000) */
+  subscriptionTier: mysqlEnum("subscriptionTier", ["free_trial", "wheel_trading", "live_trading_csp_cc", "advanced", "vip"]).default("free_trial"),
   /** Trial end date - 14 days from signup for new users */
   trialEndsAt: timestamp("trialEndsAt"),
   /** Stripe customer ID for subscription management */
@@ -470,7 +470,7 @@ export type InsertUserActivity = typeof userActivity.$inferInsert;
 export const broadcasts = mysqlTable("broadcasts", {
   id: int("id").autoincrement().primaryKey(),
   sentByAdminId: int("sentByAdminId").notNull().references(() => users.id),
-  targetTier: mysqlEnum("targetTier", ["all", "free_trial", "wheel_view", "wheel_trading", "advanced"]).default("all").notNull(),
+  targetTier: mysqlEnum("targetTier", ["all", "free_trial", "wheel_trading", "live_trading_csp_cc", "advanced", "vip"]).default("all").notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   message: text("message").notNull(),
   videoUrl: varchar("videoUrl", { length: 500 }), // Optional video link for tutorials/walkthroughs
