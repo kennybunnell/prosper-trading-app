@@ -21,8 +21,8 @@ export const users = mysqlTable("users", {
   tradingMode: mysqlEnum("tradingMode", ["live", "paper"]).default("paper").notNull(),
   /** Paper trading balance for simulation (default $100,000) */
   paperTradingBalance: int("paperTradingBalance").default(100000).notNull(),
-  /** Subscription tier: free_trial (demo mode), wheel (CSP/CC), advanced (all strategies) */
-  subscriptionTier: mysqlEnum("subscriptionTier", ["free_trial", "wheel", "advanced"]).default("free_trial"),
+  /** Subscription tier: free_trial (14-day trial), wheel_view (paper trading $47/mo), wheel_trading (live CSP/CC $97/mo), advanced (all strategies $200/mo) */
+  subscriptionTier: mysqlEnum("subscriptionTier", ["free_trial", "wheel_view", "wheel_trading", "advanced"]).default("free_trial"),
   /** Trial end date - 14 days from signup for new users */
   trialEndsAt: timestamp("trialEndsAt"),
   /** Stripe customer ID for subscription management */
@@ -465,7 +465,7 @@ export type InsertUserActivity = typeof userActivity.$inferInsert;
 export const broadcasts = mysqlTable("broadcasts", {
   id: int("id").autoincrement().primaryKey(),
   sentByAdminId: int("sentByAdminId").notNull().references(() => users.id),
-  targetTier: mysqlEnum("targetTier", ["all", "free_trial", "wheel", "advanced"]).default("all").notNull(),
+  targetTier: mysqlEnum("targetTier", ["all", "free_trial", "wheel_view", "wheel_trading", "advanced"]).default("all").notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   message: text("message").notNull(),
   videoUrl: varchar("videoUrl", { length: 500 }), // Optional video link for tutorials/walkthroughs
@@ -584,3 +584,23 @@ export const monthlyPremiumCache = mysqlTable("monthlyPremiumCache", {
 
 export type MonthlyPremiumCache = typeof monthlyPremiumCache.$inferSelect;
 export type InsertMonthlyPremiumCache = typeof monthlyPremiumCache.$inferInsert;
+
+/**
+ * API usage tracking for rate limiting (Tier 1 free trial users)
+ * Tracks daily scan counts to enforce 10 scans/day limit
+ */
+export const apiUsage = mysqlTable("apiUsage", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  date: varchar("date", { length: 10 }).notNull(), // Format: YYYY-MM-DD
+  scanCount: int("scanCount").default(0).notNull(), // Number of scans performed today
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  uniqueUserDate: unique("unique_user_date").on(table.userId, table.date),
+  userIdIdx: index("apiUsage_userId_idx").on(table.userId),
+  dateIdx: index("apiUsage_date_idx").on(table.date),
+}));
+
+export type ApiUsage = typeof apiUsage.$inferSelect;
+export type InsertApiUsage = typeof apiUsage.$inferInsert;

@@ -227,7 +227,7 @@ export function AdminUsers() {
                             variant="ghost"
                             size="sm"
                             onClick={() =>
-                              upgradeUserTier.mutate({ userId: user.id, tier: "wheel" })
+                              upgradeUserTier.mutate({ userId: user.id, tier: "wheel_view" })
                             }
                           >
                             <ArrowUpCircle className="h-4 w-4" />

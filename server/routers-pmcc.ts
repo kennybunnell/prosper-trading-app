@@ -48,6 +48,16 @@ export const pmccRouter = router({
       const { getFilterPresetsByStrategy, seedPmccFilterPresets } = await import("./db-filter-presets");
       const { createTradierAPI } = await import("./tradier");
       const { getWatchlist } = await import("./db");
+      const { checkRateLimit, incrementScanCount } = await import('./middleware/rateLimiting');
+
+      // Check rate limit for Tier 1 users (owner/admin bypass automatically)
+      const rateLimit = await checkRateLimit(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+      if (!rateLimit.allowed) {
+        throw new TRPCError({
+          code: 'TOO_MANY_REQUESTS',
+          message: rateLimit.message || 'Rate limit exceeded',
+        });
+      }
 
       // Ensure PMCC filter presets exist
       await seedPmccFilterPresets(ctx.user.id);
@@ -211,6 +221,9 @@ export const pmccRouter = router({
       allOpportunities.sort((a, b) => b.score - a.score);
 
       console.log(`[PMCC] Found ${allOpportunities.length} LEAP opportunities across ${symbols.length} symbols`);
+
+      // Increment scan count for Tier 1 users (after successful scan)
+      await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
 
       return {
         opportunities: allOpportunities,

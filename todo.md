@@ -5092,3 +5092,97 @@
 - [ ] Investigate "Failed to submit order: Order submission failed" error
 - [ ] Fix the underlying issue causing submission failure
 - [ ] Test order submission end-to-end
+
+## Multi-Tenant Readiness Audit
+- [ ] Review all database queries for proper user isolation (ctx.user.id filtering)
+- [ ] Audit API credential access to ensure users can only see their own credentials
+- [ ] Check watchlist, opportunities, and order history for user-specific filtering
+- [ ] Verify no hardcoded user IDs or account numbers in code
+- [ ] Test with multiple user accounts to ensure data isolation
+- [ ] Review authentication and authorization flows
+- [ ] Check for any shared state or global variables that could leak between users
+- [ ] Audit file uploads and S3 storage for user-specific paths
+- [ ] Review session management and JWT token security
+- [ ] Check for any admin-only features that need role-based access control
+
+## Stripe Subscription Tier Implementation
+- [ ] Define 4 subscription tiers in Stripe dashboard
+  - [ ] Tier 1: Free Trial (14 days, $0)
+  - [ ] Tier 2: Wheel Strategy View-Only ($47/month)
+  - [ ] Tier 3: Wheel Trading ($97/month + setup fee)
+  - [ ] Tier 4: Advanced Spreads ($200/month + setup fee)
+- [ ] Create Stripe products and prices for each tier
+- [ ] Implement subscription tier tracking in user table (add subscriptionTier field if not exists)
+- [ ] Add trial expiration tracking (trialEndsAt field)
+- [ ] Implement feature gating middleware for tRPC procedures
+  - [ ] View-only features (Tier 1-2): CSP/CC/BPS/BCS/Iron Condor dashboards
+  - [ ] Trading features (Tier 3): CSP + CC order submission
+  - [ ] Advanced trading features (Tier 4): BPS + BCS + Iron Condor order submission
+- [ ] Add subscription status check on dashboard load
+- [ ] Create upgrade prompts for locked features
+- [ ] Implement setup fee collection for Tier 3-4 upgrades
+- [ ] Add API credential requirement check before Tier 3-4 upgrade
+- [ ] Create subscription management page (view current plan, upgrade, cancel)
+- [ ] Implement webhook handlers for subscription events (created, updated, canceled)
+- [ ] Add grace period handling for failed payments
+- [ ] Test subscription upgrade/downgrade flows
+- [ ] Add billing history page
+
+## API Credential Management for Multi-Tenant
+- [ ] Ensure each user has their own API credentials table entry
+- [ ] Add UI for users to enter their own Tastytrade API credentials
+- [ ] Add UI for users to enter their own Tradier API key
+- [ ] Implement credential validation before saving
+- [ ] Add "Test Connection" button for API credentials
+- [ ] Show credential status (connected, disconnected, invalid)
+- [ ] Add setup wizard for Tier 3-4 users to configure credentials
+- [ ] Document API credential setup process for users
+
+## Code Cleanup and Optimization
+- [ ] Remove any console.log statements in production code
+- [ ] Review and optimize database queries for performance
+- [ ] Add proper error handling and user-friendly error messages
+- [ ] Review and update all toast notifications for consistency
+- [ ] Ensure all loading states are properly handled
+- [ ] Add proper TypeScript types for all API responses
+- [ ] Review and optimize frontend bundle size
+- [ ] Add proper meta tags and SEO optimization
+- [ ] Review and update documentation/README
+
+## Testing Before Launch
+- [ ] Test all 4 subscription tiers with different user accounts
+- [ ] Test trial expiration and upgrade prompts
+- [ ] Test feature gating (locked features show upgrade prompts)
+- [ ] Test API credential setup for Tier 3-4 users
+- [ ] Test order submission with user-specific API credentials
+- [ ] Test subscription cancellation and data retention
+- [ ] Test payment failure scenarios
+- [ ] Load test with multiple concurrent users
+- [ ] Security audit and penetration testing
+- [ ] Cross-browser testing (Chrome, Firefox, Safari, Edge)
+
+## Paper Trading System Audit for Tier 1-2
+- [ ] Review existing paper trading implementation in server/routers-paper-trading.ts
+- [ ] Verify $100k virtual account balance is properly initialized
+- [ ] Check if paper trading positions are properly tracked in database
+- [ ] Test paper trading order submission (virtual orders)
+- [ ] Verify paper trading performance tracking
+- [ ] Ensure paper trading mode blocks real Tastytrade API calls
+- [ ] Test switching between paper and live trading modes
+
+## Shared Tradier API Configuration (Tier 1 Only)
+- [ ] Add SHARED_TRADIER_API_KEY environment variable
+- [ ] Create API routing logic: Tier 1 uses shared key, Tier 2+ uses user's own key
+- [ ] Add rate limiting for shared API usage (prevent abuse)
+- [ ] Monitor shared API quota and usage
+- [ ] Add fallback handling if shared API quota exceeded
+
+## Updated Tier Structure Implementation
+- [ ] Update schema: subscriptionTier enum to ["free_trial", "wheel_view", "wheel_trading", "advanced"]
+- [ ] Tier 1 (Free Trial): Uses shared Tradier API, paper trading only, 14 days
+- [ ] Tier 2 ($47/month): Requires user's own Tradier API, paper trading only
+- [ ] Tier 3 ($97/month + setup): Requires Tradier + Tastytrade, live trading CSP+CC
+- [ ] Tier 4 ($200/month + setup): Same as Tier 3 + all strategies (BPS/BCS/Iron Condor/PMCC)
+- [ ] Add API credential requirement checks before tier upgrades
+- [ ] Block Tier 2 upgrade if user hasn't provided Tradier API
+- [ ] Block Tier 3 upgrade if user hasn't provided Tastytrade credentials

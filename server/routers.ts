@@ -902,6 +902,13 @@ export const appRouter = router({
         const { getApiCredentials } = await import('./db');
         const { createTradierAPI } = await import('./tradier');
         const { scoreOpportunities } = await import('./scoring');
+        const { checkRateLimit, incrementScanCount } = await import('./middleware/rateLimiting');
+
+        // Check rate limit for Tier 1 users (owner/admin bypass automatically)
+        const rateLimit = await checkRateLimit(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+        if (!rateLimit.allowed) {
+          throw new Error(rateLimit.message || 'Rate limit exceeded');
+        }
 
         const credentials = await getApiCredentials(ctx.user.id);
         
@@ -937,6 +944,9 @@ export const appRouter = router({
 
         // Score all opportunities
         const scored = scoreOpportunities(opportunities);
+
+        // Increment scan count for Tier 1 users (after successful scan)
+        await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
 
         return scored;
       }),
@@ -1728,6 +1738,13 @@ Summary: [One sentence overall assessment]`;
         const { createTradierAPI } = await import('./tradier');
         const { scoreOpportunities } = await import('./scoring');
         const { calculateBullPutSpread, calculateBearCallSpread } = await import('./spread-pricing');
+        const { checkRateLimit, incrementScanCount } = await import('./middleware/rateLimiting');
+
+        // Check rate limit for Tier 1 users (owner/admin bypass automatically)
+        const rateLimit = await checkRateLimit(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+        if (!rateLimit.allowed) {
+          throw new Error(rateLimit.message || 'Rate limit exceeded');
+        }
 
         const credentials = await getApiCredentials(ctx.user.id);
         
@@ -2039,6 +2056,9 @@ Summary: [One sentence overall assessment]`;
         // Sort by score descending
         scoredIronCondors.sort((a, b) => b.score - a.score);
 
+        // Increment scan count for Tier 1 users (after successful scan)
+        await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+
         return scoredIronCondors;
       }),
   }),
@@ -2063,6 +2083,13 @@ Summary: [One sentence overall assessment]`;
         const { createTradierAPI } = await import('./tradier');
         const { scoreOpportunities } = await import('./scoring');
         const { calculateBullPutSpread } = await import('./spread-pricing');
+        const { checkRateLimit, incrementScanCount } = await import('./middleware/rateLimiting');
+
+        // Check rate limit for Tier 1 users (owner/admin bypass automatically)
+        const rateLimit = await checkRateLimit(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+        if (!rateLimit.allowed) {
+          throw new Error(rateLimit.message || 'Rate limit exceeded');
+        }
 
         const credentials = await getApiCredentials(ctx.user.id);
         
@@ -2183,6 +2210,9 @@ Summary: [One sentence overall assessment]`;
 
         // Score spread opportunities (reuse CSP scoring logic)
         const scored = scoreOpportunities(spreadOpportunities);
+
+        // Increment scan count for Tier 1 users (after successful scan)
+        await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
 
         return scored;
       }),

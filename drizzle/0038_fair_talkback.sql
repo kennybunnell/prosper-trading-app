@@ -1,0 +1,1 @@
+ALTER TABLE `broadcasts` MODIFY COLUMN `targetTier` enum('all','free_trial','wheel_view','wheel_trading','advanced') NOT NULL DEFAULT 'all';

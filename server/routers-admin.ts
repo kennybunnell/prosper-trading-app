@@ -35,7 +35,7 @@ export const adminRouter = router({
   listUsers: adminProcedure
     .input(z.object({
       search: z.string().optional(),
-      tier: z.enum(['free_trial', 'wheel', 'advanced']).optional(),
+      tier: z.enum(['free_trial', 'wheel_view', 'wheel_trading', 'advanced']).optional(),
       limit: z.number().default(50),
       offset: z.number().default(0),
     }))
@@ -196,7 +196,7 @@ export const adminRouter = router({
   upgradeUserTier: adminProcedure
     .input(z.object({
       userId: z.number(),
-      tier: z.enum(['free_trial', 'wheel', 'advanced']),
+      tier: z.enum(['free_trial', 'wheel_view', 'wheel_trading', 'advanced']),
     }))
     .mutation(async ({ input }) => {
       const { getDb } = await import('./db');
@@ -388,7 +388,7 @@ export const adminRouter = router({
       title: z.string(),
       message: z.string(),
       videoUrl: z.string().optional(),
-      targetTier: z.enum(['all', 'free_trial', 'wheel', 'advanced']).default('all'),
+      targetTier: z.enum(['all', 'free_trial', 'wheel_view', 'wheel_trading', 'advanced']).default('all'),
     }))
     .mutation(async ({ input, ctx }) => {
       const { getDb } = await import('./db');

@@ -208,6 +208,13 @@ export const ccRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { getApiCredentials } = await import('./db');
       const { createTradierAPI } = await import('./tradier');
+      const { checkRateLimit, incrementScanCount } = await import('./middleware/rateLimiting');
+
+      // Check rate limit for Tier 1 users (owner/admin bypass automatically)
+      const rateLimit = await checkRateLimit(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+      if (!rateLimit.allowed) {
+        throw new Error(rateLimit.message || 'Rate limit exceeded');
+      }
 
       const credentials = await getApiCredentials(ctx.user.id);
       
@@ -402,6 +409,9 @@ export const ccRouter = router({
 
       // Sort by score descending
       scoredOpportunities.sort((a, b) => b.score - a.score);
+
+      // Increment scan count for Tier 1 users (after successful scan)
+      await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
 
       return scoredOpportunities;
     }),
