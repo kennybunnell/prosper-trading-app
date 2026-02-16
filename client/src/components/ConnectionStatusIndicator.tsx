@@ -16,6 +16,16 @@ export function ConnectionStatusIndicator() {
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [, setLocation] = useLocation();
   
+  const refreshTradierHealth = trpc.settings.refreshTradierHealth.useMutation({
+    onSuccess: () => {
+      toast.success('Tradier balance updated');
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(`Failed to check balance: ${error.message}`);
+    },
+  });
+  
   const forceTokenRefresh = trpc.settings.forceTokenRefresh.useMutation({
     onSuccess: (data) => {
       const expiresAt = data.expiresAt ? new Date(data.expiresAt).toLocaleString() : 'Unknown';
@@ -124,15 +134,25 @@ export function ConnectionStatusIndicator() {
                   ) : (connectionStatus?.tastytrade.configured ? "Token Expired" : "Not configured")}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                {connectionStatus?.tradier.configured ? (
-                  <CheckCircle2 className="h-3 w-3 text-green-500" />
-                ) : (
-                  <XCircle className="h-3 w-3 text-red-500" />
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  {connectionStatus?.tradier.configured ? (
+                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <XCircle className="h-3 w-3 text-red-500" />
+                  )}
+                  <span>
+                    Tradier: {connectionStatus?.tradier.connected ? "Connected" : "Not configured"}
+                  </span>
+                </div>
+                {connectionStatus?.tradier.connected && connectionStatus?.tradier.health && (
+                  <div className="pl-5 text-xs">
+                    <div className={connectionStatus.tradier.health.warning ? "text-amber-500" : "text-green-500"}>
+                      Balance: ${connectionStatus.tradier.health.balance}
+                      {connectionStatus.tradier.health.warning && " ⚠️"}
+                    </div>
+                  </div>
                 )}
-                <span>
-                  Tradier: {connectionStatus?.tradier.connected ? "Connected" : "Not configured"}
-                </span>
               </div>
             </div>
             {connectionStatus?.tastytrade.status === 'expired' && (
@@ -156,6 +176,32 @@ export function ConnectionStatusIndicator() {
                     <>
                       <RefreshCw className="h-3 w-3" />
                       Refresh Token
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+            {connectionStatus?.tradier.connected && (
+              <div className="pt-2 border-t">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full flex items-center gap-2"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    refreshTradierHealth.mutate();
+                  }}
+                  disabled={refreshTradierHealth.isPending}
+                >
+                  {refreshTradierHealth.isPending ? (
+                    <>
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      Checking...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-3 w-3" />
+                      Check Balance
                     </>
                   )}
                 </Button>

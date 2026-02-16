@@ -5234,3 +5234,15 @@
 - [x] Update Settings page UI to display Tradier account health
 - [x] Add manual "Refresh Balance" button
 - [ ] Implement 24-hour background check (optional for now)
+
+## Bug Fix: Tradier Account Health Not Displaying in Settings UI
+- [x] Add account health display UI in Tradier API section
+- [x] Show balance, buying power, status below Test Connection button
+- [x] Add "Check Balance" button to manually refresh health data (always visible)
+- [ ] Test UI displays correctly with real data (waiting for user to test)
+
+## Simplify Tradier Balance Display
+- [x] Move balance check to ConnectionStatusIndicator (top right corner)
+- [x] Add "Check Balance" button directly under "Tradier Connected"
+- [x] Show balance inline without complex conditions
+- [x] Remove overly complex Account ID dependencies

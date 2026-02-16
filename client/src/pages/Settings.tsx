@@ -463,7 +463,7 @@ export default function Settings() {
                 {testTradier.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Test Connection
               </Button>
-              {credentials?.tradierApiKey && credentials?.tradierAccountId && !hasChanges && (
+              {credentials?.tradierApiKey && credentials?.tradierAccountId && (
                 <Button
                   variant="outline"
                   onClick={() => refreshTradierHealth.mutate()}
