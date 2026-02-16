@@ -5011,3 +5011,18 @@
   - [x] Root cause: selectAllFiltered was using full opportunities array (143 items) instead of displayedOpportunities (filtered)
   - [x] Fix: Changed selectAllFiltered to use displayedOpportunities which already has score/delta/DTE filters applied
   - [ ] Test with 1, 3, and 10 selected opportunities to verify count
+
+## Iron Condor Progress Dialog (HIGH PRIORITY - User requested 4 times)
+
+- [x] Add progress dialog matching CSP/CC dashboards
+  - [x] Investigate how CSP dashboard implements progress tracking
+  - [x] Add progress dialog component with:
+    - [x] Title: "Scanning Options Chains"
+    - [x] Status text: "Analyzing X stocks for iron condor opportunities..."
+    - [x] Progress bar showing percentage complete
+    - [x] Time remaining estimate (e.g., "2s remaining")
+    - [x] Spinner animation
+  - [x] Wire progress dialog to scan button
+  - [x] Added LiveCountdown component (6 seconds per symbol estimate)
+  - [x] Added completion message showing total opportunities found and time taken
+  - [ ] Test with small (3 symbols) and large (54 symbols) watchlists

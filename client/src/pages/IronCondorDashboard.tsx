@@ -38,11 +38,80 @@ import {
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { UnifiedOrderPreviewModal } from "@/components/UnifiedOrderPreviewModal";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // Color-coding helper functions
 function getROCColor(roc: number): string {
   if (roc > 1.5) return "bg-green-500/20 text-green-500 border-green-500/50";
   if (roc >= 1.0) return "bg-yellow-500/20 text-yellow-500 border-yellow-500/50";
+  return "bg-red-500/20 text-red-500 border-red-500/50";
+}
+
+// Live countdown component for progress dialog
+function LiveCountdown({ startTime, totalSymbols }: { startTime: number; totalSymbols: number }) {
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [estimatedTotal, setEstimatedTotal] = useState(0);
+  
+  useEffect(() => {
+    // Iron Condors require fetching both put and call spreads
+    // Estimate: 6 seconds per symbol (more complex than single spreads)
+    const secondsPerSymbol = 6;
+    const estimatedTotalSeconds = totalSymbols * secondsPerSymbol;
+    setEstimatedTotal(estimatedTotalSeconds);
+    
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      const remaining = Math.max(0, estimatedTotalSeconds - elapsed);
+      setRemainingSeconds(remaining);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [startTime, totalSymbols]);
+  
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = Math.floor(remainingSeconds % 60);
+  const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+  const progressPercent = estimatedTotal > 0 ? Math.min(100, (elapsedSeconds / estimatedTotal) * 100) : 0;
+  
+  return (
+    <div className="flex flex-col items-center justify-center space-y-4">
+      <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      <div className="w-full space-y-2">
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>Analyzing {totalSymbols} stocks for iron condor opportunities...</span>
+          <span>{Math.round(progressPercent)}%</span>
+        </div>
+        <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+          <div 
+            className="h-full bg-primary transition-all duration-1000 ease-linear"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+      <p className="text-lg font-semibold text-primary">
+        {remainingSeconds > 0 ? (
+          <>{minutes}:{seconds.toString().padStart(2, '0')} remaining</>
+        ) : (
+          <>Finishing up...</>
+        )}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Scanning options chains...
+      </p>
+    </div>
+  );
+}
+
+function getRSIColor(rsi: number | null): string {
+  if (rsi === null) return "bg-gray-500/20 text-gray-500 border-gray-500/50";
+  if (rsi >= 40 && rsi <= 60) return "bg-green-500/20 text-green-500 border-green-500/50";
+  if ((rsi >= 30 && rsi < 40) || (rsi > 60 && rsi <= 70)) return "bg-yellow-500/20 text-yellow-500 border-yellow-500/50";
   return "bg-red-500/20 text-red-500 border-red-500/50";
 }
 
@@ -104,6 +173,16 @@ export default function IronCondorDashboard() {
   );
   
   const availableBuyingPower = buyingPowerData?.buyingPower || 0;
+
+  // Progress tracking for scan dialog
+  const [fetchProgress, setFetchProgress] = useState<{
+    isOpen: boolean;
+    current: number;
+    total: number;
+    completed: number;
+    startTime: number | null;
+    endTime: number | null;
+  }>({ isOpen: false, current: 0, total: 0, completed: 0, startTime: null, endTime: null });
 
   // Selection state
   const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
@@ -196,10 +275,27 @@ export default function IronCondorDashboard() {
       return;
     }
 
+    // Open progress dialog
+    const symbolCount = filteredWatchlist.length;
+    setFetchProgress({
+      isOpen: true,
+      current: 0,
+      total: symbolCount,
+      completed: 0,
+      startTime: Date.now(),
+      endTime: null,
+    });
+
     // Don't auto-collapse watchlist - let user keep it open
     await refetchOpportunities();
-    toast.success(`Found ${opportunities.length} Iron Condor opportunities`);
   };
+
+  // Track when loading completes to set endTime
+  useEffect(() => {
+    if (!loadingOpportunities && fetchProgress.startTime && !fetchProgress.endTime) {
+      setFetchProgress(prev => ({ ...prev, endTime: Date.now() }));
+    }
+  }, [loadingOpportunities, fetchProgress.startTime, fetchProgress.endTime]);
 
   // Handle order preview
   const handleOrderPreview = () => {
@@ -850,6 +946,59 @@ export default function IronCondorDashboard() {
           return { results: [] };
         }}
       />
+
+      {/* Fetch Progress Dialog */}
+      <Dialog open={fetchProgress.isOpen} onOpenChange={(open) => {
+        if (!open) {
+          // Cancel button clicked
+          if (loadingOpportunities) {
+            // Abort ongoing fetch
+            toast.info('Scan cancelled');
+          }
+          setFetchProgress({ ...fetchProgress, isOpen: false });
+        }
+      }}>
+        <DialogContent className="max-w-md border-2 border-orange-500/50">
+          <DialogHeader>
+            <DialogTitle>Scanning Options Chains</DialogTitle>
+            <DialogDescription>
+              Analyzing stocks for iron condor opportunities...
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {loadingOpportunities ? (
+              <LiveCountdown 
+                startTime={fetchProgress.startTime || Date.now()} 
+                totalSymbols={fetchProgress.total}
+              />
+            ) : (
+              <div className="text-center space-y-4">
+                <div className="text-4xl">✓</div>
+                <p className="text-sm text-muted-foreground">
+                  Completed scanning {fetchProgress.total} symbols
+                </p>
+                <p className="text-lg font-semibold">
+                  Found {opportunities.length} Iron Condor opportunities
+                </p>
+                {fetchProgress.startTime && fetchProgress.endTime && (
+                  <p className="text-xs text-muted-foreground">
+                    Completed in {((fetchProgress.endTime - fetchProgress.startTime) / 1000).toFixed(1)}s
+                  </p>
+                )}
+                <Button 
+                  onClick={() => {
+                    setFetchProgress({ ...fetchProgress, isOpen: false });
+                  }}
+                  className="mt-4"
+                  size="sm"
+                >
+                  Close
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
