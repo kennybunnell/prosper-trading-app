@@ -71,7 +71,7 @@ export interface UnifiedOrderPreviewModalProps {
   
   // Order data
   orders: UnifiedOrder[];
-  strategy: "csp" | "cc" | "bcs" | "bps" | "pmcc" | "btc" | "roll" | "replace";
+  strategy: "csp" | "cc" | "bcs" | "bps" | "pmcc" | "btc" | "roll" | "replace" | "iron_condor";
   
   // Account context
   accountId: string;

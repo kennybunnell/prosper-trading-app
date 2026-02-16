@@ -5026,3 +5026,14 @@
   - [x] Added LiveCountdown component (6 seconds per symbol estimate)
   - [x] Added completion message showing total opportunities found and time taken
   - [ ] Test with small (3 symbols) and large (54 symbols) watchlists
+
+## Iron Condor Multi-Leg Order Construction Bug (CRITICAL)
+
+- [x] Fix order construction - 10 ICs generating 40 separate orders instead of 10 multi-leg orders
+  - [x] Investigate ordersForPreview logic in IronCondorDashboard.tsx
+  - [x] Current behavior: Each IC creates 4 separate single-leg orders (DANGEROUS - execution risk!)
+  - [x] Expected behavior: Each IC creates 2 spread orders (Bull Put + Bear Call) per IC
+  - [x] Reference: Bull Put / Bear Call spreads correctly create 1 order with 2 legs
+  - [x] Fix: Changed flatMap to create 2 spread orders per IC (PUT spread + CALL spread)
+  - [x] Added "iron_condor" to strategy type in UnifiedOrderPreviewModal
+  - [ ] Test: 10 selected ICs should show "Preview Orders (20)" (2 spreads × 10 ICs)

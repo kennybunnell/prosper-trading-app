@@ -307,85 +307,44 @@ export default function IronCondorDashboard() {
   };
 
   // Build orders for preview modal
+  // Each Iron Condor creates 2 spread orders: Bull Put Spread + Bear Call Spread
   const ordersForPreview = useMemo(() => {
     const selected = opportunities.filter((opp: any) => 
       selectedOpportunities.has(`${opp.symbol}-${opp.expiration}`)
     );
 
     return selected.flatMap((opp: any) => {
-      // Create 4 legs for Iron Condor
+      // Create 2 spread orders for each Iron Condor
       return [
-        // Put side - short
+        // Bull Put Spread (PUT short + PUT long)
         {
           symbol: opp.symbol,
-          strategy: "STO" as const,
           action: "sell_to_open" as const,
           strike: opp.putShortStrike,
           expiration: opp.expiration,
-          premium: opp.putNetCredit,
+          premium: opp.putNetCredit * 100, // Convert to dollars
           bid: opp.putShortBid,
           ask: opp.putShortAsk,
-          quantity: 1,
           optionType: "PUT" as const,
-          dte: opp.dte,
-          delta: opp.putShortDelta,
-          collateral: 0, // Collateral calculated for full spread
           longStrike: opp.putLongStrike,
-          longPremium: 0,
+          longPremium: opp.putLongAsk * 100, // Cost of long leg
           longBid: opp.putLongBid,
           longAsk: opp.putLongAsk,
         },
-        // Put side - long
+        // Bear Call Spread (CALL short + CALL long)
         {
           symbol: opp.symbol,
-          strategy: "BTO" as const,
-          action: "buy_to_open" as const,
-          strike: opp.putLongStrike,
-          expiration: opp.expiration,
-          premium: -opp.putLongAsk,
-          bid: opp.putLongBid,
-          ask: opp.putLongAsk,
-          quantity: 1,
-          optionType: "PUT" as const,
-          dte: opp.dte,
-          delta: opp.putLongDelta,
-          collateral: 0,
-        },
-        // Call side - short
-        {
-          symbol: opp.symbol,
-          strategy: "STO" as const,
           action: "sell_to_open" as const,
           strike: opp.callShortStrike,
           expiration: opp.expiration,
-          premium: opp.callNetCredit,
+          premium: opp.callNetCredit * 100, // Convert to dollars
           bid: opp.callShortBid,
           ask: opp.callShortAsk,
-          quantity: 1,
           optionType: "CALL" as const,
-          dte: opp.dte,
-          delta: opp.callShortDelta,
-          collateral: opp.totalCollateral, // Full collateral on call side
           longStrike: opp.callLongStrike,
-          longPremium: 0,
+          longPremium: opp.callLongAsk * 100, // Cost of long leg
           longBid: opp.callLongBid,
           longAsk: opp.callLongAsk,
-        },
-        // Call side - long
-        {
-          symbol: opp.symbol,
-          strategy: "BTO" as const,
-          action: "buy_to_open" as const,
-          strike: opp.callLongStrike,
-          expiration: opp.expiration,
-          premium: -opp.callLongAsk,
-          bid: opp.callLongBid,
-          ask: opp.callLongAsk,
-          quantity: 1,
-          optionType: "CALL" as const,
-          dte: opp.dte,
-          delta: opp.callLongDelta,
-          collateral: 0,
         },
       ];
     });
@@ -938,7 +897,7 @@ export default function IronCondorDashboard() {
         open={orderPreviewOpen}
         onOpenChange={setOrderPreviewOpen}
         orders={ordersForPreview}
-        strategy="bps"
+        strategy="iron_condor"
         accountId={selectedAccountId || ""}
         availableBuyingPower={availableBuyingPower}
         onSubmit={async () => {
