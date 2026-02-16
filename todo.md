@@ -4883,3 +4883,9 @@
 - [ ] Update profit zone width and breakevens after adjustment
 - [ ] Add visual feedback (loading state) during recalculation
 - [ ] Test quick adjust with different spread widths
+
+## URGENT: Fix Iron Condor toFixed() Error
+- [x] Find all .toFixed() calls in IronCondorDashboard.tsx (found 10 instances)
+- [x] Add null/undefined checks before calling .toFixed() (|| 0 fallback)
+- [x] Add default values (0) for undefined numeric fields
+- [ ] Test Iron Condor dashboard to verify error is resolved

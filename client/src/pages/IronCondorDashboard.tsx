@@ -375,7 +375,7 @@ export default function IronCondorDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-500">
-                  ${summaryMetrics.totalPremium.toFixed(2)}
+                  ${(summaryMetrics.totalPremium || 0).toFixed(2)}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {summaryMetrics.count} selected
@@ -390,7 +390,7 @@ export default function IronCondorDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  ${summaryMetrics.totalCollateral.toFixed(2)}
+                  ${(summaryMetrics.totalCollateral || 0).toFixed(2)}
                 </div>
               </CardContent>
             </Card>
@@ -402,7 +402,7 @@ export default function IronCondorDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {summaryMetrics.weightedROC.toFixed(2)}%
+                  {(summaryMetrics.weightedROC || 0).toFixed(2)}%
                 </div>
               </CardContent>
             </Card>
@@ -510,7 +510,7 @@ export default function IronCondorDashboard() {
                               />
                             </TableCell>
                             <TableCell className="font-medium">{opp.symbol}</TableCell>
-                            <TableCell>${opp.currentPrice.toFixed(2)}</TableCell>
+                            <TableCell>${(opp.currentPrice || 0).toFixed(2)}</TableCell>
                             <TableCell>
                               <div className="text-sm">
                                 <div>Short: ${opp.putShortStrike}</div>
@@ -525,12 +525,12 @@ export default function IronCondorDashboard() {
                             </TableCell>
                             <TableCell>{opp.dte}</TableCell>
                             <TableCell className="text-green-500 font-medium">
-                              ${(opp.totalNetCredit * 100).toFixed(2)}
+                              ${((opp.totalNetCredit || 0) * 100).toFixed(2)}
                             </TableCell>
-                            <TableCell>${opp.totalCollateral.toFixed(2)}</TableCell>
+                            <TableCell>${(opp.totalCollateral || 0).toFixed(2)}</TableCell>
                             <TableCell>
                               <Badge className={getROCColor(opp.totalROC)}>
-                                {opp.totalROC.toFixed(2)}%
+                                {(opp.totalROC || 0).toFixed(2)}%
                               </Badge>
                             </TableCell>
                             <TableCell>
@@ -538,8 +538,8 @@ export default function IronCondorDashboard() {
                             </TableCell>
                             <TableCell>
                               <div className="text-sm">
-                                <div>${opp.putBreakeven.toFixed(2)}</div>
-                                <div>${opp.callBreakeven.toFixed(2)}</div>
+                                <div>${(opp.putBreakeven || 0).toFixed(2)}</div>
+                                <div>${(opp.callBreakeven || 0).toFixed(2)}</div>
                               </div>
                             </TableCell>
                             <TableCell>
