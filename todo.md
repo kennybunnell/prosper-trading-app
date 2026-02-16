@@ -5067,3 +5067,15 @@
 - [x] OrderStatusModal polls order status every 2-5 seconds until completion
 - [x] Display final status for each order with appropriate icons (✓ Filled, ⏳ Pending, ✗ Rejected)
 - [ ] Test live order submission with status tracking (ready for user testing)
+
+## CRITICAL: Iron Condor Orders Not Actually Submitting to Tastytrade
+- [x] Check server logs for Iron Condor order submission API calls
+- [x] Review backend submitOrders procedure for Iron Condor handling (isIronCondor flag)
+- [x] Verify 4-leg order structure matches Tastytrade API requirements
+- [x] Compare working CSP/BPS submission with Iron Condor submission
+- [x] Check if legs array is being built correctly for 4-leg orders
+- [x] Root cause identified: Iron Condors not fetching fresh quotes, using stale cached prices
+- [x] Fix implemented: Added fresh quote fetching for all 4 Iron Condor legs
+- [x] Calculate real-time net credit: (Put Short Bid - Put Long Ask) + (Call Short Bid - Call Long Ask)
+- [x] Apply 5% buffer for competitive pricing
+- [ ] Test live submission with fresh quotes and verify orders appear in Tastytrade

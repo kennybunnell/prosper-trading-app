@@ -1297,10 +1297,55 @@ Summary: [One sentence overall assessment]`;
                 longLeg: order.longLeg,
               });
               
-              // For spreads, fetch fresh quotes to get current market prices
+              // For spreads and Iron Condors, fetch fresh quotes to get current market prices
               let freshNetCredit = order.premium; // Default to cached value
               
-              if (order.isSpread && order.shortLeg && order.longLeg) {
+              if (order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg) {
+                try {
+                  // Fetch fresh quotes for all 4 legs
+                  const quotes = await api.getOptionQuotesBatch([
+                    order.putShortLeg.optionSymbol,
+                    order.putLongLeg.optionSymbol,
+                    order.callShortLeg.optionSymbol,
+                    order.callLongLeg.optionSymbol,
+                  ]);
+                  
+                  const putShortQuote = quotes[order.putShortLeg.optionSymbol];
+                  const putLongQuote = quotes[order.putLongLeg.optionSymbol];
+                  const callShortQuote = quotes[order.callShortLeg.optionSymbol];
+                  const callLongQuote = quotes[order.callLongLeg.optionSymbol];
+                  
+                  if (putShortQuote && putLongQuote && callShortQuote && callLongQuote &&
+                      putShortQuote.bid > 0 && putLongQuote.ask > 0 &&
+                      callShortQuote.bid > 0 && callLongQuote.ask > 0) {
+                    // Calculate fresh net credit for Iron Condor:
+                    // (Put Short Bid - Put Long Ask) + (Call Short Bid - Call Long Ask)
+                    const putSpreadCredit = putShortQuote.bid - putLongQuote.ask;
+                    const callSpreadCredit = callShortQuote.bid - callLongQuote.ask;
+                    freshNetCredit = putSpreadCredit + callSpreadCredit;
+                    console.log('[Iron Condor Debug] Fresh quotes:', {
+                      putShortBid: putShortQuote.bid,
+                      putLongAsk: putLongQuote.ask,
+                      putSpreadCredit,
+                      callShortBid: callShortQuote.bid,
+                      callLongAsk: callLongQuote.ask,
+                      callSpreadCredit,
+                      freshNetCredit,
+                      cachedPremium: order.premium,
+                      difference: freshNetCredit - order.premium,
+                    });
+                  } else {
+                    console.warn('[Iron Condor Debug] Invalid quotes, using cached premium:', {
+                      putShortQuote,
+                      putLongQuote,
+                      callShortQuote,
+                      callLongQuote,
+                    });
+                  }
+                } catch (error) {
+                  console.error('[Iron Condor Debug] Failed to fetch fresh quotes, using cached premium:', error);
+                }
+              } else if (order.isSpread && order.shortLeg && order.longLeg) {
                 try {
                   // Fetch fresh quotes for both legs
                   const quotes = await api.getOptionQuotesBatch([
@@ -1391,9 +1436,9 @@ Summary: [One sentence overall assessment]`;
                     },
                   ];
               
-              // Calculate competitive limit price for spreads
+              // Calculate competitive limit price for spreads and Iron Condors
               // Subtract 5% buffer (or $0.05 minimum) to encourage fills
-              const buffer = order.isSpread ? Math.max(freshNetCredit * 0.05, 0.05) : 0;
+              const buffer = (order.isSpread || order.isIronCondor) ? Math.max(freshNetCredit * 0.05, 0.05) : 0;
               const limitPrice = Math.max(freshNetCredit - buffer, 0.01); // Ensure minimum $0.01
               
               const orderRequest = {
