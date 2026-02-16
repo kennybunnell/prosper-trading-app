@@ -33,7 +33,7 @@ export const userRouter = router({
    */
   getSubscriptionStatus: protectedProcedure.query(async ({ ctx }) => {
     const { getRemainingScans } = await import('./middleware/rateLimiting');
-    const { canUseLiveTrading, getTierDisplayName, getAvailableStrategies } = await import('./middleware/subscriptionEnforcement');
+    const { canUseLiveTrading, getTierDisplayName, getTradableStrategies, getViewableStrategies } = await import('./middleware/subscriptionEnforcement');
     const { getApiCredentials } = await import('./db');
     const db = await getDb();
     if (!db) {
@@ -52,8 +52,9 @@ export const userRouter = router({
     // Check live trading access
     const liveTradingAccess = canUseLiveTrading(user.subscriptionTier, user.role);
 
-    // Get available strategies
-    const availableStrategies = getAvailableStrategies(user.subscriptionTier, user.tradingMode);
+    // Get viewable and tradable strategies
+    const viewableStrategies = getViewableStrategies(user.subscriptionTier);
+    const tradableStrategies = getTradableStrategies(user.subscriptionTier, user.tradingMode);
 
     // Get API credentials status
     const credentials = await getApiCredentials(ctx.user.id);
@@ -72,7 +73,8 @@ export const userRouter = router({
       scansUsed: scanInfo.used,
       canUseLiveTrading: liveTradingAccess.allowed,
       liveTradingMessage: liveTradingAccess.upgradeMessage,
-      availableStrategies,
+      viewableStrategies,
+      tradableStrategies,
       hasCredentials,
     };
   }),

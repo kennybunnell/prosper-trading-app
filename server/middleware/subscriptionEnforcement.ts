@@ -1,13 +1,17 @@
 /**
  * Subscription Tier Enforcement Middleware
  * 
- * Controls access to trading strategies based on subscription tier:
- * - Tier 1 (free_trial): Paper trading only, CSP/CC/BPS/BCS/Iron Condor/PMCC (all strategies for evaluation)
- * - Tier 2 (wheel_view): Paper trading only, CSP/CC/BPS/BCS/Iron Condor/PMCC (all strategies for evaluation)
- * - Tier 3 (wheel_trading): Live trading, CSP + CC only (no spreads)
- * - Tier 4 (advanced): Live trading, all strategies unlocked
+ * NEW TIER STRUCTURE: "View All, Trade by Tier"
  * 
- * Owner/admin accounts bypass all subscription checks
+ * All users can VIEW all strategies (CSP, CC, BPS, BCS, Iron Condor, PMCC) in all tiers.
+ * Trading restrictions apply based on tier:
+ * 
+ * - Tier 1 (free_trial): View all strategies, paper trading only, 10 scans/day
+ * - Tier 2 (wheel_view): View all strategies, paper trading only, unlimited scans
+ * - Tier 3 (wheel_trading): View all strategies, TRADE CSP + CC only (live trading)
+ * - Tier 4 (advanced): View all strategies, TRADE all strategies (live trading)
+ * 
+ * Special roles (admin, owner, vip, partner, beta_tester, lifetime) bypass all checks
  */
 
 import { TRPCError } from "@trpc/server";
@@ -18,9 +22,31 @@ export type TradingStrategy = 'csp' | 'cc' | 'bps' | 'bcs' | 'iron_condor' | 'pm
 export type TradingMode = 'live' | 'paper';
 
 /**
- * Check if a user can access a specific trading strategy
+ * Check if a user can VIEW a specific trading strategy
+ * NEW: All users can view all strategies in all tiers
  */
-export function canAccessStrategy(
+export function canViewStrategy(
+  tier: SubscriptionTier,
+  strategy: TradingStrategy,
+  userRole: string
+): {
+  allowed: boolean;
+  reason?: string;
+} {
+  // Owner/admin/special roles bypass all checks
+  if (userRole === 'admin' || userRole === 'owner' || userRole === 'vip' || userRole === 'partner' || userRole === 'beta_tester' || userRole === 'lifetime') {
+    return { allowed: true };
+  }
+
+  // All users can view all strategies
+  return { allowed: true };
+}
+
+/**
+ * Check if a user can TRADE a specific trading strategy
+ * Trading restrictions apply based on tier
+ */
+export function canTradeStrategy(
   tier: SubscriptionTier,
   strategy: TradingStrategy,
   tradingMode: TradingMode,
@@ -29,33 +55,36 @@ export function canAccessStrategy(
   allowed: boolean;
   reason?: string;
   upgradeMessage?: string;
+  viewOnly?: boolean;
 } {
   // Owner/admin/special roles bypass all checks
   if (userRole === 'admin' || userRole === 'owner' || userRole === 'vip' || userRole === 'partner' || userRole === 'beta_tester' || userRole === 'lifetime') {
-    console.log('[Subscription] Special role detected (%s) - bypassing strategy access check', userRole);
+    console.log('[Subscription] Special role detected (%s) - bypassing strategy trading check', userRole);
     return { allowed: true };
   }
 
-  // Tier 1 (free_trial): Paper trading only, all strategies allowed for evaluation
+  // Tier 1 (free_trial): Paper trading only, all strategies
   if (tier === 'free_trial') {
     if (tradingMode === 'live') {
       return {
         allowed: false,
+        viewOnly: true,
         reason: 'Live trading not available on free trial',
-        upgradeMessage: 'Upgrade to Wheel View ($47/month) for paper trading with your own Tradier API, or Wheel Trading ($97/month) for live trading with CSP+CC strategies.'
+        upgradeMessage: 'Upgrade to Wheel Trading ($97/month + $99 setup) to enable live trading with CSP+CC strategies.'
       };
     }
     // Paper trading - all strategies allowed
     return { allowed: true };
   }
 
-  // Tier 2 (wheel_view): Paper trading only, all strategies allowed for evaluation
+  // Tier 2 (wheel_view): Paper trading only, all strategies
   if (tier === 'wheel_view') {
     if (tradingMode === 'live') {
       return {
         allowed: false,
+        viewOnly: true,
         reason: 'Live trading not available on Wheel View tier',
-        upgradeMessage: 'Upgrade to Wheel Trading ($97/month) to enable live trading with CSP+CC strategies, or Advanced Spreads ($200/month) for all strategies including spreads.'
+        upgradeMessage: 'Upgrade to Wheel Trading ($97/month + $99 setup) to enable live trading with CSP+CC strategies, or Advanced Spreads ($200/month) to trade all strategies.'
       };
     }
     // Paper trading - all strategies allowed
@@ -64,17 +93,24 @@ export function canAccessStrategy(
 
   // Tier 3 (wheel_trading): Live trading, CSP + CC only
   if (tier === 'wheel_trading') {
-    // Only CSP and CC allowed for live trading
+    // CSP and CC allowed for live trading
     if (strategy === 'csp' || strategy === 'cc') {
       return { allowed: true };
     }
     
     // Spreads (BPS, BCS, Iron Condor, PMCC) require Tier 4
-    return {
-      allowed: false,
-      reason: 'Advanced spread strategies require Advanced Spreads tier',
-      upgradeMessage: 'Upgrade to Advanced Spreads ($200/month) to unlock Bull Put Spreads, Bear Call Spreads, Iron Condors, and PMCC strategies.'
-    };
+    // But user can still VIEW them
+    if (tradingMode === 'live') {
+      return {
+        allowed: false,
+        viewOnly: true,
+        reason: 'Advanced spread strategies require Advanced Spreads tier',
+        upgradeMessage: 'Upgrade to Advanced Spreads ($200/month) to unlock live trading for Bull Put Spreads, Bear Call Spreads, Iron Condors, and PMCC.'
+      };
+    }
+    
+    // Paper trading - all strategies allowed
+    return { allowed: true };
   }
 
   // Tier 4 (advanced): All strategies unlocked
@@ -113,8 +149,8 @@ export function canUseLiveTrading(
       allowed: false,
       reason: 'Live trading not available on your current tier',
       upgradeMessage: tier === 'free_trial' 
-        ? 'Upgrade to Wheel Trading ($97/month) to enable live trading with CSP+CC strategies.'
-        : 'Upgrade to Wheel Trading ($97/month) to enable live trading with CSP+CC strategies, or Advanced Spreads ($200/month) for all strategies.'
+        ? 'Upgrade to Wheel Trading ($97/month + $99 setup) to enable live trading with CSP+CC strategies.'
+        : 'Upgrade to Wheel Trading ($97/month + $99 setup) to enable live trading with CSP+CC strategies, or Advanced Spreads ($200/month) for all strategies.'
     };
   }
 
@@ -217,24 +253,49 @@ export function getTierDisplayName(tier: SubscriptionTier): string {
 }
 
 /**
- * Get available strategies for a tier
+ * Get strategies available for VIEWING (all users can view all strategies)
  */
-export function getAvailableStrategies(tier: SubscriptionTier, tradingMode: TradingMode): TradingStrategy[] {
-  // Tier 1 and 2: All strategies in paper mode
+export function getViewableStrategies(tier: SubscriptionTier): TradingStrategy[] {
+  // All users can view all strategies
+  return ['csp', 'cc', 'bps', 'bcs', 'iron_condor', 'pmcc'];
+}
+
+/**
+ * Get strategies available for TRADING based on tier
+ */
+export function getTradableStrategies(tier: SubscriptionTier, tradingMode: TradingMode): TradingStrategy[] {
+  // Tier 1 and 2: All strategies in paper mode only
   if ((tier === 'free_trial' || tier === 'wheel_view') && tradingMode === 'paper') {
     return ['csp', 'cc', 'bps', 'bcs', 'iron_condor', 'pmcc'];
   }
 
-  // Tier 3: CSP + CC only
+  // Tier 1 and 2: No live trading
+  if ((tier === 'free_trial' || tier === 'wheel_view') && tradingMode === 'live') {
+    return [];
+  }
+
+  // Tier 3: CSP + CC only (live or paper)
   if (tier === 'wheel_trading') {
     return ['csp', 'cc'];
   }
 
-  // Tier 4: All strategies
+  // Tier 4: All strategies (live or paper)
   if (tier === 'advanced') {
     return ['csp', 'cc', 'bps', 'bcs', 'iron_condor', 'pmcc'];
   }
 
   // Default: CSP only
   return ['csp'];
+}
+
+/**
+ * Check if a strategy is locked for trading (view-only) for a given tier
+ */
+export function isStrategyLocked(
+  tier: SubscriptionTier,
+  strategy: TradingStrategy,
+  tradingMode: TradingMode
+): boolean {
+  const tradableStrategies = getTradableStrategies(tier, tradingMode);
+  return !tradableStrategies.includes(strategy);
 }

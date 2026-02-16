@@ -5197,3 +5197,10 @@
 - [x] Add role badge display in Admin Users table
 - [ ] Test role-based access with each special role
 - [x] Create Stripe product setup guide for user
+
+## Update Tier Structure: View All, Trade Based on Tier
+- [x] Update STRIPE_SETUP_GUIDE.md to reflect new tier structure
+- [x] Update subscription enforcement middleware: allow viewing all strategies in all tiers
+- [x] Update subscription enforcement middleware: restrict TRADING to tier-specific strategies
+- [ ] Add "View Only" badges in UI for locked strategies
+- [x] Update tier comparison table in documentation

@@ -6,12 +6,24 @@ This guide will walk you through setting up Stripe products and prices for your 
 
 ## Overview: Your Subscription Tiers
 
-| Tier | Name | Price | Setup Fee | Features |
-|------|------|-------|-----------|----------|
-| Tier 1 | Free Trial | $0 | $0 | 14-day trial, 10 scans/day, paper trading only, demo account |
-| Tier 2 | Wheel View | $47/month | $99 one-time | Unlimited scans, paper trading only, requires Tradier API |
-| Tier 3 | Wheel Trading | $97/month | $99 one-time | Live trading, CSP + CC strategies only, requires Tradier + Tastytrade |
-| Tier 4 | Advanced Spreads | $200/month | $0 | Live trading, all strategies (CSP, CC, BPS, BCS, Iron Condor, PMCC) |
+| Tier | Name | Price | Setup Fee | View Strategies | Trade Strategies | Features |
+|------|------|-------|-----------|-----------------|------------------|----------|
+| Tier 1 | Free Trial | $0 | $0 | All strategies | None (paper trading only) | 14-day trial, 10 scans/day, demo Tradier account |
+| Tier 2 | Wheel View | $47/month | $99 one-time | All strategies | None (paper trading only) | Unlimited scans, requires your own Tradier API |
+| Tier 3 | Wheel Trading | $97/month | $99 one-time | All strategies | CSP + CC only (live trading) | Requires Tradier + Tastytrade APIs |
+| Tier 4 | Advanced Spreads | $200/month | $0 | All strategies | All strategies (live trading) | Full access: CSP, CC, BPS, BCS, Iron Condor, PMCC |
+
+### Key Strategy
+
+**"Try Before You Buy"** - All users can VIEW all strategies (CSP, CC, spreads, iron condors, PMCC) in paper trading mode across all tiers. This lets them:
+- Explore and learn all strategies during free trial
+- See real opportunities and understand the value
+- Make informed decisions about which tier to purchase
+
+**Trading restrictions by tier:**
+- **Tier 1 & 2**: Can only paper trade (no live trading)
+- **Tier 3**: Can live trade CSP + Covered Calls only (Wheel strategy)
+- **Tier 4**: Can live trade all strategies (full access)
 
 ---
 
@@ -26,7 +38,7 @@ This guide will walk you through setting up Stripe products and prices for your 
 1. Click **+ Add product**
 2. Fill in the details:
    - **Name**: `Wheel View`
-   - **Description**: `Paper trading with unlimited scans. Requires your own Tradier API key.`
+   - **Description**: `View all strategies with unlimited scans. Paper trading only. Requires your own Tradier API key.`
    - **Pricing model**: `Recurring`
    - **Price**: `$47.00 USD`
    - **Billing period**: `Monthly`
@@ -50,7 +62,7 @@ This guide will walk you through setting up Stripe products and prices for your 
 1. Click **+ Add product**
 2. Fill in the details:
    - **Name**: `Wheel Trading`
-   - **Description**: `Live trading with CSP and Covered Call strategies. Requires Tradier + Tastytrade credentials.`
+   - **Description**: `View all strategies, live trade CSP and Covered Calls. Requires Tradier + Tastytrade credentials.`
    - **Pricing model**: `Recurring`
    - **Price**: `$97.00 USD`
    - **Billing period**: `Monthly`
@@ -73,7 +85,7 @@ This guide will walk you through setting up Stripe products and prices for your 
 1. Click **+ Add product**
 2. Fill in the details:
    - **Name**: `Advanced Spreads`
-   - **Description**: `Live trading with all strategies: CSP, CC, Bull Put Spreads, Bear Call Spreads, Iron Condors, and PMCC.`
+   - **Description**: `Full access: View and live trade all strategies including Bull Put Spreads, Bear Call Spreads, Iron Condors, and PMCC.`
    - **Pricing model**: `Recurring`
    - **Price**: `$200.00 USD`
    - **Billing period**: `Monthly`
@@ -150,13 +162,22 @@ Once you've completed the Stripe setup above:
 3. **I'll implement**:
    - Stripe checkout session creation
    - Webhook handlers for subscription events
-   - Pricing page UI with upgrade buttons
+   - Pricing page UI with tier comparison and upgrade buttons
    - Subscription management UI in Settings
    - Upgrade prompts when users hit limits
+   - "View Only" badges for locked trading strategies
 
 ---
 
 ## Pricing Strategy Notes
+
+### Why "View All, Trade by Tier"?
+
+This strategy maximizes conversions by:
+- **Reducing friction**: Users can explore all features without paying
+- **Building trust**: They see real opportunities and understand the value
+- **Creating urgency**: "I can see this $500 opportunity, but I need Tier 4 to trade it"
+- **Natural upsell**: Users who succeed with Wheel (Tier 3) will want spreads (Tier 4)
 
 ### Why $99 Setup Fee for Tiers 2 & 3?
 
@@ -177,6 +198,32 @@ You can create discount codes in Stripe Dashboard:
 - **100% off forever**: For VIP/partner/beta_tester users (though role-based access is cleaner)
 - **99% off first month**: For live testing without spending real money
 - **50% off first 3 months**: For promotional campaigns
+
+---
+
+## Tier Upgrade Path
+
+**Expected user journey:**
+
+1. **Sign up** → Tier 1 (Free Trial)
+   - Explore all strategies in paper trading
+   - Hit 10 scans/day limit
+   - See value in unlimited scans
+
+2. **Upgrade to Tier 2** ($47/mo + $99 setup)
+   - Unlimited scans
+   - Continue learning with own Tradier API
+   - See live opportunities, build confidence
+
+3. **Upgrade to Tier 3** ($97/mo + $99 setup)
+   - Start live trading with Wheel strategy
+   - See spread opportunities but can't trade them
+   - Experience success with CSP + CC
+
+4. **Upgrade to Tier 4** ($200/mo, no setup fee)
+   - Unlock all strategies
+   - Trade spreads, iron condors, PMCC
+   - Full platform access
 
 ---
 
