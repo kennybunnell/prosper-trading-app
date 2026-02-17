@@ -5327,3 +5327,27 @@
 - [x] Verified webhook endpoint works correctly with test script
 - [x] Created webhook endpoint in Stripe dashboard with signing secret
 - [x] Documented webhook testing procedures
+
+## 🐛 CRITICAL BUG: Order Status Polling Not Working (Orders ARE Submitting Successfully)
+- [ ] Investigate why order status polling shows "0 of 0 orders validated" when orders are actually filling
+- [ ] Check onPollStatuses callback in ActionItems/Performance page - ensure it's being passed to UnifiedOrderPreviewModal
+- [ ] Verify pollOrderStatus function in tastytrade-order-status.ts is correctly fetching order statuses
+- [ ] Fix the status display to show "Filled" for successful orders instead of showing validation failure
+- [ ] Test complete flow: submit orders → see polling progress → see filled status with confetti
+- [ ] Add better error handling for polling failures (502 errors in console logs)
+
+## ✅ Order Status Polling Fixed (Feb 17, 2026)
+- [x] Investigated why order status polling showed "0 of 0 orders validated" when orders were actually filling
+- [x] Added onPollStatuses callback to Performance page - was missing!
+- [x] Added onPollStatuses callback to IronCondorDashboard - was also missing!
+- [x] Verified CSPDashboard and CCDashboard already had the callback
+- [x] Implemented handlePollOrderStatuses function that calls trpc.orders.checkStatusBatch
+- [x] Fixed TypeScript errors with status mapping
+- [x] Ready to test: submit orders → see polling progress → see filled status with confetti
+
+## 🧪 Next: Test Order Status Polling
+- [ ] Submit test orders from Performance page Active Positions
+- [ ] Verify polling modal shows "Checking status..." progress
+- [ ] Verify filled orders show green checkmarks and "Filled" status
+- [ ] Verify confetti animation plays for successful fills
+- [ ] Check server logs for any 502 errors during polling

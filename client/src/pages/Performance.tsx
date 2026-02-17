@@ -390,6 +390,65 @@ export function ActivePositionsTab() {
     }
   };
 
+  // Get tRPC utils for imperative queries
+  const utils = trpc.useUtils();
+
+  // Callback to poll order statuses after submission
+  const handlePollOrderStatuses = async (
+    orderIds: string[],
+    accountId: string
+  ): Promise<Array<{
+    orderId: string;
+    symbol: string;
+    status: 'Filled' | 'Working' | 'Cancelled' | 'Rejected' | 'MarketClosed' | 'Pending';
+    message?: string;
+  }>> => {
+    try {
+      console.log('[Performance] Polling order statuses for:', orderIds, 'accountId:', accountId);
+      
+      // Call the tRPC endpoint to check order statuses using utils.fetch
+      const statusMap = await utils.orders.checkStatusBatch.fetch({
+        accountId,
+        orderIds,
+      });
+      
+      console.log('[Performance] Received status map:', statusMap);
+      
+      // Map the status results to the format expected by UnifiedOrderPreviewModal
+      return orderIds.map((orderId, index) => {
+        const status = statusMap[orderId];
+        const position = selectedPositionsData[index];
+        
+        // Map Unknown status to Rejected for UI display
+        const mappedStatus = status?.status === 'Unknown' ? 'Rejected' as const : status?.status || 'Rejected' as const;
+        
+        return {
+          orderId,
+          symbol: position?.symbol || 'Unknown',
+          status: mappedStatus,
+          message: status?.status === 'Filled' 
+            ? `Order filled successfully`
+            : status?.status === 'Rejected'
+            ? `Order rejected: ${status.rejectedReason || 'Unknown reason'}`
+            : status?.status === 'MarketClosed'
+            ? status.marketClosedMessage || 'Market is closed'
+            : status?.status === 'Working'
+            ? 'Order is working'
+            : 'Status unknown',
+        };
+      });
+    } catch (error: any) {
+      console.error('[Performance] Error polling order statuses:', error);
+      // Return unknown status for all orders on error
+      return orderIds.map((orderId, index) => ({
+        orderId,
+        symbol: selectedPositionsData[index]?.symbol || 'Unknown',
+        status: 'Rejected' as const,
+        message: `Failed to check status: ${error.message}`,
+      }));
+    }
+  };
+
   const summary = data?.summary || {
     openPositions: 0,
     totalPremiumAtRisk: 0,
@@ -738,6 +797,7 @@ export function ActivePositionsTab() {
           accountId={selectedAccountId || ''}
           availableBuyingPower={data?.summary?.totalPremiumAtRisk || 0}
           onSubmit={handleConfirmClose}
+          onPollStatuses={handlePollOrderStatuses}
           allowQuantityEdit={false}
           tradingMode={tradingMode === 'live' ? 'live' : 'paper'}
         />

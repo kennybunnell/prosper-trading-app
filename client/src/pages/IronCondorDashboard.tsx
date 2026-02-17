@@ -216,6 +216,65 @@ export default function IronCondorDashboard() {
   const submitOrders = trpc.csp.submitOrders.useMutation();
 
   // Execute order submission for Iron Condors
+  // Get tRPC utils for imperative queries
+  const utils = trpc.useUtils();
+
+  // Callback to poll order statuses after submission
+  const handlePollOrderStatuses = async (
+    orderIds: string[],
+    accountId: string
+  ): Promise<Array<{
+    orderId: string;
+    symbol: string;
+    status: 'Filled' | 'Working' | 'Cancelled' | 'Rejected' | 'MarketClosed' | 'Pending';
+    message?: string;
+  }>> => {
+    try {
+      console.log('[IronCondorDashboard] Polling order statuses for:', orderIds, 'accountId:', accountId);
+      
+      // Call the tRPC endpoint to check order statuses using utils.fetch
+      const statusMap = await utils.orders.checkStatusBatch.fetch({
+        accountId,
+        orderIds,
+      });
+      
+      console.log('[IronCondorDashboard] Received status map:', statusMap);
+      
+      // Map the status results to the format expected by UnifiedOrderPreviewModal
+      return orderIds.map((orderId, index) => {
+        const status = statusMap[orderId];
+        const order = ordersForPreview[index];
+        
+        // Map Unknown status to Rejected for UI display
+        const mappedStatus = status?.status === 'Unknown' ? 'Rejected' as const : status?.status || 'Rejected' as const;
+        
+        return {
+          orderId,
+          symbol: order?.symbol || 'Unknown',
+          status: mappedStatus,
+          message: status?.status === 'Filled' 
+            ? `Order filled successfully`
+            : status?.status === 'Rejected'
+            ? `Order rejected: ${status.rejectedReason || 'Unknown reason'}`
+            : status?.status === 'MarketClosed'
+            ? status.marketClosedMessage || 'Market is closed'
+            : status?.status === 'Working'
+            ? 'Order is working'
+            : 'Status unknown',
+        };
+      });
+    } catch (error: any) {
+      console.error('[IronCondorDashboard] Error polling order statuses:', error);
+      // Return unknown status for all orders on error
+      return orderIds.map((orderId, index) => ({
+        orderId,
+        symbol: ordersForPreview[index]?.symbol || 'Unknown',
+        status: 'Rejected' as const,
+        message: `Failed to check status: ${error.message}`,
+      }));
+    }
+  };
+
   const executeOrderSubmission = async (
     orders: any[],
     quantities: Map<string, number>,
@@ -1025,6 +1084,7 @@ export default function IronCondorDashboard() {
         accountId={selectedAccountId || ""}
         availableBuyingPower={availableBuyingPower}
         onSubmit={executeOrderSubmission}
+        onPollStatuses={handlePollOrderStatuses}
         tradingMode={tradingMode}
       />
 
