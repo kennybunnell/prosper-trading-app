@@ -237,7 +237,15 @@ export default function CCDashboard() {
   const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
   
   // Helper function to create unique key for an opportunity
-  const getOpportunityKey = (opp: CCOpportunity) => `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+  // Include longStrike to differentiate between CC (no long leg) and Bear Call Spreads (has long leg)
+  const getOpportunityKey = (opp: CCOpportunity) => {
+    if (opp.longStrike && opp.longStrike > 0) {
+      // Bear Call Spread: include both short and long strikes
+      return `${opp.symbol}-${opp.strike}-${opp.longStrike}-${opp.expiration}`;
+    }
+    // Regular Covered Call: just symbol-strike-expiration
+    return `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+  };
   const [presetFilter, setPresetFilter] = useState<'conservative' | 'medium' | 'aggressive' | null>(null);
   const [minScore, setMinScore] = useState<number | undefined>(undefined);
   const [dryRun, setDryRun] = useState(true);

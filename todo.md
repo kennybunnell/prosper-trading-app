@@ -5368,3 +5368,8 @@
 - [x] Created comprehensive test suite (2/2 tests passing)
 - [x] Verified API returns correct status: isOpen=true during market hours
 - [x] Replaced hardcoded "Monday-Friday, 9:30 AM - 4:00 PM ET" with dynamic API-based status
+
+## React Key Error Fixes
+- [x] Fixed duplicate React key errors in CCDashboard.tsx by updating getOpportunityKey() to include longStrike for Bear Call Spreads
+- [x] Created unit tests to verify unique key generation for CC vs BCS with same symbol/strike/expiration (5/5 tests passing)
+- [x] Verified browser console shows no duplicate key errors after fix
