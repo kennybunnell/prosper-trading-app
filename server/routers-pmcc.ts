@@ -595,6 +595,253 @@ export const pmccRouter = router({
         aiExplanation,
       };
     }),
+
+  /**
+   * Scan short call opportunities for selected LEAP positions
+   * Validates that short call strikes are above LEAP strikes
+   */
+  scanShortCallOpportunities: protectedProcedure
+    .input(
+      z.object({
+        leapPositions: z.array(
+          z.object({
+            symbol: z.string(), // Underlying symbol (e.g., "AVGO")
+            optionSymbol: z.string(), // LEAP option symbol
+            strike: z.number(), // LEAP strike price
+            expiration: z.string(), // LEAP expiration
+            quantity: z.number(), // Number of LEAPs owned
+          })
+        ),
+        minDte: z.number().default(7),
+        maxDte: z.number().default(45),
+        minDelta: z.number().default(0.15),
+        maxDelta: z.number().default(0.35),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import("./db");
+      const { createTradierAPI } = await import("./tradier");
+      const { checkRateLimit } = await import('./middleware/rateLimiting');
+
+      // Check rate limit
+      const rateLimit = await checkRateLimit(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+      if (!rateLimit.allowed) {
+        throw new TRPCError({
+          code: 'TOO_MANY_REQUESTS',
+          message: rateLimit.message || 'Rate limit exceeded',
+        });
+      }
+
+      // Get API credentials
+      const credentials = await getApiCredentials(ctx.user.id);
+      const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+      const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
+      
+      if (!tradierApiKey) {
+        const message = isFreeTrialUser 
+          ? 'System Tradier API key not configured. Please contact support.'
+          : 'Please configure your Tradier API key in Settings to access live market data.';
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message,
+        });
+      }
+
+      const api = createTradierAPI(tradierApiKey);
+      const allOpportunities: any[] = [];
+
+      console.log(`[PMCC Short Call Scanner] Scanning ${input.leapPositions.length} LEAP positions...`);
+
+      // Process each LEAP position
+      for (const leap of input.leapPositions) {
+        console.log(`[PMCC Short Call Scanner] Processing ${leap.symbol} LEAP (strike: $${leap.strike}, exp: ${leap.expiration})`);
+
+        try {
+          // Get current stock price
+          const quote = await api.getQuote(leap.symbol);
+          const currentPrice = quote.last || quote.close || 0;
+
+          // Get expirations
+          const expirations = await api.getExpirations(leap.symbol);
+          
+          // Filter expirations based on DTE
+          const now = new Date();
+          const validExpirations = expirations.filter((exp: string) => {
+            const expDate = new Date(exp);
+            const dte = Math.floor((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            return dte >= input.minDte && dte <= input.maxDte;
+          });
+
+          console.log(`[PMCC Short Call Scanner] ${leap.symbol}: Found ${validExpirations.length} valid expirations (${input.minDte}-${input.maxDte} DTE)`);
+
+          // Get option chains for each expiration
+          for (const expiration of validExpirations) {
+            const chain = await api.getOptionChain(leap.symbol, expiration, true);
+            
+            if (!chain || !Array.isArray(chain)) {
+              continue;
+            }
+
+            const options = chain;
+
+            // Filter for calls only
+            const calls = options.filter((opt: any) => opt.option_type === 'call');
+
+            // Filter for strikes ABOVE the LEAP strike (critical validation)
+            const validCalls = calls.filter((opt: any) => {
+              const strike = parseFloat(opt.strike);
+              return strike > leap.strike;
+            });
+
+            console.log(`[PMCC Short Call Scanner] ${leap.symbol} ${expiration}: ${validCalls.length}/${calls.length} calls above LEAP strike $${leap.strike}`);
+
+            // Process each valid call option
+            for (const opt of validCalls) {
+              const strike = parseFloat(String(opt.strike));
+              const bid = parseFloat(String(opt.bid || '0'));
+              const ask = parseFloat(String(opt.ask || '0'));
+              const delta = Math.abs(parseFloat(String(opt.greeks?.delta || '0')));
+
+              // Filter by delta
+              if (delta < input.minDelta || delta > input.maxDelta) {
+                continue;
+              }
+
+              const premium = bid; // Premium we'll receive for selling
+              const bidAskSpread = ask - bid;
+              const bidAskSpreadPercent = ask > 0 ? (bidAskSpread / ask) * 100 : 0;
+
+              // Calculate DTE
+              const expDate = new Date(expiration);
+              const dte = Math.floor((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+              // Calculate ROC (return on collateral)
+              // For PMCC, collateral is the LEAP value, but we'll use a simplified metric
+              // ROC = (premium / (strike - leap.strike)) * 100
+              const spreadWidth = strike - leap.strike;
+              const roc = spreadWidth > 0 ? (premium * 100 / spreadWidth) : 0;
+
+              // Basic scoring (0-100)
+              let score = 50; // Base score
+
+              // Premium component (0-25 points)
+              if (premium >= 5) score += 25;
+              else if (premium >= 3) score += 20;
+              else if (premium >= 2) score += 15;
+              else if (premium >= 1) score += 10;
+              else if (premium >= 0.5) score += 5;
+
+              // Delta component (0-20 points) - prefer 0.20-0.30
+              if (delta >= 0.20 && delta <= 0.30) score += 20;
+              else if (delta >= 0.15 && delta <= 0.35) score += 15;
+              else if (delta >= 0.10 && delta <= 0.40) score += 10;
+              else score += 5;
+
+              // DTE component (0-15 points) - prefer 30-45 days
+              if (dte >= 30 && dte <= 45) score += 15;
+              else if (dte >= 21 && dte <= 60) score += 10;
+              else score += 5;
+
+              // Bid-ask spread component (0-15 points)
+              if (bidAskSpreadPercent <= 5) score += 15;
+              else if (bidAskSpreadPercent <= 10) score += 10;
+              else if (bidAskSpreadPercent <= 20) score += 5;
+
+              // ROC component (0-15 points)
+              if (roc >= 10) score += 15;
+              else if (roc >= 5) score += 10;
+              else if (roc >= 2) score += 5;
+
+              // Open Interest component (0-10 points)
+              const oi = parseInt(String(opt.open_interest || '0'));
+              if (oi >= 100) score += 10;
+              else if (oi >= 50) score += 7;
+              else if (oi >= 25) score += 4;
+
+              allOpportunities.push({
+                leapSymbol: leap.optionSymbol,
+                leapStrike: leap.strike,
+                leapExpiration: leap.expiration,
+                underlyingSymbol: leap.symbol,
+                currentPrice,
+                strike,
+                expiration,
+                dte,
+                premium,
+                bid,
+                ask,
+                bidAskSpread,
+                bidAskSpreadPercent,
+                delta,
+                gamma: parseFloat(String(opt.greeks?.gamma || '0')),
+                theta: parseFloat(String(opt.greeks?.theta || '0')),
+                vega: parseFloat(String(opt.greeks?.vega || '0')),
+                iv: parseFloat(String(opt.greeks?.mid_iv || '0')),
+                openInterest: oi,
+                volume: parseInt(String(opt.volume || '0')),
+                roc,
+                score,
+                optionSymbol: opt.symbol,
+                maxContracts: leap.quantity, // Can sell 1 call per LEAP owned
+              });
+            }
+          }
+        } catch (error: any) {
+          console.error(`[PMCC Short Call Scanner] Error processing ${leap.symbol}:`, error.message);
+        }
+      }
+
+      // Sort by score descending
+      allOpportunities.sort((a, b) => b.score - a.score);
+
+      console.log(`[PMCC Short Call Scanner] Found ${allOpportunities.length} total short call opportunities`);
+
+      return {
+        opportunities: allOpportunities,
+        scannedLeaps: input.leapPositions.length,
+      };
+    }),
+
+  /**
+   * Get PMCC profitability metrics for a specific LEAP
+   * MVP: Returns placeholder data. Full implementation pending transaction history API.
+   */
+  getPMCCProfitability: protectedProcedure
+    .input(
+      z.object({
+        leapSymbol: z.string(),
+        underlyingSymbol: z.string(),
+        leapCost: z.number(),
+        currentLeapValue: z.number(),
+      })
+    )
+    .query(async ({ input }) => {
+      // MVP: Calculate basic metrics from provided data
+      // TODO: Fetch transaction history to track actual premiums collected
+      const totalPremiumsCollected = 0;
+      const shortCallHistory: any[] = [];
+
+      const leapGain = input.currentLeapValue - input.leapCost;
+      const paybackPercent = input.leapCost > 0 ? (totalPremiumsCollected / input.leapCost) * 100 : 0;
+      const totalProfitLoss = leapGain + totalPremiumsCollected;
+      const roi = input.leapCost > 0 ? (totalProfitLoss / input.leapCost) * 100 : 0;
+
+      return {
+        leapSymbol: input.leapSymbol,
+        underlyingSymbol: input.underlyingSymbol,
+        leapCost: input.leapCost,
+        currentLeapValue: input.currentLeapValue,
+        leapGain,
+        leapGainPercent: input.leapCost > 0 ? (leapGain / input.leapCost) * 100 : 0,
+        premiumsCollected: totalPremiumsCollected,
+        paybackPercent,
+        remainingToBreakEven: Math.max(0, input.leapCost - totalPremiumsCollected),
+        totalProfitLoss,
+        roi,
+        shortCallHistory,
+        note: 'Premium tracking will be implemented when transaction history API is available',
+      };
+    }),
 });
 
 /**
@@ -756,3 +1003,4 @@ function calculateLeapScore(
 
   return Math.max(0, Math.min(100, Math.round(score))); // Clamp to 0-100
 }
+

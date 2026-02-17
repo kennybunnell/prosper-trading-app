@@ -10,6 +10,7 @@ import { HelpBadge } from "@/components/HelpBadge";
 import { HELP_CONTENT } from "@/lib/helpContent";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
+import { ShortCallScanner } from "@/components/pmcc/ShortCallScanner";
 import { trpc } from "@/lib/trpc";
 import { useTradingMode } from "@/contexts/TradingModeContext";
 import { toast } from "sonner";
@@ -20,8 +21,13 @@ type SortColumn = 'symbol' | 'strike' | 'expiration' | 'dte' | 'delta' | 'premiu
 type SortDirection = 'asc' | 'desc';
 
 // Active Positions Section Component
-function ActivePositionsSection() {
-  const { data: positionsData, isLoading, refetch } = trpc.pmcc.getLeapPositions.useQuery();
+interface ActivePositionsSectionProps {
+  positionsData: any;
+  isLoading: boolean;
+  refetch: () => void;
+}
+
+function ActivePositionsSection({ positionsData, isLoading, refetch }: ActivePositionsSectionProps) {
   const positions = positionsData?.positions || [];
 
   if (isLoading) {
@@ -129,6 +135,10 @@ function ActivePositionsSection() {
 
 export default function PMCCDashboard() {
   const { mode: tradingMode } = useTradingMode();
+  
+  // Fetch LEAP positions (shared between ActivePositionsSection and ShortCallScanner)
+  const { data: positionsData, isLoading: isLoadingPositions, refetch: refetchPositions } = trpc.pmcc.getLeapPositions.useQuery();
+  
   const [isScanning, setIsScanning] = useState(false);
   const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState(false);
   const [scanStartTime, setScanStartTime] = useState<number | null>(null);
@@ -381,7 +391,17 @@ export default function PMCCDashboard() {
         </div>
 
         {/* Active PMCC Positions */}
-        <ActivePositionsSection />
+        <ActivePositionsSection 
+          positionsData={positionsData}
+          isLoading={isLoadingPositions}
+          refetch={refetchPositions}
+        />
+
+        {/* Short Call Scanner */}
+        <ShortCallScanner 
+          leapPositions={positionsData?.positions || []}
+          onRefreshPositions={refetchPositions}
+        />
 
         {/* Watchlist Management */}
         <div className="mb-8">

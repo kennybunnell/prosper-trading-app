@@ -5413,10 +5413,11 @@
 - [x] Add better error handling for polling failures
 
 ## 🚀 PMCC Short Call Selling Feature
-- [ ] Backend: Modify CC scanner to accept LEAP positions as collateral
-- [ ] Backend: Add LEAP validation (short call strike > LEAP strike)
-- [ ] Backend: Calculate max contracts based on LEAP holdings (1 LEAP = 1 short call max)
-- [ ] Backend: Create new tRPC procedure for scanning short call opportunities against LEAPs
+- [x] Backend: Modify CC scanner to accept LEAP positions as collateral
+- [x] Backend: Add LEAP validation (short call strike > LEAP strike)
+- [x] Backend: Calculate max contracts based on LEAP holdings (1 LEAP = 1 short call max)
+- [x] Backend: Create new tRPC procedure for scanning short call opportunities against LEAPs (scanShortCallOpportunities)
+- [x] Backend: Create profitability tracking procedure (getPMCCProfitability)
 - [ ] Frontend: Add "Short Call Scanner" section to PMCC dashboard
 - [ ] Frontend: Display LEAP positions with ability to select for short call selling
 - [ ] Frontend: Show short call opportunities for each selected LEAP
