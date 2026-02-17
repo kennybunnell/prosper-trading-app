@@ -22,17 +22,23 @@ export const marketRouter = router({
       
       const tradierApiKey = process.env.TRADIER_API_KEY;
       if (!tradierApiKey) {
-        throw new Error('Tradier API key not configured');
+        console.warn('[Market Status] Tradier API key not configured, using time-based fallback');
+        throw new Error('API key not configured');
       }
       
+      console.log('[Market Status] Fetching market status from Tradier API...');
       const tradier = createTradierAPI(tradierApiKey, false);
       const status = await tradier.getMarketStatus();
+      
+      console.log('[Market Status] Tradier API response:', status);
+      
       return {
         isOpen: status.open,
-        description: status.description,
+        description: status.description || (status.open ? 'Market is open' : 'Market is closed'),
       };
-    } catch (error) {
-      console.error('[Market Status] Error fetching market status:', error);
+    } catch (error: any) {
+      console.error('[Market Status] Error fetching from Tradier API:', error.message || error);
+      
       // Fallback to time-based check if Tradier API fails
       const now = new Date();
       const etTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
@@ -42,9 +48,25 @@ export const marketRouter = router({
       const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
       const isDuringMarketHours = (hours > 9 || (hours === 9 && minutes >= 30)) && hours < 16;
       const isOpen = isWeekday && isDuringMarketHours;
+      
+      let description = 'Market is closed';
+      if (isWeekday) {
+        if (hours < 9 || (hours === 9 && minutes < 30)) {
+          description = 'Market is closed (Pre-market)';
+        } else if (hours >= 16) {
+          description = 'Market is closed (After hours)';
+        } else {
+          description = 'Market is open';
+        }
+      } else {
+        description = 'Market is closed (Weekend)';
+      }
+      
+      console.log('[Market Status] Using time-based fallback:', { isOpen, description, etTime: etTime.toLocaleString() });
+      
       return {
         isOpen,
-        description: isOpen ? 'Market is open' : 'Market is closed',
+        description,
       };
     }
   }),

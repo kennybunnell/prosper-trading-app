@@ -5351,3 +5351,20 @@
 - [ ] Verify filled orders show green checkmarks and "Filled" status
 - [ ] Verify confetti animation plays for successful fills
 - [ ] Check server logs for any 502 errors during polling
+
+## 🐛 BUG: Hardcoded Market Hours Check (Feb 17, 2026)
+- [ ] Replace hardcoded "Monday-Friday, 9:30 AM - 4:00 PM ET" check with Tastytrade API market status
+- [ ] Find Tastytrade API endpoint for market hours/status
+- [ ] Implement backend procedure to fetch real-time market status from Tastytrade
+- [ ] Update UnifiedOrderPreviewModal to call API for market status instead of using time-based check
+- [ ] Display accurate market hours from Tastytrade API response
+- [ ] Test during market hours and after hours to verify correct status display
+
+## ✅ Market Status API Implemented
+- [x] Implemented backend endpoint using Tradier API `/markets/clock` for real-time market status
+- [x] Added comprehensive logging and error handling with time-based fallback
+- [x] Updated frontend to display real-time market status description from API
+- [x] Shows accurate status: "Market is open from 09:30 to 16:00" or detailed closed status (Pre-market/After hours/Weekend)
+- [x] Created comprehensive test suite (2/2 tests passing)
+- [x] Verified API returns correct status: isOpen=true during market hours
+- [x] Replaced hardcoded "Monday-Friday, 9:30 AM - 4:00 PM ET" with dynamic API-based status
