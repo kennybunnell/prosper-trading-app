@@ -49,7 +49,8 @@ function isMarketOpen(): boolean {
  */
 export async function checkOrderStatus(
   accountId: string,
-  orderId: string
+  orderId: string,
+  retryCount: number = 3
 ): Promise<OrderStatus> {
   const api = getTastytradeAPI();
   
@@ -61,9 +62,11 @@ export async function checkOrderStatus(
     };
   }
   
-  try {
-    // Fetch specific order details using the order ID endpoint
-    const orderData = await api.getOrderById(accountId, orderId);
+  // Retry logic with exponential backoff
+  for (let attempt = 1; attempt <= retryCount; attempt++) {
+    try {
+      // Fetch specific order details using the order ID endpoint
+      const orderData = await api.getOrderById(accountId, orderId);
     
     if (!orderData) {
       return { status: 'Unknown' };
@@ -110,9 +113,21 @@ export async function checkOrderStatus(
       return { status: 'Unknown' };
     }
     
-    console.error(`[OrderStatus] Error fetching order ${orderId}:`, error.message);
-    throw new Error(`Failed to check order status: ${error.message}`);
+      // On last attempt, throw the error
+      if (attempt === retryCount) {
+        console.error(`[OrderStatus] Error fetching order ${orderId} after ${retryCount} attempts:`, error.message);
+        throw new Error(`Failed to check order status: ${error.message}`);
+      }
+      
+      // Wait before retrying (exponential backoff: 1s, 2s, 4s)
+      const waitTime = Math.pow(2, attempt - 1) * 1000;
+      console.log(`[OrderStatus] Retry ${attempt}/${retryCount} for order ${orderId} after ${waitTime}ms`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
   }
+  
+  // Should never reach here due to throw in loop, but TypeScript needs this
+  return { status: 'Unknown' };
 }
 
 /**

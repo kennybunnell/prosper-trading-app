@@ -2274,8 +2274,23 @@ Summary: [One sentence overall assessment]`;
           }
         }
 
+        // Deduplicate spread opportunities by unique spread identifier (symbol-shortStrike-longStrike-expiration)
+        console.log(`[Spread Dedup] ${spreadOpportunities.length} spreads before deduplication`);
+        const uniqueSpreads = new Map<string, any>();
+        for (const spread of spreadOpportunities) {
+          const key = `${spread.symbol}-${spread.strike}-${spread.longStrike}-${spread.expiration}`;
+          if (!uniqueSpreads.has(key)) {
+            uniqueSpreads.set(key, spread);
+          } else {
+            console.log(`[Spread Dedup] Duplicate found: ${key}`);
+          }
+        }
+        const dedupedSpreads = Array.from(uniqueSpreads.values());
+        const dedupedCount = spreadOpportunities.length - dedupedSpreads.length;
+        console.log(`[Spread Dedup] ${dedupedSpreads.length} spreads after deduplication (removed ${dedupedCount})`);
+        
         // Score spread opportunities (reuse CSP scoring logic)
-        const scored = scoreOpportunities(spreadOpportunities);
+        const scored = scoreOpportunities(dedupedSpreads);
 
         // Increment scan count for Tier 1 users (after successful scan)
         await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);

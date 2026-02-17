@@ -5380,3 +5380,54 @@
 - [x] Fix root cause in backend data fetching or frontend data processing
 - [x] Add unit tests for deduplication logic (7/7 tests passing)
 - [ ] Verify fix eliminates all 170+ duplicate key errors (ready for user testing)
+
+## 🔍 Root Cause Investigation: Why Are Duplicates Being Created?
+- [ ] Trace data flow from Tradier API response to frontend rendering
+- [ ] Check if Tradier API is returning duplicate options in the same response
+- [ ] Verify parallel processing isn't creating race conditions
+- [ ] Check if option chain is being fetched multiple times for same symbol/expiration
+- [ ] Determine if the issue is in our code or the Tradier API itself
+- [ ] Fix root cause instead of relying on deduplication bandaid
+
+## 🐛 URGENT: Market Status Check Stuck/Incorrect (Feb 17, 2026)
+- [ ] Market status dialog shows "Checking market status..." indefinitely
+- [ ] Market incorrectly detected as closed when it's actually open (market hours: Mon-Fri 9:30am-4pm ET)
+- [ ] Investigate Tradier /markets/clock API call - may be timing out or returning wrong data
+- [ ] Check if API call is hanging or failing silently
+- [ ] Add timeout to market status check (max 5 seconds)
+- [ ] Improve error handling and fallback logic
+- [ ] Test market status detection during actual market hours
+
+## 🐛 Bull Put Spread Errors (Feb 17, 2026)
+- [ ] Monitor server logs during BPS scan
+- [ ] Monitor browser console during BPS scan
+- [ ] Identify error patterns (duplicates? API failures? data processing?)
+- [ ] Apply similar fixes as Bear Call Spread deduplication if needed
+- [ ] Test BPS scanner with live data
+- [ ] Verify no errors in browser console or server logs
+
+## 🐛 Order Status Polling Timeout Errors
+- [x] Fix Tastytrade API timeout when fetching order status (orders 440654228, 440654223)
+- [x] Increase timeout from 30s to 60s for all Tastytrade API requests
+- [x] Implement retry logic with exponential backoff (3 attempts: 1s, 2s, 4s delays)
+- [x] Add better error handling for polling failures
+
+## 🚀 PMCC Short Call Selling Feature
+- [ ] Backend: Modify CC scanner to accept LEAP positions as collateral
+- [ ] Backend: Add LEAP validation (short call strike > LEAP strike)
+- [ ] Backend: Calculate max contracts based on LEAP holdings (1 LEAP = 1 short call max)
+- [ ] Backend: Create new tRPC procedure for scanning short call opportunities against LEAPs
+- [ ] Frontend: Add "Short Call Scanner" section to PMCC dashboard
+- [ ] Frontend: Display LEAP positions with ability to select for short call selling
+- [ ] Frontend: Show short call opportunities for each selected LEAP
+- [ ] Frontend: Order preview and submission for PMCC short calls
+- [ ] Integration: Ensure PMCC short calls appear in Working Orders view
+- [ ] Integration: Ensure PMCC short calls appear in Action Items view
+- [ ] Integration: Ensure PMCC positions appear in Performance tracking
+- [ ] Integration: Ensure PMCC short calls appear in Active Positions view
+- [ ] Feature: Track cumulative premiums collected from short calls against each LEAP
+- [ ] Feature: Calculate "LEAP Payback Progress" (premiums collected / LEAP cost)
+- [ ] Feature: Track LEAP capital gains (current LEAP value vs purchase price)
+- [ ] Feature: Calculate total PMCC P/L (LEAP gains + premiums collected - LEAP cost)
+- [ ] UI: Add PMCC profitability metrics to dashboard (payback %, total premiums, LEAP gains)
+- [ ] Testing: End-to-end PMCC workflow (scan LEAP → buy LEAP → scan short calls → sell short calls)

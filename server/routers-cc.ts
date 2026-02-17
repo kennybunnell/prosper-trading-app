@@ -312,15 +312,31 @@ export const ccRouter = router({
 
             // Process expirations in parallel (up to 3 at a time to avoid overwhelming API)
             const EXP_CONCURRENCY = 3;
+            console.log(`[CC Scanner DEBUG] ${symbol}: Processing ${filteredExpirations.length} expirations: ${filteredExpirations.join(', ')}`);
             for (let j = 0; j < filteredExpirations.length; j += EXP_CONCURRENCY) {
               const expBatch = filteredExpirations.slice(j, j + EXP_CONCURRENCY);
               const expPromises = expBatch.map(async (expiration) => {
                 try {
+                  console.log(`[CC Scanner DEBUG] ${symbol} ${expiration}: Fetching option chain...`);
                   const options = await withTimeout(
                     api.getOptionChain(symbol, expiration, true),
                     API_TIMEOUT_MS
                   );
+                  console.log(`[CC Scanner DEBUG] ${symbol} ${expiration}: Received ${options.length} total options from Tradier API`);
+                  
+                  // Check for duplicates in Tradier API response
+                  const apiDuplicateCheck = new Map<string, number>();
+                  options.forEach(opt => {
+                    const key = `${opt.strike}-${opt.option_type}`;
+                    apiDuplicateCheck.set(key, (apiDuplicateCheck.get(key) || 0) + 1);
+                  });
+                  const apiDuplicates = Array.from(apiDuplicateCheck.entries()).filter(([_, count]) => count > 1);
+                  if (apiDuplicates.length > 0) {
+                    console.warn(`[CC Scanner DEBUG] ${symbol} ${expiration}: Tradier API returned duplicates!`, apiDuplicates);
+                  }
+                  
               const calls = options.filter(opt => opt.option_type === 'call');
+                  console.log(`[CC Scanner DEBUG] ${symbol} ${expiration}: Filtered to ${calls.length} call options`);
 
                   for (const option of calls) {
                     const strike = option.strike || 0;
@@ -351,6 +367,7 @@ export const ccRouter = router({
                     const spreadPct = mid > 0 ? ((ask - bid) / mid) * 100 : 999;
                     const distanceOtmPct = ((strike - holding.currentPrice) / holding.currentPrice) * 100;
 
+                    const oppKey = `${symbol}-${strike}-${expiration}`;
                     symbolOpportunities.push({
                       symbol,
                       currentPrice: holding.currentPrice,
@@ -374,6 +391,7 @@ export const ccRouter = router({
                       maxContracts: holding.maxContracts,
                       distanceOtm: distanceOtmPct,
                     });
+                    console.log(`[CC Scanner DEBUG] ${symbol} ${expiration}: Added opportunity ${oppKey} (total so far: ${symbolOpportunities.length})`);
                   }
                 } catch (error: any) {
                   console.error(`[CC Scanner] Error processing expiration ${expiration} for ${symbol}: ${error.message}`);
@@ -382,6 +400,18 @@ export const ccRouter = router({
               
               await Promise.allSettled(expPromises);
             }
+            
+            // Check for duplicates in symbolOpportunities before returning
+            const oppDuplicateCheck = new Map<string, number>();
+            symbolOpportunities.forEach(opp => {
+              const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+              oppDuplicateCheck.set(key, (oppDuplicateCheck.get(key) || 0) + 1);
+            });
+            const oppDuplicates = Array.from(oppDuplicateCheck.entries()).filter(([_, count]) => count > 1);
+            if (oppDuplicates.length > 0) {
+              console.warn(`[CC Scanner DEBUG] ${symbol}: Found ${oppDuplicates.length} duplicate opportunity keys BEFORE deduplication:`, oppDuplicates);
+            }
+            
             console.log(`[CC Scanner] ✓ ${symbol}: found ${symbolOpportunities.length} opportunities`);
           } catch (error: any) {
             console.error(`[CC Scanner] ✗ ${symbol}: ${error.message}`);

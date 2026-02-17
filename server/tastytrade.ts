@@ -123,7 +123,7 @@ export class TastytradeAPI {
         // Each endpoint sets its own Content-Type (JSON for API calls, form-urlencoded for OAuth)
         'Connection': 'close', // Force fresh connections (disable keep-alive)
       },
-      timeout: 30000, // 30 second timeout for all requests
+      timeout: 60000, // 60 second timeout for all requests (increased for order status polling)
       // Disable HTTP keep-alive to prevent connection-level rate limiting
       httpAgent: new http.Agent({ keepAlive: false }),
       httpsAgent: new https.Agent({ keepAlive: false }),

@@ -432,14 +432,33 @@ export function UnifiedOrderPreviewModal({
   // Check market hours before live submission
   const checkMarketHours = async () => {
     try {
-      // Call API endpoint directly (can't use React hooks inside event handler)
-      const response = await fetch('/api/trpc/market.getMarketStatus');
+      console.log('[Market Hours Check] Fetching market status...');
+      
+      // Call API endpoint with 5 second timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch('/api/trpc/market.getMarketStatus', {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
         throw new Error('Failed to fetch market status');
       }
       
       const data = await response.json();
-      const status = data.result.data;
+      console.log('[Market Hours Check] Raw API response:', data);
+      
+      // tRPC wraps response in result.data.json
+      const status = data.result?.data?.json || data.result?.data;
+      console.log('[Market Hours Check] Extracted status:', status);
+      
+      if (!status || typeof status.isOpen === 'undefined') {
+        console.error('[Market Hours Check] Invalid status format:', status);
+        return true; // Fail open if we can't parse the response
+      }
+      
       setMarketStatus(status);
       
       if (!status.isOpen) {
@@ -449,8 +468,16 @@ export function UnifiedOrderPreviewModal({
       }
       
       return true; // Allow submission
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Market Hours Check] Error:', error);
+      
+      // If timeout or network error, fail open and allow submission
+      if (error.name === 'AbortError') {
+        console.warn('[Market Hours Check] Request timed out after 5 seconds, allowing submission');
+      } else {
+        console.warn('[Market Hours Check] Failed to check market status, allowing submission');
+      }
+      
       return true; // Allow submission on error (fail open)
     }
   };

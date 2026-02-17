@@ -560,6 +560,7 @@ export class TradierAPI {
     minVolume: number,
     minOI: number
   ): Promise<CSPOpportunity[]> {
+    console.log(`[CSP fetchSymbolOpportunities] === ENTRY === Symbol: ${symbol}`);
     const opportunities: CSPOpportunity[] = [];
     const today = new Date();
     
@@ -683,7 +684,29 @@ export class TradierAPI {
       return [];
     }
 
-    return opportunities;
+    // Log opportunities before deduplication
+    console.log(`[CSP Dedup] ${symbol}: ${opportunities.length} opportunities before dedup`);
+    if (opportunities.length > 0) {
+      // Log first few for inspection
+      const sample = opportunities.slice(0, 3).map(o => `${o.optionSymbol} (${o.strike})`);
+      console.log(`[CSP Dedup] ${symbol}: Sample: ${sample.join(', ')}`);
+    }
+    
+    // Deduplicate opportunities by option symbol before returning
+    const uniqueOpportunities = new Map<string, CSPOpportunity>();
+    for (const opp of opportunities) {
+      const key = opp.optionSymbol;
+      if (!uniqueOpportunities.has(key)) {
+        uniqueOpportunities.set(key, opp);
+      } else {
+        console.log(`[CSP Dedup] ${symbol}: Duplicate found: ${key} at strike ${opp.strike}`);
+      }
+    }
+    
+    const dedupedCount = opportunities.length - uniqueOpportunities.size;
+    console.log(`[CSP Dedup] ${symbol}: ${uniqueOpportunities.size} opportunities after dedup (removed ${dedupedCount})`);
+
+    return Array.from(uniqueOpportunities.values());
   }
 }
 
