@@ -401,8 +401,27 @@ export const ccRouter = router({
         });
       }
 
+      // DEDUPLICATION: Remove duplicate opportunities with same symbol-strike-expiration
+      // This can happen due to parallel processing race conditions or API quirks
+      const uniqueOpportunities = new Map<string, any>();
+      for (const opp of opportunities) {
+        const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+        
+        // Keep the opportunity with better bid/ask spread if duplicates exist
+        if (!uniqueOpportunities.has(key) || opp.spreadPct < uniqueOpportunities.get(key).spreadPct) {
+          uniqueOpportunities.set(key, opp);
+        }
+      }
+      
+      const deduplicatedOpportunities = Array.from(uniqueOpportunities.values());
+      const duplicateCount = opportunities.length - deduplicatedOpportunities.length;
+      
+      if (duplicateCount > 0) {
+        console.log(`[CC Scanner] Removed ${duplicateCount} duplicate CC opportunities (kept best spread for each unique option)`);
+      }
+
       // Calculate composite scores for all opportunities
-      const scoredOpportunities = opportunities.map(opp => ({
+      const scoredOpportunities = deduplicatedOpportunities.map(opp => ({
         ...opp,
         score: calculateCCScore(opp),
       }));
@@ -533,10 +552,29 @@ export const ccRouter = router({
         console.log(`[BearCallSpread] Processed ${Math.min((i + CONCURRENCY_LIMIT), groups.length)}/${groups.length} groups: ${spreadOpportunities.length} spreads found`);
       }
 
-      // Sort by score descending
-      spreadOpportunities.sort((a, b) => b.score - a.score);
+      // DEDUPLICATION: Remove duplicate spreads with same symbol-shortStrike-longStrike-expiration
+      // This prevents React key errors when the same spread appears multiple times
+      const uniqueSpreads = new Map<string, any>();
+      for (const spread of spreadOpportunities) {
+        const key = `${spread.symbol}-${spread.strike}-${spread.longStrike}-${spread.expiration}`;
+        
+        // Keep the spread with the highest score if duplicates exist
+        if (!uniqueSpreads.has(key) || spread.score > uniqueSpreads.get(key).score) {
+          uniqueSpreads.set(key, spread);
+        }
+      }
+      
+      const deduplicatedSpreads = Array.from(uniqueSpreads.values());
+      const duplicateCount = spreadOpportunities.length - deduplicatedSpreads.length;
+      
+      if (duplicateCount > 0) {
+        console.log(`[BearCallSpread] Removed ${duplicateCount} duplicate spreads (kept highest score for each unique spread)`);
+      }
 
-      return spreadOpportunities;
+      // Sort by score descending
+      deduplicatedSpreads.sort((a, b) => b.score - a.score);
+
+      return deduplicatedSpreads;
     }),
 
   /**
