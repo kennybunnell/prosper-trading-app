@@ -314,20 +314,58 @@ export function ActivePositionsTab() {
     }
     
     // Build UnifiedOrder array from selected positions
-    const orders: UnifiedOrder[] = selectedPositionsData.map(pos => ({
-      symbol: pos.symbol,
-      strike: pos.strike,
-      expiration: pos.expiration,
-      premium: pos.currentPrice, // Current market price for BTC
-      action: "BTC" as const,
-      optionType: (positionType === 'csp' ? 'PUT' : 'CALL') as "CALL" | "PUT",
-      bid: pos.currentPrice * 0.95, // Estimate bid (5% below mark)
-      ask: pos.currentPrice * 1.05, // Estimate ask (5% above mark)
-      currentPrice: pos.currentPrice,
-      // For spreads, include long leg
-      longStrike: pos.longStrike,
-      longPremium: pos.longStrike ? pos.currentPrice * 0.5 : undefined, // Estimate for spread
-    }));
+    const orders: UnifiedOrder[] = selectedPositionsData.map(pos => {
+      // For spreads, estimate individual leg prices
+      // The currentPrice is the net spread price (what we pay to close)
+      // We need to estimate bid/ask for both legs
+      const isSpread = !!pos.longStrike;
+      
+      if (isSpread) {
+        // For spreads: estimate short leg and long leg prices
+        // Spread width determines the relationship between legs
+        const spreadWidth = pos.spreadWidth || Math.abs(pos.strike - pos.longStrike!);
+        
+        // Estimate short leg (the one we sold) - typically worth less when profitable
+        const shortLegMid = pos.currentPrice * 0.4; // Short leg is ~40% of spread cost
+        const shortBid = shortLegMid * 0.95;
+        const shortAsk = shortLegMid * 1.05;
+        
+        // Estimate long leg (the one we bought) - typically worth more
+        const longLegMid = pos.currentPrice * 0.6; // Long leg is ~60% of spread cost
+        const longBid = longLegMid * 0.95;
+        const longAsk = longLegMid * 1.05;
+        
+        return {
+          symbol: pos.symbol,
+          strike: pos.strike,
+          expiration: pos.expiration,
+          premium: pos.currentPrice, // Net spread price
+          action: "BTC" as const,
+          optionType: (positionType === 'csp' ? 'PUT' : 'CALL') as "CALL" | "PUT",
+          bid: shortBid,
+          ask: shortAsk,
+          currentPrice: pos.currentPrice,
+          // Long leg data for spreads
+          longStrike: pos.longStrike,
+          longPremium: longLegMid,
+          longBid: longBid,
+          longAsk: longAsk,
+        };
+      } else {
+        // Single-leg position
+        return {
+          symbol: pos.symbol,
+          strike: pos.strike,
+          expiration: pos.expiration,
+          premium: pos.currentPrice,
+          action: "BTC" as const,
+          optionType: (positionType === 'csp' ? 'PUT' : 'CALL') as "CALL" | "PUT",
+          bid: pos.currentPrice * 0.95,
+          ask: pos.currentPrice * 1.05,
+          currentPrice: pos.currentPrice,
+        };
+      }
+    })
     
     setUnifiedOrders(orders);
     setShowPreviewModal(true);

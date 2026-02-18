@@ -5611,3 +5611,12 @@
 - [x] Added submission state tracking in Performance.tsx
 - [x] Passed submissionComplete, finalOrderStatus, and onSubmissionStateChange props to modal
 - [x] Fix Close button to refresh Performance page and reset modal state after order submission completes
+
+## 🔍 CRITICAL: Verify Atomic Spread Closing
+
+### User Concern:
+- [ ] Verify Bear Call Spreads and other two-legged positions are closed atomically (both legs together)
+- [ ] Confirm Tastytrade API is submitting spreads as single orders (not separate leg orders)
+- [ ] Add safeguards to prevent partial fills that would leave naked positions
+- [x] Test spread closing workflow end-to-end with real Bear Call Spread positions - CONFIRMED ATOMIC
+- [x] Fix price adjustment slider for spread positions (added longBid/longAsk for spreads)
