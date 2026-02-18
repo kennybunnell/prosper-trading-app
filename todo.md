@@ -5432,3 +5432,13 @@
 - [ ] Feature: Calculate total PMCC P/L (LEAP gains + premiums collected - LEAP cost)
 - [ ] UI: Add PMCC profitability metrics to dashboard (payback %, total premiums, LEAP gains)
 - [ ] Testing: End-to-end PMCC workflow (scan LEAP → buy LEAP → scan short calls → sell short calls)
+
+## 🚀 Legal Agreements Submit Button & Logging
+- [x] Frontend: Add "I Accept" submit button to Legal Agreements modal (already existed)
+- [x] Frontend: Disable submit until both checkboxes are checked (already existed)
+- [x] Backend: Log acceptance timestamp, IP address, and agreement version to database (already existed)
+- [x] Backend: Update user record with acceptedTermsAt and acceptedRiskDisclosureAt timestamps (already existed)
+- [x] Admin: Create admin view to see all legal agreement acceptances
+- [x] Admin: Show user name, email, acceptance date, IP address
+- [x] Testing: Ready for user to verify new users can submit agreements
+- [x] Testing: Admin can view acceptance logs in Admin Panel → Users page

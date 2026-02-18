@@ -204,6 +204,7 @@ export function AdminUsers() {
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Tier</TableHead>
+                  <TableHead>Legal Agreements</TableHead>
                   <TableHead>Registered</TableHead>
                   <TableHead>Last Active</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -235,6 +236,25 @@ export function AdminUsers() {
                       </Select>
                     </TableCell>
                     <TableCell>{getTierBadge(user.subscriptionTier)}</TableCell>
+                    <TableCell>
+                      {user.acceptedTermsAt && user.acceptedRiskDisclosureAt ? (
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                            ✓ Accepted
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDate(user.acceptedTermsAt)}
+                          </span>
+                          {user.acceptedTermsIp && (
+                            <span className="text-xs text-muted-foreground">
+                              IP: {user.acceptedTermsIp}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <Badge variant="destructive">Pending</Badge>
+                      )}
+                    </TableCell>
                     <TableCell>{formatDate(user.createdAt)}</TableCell>
                     <TableCell>
                       {formatDate(user.lastSignedIn)}
