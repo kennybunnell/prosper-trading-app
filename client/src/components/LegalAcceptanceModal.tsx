@@ -67,7 +67,7 @@ export function LegalAcceptanceModal({ open, onAccepted }: LegalAcceptanceModalP
 
   return (
     <Dialog open={open} onOpenChange={() => {}} modal>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col" onInteractOutside={(e) => e.preventDefault()}>
+      <DialogContent className="max-w-5xl h-[85vh] p-6" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl">
             <Shield className="h-6 w-6 text-orange-500" />
@@ -91,7 +91,7 @@ export function LegalAcceptanceModal({ open, onAccepted }: LegalAcceptanceModalP
           </div>
         </div>
 
-        <Tabs defaultValue="terms" className="flex-1 min-h-0 flex flex-col">
+        <Tabs defaultValue="terms" className="mt-4">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="terms" className="gap-2">
               <FileText className="h-4 w-4" />
@@ -103,7 +103,7 @@ export function LegalAcceptanceModal({ open, onAccepted }: LegalAcceptanceModalP
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="terms" className="flex-1 min-h-0 mt-4">
+          <TabsContent value="terms" className="mt-4">
             <ScrollArea className="h-[400px] w-full rounded-md border p-4">
               <div className="prose prose-sm dark:prose-invert max-w-none">
                 <pre className="whitespace-pre-wrap font-sans text-sm">{termsContent}</pre>
@@ -111,7 +111,7 @@ export function LegalAcceptanceModal({ open, onAccepted }: LegalAcceptanceModalP
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="risk" className="flex-1 min-h-0 mt-4">
+          <TabsContent value="risk" className="mt-4">
             <ScrollArea className="h-[400px] w-full rounded-md border p-4">
               <div className="prose prose-sm dark:prose-invert max-w-none">
                 <pre className="whitespace-pre-wrap font-sans text-sm">{riskContent}</pre>
@@ -120,7 +120,7 @@ export function LegalAcceptanceModal({ open, onAccepted }: LegalAcceptanceModalP
           </TabsContent>
         </Tabs>
 
-        <div className="space-y-4 pt-4 border-t flex-shrink-0">
+        <div className="space-y-4 pt-6 mt-6 border-t">
           <div className="flex items-start gap-3">
             <Checkbox
               id="terms"

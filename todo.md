@@ -5448,3 +5448,10 @@
 - [x] Ensure modal content is scrollable to reach button (removed overflow-hidden, added flex layout)
 - [ ] Test button visibility on different screen sizes
 - [ ] Verify submission flow works after fix
+
+## 🐛 URGENT: Legal Agreements Modal Layout Broken
+- [x] Fix overlapping content in modal (removed flex layout, used fixed height)
+- [x] Make checkboxes and button clickable again
+- [x] Increase modal width for better readability (max-w-4xl → max-w-5xl)
+- [x] Ensure proper spacing between elements (added proper margins)
+- [ ] Test that all interactive elements work
