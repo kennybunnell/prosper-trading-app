@@ -772,7 +772,18 @@ export function ActivePositionsTab() {
       {unifiedOrders.length > 0 && (
         <UnifiedOrderPreviewModal
           open={showPreviewModal}
-          onOpenChange={setShowPreviewModal}
+          onOpenChange={(open) => {
+            setShowPreviewModal(open);
+            // If closing the modal after submission is complete, refresh the data
+            if (!open && submissionComplete) {
+              console.log('[Performance] Modal closed after submission - refreshing positions');
+              refetch(); // Refresh active positions
+              setSubmissionComplete(false); // Reset submission state
+              setFinalOrderStatus(null); // Reset status
+              setSelectedPositions(new Set()); // Clear selection
+              setUnifiedOrders([]); // Clear orders
+            }
+          }}
           orders={unifiedOrders}
           strategy="btc"
           accountId={selectedAccountId || ''}

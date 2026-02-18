@@ -5610,3 +5610,4 @@
 - [x] Wire "Close" button to call `onOpenChange(false)` to dismiss modal (already implemented)
 - [x] Added submission state tracking in Performance.tsx
 - [x] Passed submissionComplete, finalOrderStatus, and onSubmissionStateChange props to modal
+- [x] Fix Close button to refresh Performance page and reset modal state after order submission completes
