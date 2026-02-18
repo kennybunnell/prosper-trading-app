@@ -106,6 +106,7 @@ export interface UnifiedOrderPreviewModalProps {
   defaultQuantities?: Map<string, number>;
   allowQuantityEdit?: boolean; // False for closing orders (default: true)
   tradingMode?: "live" | "paper";
+  initialSkipDryRun?: boolean; // If true, modal opens with "Submit Live" button instead of "Execute Dry Run"
   
   // Lifted state for persistence across re-renders
   submissionComplete?: boolean;
@@ -129,6 +130,7 @@ export function UnifiedOrderPreviewModal({
   defaultQuantities,
   allowQuantityEdit = true,
   tradingMode = "live",
+  initialSkipDryRun = false,
   submissionComplete: externalSubmissionComplete,
   finalOrderStatus: externalFinalOrderStatus,
   onSubmissionStateChange,
@@ -136,7 +138,7 @@ export function UnifiedOrderPreviewModal({
   const { toast } = useToast();
   
   // State
-  const [skipDryRun, setSkipDryRun] = useState(false);
+  const [skipDryRun, setSkipDryRun] = useState(initialSkipDryRun);
   const [dryRunSuccess, setDryRunSuccess] = useState(false);
   const [orderQuantities, setOrderQuantities] = useState<Map<string, number>>(new Map());
   const [adjustedPrices, setAdjustedPrices] = useState<Map<string, number>>(new Map());
@@ -212,7 +214,7 @@ export function UnifiedOrderPreviewModal({
       
       // Reset dry run success, polling state, skipDryRun, and submission complete when modal FIRST opens
       // BUT only if submission is NOT already complete
-      setSkipDryRun(false);
+      setSkipDryRun(initialSkipDryRun);
       setDryRunSuccess(false);
       setIsPolling(false);
       setOrderStatuses([]);

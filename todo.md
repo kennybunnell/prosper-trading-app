@@ -5583,3 +5583,16 @@
 - [ ] Check live order submission mutation
 - [ ] Verify order status polling logic
 - [ ] Check confetti trigger conditions
+
+## 🐛 NEW: Close Positions Button & Confetti Issues
+
+### Issues Reported:
+- [x] "Submit Close Orders" button should be RED when "Dry Run Mode" checkbox is OFF (currently green)
+- [x] Confetti is STILL showing for dry run submissions (should NEVER show for dry runs) - FIXED by removing confetti from mutation callback
+- [x] Confetti should ONLY show when live orders are submitted AND fulfilled - Now handled by UnifiedOrderPreviewModal after polling
+- [x] "Dry Run Mode" checkbox state should control the initial modal behavior (checked = show dry run button, unchecked = show live submit button)
+
+### Files to Fix:
+- [ ] Performance.tsx - Change button color based on dryRunMode state
+- [ ] UnifiedOrderPreviewModal.tsx - Remove all confetti triggers from dry run path
+- [ ] UnifiedOrderPreviewModal.tsx - Only trigger confetti after live orders are filled (not just submitted)

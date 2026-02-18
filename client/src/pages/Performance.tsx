@@ -146,33 +146,9 @@ export function ActivePositionsTab() {
         );
       }
       
-      if (dryRun) {
-        toast.success(`✓ ${result.summary.success} order(s) validated successfully (Dry Run)`);
-      } else if (result.summary.success > 0) {
-        // Live order submission success - celebrate!
-        toast.success(`Successfully submitted ${result.summary.success} orders!`);
-        playSuccessSound();
-        confetti({
-          particleCount: 200,
-          spread: 100,
-          origin: { y: 0.6 },
-          colors: ['#10b981', '#3b82f6', '#8b5cf6'],
-        });
-        setTimeout(() => {
-          confetti({
-            particleCount: 100,
-            angle: 60,
-            spread: 55,
-            origin: { x: 0 },
-          });
-          confetti({
-            particleCount: 100,
-            angle: 120,
-            spread: 55,
-            origin: { x: 1 },
-          });
-        }, 250);
-      } else if (result.summary.failed > 0) {
+      // Don't show confetti here - let UnifiedOrderPreviewModal handle it after polling confirms fills
+      // This prevents confetti from showing for dry runs
+      if (result.summary.failed > 0 && result.summary.success === 0) {
         // All orders failed
         toast.error(`Failed to submit ${result.summary.failed} order(s). Check the results dialog for details.`);
       }
@@ -733,7 +709,10 @@ export function ActivePositionsTab() {
               </div>
               <Button
                 onClick={handleClosePositions}
-                className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/50"
+                className={dryRun 
+                  ? "bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/50"
+                  : "bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-500/50"
+                }
                 disabled={closePositionsMutation.isPending}
               >
                 {closePositionsMutation.isPending ? (
@@ -800,6 +779,7 @@ export function ActivePositionsTab() {
           onPollStatuses={handlePollOrderStatuses}
           allowQuantityEdit={false}
           tradingMode={tradingMode === 'live' ? 'live' : 'paper'}
+          initialSkipDryRun={!dryRun}
         />
       )}
 
