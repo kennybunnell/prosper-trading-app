@@ -5596,3 +5596,17 @@
 - [ ] Performance.tsx - Change button color based on dryRunMode state
 - [ ] UnifiedOrderPreviewModal.tsx - Remove all confetti triggers from dry run path
 - [ ] UnifiedOrderPreviewModal.tsx - Only trigger confetti after live orders are filled (not just submitted)
+
+## 🔄 UX Improvement: Change Submit Button to Close After Submission
+
+### Requirement:
+- [x] After live orders are submitted and polling completes, the "Submit Live Orders" button should change to "Close" button
+- [x] This provides clear visual feedback that the workflow is complete
+- [x] User can then click "Close" to dismiss the modal
+
+### Implementation:
+- [x] Check if `submissionComplete` is true and polling is done
+- [x] Show "Close" button instead of "Submit Live Orders" button (already implemented in modal)
+- [x] Wire "Close" button to call `onOpenChange(false)` to dismiss modal (already implemented)
+- [x] Added submission state tracking in Performance.tsx
+- [x] Passed submissionComplete, finalOrderStatus, and onSubmissionStateChange props to modal

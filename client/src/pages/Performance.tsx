@@ -109,6 +109,8 @@ export function ActivePositionsTab() {
   const [closeResults, setCloseResults] = useState<any>(null);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [submissionComplete, setSubmissionComplete] = useState(false);
+  const [finalOrderStatus, setFinalOrderStatus] = useState<string | null>(null);
 
   // Play success sound
   const playSuccessSound = () => {
@@ -780,6 +782,12 @@ export function ActivePositionsTab() {
           allowQuantityEdit={false}
           tradingMode={tradingMode === 'live' ? 'live' : 'paper'}
           initialSkipDryRun={!dryRun}
+          submissionComplete={submissionComplete}
+          finalOrderStatus={finalOrderStatus}
+          onSubmissionStateChange={(complete, status) => {
+            setSubmissionComplete(complete);
+            setFinalOrderStatus(status);
+          }}
         />
       )}
 
