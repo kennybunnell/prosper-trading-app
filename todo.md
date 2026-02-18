@@ -5450,8 +5450,9 @@
 - [ ] Verify submission flow works after fix
 
 ## 🐛 URGENT: Legal Agreements Modal Layout Broken
-- [x] Fix overlapping content in modal (removed flex layout, used fixed height)
-- [x] Make checkboxes and button clickable again
-- [x] Increase modal width for better readability (max-w-4xl → max-w-5xl)
-- [x] Ensure proper spacing between elements (added proper margins)
+- [x] Fix overlapping content in modal (proper flex column layout with fixed header/footer)
+- [x] Make checkboxes and button clickable again (separated into distinct sections)
+- [x] Increase modal width for better readability (max-w-6xl)
+- [x] Ensure proper spacing between elements (flex layout with proper boundaries)
+- [x] Restructured with fixed header, scrollable content, and fixed footer
 - [ ] Test that all interactive elements work
