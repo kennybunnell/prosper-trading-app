@@ -507,7 +507,23 @@ export const appRouter = router({
   settings: router({
     getCredentials: protectedProcedure.query(async ({ ctx }) => {
       const { getApiCredentials } = await import('./db');
-      return getApiCredentials(ctx.user.id);
+      const credentials = await getApiCredentials(ctx.user.id);
+      
+      if (!credentials) {
+        return null;
+      }
+      
+      // SECURITY: Mask sensitive credentials before sending to frontend
+      // Never expose actual API keys, secrets, or tokens to the browser
+      return {
+        ...credentials,
+        tastytradeClientSecret: credentials.tastytradeClientSecret ? '••••••••••••••••' : '',
+        tastytradeRefreshToken: credentials.tastytradeRefreshToken ? '••••••••••••••••' : '',
+        tradierApiKey: credentials.tradierApiKey ? '••••••••••••••••' : '',
+        // Keep non-sensitive fields unmasked
+        tradierAccountId: credentials.tradierAccountId,
+        defaultTastytradeAccountId: credentials.defaultTastytradeAccountId,
+      };
     }),
     saveCredentials: protectedProcedure
       .input(

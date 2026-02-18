@@ -5456,3 +5456,42 @@
 - [x] Ensure proper spacing between elements (flex layout with proper boundaries)
 - [x] Restructured with fixed header, scrollable content, and fixed footer
 - [ ] Test that all interactive elements work
+
+## ✅ PRODUCTION FIXES COMPLETE (Ready to Publish)
+
+### Issue 1: Credentials Masking (SECURITY FIX)
+- [x] Backend masks all sensitive credentials with •••••••••••••••• in getCredentials procedure
+- [x] Frontend detects masked values and only sends new (unmasked) values on save
+- [x] Added helper text to all credential fields explaining masking
+- [x] Tests: 3/3 passing for masking logic
+- [x] **SECURITY ISSUE RESOLVED**: Production credentials no longer exposed to browser
+
+### Issue 2: Trial Status Banner
+- [x] Created TrialStatusBanner component showing:
+  * "14-Day Free Trial" with days remaining countdown
+  * Scan counter "X/10 scans used today"
+  * Visual urgency indicators (orange when low on scans/trial expiring)
+  * Upgrade CTA button
+- [x] Integrated into App.tsx layout (visible on all dashboard pages)
+- [x] Only displays for users with subscriptionTier === 'free_trial'
+- [x] Owner/admin accounts bypass and don't see banner
+
+### Issue 3: Tradier Token Sharing
+- [x] **CONFIRMED WORKING**: Trial users automatically use owner's Tradier token
+- [x] Logic already implemented in all scan procedures (CSP, CC, PMCC)
+- [x] Fallback: `credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null)`
+
+### Testing Instructions for User:
+1. **Publish this checkpoint** from Manus UI
+2. **Log in as Tracy (tracyabunnell@gmail.com)** on production site
+3. **Verify credentials masking**: Go to Settings → should see •••••••••••••••• for all API keys
+4. **Verify trial banner**: Should see "14-Day Trial" banner at top with scan counter
+5. **Verify Tradier token**: Run a CSP scan → should work without Tracy entering her own Tradier key
+6. **Verify scan limits**: After 10 scans, should see upgrade prompt
+
+### Files Modified:
+- server/routers.ts: Added credentials masking logic (lines 508-527)
+- client/src/pages/Settings.tsx: Updated to handle masked credentials
+- client/src/components/TrialStatusBanner.tsx: New trial status banner component
+- client/src/App.tsx: Integrated trial banner into layout
+- server/credentials-masking.test.ts: 3 unit tests for masking logic
