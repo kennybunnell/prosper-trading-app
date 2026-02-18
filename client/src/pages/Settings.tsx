@@ -273,7 +273,7 @@ export default function Settings() {
                   setTastytradeClientSecret(e.target.value);
                   handleInputChange();
                 }}
-                placeholder="9452a71cba2bc68e8b911164e1edadbb446df0e6"
+                placeholder="Enter your Tastytrade Client Secret"
               />
               {tastytradeClientSecret.startsWith('••••') && (
                 <p className="text-xs text-muted-foreground">
@@ -291,7 +291,7 @@ export default function Settings() {
                   setTastytradeRefreshToken(e.target.value);
                   handleInputChange();
                 }}
-                placeholder="eyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6IkxsbHMyWnJPdW5TZ2RDOF9oU2VBWjQyX1d4cWtQUmV3QnRnMTFSRG9sdnMiLCJqa3UiOiJodHRwczovL2ludGVyaW9yLWFwaS5hcjIudGFzdHl0cmFkZS5zeXN0ZW1zL29hdXRoL2p3a3MifQ..."
+                placeholder="Enter your Tastytrade Refresh Token"
               />
               {tastytradeRefreshToken.startsWith('••••') ? (
                 <p className="text-xs text-muted-foreground">
@@ -395,7 +395,7 @@ export default function Settings() {
                   setTradierApiKey(e.target.value);
                   handleInputChange();
                 }}
-                placeholder="your-api-key"
+                placeholder="Enter your Tradier API Key"
               />
               {tradierApiKey.startsWith('••••') && (
                 <p className="text-xs text-muted-foreground">

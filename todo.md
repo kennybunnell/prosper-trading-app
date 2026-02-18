@@ -5495,3 +5495,57 @@
 - client/src/components/TrialStatusBanner.tsx: New trial status banner component
 - client/src/App.tsx: Integrated trial banner into layout
 - server/credentials-masking.test.ts: 3 unit tests for masking logic
+
+## ✅ SECURITY & TRIAL SYSTEM FIXES COMPLETE (Feb 18, 2026)
+
+### Issue 1: Credentials Security ✅
+- [x] **CRITICAL FIX**: Removed real production credentials from placeholder text in Settings page
+- [x] Changed placeholders from actual credentials to generic text ("Enter your Tastytrade Client Secret", etc.)
+- [x] Backend masks all sensitive credentials with •••••••••••••••• before sending to frontend
+- [x] Frontend detects masked values and only sends new (unmasked) values on save
+- [x] Added 🔒 helper text to all credential fields explaining masking
+- [x] Added debug logging to getCredentials procedure for troubleshooting
+- [x] **SECURITY ISSUE RESOLVED**: Production credentials no longer exposed in browser
+
+### Issue 2: Trial Status Banner ✅
+- [x] Created TrialStatusBanner component showing:
+  * "14-Day Free Trial" with days remaining countdown
+  * Scan counter showing "X/10 scans used today"
+  * Visual urgency indicators (orange background when low on scans or trial expiring soon)
+  * Upgrade CTA button linking to subscription page
+  * Warning messages when scans are running low or exhausted
+- [x] Integrated into App.tsx layout (appears at top of all dashboard pages)
+- [x] Only visible for users with subscriptionTier === 'free_trial'
+- [x] Owner/admin accounts bypass trial restrictions and don't see banner
+- [x] Fixed Tracy's account: Set subscriptionTier to 'free_trial' with 14-day trial period
+
+### Issue 3: Tradier Token Sharing ✅
+- [x] **CONFIRMED WORKING**: Trial users automatically use owner's Tradier API key for scans
+- [x] Logic already implemented in all scan procedures (CSP, CC, PMCC)
+- [x] Fallback pattern: `credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null)`
+- [x] **NEW**: getCredentials now returns masked owner Tradier token for trial users who don't have their own
+- [x] Trial users see •••••••••••••••• in Tradier API Key field (owner's token, masked)
+- [x] Backend uses actual owner token for API calls (not the masked version)
+- [x] Tradier Account ID also provided from owner's environment for trial users
+
+### Testing Completed:
+- [x] Tested with Tracy's account (tracyabunnell@gmail.com) in dev preview
+- [x] Verified trial banner displays correctly
+- [x] Verified credentials show generic placeholders (not real credentials)
+- [x] Verified Tradier token auto-populates as masked value for trial users
+- [x] Verified backend logs show correct masking behavior
+
+### Files Modified:
+- server/routers.ts: Added credentials masking, debug logging, and trial user Tradier token fallback
+- client/src/pages/Settings.tsx: Removed real credentials from placeholders, added helper text
+- client/src/components/TrialStatusBanner.tsx: New trial status banner component
+- client/src/App.tsx: Integrated trial banner into layout
+- Database: Updated Tracy's subscriptionTier to 'free_trial' with 14-day trial
+
+### Ready for Production:
+- [x] All fixes tested and working in dev environment
+- [x] Security issues resolved (no credential exposure)
+- [x] Trial system fully functional
+- [ ] Publish checkpoint to production
+- [ ] Test with Tracy's account on production site (https://prospertrading.biz/)
+- [ ] Verify all three fixes work in production environment

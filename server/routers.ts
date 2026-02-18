@@ -506,24 +506,65 @@ export const appRouter = router({
 
   settings: router({
     getCredentials: protectedProcedure.query(async ({ ctx }) => {
+      console.log('[getCredentials] === START ===');
+      console.log('[getCredentials] User:', ctx.user.email, 'ID:', ctx.user.id);
+      
       const { getApiCredentials } = await import('./db');
       const credentials = await getApiCredentials(ctx.user.id);
       
+      console.log('[getCredentials] Raw credentials from DB:', {
+        hasClientSecret: !!credentials?.tastytradeClientSecret,
+        clientSecretLength: credentials?.tastytradeClientSecret?.length || 0,
+        hasRefreshToken: !!credentials?.tastytradeRefreshToken,
+        refreshTokenLength: credentials?.tastytradeRefreshToken?.length || 0,
+        hasTradierKey: !!credentials?.tradierApiKey,
+        tradierKeyLength: credentials?.tradierApiKey?.length || 0,
+      });
+      
+      // For free trial users, provide owner's Tradier token if they don't have their own
+      const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+      
       if (!credentials) {
+        console.log('[getCredentials] No credentials found');
+        
+        // If free trial user, provide owner's Tradier token (masked)
+        if (isFreeTrialUser && process.env.TRADIER_API_KEY) {
+          console.log('[getCredentials] Free trial user - providing owner Tradier token (masked)');
+          return {
+            tradierApiKey: '••••••••••••••••', // Masked owner token
+            tradierAccountId: process.env.TRADIER_ACCOUNT_ID || '',
+            tastytradeClientSecret: '',
+            tastytradeRefreshToken: '',
+            defaultTastytradeAccountId: '',
+          };
+        }
+        
         return null;
       }
       
       // SECURITY: Mask sensitive credentials before sending to frontend
       // Never expose actual API keys, secrets, or tokens to the browser
-      return {
+      const masked = {
         ...credentials,
         tastytradeClientSecret: credentials.tastytradeClientSecret ? '••••••••••••••••' : '',
         tastytradeRefreshToken: credentials.tastytradeRefreshToken ? '••••••••••••••••' : '',
-        tradierApiKey: credentials.tradierApiKey ? '••••••••••••••••' : '',
+        // For free trial users without their own Tradier key, provide owner's token (masked)
+        tradierApiKey: credentials.tradierApiKey 
+          ? '••••••••••••••••' 
+          : (isFreeTrialUser && process.env.TRADIER_API_KEY ? '••••••••••••••••' : ''),
         // Keep non-sensitive fields unmasked
-        tradierAccountId: credentials.tradierAccountId,
+        tradierAccountId: credentials.tradierAccountId || (isFreeTrialUser ? process.env.TRADIER_ACCOUNT_ID || '' : ''),
         defaultTastytradeAccountId: credentials.defaultTastytradeAccountId,
       };
+      
+      console.log('[getCredentials] Masked credentials being returned:', {
+        tastytradeClientSecret: masked.tastytradeClientSecret,
+        tastytradeRefreshToken: masked.tastytradeRefreshToken,
+        tradierApiKey: masked.tradierApiKey,
+      });
+      console.log('[getCredentials] === END ===');
+      
+      return masked;
     }),
     saveCredentials: protectedProcedure
       .input(

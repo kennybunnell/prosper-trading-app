@@ -1,0 +1,19 @@
+{
+  "query": "SELECT id, email, name, role, subscriptionTier, trialEndsAt, createdAt FROM users WHERE email = 'tracyabunnell@gmail.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT id, email, name, role, subscriptionTier, trialEndsAt, createdAt FROM users WHERE email = 'tracyabunnell@gmail.com';",
+  "rows": [
+    {
+      "id": "9780091",
+      "email": "tracyabunnell@gmail.com",
+      "name": "tracyabunnell",
+      "role": "user",
+      "subscriptionTier": "NULL",
+      "trialEndsAt": "NULL",
+      "createdAt": "2026-02-18 03:05:16"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tname\trole\tsubscriptionTier\ttrialEndsAt\tcreatedAt\n9780091\ttracyabunnell@gmail.com\ttracyabunnell\tuser\tNULL\tNULL\t2026-02-18 03:05:16\n",
+  "stderr": "",
+  "execution_time_ms": 366
+}
