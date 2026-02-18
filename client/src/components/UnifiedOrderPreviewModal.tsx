@@ -136,6 +136,7 @@ export function UnifiedOrderPreviewModal({
   const { toast } = useToast();
   
   // State
+  const [skipDryRun, setSkipDryRun] = useState(false);
   const [dryRunSuccess, setDryRunSuccess] = useState(false);
   const [orderQuantities, setOrderQuantities] = useState<Map<string, number>>(new Map());
   const [adjustedPrices, setAdjustedPrices] = useState<Map<string, number>>(new Map());
@@ -209,8 +210,9 @@ export function UnifiedOrderPreviewModal({
       });
       setAdjustedPrices(initialPrices);
       
-      // Reset dry run success, polling state, and submission complete when modal FIRST opens
+      // Reset dry run success, polling state, skipDryRun, and submission complete when modal FIRST opens
       // BUT only if submission is NOT already complete
+      setSkipDryRun(false);
       setDryRunSuccess(false);
       setIsPolling(false);
       setOrderStatuses([]);
@@ -495,6 +497,10 @@ export function UnifiedOrderPreviewModal({
   
   // Execute live submission (after market hours check)
   const executeLiveSubmission = async () => {
+    console.log('[UnifiedOrderPreviewModal] Starting live submission...');
+    console.log('[UnifiedOrderPreviewModal] Orders to submit:', orders.length);
+    console.log('[UnifiedOrderPreviewModal] Order quantities:', Array.from(orderQuantities.entries()));
+    
     setIsSubmitting(true);
     setIsPolling(true);
     setDryRunSuccess(false); // Clear dry run banner when submitting live orders
@@ -504,11 +510,15 @@ export function UnifiedOrderPreviewModal({
       
       if (operationMode === "replace" && onReplaceSubmit) {
         // Replace mode - call onReplaceSubmit
+        console.log('[UnifiedOrderPreviewModal] Calling onReplaceSubmit...');
         result = await onReplaceSubmit(orders, orderQuantities, oldOrderIds, false);
       } else {
         // New order mode - call onSubmit
+        console.log('[UnifiedOrderPreviewModal] Calling onSubmit...');
         result = await onSubmit(orders, orderQuantities, false);
       }
+      
+      console.log('[UnifiedOrderPreviewModal] Submission result:', result);
       
       // Extract ALL order results (success + failures) and initialize status tracking
       const allStatuses: OrderSubmissionStatus[] = result.results.map((r: any) => {
@@ -550,7 +560,8 @@ export function UnifiedOrderPreviewModal({
         const finalStatuses = [...polledStatuses, ...failedStatuses];
         setOrderStatuses(finalStatuses);
         
-        // Show confetti and play sound for successful submissions (Filled OR Working)
+        // Show confetti and play sound ONLY for LIVE order submissions (Filled OR Working)
+        // Do NOT show confetti for dry runs
         const filledCount = finalStatuses.filter(s => s.status === 'Filled').length;
         const workingCount = finalStatuses.filter(s => s.status === 'Working').length;
         const successCount = filledCount + workingCount;
@@ -734,11 +745,33 @@ export function UnifiedOrderPreviewModal({
           </DialogTitle>
           <DialogDescription>
             {operationMode === "replace" 
-              ? `Review pricing details before replacing ${orders.length} order${orders.length > 1 ? 's' : ''}`
+              ? `Review pricing details before replacing ${orders.length} order${orders.length > 1 ? 's' : ''}` 
               : "Adjust quantities and prices before submitting"
             }
           </DialogDescription>
         </DialogHeader>
+        
+        {/* Skip Dry Run Checkbox */}
+        {!submissionComplete && (
+          <div className="flex items-center space-x-2 px-6 py-2 bg-muted/30 border-b">
+            <input
+              type="checkbox"
+              id="skipDryRun"
+              checked={skipDryRun}
+              onChange={(e) => {
+                setSkipDryRun(e.target.checked);
+                if (e.target.checked) {
+                  setDryRunSuccess(true); // Treat as if dry run passed
+                }
+              }}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              disabled={isSubmitting || dryRunSuccess}
+            />
+            <label htmlFor="skipDryRun" className="text-sm font-medium cursor-pointer">
+              Skip dry run and go straight to live submission
+            </label>
+          </div>
+        )}
         
         <div className="space-y-6 overflow-y-auto flex-1 px-1">
           {/* Status Banner */}
@@ -1080,15 +1113,27 @@ export function UnifiedOrderPreviewModal({
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-          {!dryRunSuccess ? (
-            <Button
-              onClick={handleDryRun}
-              variant="default"
-              disabled={!canSubmit}
-            >
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Execute Dry Run
-            </Button>
+          {(!dryRunSuccess || skipDryRun) && !submissionComplete ? (
+            !skipDryRun ? (
+              <Button
+                onClick={handleDryRun}
+                variant="default"
+                disabled={!canSubmit}
+              >
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Execute Dry Run
+              </Button>
+            ) : (
+              <Button
+                onClick={handleLiveSubmit}
+                variant="destructive"
+                disabled={!canSubmit || tradingMode === "paper"}
+              >
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Submit Live Orders
+                {tradingMode === "paper" && <span className="ml-2 text-xs">(Disabled in Paper Mode)</span>}
+              </Button>
+            )
           ) : submissionComplete ? (
             <Button
               onClick={() => onOpenChange(false)}

@@ -5549,3 +5549,37 @@
 - [ ] Publish checkpoint to production
 - [ ] Test with Tracy's account on production site (https://prospertrading.biz/)
 - [ ] Verify all three fixes work in production environment
+
+## 🐛 URGENT: Fix Close Positions Workflow
+
+### Current Issues:
+- [x] **FOUND**: Dry run shows confetti at line 566-571 (should NOT show confetti - it's just validation)
+- [ ] Pre-order panel appears even when dry run is deselected (need to verify this behavior)
+- [x] **FOUND**: Live order submission polling is implemented (lines 542-576) but may have issues
+- [x] **FOUND**: Status tracking exists (Filled, Working, Rejected, MarketClosed) at lines 1054-1058
+- [ ] Need to verify why 0 submitting message appears
+
+### Expected Workflow:
+1. [x] Pre-order panel opens with bid/ask tuning options
+2. [x] User can adjust bid/ask prices
+3. [x] User can check "Skip Dry Run" checkbox to go straight to live submission
+4. [x] If dry run NOT skipped:
+   - [x] User clicks "Run Dry Run" - validates orders WITHOUT confetti
+   - [x] Button changes to red "Submit Live Orders"
+5. [x] If dry run skipped:
+   - [x] "Submit Live Orders" button shows immediately (red/destructive)
+6. [x] User clicks "Submit Live Orders"
+7. [x] System starts polling backend for order status (already implemented)
+8. [x] System displays real-time status for each order:
+   - ✅ Filled (order executed successfully)
+   - ⏳ Working (order pending)
+   - ❌ Rejected (order failed)
+9. [x] Confetti only shows AFTER successful live order submission (not dry run)
+10. [x] Added debug logging to diagnose any submission issues
+
+### Files to Investigate:
+- [ ] Find close positions page/component
+- [ ] Check dry run mutation implementation
+- [ ] Check live order submission mutation
+- [ ] Verify order status polling logic
+- [ ] Check confetti trigger conditions
