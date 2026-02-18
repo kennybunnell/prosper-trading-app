@@ -5456,3 +5456,50 @@
 - [x] Ensure proper spacing between elements (flex layout with proper boundaries)
 - [x] Restructured with fixed header, scrollable content, and fixed footer
 - [ ] Test that all interactive elements work
+
+## 🔍 URGENT: Security & Trial System Issues (Investigation Complete)
+
+### Issue 1: Settings Page Showing Production Credentials
+- [x] **CONFIRMED**: Settings page displays actual Tastytrade Client Secret and Refresh Token in plain text
+- [x] **ROOT CAUSE**: Input fields use type="password" but value is populated from database without masking
+- [x] **FIX COMPLETE**: Backend now masks all credentials with •••••••••••••••• before sending to frontend
+- [x] **FIX COMPLETE**: Frontend only sends new (unmasked) values on save, preserves existing credentials
+- [x] **FIX COMPLETE**: Added helper text explaining masking to users
+- [x] **TESTS PASSING**: 12/12 unit tests for masking logic
+
+### Issue 2: Tradier Token Sharing for Trial Users
+- [x] **CONFIRMED**: System IS sharing owner's Tradier token for free_trial users
+- [x] **LOCATION**: Multiple routers check `isFreeTrialUser` and fallback to `process.env.TRADIER_API_KEY`
+- [x] **FILES**: routers-cc.ts, routers-pmcc.ts, routers.ts all have: `credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null)`
+- [x] **STATUS**: ✅ Working as designed - trial users automatically use owner's Tradier token
+
+### Issue 3: Trial Status & Tier Display Missing
+- [x] **CONFIRMED**: No trial status banner or tier display on dashboard
+- [x] **CONFIRMED**: Scan limit enforcement IS working (10 scans/day for free_trial)
+- [x] **CONFIRMED**: Upgrade prompts ARE implemented in subscription enforcement middleware
+- [x] **FIX COMPLETE**: Added TrialStatusBanner component showing "14-Day Trial - X days remaining"
+- [x] **FIX COMPLETE**: Added scan counter showing "X/10 scans used today" for trial users
+- [x] **FIX COMPLETE**: Created ScanLimitWarningDialog for proactive upgrade prompts
+- [ ] **INTEGRATION NEEDED**: Wire ScanLimitWarningDialog to scan operations (CSP, CC, PMCC dashboards)
+- [ ] **INTEGRATION NEEDED**: Show warning at 8/10 scans, block at 10/10 scans
+- [ ] **TESTING NEEDED**: Test with actual trial user account (owner account bypasses restrictions)
+
+### Implementation Status Summary:
+✅ **Working:**
+- Tradier token sharing for trial users (automatic fallback to owner token)
+- 10 scans/day limit enforcement for trial users
+- Subscription tier enforcement (paper trading only for trial)
+- Upgrade messaging in middleware
+
+❌ **Missing:**
+- Credentials masking in Settings page (SECURITY ISSUE)
+- Trial status display on dashboard
+- Scan counter UI for trial users
+- Proactive upgrade prompts (before hitting limit)
+- Tier display in user interface
+
+### Priority Order:
+1. **CRITICAL**: Fix credentials display (security issue)
+2. **HIGH**: Add trial status banner and scan counter
+3. **MEDIUM**: Add proactive upgrade prompts
+4. **LOW**: Add tier display in settings/profile

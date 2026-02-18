@@ -142,6 +142,8 @@ export default function Settings() {
     if (credentials) {
       console.log('[Settings] Loading credentials from database:', credentials);
       // Client ID not needed - only Client Secret and Refresh Token
+      // Credentials come masked from backend (••••••••••••••••)
+      // Only show masked value if credential exists, empty string if not
       setTastytradeClientSecret(credentials.tastytradeClientSecret || "");
       setTastytradeRefreshToken(credentials.tastytradeRefreshToken || "");
       setTradierApiKey(credentials.tradierApiKey || "");
@@ -159,11 +161,15 @@ export default function Settings() {
   }, [userPreferences]);
 
   const handleSave = () => {
+    // Only send credentials if they've been changed (not masked values)
+    const isMasked = (value: string) => value.startsWith('••••');
+    
     saveCredentials.mutate({
       // Client ID not needed - only Client Secret and Refresh Token
-      tastytradeClientSecret: tastytradeClientSecret || undefined,
-      tastytradeRefreshToken: tastytradeRefreshToken || undefined,
-      tradierApiKey: tradierApiKey || undefined,
+      // Only send if value is not masked (user entered new value)
+      tastytradeClientSecret: (tastytradeClientSecret && !isMasked(tastytradeClientSecret)) ? tastytradeClientSecret : undefined,
+      tastytradeRefreshToken: (tastytradeRefreshToken && !isMasked(tastytradeRefreshToken)) ? tastytradeRefreshToken : undefined,
+      tradierApiKey: (tradierApiKey && !isMasked(tradierApiKey)) ? tradierApiKey : undefined,
       tradierAccountId: tradierAccountId || undefined,
       defaultTastytradeAccountId: defaultTastytradeAccountId || undefined,
     });
@@ -271,6 +277,11 @@ export default function Settings() {
                 }}
                 placeholder="9452a71cba2bc68e8b911164e1edadbb446df0e6"
               />
+              {tastytradeClientSecret.startsWith('••••') && (
+                <p className="text-xs text-muted-foreground">
+                  Existing credential is masked for security. Enter a new value to update.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="tastytrade-refresh-token">Refresh Token</Label>
@@ -284,9 +295,15 @@ export default function Settings() {
                 }}
                 placeholder="eyJhbGciOiJFZERTQSIsInR5cCI6InJ0K2p3dCIsImtpZCI6IkxsbHMyWnJPdW5TZ2RDOF9oU2VBWjQyX1d4cWtQUmV3QnRnMTFSRG9sdnMiLCJqa3UiOiJodHRwczovL2ludGVyaW9yLWFwaS5hcjIudGFzdHl0cmFkZS5zeXN0ZW1zL29hdXRoL2p3a3MifQ..."
               />
-              <p className="text-xs text-muted-foreground">
-                Generate a personal grant in your OAuth app with <strong>all scopes selected</strong> (read, trade, openid) to get the refresh token
-              </p>
+              {tastytradeRefreshToken.startsWith('••••') ? (
+                <p className="text-xs text-muted-foreground">
+                  Existing credential is masked for security. Enter a new value to update.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Generate a personal grant in your OAuth app with <strong>all scopes selected</strong> (read, trade, openid) to get the refresh token
+                </p>
+              )}
             </div>
             <div className="flex gap-2 flex-wrap">
               <Button
@@ -382,6 +399,11 @@ export default function Settings() {
                 }}
                 placeholder="your-api-key"
               />
+              {tradierApiKey.startsWith('••••') && (
+                <p className="text-xs text-muted-foreground">
+                  Existing credential is masked for security. Enter a new value to update.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="tradier-account-id">Account ID</Label>

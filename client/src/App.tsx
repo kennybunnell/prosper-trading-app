@@ -22,6 +22,7 @@ import AdminChats from "./pages/AdminChats";
 import Inbox from "./pages/Inbox";
 import { Sidebar } from "./components/Sidebar";
 import { PaperTradingBanner } from "./components/PaperTradingBanner";
+import { TrialStatusBanner } from "./components/TrialStatusBanner";
 import { SupportWidget } from "./components/SupportWidget";
 import { LegalAcceptanceModal } from "./components/LegalAcceptanceModal";
 import { TrialExpirationModal } from "./components/TrialExpirationModal";
@@ -94,6 +95,7 @@ function Router() {
       <div className="flex h-screen">
         <Sidebar />
         <div className="flex-1 overflow-auto relative">
+          <TrialStatusBanner />
           <PaperTradingBanner />
           <SupportWidget />
         <Switch>          <Route path={"/"} component={Home} />
