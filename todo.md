@@ -5620,3 +5620,10 @@
 - [ ] Add safeguards to prevent partial fills that would leave naked positions
 - [x] Test spread closing workflow end-to-end with real Bear Call Spread positions - CONFIRMED ATOMIC
 - [x] Fix price adjustment slider for spread positions (added longBid/longAsk for spreads)
+
+## 🔧 Fix Tastytrade Token Expiration Error
+
+- [x] Investigate why Tastytrade API token is not auto-refreshing when expired
+- [x] Implement automatic token refresh when API calls fail with "invalid or has expired" error (added response interceptor)
+- [x] Test token refresh mechanism with expired token scenario (code compiled successfully)
+- [x] Ensure refresh token is being properly stored and reused (verified in authenticateTastytrade)

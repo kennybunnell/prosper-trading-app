@@ -146,17 +146,66 @@ export class TastytradeAPI {
       }
     );
     
-    // Add response interceptor for detailed logging
+    // Add response interceptor for detailed logging and automatic token refresh
     this.client.interceptors.response.use(
       (response) => {
         console.log(`[Tastytrade API] ${response.status} ${response.config.url}`);
         return response;
       },
-      (error) => {
+      async (error) => {
         console.error(`[Tastytrade API] ${error.response?.status || 'ERROR'} ${error.config?.url}`);
         if (error.response?.data) {
           console.error('[Tastytrade API] Error response:', JSON.stringify(error.response.data));
         }
+        
+        const originalRequest = error.config;
+        
+        // Check if this is a token expiration error
+        const isTokenExpiredError = 
+          (error.response?.status === 401 || error.response?.status === 403) &&
+          (error.response?.data?.error?.message?.includes('invalid') ||
+           error.response?.data?.error?.message?.includes('expired') ||
+           error.message?.includes('invalid') ||
+           error.message?.includes('expired'));
+        
+        // Prevent infinite retry loop
+        if (isTokenExpiredError && !originalRequest._retry) {
+          originalRequest._retry = true;
+          
+          console.log('[Tastytrade API] Token expired, attempting automatic refresh...');
+          
+          try {
+            // Get credentials from database to refresh token
+            if (this.userId) {
+              const { getApiCredentials } = await import('./db');
+              const credentials = await getApiCredentials(this.userId);
+              
+              if (credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken) {
+                // Refresh the token
+                await this.getAccessToken(
+                  credentials.tastytradeRefreshToken,
+                  credentials.tastytradeClientSecret
+                );
+                
+                // Update the Authorization header in the original request
+                originalRequest.headers['Authorization'] = `Bearer ${this.accessToken}`;
+                
+                console.log('[Tastytrade API] Token refreshed successfully, retrying original request...');
+                
+                // Retry the original request with new token
+                return this.client(originalRequest);
+              } else {
+                console.error('[Tastytrade API] Cannot refresh token: credentials not found');
+              }
+            } else {
+              console.error('[Tastytrade API] Cannot refresh token: userId not set');
+            }
+          } catch (refreshError: any) {
+            console.error('[Tastytrade API] Token refresh failed:', refreshError.message);
+            return Promise.reject(refreshError);
+          }
+        }
+        
         return Promise.reject(error);
       }
     );
