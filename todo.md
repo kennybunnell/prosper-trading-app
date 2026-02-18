@@ -5442,3 +5442,9 @@
 - [x] Admin: Show user name, email, acceptance date, IP address
 - [x] Testing: Ready for user to verify new users can submit agreements
 - [x] Testing: Admin can view acceptance logs in Admin Panel → Users page
+
+## 🐛 URGENT: Legal Agreements I Accept Button Not Visible
+- [x] Fix modal layout - button exists but is hidden below viewport
+- [x] Ensure modal content is scrollable to reach button (removed overflow-hidden, added flex layout)
+- [ ] Test button visibility on different screen sizes
+- [ ] Verify submission flow works after fix
