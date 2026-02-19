@@ -101,11 +101,7 @@ export function Sidebar({ className }: SidebarProps) {
       path: '/performance',
       icon: BarChart3,
     },
-    {
-      name: 'Spread Analytics',
-      path: '/spread-analytics',
-      icon: PieChart,
-    },
+
     {
       name: 'CSP - BPS',
       path: '/csp',

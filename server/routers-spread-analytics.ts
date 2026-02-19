@@ -55,28 +55,69 @@ export interface SymbolMetrics {
   bestStrategy: SpreadType;
 }
 
+interface OptionLeg {
+  symbol: string;
+  strikePrice: number;
+  optionType: 'C' | 'P';
+  expiration: string;
+  action: 'STO' | 'BTO' | 'STC' | 'BTC';
+  quantity: number;
+  value: number;
+  date: string;
+}
+
 /**
- * Classify spread type based on transaction legs
+ * Parse individual option transaction into a leg
  */
-function classifySpreadType(legs: any[]): SpreadType {
+function parseOptionLeg(transaction: any): OptionLeg | null {
+  // Check if this is an option trade
+  if (transaction['instrument-type'] !== 'Equity Option') {
+    return null;
+  }
+  
+  const subType = transaction['transaction-sub-type'];
+  if (!['Buy to Close', 'Sell to Close', 'Sell to Open', 'Buy to Open'].includes(subType)) {
+    return null;
+  }
+  
+  const actionMap: Record<string, 'STO' | 'BTO' | 'STC' | 'BTC'> = {
+    'Sell to Open': 'STO',
+    'Buy to Open': 'BTO',
+    'Sell to Close': 'STC',
+    'Buy to Close': 'BTC',
+  };
+  
+  return {
+    symbol: transaction['underlying-symbol'],
+    strikePrice: parseFloat(transaction['strike-price'] || '0'),
+    optionType: transaction['call-or-put'] as 'C' | 'P',
+    expiration: transaction['expiration-date'] || '',
+    action: actionMap[subType],
+    quantity: Math.abs(parseInt(transaction.quantity || '1')),
+    value: Math.abs(parseFloat(transaction.value || '0')),
+    date: transaction['executed-at'] || transaction['transaction-date'],
+  };
+}
+
+/**
+ * Classify spread type based on legs
+ */
+function classifySpreadFromLegs(legs: OptionLeg[]): SpreadType {
   if (legs.length === 4) {
     // Iron Condor: 4 legs (2 calls, 2 puts, same expiration)
-    const calls = legs.filter(l => l['option-type'] === 'C');
-    const puts = legs.filter(l => l['option-type'] === 'P');
+    const calls = legs.filter(l => l.optionType === 'C');
+    const puts = legs.filter(l => l.optionType === 'P');
     if (calls.length === 2 && puts.length === 2) {
       return 'Iron Condor';
     }
   } else if (legs.length === 2) {
     // Vertical spread: 2 legs, same type, same expiration
-    const allCalls = legs.every(l => l['option-type'] === 'C');
-    const allPuts = legs.every(l => l['option-type'] === 'P');
+    const allCalls = legs.every(l => l.optionType === 'C');
+    const allPuts = legs.every(l => l.optionType === 'P');
     
     if (allCalls) {
-      // Bear Call Spread: Sell higher strike call, Buy lower strike call
-      // (but in transaction history, we see BTC and STC)
       return 'Bear Call Spread';
     } else if (allPuts) {
-      // Bull Put Spread: Sell higher strike put, Buy lower strike put
       return 'Bull Put Spread';
     }
   }
@@ -87,8 +128,8 @@ function classifySpreadType(legs: any[]): SpreadType {
 /**
  * Calculate spread width from legs
  */
-function calculateSpreadWidth(legs: any[]): number {
-  const strikes = legs.map(l => parseFloat(l['strike-price'])).sort((a, b) => a - b);
+function calculateSpreadWidthFromLegs(legs: OptionLeg[]): number {
+  const strikes = legs.map(l => l.strikePrice).sort((a, b) => a - b);
   
   if (legs.length === 4) {
     // Iron Condor: width of one side (they should be equal)
@@ -104,87 +145,109 @@ function calculateSpreadWidth(legs: any[]): number {
 }
 
 /**
- * Extract strikes string for display
+ * Extract strikes string from legs
  */
-function extractStrikes(legs: any[]): string {
-  const strikes = legs.map(l => parseFloat(l['strike-price'])).sort((a, b) => a - b);
+function extractStrikesFromLegs(legs: OptionLeg[]): string {
+  const strikes = legs.map(l => l.strikePrice).sort((a, b) => a - b);
   return strikes.join('/');
 }
 
 /**
  * Group transactions into closed positions
- * A closed position has both opening (STO/BTO) and closing (BTC/STC) transactions
+ * NEW APPROACH: Group individual option transactions by symbol + expiration,
+ * then match opening and closing legs to form complete spreads
  */
 function groupIntoClosedPositions(transactions: any[]): ClosedSpreadPosition[] {
   const closedPositions: ClosedSpreadPosition[] = [];
   
-  // Filter for option trades only
-  const optionTrades = transactions.filter(t => 
-    t['transaction-sub-type'] === 'Buy to Close' ||
-    t['transaction-sub-type'] === 'Sell to Close' ||
-    t['transaction-sub-type'] === 'Sell to Open' ||
-    t['transaction-sub-type'] === 'Buy to Open'
-  );
+  // Parse all option legs
+  const legs: OptionLeg[] = [];
+  for (const txn of transactions) {
+    const leg = parseOptionLeg(txn);
+    if (leg) {
+      legs.push(leg);
+    }
+  }
   
-  // Group by underlying symbol and expiration
-  const positionGroups = new Map<string, any[]>();
+  console.log(`[Spread Analytics] Parsed ${legs.length} option legs from ${transactions.length} transactions`);
   
-  for (const trade of optionTrades) {
-    const symbol = trade['underlying-symbol'];
-    const expiration = trade.legs?.[0]?.['expires-at'] || '';
-    const key = `${symbol}-${expiration}`;
-    
+  // Group legs by symbol + expiration
+  const positionGroups = new Map<string, OptionLeg[]>();
+  for (const leg of legs) {
+    const key = `${leg.symbol}-${leg.expiration}`;
     if (!positionGroups.has(key)) {
       positionGroups.set(key, []);
     }
-    positionGroups.get(key)!.push(trade);
+    positionGroups.get(key)!.push(leg);
   }
   
+  console.log(`[Spread Analytics] Found ${positionGroups.size} unique symbol-expiration groups`);
+  
   // For each group, find matching open/close pairs
-  for (const [key, trades] of Array.from(positionGroups.entries())) {
-    const opens = trades.filter((t: any) => 
-      t['transaction-sub-type'] === 'Sell to Open' || 
-      t['transaction-sub-type'] === 'Buy to Open'
-    );
-    const closes = trades.filter((t: any) => 
-      t['transaction-sub-type'] === 'Buy to Close' || 
-      t['transaction-sub-type'] === 'Sell to Close'
-    );
+  for (const [key, groupLegs] of Array.from(positionGroups.entries())) {
+    // Separate opening and closing legs
+    const openLegs = groupLegs.filter(l => l.action === 'STO' || l.action === 'BTO');
+    const closeLegs = groupLegs.filter(l => l.action === 'STC' || l.action === 'BTC');
     
-    // Match opens with closes (simplified - assumes 1:1 matching)
-    if (opens.length > 0 && closes.length > 0) {
-      const openTrade = opens[0];
-      const closeTrade = closes[0];
+    // We need both opening and closing to have a closed position
+    if (openLegs.length === 0 || closeLegs.length === 0) {
+      continue;
+    }
+    
+    // Try to match opening and closing legs by strike + type
+    const matchedPairs: { open: OptionLeg; close: OptionLeg }[] = [];
+    
+    for (const openLeg of openLegs) {
+      // Find corresponding close leg (same strike, same type)
+      const closeLeg = closeLegs.find(c => 
+        c.strikePrice === openLeg.strikePrice && 
+        c.optionType === openLeg.optionType &&
+        !matchedPairs.some(p => p.close === c) // Not already matched
+      );
       
-      const symbol = openTrade['underlying-symbol'];
-      const legs = openTrade.legs || [];
-      const spreadType = classifySpreadType(legs);
+      if (closeLeg) {
+        matchedPairs.push({ open: openLeg, close: closeLeg });
+      }
+    }
+    
+    // If we have at least 2 matched pairs, it's a spread
+    if (matchedPairs.length >= 2) {
+      const spreadLegs = matchedPairs.map(p => p.open);
+      const spreadType = classifySpreadFromLegs(spreadLegs);
       
       // Only include recognized spread types
       if (spreadType === 'Unknown') continue;
       
-      const spreadWidth = calculateSpreadWidth(legs);
-      const contracts = Math.abs(parseInt(openTrade.quantity || '1'));
+      const spreadWidth = calculateSpreadWidthFromLegs(spreadLegs);
+      const contracts = Math.min(...spreadLegs.map(l => l.quantity));
       const maxRisk = spreadWidth * contracts * 100;
       
-      const premiumCollected = Math.abs(parseFloat(openTrade.value || '0'));
-      const closeCost = Math.abs(parseFloat(closeTrade.value || '0'));
+      // Calculate premium collected (opening trades)
+      const premiumCollected = matchedPairs.reduce((sum, p) => {
+        // STO = credit (positive), BTO = debit (negative)
+        return sum + (p.open.action === 'STO' ? p.open.value : -p.open.value);
+      }, 0);
+      
+      // Calculate close cost (closing trades)
+      const closeCost = matchedPairs.reduce((sum, p) => {
+        // STC = debit (positive), BTC = credit (negative)
+        return sum + (p.close.action === 'BTC' ? p.close.value : -p.close.value);
+      }, 0);
+      
       const profitLoss = premiumCollected - closeCost;
       
-      const openDate = openTrade['executed-at'] || openTrade['transaction-date'];
-      const closeDate = closeTrade['executed-at'] || closeTrade['transaction-date'];
-      const daysHeld = Math.round(
-        (new Date(closeDate).getTime() - new Date(openDate).getTime()) / (1000 * 60 * 60 * 24)
-      );
+      const openDate = Math.min(...matchedPairs.map(p => new Date(p.open.date).getTime()));
+      const closeDate = Math.max(...matchedPairs.map(p => new Date(p.close.date).getTime()));
+      const daysHeld = Math.round((closeDate - openDate) / (1000 * 60 * 60 * 24));
       
       const roc = maxRisk > 0 ? (profitLoss / maxRisk) * 100 : 0;
       
       closedPositions.push({
-        id: closeTrade.id,
-        symbol,
+        id: `${key}-${openDate}`,
+        symbol: spreadLegs[0].symbol,
         spreadType,
-        openDate,
-        closeDate,
+        openDate: new Date(openDate).toISOString(),
+        closeDate: new Date(closeDate).toISOString(),
         daysHeld,
         profitLoss,
         spreadWidth,
@@ -193,7 +256,7 @@ function groupIntoClosedPositions(transactions: any[]): ClosedSpreadPosition[] {
         roc,
         premiumCollected,
         closeCost,
-        strikes: extractStrikes(legs),
+        strikes: extractStrikesFromLegs(spreadLegs),
         isWinner: profitLoss > 0,
       });
     }
@@ -249,11 +312,25 @@ function calculateStrategyMetrics(positions: ClosedSpreadPosition[]): StrategyMe
     // Find best/worst symbols
     const symbolPL = new Map<string, number>();
     for (const pos of strategyPositions) {
-      symbolPL.set(pos.symbol, (symbolPL.get(pos.symbol) || 0) + pos.profitLoss);
+      const current = symbolPL.get(pos.symbol) || 0;
+      symbolPL.set(pos.symbol, current + pos.profitLoss);
     }
-    const sortedSymbols = Array.from(symbolPL.entries()).sort((a, b) => b[1] - a[1]);
-    const bestSymbol = sortedSymbols[0]?.[0] || null;
-    const worstSymbol = sortedSymbols[sortedSymbols.length - 1]?.[0] || null;
+    
+    let bestSymbol: string | null = null;
+    let bestPL = -Infinity;
+    let worstSymbol: string | null = null;
+    let worstPL = Infinity;
+    
+    for (const [symbol, pl] of Array.from(symbolPL.entries())) {
+      if (pl > bestPL) {
+        bestPL = pl;
+        bestSymbol = symbol;
+      }
+      if (pl < worstPL) {
+        worstPL = pl;
+        worstSymbol = symbol;
+      }
+    }
     
     metrics.push({
       strategy,
@@ -277,31 +354,27 @@ function calculateStrategyMetrics(positions: ClosedSpreadPosition[]): StrategyMe
  * Calculate symbol-level metrics
  */
 function calculateSymbolMetrics(positions: ClosedSpreadPosition[]): SymbolMetrics[] {
-  const symbolMap = new Map<string, ClosedSpreadPosition[]>();
-  
-  for (const pos of positions) {
-    if (!symbolMap.has(pos.symbol)) {
-      symbolMap.set(pos.symbol, []);
-    }
-    symbolMap.get(pos.symbol)!.push(pos);
-  }
-  
+  const symbols = Array.from(new Set(positions.map(p => p.symbol)));
   const metrics: SymbolMetrics[] = [];
   
-  for (const [symbol, symbolPositions] of Array.from(symbolMap.entries())) {
-    const totalProfitLoss = symbolPositions.reduce((sum: number, p: ClosedSpreadPosition) => sum + p.profitLoss, 0);
-    const totalCapitalUsed = symbolPositions.reduce((sum: number, p: ClosedSpreadPosition) => sum + p.maxRisk, 0);
+  for (const symbol of symbols) {
+    const symbolPositions = positions.filter(p => p.symbol === symbol);
+    
+    const totalProfitLoss = symbolPositions.reduce((sum, p) => sum + p.profitLoss, 0);
+    const totalCapitalUsed = symbolPositions.reduce((sum, p) => sum + p.maxRisk, 0);
     const roc = totalCapitalUsed > 0 ? (totalProfitLoss / totalCapitalUsed) * 100 : 0;
     
     const ironCondorPL = symbolPositions
-      .filter((p: ClosedSpreadPosition) => p.spreadType === 'Iron Condor')
-      .reduce((sum: number, p: ClosedSpreadPosition) => sum + p.profitLoss, 0);
+      .filter(p => p.spreadType === 'Iron Condor')
+      .reduce((sum, p) => sum + p.profitLoss, 0);
+    
     const bearCallSpreadPL = symbolPositions
-      .filter((p: ClosedSpreadPosition) => p.spreadType === 'Bear Call Spread')
-      .reduce((sum: number, p: ClosedSpreadPosition) => sum + p.profitLoss, 0);
+      .filter(p => p.spreadType === 'Bear Call Spread')
+      .reduce((sum, p) => sum + p.profitLoss, 0);
+    
     const bullPutSpreadPL = symbolPositions
-      .filter((p: ClosedSpreadPosition) => p.spreadType === 'Bull Put Spread')
-      .reduce((sum: number, p: ClosedSpreadPosition) => sum + p.profitLoss, 0);
+      .filter(p => p.spreadType === 'Bull Put Spread')
+      .reduce((sum, p) => sum + p.profitLoss, 0);
     
     // Determine best strategy for this symbol
     const strategyPLs = [
@@ -309,7 +382,9 @@ function calculateSymbolMetrics(positions: ClosedSpreadPosition[]): SymbolMetric
       { strategy: 'Bear Call Spread' as SpreadType, pl: bearCallSpreadPL },
       { strategy: 'Bull Put Spread' as SpreadType, pl: bullPutSpreadPL },
     ];
-    const bestStrategy = strategyPLs.sort((a, b) => b.pl - a.pl)[0].strategy;
+    const bestStrategy = strategyPLs.reduce((best, current) => 
+      current.pl > best.pl ? current : best
+    ).strategy;
     
     metrics.push({
       symbol,

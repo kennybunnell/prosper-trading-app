@@ -5647,3 +5647,13 @@
 - [ ] Add drill-down capability (click strategy → see positions) - Future enhancement
 - [ ] Test ROC calculations with real data
 - [ ] Test win rate calculations with real data
+
+## 🔄 Move Spread Analytics into Performance Page
+
+- [x] Investigate why Spread Analytics backend returns $0.00 for all metrics (transaction history doesn't have multi-leg structure)
+- [x] Fix backend data fetching for closed spread positions (rewrote groupIntoClosedPositions to parse individual legs)
+- [x] Move Spread Analytics tab components into Performance.tsx (created SpreadAnalyticsTab component)
+- [x] Reorder Performance tabs: Overview → Active Positions → Spread Analytics → Working Orders → Stock Basis → Projections
+- [x] Remove standalone /spread-analytics route and page
+- [x] Remove Spread Analytics from sidebar navigation
+- [ ] Test integrated Spread Analytics tab with real closed positions data

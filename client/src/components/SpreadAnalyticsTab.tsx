@@ -15,9 +15,9 @@ interface SortConfig {
   direction: 'asc' | 'desc';
 }
 
-export default function SpreadAnalytics() {
+export function SpreadAnalyticsTab() {
   const [dateRange, setDateRange] = useState<DateRange>('all');
-  const [activeTab, setActiveTab] = useState('strategy');
+  const [activeSubTab, setActiveSubTab] = useState('strategy');
 
   // Calculate date range
   const { startDate, endDate } = useMemo(() => {
@@ -85,12 +85,12 @@ export default function SpreadAnalytics() {
   };
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
-      {/* Header */}
+    <div className="space-y-6">
+      {/* Header with Date Range Selector */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Spread Analytics</h1>
-          <p className="text-muted-foreground">
+          <h2 className="text-2xl font-bold">Spread Analytics</h2>
+          <p className="text-muted-foreground text-sm">
             Performance analysis for Iron Condors, Bear Call Spreads, and Bull Put Spreads
           </p>
         </div>
@@ -168,13 +168,12 @@ export default function SpreadAnalytics() {
         )}
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      {/* Sub-Tabs */}
+      <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="strategy">By Strategy</TabsTrigger>
           <TabsTrigger value="symbol">By Symbol</TabsTrigger>
           <TabsTrigger value="historical">Historical Trades</TabsTrigger>
-          <TabsTrigger value="active">Active Spreads</TabsTrigger>
         </TabsList>
 
         {/* By Strategy Tab */}
@@ -190,11 +189,6 @@ export default function SpreadAnalytics() {
         {/* Historical Trades Tab */}
         <TabsContent value="historical" className="space-y-4">
           <HistoricalTab data={closedSpreads.data} isLoading={closedSpreads.isLoading} onExport={() => exportToCSV(closedSpreads.data || [], 'spread-analytics-historical')} />
-        </TabsContent>
-
-        {/* Active Spreads Tab */}
-        <TabsContent value="active" className="space-y-4">
-          <ActiveTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -583,88 +577,6 @@ function HistoricalTab({ data, isLoading, onExport }: { data: any[] | undefined;
             </TableBody>
           </Table>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Active Tab Component
-function ActiveTab() {
-  // TODO: Need to create a separate query for active spreads
-  // For now, show placeholder
-  const activeSpreads: any[] = [];
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(value);
-  };
-
-  const formatPercent = (value: number) => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  // Loading state removed since we're using placeholder data
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Active Spread Positions</CardTitle>
-        <CardDescription>Monitor your current spread positions ({activeSpreads.length} active)</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {activeSpreads.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            No active spread positions found
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Symbol</TableHead>
-                <TableHead>Strategy</TableHead>
-                <TableHead>Strikes</TableHead>
-                <TableHead>Expiration</TableHead>
-                <TableHead>DTE</TableHead>
-                <TableHead>Premium</TableHead>
-                <TableHead>Current</TableHead>
-                <TableHead>P/L</TableHead>
-                <TableHead>Realized %</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {activeSpreads.map((pos: any) => (
-                <TableRow key={pos.id}>
-                  <TableCell className="font-medium">{pos.symbol}</TableCell>
-                  <TableCell>
-                    <span className="text-xs px-2 py-1 rounded bg-secondary">
-                      {pos.spreadType === 'Iron Condor' ? 'IC' : pos.spreadType === 'Bear Call Spread' ? 'BCS' : 'BPS'}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {pos.longStrike ? `${pos.strike}/${pos.longStrike}` : pos.strike}
-                  </TableCell>
-                  <TableCell>{formatDate(pos.expiration)}</TableCell>
-                  <TableCell>{pos.dte}</TableCell>
-                  <TableCell>{formatCurrency(pos.premium)}</TableCell>
-                  <TableCell>{formatCurrency(pos.currentPrice * pos.quantity * 100)}</TableCell>
-                  <TableCell className={pos.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}>
-                    {formatCurrency(pos.profitLoss)}
-                  </TableCell>
-                  <TableCell className={pos.realizedPercent >= 0 ? 'text-green-600' : 'text-red-600'}>
-                    {formatPercent(pos.realizedPercent)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
       </CardContent>
     </Card>
   );
