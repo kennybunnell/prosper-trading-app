@@ -18,8 +18,9 @@ import { adminRouter } from "./routers-admin";
 import { feedbackRouter } from "./routers-feedback";
 import { inboxRouter } from "./routers-inbox";
 import { chatRouter } from "./routers-chat";
-import { validationRouter } from "./routers-validation";
-import { stripeRouter } from "./routers-stripe";
+import { validationRouter } from './routers-validation';
+import { stripeRouter } from './routers-stripe';
+import { spreadAnalyticsRouter } from './routers-spread-analytics';
 
 // Helper function to parse OCC option symbols
 function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
@@ -306,6 +307,7 @@ export const appRouter = router({
   performance: performanceRouter,
   workingOrders: workingOrdersRouter,
   projections: projectionsRouter,
+  spreadAnalytics: spreadAnalyticsRouter,
   rolls: rollsRouter,
   rollRecommendations: rollRecommendationsRouter,
   orders: ordersRouter,

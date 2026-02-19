@@ -13,6 +13,7 @@ import CCDashboard from "./pages/CCDashboard";
 import PMCCDashboard from "./pages/PMCCDashboard";
 import IronCondorDashboard from "./pages/IronCondorDashboard";
 import Performance from "./pages/Performance";
+import SpreadAnalytics from "./pages/SpreadAnalytics";
 import ActionItems from "./pages/ActionItems";
 import { AdminDashboard } from "./pages/AdminDashboard";
 import { AdminUsers } from "./pages/AdminUsers";
@@ -108,6 +109,7 @@ function Router() {
           <Route path={"/iron-condor"} component={IronCondorDashboard} />
           <Route path={"/pmcc"} component={PMCCDashboard} />
           <Route path={"/performance"} component={Performance} />
+          <Route path={"/spread-analytics"} component={SpreadAnalytics} />
           <Route path={"/404"} component={NotFound} />
           {/* Final fallback route */}
           <Route component={NotFound} />

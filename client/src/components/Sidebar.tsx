@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { WelcomeModal } from '@/components/WelcomeModal';
 import {
   BarChart3,
+  PieChart,
   TrendingDown,
   TrendingUp,
   Layers,
@@ -99,6 +100,11 @@ export function Sidebar({ className }: SidebarProps) {
       name: 'Performance',
       path: '/performance',
       icon: BarChart3,
+    },
+    {
+      name: 'Spread Analytics',
+      path: '/spread-analytics',
+      icon: PieChart,
     },
     {
       name: 'CSP - BPS',

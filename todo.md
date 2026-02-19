@@ -5627,3 +5627,23 @@
 - [x] Implement automatic token refresh when API calls fail with "invalid or has expired" error (added response interceptor)
 - [x] Test token refresh mechanism with expired token scenario (code compiled successfully)
 - [x] Ensure refresh token is being properly stored and reused (verified in authenticateTastytrade)
+
+## 📊 Spread Analytics Dashboard
+
+- [x] Add backend procedure to fetch closed positions from Tastytrade API
+- [x] Build strategy classification logic (auto-detect IC/BCS/BPS from leg structure)
+- [x] Calculate P/L, ROC%, win rates for each closed position
+- [x] Aggregate metrics by strategy type (Iron Condor, Bear Call Spread, Bull Put Spread)
+- [x] Aggregate metrics by symbol (SPY, QQQ, etc.)
+- [x] Create new route `/spread-analytics` with SpreadAnalytics.tsx page
+- [x] Build summary cards showing performance for each strategy type
+- [x] Implement "By Strategy" tab with strategy comparison table
+- [x] Implement "By Symbol" tab with symbol breakdown table
+- [x] Implement "Historical Trades" tab with detailed trade log
+- [x] Implement "Active Spreads" tab for monitoring current positions (placeholder)
+- [x] Add date range dropdown filter (30/60/90/180 days, YTD, All Time)
+- [x] Add sortable columns to all tables
+- [x] Add export to CSV functionality
+- [ ] Add drill-down capability (click strategy → see positions) - Future enhancement
+- [ ] Test ROC calculations with real data
+- [ ] Test win rate calculations with real data
