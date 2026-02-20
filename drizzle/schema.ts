@@ -257,6 +257,10 @@ export const userPreferences = mysqlTable("userPreferences", {
   damascusOpacity: int("damascusOpacity").notNull().default(8),
   backgroundPattern: mysqlEnum("backgroundPattern", ["diagonal", "crosshatch", "dots", "woven", "none"]).notNull().default("diagonal"),
   
+  // Strategy Advisor auto-refresh settings
+  strategyAdvisorAutoRefresh: boolean("strategyAdvisorAutoRefresh").notNull().default(false),
+  strategyAdvisorRefreshInterval: int("strategyAdvisorRefreshInterval").notNull().default(30), // minutes (15, 30, 60)
+  
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

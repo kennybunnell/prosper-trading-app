@@ -288,6 +288,13 @@
       "when": 1771280901487,
       "tag": "0041_powerful_firebird",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1771615588765,
+      "tag": "0042_rapid_gauntlet",
+      "breakpoints": true
     }
   ]
 }

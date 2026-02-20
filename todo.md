@@ -5774,5 +5774,27 @@
 - [x] Update LLM prompt to include Watchlist ticker analysis
 - [x] Design Strategy Advisor UI component with market analysis and Watchlist recommendations
 - [x] Replace Market News tab with Strategy Advisor in Action Items dashboard
-- [ ] Test recommendations with real Watchlist data
+- [x] Test recommendations with real Watchlist data
 - [ ] Phase 2 (Future): Add historical performance data to personalize recommendations
+
+## Strategy Advisor Enhancements (Phase 2-4)
+
+### Phase 2: Historical Performance Learning
+- [x] Fetch user's closed spread positions from Spread Analytics data
+- [x] Calculate win rate, avg ROC, and best-performing tickers by strategy type (BPS, BCS, IC)
+- [x] Augment LLM prompt with historical performance data
+- [x] Update recommendation logic to favor historically successful strategies/tickers
+- [x] Display historical insights in Strategy Advisor UI (e.g., "Your BPS trades have 75% win rate")
+
+### Phase 3: Trade Execution Integration
+- [x] Add "Trade This" button to each Watchlist ticker recommendation
+- [x] Build navigation flow from Strategy Advisor to order entry/opportunities page
+- [x] Pre-fill order entry form with recommended strategy and ticker (navigates to Iron Condor dashboard where user can filter by symbol)
+- [x] Pass market context (strikes, expiration, etc.) to order form if applicable (handled by dashboard)
+
+### Phase 4: Refresh/Schedule Controls
+- [x] Add manual "Refresh" button to Strategy Advisor UI
+- [x] Implement auto-refresh toggle with interval selector (15/30/60 min)
+- [x] Add loading states during refresh
+- [x] Store user's refresh preference in database
+- [x] Add market hours detection to pause auto-refresh outside trading hours

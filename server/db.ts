@@ -777,7 +777,11 @@ export async function setBackgroundPattern(userId: number, pattern: 'diagonal' |
  */
 export async function upsertUserPreferences(
   userId: number,
-  preferences: { defaultTastytradeAccountId?: string }
+  preferences: { 
+    defaultTastytradeAccountId?: string;
+    strategyAdvisorAutoRefresh?: boolean;
+    strategyAdvisorRefreshInterval?: number;
+  }
 ) {
   const db = await getDb();
   if (!db) return null;
@@ -793,6 +797,12 @@ export async function upsertUserPreferences(
     if (preferences.defaultTastytradeAccountId !== undefined) {
       updates.defaultTastytradeAccountId = preferences.defaultTastytradeAccountId;
     }
+    if (preferences.strategyAdvisorAutoRefresh !== undefined) {
+      updates.strategyAdvisorAutoRefresh = preferences.strategyAdvisorAutoRefresh;
+    }
+    if (preferences.strategyAdvisorRefreshInterval !== undefined) {
+      updates.strategyAdvisorRefreshInterval = preferences.strategyAdvisorRefreshInterval;
+    }
     
     if (Object.keys(updates).length > 0) {
       await db
@@ -805,6 +815,8 @@ export async function upsertUserPreferences(
     await db.insert(userPreferences).values({
       userId,
       defaultTastytradeAccountId: preferences.defaultTastytradeAccountId || null,
+      strategyAdvisorAutoRefresh: preferences.strategyAdvisorAutoRefresh ?? false,
+      strategyAdvisorRefreshInterval: preferences.strategyAdvisorRefreshInterval ?? 30,
     });
   }
   

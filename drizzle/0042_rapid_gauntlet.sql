@@ -1,0 +1,2 @@
+ALTER TABLE `userPreferences` ADD `strategyAdvisorAutoRefresh` boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE `userPreferences` ADD `strategyAdvisorRefreshInterval` int DEFAULT 30 NOT NULL;

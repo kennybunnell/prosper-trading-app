@@ -34,6 +34,27 @@ export const strategyAdvisorRouter = router({
       const { getWatchlistSelections } = await import('./db');
       const watchlistSymbols = await getWatchlistSelections(ctx.user.id);
 
+      // Fetch historical performance data from Spread Analytics
+      const { spreadAnalyticsRouter } = await import('./routers-spread-analytics');
+      const caller = spreadAnalyticsRouter.createCaller(ctx);
+      
+      // Get last 12 months of historical data
+      const endDate = new Date().toISOString().split('T')[0];
+      const startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      let strategyMetrics: any[] = [];
+      let symbolMetrics: any[] = [];
+      try {
+        [strategyMetrics, symbolMetrics] = await Promise.all([
+          caller.getStrategyMetrics({ startDate, endDate }),
+          caller.getSymbolMetrics({ startDate, endDate }),
+        ]);
+        console.log(`[Strategy Advisor] Loaded historical data: ${strategyMetrics.length} strategies, ${symbolMetrics.length} symbols`);
+      } catch (error: any) {
+        console.warn(`[Strategy Advisor] Failed to load historical data: ${error.message}`);
+        // Continue without historical data if it fails
+      }
+
       // Fetch market data for major indices and VIX
       const symbols = ['SPY', 'QQQ', 'IWM', 'VIX'];
       const quotes = await api.getUnderlyingQuotesBatch(symbols);
@@ -165,6 +186,29 @@ ${ticker!.symbol}:
 - 52-Week Position: ${(((ticker!.last - ticker!.yearLow) / (ticker!.yearHigh - ticker!.yearLow)) * 100).toFixed(1)}%
 `).join('')}
 
+**User's Historical Performance (Last 12 Months):**
+${strategyMetrics.length > 0 ? strategyMetrics.map(s => `
+${s.strategy}:
+- Total Positions: ${s.totalPositions}
+- Win Rate: ${s.winRate.toFixed(1)}%
+- Average ROC: ${s.roc.toFixed(2)}%
+- Total P/L: $${s.totalProfitLoss.toFixed(2)}
+- Best Symbol: ${s.bestSymbol || 'N/A'}
+`).join('') : 'No historical spread trading data available.'}
+
+**Top Performing Symbols (by P/L):**
+${symbolMetrics.length > 0 ? symbolMetrics.slice(0, 5).map(sym => `
+${sym.symbol}: $${sym.totalProfitLoss.toFixed(2)} P/L (${sym.roc.toFixed(1)}% ROC, ${sym.totalPositions} trades)
+- Best Strategy: ${sym.bestStrategy}
+`).join('') : 'No symbol-level data available.'}
+
+**Instructions:**
+1. Analyze current market conditions to determine the base recommended strategy
+2. Review the user's historical performance data to identify which strategies and symbols have worked best
+3. If the user has strong historical performance with a particular strategy (>70% win rate, >15% ROC), consider favoring that strategy
+4. When recommending watchlist tickers, prioritize symbols that have performed well historically for the user
+5. Provide educational context about why historical performance supports (or contradicts) the current market recommendation
+
 **Your Task:**
 Provide a JSON response with the following structure:
 {
@@ -226,6 +270,10 @@ Be specific, data-driven, and actionable. Focus on capital-efficient spread stra
                   type: 'string',
                   description: 'Brief risk consideration',
                 },
+                historicalInsight: {
+                  type: 'string',
+                  description: '1-2 sentences explaining how the user\'s historical performance influenced this recommendation',
+                },
                 topWatchlistPicks: {
                   type: 'array',
                   items: {
@@ -240,7 +288,7 @@ Be specific, data-driven, and actionable. Focus on capital-efficient spread stra
                   description: 'Top 3-5 tickers from watchlist that fit the recommended strategy',
                 },
               },
-              required: ['marketCondition', 'recommendedStrategy', 'confidence', 'reasoning', 'keyFactors', 'riskWarning', 'topWatchlistPicks'],
+              required: ['marketCondition', 'recommendedStrategy', 'confidence', 'reasoning', 'keyFactors', 'riskWarning', 'historicalInsight', 'topWatchlistPicks'],
               additionalProperties: false,
             },
           },

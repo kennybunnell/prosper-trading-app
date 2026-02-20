@@ -2396,6 +2396,19 @@ Summary: [One sentence overall assessment]`;
         });
         return { success: true };
       }),
+    setStrategyAdvisorPreferences: protectedProcedure
+      .input(z.object({ 
+        autoRefresh: z.boolean(),
+        refreshInterval: z.number().min(15).max(60), // 15, 30, or 60 minutes
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { upsertUserPreferences } = await import('./db');
+        await upsertUserPreferences(ctx.user.id, {
+          strategyAdvisorAutoRefresh: input.autoRefresh,
+          strategyAdvisorRefreshInterval: input.refreshInterval,
+        });
+        return { success: true };
+      }),
   }),
 
   account: router({
