@@ -14,7 +14,7 @@ import { WorkingOrdersTab } from "./Performance";
 // Import RollCandidateModal and OrderPreviewModal
 import { RollCandidateModal } from "@/components/RollCandidateModal";
 import { OrderPreviewModal } from "@/components/OrderPreviewModal";
-import { MarketNewsScanner } from "@/components/MarketNewsScanner";
+import { StrategyAdvisor } from "@/components/StrategyAdvisor";
 import { RollsTable } from "@/components/RollsTable";
 import { useToast } from "@/hooks/use-toast";
 import { useAccount } from "@/contexts/AccountContext";
@@ -244,7 +244,7 @@ export default function ActionItems() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="daily-tasks">Daily Tasks</TabsTrigger>
-          <TabsTrigger value="market-news">Market News</TabsTrigger>
+          <TabsTrigger value="strategy-advisor">Strategy Advisor</TabsTrigger>
           <TabsTrigger value="active-positions">Active Positions</TabsTrigger>
           <TabsTrigger value="working-orders">Working Orders</TabsTrigger>
         </TabsList>
@@ -405,9 +405,9 @@ export default function ActionItems() {
           )}
         </TabsContent>
 
-        {/* Market News Tab */}
-        <TabsContent value="market-news" className="space-y-6">
-          <MarketNewsScanner />
+        {/* Strategy Advisor Tab */}
+        <TabsContent value="strategy-advisor" className="space-y-6">
+          <StrategyAdvisor />
         </TabsContent>
 
         {/* Active Positions Tab */}

@@ -21,6 +21,7 @@ import { chatRouter } from "./routers-chat";
 import { validationRouter } from './routers-validation';
 import { stripeRouter } from './routers-stripe';
 import { spreadAnalyticsRouter } from './routers-spread-analytics';
+import { strategyAdvisorRouter } from './routers-strategy-advisor';
 
 // Helper function to parse OCC option symbols
 function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
@@ -308,6 +309,7 @@ export const appRouter = router({
   workingOrders: workingOrdersRouter,
   projections: projectionsRouter,
   spreadAnalytics: spreadAnalyticsRouter,
+  strategyAdvisor: strategyAdvisorRouter,
   rolls: rollsRouter,
   rollRecommendations: rollRecommendationsRouter,
   orders: ordersRouter,
@@ -377,6 +379,7 @@ export const appRouter = router({
         
         for (const account of accounts) {
           const accountNumber = account.account['account-number'];
+          const accountName = account.account.nickname || accountNumber;
           
           try {
             const transactions = await api.getTransactionHistory(
@@ -384,6 +387,9 @@ export const appRouter = router({
               startDateStr,
               endDateStr
             );
+            
+            // Track this account's contribution separately for debugging
+            const accountMonthlyData: Record<string, { credits: number; debits: number }> = {};
           
           // Log first few transactions to understand data structure
           if (transactions.length > 0) {
@@ -411,20 +417,34 @@ export const appRouter = router({
             if (!monthlyData[monthKey]) {
               monthlyData[monthKey] = { credits: 0, debits: 0 };
             }
+            if (!accountMonthlyData[monthKey]) {
+              accountMonthlyData[monthKey] = { credits: 0, debits: 0 };
+            }
             
             // Use net-value-effect to determine if this is income or expense
             // Credit = money received (selling options, assignments, etc.)
             // Debit = money paid (buying to close, buying options, etc.)
             if (netValueEffect === 'Credit') {
               monthlyData[monthKey].credits += netValue;
+              accountMonthlyData[monthKey].credits += netValue;
             } else if (netValueEffect === 'Debit') {
               monthlyData[monthKey].debits += netValue;
+              accountMonthlyData[monthKey].debits += netValue;
             }
           }
+          
+          // Log this account's contribution after processing all transactions
+          console.log(`[Dashboard] Account ${accountName} (${accountNumber}) contribution:`);
+          for (const [month, data] of Object.entries(accountMonthlyData)) {
+            if (data.credits > 0 || data.debits > 0) {
+              const net = data.credits - data.debits;
+              console.log(`  ${month}: Credits=$${data.credits.toFixed(2)}, Debits=$${data.debits.toFixed(2)}, Net=$${net.toFixed(2)}`);
+            }
+          }
+            
           } catch (error: any) {
             console.error(`[Dashboard] Failed to fetch transactions for account ${accountNumber}:`, error.message);
             failedAccounts.push(accountNumber);
-            // Continue with next account instead of failing entirely
           }
         }
         

@@ -5744,4 +5744,35 @@
 - [x] Investigate why collateral calculation is failing for Iron Condors
 - [x] Fix Net Delta filter - currently filtering by individual leg deltas instead of netDelta field
 - [x] Update delta filter logic to use Math.abs(opp.netDelta) for Iron Condors
-- [ ] Test both fixes to ensure accuracy for students
+- [x] Test both fixes to ensure accuracy for students
+
+## CRITICAL: Fix Inflated Monthly Premium Earnings (Iron Condor Net Premium)
+- [ ] Investigate where monthly premium earnings are calculated in the backend
+- [ ] Identify how Iron Condor premiums are being summed (likely counting all 4 legs instead of net)
+- [ ] Fix Iron Condor premium calculation to use net premium: (short put + short call) - (long put + long call)
+- [ ] Verify the fix resolves the $132,691 inflation in February 2026
+- [ ] Test with other multi-leg strategies to ensure they calculate correctly
+- [ ] Query Tastytrade API for all transactions from February 20, 2026 to see how Iron Condors are recorded
+- [ ] Analyze the transaction structure to identify if legs are being duplicated or miscounted
+
+## Comprehensive February 2026 Premium Audit
+- [ ] Create audit script to fetch all February transactions across all 4 accounts
+- [ ] Group transactions by order-id to identify multi-leg orders (BPS, BCS, IC)
+- [ ] Calculate net premium for each order (credits - debits)
+- [ ] Categorize orders by strategy type (CSP, CC, BPS, BCS, IC)
+- [ ] Generate detailed report showing per-account and per-strategy breakdowns
+- [ ] Compare audit results with dashboard display ($77K vs $132K)
+- [ ] Identify root cause of discrepancy
+- [ ] Fix calculation errors if found
+
+## Strategy Advisor (Replace Market News in Action Items)
+- [x] Investigate Tastytrade API market data endpoints (quotes, historical data, Greeks)
+- [x] Test fetching SPY, QQQ, VIX data from Tastytrade API
+- [x] Create backend procedure to fetch market data (SPY, QQQ, IWM, VIX)
+- [x] Build LLM analysis logic to generate spread strategy recommendations (BPS, BCS, IC only)
+- [x] Enhance backend to fetch Watchlist tickers and analyze fit with recommended strategy
+- [x] Update LLM prompt to include Watchlist ticker analysis
+- [x] Design Strategy Advisor UI component with market analysis and Watchlist recommendations
+- [x] Replace Market News tab with Strategy Advisor in Action Items dashboard
+- [ ] Test recommendations with real Watchlist data
+- [ ] Phase 2 (Future): Add historical performance data to personalize recommendations

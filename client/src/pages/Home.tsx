@@ -19,6 +19,13 @@ function MonthlyPremiumChartSection() {
     }
   );
   
+  // Debug logging
+  React.useEffect(() => {
+    if (data?.monthlyData) {
+      console.log('[MonthlyPremiumChart] Data received:', JSON.stringify(data.monthlyData, null, 2));
+    }
+  }, [data]);
+  
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
