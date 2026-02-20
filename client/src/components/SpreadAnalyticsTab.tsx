@@ -638,46 +638,24 @@ function HistoricalTradesTab({ data, isLoading, onExport }: { data: any[] | unde
                   Strategy <ArrowUpDown className="h-4 w-4" />
                 </div>
               </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort('shortStrike')}>
-                <div className="flex items-center gap-1">
-                  Strikes <ArrowUpDown className="h-4 w-4" />
-                </div>
-              </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort('openDate')}>
-                <div className="flex items-center gap-1">
-                  Opened <ArrowUpDown className="h-4 w-4" />
-                </div>
-              </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort('closedDate')}>
-                <div className="flex items-center gap-1">
-                  Closed <ArrowUpDown className="h-4 w-4" />
-                </div>
-              </TableHead>
+              <TableHead>Strikes</TableHead>
               <TableHead className="cursor-pointer" onClick={() => handleSort('daysHeld')}>
                 <div className="flex items-center gap-1">
                   Days <ArrowUpDown className="h-4 w-4" />
                 </div>
               </TableHead>
-              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('premiumReceived')}>
-                <div className="flex items-center justify-end gap-1">
-                  Premium <ArrowUpDown className="h-4 w-4" />
-                </div>
-              </TableHead>
-              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('closeCost')}>
-                <div className="flex items-center justify-end gap-1">
-                  Close Cost <ArrowUpDown className="h-4 w-4" />
-                </div>
-              </TableHead>
-              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('profitLoss')}>
-                <div className="flex items-center justify-end gap-1">
+              <TableHead className="cursor-pointer" onClick={() => handleSort('profitLoss')}>
+                <div className="flex items-center gap-1">
                   P/L <ArrowUpDown className="h-4 w-4" />
                 </div>
               </TableHead>
-              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('roc')}>
-                <div className="flex items-center justify-end gap-1">
+              <TableHead className="cursor-pointer" onClick={() => handleSort('roc')}>
+                <div className="flex items-center gap-1">
                   ROC % <ArrowUpDown className="h-4 w-4" />
                 </div>
               </TableHead>
+              <TableHead>Premium</TableHead>
+              <TableHead>Close Cost</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -692,12 +670,12 @@ function HistoricalTradesTab({ data, isLoading, onExport }: { data: any[] | unde
                 </TableCell>
                 <TableCell className="text-xs">{trade.strikes}</TableCell>
                 <TableCell>{trade.daysHeld}</TableCell>
-                <TableCell className={trade.profitLoss >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-                  {trade.profitLoss >= 0 ? <TrendingUp className="inline h-4 w-4 mr-1" /> : <TrendingDown className="inline h-4 w-4 mr-1" />}
-                  {formatCurrency(trade.profitLoss)}
+                <TableCell className={(trade.profitLoss ?? 0) >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                  {(trade.profitLoss ?? 0) >= 0 ? <TrendingUp className="inline h-4 w-4 mr-1" /> : <TrendingDown className="inline h-4 w-4 mr-1" />}
+                  {formatCurrency(trade.profitLoss ?? 0)}
                 </TableCell>
-                <TableCell className={trade.roc >= 0 ? 'text-green-600' : 'text-red-600'}>
-                  {formatPercent(trade.roc)}
+                <TableCell className={(trade.roc ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}>
+                  {formatPercent(trade.roc ?? 0)}
                 </TableCell>
                 <TableCell>{formatCurrency(trade.premiumCollected)}</TableCell>
                 <TableCell>{formatCurrency(trade.closeCost)}</TableCell>

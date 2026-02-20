@@ -5716,3 +5716,8 @@
 - [x] Identify what broke in Historical Trades tab (invalid dates, missing strategy types, wonky premiums)
 - [x] Restore working data display logic while keeping Close button functionality
 - [ ] Test all three tabs to verify data displays correctly
+
+## Fix Historical Trades P/L and ROC % Columns
+- [x] Check backend response from spreadAnalytics.historicalTrades to identify correct field names
+- [x] Fix field mappings in HistoricalTradesTab table body (removed Opened/Closed columns to align header with body)
+- [ ] Verify P/L and ROC % columns display correctly
