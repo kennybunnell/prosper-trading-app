@@ -267,13 +267,55 @@ export function SpreadAnalyticsTab() {
 }
 
 // By Strategy Tab Component
-function ByStrategyTab({ data, isLoading }: { data: any; isLoading: boolean }) {
+function ByStrategyTab({ data, isLoading }: { data: any[] | undefined; isLoading: boolean }) {
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'totalProfitLoss', direction: 'desc' });
+
+  const sortedData = useMemo(() => {
+    if (!data) return [];
+    
+    const sorted = [...data].sort((a, b) => {
+      const aVal = a[sortConfig.key];
+      const bVal = b[sortConfig.key];
+      
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+      
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortConfig.direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      
+      return 0;
+    });
+    
+    return sorted;
+  }, [data, sortConfig]);
+
+  const handleSort = (key: string) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc',
+    }));
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+    }).format(value);
+  };
+
+  const formatPercent = (value: number) => {
+    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  };
+
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Performance by Strategy</CardTitle>
-          <CardDescription>Breakdown of closed positions by spread type</CardDescription>
+          <CardTitle>Strategy Performance Comparison</CardTitle>
+          <CardDescription>Compare returns across different spread strategies</CardDescription>
         </CardHeader>
         <CardContent>
           <Skeleton className="h-64 w-full" />
@@ -282,68 +324,75 @@ function ByStrategyTab({ data, isLoading }: { data: any; isLoading: boolean }) {
     );
   }
 
-  if (!data) {
+  if (!data || data.length === 0) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Performance by Strategy</CardTitle>
-          <CardDescription>Breakdown of closed positions by spread type</CardDescription>
+          <CardTitle>Strategy Performance Comparison</CardTitle>
+          <CardDescription>Compare returns across different spread strategies</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground text-center py-8">No data available</p>
+          <p className="text-muted-foreground text-center py-8">No closed positions found</p>
         </CardContent>
       </Card>
     );
   }
 
-  const strategies = [
-    { key: 'bull_put', name: 'Bull Put Spread', color: 'text-green-400', bgColor: 'bg-green-500/20' },
-    { key: 'bear_call', name: 'Bear Call Spread', color: 'text-orange-400', bgColor: 'bg-orange-500/20' },
-    { key: 'iron_condor', name: 'Iron Condor', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
-  ];
-
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Performance by Strategy</CardTitle>
-        <CardDescription>Breakdown of closed positions by spread type</CardDescription>
+        <CardTitle>Strategy Performance Comparison</CardTitle>
+        <CardDescription>Compare returns across different spread strategies</CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Strategy</TableHead>
-              <TableHead className="text-right">Positions</TableHead>
-              <TableHead className="text-right">Total P/L</TableHead>
-              <TableHead className="text-right">ROC %</TableHead>
-              <TableHead className="text-right">Win Rate</TableHead>
-              <TableHead className="text-right">Avg Days Held</TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('totalPositions')}>
+                <div className="flex items-center gap-1">
+                  Positions <ArrowUpDown className="h-4 w-4" />
+                </div>
+              </TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('totalProfitLoss')}>
+                <div className="flex items-center gap-1">
+                  Total P/L <ArrowUpDown className="h-4 w-4" />
+                </div>
+              </TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('roc')}>
+                <div className="flex items-center gap-1">
+                  ROC % <ArrowUpDown className="h-4 w-4" />
+                </div>
+              </TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('winRate')}>
+                <div className="flex items-center gap-1">
+                  Win Rate <ArrowUpDown className="h-4 w-4" />
+                </div>
+              </TableHead>
+              <TableHead>Avg Win</TableHead>
+              <TableHead>Avg Loss</TableHead>
+              <TableHead>Avg Days</TableHead>
+              <TableHead>Best Symbol</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {strategies.map(strategy => {
-              const strategyData = data[strategy.key];
-              if (!strategyData || strategyData.count === 0) return null;
-
-              return (
-                <TableRow key={strategy.key}>
-                  <TableCell>
-                    <span className={`text-sm font-medium px-2 py-1 rounded-full ${strategy.bgColor} ${strategy.color}`}>
-                      {strategy.name}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">{strategyData.count}</TableCell>
-                  <TableCell className={`text-right ${strategyData.totalPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    ${strategyData.totalPL.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className={`text-right ${strategyData.roc >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {strategyData.roc.toFixed(2)}%
-                  </TableCell>
-                  <TableCell className="text-right">{strategyData.winRate.toFixed(1)}%</TableCell>
-                  <TableCell className="text-right">{strategyData.avgDaysHeld.toFixed(0)}</TableCell>
-                </TableRow>
-              );
-            })}
+            {sortedData.map((strategy) => (
+              <TableRow key={strategy.strategy}>
+                <TableCell className="font-medium">{strategy.strategy}</TableCell>
+                <TableCell>{strategy.totalPositions}</TableCell>
+                <TableCell className={strategy.totalProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'}>
+                  {formatCurrency(strategy.totalProfitLoss)}
+                </TableCell>
+                <TableCell className={strategy.roc >= 0 ? 'text-green-600' : 'text-red-600'}>
+                  {formatPercent(strategy.roc)}
+                </TableCell>
+                <TableCell>{strategy.winRate.toFixed(1)}%</TableCell>
+                <TableCell className="text-green-600">{formatCurrency(strategy.avgWin)}</TableCell>
+                <TableCell className="text-red-600">{formatCurrency(strategy.avgLoss)}</TableCell>
+                <TableCell>{strategy.avgDaysHeld.toFixed(0)}</TableCell>
+                <TableCell>{strategy.bestSymbol || '-'}</TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </CardContent>
@@ -434,12 +483,12 @@ function BySymbolTab({ data, isLoading, onExport }: { data: any[] | undefined; i
                   Symbol <ArrowUpDown className="h-4 w-4" />
                 </div>
               </TableHead>
-              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('count')}>
+              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('totalPositions')}>
                 <div className="flex items-center justify-end gap-1">
                   Positions <ArrowUpDown className="h-4 w-4" />
                 </div>
               </TableHead>
-              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('totalPL')}>
+              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('totalProfitLoss')}>
                 <div className="flex items-center justify-end gap-1">
                   Total P/L <ArrowUpDown className="h-4 w-4" />
                 </div>
@@ -449,25 +498,33 @@ function BySymbolTab({ data, isLoading, onExport }: { data: any[] | undefined; i
                   ROC % <ArrowUpDown className="h-4 w-4" />
                 </div>
               </TableHead>
-              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('winRate')}>
-                <div className="flex items-center justify-end gap-1">
-                  Win Rate <ArrowUpDown className="h-4 w-4" />
-                </div>
-              </TableHead>
+              <TableHead className="text-right">IC P/L</TableHead>
+              <TableHead className="text-right">BCS P/L</TableHead>
+              <TableHead className="text-right">BPS P/L</TableHead>
+              <TableHead>Best Strategy</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedData.map((row, idx) => (
               <TableRow key={`${row.symbol}-${idx}`}>
                 <TableCell className="font-medium">{row.symbol || 'N/A'}</TableCell>
-                <TableCell className="text-right">{row.count ?? 0}</TableCell>
-                <TableCell className={`text-right ${(row.totalPL ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ${(row.totalPL ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                <TableCell className="text-right">{row.totalPositions ?? 0}</TableCell>
+                <TableCell className={`text-right ${(row.totalProfitLoss ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  ${(row.totalProfitLoss ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </TableCell>
                 <TableCell className={`text-right ${(row.roc ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {(row.roc ?? 0).toFixed(2)}%
                 </TableCell>
-                <TableCell className="text-right">{(row.winRate ?? 0).toFixed(1)}%</TableCell>
+                <TableCell className={`text-right ${(row.ironCondorPL ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  ${(row.ironCondorPL ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </TableCell>
+                <TableCell className={`text-right ${(row.bearCallSpreadPL ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  ${(row.bearCallSpreadPL ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </TableCell>
+                <TableCell className={`text-right ${(row.bullPutSpreadPL ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  ${(row.bullPutSpreadPL ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </TableCell>
+                <TableCell>{row.bestStrategy || '-'}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -479,7 +536,7 @@ function BySymbolTab({ data, isLoading, onExport }: { data: any[] | undefined; i
 
 // Historical Trades Tab Component
 function HistoricalTradesTab({ data, isLoading, onExport }: { data: any[] | undefined; isLoading: boolean; onExport: () => void }) {
-  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'closedDate', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'closeDate', direction: 'desc' });
 
   const sortedData = useMemo(() => {
     if (!data) return [];
@@ -515,6 +572,14 @@ function HistoricalTradesTab({ data, isLoading, onExport }: { data: any[] | unde
       currency: 'USD',
       minimumFractionDigits: 2,
     }).format(value);
+  };
+
+  const formatPercent = (value: number) => {
+    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   if (isLoading) {
@@ -616,40 +681,26 @@ function HistoricalTradesTab({ data, isLoading, onExport }: { data: any[] | unde
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedData.map((trade, idx) => (
-              <TableRow key={`${trade.symbol}-${trade.openDate}-${trade.closedDate}-${idx}`}>
+            {sortedData.map((trade) => (
+              <TableRow key={trade.id}>
+                <TableCell>{formatDate(trade.closeDate)}</TableCell>
                 <TableCell className="font-medium">{trade.symbol}</TableCell>
                 <TableCell>
-                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                    trade.strategy === 'Bull Put Spread' ? 'bg-green-500/20 text-green-400' :
-                    trade.strategy === 'Bear Call Spread' ? 'bg-orange-500/20 text-orange-400' :
-                    trade.strategy === 'Iron Condor' ? 'bg-purple-500/20 text-purple-400' :
-                    'bg-blue-500/20 text-blue-400'
-                  }`}>
-                    {trade.strategy}
+                  <span className="text-xs px-2 py-1 rounded bg-secondary">
+                    {trade.spreadType === 'Iron Condor' ? 'IC' : trade.spreadType === 'Bear Call Spread' ? 'BCS' : 'BPS'}
                   </span>
                 </TableCell>
-                <TableCell>
-                  {trade.strategy === 'Iron Condor' && trade.putShortStrike && trade.callShortStrike ? (
-                    <div className="text-xs">
-                      <div>Put: {trade.putShortStrike}/{trade.putLongStrike}</div>
-                      <div>Call: {trade.callShortStrike}/{trade.callLongStrike}</div>
-                    </div>
-                  ) : (
-                    <>{trade.shortStrike}{trade.longStrike && `/${trade.longStrike}`}</>
-                  )}
-                </TableCell>
-                <TableCell>{new Date(trade.openDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</TableCell>
-                <TableCell>{new Date(trade.closedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</TableCell>
+                <TableCell className="text-xs">{trade.strikes}</TableCell>
                 <TableCell>{trade.daysHeld}</TableCell>
-                <TableCell className="text-right">{formatCurrency(trade.premiumReceived)}</TableCell>
-                <TableCell className="text-right">{formatCurrency(trade.closeCost)}</TableCell>
-                <TableCell className={`text-right ${trade.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <TableCell className={trade.profitLoss >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                  {trade.profitLoss >= 0 ? <TrendingUp className="inline h-4 w-4 mr-1" /> : <TrendingDown className="inline h-4 w-4 mr-1" />}
                   {formatCurrency(trade.profitLoss)}
                 </TableCell>
-                <TableCell className={`text-right ${trade.roc >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {trade.roc.toFixed(2)}%
+                <TableCell className={trade.roc >= 0 ? 'text-green-600' : 'text-red-600'}>
+                  {formatPercent(trade.roc)}
                 </TableCell>
+                <TableCell>{formatCurrency(trade.premiumCollected)}</TableCell>
+                <TableCell>{formatCurrency(trade.closeCost)}</TableCell>
               </TableRow>
             ))}
           </TableBody>

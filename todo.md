@@ -5708,3 +5708,11 @@
 - [x] Fix TypeError in BySymbolTab where toLocaleString() is called on undefined value
 - [x] Add null/undefined checks for all data properties before calling toLocaleString()
 - [ ] Test the fix on /performance page
+
+## Restore Spread Analytics Data Display (Regression Fix)
+- [x] Compare current SpreadAnalyticsTab with version before Close button update (checkpoint 0e9b5b9)
+- [x] Identify what broke in By Strategy tab (empty data)
+- [x] Identify what broke in By Symbol tab (empty values)
+- [x] Identify what broke in Historical Trades tab (invalid dates, missing strategy types, wonky premiums)
+- [x] Restore working data display logic while keeping Close button functionality
+- [ ] Test all three tabs to verify data displays correctly
