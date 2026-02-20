@@ -5737,4 +5737,11 @@
 - [x] Add Net Delta column to Iron Condor table (after ROC %, before Profit Zone)
 - [x] Make all columns sortable with click handlers
 - [x] Add sort indicators (↑/↓) to column headers
-- [ ] Test sorting functionality
+- [x] Test sorting functionality
+
+## CRITICAL: Fix Iron Condor Accuracy Issues
+- [x] Fix Total Collateral showing $0.00 in order preview (should be spread width × 100 × quantity)
+- [x] Investigate why collateral calculation is failing for Iron Condors
+- [x] Fix Net Delta filter - currently filtering by individual leg deltas instead of netDelta field
+- [x] Update delta filter logic to use Math.abs(opp.netDelta) for Iron Condors
+- [ ] Test both fixes to ensure accuracy for students

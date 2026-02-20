@@ -419,12 +419,10 @@ export default function IronCondorDashboard() {
       return score >= scoreRange[0] && score <= scoreRange[1];
     });
     
-    // Apply delta filter (check both put and call deltas)
+    // Apply delta filter (use Net Delta for Iron Condors)
     filtered = filtered.filter((opp: any) => {
-      const putDelta = Math.abs(opp.putShortDelta || 0);
-      const callDelta = Math.abs(opp.callShortDelta || 0);
-      return (putDelta >= deltaRange[0] && putDelta <= deltaRange[1]) ||
-             (callDelta >= deltaRange[0] && callDelta <= deltaRange[1]);
+      const netDelta = Math.abs(opp.netDelta || 0);
+      return netDelta >= deltaRange[0] && netDelta <= deltaRange[1];
     });
     
     // Apply DTE filter
@@ -743,7 +741,7 @@ export default function IronCondorDashboard() {
             {/* Delta Filter */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Delta (Δ)</label>
+                <label className="text-sm font-medium">Net Delta (|Δ|)</label>
                 <span className="text-xs text-muted-foreground">0.00 - 1.00</span>
               </div>
               <div className="flex items-center gap-4">

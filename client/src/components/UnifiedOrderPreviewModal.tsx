@@ -353,6 +353,16 @@ export function UnifiedOrderPreviewModal({
           // PMCC buying LEAPs - cost is the premium
           return sum + (order.premium * 100 * qty);
         
+        case "iron_condor":
+          // Iron Condor: 4-leg strategy, collateral = max(put spread width, call spread width) × 100
+          if (order.longStrike && order.callShortStrike && order.callLongStrike) {
+            const putSpreadWidth = Math.abs(order.strike - order.longStrike);
+            const callSpreadWidth = Math.abs(order.callShortStrike - order.callLongStrike);
+            const maxSpreadWidth = Math.max(putSpreadWidth, callSpreadWidth);
+            return sum + (maxSpreadWidth * 100 * qty);
+          }
+          return sum;
+        
         case "btc":
           // Buying to close - cost is the ask price
           const price = order.ask || order.currentPrice || order.premium;
