@@ -19,15 +19,21 @@ interface ProcessedPosition {
   dte: number;
   premium: number;
   current: number;
-  currentPrice: number;
+  currentPrice: number; // Option's current price
+  underlyingPrice?: number; // Underlying stock's current price
   realizedPercent: number;
   action: 'CLOSE' | 'WATCH' | 'HOLD';
   hasWorkingOrder: boolean;
   // Spread-specific fields
-  spreadType?: 'bull_put' | 'bear_call';
+  spreadType?: 'bull_put' | 'bear_call' | 'iron_condor';
   longStrike?: number;
   spreadWidth?: number;
   capitalAtRisk?: number;
+  // Iron Condor specific fields (4 legs)
+  callShortStrike?: number;
+  callLongStrike?: number;
+  putShortStrike?: number;
+  putLongStrike?: number;
 }
 
 export const performanceRouter = router({
@@ -368,9 +374,20 @@ export const performanceRouter = router({
         console.log(`[Performance] Fetching quotes for ${allOptionSymbols.size} option symbols`);
         const quotes = await api.getOptionQuotesBatch(Array.from(allOptionSymbols));
         console.log(`[Performance] Retrieved ${Object.keys(quotes).length} quotes`);
+        
+        // Collect unique underlying symbols for stock price fetching
+        const underlyingSymbols = new Set<string>();
+        for (const pos of shortOptions) {
+          underlyingSymbols.add(pos['underlying-symbol']);
+        }
+        
+        // Fetch underlying stock prices in batch
+        console.log(`[Performance] Fetching underlying prices for ${underlyingSymbols.size} symbols`);
+        const underlyingPrices = await api.getUnderlyingQuotesBatch(Array.from(underlyingSymbols));
+        console.log(`[Performance] Retrieved ${Object.keys(underlyingPrices).length} underlying prices`);
 
         // Process each position
-        const processedPositions: ProcessedPosition[] = [];
+        let processedPositions: ProcessedPosition[] = [];
         
         for (const pos of shortOptions) {
           // Determine if CSP or CC by parsing option symbol
@@ -411,7 +428,7 @@ export const performanceRouter = router({
           const dte = Math.max(0, Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
 
           // Check for matching long position (spread detection)
-          let spreadType: 'bull_put' | 'bear_call' | undefined;
+          let spreadType: 'bull_put' | 'bear_call' | 'iron_condor' | undefined;
           let longStrike: number | undefined;
           let spreadWidth: number | undefined;
           let capitalAtRisk: number | undefined;
@@ -498,6 +515,7 @@ export const performanceRouter = router({
             premium: premiumReceived,
             current: currentCost,
             currentPrice: parseFloat(pos['close-price']),
+            underlyingPrice: underlyingPrices[pos['underlying-symbol']],
             realizedPercent: Math.round(realizedPercent * 100) / 100, // Round to 2 decimals
             action,
             hasWorkingOrder,
@@ -508,6 +526,77 @@ export const performanceRouter = router({
             capitalAtRisk,
           });
         }
+
+        // PHASE 2: Detect Iron Condors (4-leg spreads)
+        // Look for pairs of Bull Put + Bear Call spreads on same underlying + expiration
+        console.log('[Performance] Phase 2: Detecting Iron Condors from spread pairs...');
+        
+        const spreadsByKey = new Map<string, ProcessedPosition[]>();
+        let allSpreadPositions = processedPositions.filter(pos => pos.spreadType);
+        
+        // Group spreads by underlying + expiration
+        for (const spread of allSpreadPositions) {
+          const key = `${spread.symbol}_${spread.expiration}`;
+          if (!spreadsByKey.has(key)) {
+            spreadsByKey.set(key, []);
+          }
+          spreadsByKey.get(key)!.push(spread);
+        }
+        
+        // Find Iron Condors (groups with both bull_put and bear_call)
+        const ironCondorPositions: ProcessedPosition[] = [];
+        const positionsToRemove = new Set<ProcessedPosition>();
+        
+        for (const [key, spreads] of Array.from(spreadsByKey.entries())) {
+          const bullPutSpreads = spreads.filter(s => s.spreadType === 'bull_put');
+          const bearCallSpreads = spreads.filter(s => s.spreadType === 'bear_call');
+          
+          // Match bull put with bear call to form Iron Condor
+          for (const bullPut of bullPutSpreads) {
+            for (const bearCall of bearCallSpreads) {
+              // Check if they have the same quantity (must be same size)
+              if (bullPut.quantity === bearCall.quantity) {
+                // Create Iron Condor position
+                const ironCondor: ProcessedPosition = {
+                  ...bullPut, // Use bull put as base
+                  spreadType: 'iron_condor',
+                  // Store all 4 strikes for display
+                  putShortStrike: bullPut.strike,
+                  putLongStrike: bullPut.longStrike,
+                  callShortStrike: bearCall.strike,
+                  callLongStrike: bearCall.longStrike,
+                  // Combined premium and current value
+                  premium: bullPut.premium + bearCall.premium,
+                  current: bullPut.current + bearCall.current,
+                  capitalAtRisk: (bullPut.capitalAtRisk || 0) + (bearCall.capitalAtRisk || 0),
+                };
+                
+                // Recalculate realized percent for combined position
+                ironCondor.realizedPercent = ironCondor.premium > 0
+                  ? ((ironCondor.premium - ironCondor.current) / ironCondor.premium) * 100
+                  : 0;
+                
+                ironCondorPositions.push(ironCondor);
+                positionsToRemove.add(bullPut);
+                positionsToRemove.add(bearCall);
+                
+                console.log(`[Performance] Detected Iron Condor: ${ironCondor.symbol} (${bullPut.strike}/${bullPut.longStrike} put, ${bearCall.strike}/${bearCall.longStrike} call)`);
+                
+                // Only match each spread once
+                break;
+              }
+            }
+          }
+        }
+        
+        // Remove the individual spreads that were combined into Iron Condors
+        let updatedPositions = processedPositions.filter(pos => !positionsToRemove.has(pos));
+        
+        // Add the Iron Condor positions
+        updatedPositions.push(...ironCondorPositions);
+        processedPositions = updatedPositions;
+        
+        console.log(`[Performance] Found ${ironCondorPositions.length} Iron Condors, removed ${positionsToRemove.size} individual spreads`);
 
         // Calculate summary statistics
         const openPositions = processedPositions.length;
@@ -591,7 +680,7 @@ export const performanceRouter = router({
         strike: z.number(),
         currentPrice: z.number(),
         // Spread-specific fields
-        spreadType: z.enum(['bull_put', 'bear_call']).optional(),
+        spreadType: z.enum(['bull_put', 'bear_call', 'iron_condor']).optional(),
         longStrike: z.number().optional(),
         spreadWidth: z.number().optional(),
       })),

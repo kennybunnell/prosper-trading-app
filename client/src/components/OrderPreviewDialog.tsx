@@ -39,7 +39,7 @@ interface OrderPreviewItem {
   ivRank?: number | null;
   // Spread-specific fields
   isSpread?: boolean;
-  spreadType?: 'bull_put' | 'bear_call';
+  spreadType?: 'bull_put' | 'bear_call' | 'iron_condor';
   longStrike?: number;
   spreadWidth?: number;
   // Market data for price adjustment

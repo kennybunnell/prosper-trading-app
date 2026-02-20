@@ -5657,3 +5657,49 @@
 - [x] Remove standalone /spread-analytics route and page
 - [x] Remove Spread Analytics from sidebar navigation
 - [ ] Test integrated Spread Analytics tab with real closed positions data
+
+## 🐛 Debug Spread Analytics Zero Data Issue
+
+- [x] Check server logs to see what transaction data is being returned from Tastytrade API (26 transactions, 24 legs, 4 groups, 0 closed)
+- [x] Add detailed debug logging to transaction parsing logic to see actual structure
+- [x] Verify transaction history API is returning closed spread positions (not just open positions) - CONFIRMED: No closed spreads in transaction history
+- [ ] PIVOT: Build Active Spreads view instead using active positions data
+- [ ] Add backend procedure to fetch and classify active spread positions
+- [ ] Build Active Spreads tab UI showing current spread positions by strategy
+- [ ] Test Active Spreads view with real data
+
+## Spread Analytics Enhancements
+
+- [ ] Add Win Rate metric to summary cards (% of closed positions that were profitable)
+- [ ] Add Average Days Held metric to summary cards
+- [ ] Add Expected Move Analysis column to Active Spreads table (distance to short strike, color-coded risk)
+- [ ] Add Close for Profit recommendations column (% of max profit achieved)
+- [ ] Integrate OrderPreviewDialog for closing spreads from Active Spreads table
+- [ ] Add configurable profit threshold settings (70%, 80%, 90%, 100%)
+
+## Spread Analytics Enhancements (Completed 2026-02-19)
+- [x] Add Win Rate and Average Days Held metrics to summary cards
+- [x] Add Expected Move Analysis column to Active Spreads table with color-coded risk indicators
+- [x] Add Profit % column showing percentage of max profit achieved
+- [x] Add Close button for positions with >=70% profit
+- [x] Integrate close position flow with confirmation dialog
+- [x] Fix Historical Trades to query all accounts (was only querying first account)
+- [x] Fix OCC symbol parsing to extract strike price, option type, and expiration
+- [x] Add batch underlying quotes API for faster stock price fetching
+- [x] Add Iron Condor 4-leg strike display (Put: X/Y, Call: A/B)
+- [x] Add color-coded strategy badges (Green=Bull Put, Orange=Bear Call, Purple=Iron Condor)
+- [x] Make all Active Spreads columns sortable
+
+## Spread Analytics Active Spreads Fixes
+- [x] Make Expected Move column sortable
+- [x] Make Profit % column sortable
+- [x] Add tooltips to all columns explaining what they mean
+- [x] Add Net Premium calculation to close confirmation dialog (Premium Received - Close Cost)
+- [ ] Replace simple close dialog with full UnifiedOrderPreviewModal flow (dry run → slider → submit → polling)
+
+## Phase 3: Replace Close Dialog with Full Order Flow (Active Spreads)
+- [x] Study CSP/CC close implementation in Performance.tsx to understand UnifiedOrderPreviewModal integration
+- [x] Replace simple Dialog with UnifiedOrderPreviewModal in ActiveSpreadsTab
+- [x] Style Close button to stand out (use destructive variant or red color)
+- [x] Implement dry run → slider → red submit button → polling flow
+- [ ] Test complete close flow end-to-end

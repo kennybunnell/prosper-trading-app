@@ -921,7 +921,7 @@ interface Position {
   action: 'CLOSE' | 'WATCH' | 'HOLD';
   hasWorkingOrder: boolean;
   // Spread-specific fields
-  spreadType?: 'bull_put' | 'bear_call';
+  spreadType?: 'bull_put' | 'bear_call' | 'iron_condor';
   longStrike?: number;
   spreadWidth?: number;
   capitalAtRisk?: number;

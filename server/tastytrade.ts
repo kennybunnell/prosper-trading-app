@@ -949,6 +949,44 @@ export class TastytradeAPI {
   }
 
   /**
+   * Fetch underlying stock quotes in batch
+   * @param symbols Array of stock symbols (e.g., ['AAPL', 'MSFT', 'TSLA'])
+   * @returns Map of symbol to price
+   */
+  async getUnderlyingQuotesBatch(symbols: string[]): Promise<Record<string, number>> {
+    try {
+      const params = new URLSearchParams();
+      symbols.forEach(symbol => {
+        params.append('equity', symbol);
+      });
+      
+      const response = await this.client.get('/market-data/by-type', {
+        params,
+        paramsSerializer: (params) => params.toString(),
+      });
+      
+      const quotes: Record<string, number> = {};
+      const items = response.data?.data?.items || [];
+      
+      for (const item of items) {
+        if (item && item.symbol) {
+          // Prefer last trade price, fall back to mid/mark
+          const price = parseFloat(item.last || item.mid || item.mark || '0');
+          if (price > 0) {
+            quotes[item.symbol] = price;
+          }
+        }
+      }
+      
+      console.log(`[Tastytrade] Fetched ${Object.keys(quotes).length}/${symbols.length} underlying quotes`);
+      return quotes;
+    } catch (error: any) {
+      console.error('[Tastytrade] Failed to fetch underlying quotes batch:', error.message);
+      return {}; // Return empty object on error to allow graceful degradation
+    }
+  }
+
+  /**
    * Get option chain for an underlying symbol
    * @param underlyingSymbol - Stock symbol (e.g., 'AAPL', 'TSLA')
    * @returns Nested option chain data grouped by expiration
