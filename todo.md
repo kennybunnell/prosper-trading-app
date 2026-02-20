@@ -5721,3 +5721,20 @@
 - [x] Check backend response from spreadAnalytics.historicalTrades to identify correct field names
 - [x] Fix field mappings in HistoricalTradesTab table body (removed Opened/Closed columns to align header with body)
 - [ ] Verify P/L and ROC % columns display correctly
+
+## Add Net Delta Column and Make All Columns Sortable (Iron Condor Opportunities)
+- [ ] Research how to calculate Net Delta for Iron Condors (sum of all 4 leg deltas)
+- [ ] Update backend to fetch option greeks (delta) from Tastytrade API
+- [ ] Calculate Net Delta for each Iron Condor opportunity in backend
+- [ ] Add netDelta field to IronCondorOpportunity interface
+- [ ] Add Net Delta column to Iron Condor Opportunities table in frontend
+- [ ] Make ALL columns sortable (Symbol, Score, Current, Put Strikes, Call Strikes, DTE, Net Credit, Collateral, ROC %, Net Delta, Profit Zone, Breakevens, IV Rank, RSI, BB %B)
+- [ ] Test sorting by Net Delta to find most delta-neutral positions
+
+## Add Net Delta Column and Make All Columns Sortable (Iron Condor)
+- [x] Calculate Net Delta in backend (sum of all 4 leg deltas: putShortDelta + putLongDelta + callShortDelta + callLongDelta)
+- [x] Add netDelta field to Iron Condor opportunity object
+- [x] Add Net Delta column to Iron Condor table (after ROC %, before Profit Zone)
+- [x] Make all columns sortable with click handlers
+- [x] Add sort indicators (↑/↓) to column headers
+- [ ] Test sorting functionality

@@ -144,6 +144,9 @@ export default function IronCondorDashboard() {
   const [minDelta, setMinDelta] = useState(0.15);
   const [maxDelta, setMaxDelta] = useState(0.35);
   
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  
   // Watchlist management
   const { data: watchlist = [], refetch: refetchWatchlist } = trpc.watchlist.get.useQuery(undefined, {
     enabled: !!user,
@@ -406,7 +409,7 @@ export default function IronCondorDashboard() {
     setSelectedOpportunities(new Set());
   };
 
-  // Filter opportunities
+  // Filter and sort opportunities
   const displayedOpportunities = useMemo(() => {
     let filtered = [...opportunities];
     
@@ -436,8 +439,30 @@ export default function IronCondorDashboard() {
       );
     }
     
+    // Apply sorting
+    if (sortConfig) {
+      filtered.sort((a: any, b: any) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+        
+        // Handle null/undefined values
+        if (aValue === null || aValue === undefined) aValue = -Infinity;
+        if (bValue === null || bValue === undefined) bValue = -Infinity;
+        
+        // Handle nested properties (e.g., putShortStrike, callShortStrike)
+        if (sortConfig.key === 'putShortStrike' || sortConfig.key === 'callShortStrike') {
+          aValue = Number(aValue) || 0;
+          bValue = Number(bValue) || 0;
+        }
+        
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    
     return filtered;
-  }, [opportunities, showSelectedOnly, selectedOpportunities, scoreRange, deltaRange, dteRange]);
+  }, [opportunities, showSelectedOnly, selectedOpportunities, scoreRange, deltaRange, dteRange, sortConfig]);
 
   // Calculate summary metrics
   const summaryMetrics = useMemo(() => {
@@ -954,26 +979,116 @@ export default function IronCondorDashboard() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">Select</TableHead>
-                      <TableHead>Symbol</TableHead>
-                      <TableHead>Score</TableHead>
-                      <TableHead>Current</TableHead>
-                      <TableHead>Put Strikes</TableHead>
-                      <TableHead>Call Strikes</TableHead>
-                      <TableHead>DTE</TableHead>
-                      <TableHead>Net Credit</TableHead>
-                      <TableHead>Collateral</TableHead>
-                      <TableHead>ROC %</TableHead>
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'symbol' && prev.direction === 'asc' 
+                          ? { key: 'symbol', direction: 'desc' } 
+                          : { key: 'symbol', direction: 'asc' });
+                      }}>
+                        Symbol {sortConfig?.key === 'symbol' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'score' && prev.direction === 'desc' 
+                          ? { key: 'score', direction: 'asc' } 
+                          : { key: 'score', direction: 'desc' });
+                      }}>
+                        Score {sortConfig?.key === 'score' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'currentPrice' && prev.direction === 'desc' 
+                          ? { key: 'currentPrice', direction: 'asc' } 
+                          : { key: 'currentPrice', direction: 'desc' });
+                      }}>
+                        Current {sortConfig?.key === 'currentPrice' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'putShortStrike' && prev.direction === 'desc' 
+                          ? { key: 'putShortStrike', direction: 'asc' } 
+                          : { key: 'putShortStrike', direction: 'desc' });
+                      }}>
+                        Put Strikes {sortConfig?.key === 'putShortStrike' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'callShortStrike' && prev.direction === 'desc' 
+                          ? { key: 'callShortStrike', direction: 'asc' } 
+                          : { key: 'callShortStrike', direction: 'desc' });
+                      }}>
+                        Call Strikes {sortConfig?.key === 'callShortStrike' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'dte' && prev.direction === 'asc' 
+                          ? { key: 'dte', direction: 'desc' } 
+                          : { key: 'dte', direction: 'asc' });
+                      }}>
+                        DTE {sortConfig?.key === 'dte' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'totalNetCredit' && prev.direction === 'desc' 
+                          ? { key: 'totalNetCredit', direction: 'asc' } 
+                          : { key: 'totalNetCredit', direction: 'desc' });
+                      }}>
+                        Net Credit {sortConfig?.key === 'totalNetCredit' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'totalCollateral' && prev.direction === 'desc' 
+                          ? { key: 'totalCollateral', direction: 'asc' } 
+                          : { key: 'totalCollateral', direction: 'desc' });
+                      }}>
+                        Collateral {sortConfig?.key === 'totalCollateral' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'roc' && prev.direction === 'desc' 
+                          ? { key: 'roc', direction: 'asc' } 
+                          : { key: 'roc', direction: 'desc' });
+                      }}>
+                        ROC % {sortConfig?.key === 'roc' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'netDelta' && prev.direction === 'asc' 
+                          ? { key: 'netDelta', direction: 'desc' } 
+                          : { key: 'netDelta', direction: 'asc' });
+                      }}>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger className="flex items-center gap-1">
+                              Net Δ {sortConfig?.key === 'netDelta' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                              <HelpCircle className="h-3 w-3" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Sum of all 4 leg deltas</p>
+                              <p>Closer to 0 = more delta-neutral</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableHead>
                       <TableHead>Profit Zone</TableHead>
                       <TableHead>Breakevens</TableHead>
-                      <TableHead>IV Rank</TableHead>
-                      <TableHead>RSI</TableHead>
-                      <TableHead>BB %B</TableHead>
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'ivRank' && prev.direction === 'desc' 
+                          ? { key: 'ivRank', direction: 'asc' } 
+                          : { key: 'ivRank', direction: 'desc' });
+                      }}>
+                        IV Rank {sortConfig?.key === 'ivRank' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'rsi' && prev.direction === 'desc' 
+                          ? { key: 'rsi', direction: 'asc' } 
+                          : { key: 'rsi', direction: 'desc' });
+                      }}>
+                        RSI {sortConfig?.key === 'rsi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </TableHead>
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'bbPctB' && prev.direction === 'desc' 
+                          ? { key: 'bbPctB', direction: 'asc' } 
+                          : { key: 'bbPctB', direction: 'desc' });
+                      }}>
+                        BB %B {sortConfig?.key === 'bbPctB' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {displayedOpportunities.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={15} className="text-center text-muted-foreground">
+                        <TableCell colSpan={16} className="text-center text-muted-foreground">
                           No opportunities found
                         </TableCell>
                       </TableRow>
@@ -1021,6 +1136,15 @@ export default function IronCondorDashboard() {
                             <TableCell>
                               <Badge className={getROCColor(opp.roc)}>
                                 {(opp.roc || 0).toFixed(2)}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={`${
+                                Math.abs(opp.netDelta || 0) <= 0.05 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
+                                Math.abs(opp.netDelta || 0) <= 0.10 ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
+                                'bg-red-500/20 text-red-500 border-red-500/50'
+                              }`}>
+                                {(opp.netDelta || 0).toFixed(3)}
                               </Badge>
                             </TableCell>
                             <TableCell>

@@ -2114,6 +2114,10 @@ Summary: [One sentence overall assessment]`;
             // Technical indicators (from underlying stock)
             rsi: bps.rsi,
             bbPctB: bps.bbPctB,
+            
+            // Net Delta (sum of all 4 legs) - measures directional exposure
+            // Ideally close to 0 for delta-neutral Iron Condors
+            netDelta: (bps.delta || 0) + (bps.longDelta || 0) + (bcs.delta || 0) + (bcs.longDelta || 0),
           });
         }
 
