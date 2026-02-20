@@ -459,15 +459,15 @@ function BySymbolTab({ data, isLoading, onExport }: { data: any[] | undefined; i
           <TableBody>
             {sortedData.map((row, idx) => (
               <TableRow key={`${row.symbol}-${idx}`}>
-                <TableCell className="font-medium">{row.symbol}</TableCell>
-                <TableCell className="text-right">{row.count}</TableCell>
-                <TableCell className={`text-right ${row.totalPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ${row.totalPL.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                <TableCell className="font-medium">{row.symbol || 'N/A'}</TableCell>
+                <TableCell className="text-right">{row.count ?? 0}</TableCell>
+                <TableCell className={`text-right ${(row.totalPL ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  ${(row.totalPL ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </TableCell>
-                <TableCell className={`text-right ${row.roc >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {row.roc.toFixed(2)}%
+                <TableCell className={`text-right ${(row.roc ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {(row.roc ?? 0).toFixed(2)}%
                 </TableCell>
-                <TableCell className="text-right">{row.winRate.toFixed(1)}%</TableCell>
+                <TableCell className="text-right">{(row.winRate ?? 0).toFixed(1)}%</TableCell>
               </TableRow>
             ))}
           </TableBody>

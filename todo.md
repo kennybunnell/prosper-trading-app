@@ -5703,3 +5703,8 @@
 - [x] Style Close button to stand out (use destructive variant or red color)
 - [x] Implement dry run → slider → red submit button → polling flow
 - [ ] Test complete close flow end-to-end
+
+## Bug Fix: BySymbolTab TypeError
+- [x] Fix TypeError in BySymbolTab where toLocaleString() is called on undefined value
+- [x] Add null/undefined checks for all data properties before calling toLocaleString()
+- [ ] Test the fix on /performance page
