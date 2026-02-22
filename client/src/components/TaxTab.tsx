@@ -88,22 +88,35 @@ export function TaxTab() {
   };
   
   // Fetch real tax data from Tastytrade
-  const { data: taxData, isLoading, refetch } = trpc.tax.getTaxSummary.useQuery(
+  const { data: taxData, isLoading, error: taxError, refetch } = trpc.tax.getTaxSummary.useQuery(
     { 
       accountNumber: selectedAccountId || undefined,
       year: selectedYear 
     },
-    { enabled: !!selectedAccountId || selectedAccountId === 'all' }
+    { 
+      enabled: !!selectedAccountId || selectedAccountId === 'all',
+      retry: false, // Don't retry on auth errors
+    }
   );
   
   // Fetch tax verification data (cross-check with Tastytrade official data)
-  const { data: verificationData, isLoading: isVerifying, refetch: refetchVerification } = trpc.tax.getTaxVerification.useQuery(
+  const { data: verificationData, isLoading: isVerifying, error: verificationError, refetch: refetchVerification } = trpc.tax.getTaxVerification.useQuery(
     { 
       accountNumber: selectedAccountId || undefined,
       year: selectedYear 
     },
-    { enabled: !!selectedAccountId || selectedAccountId === 'all' }
+    { 
+      enabled: !!selectedAccountId || selectedAccountId === 'all',
+      retry: false, // Don't retry on auth errors
+    }
   );
+  
+  // Check if authentication error occurred
+  const isAuthError = taxError?.message?.includes('token is invalid') || 
+                      taxError?.message?.includes('expired') ||
+                      taxError?.message?.includes('credentials not found');
+  
+  const hasError = !!taxError || !!verificationError;
   
   const realizedGains = taxData?.realizedGains || 0;
   const realizedLosses = taxData?.realizedLosses || 0;
@@ -189,6 +202,30 @@ export function TaxTab() {
           </div>
         </CardContent>
       </Card>
+      
+      {/* Authentication Error Alert */}
+      {isAuthError && (
+        <Card className="border-destructive">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-4">
+              <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-destructive mb-2">Authentication Required</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Your Tastytrade API token has expired. Please re-authenticate your account to view tax data.
+                </p>
+                <Button 
+                  variant="default" 
+                  size="sm"
+                  onClick={() => window.location.href = '/settings'}
+                >
+                  Go to Settings to Re-authenticate
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       {/* Current Year Tax Position */}
       <Card>

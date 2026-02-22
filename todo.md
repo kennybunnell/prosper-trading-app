@@ -5919,7 +5919,21 @@
 - [x] Add success/error toast notifications
 
 ### Phase 5: Testing & Delivery
-- [ ] Test tax data verification with real account data
-- [ ] Test PDF export for multiple tax years
-- [ ] Verify PDF formatting and completeness
+- [x] Test tax data verification with real account data
+- [x] Test PDF export for multiple tax years
+- [x] Verify PDF formatting and completeness
+- [x] Save checkpoint
+
+## Tax Dashboard - Fix Data Loading Issues
+
+### Phase 1: Error Handling Improvements
+- [x] Add authentication error detection in Tax Dashboard
+- [x] Display clear error message when Tastytrade token is expired
+- [x] Add "Re-authenticate" button that links to Settings page
+- [x] Show loading states vs. error states distinctly
+- [x] Add retry logic after re-authentication (queries will auto-retry after navigation back)
+
+### Phase 2: Testing & Delivery
+- [ ] Test Tax Dashboard with expired token (shows error message)
+- [ ] Test Tax Dashboard after re-authentication (loads data correctly)
 - [ ] Save checkpoint
