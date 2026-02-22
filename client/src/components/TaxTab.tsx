@@ -43,18 +43,22 @@ export function TaxTab() {
     }
   };
   
-  // Mock data for now - will be replaced with real API calls
-  const realizedGains = 15234;
-  const realizedLosses = -8450;
-  const netCapitalGain = realizedGains + realizedLosses;
+  // Fetch real tax data from Tastytrade
+  const { data: taxData, isLoading, refetch } = trpc.tax.getTaxSummary.useQuery(
+    { accountNumber: selectedAccountId || undefined },
+    { enabled: !!selectedAccountId || selectedAccountId === 'all' }
+  );
+  
+  const realizedGains = taxData?.realizedGains || 0;
+  const realizedLosses = taxData?.realizedLosses || 0;
+  const netCapitalGain = taxData?.netCapitalGain || 0;
+  const ordinaryIncome = taxData?.ordinaryIncome || 0;
+  const harvestablePositions = taxData?.harvestablePositions || [];
+  const totalHarvestable = taxData?.totalHarvestable || 0;
+  
   const estimatedTaxOwed = Math.max(0, netCapitalGain * (taxRate / 100));
-  
-  const harvestablePositions = [
-    { symbol: 'HOOD', costBasis: 130.00, currentPrice: 98.50, quantity: 100, unrealizedLoss: -3150 },
-    { symbol: 'HIMS', costBasis: 45.00, currentPrice: 38.20, quantity: 200, unrealizedLoss: -1360 },
-  ];
-  
-  const totalHarvestable = harvestablePositions.reduce((sum, pos) => sum + pos.unrealizedLoss, 0);
+  const ordinaryIncomeTax = ordinaryIncome * (taxRate / 100);
+  const totalTaxLiability = estimatedTaxOwed + ordinaryIncomeTax;
   const potentialTaxSavings = Math.abs(totalHarvestable) * (taxRate / 100);
   
   return (
@@ -105,56 +109,113 @@ export function TaxTab() {
       {/* Current Year Tax Position */}
       <Card>
         <CardHeader>
-          <CardTitle>2026 Tax Position</CardTitle>
+          <CardTitle>{taxData?.taxYear || new Date().getFullYear()} Tax Position</CardTitle>
           <CardDescription>
-            Your realized gains and losses for the current tax year
+            Your realized gains/losses and ordinary income for the current tax year
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-green-500" />
-                <p className="text-sm text-muted-foreground">Realized Gains</p>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+          <div className="space-y-6">
+            {/* Capital Gains Section */}
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">Capital Gains/Losses</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-green-500" />
+                    <p className="text-sm text-muted-foreground">Realized Gains</p>
+                  </div>
+                  <p className="text-2xl font-bold text-green-500">
+                    +${realizedGains.toLocaleString()}
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <TrendingDown className="h-4 w-4 text-red-500" />
+                    <p className="text-sm text-muted-foreground">Realized Losses</p>
+                  </div>
+                  <p className="text-2xl font-bold text-red-500">
+                    ${realizedLosses.toLocaleString()}
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-blue-500" />
+                    <p className="text-sm text-muted-foreground">Net Capital Gain</p>
+                  </div>
+                  <p className={`text-2xl font-bold ${netCapitalGain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {netCapitalGain >= 0 ? '+' : ''}${netCapitalGain.toLocaleString()}
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    <p className="text-sm text-muted-foreground">Capital Gains Tax</p>
+                  </div>
+                  <p className="text-2xl font-bold text-amber-500">
+                    ${estimatedTaxOwed.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    At {taxRate}% tax rate
+                  </p>
+                </div>
               </div>
-              <p className="text-2xl font-bold text-green-500">
-                +${realizedGains.toLocaleString()}
-              </p>
             </div>
             
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-red-500" />
-                <p className="text-sm text-muted-foreground">Realized Losses</p>
+            {/* Ordinary Income Section */}
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">Ordinary Income (Options Premium)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-purple-500" />
+                    <p className="text-sm text-muted-foreground">Options Premium Collected</p>
+                  </div>
+                  <p className="text-2xl font-bold text-purple-500">
+                    ${ordinaryIncome.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Taxed as ordinary income
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-orange-500" />
+                    <p className="text-sm text-muted-foreground">Ordinary Income Tax</p>
+                  </div>
+                  <p className="text-2xl font-bold text-orange-500">
+                    ${ordinaryIncomeTax.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    At {taxRate}% tax rate
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                    <p className="text-sm text-muted-foreground">Total Tax Liability</p>
+                  </div>
+                  <p className="text-2xl font-bold text-red-500">
+                    ${totalTaxLiability.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Capital gains + ordinary income
+                  </p>
+                </div>
               </div>
-              <p className="text-2xl font-bold text-red-500">
-                ${realizedLosses.toLocaleString()}
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-blue-500" />
-                <p className="text-sm text-muted-foreground">Net Capital Gain</p>
-              </div>
-              <p className={`text-2xl font-bold ${netCapitalGain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {netCapitalGain >= 0 ? '+' : ''}${netCapitalGain.toLocaleString()}
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
-                <p className="text-sm text-muted-foreground">Estimated Tax Owed</p>
-              </div>
-              <p className="text-2xl font-bold text-amber-500">
-                ${estimatedTaxOwed.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                At {taxRate}% tax rate
-              </p>
             </div>
           </div>
+          )}
         </CardContent>
       </Card>
       
@@ -213,10 +274,10 @@ export function TaxTab() {
                       <td className="text-right p-3">${position.costBasis.toFixed(2)}</td>
                       <td className="text-right p-3">${position.currentPrice.toFixed(2)}</td>
                       <td className="text-right p-3 text-red-500 font-medium">
-                        ${position.unrealizedLoss.toLocaleString()}
+                        ${position.unrealizedPL.toLocaleString()}
                       </td>
                       <td className="text-right p-3 text-green-500 font-medium">
-                        ${(Math.abs(position.unrealizedLoss) * (taxRate / 100)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        ${(Math.abs(position.unrealizedPL) * (taxRate / 100)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </td>
                       <td className="text-center p-3">
                         <Button size="sm" variant="outline">
@@ -293,19 +354,7 @@ export function TaxTab() {
         </CardContent>
       </Card>
       
-      {/* Coming Soon Notice */}
-      <Card className="border-dashed">
-        <CardContent className="pt-6">
-          <div className="text-center text-muted-foreground">
-            <p className="text-sm">
-              🚧 <strong>Real-time data integration coming soon</strong> 🚧
-            </p>
-            <p className="text-xs mt-2">
-              This dashboard currently shows mock data. Real-time position tracking and automated loss harvesting will be added in the next update.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+
     </div>
   );
 }

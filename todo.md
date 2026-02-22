@@ -5826,3 +5826,27 @@
 - [ ] Test calculations with real account data
 - [ ] Validate tax rules with examples
 - [ ] Save checkpoint and deliver to user
+
+## Tax Dashboard - Real Position Data Integration
+
+### Phase 1: Backend - Stock Positions
+- [x] Create getTaxSummary procedure to fetch stock positions from Tastytrade
+- [x] Calculate unrealized gains/losses for each stock position
+- [x] Filter positions with unrealized losses (harvestable)
+- [x] Support multi-account aggregation
+
+### Phase 2: Backend - Ordinary Income Tracking
+- [x] Fetch closed options positions (premium collected = ordinary income)
+- [x] Calculate YTD ordinary income from options trading
+- [x] Calculate total tax liability (ordinary income + capital gains)
+
+### Phase 3: UI Updates
+- [x] Replace mock data with real Tastytrade positions
+- [x] Display ordinary income section
+- [x] Show combined tax liability (ordinary + capital gains)
+- [x] Add loading states for data fetching
+
+### Phase 4: Testing & Delivery
+- [ ] Test with real account data
+- [ ] Verify tax calculations
+- [ ] Save checkpoint
