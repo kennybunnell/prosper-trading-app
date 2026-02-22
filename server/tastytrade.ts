@@ -916,6 +916,49 @@ export class TastytradeAPI {
   }
 
   /**
+   * Get tax lot data for a specific position (cost basis, acquisition date, holding period)
+   * @param accountNumber - Account number
+   * @param symbol - Stock symbol (e.g., 'AAPL', 'TSLA')
+   */
+  async getTaxLots(accountNumber: string, symbol: string): Promise<any[]> {
+    try {
+      const response = await this.client.get(
+        `/accounts/${accountNumber}/positions/${symbol}/tax-lots`
+      );
+      return response.data.data?.items || [];
+    } catch (error: any) {
+      console.error(`[Tastytrade] Tax lots error for ${symbol}:`, error.response?.data?.error?.message || error.message);
+      // Return empty array if endpoint doesn't exist or symbol has no tax lots
+      return [];
+    }
+  }
+
+  /**
+   * Get realized P&L report from Tastytrade (official tax data)
+   * @param accountNumber - Account number
+   * @param startDate - Start date (YYYY-MM-DD)
+   * @param endDate - End date (YYYY-MM-DD)
+   */
+  async getRealizedPnL(accountNumber: string, startDate: string, endDate: string): Promise<any> {
+    try {
+      const response = await this.client.get(
+        `/accounts/${accountNumber}/profit-loss`,
+        {
+          params: {
+            'start-date': startDate,
+            'end-date': endDate,
+          }
+        }
+      );
+      return response.data.data || {};
+    } catch (error: any) {
+      console.error(`[Tastytrade] Realized P&L error:`, error.response?.data?.error?.message || error.message);
+      // Return empty object if endpoint doesn't exist
+      return {};
+    }
+  }
+
+  /**
    * Get underlying stock quote (current price)
    * @param symbol - Stock symbol (e.g., 'AAPL', 'TSLA')
    * @returns Current stock price (last trade or mid price)

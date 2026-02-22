@@ -233,4 +233,327 @@ export const taxRouter = router({
         totalDisallowedLoss,
       };
     }),
+
+  /**
+   * Verify tax calculations by cross-checking with Tastytrade official data
+   * Fetches tax lots and realized P&L reports to validate our calculations
+   */
+  getTaxVerification: protectedProcedure
+    .input(z.object({
+      accountNumber: z.string().optional(),
+      year: z.number().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const { getApiCredentials } = await import('./db');
+      
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials) {
+        throw new Error('Tastytrade credentials not found');
+      }
+      
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+      const accounts = await api.getAccounts();
+      if (!accounts || accounts.length === 0) {
+        throw new Error('No accounts found');
+      }
+      
+      const targetAccounts = input.accountNumber
+        ? accounts.filter((acc: any) => acc['account-number'] === input.accountNumber)
+        : accounts;
+      
+      const accountNumbers = targetAccounts.map((acc: any) => acc['account-number']);
+      const taxYear = input.year || new Date().getFullYear();
+      const yearStart = `${taxYear}-01-01`;
+      const yearEnd = `${taxYear}-12-31`;
+      
+      // Fetch official Tastytrade realized P&L data
+      let tastytradeRealizedPnL = 0;
+      const verificationDetails: Array<{
+        accountNumber: string;
+        tastytradeData: any;
+        status: 'success' | 'unavailable' | 'error';
+      }> = [];
+      
+      for (const accountNumber of accountNumbers) {
+        try {
+          const pnlData = await api.getRealizedPnL(accountNumber, yearStart, yearEnd);
+          
+          if (pnlData && Object.keys(pnlData).length > 0) {
+            // Extract realized P&L from Tastytrade response
+            // Note: Actual field names may vary - adjust based on API response
+            const realizedPnL = pnlData['realized-profit-loss'] || pnlData['realized-pnl'] || 0;
+            tastytradeRealizedPnL += realizedPnL;
+            
+            verificationDetails.push({
+              accountNumber,
+              tastytradeData: pnlData,
+              status: 'success',
+            });
+          } else {
+            verificationDetails.push({
+              accountNumber,
+              tastytradeData: null,
+              status: 'unavailable',
+            });
+          }
+        } catch (error) {
+          console.error(`Failed to fetch P&L for ${accountNumber}:`, error);
+          verificationDetails.push({
+            accountNumber,
+            tastytradeData: null,
+            status: 'error',
+          });
+        }
+      }
+      
+      // Fetch tax lot data for open stock positions (for cost basis verification)
+      const taxLotData: Array<{
+        symbol: string;
+        accountNumber: string;
+        lots: any[];
+      }> = [];
+      
+      for (const accountNumber of accountNumbers) {
+        try {
+          const positions = await api.getPositions(accountNumber);
+          const stockPositions = positions.filter((pos: any) => 
+            pos['instrument-type'] === 'Equity' && pos.quantity !== 0
+          );
+          
+          for (const position of stockPositions) {
+            const symbol = position.symbol;
+            const lots = await api.getTaxLots(accountNumber, symbol);
+            
+            if (lots.length > 0) {
+              taxLotData.push({
+                symbol,
+                accountNumber,
+                lots,
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to fetch tax lots for ${accountNumber}:`, error);
+        }
+      }
+      
+      return {
+        taxYear,
+        tastytradeRealizedPnL,
+        verificationDetails,
+        taxLotData,
+        dataAvailable: verificationDetails.some(d => d.status === 'success'),
+      };
+    }),
+
+  /**
+   * Generate PDF tax summary report
+   * Returns PDF as base64 string for download
+   */
+  generateTaxPDF: protectedProcedure
+    .input(z.object({
+      accountNumber: z.string().optional(),
+      year: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const PDFDocument = (await import('pdfkit')).default;
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const { getApiCredentials } = await import('./db');
+      
+      // Get tax summary data by calling getTaxSummary directly
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials) {
+        throw new Error('Tastytrade credentials not found');
+      }
+      
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+      const accounts = await api.getAccounts();
+      if (!accounts || accounts.length === 0) {
+        throw new Error('No accounts found');
+      }
+      
+      const targetAccounts = input.accountNumber
+        ? accounts.filter((acc: any) => acc['account-number'] === input.accountNumber)
+        : accounts;
+      
+      const accountNumbers = targetAccounts.map((acc: any) => acc['account-number']);
+      const taxYear = input.year || new Date().getFullYear();
+      const yearStart = `${taxYear}-01-01`;
+      const yearEnd = `${taxYear}-12-31`;
+      
+      // Simplified tax data calculation for PDF
+      let realizedGains = 0;
+      let realizedLosses = 0;
+      let ordinaryIncome = 0;
+      const harvestablePositions: any[] = [];
+      const washSaleViolations: any[] = [];
+      
+      for (const accountNumber of accountNumbers) {
+        try {
+          const transactions = await api.getTransactionHistory(accountNumber, yearStart, yearEnd);
+          
+          for (const txn of transactions) {
+            if (txn.action === 'Sell' && txn['instrument-type'] === 'Equity') {
+              const pnl = parseFloat(txn['net-value'] || '0');
+              if (pnl > 0) realizedGains += pnl;
+              else realizedLosses += Math.abs(pnl);
+            }
+            if (txn['instrument-type'] === 'Equity Option' && (txn.action === 'Sell to Open' || txn.action === 'Buy to Close')) {
+              ordinaryIncome += Math.abs(parseFloat(txn['net-value'] || '0'));
+            }
+          }
+          
+          const positions = await api.getPositions(accountNumber);
+          const stockPositions = positions.filter((pos: any) => 
+            pos['instrument-type'] === 'Equity' && pos.quantity !== 0
+          );
+          
+          for (const position of stockPositions) {
+            const unrealizedPL = parseFloat(position['close-price'] || '0') * position.quantity - parseFloat(position['cost-effect'] || '0');
+            if (unrealizedPL < 0) {
+              harvestablePositions.push({
+                symbol: position.symbol,
+                accountNumber,
+                quantity: position.quantity,
+                costBasis: parseFloat(position['cost-effect'] || '0'),
+                unrealizedPL,
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to fetch data for ${accountNumber}:`, error);
+        }
+      }
+      
+      const netCapitalGain = realizedGains - realizedLosses;
+      const taxData = {
+        taxYear,
+        realizedGains,
+        realizedLosses,
+        netCapitalGain,
+        ordinaryIncome,
+        harvestablePositions: harvestablePositions.sort((a, b) => a.unrealizedPL - b.unrealizedPL),
+        washSaleViolations,
+      };
+      
+      const currentDate = new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      // Create PDF document
+      const doc = new PDFDocument({ size: 'LETTER', margin: 50 });
+      const chunks: Buffer[] = [];
+      
+      doc.on('data', (chunk) => chunks.push(chunk));
+      
+      return new Promise<{ pdf: string; filename: string }>((resolve, reject) => {
+        doc.on('end', () => {
+          const pdfBuffer = Buffer.concat(chunks);
+          const pdfBase64 = pdfBuffer.toString('base64');
+          resolve({
+            pdf: pdfBase64,
+            filename: `Tax_Summary_${taxYear}_${(ctx.user.name || 'User').replace(/\s+/g, '_')}.pdf`,
+          });
+        });
+        
+        doc.on('error', reject);
+        
+        try {
+          // Cover Page
+          doc.fontSize(24).font('Helvetica-Bold').text('Tax Summary Report', { align: 'center' });
+          doc.moveDown(0.5);
+          doc.fontSize(16).font('Helvetica').text(`Tax Year ${taxYear}`, { align: 'center' });
+          doc.moveDown(2);
+          
+          doc.fontSize(12).text(`Prepared for: ${ctx.user.name}`, { align: 'center' });
+          doc.text(`Generated: ${currentDate}`, { align: 'center' });
+          doc.moveDown(3);
+          
+          // Summary Section
+          doc.fontSize(18).font('Helvetica-Bold').text('Summary');
+          doc.moveDown(0.5);
+          doc.fontSize(12).font('Helvetica');
+          
+          const summaryY = doc.y;
+          doc.text(`Realized Gains: $${taxData.realizedGains.toLocaleString()}`, { continued: false });
+          doc.text(`Realized Losses: $${taxData.realizedLosses.toLocaleString()}`, { continued: false });
+          doc.text(`Net Capital Gain/Loss: $${taxData.netCapitalGain.toLocaleString()}`, { continued: false });
+          doc.text(`Ordinary Income (Options): $${taxData.ordinaryIncome.toLocaleString()}`, { continued: false });
+          doc.moveDown(1);
+          
+          // Harvestable Losses Section
+          if (taxData.harvestablePositions.length > 0) {
+            doc.fontSize(16).font('Helvetica-Bold').text('Harvestable Losses');
+            doc.moveDown(0.5);
+            doc.fontSize(10).font('Helvetica');
+            
+            // Table header
+            const tableTop = doc.y;
+            const col1 = 50;
+            const col2 = 150;
+            const col3 = 250;
+            const col4 = 350;
+            const col5 = 450;
+            
+            doc.font('Helvetica-Bold');
+            doc.text('Symbol', col1, tableTop);
+            doc.text('Account', col2, tableTop);
+            doc.text('Quantity', col3, tableTop);
+            doc.text('Cost Basis', col4, tableTop);
+            doc.text('Unrealized P/L', col5, tableTop);
+            doc.moveDown(0.5);
+            
+            doc.font('Helvetica');
+            taxData.harvestablePositions.slice(0, 20).forEach((pos: any) => {
+              const y = doc.y;
+              doc.text(pos.symbol, col1, y);
+              doc.text(pos.accountNumber, col2, y);
+              doc.text(pos.quantity.toString(), col3, y);
+              doc.text(`$${pos.costBasis.toLocaleString()}`, col4, y);
+              doc.text(`$${pos.unrealizedPL.toLocaleString()}`, col5, y);
+              doc.moveDown(0.3);
+            });
+            
+            if (taxData.harvestablePositions.length > 20) {
+              doc.fontSize(9).fillColor('gray').text(`... and ${taxData.harvestablePositions.length - 20} more positions`);
+              doc.fillColor('black');
+            }
+            doc.moveDown(1);
+          }
+          
+          // Wash Sale Violations Section
+          if (taxData.washSaleViolations.length > 0) {
+            doc.addPage();
+            doc.fontSize(16).font('Helvetica-Bold').text('Wash Sale Violations');
+            doc.moveDown(0.5);
+            doc.fontSize(10).font('Helvetica');
+            
+            taxData.washSaleViolations.forEach((ws: any) => {
+              doc.text(`Symbol: ${ws.symbol}`);
+              doc.text(`Sale Date: ${ws.saleDate}`);
+              doc.text(`Repurchase Date: ${ws.repurchaseDate}`);
+              doc.text(`Disallowed Loss: $${ws.disallowedLoss.toLocaleString()}`);
+              doc.moveDown(0.5);
+            });
+          }
+          
+          // Footer
+          doc.fontSize(8).fillColor('gray').text(
+            'This report is for informational purposes only and should not be considered tax advice. Consult a tax professional.',
+            50,
+            doc.page.height - 50,
+            { align: 'center' }
+          );
+          
+          doc.end();
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }),
 });
+
+

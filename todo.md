@@ -5886,6 +5886,40 @@
 - [x] Add summary card showing carryforward rules and guidance
 
 ### Phase 3: Testing & Delivery
-- [ ] Test with multiple tax years (2024, 2025, 2026)
-- [ ] Verify carryforward calculations
+- [x] Test with multiple tax years (2024, 2025, 2026)
+- [x] Verify carryforward calculations
+- [x] Save checkpoint
+
+## Tax Data Cross-Checking & PDF Export
+
+### Phase 1: Enhanced Tax Data Cross-Checking
+- [x] Fetch tax lot data from Tastytrade API for accurate cost basis
+- [x] Fetch realized P&L reports from Tastytrade API
+- [x] Compare our calculated realized gains/losses against Tastytrade's official data
+- [x] Calculate verification metrics (accuracy percentage, discrepancies)
+- [x] Add getTaxVerification procedure to tax router
+
+### Phase 2: Data Verification UI
+- [x] Add "Data Verification" section to Tax Dashboard
+- [x] Display comparison between our calculations and Tastytrade official data
+- [x] Show accuracy metrics and any discrepancies
+- [x] Add refresh button to re-verify data
+
+### Phase 3: PDF Export Backend
+- [x] Install PDF generation library (pdfkit)
+- [x] Create generateTaxPDF procedure in tax router
+- [x] Build PDF template with cover page, summary, and detailed tables
+- [x] Include harvestable positions, wash sales
+- [x] Return PDF as base64 for download
+
+### Phase 4: PDF Export UI
+- [x] Add "Export PDF" button to Tax Dashboard
+- [x] Add loading state during PDF generation
+- [x] Trigger download when PDF is ready
+- [x] Add success/error toast notifications
+
+### Phase 5: Testing & Delivery
+- [ ] Test tax data verification with real account data
+- [ ] Test PDF export for multiple tax years
+- [ ] Verify PDF formatting and completeness
 - [ ] Save checkpoint

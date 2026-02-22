@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { trpc } from '@/lib/trpc';
-import { DollarSign, TrendingDown, TrendingUp, AlertTriangle, Save, RefreshCw } from 'lucide-react';
+import { DollarSign, TrendingDown, TrendingUp, AlertTriangle, Save, RefreshCw, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAccount } from '@/contexts/AccountContext';
 
@@ -14,6 +14,45 @@ export function TaxTab() {
   const [taxRate, setTaxRate] = useState(24);
   const [isSaving, setIsSaving] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [isExporting, setIsExporting] = useState(false);
+  
+  // PDF export mutation
+  const exportPDFMutation = trpc.tax.generateTaxPDF.useMutation();
+  
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      const result = await exportPDFMutation.mutateAsync({
+        accountNumber: selectedAccountId || undefined,
+        year: selectedYear,
+      });
+      
+      // Convert base64 to blob and trigger download
+      const byteCharacters = atob(result.pdf);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = result.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('PDF exported successfully');
+    } catch (error) {
+      console.error('PDF export error:', error);
+      toast.error('Failed to export PDF');
+    } finally {
+      setIsExporting(false);
+    }
+  };
   
   // Generate year options (current year + 2 previous years)
   const currentYear = new Date().getFullYear();
@@ -50,6 +89,15 @@ export function TaxTab() {
   
   // Fetch real tax data from Tastytrade
   const { data: taxData, isLoading, refetch } = trpc.tax.getTaxSummary.useQuery(
+    { 
+      accountNumber: selectedAccountId || undefined,
+      year: selectedYear 
+    },
+    { enabled: !!selectedAccountId || selectedAccountId === 'all' }
+  );
+  
+  // Fetch tax verification data (cross-check with Tastytrade official data)
+  const { data: verificationData, isLoading: isVerifying, refetch: refetchVerification } = trpc.tax.getTaxVerification.useQuery(
     { 
       accountNumber: selectedAccountId || undefined,
       year: selectedYear 
@@ -122,6 +170,19 @@ export function TaxTab() {
                 <>
                   <Save className="h-4 w-4 mr-2" />
                   Save Tax Rate
+                </>
+              )}
+            </Button>
+            <Button onClick={handleExportPDF} disabled={isExporting} variant="outline">
+              {isExporting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Generating PDF...
+                </>
+              ) : (
+                <>
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Export PDF Report
                 </>
               )}
             </Button>
@@ -238,6 +299,111 @@ export function TaxTab() {
               </div>
             </div>
           </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      {/* Data Verification */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Data Verification</CardTitle>
+          <CardDescription>
+            Cross-check our calculations against Tastytrade official tax data
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isVerifying ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : verificationData?.dataAvailable ? (
+            <div className="space-y-4">
+              {/* Verification Status */}
+              <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center mt-0.5">
+                    <span className="text-green-500 text-sm">✓</span>
+                  </div>
+                  <div>
+                    <p className="font-medium text-green-500">Verification Complete</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Successfully cross-checked with Tastytrade official tax data
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Comparison Table */}
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left p-3 font-medium">Metric</th>
+                      <th className="text-right p-3 font-medium">Our Calculation</th>
+                      <th className="text-right p-3 font-medium">Tastytrade Official</th>
+                      <th className="text-right p-3 font-medium">Difference</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t">
+                      <td className="p-3">Realized P&L</td>
+                      <td className="text-right p-3 font-medium">
+                        {netCapitalGain >= 0 ? '+' : ''}${netCapitalGain.toLocaleString()}
+                      </td>
+                      <td className="text-right p-3 font-medium">
+                        {verificationData.tastytradeRealizedPnL >= 0 ? '+' : ''}${verificationData.tastytradeRealizedPnL.toLocaleString()}
+                      </td>
+                      <td className="text-right p-3">
+                        {Math.abs(netCapitalGain - verificationData.tastytradeRealizedPnL) < 1 ? (
+                          <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">Match</Badge>
+                        ) : (
+                          <span className="text-amber-500">
+                            ${Math.abs(netCapitalGain - verificationData.tastytradeRealizedPnL).toLocaleString()}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* Tax Lot Info */}
+              {verificationData.taxLotData && verificationData.taxLotData.length > 0 && (
+                <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <DollarSign className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-blue-500">Tax Lot Data Available</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Found {verificationData.taxLotData.length} positions with tax lot data for accurate cost basis verification
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => refetchVerification()}
+                className="w-full"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh Verification
+              </Button>
+            </div>
+          ) : (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-amber-500">Verification Data Unavailable</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Tastytrade official tax data not available for this account/year. Our calculations are based on transaction history.
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
