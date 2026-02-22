@@ -13,6 +13,11 @@ export function TaxTab() {
   const { selectedAccountId } = useAccount();
   const [taxRate, setTaxRate] = useState(24);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  
+  // Generate year options (current year + 2 previous years)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = [currentYear, currentYear - 1, currentYear - 2];
   
   // Fetch user preferences
   const { data: userPrefs, refetch: refetchPrefs } = trpc.userPreferences.get.useQuery();
@@ -45,7 +50,10 @@ export function TaxTab() {
   
   // Fetch real tax data from Tastytrade
   const { data: taxData, isLoading, refetch } = trpc.tax.getTaxSummary.useQuery(
-    { accountNumber: selectedAccountId || undefined },
+    { 
+      accountNumber: selectedAccountId || undefined,
+      year: selectedYear 
+    },
     { enabled: !!selectedAccountId || selectedAccountId === 'all' }
   );
   
@@ -63,16 +71,31 @@ export function TaxTab() {
   
   return (
     <div className="space-y-6">
-      {/* Tax Rate Configuration */}
+      {/* Tax Year & Rate Configuration */}
       <Card>
         <CardHeader>
           <CardTitle>Tax Configuration</CardTitle>
           <CardDescription>
-            Configure your marginal tax rate for accurate tax mitigation calculations
+            Select tax year and configure your marginal tax rate for accurate calculations
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-end gap-4">
+          <div className="flex items-end gap-4 flex-wrap">
+            <div className="flex-1 max-w-xs space-y-2">
+              <Label htmlFor="tax-year">Tax Year</Label>
+              <select
+                id="tax-year"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              >
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>
+                    {year} {year === currentYear && '(Current)'}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="flex-1 max-w-xs space-y-2">
               <Label htmlFor="tax-rate">Your Marginal Tax Rate (%)</Label>
               <Input
@@ -109,9 +132,9 @@ export function TaxTab() {
       {/* Current Year Tax Position */}
       <Card>
         <CardHeader>
-          <CardTitle>{taxData?.taxYear || new Date().getFullYear()} Tax Position</CardTitle>
+          <CardTitle>{selectedYear} Tax Position</CardTitle>
           <CardDescription>
-            Your realized gains/losses and ordinary income for the current tax year
+            Your realized gains/losses and ordinary income for tax year {selectedYear}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -431,6 +454,91 @@ export function TaxTab() {
         </CardContent>
       </Card>
       
+      {/* Year-over-Year Comparison */}
+      {selectedYear < currentYear && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Year-over-Year Comparison</CardTitle>
+            <CardDescription>
+              Compare tax efficiency across multiple years to track carryforward losses
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Comparison Note */}
+              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <DollarSign className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-blue-500">Historical Tax Year Selected</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      You're viewing {selectedYear} tax data. Switch to {currentYear} to see current year position.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Carryforward Losses */}
+              <div className="border rounded-lg p-4">
+                <h3 className="font-medium mb-3">Capital Loss Carryforward Rules</h3>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p>• <strong>$3,000 annual limit:</strong> You can deduct up to $3,000 of net capital losses against ordinary income each year</p>
+                  <p>• <strong>Unlimited carryforward:</strong> Losses exceeding $3,000 can be carried forward indefinitely to offset future capital gains</p>
+                  <p>• <strong>Example:</strong> If you had $10,000 net loss in {selectedYear}, you could deduct $3,000 that year and carry forward $7,000 to future years</p>
+                </div>
+              </div>
+              
+              {/* Quick Comparison Table */}
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left p-3 font-medium">Metric</th>
+                      <th className="text-right p-3 font-medium">{selectedYear}</th>
+                      <th className="text-right p-3 font-medium">Change from Previous Year</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t">
+                      <td className="p-3">Net Capital Gain/Loss</td>
+                      <td className="text-right p-3 font-medium">
+                        {netCapitalGain >= 0 ? '+' : ''}${netCapitalGain.toLocaleString()}
+                      </td>
+                      <td className="text-right p-3 text-muted-foreground">—</td>
+                    </tr>
+                    <tr className="border-t">
+                      <td className="p-3">Ordinary Income (Options)</td>
+                      <td className="text-right p-3 font-medium">
+                        +${ordinaryIncome.toLocaleString()}
+                      </td>
+                      <td className="text-right p-3 text-muted-foreground">—</td>
+                    </tr>
+                    <tr className="border-t">
+                      <td className="p-3">Total Tax Liability</td>
+                      <td className="text-right p-3 font-medium">
+                        ${totalTaxLiability.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </td>
+                      <td className="text-right p-3 text-muted-foreground">—</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-500">Multi-Year Comparison Coming Soon</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Full year-over-year trend analysis with carryforward loss tracking will be available in a future update.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
     </div>
   );

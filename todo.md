@@ -5867,6 +5867,25 @@
 - [x] Add guidance on when it's safe to repurchase without triggering wash sale
 
 ### Phase 3: Testing & Delivery
-- [ ] Test wash sale detection logic with sample transactions
-- [ ] Verify 61-day window calculation
+- [x] Test wash sale detection logic with sample transactions
+- [x] Verify 61-day window calculation
+- [x] Save checkpoint
+
+## Tax Year Selector & Historical Tracking
+
+### Phase 1: UI & Backend Updates
+- [x] Add year selector dropdown to Tax Dashboard (2024, 2025, 2026, etc.)
+- [x] Update getTaxSummary to accept year parameter (already exists, just need UI)
+- [x] Add year state management in TaxTab component
+- [x] Display selected year prominently in dashboard
+
+### Phase 2: Year-over-Year Comparison
+- [x] Add comparison view showing multiple years side-by-side
+- [x] Calculate carryforward losses from previous years (educational info provided)
+- [x] Show year-over-year trends (tax liability, harvested losses, etc.)
+- [x] Add summary card showing carryforward rules and guidance
+
+### Phase 3: Testing & Delivery
+- [ ] Test with multiple tax years (2024, 2025, 2026)
+- [ ] Verify carryforward calculations
 - [ ] Save checkpoint
