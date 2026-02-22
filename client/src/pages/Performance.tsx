@@ -24,6 +24,7 @@ import { DollarSign, Package, TrendingUp as TrendingUpIcon, TrendingDown as Tren
 import { useLocation } from 'wouter';
 import { ConnectionStatusIndicator } from '@/components/ConnectionStatusIndicator';
 import { SpreadAnalyticsTab } from '@/components/SpreadAnalyticsTab';
+import { TaxTab } from '@/components/TaxTab';
 
 export default function Performance() {
   const [location] = useLocation();
@@ -66,13 +67,14 @@ export default function Performance() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="active-positions">Active Positions</TabsTrigger>
           <TabsTrigger value="spread-analytics">Spread Analytics</TabsTrigger>
           <TabsTrigger value="working-orders">Working Orders</TabsTrigger>
           <TabsTrigger value="stock-basis">Stock Basis</TabsTrigger>
           <TabsTrigger value="projections">Projections</TabsTrigger>
+          <TabsTrigger value="tax">Tax</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -99,6 +101,11 @@ export default function Performance() {
         </TabsContent>
         <TabsContent value="projections" className="space-y-6">
           <ProjectionsTab />
+        </TabsContent>
+        
+        {/* Tax Loss Harvesting Tab */}
+        <TabsContent value="tax" className="space-y-6">
+          <TaxTab />
         </TabsContent>
       </Tabs>
     </div>

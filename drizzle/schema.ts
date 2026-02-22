@@ -261,6 +261,9 @@ export const userPreferences = mysqlTable("userPreferences", {
   strategyAdvisorAutoRefresh: boolean("strategyAdvisorAutoRefresh").notNull().default(false),
   strategyAdvisorRefreshInterval: int("strategyAdvisorRefreshInterval").notNull().default(30), // minutes (15, 30, 60)
   
+  // Tax settings
+  taxRate: int("taxRate").notNull().default(24), // User's marginal tax rate percentage (e.g., 24, 32, 37)
+  
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -2409,6 +2409,15 @@ Summary: [One sentence overall assessment]`;
         });
         return { success: true };
       }),
+    setTaxRate: protectedProcedure
+      .input(z.object({ taxRate: z.number().min(0).max(50) }))
+      .mutation(async ({ ctx, input }) => {
+        const { upsertUserPreferences } = await import('./db');
+        await upsertUserPreferences(ctx.user.id, {
+          taxRate: input.taxRate,
+        });
+        return { success: true };
+      }),
   }),
 
   account: router({

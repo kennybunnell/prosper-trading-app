@@ -781,6 +781,7 @@ export async function upsertUserPreferences(
     defaultTastytradeAccountId?: string;
     strategyAdvisorAutoRefresh?: boolean;
     strategyAdvisorRefreshInterval?: number;
+    taxRate?: number;
   }
 ) {
   const db = await getDb();
@@ -803,6 +804,9 @@ export async function upsertUserPreferences(
     if (preferences.strategyAdvisorRefreshInterval !== undefined) {
       updates.strategyAdvisorRefreshInterval = preferences.strategyAdvisorRefreshInterval;
     }
+    if (preferences.taxRate !== undefined) {
+      updates.taxRate = preferences.taxRate;
+    }
     
     if (Object.keys(updates).length > 0) {
       await db
@@ -817,6 +821,7 @@ export async function upsertUserPreferences(
       defaultTastytradeAccountId: preferences.defaultTastytradeAccountId || null,
       strategyAdvisorAutoRefresh: preferences.strategyAdvisorAutoRefresh ?? false,
       strategyAdvisorRefreshInterval: preferences.strategyAdvisorRefreshInterval ?? 30,
+      taxRate: preferences.taxRate ?? 24,
     });
   }
   

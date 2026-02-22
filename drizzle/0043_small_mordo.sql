@@ -1,0 +1,1 @@
+ALTER TABLE `userPreferences` ADD `taxRate` int DEFAULT 24 NOT NULL;

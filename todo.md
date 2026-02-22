@@ -5798,3 +5798,31 @@
 - [x] Add loading states during refresh
 - [x] Store user's refresh preference in database
 - [x] Add market hours detection to pause auto-refresh outside trading hours
+
+## Tax Loss Harvesting Dashboard
+
+### Phase 1: Research & Design
+- [ ] Research IRS tax loss harvesting rules (wash sale, capital loss limits, carryforward)
+- [ ] Design dashboard layout and key metrics
+- [ ] Define data sources (Tastytrade positions, closed trades, stock positions)
+
+### Phase 2: Backend Implementation
+- [ ] Create database schema for tax lot tracking
+- [ ] Build procedures to fetch realized gains/losses from closed positions
+- [ ] Build procedures to calculate unrealized gains/losses from open positions
+- [ ] Calculate tax mitigation potential (current year + carryforward)
+- [ ] Implement wash sale detection logic
+
+### Phase 3: UI Implementation
+- [x] Add Tax tab to Performance page (after Projections tab)
+- [x] Add tax rate configuration input (user enters their tax bracket %)
+- [x] Display realized gains/losses YTD (mock data for now)
+- [x] Display unrealized gains/losses (harvestable) (mock data for now)
+- [x] Show tax mitigation potential (how much loss can offset gains)
+- [x] Add loss harvesting recommendations (which positions to close)
+- [x] Display wash sale warnings
+
+### Phase 4: Testing & Delivery
+- [ ] Test calculations with real account data
+- [ ] Validate tax rules with examples
+- [ ] Save checkpoint and deliver to user
