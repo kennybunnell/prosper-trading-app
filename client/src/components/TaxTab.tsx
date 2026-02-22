@@ -293,15 +293,104 @@ export function TaxTab() {
         </CardContent>
       </Card>
       
-      {/* Strategic Insights */}
+      {/* Wash Sale Warnings */}
+      {taxData && taxData.washSaleViolations && taxData.washSaleViolations.length > 0 && (
+        <Card className="border-red-500/50">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <CardTitle className="text-red-500">Wash Sale Violations Detected</CardTitle>
+            </div>
+            <CardDescription>
+              IRS wash sale rule: Losses are disallowed if you repurchase the same security within 30 days before or after the sale
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Disallowed Losses</p>
+                    <p className="text-2xl font-bold text-red-500">
+                      ${taxData.totalDisallowedLoss?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || 0}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Violations</p>
+                    <p className="text-2xl font-bold text-red-500">
+                      {taxData.washSaleViolations.length}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Lost Tax Savings</p>
+                    <p className="text-2xl font-bold text-red-500">
+                      ${((taxData.totalDisallowedLoss || 0) * (taxRate / 100)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Violations Table */}
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left p-3 font-medium">Symbol</th>
+                      <th className="text-left p-3 font-medium">Sale Date</th>
+                      <th className="text-left p-3 font-medium">Repurchase Date</th>
+                      <th className="text-right p-3 font-medium">Disallowed Loss</th>
+                      <th className="text-right p-3 font-medium">Lost Tax Savings</th>
+                      <th className="text-left p-3 font-medium">Account</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {taxData.washSaleViolations.map((ws, idx) => (
+                      <tr key={idx} className="border-t hover:bg-muted/30">
+                        <td className="p-3 font-medium">{ws.symbol}</td>
+                        <td className="p-3 text-sm">{new Date(ws.saleDate).toLocaleDateString()}</td>
+                        <td className="p-3 text-sm">{new Date(ws.repurchaseDate).toLocaleDateString()}</td>
+                        <td className="text-right p-3 text-red-500 font-medium">
+                          ${ws.disallowedLoss.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="text-right p-3 text-red-500 font-medium">
+                          ${(ws.disallowedLoss * (taxRate / 100)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="p-3 text-sm text-muted-foreground">{ws.accountNumber}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* Guidance */}
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-500">How to Avoid Wash Sales</p>
+                    <ul className="text-sm text-muted-foreground mt-2 space-y-1 list-disc list-inside">
+                      <li>Wait 31 days after selling before repurchasing the same security</li>
+                      <li>Consider purchasing a similar (but not substantially identical) security instead</li>
+                      <li>Track your trades carefully to avoid accidental violations</li>
+                      <li>Disallowed losses are added to the cost basis of the repurchased shares (not permanently lost)</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Strategic Recommendations */}
       <Card>
         <CardHeader>
-          <CardTitle>Tax-Optimized Trading Strategy</CardTitle>
+          <CardTitle>Strategic Recommendations</CardTitle>
           <CardDescription>
             Recommendations for maximizing after-tax returns
           </CardDescription>
-        </CardHeader>
-        <CardContent>
+        </CardHeader>       <CardContent>
           <div className="space-y-3">
             <div className="flex items-start gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
               <div className="flex-shrink-0 w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center mt-0.5">
@@ -323,18 +412,6 @@ export function TaxTab() {
                 <p className="font-medium">Deploy aggressive spreads up to ${Math.abs(totalHarvestable).toLocaleString()}</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Knowing losses will offset existing gains—trade more aggressively with tax protection
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-              <div className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center mt-0.5">
-                <span className="text-amber-500 text-sm">⚠</span>
-              </div>
-              <div className="flex-1">
-                <p className="font-medium">Avoid repurchasing HOOD until Jan 15 (wash sale rule)</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  IRS disallows loss if you repurchase within 30 days—consider COIN as alternative
                 </p>
               </div>
             </div>

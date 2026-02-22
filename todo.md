@@ -5847,6 +5847,26 @@
 - [x] Add loading states for data fetching
 
 ### Phase 4: Testing & Delivery
-- [ ] Test with real account data
-- [ ] Verify tax calculations
+- [x] Test with real account data
+- [x] Verify tax calculations
+- [x] Save checkpoint
+
+## Wash Sale Detection System
+
+### Phase 1: Backend Logic
+- [x] Fetch all stock transactions (buy/sell) from Tastytrade for the tax year + 30 days before/after
+- [x] Identify all sales at a loss (sell transactions where proceeds < cost basis)
+- [x] For each loss sale, check for repurchases of the same symbol within 61-day window (30 days before + 30 days after)
+- [x] Calculate disallowed loss amount for each wash sale violation
+- [x] Return wash sale warnings with affected symbols, dates, and disallowed amounts
+
+### Phase 2: UI Integration
+- [x] Add "Wash Sale Warnings" section to Tax Dashboard
+- [x] Display list of wash sale violations with symbol, sale date, repurchase date, and disallowed loss
+- [x] Show total disallowed losses (reduces harvestable tax savings)
+- [x] Add guidance on when it's safe to repurchase without triggering wash sale
+
+### Phase 3: Testing & Delivery
+- [ ] Test wash sale detection logic with sample transactions
+- [ ] Verify 61-day window calculation
 - [ ] Save checkpoint
