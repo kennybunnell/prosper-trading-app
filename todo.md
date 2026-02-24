@@ -6071,3 +6071,11 @@
 - [x] Frontend: Add visual separation between strategy groups (colored dots + borders)
 - [x] Test: Verify BPS tickers appear first (MS, CRM, NVDA, TSM, JPM, GS, AMZN)
 - [x] Test: Verify tickers that fit multiple strategies appear in primary strategy group (JPM shows both BPS+IC badges)
+
+## Strategy Advisor - Add Prominent Refresh Button
+- [x] Frontend: Add large, visible "Analyze Watchlist" button at top of Strategy Advisor
+- [x] Frontend: Show loading state during refresh with spinner
+- [x] Frontend: Display timestamp of last analysis ("Last analyzed: 2/24/2026, 1:55:21 PM")
+- [x] Frontend: Toast notifications for analysis start/complete
+- [x] Test: Verify refresh button re-analyzes all tickers including newly added ones (61 tickers analyzed)
+- [x] Test: Verify loading state displays correctly during analysis

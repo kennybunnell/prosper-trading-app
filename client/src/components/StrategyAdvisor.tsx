@@ -160,6 +160,15 @@ export function StrategyAdvisor() {
     return null;
   };
 
+  const handleAnalyzeClick = async () => {
+    toast.info('Analyzing all watchlist tickers...');
+    await refetch();
+    toast.success('Analysis complete!');
+  };
+
+  // Get last updated timestamp
+  const lastUpdated = data?.timestamp ? new Date(data.timestamp).toLocaleString() : null;
+
   return (
     <div className="space-y-6">
       {/* Watchlist Management - Collapsible */}
@@ -168,9 +177,42 @@ export function StrategyAdvisor() {
         onToggleCollapse={() => setWatchlistCollapsed(!watchlistCollapsed)}
         onWatchlistChange={() => {
           utils.strategyAdvisor.getRecommendation.invalidate();
-          refetch();
         }}
       />
+
+      {/* Analyze Button - Prominent */}
+      <Card className="border-primary/50 bg-primary/5">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg mb-1">Ready to Analyze</h3>
+              <p className="text-sm text-muted-foreground">
+                {rankedTickers.length > 0 && lastUpdated
+                  ? `Last analyzed: ${lastUpdated}`
+                  : 'Click to analyze all tickers in your watchlist'}
+              </p>
+            </div>
+            <Button
+              onClick={handleAnalyzeClick}
+              size="lg"
+              disabled={isLoading}
+              className="min-w-[180px]"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-5 w-5 mr-2" />
+                  Analyze Watchlist
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Market Overview - Compact */}
       <Card className={config.bgColor}>
