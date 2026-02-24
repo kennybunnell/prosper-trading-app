@@ -6020,3 +6020,28 @@
 - [x] Send invite email with professional template
 - [x] Notify owner with invite link for tracking
 - [ ] Test with Stripe test payment end-to-end (ready for user testing)
+
+## URGENT: Margin Call Liquidation Analysis (Feb 24, 2026)
+- [ ] Fetch all current positions (stocks + options) with real-time prices
+- [ ] Calculate unrealized P&L for each position
+- [ ] Estimate margin requirement for each position
+- [ ] Calculate margin release from closing each position
+- [ ] Prioritize liquidation order (minimize losses, maximize margin release)
+- [ ] Create step-by-step liquidation execution plan
+- [ ] Present strategy to user with estimated total loss
+
+## Enhanced Watchlist Strategy Advisor (Option B - Replace Current)
+- [x] Backend: Fetch watchlist tickers with IV, 52-week range, momentum data
+- [x] Backend: Pull user's historical performance per ticker (win rate, avg P/L, ROC)
+- [x] Backend: Build scoring algorithm (1-100) based on strategy fit
+- [x] Backend: Generate specific strike recommendations per ticker
+- [x] Backend: Calculate expected premium and probability of profit
+- [x] Backend: Rank tickers best → worst for recommended strategy
+- [x] Frontend: Replace current Strategy Advisor UI with ranked watchlist picks
+- [x] Frontend: Display detailed scoring breakdown per ticker
+- [x] Frontend: Add "Trade This" buttons that navigate to Iron Condor dashboard
+- [x] Frontend: Color-code scores (green 80+, yellow 60-79, red <60)
+- [x] Frontend: Show market overview summary at top
+- [x] Test: Verify scoring accuracy with real watchlist data (20 tickers analyzed, MS/GS scored 75/100)
+- [x] Test: Verify "Trade This" navigation works correctly
+- [x] Test: Verify recommendations match user's historical performance (67% BPS win rate used)

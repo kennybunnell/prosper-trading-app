@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { AlertCircle, TrendingUp, TrendingDown, Minus, RefreshCw, Lightbulb, Target, ArrowRight, Settings } from "lucide-react";
+import { AlertCircle, TrendingUp, TrendingDown, Minus, RefreshCw, Lightbulb, Target, ArrowRight, Settings, Trophy, Medal, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
@@ -33,21 +33,12 @@ export function StrategyAdvisor() {
   const { data, isLoading, error, refetch } = trpc.strategyAdvisor.getRecommendation.useQuery(undefined, {
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: false,
-    refetchInterval: autoRefresh ? refreshInterval * 60 * 1000 : false, // Convert minutes to milliseconds
+    refetchInterval: autoRefresh ? refreshInterval * 60 * 1000 : false,
   });
 
-  // Map strategy codes to dashboard routes
-  const strategyRoutes: Record<string, string> = {
-    'BPS': '/iron-condor', // Bull Put Spreads are traded via Iron Condor dashboard
-    'BCS': '/iron-condor', // Bear Call Spreads are traded via Iron Condor dashboard
-    'IC': '/iron-condor',  // Iron Condors have dedicated dashboard
-  };
-
-  const handleTradeClick = (symbol: string, strategy: string) => {
-    const route = strategyRoutes[strategy] || '/iron-condor';
-    // Navigate to the appropriate dashboard
-    // The dashboard will have the watchlist already loaded, user can filter by symbol
-    setLocation(route);
+  const handleTradeClick = () => {
+    // Navigate to Iron Condor dashboard where user can trade the recommended strategy
+    setLocation('/iron-condor');
   };
   
   const handleSavePreferences = async () => {
@@ -68,7 +59,6 @@ export function StrategyAdvisor() {
     const now = new Date();
     const day = now.getDay();
     const hour = now.getHours();
-    // Rough check: weekday and between 9am-5pm (not accounting for timezone)
     return day >= 1 && day <= 5 && hour >= 9 && hour <= 17;
   };
 
@@ -77,7 +67,7 @@ export function StrategyAdvisor() {
       <Card>
         <CardHeader>
           <CardTitle>Strategy Advisor</CardTitle>
-          <CardDescription>Analyzing market conditions...</CardDescription>
+          <CardDescription>Analyzing your watchlist tickers...</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-12">
@@ -121,6 +111,8 @@ export function StrategyAdvisor() {
   }
 
   const recommendation = data?.recommendation;
+  const rankedTickers = data?.rankedTickers || [];
+  
   if (!recommendation) {
     return null;
   }
@@ -150,20 +142,35 @@ export function StrategyAdvisor() {
   };
   const confidenceColor = confidenceColors[recommendation.confidence] || 'bg-gray-500/20 text-gray-700 border-gray-500/50';
 
+  // Score badge colors
+  const getScoreBadgeColor = (score: number) => {
+    if (score >= 80) return 'bg-green-500/20 text-green-700 border-green-500/50';
+    if (score >= 60) return 'bg-yellow-500/20 text-yellow-700 border-yellow-500/50';
+    return 'bg-red-500/20 text-red-700 border-red-500/50';
+  };
+
+  // Rank icons
+  const getRankIcon = (index: number) => {
+    if (index === 0) return <Trophy className="h-5 w-5 text-yellow-500" />;
+    if (index === 1) return <Medal className="h-5 w-5 text-gray-400" />;
+    if (index === 2) return <Award className="h-5 w-5 text-amber-600" />;
+    return null;
+  };
+
   return (
     <div className="space-y-6">
-      {/* Market Condition Summary */}
+      {/* Market Overview - Compact */}
       <Card className={config.bgColor}>
-        <CardHeader>
+        <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Icon className={`h-5 w-5 ${config.color}`} />
-                Market Condition: {recommendation.marketCondition}
-              </CardTitle>
-              <CardDescription className="mt-2">
-                Based on real-time analysis of SPY, QQQ, IWM, and VIX
-              </CardDescription>
+            <div className="flex items-center gap-3">
+              <Icon className={`h-5 w-5 ${config.color}`} />
+              <div>
+                <CardTitle className="text-lg">Market: {recommendation.marketCondition}</CardTitle>
+                <CardDescription className="text-xs mt-0.5">
+                  SPY {data.marketData?.SPY?.change >= 0 ? '+' : ''}{data.marketData?.SPY?.change.toFixed(2)}% | VIX {data.marketData?.VIX?.last.toFixed(1)}
+                </CardDescription>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -185,45 +192,31 @@ export function StrategyAdvisor() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Recommended Strategy */}
-            <div className="bg-background/50 rounded-lg p-4 border">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Target className="h-5 w-5 text-primary" />
-                    <h3 className="font-semibold text-lg">Recommended Strategy</h3>
-                    <Badge className={confidenceColor}>
-                      {recommendation.confidence} Confidence
-                    </Badge>
-                  </div>
-                  <p className="text-2xl font-bold text-primary mb-2">
-                    {strategyNames[recommendation.recommendedStrategy] || recommendation.recommendedStrategy}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {recommendation.reasoning}
-                  </p>
-                </div>
+      </Card>
+
+      {/* Recommended Strategy */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="h-5 w-5 text-primary" />
+                <CardTitle>Recommended Strategy</CardTitle>
+                <Badge className={confidenceColor}>
+                  {recommendation.confidence}
+                </Badge>
               </div>
+              <p className="text-2xl font-bold text-primary mb-2">
+                {strategyNames[recommendation.recommendedStrategy] || recommendation.recommendedStrategy}
+              </p>
+              <CardDescription className="text-sm">
+                {recommendation.reasoning}
+              </CardDescription>
             </div>
-
-            {/* Key Factors */}
-            <div>
-              <h4 className="font-semibold mb-2 flex items-center gap-2">
-                <Lightbulb className="h-4 w-4" />
-                Key Factors
-              </h4>
-              <ul className="space-y-1">
-                {recommendation.keyFactors.map((factor: string, index: number) => (
-                  <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
-                    <span className="text-primary mt-1">•</span>
-                    <span>{factor}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
             {/* Historical Insight */}
             {recommendation.historicalInsight && (
               <div className="bg-blue-500/10 border border-blue-500/50 rounded-lg p-3">
@@ -250,6 +243,164 @@ export function StrategyAdvisor() {
               </div>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Ranked Watchlist Picks */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Lightbulb className="h-5 w-5 text-primary" />
+                Top Watchlist Picks
+              </CardTitle>
+              <CardDescription>
+                Ranked best → worst for {strategyNames[recommendation.recommendedStrategy]}
+              </CardDescription>
+            </div>
+            {rankedTickers.length > 0 && (
+              <Badge variant="outline" className="text-xs">
+                {rankedTickers.length} analyzed
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {rankedTickers.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No tickers in watchlist. Add tickers in Settings to get personalized recommendations.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {rankedTickers.map((ticker: any, index: number) => (
+                <div
+                  key={ticker.symbol}
+                  className={`border rounded-lg p-4 ${
+                    ticker.score >= 80 ? 'bg-green-500/5 border-green-500/30' :
+                    ticker.score >= 60 ? 'bg-yellow-500/5 border-yellow-500/30' :
+                    'bg-red-500/5 border-red-500/30'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      {/* Header */}
+                      <div className="flex items-center gap-2 mb-2">
+                        {getRankIcon(index)}
+                        <span className="text-sm font-medium text-muted-foreground">
+                          #{index + 1}
+                        </span>
+                        <h3 className="text-xl font-bold">{ticker.symbol}</h3>
+                        <Badge className={getScoreBadgeColor(ticker.score)}>
+                          {ticker.score}/100
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {ticker.momentum}
+                        </Badge>
+                      </div>
+
+                      {/* Price Info */}
+                      <div className="flex items-center gap-4 mb-3 text-sm">
+                        <span className="font-medium">
+                          ${ticker.currentPrice.toFixed(2)}
+                        </span>
+                        <span className={ticker.change24h >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          {ticker.change24h >= 0 ? '+' : ''}{ticker.change24h.toFixed(2)}%
+                        </span>
+                        <span className="text-muted-foreground">
+                          52W: {ticker.yearPosition.toFixed(0)}%
+                        </span>
+                        {ticker.ivRank !== null && (
+                          <span className="text-muted-foreground">
+                            IV Rank: {ticker.ivRank}%
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Historical Performance */}
+                      {ticker.historicalWinRate !== null && (
+                        <div className="flex items-center gap-4 mb-3 text-sm">
+                          <span className="text-muted-foreground">
+                            Your Win Rate: <span className="font-medium text-foreground">{ticker.historicalWinRate.toFixed(0)}%</span>
+                          </span>
+                          <span className="text-muted-foreground">
+                            Avg P/L: <span className={`font-medium ${ticker.historicalAvgPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              ${ticker.historicalAvgPL.toFixed(0)}
+                            </span>
+                          </span>
+                          <span className="text-muted-foreground">
+                            Trades: {ticker.historicalTradeCount}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Recommended Strikes */}
+                      {ticker.recommendedStrikes && (
+                        <div className="bg-background/50 rounded-lg p-3 mb-3 border">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1">Recommended Strikes</p>
+                              <p className="font-mono font-semibold">
+                                ${ticker.recommendedStrikes.shortStrike} / ${ticker.recommendedStrikes.longStrike}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-muted-foreground mb-1">Expected Premium</p>
+                              <p className="font-semibold text-green-600">
+                                ${ticker.recommendedStrikes.expectedPremium.toFixed(0)}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-muted-foreground mb-1">PoP</p>
+                              <p className="font-semibold">
+                                {ticker.recommendedStrikes.probabilityOfProfit.toFixed(0)}%
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Reasoning */}
+                      <p className="text-sm text-muted-foreground mb-3">
+                        {ticker.reasoning}
+                      </p>
+
+                      {/* Score Breakdown */}
+                      <div className="grid grid-cols-4 gap-2 text-xs">
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Momentum</p>
+                          <p className="font-semibold">{ticker.fitScore.momentum}/30</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">IV</p>
+                          <p className="font-semibold">{ticker.fitScore.iv}/25</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Historical</p>
+                          <p className="font-semibold">{ticker.fitScore.historical}/30</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Technical</p>
+                          <p className="font-semibold">{ticker.fitScore.technical}/15</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Trade Button */}
+                    <Button
+                      onClick={handleTradeClick}
+                      className="flex-shrink-0"
+                      variant={ticker.score >= 70 ? 'default' : 'outline'}
+                      disabled={ticker.score < 40}
+                    >
+                      Trade This
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -294,16 +445,13 @@ export function StrategyAdvisor() {
                     <SelectContent>
                       <SelectItem value="15">Every 15 minutes</SelectItem>
                       <SelectItem value="30">Every 30 minutes</SelectItem>
-                      <SelectItem value="60">Every 60 minutes</SelectItem>
+                      <SelectItem value="60">Every hour</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Next refresh in {refreshInterval} minutes
-                  </p>
                 </div>
               )}
-              
-              <div className="flex gap-2 pt-2">
+
+              <div className="flex gap-2 pt-4">
                 <Button onClick={handleSavePreferences} disabled={setPreferencesMutation.isPending}>
                   {setPreferencesMutation.isPending ? 'Saving...' : 'Save Preferences'}
                 </Button>
@@ -311,69 +459,6 @@ export function StrategyAdvisor() {
                   Cancel
                 </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Watchlist Recommendations */}
-      {recommendation.topWatchlistPicks && recommendation.topWatchlistPicks.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Watchlist Picks</CardTitle>
-            <CardDescription>
-              Tickers from your watchlist that align with the recommended strategy
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recommendation.topWatchlistPicks.map((pick: any, index: number) => (
-                <div
-                  key={index}
-                  className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                >
-                  <div className="flex-shrink-0 w-16">
-                    <Badge variant="outline" className="font-mono text-sm">
-                      {pick.symbol}
-                    </Badge>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground">{pick.reason}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="default"
-                    className="flex-shrink-0"
-                    onClick={() => handleTradeClick(pick.symbol, recommendation.recommendedStrategy)}
-                  >
-                    Trade This
-                    <ArrowRight className="h-4 w-4 ml-1" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Market Data Summary */}
-      {data?.marketData && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Market Data Snapshot</CardTitle>
-            <CardDescription>Real-time quotes from Tastytrade</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {Object.entries(data.marketData).map(([symbol, quoteData]: [string, any]) => (
-                <div key={symbol} className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">{symbol}</p>
-                  <p className="text-2xl font-bold">${quoteData.last?.toFixed(2) || 'N/A'}</p>
-                  <p className={`text-sm ${quoteData.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {quoteData.change >= 0 ? '+' : ''}{quoteData.change?.toFixed(2)}%
-                  </p>
-                </div>
-              ))}
             </div>
           </CardContent>
         </Card>
