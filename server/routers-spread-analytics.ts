@@ -178,7 +178,7 @@ function extractStrikesFromLegs(legs: OptionLeg[]): string {
  * NEW APPROACH: Group individual option transactions by symbol + expiration,
  * then match opening and closing legs to form complete spreads
  */
-function groupIntoClosedPositions(transactions: any[]): ClosedSpreadPosition[] {
+export function groupIntoClosedPositions(transactions: any[]): ClosedSpreadPosition[] {
   const closedPositions: ClosedSpreadPosition[] = [];
   
   // Parse all option legs

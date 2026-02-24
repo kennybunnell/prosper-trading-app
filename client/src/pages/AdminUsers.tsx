@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, UserPlus, Trash2, RefreshCw, ArrowUpCircle, Eye } from "lucide-react";
+import { Search, UserPlus, Trash2, RefreshCw, ArrowUpCircle, Eye, CheckCircle, XCircle, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { AdminPageHeader } from "@/components/AdminPageHeader";
@@ -34,6 +34,9 @@ export function AdminUsers() {
   const [tierFilter, setTierFilter] = useState<string>("all");
   const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
   const [resetUserId, setResetUserId] = useState<number | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteNote, setInviteNote] = useState("");
 
   // Fetch users
   const { data: users, isLoading, refetch } = trpc.admin.listUsers.useQuery({
@@ -78,6 +81,31 @@ export function AdminUsers() {
     onSuccess: () => {
       toast({ title: "User role updated successfully" });
       refetch();
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const approveUser = trpc.admin.approveUser.useMutation({
+    onSuccess: () => {
+      toast({ title: "User approved successfully" });
+      refetch();
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const sendInvite = trpc.admin.sendInvite.useMutation({
+    onSuccess: (data) => {
+      toast({ 
+        title: "Invite sent successfully", 
+        description: `Invite link: ${data.inviteLink}` 
+      });
+      setShowInviteModal(false);
+      setInviteEmail("");
+      setInviteNote("");
     },
     onError: (error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -157,7 +185,14 @@ export function AdminUsers() {
       {/* Filters */}
       <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex flex-col md:flex-row gap-4 items-end">
+            <Button
+              onClick={() => setShowInviteModal(true)}
+              className="bg-orange-600 hover:bg-orange-700 md:order-last"
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              Invite New User
+            </Button>
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -203,6 +238,7 @@ export function AdminUsers() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Approval Status</TableHead>
                   <TableHead>Tier</TableHead>
                   <TableHead>Legal Agreements</TableHead>
                   <TableHead>Registered</TableHead>
@@ -235,6 +271,19 @@ export function AdminUsers() {
                         </SelectContent>
                       </Select>
                     </TableCell>
+                    <TableCell>
+                      {user.isApproved ? (
+                        <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Approved
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive">
+                          <XCircle className="h-3 w-3 mr-1" />
+                          Pending
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>{getTierBadge(user.subscriptionTier)}</TableCell>
                     <TableCell>
                       {user.acceptedTermsAt && user.acceptedRiskDisclosureAt ? (
@@ -261,6 +310,17 @@ export function AdminUsers() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        {!user.isApproved && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => approveUser.mutate({ userId: user.id })}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Approve
+                          </Button>
+                        )}
                         <Link href={`/admin/users/${user.id}`}>
                           <Button variant="ghost" size="sm">
                             <Eye className="h-4 w-4" />
@@ -339,6 +399,59 @@ export function AdminUsers() {
               onClick={() => resetUserId && resetUserData.mutate({ userId: resetUserId })}
             >
               Reset Data
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Invite New User Dialog */}
+      <AlertDialog open={showInviteModal} onOpenChange={setShowInviteModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Invite New User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Send an invite link to a new user. They'll have 7 days to accept the invitation.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <label htmlFor="invite-email" className="text-sm font-medium">
+                Email Address *
+              </label>
+              <Input
+                id="invite-email"
+                type="email"
+                placeholder="user@example.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label htmlFor="invite-note" className="text-sm font-medium">
+                Note (Optional)
+              </label>
+              <Input
+                id="invite-note"
+                placeholder="e.g., Paid customer, Beta tester, etc."
+                value={inviteNote}
+                onChange={(e) => setInviteNote(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setInviteEmail("");
+              setInviteNote("");
+            }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => sendInvite.mutate({ email: inviteEmail, note: inviteNote })}
+              disabled={!inviteEmail || !inviteEmail.includes('@')}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              Send Invite
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

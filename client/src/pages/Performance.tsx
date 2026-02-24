@@ -1280,8 +1280,16 @@ export function WorkingOrdersTab() {
         const successfulReplacements = result.results.filter((r: any) => r.success);
         if (successfulReplacements.length === 1) {
           const r = successfulReplacements[0];
+          // Handle newOrderId being either string or array
+          const newId = Array.isArray(r.newOrderId) 
+            ? (r.newOrderId[0] || 'N/A')
+            : (r.newOrderId || 'N/A');
+          const newIdDisplay = typeof newId === 'string' && newId !== 'N/A' 
+            ? newId.slice(-6) 
+            : newId;
+          
           toast.success(
-            `Order replaced: Canceled #${r.orderId.slice(-6)}, Created #${r.newOrderId?.slice(-6) || 'N/A'}`,
+            `Order replaced: Canceled #${r.orderId.slice(-6)}, Created #${newIdDisplay}`,
             { duration: 5000 }
           );
         } else {
@@ -1463,6 +1471,23 @@ export function WorkingOrdersTab() {
       };
     });
 
+    // If dry run, just validate and return success without calling mutation
+    if (isDryRun) {
+      console.log('[Replace Orders] Dry run - validating orders:', ordersToReplace);
+      return Promise.resolve({
+        successCount: ordersToReplace.length,
+        failedCount: 0,
+        results: ordersToReplace.map(order => ({
+          success: true,
+          orderId: order.orderId,
+          symbol: order.symbol,
+          message: 'Dry run validation successful'
+        }))
+      });
+    }
+
+    // Live submission - call the mutation
+    console.log('[Replace Orders] Live submission - calling mutation:', ordersToReplace);
     return new Promise<{ successCount: number; failedCount: number; results: any[] }>((resolve, reject) => {
       replaceOrdersMutation.mutate(
         { orders: ordersToReplace },

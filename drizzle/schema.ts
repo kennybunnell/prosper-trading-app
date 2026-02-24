@@ -34,6 +34,12 @@ export const users = mysqlTable("users", {
   acceptedRiskDisclosureAt: timestamp("acceptedRiskDisclosureAt"),
   /** IP address when legal agreements were accepted (for audit trail) */
   acceptedTermsIp: varchar("acceptedTermsIp", { length: 45 }),
+  /** Access control: user must be approved by admin to access the app */
+  isApproved: boolean("isApproved").default(false).notNull(),
+  /** When the user was approved by admin */
+  approvedAt: timestamp("approvedAt"),
+  /** Admin user ID who approved this user */
+  approvedBy: int("approvedBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -616,3 +622,37 @@ export const apiUsage = mysqlTable("apiUsage", {
 
 export type ApiUsage = typeof apiUsage.$inferSelect;
 export type InsertApiUsage = typeof apiUsage.$inferInsert;
+
+/**
+ * User invitations for controlled access
+ */
+export const invites = mysqlTable("invites", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Email address to send invite to */
+  email: varchar("email", { length: 320 }).notNull(),
+  /** Unique invite code for URL */
+  code: varchar("code", { length: 64 }).notNull().unique(),
+  /** Invite status */
+  status: mysqlEnum("status", ["pending", "accepted", "revoked", "expired"]).default("pending").notNull(),
+  /** When the invite expires (7 days from creation) */
+  expiresAt: timestamp("expiresAt").notNull(),
+  /** Admin user ID who sent the invite */
+  invitedBy: int("invitedBy").notNull().references(() => users.id),
+  /** User ID who accepted the invite (null if not accepted yet) */
+  acceptedBy: int("acceptedBy"),
+  /** When the invite was accepted */
+  acceptedAt: timestamp("acceptedAt"),
+  /** When the invite was revoked by admin */
+  revokedAt: timestamp("revokedAt"),
+  /** Optional note from admin about this invite */
+  note: text("note"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  emailIdx: index("invites_email_idx").on(table.email),
+  statusIdx: index("invites_status_idx").on(table.status),
+  invitedByIdx: index("invites_invitedBy_idx").on(table.invitedBy),
+}));
+
+export type Invite = typeof invites.$inferSelect;
+export type InsertInvite = typeof invites.$inferInsert;

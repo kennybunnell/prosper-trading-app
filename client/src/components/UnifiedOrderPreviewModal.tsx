@@ -328,7 +328,13 @@ export function UnifiedOrderPreviewModal({
     return orders.reduce((sum, order) => {
       const qty = getQuantity(order);
       const price = adjustedPrices.get(getOrderKey(order)) || order.premium;
-      return sum + (price * 100 * qty);
+      
+      // For debit strategies (BTC, PMCC), premium is negative (you pay)
+      // For credit strategies (CSP, CC, BCS, BPS, IC), premium is positive (you receive)
+      const isDebit = strategy === 'btc' || strategy === 'pmcc' || strategy === 'roll';
+      const multiplier = isDebit ? -1 : 1;
+      
+      return sum + (price * 100 * qty * multiplier);
     }, 0);
   };
   

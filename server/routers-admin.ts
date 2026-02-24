@@ -9,7 +9,7 @@
  * - Onboarding management
  */
 
-import { router, protectedProcedure } from "./_core/trpc";
+import { router, protectedProcedure, publicProcedure } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -681,6 +681,324 @@ export const adminRouter = router({
         .where(eq(feedback.id, input.feedbackId));
 
       return { success: true };
+    }),
+
+  // ============================================
+  // INVITE MANAGEMENT
+  // ============================================
+
+  /**
+   * Send an invite to a new user
+   */
+  sendInvite: adminProcedure
+    .input(z.object({
+      email: z.string().email(),
+      note: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const { invites } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const crypto = await import('crypto');
+
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Database not available',
+        });
+      }
+
+      // Check if invite already exists for this email
+      const existing = await db.select().from(invites)
+        .where(eq(invites.email, input.email))
+        .limit(1);
+
+      if (existing.length > 0 && existing[0].status === 'pending') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'An invite is already pending for this email',
+        });
+      }
+
+      // Generate unique invite code
+      const code = crypto.randomBytes(32).toString('hex');
+
+      // Set expiration to 7 days from now
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      // Create invite
+      await db.insert(invites).values({
+        email: input.email,
+        code,
+        status: 'pending',
+        expiresAt,
+        invitedBy: ctx.user.id,
+        note: input.note,
+      });
+
+      // Generate invite link
+      const inviteLink = `${ctx.req.headers.origin}/invite/${code}`;
+
+      // Send email to invitee (for MVP, we log it and notify owner)
+      const { generateInviteEmailHTML, generateInviteEmailText, sendEmail } = await import('./_core/email');
+      const emailHTML = generateInviteEmailHTML({
+        inviteLink,
+        invitedByName: ctx.user.name || 'Prosper Trading Admin',
+        expiresInDays: 7,
+      });
+      const emailText = generateInviteEmailText({
+        inviteLink,
+        invitedByName: ctx.user.name || 'Prosper Trading Admin',
+        expiresInDays: 7,
+      });
+
+      // Send email (currently logs for MVP)
+      await sendEmail({
+        to: input.email,
+        subject: `You're invited to Prosper Trading by ${ctx.user.name}`,
+        htmlContent: emailHTML,
+        textContent: emailText,
+      });
+
+      // Notify owner with invite link so they can share it manually
+      const { notifyOwner } = await import('./_core/notification');
+      await notifyOwner({
+        title: `Invite sent to ${input.email}`,
+        content: `Invite link: ${inviteLink}\n\nShare this link with ${input.email} to grant them access. Expires in 7 days.`,
+      });
+
+      return { success: true, inviteLink };
+    }),
+
+  /**
+   * Revoke a pending invite
+   */
+  revokeInvite: adminProcedure
+    .input(z.object({ inviteId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import('./db');
+      const { invites } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Database not available',
+        });
+      }
+
+      await db.update(invites)
+        .set({ status: 'revoked', revokedAt: new Date() })
+        .where(eq(invites.id, input.inviteId));
+
+      return { success: true };
+    }),
+
+  /**
+   * Approve a user manually
+   */
+  approveUser: adminProcedure
+    .input(z.object({ userId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const { users } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Database not available',
+        });
+      }
+
+      await db.update(users)
+        .set({
+          isApproved: true,
+          approvedAt: new Date(),
+          approvedBy: ctx.user.id,
+        })
+        .where(eq(users.id, input.userId));
+
+      // TODO: Send welcome email (will implement in next phase)
+
+      return { success: true };
+    }),
+
+  /**
+   * Reject/unapprove a user
+   */
+  rejectUser: adminProcedure
+    .input(z.object({ userId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import('./db');
+      const { users } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Database not available',
+        });
+      }
+
+      await db.update(users)
+        .set({
+          isApproved: false,
+          approvedAt: null,
+          approvedBy: null,
+        })
+        .where(eq(users.id, input.userId));
+
+      return { success: true };
+    }),
+
+  /**
+   * Validate an invite code (public endpoint)
+   */
+  validateInviteCode: publicProcedure
+    .input(z.object({ code: z.string() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import('./db');
+      const { invites } = await import('../drizzle/schema');
+      const { eq, and, gt } = await import('drizzle-orm');
+
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Database not available',
+        });
+      }
+
+      const invite = await db.select().from(invites)
+        .where(
+          and(
+            eq(invites.code, input.code),
+            eq(invites.status, 'pending'),
+            gt(invites.expiresAt, new Date())
+          )
+        )
+        .limit(1);
+
+      if (invite.length === 0) {
+        return { valid: false, message: 'Invalid or expired invite code' };
+      }
+
+      return {
+        valid: true,
+        email: invite[0].email,
+        expiresAt: invite[0].expiresAt,
+      };
+    }),
+
+  /**
+   * Accept an invite and auto-approve user (called after OAuth login)
+   */
+  acceptInvite: protectedProcedure
+    .input(z.object({ code: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const { invites, users } = await import('../drizzle/schema');
+      const { eq, and, gt } = await import('drizzle-orm');
+
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Database not available',
+        });
+      }
+
+      // Find valid invite
+      const invite = await db.select().from(invites)
+        .where(
+          and(
+            eq(invites.code, input.code),
+            eq(invites.status, 'pending'),
+            gt(invites.expiresAt, new Date())
+          )
+        )
+        .limit(1);
+
+      if (invite.length === 0) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid or expired invite code',
+        });
+      }
+
+      // Check if user email matches invite
+      if (ctx.user.email !== invite[0].email) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'This invite was sent to a different email address',
+        });
+      }
+
+      // Mark invite as accepted
+      await db.update(invites)
+        .set({ status: 'accepted', acceptedAt: new Date() })
+        .where(eq(invites.id, invite[0].id));
+
+      // Auto-approve user
+      await db.update(users)
+        .set({
+          isApproved: true,
+          approvedAt: new Date(),
+          approvedBy: invite[0].invitedBy,
+        })
+        .where(eq(users.id, ctx.user.id));
+
+      return { success: true };
+    }),
+
+  /**
+   * Get all invites with optional status filter
+   */
+  listInvites: adminProcedure
+    .input(z.object({
+      status: z.enum(['pending', 'accepted', 'revoked', 'expired']).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const { getDb } = await import('./db');
+      const { invites, users } = await import('../drizzle/schema');
+      const { eq, desc } = await import('drizzle-orm');
+
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Database not available',
+        });
+      }
+
+      let query = db.select({
+        id: invites.id,
+        email: invites.email,
+        code: invites.code,
+        status: invites.status,
+        expiresAt: invites.expiresAt,
+        createdAt: invites.createdAt,
+        acceptedAt: invites.acceptedAt,
+        revokedAt: invites.revokedAt,
+        note: invites.note,
+        invitedByName: users.name,
+        invitedByEmail: users.email,
+      })
+      .from(invites)
+      .leftJoin(users, eq(invites.invitedBy, users.id))
+      .orderBy(desc(invites.createdAt));
+
+      if (input?.status) {
+        query = query.where(eq(invites.status, input.status)) as any;
+      }
+
+      return await query;
     }),
 
   // ============================================

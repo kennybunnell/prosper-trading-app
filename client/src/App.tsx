@@ -15,6 +15,8 @@ import IronCondorDashboard from "./pages/IronCondorDashboard";
 import Performance from "./pages/Performance";
 
 import ActionItems from "./pages/ActionItems";
+import PendingApproval from "./pages/PendingApproval";
+import InviteAccept from "./pages/InviteAccept";
 import { AdminDashboard } from "./pages/AdminDashboard";
 import { AdminUsers } from "./pages/AdminUsers";
 import { AdminBroadcasts } from "./pages/AdminBroadcasts";
@@ -70,6 +72,25 @@ function Router() {
     setShowLegalModal(false);
     refetch();
   };
+
+  // Check if user is approved (admins bypass this check)
+  const isApproved = user?.isApproved || user?.role === 'admin';
+  const isPendingApprovalRoute = location === '/pending-approval';
+  const isInviteRoute = location.startsWith('/invite/');
+
+  // Allow invite routes without approval check
+  if (isInviteRoute) {
+    return (
+      <Switch>
+        <Route path="/invite/:code" component={InviteAccept} />
+      </Switch>
+    );
+  }
+
+  // Redirect unapproved users to pending approval page
+  if (user && !isApproved && !isAdminRoute && !isPendingApprovalRoute) {
+    return <PendingApproval />;
+  }
 
   // Admin routes don't use the sidebar layout
   if (isAdminRoute) {

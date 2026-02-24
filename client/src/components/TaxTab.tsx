@@ -118,10 +118,12 @@ export function TaxTab() {
   
   const hasError = !!taxError || !!verificationError;
   
-  const realizedGains = taxData?.realizedGains || 0;
-  const realizedLosses = taxData?.realizedLosses || 0;
-  const netCapitalGain = taxData?.netCapitalGain || 0;
-  const ordinaryIncome = taxData?.ordinaryIncome || 0;
+  const realizedGains = taxData?.realizedGains || 0; // Stock sales gains
+  const realizedLosses = taxData?.realizedLosses || 0; // Stock sales losses
+  const netCapitalGain = taxData?.netCapitalGain || 0; // Net stock capital gain
+  const ordinaryIncome = taxData?.ordinaryIncome || 0; // Total ordinary income (CSP/CC + spreads)
+  const nakedOptionsIncome = taxData?.nakedOptionsIncome || 0; // Single-leg options (CSP/CC) premium
+  const spreadIncome = taxData?.spreadIncome || 0; // Spread P/L (IC/BCS/BPS)
   const harvestablePositions = taxData?.harvestablePositions || [];
   const totalHarvestable = taxData?.totalHarvestable || 0;
   
@@ -244,7 +246,7 @@ export function TaxTab() {
           <div className="space-y-6">
             {/* Capital Gains Section */}
             <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-3">Capital Gains/Losses</h3>
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">Capital Gains/Losses (Stock Sales Only)</h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
@@ -293,18 +295,31 @@ export function TaxTab() {
             
             {/* Ordinary Income Section */}
             <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-3">Ordinary Income (Options Premium)</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">Ordinary Income (Options + Spreads)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4 text-purple-500" />
-                    <p className="text-sm text-muted-foreground">Options Premium Collected</p>
+                    <p className="text-sm text-muted-foreground">Single-Leg Options</p>
                   </div>
                   <p className="text-2xl font-bold text-purple-500">
-                    ${ordinaryIncome.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    ${nakedOptionsIncome.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Taxed as ordinary income
+                    CSP & CC premium
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-blue-500" />
+                    <p className="text-sm text-muted-foreground">Spreads (IC/BCS/BPS)</p>
+                  </div>
+                  <p className={`text-2xl font-bold ${spreadIncome >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {spreadIncome >= 0 ? '+' : ''}${spreadIncome.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Net spread P/L
                   </p>
                 </div>
                 

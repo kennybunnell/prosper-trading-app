@@ -302,6 +302,13 @@
       "when": 1771780359682,
       "tag": "0043_small_mordo",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "5",
+      "when": 1771909487513,
+      "tag": "0044_wide_shape",
+      "breakpoints": true
     }
   ]
 }

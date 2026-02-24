@@ -14,6 +14,8 @@ export const taxRouter = router({
       year: z.number().optional(), // Tax year (default: current year)
     }))
     .query(async ({ ctx, input }) => {
+      console.log(`[Tax Dashboard] ========== NEW REQUEST at ${new Date().toISOString()} ==========`);
+      console.log(`[Tax Dashboard] Input:`, input);
       const { authenticateTastytrade } = await import('./tastytrade');
       const { getApiCredentials } = await import('./db');
       
@@ -24,26 +26,37 @@ export const taxRouter = router({
       
       const api = await authenticateTastytrade(credentials, ctx.user.id);
       const accounts = await api.getAccounts();
+      console.log(`[Tax Dashboard] Fetched ${accounts?.length || 0} accounts from API`);
+      console.log(`[Tax Dashboard] First account full object:`, JSON.stringify(accounts?.[0], null, 2));
+      console.log(`[Tax Dashboard] Account details:`, accounts?.map((acc: any) => ({ accountNumber: acc.account?.['account-number'], nickname: acc.account?.nickname })));
+      
       if (!accounts || accounts.length === 0) {
         throw new Error('No accounts found');
       }
       
       // Filter to specific account if provided
-      const targetAccounts = input.accountNumber
-        ? accounts.filter((acc: any) => acc['account-number'] === input.accountNumber)
+      console.log(`[Tax Dashboard] Input accountNumber:`, input.accountNumber);
+      const targetAccounts = input.accountNumber && input.accountNumber !== 'all'
+        ? accounts.filter((acc: any) => acc.account?.['account-number'] === input.accountNumber)
         : accounts;
       
-      const accountNumbers = targetAccounts.map((acc: any) => acc['account-number']);
+      console.log(`[Tax Dashboard] Target accounts after filtering:`, targetAccounts.length);
+      
+      const accountNumbers = targetAccounts.map((acc: any) => acc.account?.['account-number']);
       
       // Tax year (default to current year)
       const taxYear = input.year || new Date().getFullYear();
       const yearStart = `${taxYear}-01-01`;
       const yearEnd = `${taxYear}-12-31`;
       
+      console.log(`[Tax Dashboard] Fetching data for year ${taxYear}, date range: ${yearStart} to ${yearEnd}`);
+      console.log(`[Tax Dashboard] Target accounts:`, accountNumbers);
+      
       // Initialize summary
-      let realizedGains = 0;
-      let realizedLosses = 0;
-      let ordinaryIncome = 0; // Options premium
+      let realizedGains = 0; // Stock sales only
+      let realizedLosses = 0; // Stock sales only
+      let ordinaryIncome = 0; // Single-leg options premium (CSP, CC)
+      let spreadIncome = 0; // Closed spread P&L (IC, BCS, BPS) - ordinary income
       const harvestablePositions: Array<{
         symbol: string;
         accountNumber: string;
@@ -54,9 +67,46 @@ export const taxRouter = router({
         unrealizedPL: number;
       }> = [];
       
+      // Fetch closed spread positions for ordinary income
+      // IRS RULE: Spread P&L is ordinary income, NOT capital gains
+      console.log(`[Tax Dashboard] Fetching closed spreads for tax year ${taxYear}...`);
+      try {
+        const { groupIntoClosedPositions } = await import('./routers-spread-analytics');
+        
+        // Fetch transaction history from ALL accounts for the tax year
+        let allTransactions: any[] = [];
+        for (const accountNumber of accountNumbers) {
+          console.log(`[Tax Dashboard] Fetching transactions for spread analysis: account ${accountNumber}`);
+          const accountTransactions = await api.getTransactionHistory(accountNumber, yearStart, yearEnd, 1000);
+          if (accountTransactions && Array.isArray(accountTransactions)) {
+            allTransactions = allTransactions.concat(accountTransactions);
+          }
+        }
+        
+        console.log(`[Tax Dashboard] Total transactions for spread analysis: ${allTransactions.length}`);
+        
+        // Group transactions into closed spread positions
+        const closedSpreads = groupIntoClosedPositions(allTransactions);
+        console.log(`[Tax Dashboard] Found ${closedSpreads.length} closed spread positions`);
+        
+        // Calculate total spread P/L (ordinary income)
+        for (const spread of closedSpreads) {
+          const pl = spread.profitLoss || 0;
+          spreadIncome += pl; // Can be positive (income) or negative (loss)
+          console.log(`[Tax Dashboard] Spread ${spread.symbol} ${spread.spreadType}: P/L = $${pl.toFixed(2)}`);
+        }
+        
+        console.log(`[Tax Dashboard] Total Spread Income (Ordinary): $${spreadIncome.toFixed(2)}`);
+      } catch (error) {
+        console.error(`[Tax Dashboard] Failed to fetch closed spreads:`, error);
+        // Continue without spread data
+      }
+      
       // Fetch positions for each account
       for (const accountNumber of accountNumbers) {
+        console.log(`[Tax Dashboard] Fetching positions for account ${accountNumber}...`);
         const positions = await api.getPositions(accountNumber);
+        console.log(`[Tax Dashboard] Received ${positions?.length || 0} positions for account ${accountNumber}`);
         if (!positions) continue;
         
         for (const pos of positions) {
@@ -64,14 +114,15 @@ export const taxRouter = router({
           
           // Stock positions - check for unrealized losses (harvestable)
           if (instrumentType === 'Equity') {
-            const quantity = parseInt(String(pos.quantity || '0'));
+            console.log(`[Tax Dashboard] Found stock position:`, { symbol: pos.symbol, quantity: pos.quantity, avgOpenPrice: pos['average-open-price'], closePrice: pos['close-price'] });
+            const quantity = typeof pos.quantity === 'number' ? pos.quantity : parseInt(String(pos.quantity || '0'));
             if (quantity === 0) continue;
             
-            const costBasis = parseFloat(String(pos['cost-effect'] || '0')) / Math.abs(quantity);
-            const currentPrice = parseFloat(String(pos['close-price'] || '0'));
-            const marketValue = currentPrice * quantity;
-            const totalCost = costBasis * quantity;
-            const unrealizedPL = marketValue - totalCost;
+            const avgCost = parseFloat(pos['average-open-price'] || '0');
+            const currentPrice = parseFloat(pos['close-price'] || '0');
+            const costBasis = quantity * avgCost;
+            const marketValue = quantity * currentPrice;
+            const unrealizedPL = marketValue - costBasis;
             
             // Only track positions with unrealized losses (harvestable)
             if (unrealizedPL < 0) {
@@ -79,7 +130,7 @@ export const taxRouter = router({
                 symbol: pos.symbol || '',
                 accountNumber,
                 quantity,
-                costBasis,
+                costBasis: avgCost,
                 currentPrice,
                 marketValue,
                 unrealizedPL,
@@ -90,36 +141,34 @@ export const taxRouter = router({
         
         // Fetch closed positions (for realized gains/losses and ordinary income)
         try {
+          console.log(`[Tax Dashboard] Fetching transaction history for account ${accountNumber}...`);
           const closedPositions = await api.getTransactionHistory(accountNumber, yearStart, yearEnd, 1000);
+          console.log(`[Tax Dashboard] Received ${closedPositions?.length || 0} transactions for account ${accountNumber}`);
           
           if (closedPositions && Array.isArray(closedPositions)) {
+            console.log(`[Tax Dashboard] Processing ${closedPositions.length} transactions...`);
             for (const txn of closedPositions) {
               const txnType = txn.type;
               const instrumentType = txn['instrument-type'];
               
               // Options trades = ordinary income (premium collected)
+              // NOTE: Spreads are already counted in spreadGains/spreadLosses above
+              // Here we only count naked options (CSP, CC) as ordinary income
               if (instrumentType === 'Equity Option') {
+                console.log(`[Tax Dashboard] Processing option transaction:`, { symbol: txn.symbol, action: txn.action, value: txn.value, netValue: txn['net-value'] });
                 const value = parseFloat(String(txn.value || '0'));
                 const action = txn.action;
                 
                 // Selling options = collecting premium (ordinary income)
-                if (action === 'Sell to Open' || action === 'Sell to Close') {
+                // This captures naked CSPs and CCs
+                if (action === 'Sell to Open') {
                   ordinaryIncome += Math.abs(value);
-                }
-                
-                // Calculate realized P&L for closed option positions
-                if (txnType === 'Trade' && txn['net-value']) {
-                  const netValue = parseFloat(String(txn['net-value'] || '0'));
-                  if (netValue > 0) {
-                    realizedGains += netValue;
-                  } else if (netValue < 0) {
-                    realizedLosses += Math.abs(netValue);
-                  }
                 }
               }
               
               // Stock trades = capital gains/losses
               if (instrumentType === 'Equity') {
+                console.log(`[Tax Dashboard] Processing stock transaction:`, { symbol: txn.symbol, action: txn.action, netValue: txn['net-value'] });
                 if (txnType === 'Trade' && txn['net-value']) {
                   const netValue = parseFloat(String(txn['net-value'] || '0'));
                   if (netValue > 0) {
@@ -137,8 +186,20 @@ export const taxRouter = router({
         }
       }
       
+      // Calculate final tax summary
+      // Capital gains/losses = stock sales only
       const netCapitalGain = realizedGains - realizedLosses;
       const totalHarvestable = harvestablePositions.reduce((sum, pos) => sum + pos.unrealizedPL, 0);
+      
+      // Ordinary income = single-leg options (CSP/CC) + spread P/L
+      const totalOrdinaryIncome = ordinaryIncome + spreadIncome;
+      
+      console.log(`[Tax Dashboard] Final Summary:`);
+      console.log(`[Tax Dashboard]   Stock Gains: $${realizedGains.toFixed(2)}, Stock Losses: $${realizedLosses.toFixed(2)}`);
+      console.log(`[Tax Dashboard]   Net Capital Gain (Stock Sales): $${netCapitalGain.toFixed(2)}`);
+      console.log(`[Tax Dashboard]   Single-Leg Options (CSP/CC): $${ordinaryIncome.toFixed(2)}`);
+      console.log(`[Tax Dashboard]   Spread Income (IC/BCS/BPS): $${spreadIncome.toFixed(2)}`);
+      console.log(`[Tax Dashboard]   Total Ordinary Income: $${totalOrdinaryIncome.toFixed(2)}`);
       
       // Wash Sale Detection
       // IRS Rule: If you sell a security at a loss and buy the same or substantially identical security
@@ -223,10 +284,12 @@ export const taxRouter = router({
       
       return {
         taxYear,
-        realizedGains,
-        realizedLosses,
-        netCapitalGain,
-        ordinaryIncome,
+        realizedGains, // Stock sales gains only
+        realizedLosses, // Stock sales losses only
+        netCapitalGain, // Net stock capital gain/loss
+        ordinaryIncome: totalOrdinaryIncome, // Single-leg options (CSP/CC) + spread P/L
+        nakedOptionsIncome: ordinaryIncome, // Single-leg options (CSP/CC) premium
+        spreadIncome, // Spread P/L (IC/BCS/BPS)
         harvestablePositions: harvestablePositions.sort((a, b) => a.unrealizedPL - b.unrealizedPL), // Most negative first
         totalHarvestable,
         washSaleViolations: washSaleViolations.sort((a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime()), // Most recent first

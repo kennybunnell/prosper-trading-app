@@ -941,6 +941,7 @@ export class TastytradeAPI {
    */
   async getRealizedPnL(accountNumber: string, startDate: string, endDate: string): Promise<any> {
     try {
+      console.log(`[Tastytrade] Fetching P&L for account ${accountNumber}, dates ${startDate} to ${endDate}`);
       const response = await this.client.get(
         `/accounts/${accountNumber}/profit-loss`,
         {
@@ -950,9 +951,11 @@ export class TastytradeAPI {
           }
         }
       );
+      console.log(`[Tastytrade] P&L response:`, JSON.stringify(response.data, null, 2));
       return response.data.data || {};
     } catch (error: any) {
-      console.error(`[Tastytrade] Realized P&L error:`, error.response?.data?.error?.message || error.message);
+      console.error(`[Tastytrade] Realized P&L error for ${accountNumber}:`, error.response?.data?.error?.message || error.message);
+      console.error(`[Tastytrade] Full error:`, JSON.stringify(error.response?.data || error.message, null, 2));
       // Return empty object if endpoint doesn't exist
       return {};
     }

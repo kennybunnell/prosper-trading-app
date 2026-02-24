@@ -5934,6 +5934,81 @@
 - [x] Add retry logic after re-authentication (queries will auto-retry after navigation back)
 
 ### Phase 2: Testing & Delivery
-- [ ] Test Tax Dashboard with expired token (shows error message)
-- [ ] Test Tax Dashboard after re-authentication (loads data correctly)
+- [x] Test Tax Dashboard with expired token (shows error message)
+- [x] Test Tax Dashboard after re-authentication (loads data correctly)
+- [x] Save checkpoint
+
+## Tax Dashboard - Debug 2025 Data Loading
+
+### Phase 1: Add Debug Logging
+- [ ] Add console.log statements to trace transaction fetching
+- [ ] Log date ranges being used for API calls
+- [ ] Log number of transactions returned from API
+- [ ] Log how transactions are being filtered/processed
+
+### Phase 2: Test and Analyze
+- [ ] Test with 2025 selected in Tax Dashboard
+- [ ] Review server logs to see what data is being fetched
+- [ ] Identify where data is being lost (API, filtering, or transformation)
+
+### Phase 3: Fix Data Loading
+- [ ] Fix the identified issue
+- [ ] Verify 2025 transactions (Sep-Dec) appear correctly
+- [ ] Verify realized gains/losses and ordinary income calculate correctly
+
+### Phase 4: Delivery
+- [ ] Remove debug logging
 - [ ] Save checkpoint
+
+## Tax Dashboard - Spread Income Integration (Feb 22, 2026)
+- [x] Analyze Spread Analytics backend to understand closed spread P&L data structure
+- [x] CORRECTION: Treat spread P/L as ordinary income (NOT capital gains per IRS rules)
+- [x] Add closed spread P/L to ordinary income section (not capital gains)
+- [x] Separate spread income from naked option premium for transparency
+- [x] Update Ordinary Income calculation to include spread P/L
+- [x] Update Total Tax Liability calculation with spread income
+- [ ] Fix Data Verification section to show Tastytrade API cross-check results
+- [ ] Add detailed logging to debug P&L API endpoint response
+- [ ] Test Tax Dashboard with real spread data
+- [ ] Verify correct tax treatment: spreads = ordinary income, stock sales = capital gains
+
+## Tax Dashboard - Fix Terminology (Feb 22, 2026)
+- [x] Remove "naked options" terminology from UI (user doesn't trade naked)
+- [x] Update to "Single-Leg Options (CSP/CC)" for clarity
+- [x] Update backend comments to reflect CSP/CC instead of "naked"
+- [x] Ensure calculation correctly separates single-leg premium from spread P/L
+
+## Action Items - Critical Bugs (Feb 22, 2026)
+- [x] Fix negative price display for buy-to-close orders in Order Preview
+- [x] Fix replace order JavaScript error: "We.newOrderId?.slice is not a function"
+- [x] Fix dry run → live submission not actually submitting orders
+- [ ] Test all three fixes end-to-end with real orders
+
+## Invite-Only Access Control System (Feb 23, 2026)
+- [x] Design invites table schema (email, code, status, expiresAt, invitedBy, acceptedAt)
+- [x] Add isApproved field to users table (default: false)
+- [x] Add approvedAt and approvedBy fields to users table
+- [x] Create database migration for new schema changes
+- [x] Set owner account as approved
+- [x] Implement access control middleware to check isApproved at login
+- [x] Create "Access Pending Approval" page for unapproved users
+- [x] Build invite management UI in Admin Panel
+  - [x] "Invite New User" button with email input
+  - [x] "Approve" button for existing unapproved users
+  - [x] Status badges (Pending, Approved)
+  - [ ] Pending invites list with revoke option (optional - can be added later)
+- [x] Create tRPC procedures for invite management
+  - [x] sendInvite (email) - generates unique code, returns invite link
+  - [x] revokeInvite (inviteId)
+  - [x] approveUser (userId)
+  - [x] rejectUser (userId)
+  - [x] listInvites (filter by status)
+- [x] Build invite email template with personalized link
+- [x] Implement invite code validation at login
+- [x] Auto-approve user when valid invite code is used
+- [x] Create InviteAccept page for handling invite links
+- [x] Add /invite/:code route to App.tsx
+- [ ] Add Stripe webhook handler to auto-send invite after payment (Phase 5 - documented, not implemented yet)
+- [ ] Test invite flow: send → receive email → click link → login → auto-approve
+- [ ] Test existing unapproved users get blocked with clear message
+- [ ] Approve or reject existing unapproved users (tracyabunnell, kenny) via Admin Panel
