@@ -6093,3 +6093,22 @@
 - [x] Frontend: Show strategy badges in "Not Recommended" section (uses same renderTickerCard)
 - [x] Frontend: Add explanation text like "Would be BPS (but low IV)" (reasoning field shows this)
 - [x] Test: Verify low-IV tickers show their directional strategy (BPS/BCS/IC) (CMCSA shows all 3)
+
+## Strategy Advisor - Multi-Select + Auto-Fetch Workflow
+- [x] Frontend: Add checkbox to each ticker card in Strategy Advisor
+- [x] Frontend: Add "Trade Queue" badge showing count of selected tickers ("X selected")
+- [x] Frontend: Add "Analyze Selected" button (appears when tickers selected)
+- [x] Frontend: Add "Clear Selection" button
+- [x] Frontend: State management for selected tickers (localStorage persistence)
+- [x] Frontend: Navigation logic - determine target dashboard based on primary strategy
+- [x] Frontend: Pass selected tickers to target dashboard via localStorage
+- [x] Backend: Update CSP Dashboard to accept pre-selected tickers from localStorage
+- [x] Backend: Update CC Dashboard to accept pre-selected tickers from localStorage
+- [x] Backend: Update IC Dashboard to accept pre-selected tickers from localStorage
+- [x] Backend: Auto-trigger opportunity fetch when pre-selected tickers are passed (CSP/CC/IC)
+- [x] Frontend: Keep "Trade This" button working for single-ticker workflow
+- [ ] Test: Select multiple BPS tickers via checkboxes → Click "Analyze Selected"
+- [ ] Test: Verify navigation to CSP Dashboard with selected tickers only
+- [ ] Test: Verify opportunities auto-fetch for selected tickers
+- [ ] Test: Select single ticker via "Trade This" → Navigate → Auto-load
+- [ ] Test: Clear selection and verify state resets correctly

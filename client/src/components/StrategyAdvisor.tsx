@@ -15,6 +15,7 @@ export function StrategyAdvisor() {
   const [, setLocation] = useLocation();
   const [showSettings, setShowSettings] = useState(false);
   const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
+  const [selectedTickers, setSelectedTickers] = useState<Set<string>>(new Set());
   const utils = trpc.useUtils();
   
   // Fetch user preferences
@@ -42,6 +43,65 @@ export function StrategyAdvisor() {
   const handleTradeClick = () => {
     // Navigate to Iron Condor dashboard where user can trade the recommended strategy
     setLocation('/iron-condor');
+  };
+  
+  const handleTickerToggle = (symbol: string) => {
+    setSelectedTickers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(symbol)) {
+        newSet.delete(symbol);
+      } else {
+        newSet.add(symbol);
+      }
+      return newSet;
+    });
+  };
+  
+  const handleClearSelection = () => {
+    setSelectedTickers(new Set());
+    toast.info('Selection cleared');
+  };
+  
+  const handleAnalyzeSelected = () => {
+    if (selectedTickers.size === 0) {
+      toast.error('Please select at least one ticker');
+      return;
+    }
+    
+    // Determine primary strategy based on selected tickers
+    const selectedTickerData = data?.rankedTickers?.filter((t: any) => selectedTickers.has(t.symbol)) || [];
+    const strategyCount = {
+      BPS: 0,
+      BCS: 0,
+      IC: 0,
+    };
+    
+    selectedTickerData.forEach((ticker: any) => {
+      ticker.strategyBadges?.forEach((badge: any) => {
+        if (badge.strategy === 'Bull Put Spread') strategyCount.BPS++;
+        if (badge.strategy === 'Bear Call Spread') strategyCount.BCS++;
+        if (badge.strategy === 'Iron Condor') strategyCount.IC++;
+      });
+    });
+    
+    // Navigate to the dashboard with the most selected tickers
+    let targetDashboard = '/csp-bps';
+    let strategyName = 'Bull Put Spreads';
+    
+    if (strategyCount.BCS > strategyCount.BPS && strategyCount.BCS > strategyCount.IC) {
+      targetDashboard = '/cc-bcs';
+      strategyName = 'Bear Call Spreads';
+    } else if (strategyCount.IC > strategyCount.BPS && strategyCount.IC > strategyCount.BCS) {
+      targetDashboard = '/iron-condor';
+      strategyName = 'Iron Condors';
+    }
+    
+    // Store selected tickers in localStorage for the target dashboard to pick up
+    localStorage.setItem('strategyAdvisorSelectedTickers', JSON.stringify(Array.from(selectedTickers)));
+    localStorage.setItem('strategyAdvisorAutoFetch', 'true');
+    
+    toast.success(`Navigating to ${strategyName} with ${selectedTickers.size} selected tickers`);
+    setLocation(targetDashboard);
   };
   
   const handleSavePreferences = async () => {
@@ -185,31 +245,60 @@ export function StrategyAdvisor() {
         <CardContent className="pt-6">
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
-              <h3 className="font-semibold text-lg mb-1">Ready to Analyze</h3>
+              <div className="flex items-center gap-3 mb-1">
+                <h3 className="font-semibold text-lg">Ready to Analyze</h3>
+                {selectedTickers.size > 0 && (
+                  <Badge variant="secondary" className="bg-blue-500/20 text-blue-700 border-blue-500/50">
+                    {selectedTickers.size} selected
+                  </Badge>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground">
                 {rankedTickers.length > 0 && lastUpdated
                   ? `Last analyzed: ${lastUpdated}`
                   : 'Click to analyze all tickers in your watchlist'}
               </p>
             </div>
-            <Button
-              onClick={handleAnalyzeClick}
-              size="lg"
-              disabled={isLoading}
-              className="min-w-[180px]"
-            >
-              {isLoading ? (
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleAnalyzeClick}
+                size="lg"
+                disabled={isLoading}
+                className="min-w-[180px]"
+              >
+                {isLoading ? (
+                  <>
+                    <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-5 w-5 mr-2" />
+                    Analyze Watchlist
+                  </>
+                )}
+              </Button>
+              
+              {selectedTickers.size > 0 && (
                 <>
-                  <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-5 w-5 mr-2" />
-                  Analyze Watchlist
+                  <Button
+                    onClick={handleClearSelection}
+                    variant="outline"
+                    size="lg"
+                  >
+                    Clear Selection
+                  </Button>
+                  <Button
+                    onClick={handleAnalyzeSelected}
+                    size="lg"
+                    className="bg-blue-600 hover:bg-blue-700 min-w-[200px]"
+                  >
+                    <Target className="h-5 w-5 mr-2" />
+                    Analyze Selected ({selectedTickers.size})
+                  </Button>
                 </>
               )}
-            </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -364,6 +453,12 @@ export function StrategyAdvisor() {
                     <div className="flex-1">
                       {/* Header */}
                       <div className="flex items-center gap-2 mb-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedTickers.has(ticker.symbol)}
+                          onChange={() => handleTickerToggle(ticker.symbol)}
+                          className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
                         {getRankIcon(index)}
                         <span className="text-sm font-medium text-muted-foreground">
                           #{index + 1}

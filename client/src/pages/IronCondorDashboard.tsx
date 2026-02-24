@@ -502,6 +502,36 @@ export default function IronCondorDashboard() {
     await refetchOpportunities();
   };
 
+  // Check for Strategy Advisor pre-selected tickers and auto-fetch
+  useEffect(() => {
+    const selectedTickers = localStorage.getItem('strategyAdvisorSelectedTickers');
+    const autoFetch = localStorage.getItem('strategyAdvisorAutoFetch');
+    
+    if (selectedTickers && autoFetch === 'true') {
+      try {
+        const tickers = JSON.parse(selectedTickers);
+        if (tickers.length > 0) {
+          // Clear the flags
+          localStorage.removeItem('strategyAdvisorSelectedTickers');
+          localStorage.removeItem('strategyAdvisorAutoFetch');
+          
+          // Show toast
+          toast.info(`Loading opportunities for ${tickers.length} selected tickers from Strategy Advisor...`);
+          
+          // Auto-click the Fetch button after a short delay
+          setTimeout(() => {
+            const fetchButton = document.querySelector('[data-fetch-button="true"]') as HTMLButtonElement;
+            if (fetchButton && !fetchButton.disabled) {
+              fetchButton.click();
+            }
+          }, 1000);
+        }
+      } catch (e) {
+        console.error('Failed to parse Strategy Advisor selected tickers:', e);
+      }
+    }
+  }, []);
+  
   // Track when loading completes to set endTime
   useEffect(() => {
     if (!loadingOpportunities && fetchProgress.startTime && !fetchProgress.endTime) {
@@ -647,6 +677,7 @@ export default function IronCondorDashboard() {
                 onClick={handleFetchOpportunities}
                 disabled={loadingOpportunities || filteredWatchlist.length === 0}
                 className="w-full"
+                data-fetch-button="true"
               >
                 {loadingOpportunities ? (
                   <>

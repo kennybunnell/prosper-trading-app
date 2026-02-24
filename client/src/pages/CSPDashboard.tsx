@@ -370,6 +370,36 @@ export default function CSPDashboard() {
     setMinScore(undefined);
   }, [strategyType]);
 
+  // Check for Strategy Advisor pre-selected tickers and auto-fetch
+  useEffect(() => {
+    const selectedTickers = localStorage.getItem('strategyAdvisorSelectedTickers');
+    const autoFetch = localStorage.getItem('strategyAdvisorAutoFetch');
+    
+    if (selectedTickers && autoFetch === 'true') {
+      try {
+        const tickers = JSON.parse(selectedTickers);
+        if (tickers.length > 0) {
+          // Clear the flags
+          localStorage.removeItem('strategyAdvisorSelectedTickers');
+          localStorage.removeItem('strategyAdvisorAutoFetch');
+          
+          // Show toast
+          toast.info(`Loading opportunities for ${tickers.length} selected tickers from Strategy Advisor...`);
+          
+          // Auto-click the Fetch button after a short delay
+          setTimeout(() => {
+            const fetchButton = document.querySelector('[data-fetch-button="true"]') as HTMLButtonElement;
+            if (fetchButton && !fetchButton.disabled) {
+              fetchButton.click();
+            }
+          }, 1000);
+        }
+      } catch (e) {
+        console.error('Failed to parse Strategy Advisor selected tickers:', e);
+      }
+    }
+  }, []);
+  
   // Show toast notification on page load if strategy was just changed
   useEffect(() => {
     const justSwitched = sessionStorage.getItem('strategy-just-switched');
@@ -1567,6 +1597,7 @@ export default function CSPDashboard() {
             }} 
             disabled={loadingOpportunities || filteredWatchlist.length === 0 || !selectedAccountId}
             className="w-full bg-gradient-to-r from-amber-600 to-yellow-700 hover:from-amber-700 hover:to-yellow-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
+            data-fetch-button="true"
           >
             {loadingOpportunities ? (
               <>
