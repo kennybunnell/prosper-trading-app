@@ -6012,3 +6012,11 @@
 - [ ] Test invite flow: send → receive email → click link → login → auto-approve
 - [ ] Test existing unapproved users get blocked with clear message
 - [ ] Approve or reject existing unapproved users (tracyabunnell, kenny) via Admin Panel
+
+## Phase 5: Stripe → Invite Automation (Feb 23, 2026)
+- [x] Add auto-invite logic to handleCheckoutSessionCompleted() in stripe webhook
+- [x] Check if user is already approved before sending invite
+- [x] Generate unique invite code and create invite record
+- [x] Send invite email with professional template
+- [x] Notify owner with invite link for tracking
+- [ ] Test with Stripe test payment end-to-end (ready for user testing)

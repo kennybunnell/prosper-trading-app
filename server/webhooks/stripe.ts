@@ -130,6 +130,79 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     .where(eq(users.id, parseInt(userId)));
 
   console.log('[Stripe Webhook] User updated successfully:', userId);
+
+  // ========== Phase 5: Auto-send invite after payment ==========
+  
+  const customerEmail = session.customer_email || session.metadata?.customer_email;
+  
+  if (customerEmail) {
+    try {
+      // Check if user is already approved
+      const userResult = await db.select()
+        .from(users)
+        .where(eq(users.id, parseInt(userId)))
+        .limit(1);
+
+      if (userResult[0] && !userResult[0].isApproved) {
+        // User not approved yet - send invite
+        const { invites } = await import('../../drizzle/schema.js');
+        const { generateInviteEmailHTML, generateInviteEmailText, sendEmail } = await import('../_core/email.js');
+        const { notifyOwner } = await import('../_core/notification.js');
+        
+        // Generate unique invite code
+        const code = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+        // Create invite record
+        await db.insert(invites).values({
+          email: customerEmail,
+          code,
+          status: 'pending',
+          expiresAt,
+          invitedBy: parseInt(userId), // Self-invited via payment
+          note: `Auto-invited after payment for ${targetTier} tier`,
+        });
+
+        // Generate invite link
+        const origin = process.env.VITE_APP_URL || 'https://prospertrading.biz';
+        const inviteLink = `${origin}/invite/${code}`;
+
+        // Send email
+        const emailHTML = generateInviteEmailHTML({
+          inviteLink,
+          invitedByName: 'Prosper Trading',
+          expiresInDays: 7,
+        });
+        const emailText = generateInviteEmailText({
+          inviteLink,
+          invitedByName: 'Prosper Trading',
+          expiresInDays: 7,
+        });
+
+        await sendEmail({
+          to: customerEmail,
+          subject: 'Welcome to Prosper Trading - Activate Your Account',
+          htmlContent: emailHTML,
+          textContent: emailText,
+        });
+
+        // Notify owner
+        await notifyOwner({
+          title: `Payment received from ${customerEmail}`,
+          content: `User paid for ${targetTier} tier ($${session.amount_total ? (session.amount_total / 100).toFixed(2) : 'N/A'}). Invite sent automatically.\n\nInvite link: ${inviteLink}`,
+        });
+
+        console.log('[Stripe Webhook] Invite sent to:', customerEmail);
+      } else if (userResult[0]?.isApproved) {
+        console.log('[Stripe Webhook] User already approved, no invite needed');
+      }
+    } catch (error: any) {
+      console.error('[Stripe Webhook] Failed to send invite:', error.message);
+      // Don't fail the webhook - payment still processed successfully
+    }
+  }
+  
+  // ========== End Phase 5 ==========
 }
 
 /**
