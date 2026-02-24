@@ -6045,3 +6045,20 @@
 - [x] Test: Verify scoring accuracy with real watchlist data (20 tickers analyzed, MS/GS scored 75/100)
 - [x] Test: Verify "Trade This" navigation works correctly
 - [x] Test: Verify recommendations match user's historical performance (67% BPS win rate used)
+
+## Multi-Strategy Badges & Interactive Watchlist Manager
+- [x] Backend: Calculate fit score for ALL strategies (BPS, BCS, IC) per ticker
+- [x] Backend: Return strategy badges array for each ticker (which strategies it's good for)
+- [x] Backend: Add threshold logic (score >60 = good fit for that strategy)
+- [x] Frontend: Display strategy badges on each ticker card (BPS/BCS/IC)
+- [x] Frontend: Color-code badges (green BPS, red BCS, blue IC)
+- [x] Frontend: Show "Best for: BPS + IC" when multiple strategies fit
+- [x] Frontend: Use existing EnhancedWatchlist component (same as other dashboards)
+- [x] Frontend: Add checkbox UI to show selected vs available tickers (via EnhancedWatchlist)
+- [x] Frontend: Add quick-add search bar with symbol validation (via EnhancedWatchlist)
+- [x] Frontend: Add remove button for each ticker (via EnhancedWatchlist)
+- [x] Frontend: Show live count of selected tickers (via EnhancedWatchlist)
+- [x] Frontend: Placement at top of Strategy Advisor page (collapsible)
+- [x] Test: Verify multi-strategy scoring (MS=BPS only, JPM=BPS+IC, META=IC only)
+- [x] Test: Verify badges display correctly for mixed-fit tickers (JPM shows 2 badges)
+- [x] Test: Verify watchlist add/remove functionality works (EnhancedWatchlist component)

@@ -7,9 +7,15 @@
 import { protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 
+interface StrategyFit {
+  strategy: 'BPS' | 'BCS' | 'IC';
+  score: number;
+  label: string;
+}
+
 interface TickerAnalysis {
   symbol: string;
-  score: number;
+  score: number; // Score for the recommended strategy
   currentPrice: number;
   change24h: number;
   yearHigh: number;
@@ -33,6 +39,7 @@ interface TickerAnalysis {
     historical: number;
     technical: number;
   };
+  strategyBadges: StrategyFit[]; // All strategies this ticker is good for
 }
 
 export const strategyAdvisorRouter = router({
@@ -323,66 +330,98 @@ export const strategyAdvisorRouter = router({
           // Get historical performance for this ticker
           const historical = historicalBySymbol[symbol];
 
-          // Calculate fit score (0-100)
-          const fitScore = {
-            momentum: 0,
-            iv: 0,
-            historical: 0,
-            technical: 0,
+          // Helper function to calculate fit score for ANY strategy
+          const calculateStrategyFit = (strategy: 'BPS' | 'BCS' | 'IC') => {
+            const fitScore = {
+              momentum: 0,
+              iv: 0,
+              historical: 0,
+              technical: 0,
+            };
+
+            // Momentum score (30 points)
+            if (strategy === 'BPS') {
+              if (momentum === 'Strong Uptrend' || momentum === 'Moderate Uptrend') fitScore.momentum = 30;
+              else if (momentum === 'Sideways') fitScore.momentum = 20;
+              else fitScore.momentum = 5;
+            } else if (strategy === 'BCS') {
+              if (momentum === 'Strong Downtrend' || momentum === 'Moderate Downtrend') fitScore.momentum = 30;
+              else if (momentum === 'Sideways') fitScore.momentum = 20;
+              else fitScore.momentum = 5;
+            } else { // IC
+              if (momentum === 'Sideways') fitScore.momentum = 30;
+              else if (momentum === 'Moderate Uptrend' || momentum === 'Moderate Downtrend') fitScore.momentum = 20;
+              else fitScore.momentum = 10;
+            }
+
+            // IV score (25 points)
+            if (ivRank !== null) {
+              if (ivRank >= 60) fitScore.iv = 25;
+              else if (ivRank >= 40) fitScore.iv = 20;
+              else if (ivRank >= 25) fitScore.iv = 15;
+              else fitScore.iv = 5;
+            } else {
+              fitScore.iv = 10; // Neutral if no IV data
+            }
+
+            // Historical performance score (30 points)
+            if (historical) {
+              if (historical.winRate >= 75) fitScore.historical = 30;
+              else if (historical.winRate >= 65) fitScore.historical = 25;
+              else if (historical.winRate >= 55) fitScore.historical = 20;
+              else if (historical.winRate >= 45) fitScore.historical = 15;
+              else fitScore.historical = 5;
+            } else {
+              fitScore.historical = 15; // Neutral if no historical data
+            }
+
+            // Technical score (15 points) - 52-week position
+            if (strategy === 'BPS') {
+              if (yearPosition >= 60) fitScore.technical = 15;
+              else if (yearPosition >= 40) fitScore.technical = 10;
+              else fitScore.technical = 5;
+            } else if (strategy === 'BCS') {
+              if (yearPosition <= 40) fitScore.technical = 15;
+              else if (yearPosition <= 60) fitScore.technical = 10;
+              else fitScore.technical = 5;
+            } else { // IC
+              if (yearPosition >= 40 && yearPosition <= 60) fitScore.technical = 15;
+              else if (yearPosition >= 30 && yearPosition <= 70) fitScore.technical = 10;
+              else fitScore.technical = 5;
+            }
+
+            return {
+              fitScore,
+              totalScore: fitScore.momentum + fitScore.iv + fitScore.historical + fitScore.technical,
+            };
           };
 
-          // Momentum score (30 points)
-          if (recommendedStrategy === 'BPS') {
-            if (momentum === 'Strong Uptrend' || momentum === 'Moderate Uptrend') fitScore.momentum = 30;
-            else if (momentum === 'Sideways') fitScore.momentum = 20;
-            else fitScore.momentum = 5;
-          } else if (recommendedStrategy === 'BCS') {
-            if (momentum === 'Strong Downtrend' || momentum === 'Moderate Downtrend') fitScore.momentum = 30;
-            else if (momentum === 'Sideways') fitScore.momentum = 20;
-            else fitScore.momentum = 5;
-          } else { // IC
-            if (momentum === 'Sideways') fitScore.momentum = 30;
-            else if (momentum === 'Moderate Uptrend' || momentum === 'Moderate Downtrend') fitScore.momentum = 20;
-            else fitScore.momentum = 10;
+          // Calculate fit for ALL strategies
+          const bpsFit = calculateStrategyFit('BPS');
+          const bcsFit = calculateStrategyFit('BCS');
+          const icFit = calculateStrategyFit('IC');
+
+          // Use the recommended strategy's score as the main score
+          const fitScore = recommendedStrategy === 'BPS' ? bpsFit.fitScore : 
+                           recommendedStrategy === 'BCS' ? bcsFit.fitScore : 
+                           icFit.fitScore;
+          const totalScore = recommendedStrategy === 'BPS' ? bpsFit.totalScore : 
+                             recommendedStrategy === 'BCS' ? bcsFit.totalScore : 
+                             icFit.totalScore;
+
+          // Generate strategy badges (show strategies with score >= 60)
+          const strategyBadges: StrategyFit[] = [];
+          if (bpsFit.totalScore >= 60) {
+            strategyBadges.push({ strategy: 'BPS', score: bpsFit.totalScore, label: 'Bull Put Spread' });
+          }
+          if (bcsFit.totalScore >= 60) {
+            strategyBadges.push({ strategy: 'BCS', score: bcsFit.totalScore, label: 'Bear Call Spread' });
+          }
+          if (icFit.totalScore >= 60) {
+            strategyBadges.push({ strategy: 'IC', score: icFit.totalScore, label: 'Iron Condor' });
           }
 
-          // IV score (25 points)
-          if (ivRank !== null) {
-            if (ivRank >= 60) fitScore.iv = 25;
-            else if (ivRank >= 40) fitScore.iv = 20;
-            else if (ivRank >= 25) fitScore.iv = 15;
-            else fitScore.iv = 5;
-          } else {
-            fitScore.iv = 10; // Neutral if no IV data
-          }
 
-          // Historical performance score (30 points)
-          if (historical) {
-            if (historical.winRate >= 75) fitScore.historical = 30;
-            else if (historical.winRate >= 65) fitScore.historical = 25;
-            else if (historical.winRate >= 55) fitScore.historical = 20;
-            else if (historical.winRate >= 45) fitScore.historical = 15;
-            else fitScore.historical = 5;
-          } else {
-            fitScore.historical = 15; // Neutral if no historical data
-          }
-
-          // Technical score (15 points) - 52-week position
-          if (recommendedStrategy === 'BPS') {
-            if (yearPosition >= 60) fitScore.technical = 15;
-            else if (yearPosition >= 40) fitScore.technical = 10;
-            else fitScore.technical = 5;
-          } else if (recommendedStrategy === 'BCS') {
-            if (yearPosition <= 40) fitScore.technical = 15;
-            else if (yearPosition <= 60) fitScore.technical = 10;
-            else fitScore.technical = 5;
-          } else { // IC
-            if (yearPosition >= 40 && yearPosition <= 60) fitScore.technical = 15;
-            else if (yearPosition >= 30 && yearPosition <= 70) fitScore.technical = 10;
-            else fitScore.technical = 5;
-          }
-
-          const totalScore = fitScore.momentum + fitScore.iv + fitScore.historical + fitScore.technical;
 
           // Generate reasoning
           let reasoning = '';
@@ -412,6 +451,7 @@ export const strategyAdvisorRouter = router({
             recommendedStrikes,
             reasoning,
             fitScore,
+            strategyBadges,
           };
         } catch (error) {
           console.error(`Failed to analyze ${symbol}:`, error);

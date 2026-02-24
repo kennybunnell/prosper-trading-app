@@ -9,10 +9,13 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 
 export function StrategyAdvisor() {
   const [, setLocation] = useLocation();
   const [showSettings, setShowSettings] = useState(false);
+  const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
+  const utils = trpc.useUtils();
   
   // Fetch user preferences
   const { data: userPrefs } = trpc.userPreferences.get.useQuery();
@@ -159,6 +162,16 @@ export function StrategyAdvisor() {
 
   return (
     <div className="space-y-6">
+      {/* Watchlist Management - Collapsible */}
+      <EnhancedWatchlist 
+        isCollapsed={watchlistCollapsed}
+        onToggleCollapse={() => setWatchlistCollapsed(!watchlistCollapsed)}
+        onWatchlistChange={() => {
+          utils.strategyAdvisor.getRecommendation.invalidate();
+          refetch();
+        }}
+      />
+
       {/* Market Overview - Compact */}
       <Card className={config.bgColor}>
         <CardHeader className="pb-4">
@@ -298,6 +311,26 @@ export function StrategyAdvisor() {
                           {ticker.momentum}
                         </Badge>
                       </div>
+
+                      {/* Strategy Badges - Show which strategies this ticker is good for */}
+                      {ticker.strategyBadges && ticker.strategyBadges.length > 0 && (
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-xs text-muted-foreground font-medium">Best for:</span>
+                          {ticker.strategyBadges.map((badge: any) => (
+                            <Badge
+                              key={badge.strategy}
+                              className={
+                                badge.strategy === 'BPS' ? 'bg-green-500/20 text-green-700 border-green-500/50 hover:bg-green-500/30' :
+                                badge.strategy === 'BCS' ? 'bg-red-500/20 text-red-700 border-red-500/50 hover:bg-red-500/30' :
+                                'bg-blue-500/20 text-blue-700 border-blue-500/50 hover:bg-blue-500/30'
+                              }
+                              variant="outline"
+                            >
+                              {badge.strategy === 'BPS' ? '🟢' : badge.strategy === 'BCS' ? '🔴' : '🔵'} {badge.label} ({badge.score})
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Price Info */}
                       <div className="flex items-center gap-4 mb-3 text-sm">
