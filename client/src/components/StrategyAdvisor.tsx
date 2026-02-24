@@ -285,8 +285,31 @@ export function StrategyAdvisor() {
               <p>No tickers in watchlist. Add tickers in Settings to get personalized recommendations.</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {rankedTickers.map((ticker: any, index: number) => (
+            <div className="space-y-6">
+              {/* Group tickers by strategy */}
+              {(() => {
+                // Separate tickers into strategy groups
+                const bpsTickers = rankedTickers.filter((t: any) => 
+                  t.strategyBadges?.some((b: any) => b.strategy === 'BPS' && b.score >= 60)
+                ).sort((a: any, b: any) => b.score - a.score);
+                
+                const bcsTickers = rankedTickers.filter((t: any) => 
+                  t.strategyBadges?.some((b: any) => b.strategy === 'BCS' && b.score >= 60) &&
+                  !t.strategyBadges?.some((b: any) => b.strategy === 'BPS' && b.score >= 60)
+                ).sort((a: any, b: any) => b.score - a.score);
+                
+                const icTickers = rankedTickers.filter((t: any) => 
+                  t.strategyBadges?.some((b: any) => b.strategy === 'IC' && b.score >= 60) &&
+                  !t.strategyBadges?.some((b: any) => b.strategy === 'BPS' && b.score >= 60) &&
+                  !t.strategyBadges?.some((b: any) => b.strategy === 'BCS' && b.score >= 60)
+                ).sort((a: any, b: any) => b.score - a.score);
+                
+                const notRecommended = rankedTickers.filter((t: any) => 
+                  !t.strategyBadges || t.strategyBadges.length === 0 || 
+                  !t.strategyBadges.some((b: any) => b.score >= 60)
+                ).sort((a: any, b: any) => b.score - a.score);
+
+                const renderTickerCard = (ticker: any, index: number) => (
                 <div
                   key={ticker.symbol}
                   className={`border rounded-lg p-4 ${
@@ -431,7 +454,76 @@ export function StrategyAdvisor() {
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+
+                return (
+                  <>
+                    {/* Bull Put Spreads */}
+                    {bpsTickers.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-4 pb-2 border-b">
+                          <div className="h-3 w-3 rounded-full bg-green-500" />
+                          <h3 className="text-lg font-semibold">Bull Put Spreads</h3>
+                          <Badge variant="outline" className="text-xs">
+                            {bpsTickers.length} {bpsTickers.length === 1 ? 'ticker' : 'tickers'}
+                          </Badge>
+                        </div>
+                        <div className="space-y-4">
+                          {bpsTickers.map((ticker: any, index: number) => renderTickerCard(ticker, index))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Bear Call Spreads */}
+                    {bcsTickers.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-4 pb-2 border-b">
+                          <div className="h-3 w-3 rounded-full bg-red-500" />
+                          <h3 className="text-lg font-semibold">Bear Call Spreads</h3>
+                          <Badge variant="outline" className="text-xs">
+                            {bcsTickers.length} {bcsTickers.length === 1 ? 'ticker' : 'tickers'}
+                          </Badge>
+                        </div>
+                        <div className="space-y-4">
+                          {bcsTickers.map((ticker: any, index: number) => renderTickerCard(ticker, index))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Iron Condors */}
+                    {icTickers.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-4 pb-2 border-b">
+                          <div className="h-3 w-3 rounded-full bg-blue-500" />
+                          <h3 className="text-lg font-semibold">Iron Condors</h3>
+                          <Badge variant="outline" className="text-xs">
+                            {icTickers.length} {icTickers.length === 1 ? 'ticker' : 'tickers'}
+                          </Badge>
+                        </div>
+                        <div className="space-y-4">
+                          {icTickers.map((ticker: any, index: number) => renderTickerCard(ticker, index))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Not Recommended */}
+                    {notRecommended.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-4 pb-2 border-b">
+                          <div className="h-3 w-3 rounded-full bg-gray-500" />
+                          <h3 className="text-lg font-semibold text-muted-foreground">Not Recommended</h3>
+                          <Badge variant="outline" className="text-xs">
+                            {notRecommended.length} {notRecommended.length === 1 ? 'ticker' : 'tickers'}
+                          </Badge>
+                        </div>
+                        <div className="space-y-4">
+                          {notRecommended.map((ticker: any, index: number) => renderTickerCard(ticker, index))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
         </CardContent>

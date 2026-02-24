@@ -6062,3 +6062,12 @@
 - [x] Test: Verify multi-strategy scoring (MS=BPS only, JPM=BPS+IC, META=IC only)
 - [x] Test: Verify badges display correctly for mixed-fit tickers (JPM shows 2 badges)
 - [x] Test: Verify watchlist add/remove functionality works (EnhancedWatchlist component)
+
+## Strategy Advisor - Group by Strategy Type
+- [x] Frontend: Reorganize ticker list to group by strategy (BPS, BCS, IC, Not Recommended)
+- [x] Frontend: Show section headers for each strategy group
+- [x] Frontend: Show count of tickers per strategy group (7 BPS, 1 IC, 12 Not Recommended)
+- [x] Frontend: Sort tickers within each group by score (highest first)
+- [x] Frontend: Add visual separation between strategy groups (colored dots + borders)
+- [x] Test: Verify BPS tickers appear first (MS, CRM, NVDA, TSM, JPM, GS, AMZN)
+- [x] Test: Verify tickers that fit multiple strategies appear in primary strategy group (JPM shows both BPS+IC badges)
