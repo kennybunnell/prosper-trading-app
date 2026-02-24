@@ -6079,3 +6079,17 @@
 - [x] Frontend: Toast notifications for analysis start/complete
 - [x] Test: Verify refresh button re-analyzes all tickers including newly added ones (61 tickers analyzed)
 - [x] Test: Verify loading state displays correctly during analysis
+
+## Strategy Advisor - Analyze ALL 61 Tickers (Not Just 20)
+- [x] Backend: Investigate why only 20 of 61 tickers are being analyzed (found .slice(0,20) limit)
+- [x] Backend: Remove any filtering/limiting logic that excludes tickers (removed .slice)
+- [x] Backend: Ensure ALL watchlist tickers are analyzed regardless of data availability
+- [x] Backend: Add error handling to show tickers that failed to analyze (with reason)
+- [x] Frontend: Display all 61 tickers in results (even if some have errors)
+- [x] Test: Verify all 61 selected tickers appear in the analysis results (60 of 61 analyzed, 1 failed)
+
+## Strategy Advisor - Show Strategy Badges for Low-IV Tickers
+- [x] Backend: Calculate strategy fit for ALL tickers (even low-IV ones) (already implemented via strategyBadges)
+- [x] Frontend: Show strategy badges in "Not Recommended" section (uses same renderTickerCard)
+- [x] Frontend: Add explanation text like "Would be BPS (but low IV)" (reasoning field shows this)
+- [x] Test: Verify low-IV tickers show their directional strategy (BPS/BCS/IC) (CMCSA shows all 3)

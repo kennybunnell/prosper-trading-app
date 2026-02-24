@@ -189,7 +189,7 @@ export const strategyAdvisorRouter = router({
       console.log(`[Strategy Advisor] Market: ${marketCondition}, Recommended: ${recommendedStrategy}`);
 
       // Analyze each watchlist ticker individually
-      const tickerAnalysisPromises = watchlistSymbols.slice(0, 20).map(async (symbol): Promise<TickerAnalysis | null> => {
+      const tickerAnalysisPromises = watchlistSymbols.map(async (symbol): Promise<TickerAnalysis | null> => {
         try {
           // Fetch ticker market data
           const response = await (api as any).client.get('/market-data/by-type', {
