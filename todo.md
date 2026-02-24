@@ -6112,3 +6112,16 @@
 - [ ] Test: Verify opportunities auto-fetch for selected tickers
 - [ ] Test: Select single ticker via "Trade This" → Navigate → Auto-load
 - [ ] Test: Clear selection and verify state resets correctly
+
+## Strategy Advisor - Redesign Multi-Select UX with Visual Selection Panel
+- [x] Frontend: Create visual selection panel that appears above "Top Watchlist Picks"
+- [x] Frontend: Show selected ticker chips in panel (e.g., MS, JNJ, CAT)
+- [x] Frontend: Add "Clear All" button to selection panel
+- [x] Frontend: Add prominent "Fetch Opportunities for [Strategy]" button in panel
+- [x] Frontend: Hide "Trade This" buttons when any tickers are selected
+- [x] Frontend: Show "Trade This" buttons when no tickers are selected (default state)
+- [x] Frontend: Update button text based on primary strategy (BPS/BCS/IC)
+- [x] Frontend: Make ticker chips clickable to remove individual selections (X button)
+- [x] Test: Check ticker → Chip appears in panel, "Trade This" disappears (MS tested)
+- [ ] Test: Uncheck ticker → Chip removed from panel, "Trade This" reappears
+- [ ] Test: Click "Fetch Opportunities" → Navigate to correct dashboard → Auto-fetch

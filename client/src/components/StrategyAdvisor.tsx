@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { AlertCircle, TrendingUp, TrendingDown, Minus, RefreshCw, Lightbulb, Target, ArrowRight, Settings, Trophy, Medal, Award } from "lucide-react";
+import { AlertCircle, TrendingUp, TrendingDown, Minus, RefreshCw, Lightbulb, Target, ArrowRight, Settings, Trophy, Medal, Award, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
@@ -43,6 +43,35 @@ export function StrategyAdvisor() {
   const handleTradeClick = () => {
     // Navigate to Iron Condor dashboard where user can trade the recommended strategy
     setLocation('/iron-condor');
+  };
+  
+  const handleToggleSelection = (symbol: string) => {
+    setSelectedTickers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(symbol)) {
+        newSet.delete(symbol);
+      } else {
+        newSet.add(symbol);
+      }
+      return newSet;
+    });
+  };
+
+  const getPrimaryStrategy = () => {
+    // Determine primary strategy based on selected tickers
+    // For now, return the most common strategy among selected tickers
+    if (!data?.rankedTickers) return 'Bull Put Spreads';
+    
+    const selectedTickerData = data.rankedTickers.filter(t => selectedTickers.has(t.symbol));
+    const strategyCounts = selectedTickerData.reduce((acc, ticker) => {
+      ticker.strategyBadges.forEach(badge => {
+        acc[badge.strategy] = (acc[badge.strategy] || 0) + 1;
+      });
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const primaryStrategy = Object.entries(strategyCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+    return primaryStrategy || 'Bull Put Spreads';
   };
   
   const handleTickerToggle = (symbol: string) => {
@@ -239,6 +268,55 @@ export function StrategyAdvisor() {
           utils.strategyAdvisor.getRecommendation.invalidate();
         }}
       />
+
+      {/* Selection Panel - Shows selected tickers as chips */}
+      {selectedTickers.size > 0 && (
+        <Card className="border-blue-500/50 bg-blue-500/10">
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <Target className="h-5 w-5 text-blue-500" />
+                  Selected Tickers ({selectedTickers.size})
+                </h3>
+                <Button
+                  onClick={handleClearSelection}
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Clear All
+                </Button>
+              </div>
+              
+              {/* Ticker Chips */}
+              <div className="flex flex-wrap gap-2">
+                {Array.from(selectedTickers).map((symbol) => (
+                  <Badge
+                    key={symbol}
+                    variant="secondary"
+                    className="px-3 py-1.5 text-sm font-mono bg-blue-500/20 text-blue-700 border-blue-500/50 cursor-pointer hover:bg-blue-500/30 transition-colors"
+                    onClick={() => handleToggleSelection(symbol)}
+                  >
+                    {symbol}
+                    <X className="h-3 w-3 ml-1.5" />
+                  </Badge>
+                ))}
+              </div>
+
+              {/* Fetch Opportunities Button */}
+              <Button
+                onClick={handleAnalyzeSelected}
+                size="lg"
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg"
+              >
+                <Target className="h-5 w-5 mr-2" />
+                Fetch Opportunities for {getPrimaryStrategy()} ({selectedTickers.size} tickers)
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Analyze Button - Prominent */}
       <Card className="border-primary/50 bg-primary/5">
@@ -579,16 +657,18 @@ export function StrategyAdvisor() {
                       </div>
                     </div>
 
-                    {/* Trade Button */}
-                    <Button
-                      onClick={handleTradeClick}
-                      className="flex-shrink-0"
-                      variant={ticker.score >= 70 ? 'default' : 'outline'}
-                      disabled={ticker.score < 40}
-                    >
-                      Trade This
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </Button>
+                    {/* Trade Button - Only show when no tickers are selected */}
+                    {selectedTickers.size === 0 && (
+                      <Button
+                        onClick={handleTradeClick}
+                        className="flex-shrink-0"
+                        variant={ticker.score >= 70 ? 'default' : 'outline'}
+                        disabled={ticker.score < 40}
+                      >
+                        Trade This
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    )}
                   </div>
                 </div>
                 );
