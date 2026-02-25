@@ -16,6 +16,7 @@ export function StrategyAdvisor() {
   const [showSettings, setShowSettings] = useState(false);
   const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
   const [selectedTickers, setSelectedTickers] = useState<Set<string>>(new Set());
+  const [lockedStrategy, setLockedStrategy] = useState<string | null>(null);
   const utils = trpc.useUtils();
   
   // Fetch user preferences
@@ -75,19 +76,47 @@ export function StrategyAdvisor() {
   };
   
   const handleTickerToggle = (symbol: string) => {
+    // Get the ticker data to check its primary strategy
+    const ticker = data?.rankedTickers?.find((t: any) => t.symbol === symbol);
+    if (!ticker) return;
+    
+    const tickerPrimaryStrategy = ticker.strategyBadges?.[0]?.strategy || null;
+    
     setSelectedTickers(prev => {
       const newSet = new Set(prev);
+      
       if (newSet.has(symbol)) {
+        // Deselecting - remove from set
         newSet.delete(symbol);
+        
+        // If no more tickers selected, unlock strategy
+        if (newSet.size === 0) {
+          setLockedStrategy(null);
+        }
       } else {
+        // Selecting - check if compatible with locked strategy
+        if (lockedStrategy && tickerPrimaryStrategy !== lockedStrategy) {
+          toast.error(
+            `⚠️ You can only select tickers for one strategy at a time. Currently locked to ${lockedStrategy}. Clear your selection to switch strategies.`,
+            { duration: 4000 }
+          );
+          return prev; // Don't add to selection
+        }
+        
+        // Add to set and lock strategy if this is the first selection
         newSet.add(symbol);
+        if (newSet.size === 1) {
+          setLockedStrategy(tickerPrimaryStrategy);
+        }
       }
+      
       return newSet;
     });
   };
   
   const handleClearSelection = () => {
     setSelectedTickers(new Set());
+    setLockedStrategy(null);
     toast.info('Selection cleared');
   };
   
@@ -275,10 +304,17 @@ export function StrategyAdvisor() {
           <CardContent className="pt-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg flex items-center gap-2">
-                  <Target className="h-5 w-5 text-blue-500" />
-                  Selected Tickers ({selectedTickers.size})
-                </h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <Target className="h-5 w-5 text-blue-500" />
+                    Selected Tickers ({selectedTickers.size})
+                  </h3>
+                  {lockedStrategy && (
+                    <Badge variant="outline" className="bg-blue-500/20 text-blue-700 border-blue-500/50">
+                      🔒 Locked to {lockedStrategy}
+                    </Badge>
+                  )}
+                </div>
                 <Button
                   onClick={handleClearSelection}
                   variant="ghost"
@@ -518,7 +554,12 @@ export function StrategyAdvisor() {
                   !t.strategyBadges.some((b: any) => b.score >= 60)
                 ).sort((a: any, b: any) => b.score - a.score);
 
-                const renderTickerCard = (ticker: any, index: number) => (
+                const renderTickerCard = (ticker: any, index: number) => {
+                  // Check if this ticker's strategy is compatible with locked strategy
+                  const tickerPrimaryStrategy = ticker.strategyBadges?.[0]?.strategy || null;
+                  const isDisabled = lockedStrategy && tickerPrimaryStrategy && tickerPrimaryStrategy !== lockedStrategy;
+                  
+                  return (
                 <div
                   key={ticker.symbol}
                   className={`border rounded-lg p-4 ${
@@ -535,7 +576,11 @@ export function StrategyAdvisor() {
                           type="checkbox"
                           checked={selectedTickers.has(ticker.symbol)}
                           onChange={() => handleTickerToggle(ticker.symbol)}
-                          className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          disabled={isDisabled}
+                          className={`h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${
+                            isDisabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+                          }`}
+                          title={isDisabled ? `Locked to ${lockedStrategy} strategy` : ''}
                         />
                         {getRankIcon(index)}
                         <span className="text-sm font-medium text-muted-foreground">
@@ -671,7 +716,8 @@ export function StrategyAdvisor() {
                     )}
                   </div>
                 </div>
-                );
+                  );
+                };
 
                 return (
                   <>

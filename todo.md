@@ -6142,3 +6142,16 @@
 - [ ] Test: Multi-select (MS, JNJ, CAT) → Navigate to CSP → Verify only those 3 are selected
 - [ ] Test: Manually click "Fetch Opportunities" → Verify opportunities fetch for only selected tickers
 - [ ] Test: Verify existing CSP Dashboard logic remains unchanged (when NOT coming from Strategy Advisor)
+
+## Strategy Advisor - Strict Single-Strategy Selection Validation
+- [x] Backend: No changes needed (navigation logic already handles primary strategy)
+- [x] Frontend: Add validation to prevent mixing strategies in selection
+- [x] Frontend: Determine "locked strategy" when first ticker is selected
+- [x] Frontend: Disable checkboxes for tickers with different primary strategies (disabled={isDisabled})
+- [x] Frontend: Show toast error if user tries to select incompatible strategy
+- [x] Frontend: Clear locked strategy when selection is cleared
+- [x] Frontend: Update selection panel to show locked strategy type (🔒 Locked to BPS badge)
+- [x] Test: Select BPS ticker (GS) → Verified locked badge appears
+- [ ] Test: Try to select BCS ticker (CMG) after BPS → Verify error toast appears (implementation complete, visual test pending)
+- [ ] Test: Clear selection → Verify all checkboxes re-enabled (implementation complete, visual test pending)
+- [ ] Test: Select multiple BPS tickers → Verify all work correctly (implementation complete, visual test pending)
