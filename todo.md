@@ -6235,3 +6235,14 @@
 - [x] Tested with real market data (PEP: 57, JNJ: 49, GS: 47, GE: 47, DUK: 44)
 - [x] Note: No unicorn trades found in current market conditions (no +10 bonus triggered yet)
 - [x] Final BPS scoring weights: Technical 30%, Greeks 30%, Spread Efficiency 25%, Premium Quality 15%
+
+## CSP Scoring System Validation and Optimization
+- [x] Analyze current CSP scoring weights (Technical 40%, Greeks 30%, Premium 20%, Quality 10%)
+- [x] Validate that CSP scoring prioritizes oversold conditions (RSI < 30, BB < 0.20) appropriately
+- [x] Compare CSP vs BPS scoring philosophy and confirm differences are appropriate
+- [x] Evaluate if premium weight (20%) is appropriate (CONFIRMED: 20% is correct for CSP)
+- [x] Consider adding Perfect Setup Bonus for CSP unicorn opportunities (IMPLEMENTED)
+- [x] Define CSP Perfect Setup criteria (RSI < 30, BB < 0.20, Weekly ≥ 1.5%, Delta 0.20-0.29, DTE 7-14, Spread ≤ 5%)
+- [x] Implement Perfect Setup Bonus (+10 points) in calculateCSPScore function
+- [ ] Test CSP scoring with real market data and verify score distribution (70-75 range for unicorns)
+- [x] Document CSP scoring rationale and weight justification (csp-scoring-analysis.md)

@@ -10,6 +10,7 @@ export interface ScoreBreakdown {
   greeks: number; // Delta + DTE + IV Rank (30 points)
   premium: number; // Weekly Return + Spread (20 points)
   quality: number; // Mag 7 + Market Cap (10 points)
+  perfectSetupBonus?: number; // Perfect Setup Bonus (10 points)
   total: number; // Sum of all (0-100)
 }
 
@@ -185,8 +186,25 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
     qualityScore += 2;
   }
 
+  // ===== PERFECT SETUP BONUS (10 points) =====
+  // Awarded when ALL conditions align for a unicorn CSP opportunity
+  let perfectSetupBonus = 0;
+  
+  const isPerfectSetup = (
+    rsi !== null && rsi !== undefined && rsi < 30 && // Deeply oversold
+    bb !== null && bb !== undefined && bb < 0.20 && // Near lower band
+    weekly >= 1.5 && // Excellent premium (6%+/month)
+    delta >= 0.20 && delta <= 0.29 && // Ideal probability
+    dte >= 7 && dte <= 14 && // Optimal theta decay
+    spread !== null && spread !== undefined && spread <= 5 // Liquid, easy to fill
+  );
+  
+  if (isPerfectSetup) {
+    perfectSetupBonus = 10;
+  }
+
   // Calculate total score
-  const totalScore = Math.round(technicalScore + greeksScore + premiumScore + qualityScore);
+  const totalScore = Math.round(technicalScore + greeksScore + premiumScore + qualityScore + perfectSetupBonus);
 
   return {
     score: totalScore,
@@ -195,6 +213,7 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
       greeks: Math.round(greeksScore),
       premium: Math.round(premiumScore),
       quality: Math.round(qualityScore),
+      perfectSetupBonus: perfectSetupBonus,
       total: totalScore,
     },
   };
