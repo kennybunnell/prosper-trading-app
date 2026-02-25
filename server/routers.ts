@@ -23,6 +23,7 @@ import { stripeRouter } from './routers-stripe';
 import { spreadAnalyticsRouter } from './routers-spread-analytics';
 import { strategyAdvisorRouter } from './routers-strategy-advisor';
 import { taxRouter } from './routers-tax';
+import { portfolioAdvisorRouter } from './routers-portfolio-advisor';
 
 // Helper function to parse OCC option symbols
 function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
@@ -312,6 +313,7 @@ export const appRouter = router({
   spreadAnalytics: spreadAnalyticsRouter,
   strategyAdvisor: strategyAdvisorRouter,
   tax: taxRouter,
+  portfolioAdvisor: portfolioAdvisorRouter,
   rolls: rollsRouter,
   rollRecommendations: rollRecommendationsRouter,
   orders: ordersRouter,
@@ -1092,10 +1094,23 @@ export const appRouter = router({
         // Score all opportunities
         const scored = scoreOpportunities(opportunities);
 
+        // Calculate risk badges for all opportunities
+        const { calculateBulkRiskAssessments } = await import('./riskAssessment');
+        const symbolSet = new Set<string>();
+        scored.forEach(opp => symbolSet.add(opp.symbol));
+        const uniqueSymbols = Array.from(symbolSet);
+        const riskAssessments = await calculateBulkRiskAssessments(uniqueSymbols, api);
+        
+        // Attach risk badges to opportunities
+        const scoredWithBadges = scored.map(opp => ({
+          ...opp,
+          riskBadges: riskAssessments.get(opp.symbol)?.badges || [],
+        }));
+
         // Increment scan count for Tier 1 users (after successful scan)
         await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
 
-        return scored;
+        return scoredWithBadges;
       }),
     
     explainScore: protectedProcedure

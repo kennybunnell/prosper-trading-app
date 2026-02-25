@@ -6246,3 +6246,87 @@
 - [x] Implement Perfect Setup Bonus (+10 points) in calculateCSPScore function
 - [ ] Test CSP scoring with real market data and verify score distribution (70-75 range for unicorns)
 - [x] Document CSP scoring rationale and weight justification (csp-scoring-analysis.md)
+
+## Comprehensive CSP Risk Management Framework (Prevent Catastrophic Losses)
+### Root Cause Analysis
+- [ ] Analyze user's major losses (HOOD $48k, HIMS $36k, COIN $30k, TSLA $37k, MSFT $26k)
+- [ ] Identify common patterns: high-volatility tickers, concentrated positions, lack of diversification
+- [ ] Document lessons learned and risk factors to avoid
+
+### Enhanced CSP Scoring Criteria
+- [ ] Add 52-week high/low analysis to CSP scoring (penalize stocks near 52-week lows)
+- [ ] Add volatility ranking (penalize stocks with IV Rank > 70%)
+- [ ] Add earnings date proximity filter (avoid CSP within 2 weeks of earnings)
+- [ ] Add support level analysis (strike must be above key support levels)
+- [ ] Add sector concentration check (warn if > 30% of capital in one sector)
+- [ ] Increase weight of technical indicators from 40% to 50% for CSP
+
+### Position Sizing Rules
+- [ ] Implement "2% rule": No single CSP position should exceed 2% of total portfolio value
+- [ ] Implement "10% rule": No single ticker should exceed 10% of total portfolio value across all strategies
+- [ ] Add position sizing calculator to CSP Dashboard
+- [ ] Display current portfolio allocation by ticker in Dashboard
+- [ ] Add warnings when position sizing rules are violated
+
+### Portfolio Diversification Guidelines
+- [ ] Implement sector diversification limits (max 25% per sector)
+- [ ] Implement ticker concentration limits (max 3 positions per ticker across all strategies)
+- [ ] Add portfolio heat map showing concentration risk
+- [ ] Add "Max Capital at Risk" calculator (sum of all CSP collateral requirements)
+
+### Technical Safeguards
+- [ ] Add "High Risk" badge to tickers with: IV Rank > 60%, RSI > 70, or near 52-week lows
+- [ ] Add "Earnings Risk" badge to tickers with earnings within 14 days
+- [ ] Add portfolio-level risk score (0-100) based on concentration, volatility, and diversification
+- [ ] Implement "Risk Budget" feature: allocate max % of portfolio to high-risk vs low-risk tickers
+
+### Reporting and Alerts
+- [ ] Add "Portfolio Health" dashboard showing: concentration risk, sector allocation, capital at risk
+- [ ] Add email/notification alerts when position sizing rules are violated
+- [ ] Add "What-If" scenario analysis: show impact of -20%, -30%, -50% stock price drops on portfolio
+- [ ] Generate weekly risk report summarizing portfolio exposure and recommendations
+
+## Risk Badge System Implementation
+- [x] Add Tradier calendar API integration for earnings dates
+- [ ] Create earnings date caching system (24-hour cache)
+- [x] Implement risk badge calculation logic (Extreme Volatility, Below Support, Earnings Soon, Momentum Reversal, Blue Chip)
+- [x] Add risk badge types and interfaces to shared types
+- [x] Create RiskBadge React component with tooltips
+- [x] Add 52-week high/low data fetching from Tradier
+- [x] Add IV Rank calculation and storage
+- [x] Add momentum calculation (20-day trend)
+- [x] Add Mag 7 and S&P 100 detection for Blue Chip badge
+- [x] Integrate risk badges into CSP Dashboard opportunities table
+- [ ] Integrate risk badges into Covered Calls Dashboard opportunities table
+- [ ] Integrate risk badges into Iron Condor Dashboard opportunities table
+- [ ] Integrate risk badges into Strategy Advisor ticker cards
+- [x] Test earnings detection with real Tradier data
+- [x] Test all badge types display correctly
+- [x] Test tooltip information is helpful and accurate
+
+## Portfolio Advisor Feature (Phase 2)
+- [x] Create Portfolio Advisor page and route
+- [ ] Add navigation link to sidebar
+- [x] Implement past trades analysis (pattern detection)
+- [x] Identify concentration risk in historical trades
+- [x] Analyze sector exposure over time
+- [x] Calculate win/loss rates by ticker, strategy, and sector
+- [x] Implement current positions risk analysis
+- [x] Calculate current concentration risk (per ticker, per sector)
+- [x] Identify underwater positions with assignment risk
+- [x] Analyze current portfolio delta exposure
+- [x] Create future recommendations engine
+- [x] Implement 2-10-25 position sizing rules
+- [x] Generate diversification recommendations
+- [x] Suggest position adjustments for risk reduction
+- [x] Create risk score dashboard (0-100 scale)
+- [ ] Add visual charts for sector allocation
+- [ ] Add visual charts for strategy allocation
+- [ ] Add visual charts for historical performance by strategy
+- [ ] Test with user's actual portfolio data
+
+- [x] Test Portfolio Advisor risk calculations
+- [x] Test concentration risk detection
+- [x] Test underwater position detection
+- [x] Test portfolio delta calculations
+- [x] Test recommendation generation logic

@@ -150,6 +150,7 @@ export interface CSPOpportunity {
   spreadPct: number;
   collateral: number;
   roc: number;
+  riskBadges?: any[]; // RiskBadge[] - using any[] to avoid circular import
 }
 
 export class TradierAPI {
@@ -470,6 +471,75 @@ export class TradierAPI {
         throw new Error('Account not found or access denied');
       }
       throw new Error(`Failed to fetch account balance: ${error.response?.data?.fault?.faultstring || error.message}`);
+    }
+  }
+
+  /**
+   * Get earnings calendar for specific symbols
+   * Returns upcoming earnings dates within the next 30 days
+   */
+  async getEarningsCalendar(symbols: string[]): Promise<Map<string, string>> {
+    try {
+      const earningsMap = new Map<string, string>();
+      
+      // Tradier calendar endpoint: /markets/calendar
+      // Query parameters: month (MM), year (YYYY), symbols (comma-separated)
+      const today = new Date();
+      const nextMonth = new Date(today);
+      nextMonth.setDate(today.getDate() + 30);
+      
+      // Fetch current month
+      const currentMonthResponse = await this.client.get('/markets/calendar', {
+        params: {
+          month: String(today.getMonth() + 1).padStart(2, '0'),
+          year: today.getFullYear(),
+        },
+      });
+      
+      // Fetch next month if we're near the end of current month
+      let nextMonthResponse = null;
+      if (nextMonth.getMonth() !== today.getMonth()) {
+        nextMonthResponse = await this.client.get('/markets/calendar', {
+          params: {
+            month: String(nextMonth.getMonth() + 1).padStart(2, '0'),
+            year: nextMonth.getFullYear(),
+          },
+        });
+      }
+      
+      // Parse earnings from both responses
+      const parseEarnings = (response: any) => {
+        const calendar = response?.data?.calendar;
+        if (!calendar) return;
+        
+        const days = Array.isArray(calendar.days?.day) ? calendar.days.day : (calendar.days?.day ? [calendar.days.day] : []);
+        
+        for (const day of days) {
+          const date = day.date;
+          const earnings = day.earnings?.earning;
+          if (!earnings) continue;
+          
+          const earningsList = Array.isArray(earnings) ? earnings : [earnings];
+          
+          for (const earning of earningsList) {
+            const symbol = earning.symbol;
+            if (symbols.includes(symbol) && !earningsMap.has(symbol)) {
+              earningsMap.set(symbol, date);
+            }
+          }
+        }
+      };
+      
+      parseEarnings(currentMonthResponse);
+      if (nextMonthResponse) {
+        parseEarnings(nextMonthResponse);
+      }
+      
+      return earningsMap;
+    } catch (error: any) {
+      console.error('[Tradier API] Failed to fetch earnings calendar:', error.message);
+      // Return empty map on error - don't block the main flow
+      return new Map<string, string>();
     }
   }
 

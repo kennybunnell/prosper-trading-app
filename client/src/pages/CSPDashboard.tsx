@@ -43,6 +43,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+import { RiskBadgeList } from "@/components/RiskBadge";
 
 // Color-coding helper functions for technical indicators
 function getRSIColor(rsi: number | null, strategy: 'csp' | 'cc'): string {
@@ -637,18 +638,18 @@ export default function CSPDashboard() {
   }, [opportunities, presetFilter, presets, minScore, showSelectedOnly, sortColumn, sortDirection, deltaRange, dteRange, scoreRange, selectedOpportunities]);
 
   // Calculate summary metrics
-  const selectedOppsList = opportunities.filter(opp => 
+  const selectedOppsList = opportunities.filter((opp: any) => 
     selectedOpportunities.has(`${opp.symbol}-${opp.strike}-${opp.expiration}`)
   );
   // For spreads, use netCredit; for CSP, use premium
   const totalPremium = strategyType === 'spread'
-    ? selectedOppsList.reduce((sum, opp) => sum + ((opp as any).netCredit * 100 || 0), 0)
-    : selectedOppsList.reduce((sum, opp) => sum + (opp.premium * 100), 0);
+    ? selectedOppsList.reduce((sum: number, opp: any) => sum + ((opp as any).netCredit * 100 || 0), 0)
+    : selectedOppsList.reduce((sum: number, opp: any) => sum + (opp.premium * 100), 0);
   
   // For spreads, use capitalAtRisk instead of full collateral
   const totalCollateral = strategyType === 'spread'
-    ? selectedOppsList.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-    : selectedOppsList.reduce((sum, opp) => sum + opp.collateral, 0);
+    ? selectedOppsList.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+    : selectedOppsList.reduce((sum: number, opp: any) => sum + opp.collateral, 0);
   
   const roc = totalCollateral > 0 ? (totalPremium / totalCollateral) * 100 : 0;
 
@@ -882,7 +883,7 @@ export default function CSPDashboard() {
     }
 
     // Validate orders and show preview dialog
-    const orders = selectedOppsList.map(opp => ({
+    const orders = selectedOppsList.map((opp: any) => ({
       symbol: opp.symbol,
       strike: opp.strike,
       expiration: opp.expiration,
@@ -1640,8 +1641,8 @@ export default function CSPDashboard() {
             <CardContent className="relative">
               <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
                 ${strategyType === 'spread'
-                  ? opportunities.reduce((sum, opp) => sum + ((opp as any).netCredit * 100 || 0), 0).toFixed(2)
-                  : opportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0).toFixed(2)}
+                  ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).netCredit * 100 || 0), 0).toFixed(2)
+                  : opportunities.reduce((sum: number, opp: any) => sum + (opp.premium * 100), 0).toFixed(2)}
               </div>
             </CardContent>
           </Card>
@@ -1660,8 +1661,8 @@ export default function CSPDashboard() {
               <div className="text-3xl font-bold bg-gradient-to-r from-slate-400 to-gray-400 bg-clip-text text-transparent">
                 ${(() => {
                   const collateral = strategyType === 'spread'
-                    ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                    : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                    ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                   return collateral.toFixed(2);
                 })()}
               </div>
@@ -1682,11 +1683,11 @@ export default function CSPDashboard() {
               <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
                 {(() => {
                   const totalPrem = strategyType === 'spread'
-                    ? opportunities.reduce((sum, opp) => sum + ((opp as any).netCredit * 100 || 0), 0)
-                    : opportunities.reduce((sum, opp) => sum + (opp.premium * 100), 0);
+                    ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).netCredit * 100 || 0), 0)
+                    : opportunities.reduce((sum: number, opp: any) => sum + (opp.premium * 100), 0);
                   const totalColl = strategyType === 'spread'
-                    ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                    : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                    ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                   const roc = totalColl > 0 ? (totalPrem / totalColl) * 100 : 0;
                   return roc.toFixed(2);
                 })()}%
@@ -1715,8 +1716,8 @@ export default function CSPDashboard() {
             "relative overflow-hidden backdrop-blur shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]",
             (() => {
               const totalColl = strategyType === 'spread'
-                ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
               const availableBP = availableBuyingPower;
               const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
               return usedPct > 80 
@@ -1731,8 +1732,8 @@ export default function CSPDashboard() {
                   "p-2 rounded-lg",
                   (() => {
                     const totalColl = strategyType === 'spread'
-                      ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                      : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                      ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                      : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                     const availableBP = availableBuyingPower;
                     const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                     return usedPct > 80 ? "bg-red-500/20" : "bg-emerald-500/20";
@@ -1742,8 +1743,8 @@ export default function CSPDashboard() {
                     "w-4 h-4",
                     (() => {
                       const totalColl = strategyType === 'spread'
-                        ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                        : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                        ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                        : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                       const availableBP = availableBuyingPower;
                       const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                       return usedPct > 80 ? "text-red-400" : "text-emerald-400";
@@ -1761,8 +1762,8 @@ export default function CSPDashboard() {
                 "text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent",
                 (() => {
                   const totalColl = strategyType === 'spread'
-                    ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                    : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                    ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                   const availableBP = availableBuyingPower;
                   const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                   return usedPct > 80 
@@ -1772,8 +1773,8 @@ export default function CSPDashboard() {
               )}>
                 {(() => {
                   const totalColl = strategyType === 'spread'
-                    ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                    : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                    ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                   const availableBP = availableBuyingPower;
                   const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                   return usedPct.toFixed(1);
@@ -1783,8 +1784,8 @@ export default function CSPDashboard() {
                 "text-3xl font-bold mt-2",
                 (() => {
                   const totalColl = strategyType === 'spread'
-                    ? opportunities.reduce((sum, opp) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                    : opportunities.reduce((sum, opp) => sum + (opp.strike * 100), 0);
+                    ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                   const availableBP = availableBuyingPower;
                   const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                   return usedPct > 80 ? "text-red-400" : "text-emerald-400";
@@ -2368,6 +2369,7 @@ export default function CSPDashboard() {
                     { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, technical: true },
                     { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, technical: true },
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
+                    { key: 'riskBadges', label: 'Risk', help: null, technical: false },
                     { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
                     { key: 'aiRecommendation', label: 'AI', help: null, technical: false },
                   ] : [
@@ -2388,6 +2390,7 @@ export default function CSPDashboard() {
                     { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, technical: true },
                     { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, technical: true },
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
+                    { key: 'riskBadges', label: 'Risk', help: null, technical: false },
                     { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
                     { key: 'aiRecommendation', label: 'AI', help: null, technical: false },
                   ]).filter(({ technical }) => !technical || showTechnicalColumns).map(({ key, label, help }) => (
@@ -2492,6 +2495,9 @@ export default function CSPDashboard() {
                               </>
                             )}
                             <TableCell>
+                              <RiskBadgeList badges={(opp as any).riskBadges || []} size="sm" maxDisplay={3} />
+                            </TableCell>
+                            <TableCell>
                               <Badge className={cn("font-bold", getROCColor((opp as any).spreadROC || 0))}>
                                 {opp.score}
                               </Badge>
@@ -2545,6 +2551,9 @@ export default function CSPDashboard() {
                             </TableCell>
                           </>
                         )}
+                        <TableCell>
+                          <RiskBadgeList badges={(opp as any).riskBadges || []} size="sm" maxDisplay={3} />
+                        </TableCell>
                         <TableCell>
                           <TooltipProvider>
                             <Tooltip>

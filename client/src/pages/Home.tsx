@@ -8,6 +8,7 @@ import { Link } from "wouter";
 import { useTheme } from "@/contexts/ThemeContext";
 import { trpc } from "@/lib/trpc";
 import { MonthlyPremiumChart } from "@/components/MonthlyPremiumChart";
+import { PortfolioAdvisorSummary } from "@/components/PortfolioAdvisorSummary";
 
 function MonthlyPremiumChartSection() {
   const [selectedYear, setSelectedYear] = React.useState<number | undefined>(new Date().getFullYear());
@@ -211,78 +212,10 @@ export default function Home() {
         {/* Monthly Premium Chart - All Accounts Combined */}
         <MonthlyPremiumChartSection />
         
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-8">
-          {/* CSP Dashboard Card */}
-          <Card className="hover:border-primary/50 transition-all duration-300 cursor-pointer backdrop-blur-sm bg-card/80 hover:shadow-lg hover:shadow-primary/20">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-green-500" />
-                <CardTitle>Cash-Secured Puts</CardTitle>
-              </div>
-              <CardDescription>
-                Analyze and execute CSP strategies with dual scoring system
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="text-sm space-y-1 text-muted-foreground">
-                <li>• Watchlist management</li>
-                <li>• Option chain analysis</li>
-                <li>• Smart recommendations</li>
-                <li>• One-click order execution</li>
-              </ul>
-              <Button className="w-full mt-4" asChild>
-                <Link href="/csp">Open Dashboard</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* CC Dashboard Card */}
-          <Card className="hover:border-primary/50 transition-all duration-300 cursor-pointer backdrop-blur-sm bg-card/80 hover:shadow-lg hover:shadow-blue-500/20">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-blue-500" />
-                <CardTitle>Covered Calls</CardTitle>
-              </div>
-              <CardDescription>
-                Maximize returns on existing stock positions
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="text-sm space-y-1 text-muted-foreground">
-                <li>• Position analysis</li>
-                <li>• CC opportunity scoring</li>
-                <li>• Premium optimization</li>
-                <li>• Risk management</li>
-              </ul>
-              <Button className="w-full mt-4" asChild>
-                <Link href="/cc">Open Dashboard</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* PMCC Dashboard Card */}
-          <Card className="hover:border-primary/50 transition-all duration-300 cursor-pointer backdrop-blur-sm bg-card/80 hover:shadow-lg hover:shadow-purple-500/20">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-purple-500" />
-                <CardTitle>PMCC Strategy</CardTitle>
-              </div>
-              <CardDescription>
-                Poor Man's Covered Call with LEAPS
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="text-sm space-y-1 text-muted-foreground">
-                <li>• LEAPS option scanning</li>
-                <li>• Spread analysis</li>
-                <li>• Notification alerts</li>
-                <li>• Performance tracking</li>
-              </ul>
-              <Button className="w-full mt-4" asChild>
-                <Link href="/pmcc">Open Dashboard</Link>
-              </Button>
-            </CardContent>
-          </Card>
+        {/* Portfolio Advisor Summary Cards */}
+        <div className="mt-8">
+          <h2 className="text-2xl font-bold mb-4">Portfolio Risk Analysis</h2>
+          <PortfolioAdvisorSummary />
         </div>
 
         {/* Setup Notice */}
