@@ -6172,3 +6172,10 @@
 - [x] Remove Strategy Advisor tab from Action Items
 - [x] Test all navigation links work correctly
 - [x] Verify Strategy Advisor functionality remains intact on standalone page
+
+## Strategy Advisor - Clear Selection State on Fresh Load
+- [x] Add useEffect to StrategyAdvisor component to clear selection state on mount
+- [x] Clear database selections via clearAll mutation when Strategy Advisor loads
+- [x] Clear component state (selectedTickers, lockedStrategy) on mount
+- [x] Test: Navigate to Strategy Advisor directly → Verified 0 of 61 selected (clean slate)
+- [ ] Test: Navigate from CSP Dashboard with pre-selected tickers → Verify those tickers remain selected (future enhancement)

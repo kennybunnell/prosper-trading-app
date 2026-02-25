@@ -40,6 +40,28 @@ export function StrategyAdvisor() {
     refetchOnWindowFocus: false,
     refetchInterval: autoRefresh ? refreshInterval * 60 * 1000 : false,
   });
+  
+  // Mutation to clear all watchlist selections
+  const clearAllMutation = trpc.watchlist.clearAll.useMutation({
+    onSuccess: () => {
+      utils.watchlist.getSelections.invalidate();
+    },
+  });
+  
+  // Clear selection state on mount (fresh load)
+  // This ensures users start with a clean slate when navigating directly to Strategy Advisor
+  useEffect(() => {
+    // Clear component state
+    setSelectedTickers(new Set());
+    setLockedStrategy(null);
+    
+    // Also clear database selections to ensure watchlist shows 0 selected
+    // This prevents confusion from leftover selections from previous sessions
+    if (data?.rankedTickers) {
+      const allSymbols = data.rankedTickers.map((t: any) => t.symbol);
+      clearAllMutation.mutate({ symbols: allSymbols });
+    }
+  }, [data?.rankedTickers]); // Run when ticker data loads
 
   const handleTradeClick = () => {
     // Navigate to Iron Condor dashboard where user can trade the recommended strategy
