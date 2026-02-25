@@ -6330,3 +6330,11 @@
 - [x] Test underwater position detection
 - [x] Test portfolio delta calculations
 - [x] Test recommendation generation logic
+
+## Risk Badge Display Issue (Bug Fix)
+- [x] Investigate why Risk Badges column is not showing in CSP Dashboard table
+- [x] Check if riskBadges data is being fetched from backend
+- [x] Verify RiskBadgeList component is properly imported and used
+- [x] Check if Risk column header is visible in table
+- [x] Verify risk badge calculation is working for all opportunities
+- [x] Relax risk badge thresholds (IV Rank 60%, Support 50%, Momentum 3%)

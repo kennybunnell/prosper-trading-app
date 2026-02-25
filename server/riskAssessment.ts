@@ -59,13 +59,13 @@ export async function calculateRiskBadges(
     // Get earnings date
     const earningsDate = earningsMap.get(symbol) || null;
 
-    // 1. Extreme Volatility Badge (IV Rank > 70%)
-    if (ivRank !== null && ivRank > 70) {
+    // 1. Extreme Volatility Badge (IV Rank > 60%)
+    if (ivRank !== null && ivRank > 60) {
       badges.push(createRiskBadge('extreme-volatility', `IV Rank: ${ivRank.toFixed(0)}%. Extreme volatility detected.`));
     }
 
-    // 2. Below Support Badge (< 40% of 52-week range)
-    if (week52PercentInRange !== null && week52PercentInRange < 40) {
+    // 2. Below Support Badge (< 50% of 52-week range)
+    if (week52PercentInRange !== null && week52PercentInRange < 50) {
       badges.push(createRiskBadge('below-support', `Stock is at ${week52PercentInRange.toFixed(0)}% of 52-week range. Significant downside risk.`));
     }
 
@@ -82,8 +82,8 @@ export async function calculateRiskBadges(
       }
     }
 
-    // 4. Momentum Reversal Badge (price < 20-day SMA by > 5%)
-    if (momentum20Day !== null && momentum20Day < -5) {
+    // 4. Momentum Reversal Badge (price < 20-day SMA by > 3%)
+    if (momentum20Day !== null && momentum20Day < -3) {
       badges.push(createRiskBadge('momentum-reversal', `Price is ${Math.abs(momentum20Day).toFixed(1)}% below 20-day SMA. Downtrend detected.`));
     }
 
