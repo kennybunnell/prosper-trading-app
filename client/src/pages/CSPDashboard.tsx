@@ -2552,7 +2552,11 @@ export default function CSPDashboard() {
                           </>
                         )}
                         <TableCell>
-                          <RiskBadgeList badges={(opp as any).riskBadges || []} size="sm" maxDisplay={3} />
+                          {(() => {
+                            const badges = (opp as any).riskBadges || [];
+                            console.log('[CSP Table] Rendering risk badges for', (opp as any).symbol, 'badges:', badges);
+                            return <RiskBadgeList badges={badges} size="sm" maxDisplay={3} />;
+                          })()}
                         </TableCell>
                         <TableCell>
                           <TooltipProvider>

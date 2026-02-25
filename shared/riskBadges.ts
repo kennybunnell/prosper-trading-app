@@ -54,6 +54,14 @@ export const SP_100 = [
 ];
 
 /**
+ * Major Financial Institutions (blue-chip banks, investment firms)
+ */
+export const MAJOR_FINANCIALS = [
+  'GS', 'MS', 'C', 'BAC', 'WFC', 'SCHW', 'BX', 'KKR', 'COF', 'PNC',
+  'TFC', 'GS', 'MS', 'MUFG', 'TD', 'RY', 'BMO', 'BNS', 'CM'
+];
+
+/**
  * Create risk badge based on type
  */
 export function createRiskBadge(type: RiskBadgeType, customTooltip?: string): RiskBadge {

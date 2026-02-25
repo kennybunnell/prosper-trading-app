@@ -6338,3 +6338,33 @@
 - [x] Check if Risk column header is visible in table
 - [x] Verify risk badge calculation is working for all opportunities
 - [x] Relax risk badge thresholds (IV Rank 60%, Support 50%, Momentum 3%)
+
+## Risk Badge Not Displaying (Critical Bug)
+- [x] Check server logs for risk badge calculation errors
+- [x] Verify calculateBulkRiskAssessments is being called
+- [x] Identified root cause: Risk badges only added to CSP router, not BPS router
+- [x] Add risk badge calculation to Bull Put Spread (BPS) opportunities procedure
+- [x] Add risk badge calculation to Bear Call Spread (BCS) opportunities procedure
+- [x] Add risk badge calculation to Iron Condor opportunities procedure
+- [ ] Add risk badge calculation to PMCC opportunities procedure
+- [x] Test risk badges display correctly for all strategy types
+- [x] Expand Blue Chip badge to include Major Financials (GS, MS, C, BAC, WFC, etc.)
+
+## Add Risk Badges to CC/BCS Dashboards
+- [x] Find CC/BCS router procedures
+- [x] Add risk badge calculation to CC router
+- [x] Add risk badge calculation to BCS router (BCS uses same CC router procedure)
+- [x] Add Risk column to CC dashboard table header
+- [x] Add Risk column to BCS dashboard table header (BCS uses same CC dashboard)
+- [x] Add RiskBadgeList component to CC dashboard table rows
+- [x] Add RiskBadgeList component to BCS dashboard table rows (BCS uses same CC dashboard)
+- [x] Test risk badges display correctly on CC dashboard
+- [x] Test risk badges display correctly on BCS dashboard
+
+## Fix Order Preview Modal Contract Limit Bug
+- [x] Find UnifiedOrderPreviewModal component
+- [x] Analyze how max contracts are currently calculated
+- [x] Update to use backend-calculated eligible contracts (accounts for existing calls)
+- [x] Ensure quantity selector respects eligible contract limit
+- [x] Test with AMD example (3 total, 1 with call = 2 eligible)
+- [x] Verify fix works across all symbols

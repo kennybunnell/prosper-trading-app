@@ -459,10 +459,23 @@ export const ccRouter = router({
       // Sort by score descending
       scoredOpportunities.sort((a, b) => b.score - a.score);
 
+      // Calculate risk badges for all opportunities
+      const { calculateBulkRiskAssessments } = await import('./riskAssessment');
+      const symbolSet = new Set<string>();
+      scoredOpportunities.forEach(opp => symbolSet.add(opp.symbol));
+      const uniqueSymbols = Array.from(symbolSet);
+      const riskAssessments = await calculateBulkRiskAssessments(uniqueSymbols, api);
+      
+      // Attach risk badges to opportunities
+      const scoredWithBadges = scoredOpportunities.map(opp => ({
+        ...opp,
+        riskBadges: riskAssessments.get(opp.symbol)?.badges || [],
+      }));
+
       // Increment scan count for Tier 1 users (after successful scan)
       await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
 
-      return scoredOpportunities;
+      return scoredWithBadges;
     }),
 
   /**

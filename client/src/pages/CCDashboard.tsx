@@ -53,6 +53,7 @@ import { OrderStatusModal, OrderSubmissionStatus } from "@/components/OrderStatu
 import { HelpBadge } from "@/components/HelpBadge";
 import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
+import { RiskBadgeList } from "@/components/RiskBadge";
 
 // Strategy types
 type StrategyType = 'cc' | 'spread';
@@ -2572,6 +2573,7 @@ export default function CCDashboard() {
                     <TableRow>
                       <TableHead className="w-12">Select</TableHead>
                       <TableHead>Symbol</TableHead>
+                      <TableHead className="text-center">Risk</TableHead>
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('score')}>
                         <div className="flex items-center justify-end gap-1">
                           Score
@@ -2719,6 +2721,9 @@ export default function CCDashboard() {
                           />
                         </TableCell>
                         <TableCell className="font-semibold">{opp.symbol}</TableCell>
+                        <TableCell className="text-center">
+                          <RiskBadgeList badges={(opp as any).riskBadges || []} />
+                        </TableCell>
                         <TableCell className="text-right">
                           <Badge variant="secondary" className={getScoreBadgeClass(opp.score)}>
                             {opp.score}
@@ -2954,7 +2959,7 @@ export default function CCDashboard() {
         holdings={holdings.map(pos => ({
           symbol: pos.symbol,
           quantity: pos.quantity,
-          maxContracts: Math.floor(pos.quantity / 100),
+          maxContracts: pos.maxContracts, // Use backend-calculated value (accounts for existing calls)
         }))}
         onSubmit={executeOrderSubmission}
         onPollStatuses={handlePollStatuses}

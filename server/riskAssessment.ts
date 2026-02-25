@@ -87,11 +87,21 @@ export async function calculateRiskBadges(
       badges.push(createRiskBadge('momentum-reversal', `Price is ${Math.abs(momentum20Day).toFixed(1)}% below 20-day SMA. Downtrend detected.`));
     }
 
-    // 5. Blue Chip Badge (Mag 7 or S&P 100 + Market Cap > $100B)
-    const isBlueChip = MAG_7.includes(symbol) || SP_100.includes(symbol);
+    // 5. Blue Chip Badge (Mag 7, S&P 100, or Major Financials)
+    const { MAJOR_FINANCIALS } = await import('../shared/riskBadges');
+    const isMag7 = MAG_7.includes(symbol);
+    const isSP100 = SP_100.includes(symbol);
+    const isMajorFinancial = MAJOR_FINANCIALS.includes(symbol);
+    const isBlueChip = isMag7 || isSP100 || isMajorFinancial;
+    
     if (isBlueChip) {
-      const isMag7 = MAG_7.includes(symbol);
-      badges.push(createRiskBadge('blue-chip', isMag7 ? `Magnificent 7 stock. High liquidity and assignment-worthy.` : `S&P 100 stock. Large-cap, liquid, lower risk.`));
+      let tooltip = 'S&P 100 stock. Large-cap, liquid, lower risk.';
+      if (isMag7) {
+        tooltip = 'Magnificent 7 stock. High liquidity and assignment-worthy.';
+      } else if (isMajorFinancial) {
+        tooltip = 'Major financial institution. Blue-chip, high liquidity.';
+      }
+      badges.push(createRiskBadge('blue-chip', tooltip));
     }
 
     return badges;
@@ -109,6 +119,7 @@ export async function calculateBulkRiskAssessments(
   symbols: string[],
   tradierAPI: TradierAPI
 ): Promise<Map<string, RiskAssessment>> {
+  console.log(`[Risk Assessment] calculateBulkRiskAssessments called with ${symbols.length} symbols:`, symbols);
   const assessmentMap = new Map<string, RiskAssessment>();
 
   try {
@@ -144,6 +155,14 @@ export async function calculateBulkRiskAssessments(
       });
 
       await Promise.allSettled(batchPromises);
+    }
+
+    console.log(`[Risk Assessment] Completed assessment for ${assessmentMap.size} symbols`);
+    // Log sample assessment
+    const firstSymbol = Array.from(assessmentMap.keys())[0];
+    if (firstSymbol) {
+      const sample = assessmentMap.get(firstSymbol);
+      console.log(`[Risk Assessment] Sample (${firstSymbol}):`, JSON.stringify(sample, null, 2));
     }
 
     return assessmentMap;

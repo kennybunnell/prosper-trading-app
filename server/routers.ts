@@ -1093,19 +1093,28 @@ export const appRouter = router({
 
         // Score all opportunities
         const scored = scoreOpportunities(opportunities);
+        console.log(`[CSP Router] Scored ${scored.length} opportunities, preparing to calculate risk badges...`);
 
         // Calculate risk badges for all opportunities
         const { calculateBulkRiskAssessments } = await import('./riskAssessment');
+        console.log('[CSP Router] Imported calculateBulkRiskAssessments successfully');
         const symbolSet = new Set<string>();
         scored.forEach(opp => symbolSet.add(opp.symbol));
         const uniqueSymbols = Array.from(symbolSet);
         const riskAssessments = await calculateBulkRiskAssessments(uniqueSymbols, api);
+        console.log('[CSP Router] Risk assessments Map size:', riskAssessments.size);
+        console.log('[CSP Router] Risk assessments Map keys:', Array.from(riskAssessments.keys()));
+        console.log('[CSP Router] Sample assessment for GS:', riskAssessments.get('GS'));
         
         // Attach risk badges to opportunities
-        const scoredWithBadges = scored.map(opp => ({
-          ...opp,
-          riskBadges: riskAssessments.get(opp.symbol)?.badges || [],
-        }));
+        const scoredWithBadges = scored.map(opp => {
+          const badges = riskAssessments.get(opp.symbol)?.badges || [];
+          console.log(`[CSP Router] Attaching badges to ${opp.symbol}:`, badges);
+          return {
+            ...opp,
+            riskBadges: badges,
+          };
+        });
 
         // Increment scan count for Tier 1 users (after successful scan)
         await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
@@ -2249,11 +2258,26 @@ Summary: [One sentence overall assessment]`;
 
         // Sort by score descending
         scoredIronCondors.sort((a, b) => b.score - a.score);
+        console.log(`[Iron Condor Router] Scored ${scoredIronCondors.length} opportunities, preparing to calculate risk badges...`);
+
+        // Calculate risk badges for all opportunities
+        const { calculateBulkRiskAssessments } = await import('./riskAssessment');
+        console.log('[Iron Condor Router] Imported calculateBulkRiskAssessments successfully');
+        const symbolSet = new Set<string>();
+        scoredIronCondors.forEach((opp: any) => symbolSet.add(opp.symbol));
+        const uniqueSymbols = Array.from(symbolSet);
+        const riskAssessments = await calculateBulkRiskAssessments(uniqueSymbols, api);
+        
+        // Attach risk badges to opportunities
+        const scoredWithBadges = scoredIronCondors.map((opp: any) => ({
+          ...opp,
+          riskBadges: riskAssessments.get(opp.symbol)?.badges || [],
+        }));
 
         // Increment scan count for Tier 1 users (after successful scan)
         await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
 
-        return scoredIronCondors;
+        return scoredWithBadges;
       }),
   }),
 
@@ -2419,11 +2443,26 @@ Summary: [One sentence overall assessment]`;
         
         // Score spread opportunities using BPS-specific scoring logic
         const scored = scoreBPSOpportunities(dedupedSpreads) as any;
+        console.log(`[Spread Router] Scored ${scored.length} opportunities, preparing to calculate risk badges...`);
+
+        // Calculate risk badges for all opportunities
+        const { calculateBulkRiskAssessments } = await import('./riskAssessment');
+        console.log('[Spread Router] Imported calculateBulkRiskAssessments successfully');
+        const symbolSet = new Set<string>();
+        scored.forEach((opp: any) => symbolSet.add(opp.symbol));
+        const uniqueSymbols = Array.from(symbolSet);
+        const riskAssessments = await calculateBulkRiskAssessments(uniqueSymbols, api);
+        
+        // Attach risk badges to opportunities
+        const scoredWithBadges = scored.map((opp: any) => ({
+          ...opp,
+          riskBadges: riskAssessments.get(opp.symbol)?.badges || [],
+        }));
 
         // Increment scan count for Tier 1 users (after successful scan)
         await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
 
-        return scored;
+        return scoredWithBadges;
       }),
   }),
 

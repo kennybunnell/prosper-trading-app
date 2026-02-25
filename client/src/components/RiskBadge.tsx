@@ -36,10 +36,11 @@ export function RiskBadge({ badge, size = 'sm' }: RiskBadgeProps) {
           <span
             className={`
               inline-flex items-center gap-1 rounded-md border font-medium
-              transition-colors cursor-help
+              transition-colors cursor-help whitespace-nowrap
               ${sizeClasses[size]}
               ${severityClasses[badge.severity]}
             `}
+            style={{ display: 'inline-flex', visibility: 'visible', opacity: 1 }}
           >
             <span>{badge.emoji}</span>
             <span>{badge.label}</span>
@@ -63,7 +64,9 @@ interface RiskBadgeListProps {
 }
 
 export function RiskBadgeList({ badges, size = 'sm', maxDisplay }: RiskBadgeListProps) {
-  if (badges.length === 0) {
+  console.log('[RiskBadgeList] Rendering with badges:', badges);
+  if (!badges || badges.length === 0) {
+    console.log('[RiskBadgeList] No badges to display');
     return null;
   }
 
