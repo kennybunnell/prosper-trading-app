@@ -1206,7 +1206,14 @@ export async function setAllWatchlistSelections(userId: number, symbols: string[
       return;
     }
     
-    // If selecting all, update only the provided symbols
+    // If selecting all, first clear ALL selections, then select only the provided symbols
+    // This ensures Strategy Advisor pre-selection works correctly
+    await db
+      .update(watchlistSelections)
+      .set({ isSelected: 0, updatedAt: new Date() })
+      .where(eq(watchlistSelections.userId, userId));
+    
+    // Now select only the provided symbols
     for (const symbol of symbols) {
       // Check if selection exists
       const existing = await db

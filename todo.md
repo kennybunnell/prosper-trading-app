@@ -6122,6 +6122,23 @@
 - [x] Frontend: Show "Trade This" buttons when no tickers are selected (default state)
 - [x] Frontend: Update button text based on primary strategy (BPS/BCS/IC)
 - [x] Frontend: Make ticker chips clickable to remove individual selections (X button)
-- [x] Test: Check ticker → Chip appears in panel, "Trade This" disappears (MS tested)
+- [x] Test: Check ticker → Chip appears in panel, "Trade This" disappears (GS tested)
+- [x] Test: Click "Fetch Opportunities" → Navigate to correct dashboard (CSP) → Pre-select tickers (GS only)
 - [ ] Test: Uncheck ticker → Chip removed from panel, "Trade This" reappears
-- [ ] Test: Click "Fetch Opportunities" → Navigate to correct dashboard → Auto-fetch
+
+## Strategy Advisor - Fix 404 Navigation Error
+- [x] Investigate why "Fetch Opportunities" button navigates to 404 page (was using /csp-bps instead of /csp)
+- [x] Fix navigation URL to point to correct CSP Dashboard route (/csp)
+- [x] Verify selected tickers are passed via localStorage
+- [x] Test complete workflow: Select tickers → Click Fetch → Navigate to CSP → Pre-select tickers (GS tested)
+
+## Strategy Advisor - Safe Pre-Selection Workflow (No Auto-Fetch)
+- [x] Backend: Remove auto-click fetch button logic from CSP/CC/IC dashboards
+- [x] Backend: Implement watchlist pre-selection logic using tRPC mutations
+- [x] Backend: Clear all watchlist selections first, then select only Strategy Advisor tickers (FIXED setAllWatchlistSelections)
+- [x] Frontend: Show toast notification when tickers are pre-selected from Strategy Advisor
+- [x] Frontend: User manually clicks "Fetch Opportunities" button after reviewing selections
+- [x] Test: Single ticker (GS) in Strategy Advisor → Navigate to CSP → Verify only GS is selected (1 of 61 selected)
+- [ ] Test: Multi-select (MS, JNJ, CAT) → Navigate to CSP → Verify only those 3 are selected
+- [ ] Test: Manually click "Fetch Opportunities" → Verify opportunities fetch for only selected tickers
+- [ ] Test: Verify existing CSP Dashboard logic remains unchanged (when NOT coming from Strategy Advisor)

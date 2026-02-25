@@ -114,11 +114,11 @@ export function StrategyAdvisor() {
     });
     
     // Navigate to the dashboard with the most selected tickers
-    let targetDashboard = '/csp-bps';
+    let targetDashboard = '/csp';
     let strategyName = 'Bull Put Spreads';
     
     if (strategyCount.BCS > strategyCount.BPS && strategyCount.BCS > strategyCount.IC) {
-      targetDashboard = '/cc-bcs';
+      targetDashboard = '/cc';
       strategyName = 'Bear Call Spreads';
     } else if (strategyCount.IC > strategyCount.BPS && strategyCount.IC > strategyCount.BCS) {
       targetDashboard = '/iron-condor';

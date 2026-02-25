@@ -477,7 +477,14 @@ export default function CCDashboard() {
     }
   };
 
-  // Check for Strategy Advisor pre-selected tickers and auto-fetch
+  // Mutation for selecting watchlist tickers
+  const selectAll = trpc.watchlist.selectAll.useMutation({
+    onSuccess: () => {
+      utils.watchlist.getSelections.invalidate();
+    },
+  });
+
+  // Check for Strategy Advisor pre-selected tickers and pre-select them (no auto-fetch)
   useEffect(() => {
     const selectedTickers = localStorage.getItem('strategyAdvisorSelectedTickers');
     const autoFetch = localStorage.getItem('strategyAdvisorAutoFetch');
@@ -490,16 +497,15 @@ export default function CCDashboard() {
           localStorage.removeItem('strategyAdvisorSelectedTickers');
           localStorage.removeItem('strategyAdvisorAutoFetch');
           
-          // Show toast
-          toast.info(`Loading opportunities for ${tickers.length} selected tickers from Strategy Advisor...`);
+          // Show toast with ticker list
+          toast.success(`Loaded ${tickers.length} ticker${tickers.length > 1 ? 's' : ''} from Strategy Advisor: ${tickers.join(', ')}. Click "Fetch Opportunities" when ready.`, {
+            duration: 5000,
+          });
           
-          // Auto-click the Fetch button after a short delay
+          // Pre-select only the tickers from Strategy Advisor
           setTimeout(() => {
-            const fetchButton = document.querySelector('[data-fetch-button="true"]') as HTMLButtonElement;
-            if (fetchButton && !fetchButton.disabled) {
-              fetchButton.click();
-            }
-          }, 1000);
+            selectAll.mutate({ symbols: tickers });
+          }, 500);
         }
       } catch (e) {
         console.error('Failed to parse Strategy Advisor selected tickers:', e);
