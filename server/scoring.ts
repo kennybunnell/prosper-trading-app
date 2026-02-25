@@ -368,3 +368,249 @@ export function selectBestPerTicker(
 
   return best;
 }
+
+// ===== BULL PUT SPREAD (BPS) SCORING =====
+
+export interface BPSScoreBreakdown {
+  spreadEfficiency: number; // Net credit / spread width ratio (25 points)
+  greeks: number; // Short delta + Long delta + DTE (30 points)
+  technical: number; // RSI + BB (30 points) - DIFFERENT from CSP!
+  premium: number; // Spread tightness + IV Rank (15 points)
+  perfectSetupBonus?: number; // Unicorn trade bonus (10 points)
+  total: number; // Sum of all (0-110 max)
+}
+
+export interface ScoredBPSOpportunity extends CSPOpportunity {
+  score: number;
+  scoreBreakdown: BPSScoreBreakdown;
+  // BPS-specific fields
+  longStrike?: number;
+  longBid?: number;
+  longAsk?: number;
+  longDelta?: number;
+  spreadWidth?: number;
+  netCredit?: number;
+  capitalAtRisk?: number;
+}
+
+/**
+ * Calculate BPS Composite Score (0-100) with detailed breakdown
+ * 
+ * Weights:
+ * - Spread Efficiency (35%): Net credit / spread width ratio (ROC)
+ * - Greeks & Timing (30%): Short delta (12) + Long delta (10) + DTE (8)
+ * - Technical Setup (20%): RSI (12) + BB %B (8) - NEUTRAL/UPTREND preferred
+ * - Premium Quality (15%): Spread tightness (10) + IV Rank (5)
+ */
+export function calculateBPSScore(opp: ScoredBPSOpportunity): { score: number; breakdown: BPSScoreBreakdown } {
+  let spreadEfficiencyScore = 0;
+  let greeksScore = 0;
+  let technicalScore = 0;
+  let premiumScore = 0;
+
+  // ===== SPREAD EFFICIENCY (25 points) =====
+  // WEIGHT ADJUSTED: Reduced from 35% to 25% to prioritize technical indicators
+  // ROC = (net credit / capital at risk) × 100
+  // Higher is better - efficient use of capital
+  const netCredit = opp.netCredit || 0;
+  const capitalAtRisk = opp.capitalAtRisk || (opp.spreadWidth || 0) * 100;
+  const rocPct = capitalAtRisk > 0 ? (netCredit / capitalAtRisk) * 100 : 0;
+
+  if (rocPct >= 20) {
+    spreadEfficiencyScore += 25; // Excellent ROC (≥20%)
+  } else if (rocPct >= 15) {
+    spreadEfficiencyScore += 23; // Very good (15-20% ROC)
+  } else if (rocPct >= 12) {
+    spreadEfficiencyScore += 20; // Good (12-15% ROC)
+  } else if (rocPct >= 10) {
+    spreadEfficiencyScore += 17; // Acceptable (10-12% ROC)
+  } else if (rocPct >= 8) {
+    spreadEfficiencyScore += 14; // Marginal (8-10% ROC)
+  } else if (rocPct >= 5) {
+    spreadEfficiencyScore += 11; // Low (5-8% ROC)
+  } else {
+    spreadEfficiencyScore += 6; // Very low (<5% ROC)
+  }
+
+  // ===== GREEKS & TIMING (30 points) =====
+  
+  // Short Delta - Probability Sweet Spot (12 points)
+  // 0.25-0.30 = ideal for BPS
+  const shortDelta = Math.abs(opp.delta || 0);
+  if (shortDelta >= 0.25 && shortDelta <= 0.30) {
+    greeksScore += 12; // Ideal range
+  } else if (shortDelta >= 0.20 && shortDelta < 0.25) {
+    greeksScore += 10; // Good (safer)
+  } else if (shortDelta > 0.30 && shortDelta <= 0.35) {
+    greeksScore += 9; // Acceptable (higher premium)
+  } else if (shortDelta >= 0.15 && shortDelta < 0.20) {
+    greeksScore += 6; // Too safe
+  } else if (shortDelta > 0.35) {
+    greeksScore += 4; // Too aggressive
+  }
+
+  // Long Delta - Protection Quality (10 points)
+  // 0.10-0.20 = ideal for protective put
+  const longDelta = Math.abs(opp.longDelta || 0);
+  if (longDelta >= 0.10 && longDelta <= 0.20) {
+    greeksScore += 10; // Ideal range
+  } else if (longDelta >= 0.05 && longDelta < 0.10) {
+    greeksScore += 7; // Acceptable (cheaper protection)
+  } else if (longDelta > 0.20 && longDelta <= 0.25) {
+    greeksScore += 7; // Acceptable (more expensive protection)
+  } else {
+    greeksScore += 3; // Suboptimal
+  }
+
+  // DTE - Time Decay Optimization (8 points)
+  // 7-10 days = weekly sweet spot
+  const dte = opp.dte;
+  if (dte >= 7 && dte <= 10) {
+    greeksScore += 8; // Ideal
+  } else if (dte >= 11 && dte <= 14) {
+    greeksScore += 6; // Good
+  } else if (dte >= 5 && dte < 7) {
+    greeksScore += 4; // Too short
+  } else if (dte > 14 && dte <= 21) {
+    greeksScore += 4; // Too long
+  } else {
+    greeksScore += 2; // Suboptimal
+  }
+
+  // ===== TECHNICAL SETUP (30 points) =====
+  // WEIGHT ADJUSTED: Increased from 20% to 30% to prioritize technical indicators
+  // NOTE: BPS prefers NEUTRAL/UPTREND, NOT oversold!
+  
+  // RSI - Momentum Indicator (12 points)
+  // RECALIBRATED: 40-60 = ideal (wider range), 35-70 = acceptable
+  const rsi = opp.rsi;
+  if (rsi !== null && rsi !== undefined) {
+    if (rsi >= 40 && rsi <= 60) {
+      technicalScore += 18; // Neutral/moderate - ideal for BPS (WIDER RANGE)
+    } else if (rsi >= 35 && rsi < 40) {
+      technicalScore += 15; // Slightly bearish - acceptable
+    } else if (rsi > 60 && rsi <= 70) {
+      technicalScore += 15; // Slightly bullish - acceptable
+    } else if (rsi >= 30 && rsi < 35) {
+      technicalScore += 11; // Approaching oversold - caution
+    } else if (rsi > 70 && rsi <= 80) {
+      technicalScore += 11; // Bullish - caution
+    } else if (rsi < 30) {
+      technicalScore += 6; // Oversold - avoid (but not as harsh)
+    } else {
+      technicalScore += 6; // Overbought (>80) - avoid
+    }
+  } else {
+    technicalScore += 9; // Neutral if no data
+  }
+
+  // Bollinger Band %B (8 points)
+  // RECALIBRATED: 0.20-0.80 = acceptable (wider range), NOT just 0.30-0.70
+  const bb = opp.bbPctB;
+  if (bb !== null && bb !== undefined) {
+    if (bb >= 0.30 && bb <= 0.70) {
+      technicalScore += 12; // In band - ideal
+    } else if (bb >= 0.20 && bb < 0.30) {
+      technicalScore += 11; // Lower band edge - acceptable (LESS HARSH)
+    } else if (bb > 0.70 && bb <= 0.80) {
+      technicalScore += 11; // Upper band edge - acceptable (LESS HARSH)
+    } else if (bb >= 0.10 && bb < 0.20) {
+      technicalScore += 8; // Approaching lower band - caution
+    } else if (bb > 0.80 && bb <= 0.90) {
+      technicalScore += 8; // Approaching upper band - caution
+    } else if (bb < 0.10 && bb >= 0) {
+      technicalScore += 5; // Near/at lower band - avoid (LESS HARSH)
+    } else if (bb < 0) {
+      technicalScore += 3; // Below lower band - avoid
+    } else {
+      technicalScore += 5; // Above upper band - avoid (LESS HARSH)
+    }
+  } else {
+    technicalScore += 6; // Neutral if no data
+  }
+
+  // ===== PREMIUM QUALITY (15 points) =====
+  
+  // Spread Tightness (10 points)
+  // Tighter spread = better fill probability
+  const shortMid = (opp.bid + opp.ask) / 2;
+  const spreadPct = shortMid > 0 ? ((opp.ask - opp.bid) / shortMid) * 100 : 100;
+  
+  if (spreadPct < 2) {
+    premiumScore += 10; // Very tight
+  } else if (spreadPct < 3) {
+    premiumScore += 8; // Tight
+  } else if (spreadPct < 5) {
+    premiumScore += 6; // Acceptable
+  } else if (spreadPct < 8) {
+    premiumScore += 4; // Wide
+  } else {
+    premiumScore += 2; // Very wide
+  }
+
+  // IV Rank (5 points)
+  // Higher IV = better premium for sellers
+  const ivRank = opp.ivRank;
+  if (ivRank !== null && ivRank !== undefined) {
+    if (ivRank >= 60) {
+      premiumScore += 5; // High IV - excellent
+    } else if (ivRank >= 50) {
+      premiumScore += 4; // Elevated IV - good
+    } else if (ivRank >= 40) {
+      premiumScore += 3; // Moderate IV - acceptable
+    } else if (ivRank >= 30) {
+      premiumScore += 2; // Low IV - caution
+    } else {
+      premiumScore += 1; // Very low IV - avoid
+    }
+  } else {
+    premiumScore += 2; // Neutral if no data
+  }
+
+  // ===== PERFECT SETUP BONUS (10 points) =====
+  // Rare "unicorn" trades that meet ALL optimal conditions
+  let perfectSetupBonus = 0;
+  
+  const isPerfectRSI = rsi !== null && rsi >= 45 && rsi <= 55; // Neutral sweet spot
+  const isPerfectBB = bb !== null && bb >= 0.40 && bb <= 0.60; // Middle of range (reuse bb from technical scoring)
+  const isPerfectROC = rocPct >= 20; // Excellent premium
+  const isPerfectDTE = dte >= 10 && dte <= 15; // Optimal time decay
+  const isPerfectShortDelta = shortDelta >= 0.25 && shortDelta <= 0.30; // Ideal probability
+  
+  if (isPerfectRSI && isPerfectBB && isPerfectROC && isPerfectDTE && isPerfectShortDelta) {
+    perfectSetupBonus = 10; // All conditions met - unicorn trade!
+  }
+
+  const totalScore = spreadEfficiencyScore + greeksScore + technicalScore + premiumScore + perfectSetupBonus;
+
+  return {
+    score: Math.round(totalScore),
+    breakdown: {
+      spreadEfficiency: spreadEfficiencyScore,
+      greeks: greeksScore,
+      technical: technicalScore,
+      premium: premiumScore,
+      perfectSetupBonus,
+      total: Math.round(totalScore),
+    },
+  };
+}
+
+/**
+ * Score all BPS opportunities and sort by score descending
+ */
+export function scoreBPSOpportunities(opportunities: ScoredBPSOpportunity[]): ScoredBPSOpportunity[] {
+  const scored = opportunities.map((opp) => {
+    const { score, breakdown } = calculateBPSScore(opp);
+    return {
+      ...opp,
+      score,
+      scoreBreakdown: breakdown,
+    };
+  });
+
+  // Sort by score descending
+  scored.sort((a, b) => b.score - a.score);
+
+  return scored;
+}

@@ -2567,22 +2567,48 @@ export default function CSPDashboard() {
                                   </div>
                                   {(opp as any).scoreBreakdown && (
                                     <>
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-400">Technical (RSI+BB):</span>
-                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/40</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-400">Greeks (Δ+DTE+IV):</span>
-                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-400">Premium (Return+Spread):</span>
-                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/20</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-400">Quality (Mag7+Cap):</span>
-                                        <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
-                                      </div>
+                                      {/* Check if this is BPS (has spreadEfficiency) or CSP (has quality) */}
+                                      {(opp as any).scoreBreakdown.spreadEfficiency !== undefined ? (
+                                        // BPS Score Breakdown
+                                        <>
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-400">Spread Efficiency:</span>
+                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.spreadEfficiency}/35</span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-400">Greeks (Δ+DTE):</span>
+                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-400">Technical (RSI+BB):</span>
+                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/20</span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-400">Premium Quality:</span>
+                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/15</span>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        // CSP Score Breakdown
+                                        <>
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-400">Technical (RSI+BB):</span>
+                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/40</span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-400">Greeks (Δ+DTE+IV):</span>
+                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-400">Premium (Return+Spread):</span>
+                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/20</span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-400">Quality (Mag7+Cap):</span>
+                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
+                                          </div>
+                                        </>
+                                      )}
                                     </>
                                   )}
                                   {!(opp as any).scoreBreakdown && (

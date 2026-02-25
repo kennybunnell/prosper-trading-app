@@ -1111,20 +1111,51 @@ export const appRouter = router({
           bbPctB: z.number().nullable(),
           ivRank: z.number().nullable(),
           score: z.number(),
-          scoreBreakdown: z.object({
-            technical: z.number(),
-            greeks: z.number(),
-            premium: z.number(),
-            quality: z.number(),
-            total: z.number(),
-          }),
+          scoreBreakdown: z.union([
+            // CSP Score Breakdown
+            z.object({
+              technical: z.number(),
+              greeks: z.number(),
+              premium: z.number(),
+              quality: z.number(),
+              total: z.number(),
+            }),
+            // BPS Score Breakdown
+            z.object({
+              spreadEfficiency: z.number(),
+              greeks: z.number(),
+              technical: z.number(),
+              premium: z.number(),
+              total: z.number(),
+            }),
+          ]),
         })
       )
       .mutation(async ({ input }) => {
         const { invokeLLM } = await import('./_core/llm');
         
+        // Detect if this is BPS or CSP based on scoreBreakdown structure
+        const isBPS = 'spreadEfficiency' in input.scoreBreakdown;
+        
         // Generate concise explanation of the score
-        const prompt = `You are explaining a CSP (Cash-Secured Put) opportunity's composite score to a trader.
+        const strategyType = isBPS ? 'Bull Put Spread (BPS)' : 'Cash-Secured Put (CSP)';
+        let breakdown: string;
+        
+        if (isBPS) {
+          const bpsBreakdown = input.scoreBreakdown as { spreadEfficiency: number; greeks: number; technical: number; premium: number; total: number };
+          breakdown = `- Spread Efficiency (ROC): ${bpsBreakdown.spreadEfficiency}/35
+- Greeks & Timing (Delta + DTE): ${bpsBreakdown.greeks}/30
+- Technical Setup (RSI + BB): ${bpsBreakdown.technical}/20
+- Premium Quality (Spread + IV Rank): ${bpsBreakdown.premium}/15`;
+        } else {
+          const cspBreakdown = input.scoreBreakdown as { technical: number; greeks: number; premium: number; quality: number; total: number };
+          breakdown = `- Technical Setup (RSI + BB): ${cspBreakdown.technical}/40
+- Greeks & Timing (Delta + DTE + IV Rank): ${cspBreakdown.greeks}/30
+- Premium Quality (Weekly Return + Spread): ${cspBreakdown.premium}/20
+- Stock Quality (Mag 7 + Market Cap): ${cspBreakdown.quality}/10`;
+        }
+        
+        const prompt = `You are explaining a ${strategyType} opportunity's composite score to a trader.
 
 Opportunity Details:
 - Symbol: ${input.symbol}
@@ -1139,10 +1170,7 @@ Opportunity Details:
 
 Composite Score: ${input.score}/100
 Breakdown:
-- Technical Setup (RSI + BB): ${input.scoreBreakdown.technical}/40
-- Greeks & Timing (Delta + DTE + IV Rank): ${input.scoreBreakdown.greeks}/30
-- Premium Quality (Weekly Return + Spread): ${input.scoreBreakdown.premium}/20
-- Stock Quality (Mag 7 + Market Cap): ${input.scoreBreakdown.quality}/10
+${breakdown}
 
 Provide a concise explanation (3-4 bullet points + 1 summary sentence) of WHY this opportunity scored ${input.score}/100.
 
@@ -2232,7 +2260,7 @@ Summary: [One sentence overall assessment]`;
       .query(async ({ ctx, input }) => {
         const { getApiCredentials } = await import('./db');
         const { createTradierAPI } = await import('./tradier');
-        const { scoreOpportunities } = await import('./scoring');
+        const { scoreBPSOpportunities } = await import('./scoring');
         const { calculateBullPutSpread } = await import('./spread-pricing');
         const { checkRateLimit, incrementScanCount } = await import('./middleware/rateLimiting');
 
@@ -2374,8 +2402,8 @@ Summary: [One sentence overall assessment]`;
         const dedupedCount = spreadOpportunities.length - dedupedSpreads.length;
         console.log(`[Spread Dedup] ${dedupedSpreads.length} spreads after deduplication (removed ${dedupedCount})`);
         
-        // Score spread opportunities (reuse CSP scoring logic)
-        const scored = scoreOpportunities(dedupedSpreads);
+        // Score spread opportunities using BPS-specific scoring logic
+        const scored = scoreBPSOpportunities(dedupedSpreads) as any;
 
         // Increment scan count for Tier 1 users (after successful scan)
         await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);

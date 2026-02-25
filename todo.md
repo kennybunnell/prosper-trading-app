@@ -6179,3 +6179,59 @@
 - [x] Clear component state (selectedTickers, lockedStrategy) on mount
 - [x] Test: Navigate to Strategy Advisor directly → Verified 0 of 61 selected (clean slate)
 - [ ] Test: Navigate from CSP Dashboard with pre-selected tickers → Verify those tickers remain selected (future enhancement)
+
+## Scoring Logic Validation - Strategy Advisor vs CSP Dashboard
+- [ ] Read Strategy Advisor scoring logic (ticker-level scoring)
+- [ ] Read CSP Dashboard scoring logic (option-level scoring)
+- [ ] Document scoring criteria for each system
+- [ ] Validate that scores are appropriate for their respective purposes
+- [ ] Check if low CSP scores (9-20) indicate filtering issues or legitimate poor options
+- [ ] Consider adding explanatory UI elements to clarify different scoring systems
+
+## Verify Bull Put Spread vs Cash-Secured Put Scoring Logic
+- [x] Check if Bull Put Spreads use dedicated scoring or reuse CSP scoring (FOUND: BPS was using CSP scoring inappropriately)
+- [x] Identify key differences between CSP and BPS scoring requirements (Documented in csp-vs-bps-scoring-requirements.md)
+- [x] Validate that BPS scoring considers spread-specific factors (width, net credit, risk/reward ratio)
+- [x] Implement BPS-specific scoring (Created calculateBPSScore and scoreBPSOpportunities functions)
+- [x] Update spread.opportunities router to use BPS scoring instead of CSP scoring
+- [x] Update frontend to display both CSP and BPS score breakdowns
+- [x] Update explainScore to handle both CSP and BPS score breakdowns
+- [ ] Test BPS scoring with real opportunities to verify scores are appropriate (60-80 range for good spreads)
+
+## Recalibrate BPS Scoring Thresholds for Realistic Scores
+- [x] Analyze actual RSI/BB values from Strategy Advisor recommended tickers
+- [x] Identify why technical scoring is only 8/20 when tickers were recommended by Strategy Advisor (RSI/BB thresholds too strict)
+- [x] Adjust BPS technical scoring thresholds to be less strict (RSI 40-60 now gets 12/12, was 45-55)
+- [x] Recalibrate Bollinger Band scoring to be more lenient (0.20-0.80 now acceptable)
+- [x] Test recalibrated scoring with real data (PEP: 52, JNJ: 45, GE: 44, GS: 42)
+- [ ] ISSUE: Scores still too low (31-52 range, should be 60-90). Need further recalibration or weight adjustments
+- [ ] Consider: Increase technical weight from 20% to 25-30%, OR make spread efficiency less strict
+
+## BPS Scoring Weight Adjustment - Prioritize Technicals
+- [ ] Adjust BPS scoring weights in calculateBPSScore function
+  - [ ] Technical Setup: 30% (was 20%) - Increase emphasis on RSI + Bollinger Bands
+  - [ ] Greeks & Timing: 30% (unchanged) - Delta + DTE optimization
+  - [ ] Spread Efficiency: 25% (was 35%) - Reduce ROC dominance
+  - [ ] Premium Quality: 15% (unchanged) - Bid-ask spread + IV Rank
+- [ ] Test adjusted scoring with real data (expect PEP to score 60-70 instead of 52)
+- [ ] Verify alignment with Strategy Advisor recommendations
+
+## BPS Scoring - Perfect Setup Bonus for Unicorn Trades
+- [ ] Add Perfect Setup Bonus (+10 points) to BPS scoring function
+- [ ] Bonus triggers when ALL optimal conditions align:
+  - [ ] RSI 45-55 (neutral sweet spot)
+  - [ ] Bollinger Band 0.40-0.60 (middle of range)
+  - [ ] ROC ≥ 20% (excellent premium)
+  - [ ] DTE 10-15 days (optimal time decay)
+  - [ ] Short delta 0.25-0.30 (ideal probability)
+- [ ] Update score breakdown to include bonus field
+- [ ] Test with real opportunities to verify unicorn detection
+- [ ] Expected result: Exceptional trades score 65-75 instead of 50-60
+
+## BPS Scoring - Perfect Setup Bonus Implementation Complete
+- [x] Implemented Perfect Setup Bonus (+10 points) for rare unicorn trades
+- [x] Bonus triggers when ALL conditions align: RSI 45-55, BB 0.40-0.60, ROC ≥20%, DTE 10-15, Short Delta 0.25-0.30
+- [x] Updated BPSScoreBreakdown type to include perfectSetupBonus field
+- [x] Tested with real market data (PEP: 57, JNJ: 49, GS: 47, GE: 47, DUK: 44)
+- [x] Note: No unicorn trades found in current market conditions (no +10 bonus triggered yet)
+- [x] Final BPS scoring weights: Technical 30%, Greeks 30%, Spread Efficiency 25%, Premium Quality 15%
