@@ -1089,6 +1089,15 @@ export function UnifiedOrderPreviewModal({
                     ${(availableBuyingPower - calculateTotalCollateral()).toFixed(2)}
                   </span>
                 </div>
+                {/* ROC % - Only show for spread strategies (BPS, BCS, IC) */}
+                {(strategy === 'bps' || strategy === 'bcs' || strategy === 'iron_condor') && calculateTotalCollateral() > 0 && (
+                  <div className="flex justify-between col-span-2 pt-2 border-t border-border/50">
+                    <span className="text-muted-foreground font-medium">Return on Capital:</span>
+                    <span className="font-semibold text-blue-400">
+                      {((calculateTotalPremium() / calculateTotalCollateral()) * 100).toFixed(2)}%
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           )}

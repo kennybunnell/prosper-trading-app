@@ -6368,3 +6368,11 @@
 - [x] Ensure quantity selector respects eligible contract limit
 - [x] Test with AMD example (3 total, 1 with call = 2 eligible)
 - [x] Verify fix works across all symbols
+
+## Add Return on Capital (ROC %) to Order Preview Modal
+- [x] Locate UnifiedOrderPreviewModal component
+- [x] Add ROC % calculation (Total Premium / Total Collateral × 100)
+- [x] Display ROC % in Summary section for BPS orders
+- [x] Display ROC % in Summary section for BCS orders
+- [x] Display ROC % in Summary section for IC orders
+- [x] Test ROC % display with real order data
