@@ -6155,3 +6155,20 @@
 - [ ] Test: Try to select BCS ticker (CMG) after BPS → Verify error toast appears (implementation complete, visual test pending)
 - [ ] Test: Clear selection → Verify all checkboxes re-enabled (implementation complete, visual test pending)
 - [ ] Test: Select multiple BPS tickers → Verify all work correctly (implementation complete, visual test pending)
+
+## Navigation Restructure - Promote Strategy Advisor to Main Sidebar
+- [x] Create standalone Strategy Advisor page component (/strategy-advisor route)
+- [x] Update App.tsx to add /strategy-advisor route
+- [x] Update Sidebar.tsx navigation order:
+  - [x] Dashboard
+  - [x] Action Items
+  - [x] Performance
+  - [x] Strategy Advisor (new standalone link with Sparkles icon)
+  - [x] CSP - BPS
+  - [x] CC - BCS
+  - [x] Iron Condor
+  - [x] PMCC Dashboard
+- [x] Update Action Items page to include Inbox tab (after Working Orders)
+- [x] Remove Strategy Advisor tab from Action Items
+- [x] Test all navigation links work correctly
+- [x] Verify Strategy Advisor functionality remains intact on standalone page

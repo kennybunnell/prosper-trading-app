@@ -13,6 +13,7 @@ import CCDashboard from "./pages/CCDashboard";
 import PMCCDashboard from "./pages/PMCCDashboard";
 import IronCondorDashboard from "./pages/IronCondorDashboard";
 import Performance from "./pages/Performance";
+import StrategyAdvisorPage from "./pages/StrategyAdvisorPage";
 
 import ActionItems from "./pages/ActionItems";
 import PendingApproval from "./pages/PendingApproval";
@@ -125,6 +126,7 @@ function Router() {
           <Route path={"/subscription"} component={Subscription} />
           <Route path="/inbox" component={Inbox} />
           <Route path="/action-items" component={ActionItems} />
+          <Route path="/strategy-advisor" component={StrategyAdvisorPage} />
           <Route path={"/csp"} component={CSPDashboard} />
           <Route path={"/cc"} component={CCDashboard} />
           <Route path={"/iron-condor"} component={IronCondorDashboard} />

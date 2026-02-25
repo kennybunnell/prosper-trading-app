@@ -91,17 +91,15 @@ export function Sidebar({ className }: SidebarProps) {
       icon: CheckSquare,
     },
     {
-      name: 'Inbox',
-      path: '/inbox',
-      icon: Inbox,
-      badge: unreadCount?.count || 0,
-    },
-    {
       name: 'Performance',
       path: '/performance',
       icon: BarChart3,
     },
-
+    {
+      name: 'Strategy Advisor',
+      path: '/strategy-advisor',
+      icon: Sparkles,
+    },
     {
       name: 'CSP - BPS',
       path: '/csp',
