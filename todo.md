@@ -6440,3 +6440,19 @@
 - [x] Add floating "Back to Top" button that appears when user scrolls down
 - [x] Add IDs to strategy sections for scroll targeting
 - [x] Add scroll event listener to show/hide Back to Top button
+
+## Daily Trading Automation System
+- [x] Create database schema for automation settings and logs (3 tables: automationSettings, automationLogs, automationPendingOrders)
+- [x] Create database helper functions in db-automation.ts
+- [ ] Build automation.closeProfitablePositions procedure
+- [ ] Build automation.selectAndSubmitCoveredCalls procedure
+- [ ] Add multi-account looping with buying power prioritization
+- [ ] Create automation dashboard UI page (/automation)
+- [ ] Add control panel with toggles (Dry Run, Require Approval, Auto-Schedule)
+- [ ] Add configurable settings (profit threshold, DTE range, delta range)
+- [ ] Build approval queue interface
+- [ ] Add real-time progress display
+- [ ] Implement node-cron scheduling for 9:35 AM ET
+- [ ] Add email notification system
+- [ ] Create audit log viewer
+- [ ] Test automation in dry run mode

@@ -309,6 +309,13 @@
       "when": 1771909487513,
       "tag": "0044_wide_shape",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "5",
+      "when": 1772143608641,
+      "tag": "0045_keen_sauron",
+      "breakpoints": true
     }
   ]
 }

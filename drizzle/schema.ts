@@ -656,3 +656,93 @@ export const invites = mysqlTable("invites", {
 
 export type Invite = typeof invites.$inferSelect;
 export type InsertInvite = typeof invites.$inferInsert;
+
+/**
+ * Automation settings for daily trading automation
+ */
+export const automationSettings = mysqlTable("automationSettings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  // Mode toggles
+  dryRunMode: boolean("dryRunMode").default(true).notNull(),
+  requireApproval: boolean("requireApproval").default(true).notNull(),
+  autoScheduleEnabled: boolean("autoScheduleEnabled").default(false).notNull(),
+  scheduleTime: varchar("scheduleTime", { length: 10 }).default("09:35").notNull(), // HH:MM format in ET
+  // Close positions settings
+  profitThresholdPercent: int("profitThresholdPercent").default(75).notNull(),
+  // Covered call settings
+  ccDteMin: int("ccDteMin").default(7).notNull(),
+  ccDteMax: int("ccDteMax").default(14).notNull(),
+  ccDeltaMin: varchar("ccDeltaMin", { length: 10 }).default("0.25").notNull(),
+  ccDeltaMax: varchar("ccDeltaMax", { length: 10 }).default("0.30").notNull(),
+  // Email notifications
+  emailNotificationsEnabled: boolean("emailNotificationsEnabled").default(true).notNull(),
+  notificationEmail: varchar("notificationEmail", { length: 320 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AutomationSettings = typeof automationSettings.$inferSelect;
+export type InsertAutomationSettings = typeof automationSettings.$inferInsert;
+
+/**
+ * Automation execution logs
+ */
+export const automationLogs = mysqlTable("automationLogs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  runId: varchar("runId", { length: 64 }).notNull().unique(), // UUID for this automation run
+  status: mysqlEnum("status", ["running", "completed", "failed", "cancelled"]).default("running").notNull(),
+  triggerType: mysqlEnum("triggerType", ["manual", "scheduled"]).notNull(),
+  dryRun: boolean("dryRun").default(true).notNull(),
+  // Summary statistics
+  positionsClosedCount: int("positionsClosedCount").default(0).notNull(),
+  coveredCallsOpenedCount: int("coveredCallsOpenedCount").default(0).notNull(),
+  totalProfitRealized: varchar("totalProfitRealized", { length: 20 }).default("0").notNull(),
+  totalPremiumCollected: varchar("totalPremiumCollected", { length: 20 }).default("0").notNull(),
+  accountsProcessed: int("accountsProcessed").default(0).notNull(),
+  errorMessage: text("errorMessage"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+}, (table) => ({
+  userIdIdx: index("automationLogs_userId_idx").on(table.userId),
+  runIdIdx: index("automationLogs_runId_idx").on(table.runId),
+}));
+
+export type AutomationLog = typeof automationLogs.$inferSelect;
+export type InsertAutomationLog = typeof automationLogs.$inferInsert;
+
+/**
+ * Pending automation orders awaiting approval
+ */
+export const automationPendingOrders = mysqlTable("automationPendingOrders", {
+  id: int("id").autoincrement().primaryKey(),
+  runId: varchar("runId", { length: 64 }).notNull().references(() => automationLogs.runId, { onDelete: "cascade" }),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  accountNumber: varchar("accountNumber", { length: 64 }).notNull(),
+  orderType: mysqlEnum("orderType", ["close_position", "open_covered_call"]).notNull(),
+  symbol: varchar("symbol", { length: 10 }).notNull(),
+  strike: varchar("strike", { length: 20 }),
+  expiration: varchar("expiration", { length: 20 }),
+  quantity: int("quantity").notNull(),
+  price: varchar("price", { length: 20 }).notNull(),
+  // Additional context
+  profitPercent: int("profitPercent"), // For close_position orders
+  score: int("score"), // For open_covered_call orders
+  estimatedProfit: varchar("estimatedProfit", { length: 20 }),
+  estimatedPremium: varchar("estimatedPremium", { length: 20 }),
+  // Order status
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "submitted", "failed"]).default("pending").notNull(),
+  orderId: varchar("orderId", { length: 64 }), // Tastytrade order ID after submission
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  approvedAt: timestamp("approvedAt"),
+  submittedAt: timestamp("submittedAt"),
+}, (table) => ({
+  runIdIdx: index("automationPendingOrders_runId_idx").on(table.runId),
+  userIdIdx: index("automationPendingOrders_userId_idx").on(table.userId),
+  statusIdx: index("automationPendingOrders_status_idx").on(table.status),
+}));
+
+export type AutomationPendingOrder = typeof automationPendingOrders.$inferSelect;
+export type InsertAutomationPendingOrder = typeof automationPendingOrders.$inferInsert;
