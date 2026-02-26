@@ -17,6 +17,8 @@ export function StrategyAdvisor() {
   const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
   const [selectedTickers, setSelectedTickers] = useState<Set<string>>(new Set());
   const [lockedStrategy, setLockedStrategy] = useState<string | null>(null);
+  // Track which section each ticker was selected from for context-aware routing
+  const [tickerSections, setTickerSections] = useState<Map<string, 'BPS' | 'BCS' | 'IC'>>(new Map());
   const utils = trpc.useUtils();
   
   // Fetch user preferences
@@ -97,7 +99,7 @@ export function StrategyAdvisor() {
     return primaryStrategy || 'Bull Put Spreads';
   };
   
-  const handleTickerToggle = (symbol: string) => {
+  const handleTickerToggle = (symbol: string, section?: 'BPS' | 'BCS' | 'IC') => {
     // Get the ticker data to check its primary strategy
     const ticker = data?.rankedTickers?.find((t: any) => t.symbol === symbol);
     if (!ticker) return;
@@ -110,6 +112,13 @@ export function StrategyAdvisor() {
       if (newSet.has(symbol)) {
         // Deselecting - remove from set
         newSet.delete(symbol);
+        
+        // Remove from section tracking
+        setTickerSections(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(symbol);
+          return newMap;
+        });
         
         // If no more tickers selected, unlock strategy
         if (newSet.size === 0) {
@@ -127,6 +136,15 @@ export function StrategyAdvisor() {
         
         // Add to set and lock strategy if this is the first selection
         newSet.add(symbol);
+        
+        // Track which section this ticker was selected from
+        if (section) {
+          setTickerSections(prev => {
+            const newMap = new Map(prev);
+            newMap.set(symbol, section);
+            return newMap;
+          });
+        }
         if (newSet.size === 1) {
           setLockedStrategy(tickerPrimaryStrategy);
         }
@@ -148,47 +166,36 @@ export function StrategyAdvisor() {
       return;
     }
     
-    // Determine primary strategy based on selected tickers
-    const selectedTickerData = data?.rankedTickers?.filter((t: any) => selectedTickers.has(t.symbol)) || [];
-    const strategyCount = {
-      BPS: 0,
-      BCS: 0,
-      IC: 0,
-    };
+    console.log('[Strategy Advisor] handleAnalyzeSelected called');
+    console.log('[Strategy Advisor] selectedTickers:', Array.from(selectedTickers));
+    console.log('[Strategy Advisor] tickerSections:', Array.from(tickerSections.entries()));
     
-    selectedTickerData.forEach((ticker: any) => {
-      console.log('[Strategy Advisor] Ticker:', ticker.symbol, 'Badges:', ticker.strategyBadges);
-      ticker.strategyBadges?.forEach((badge: any) => {
-        // Badge strategy uses abbreviations: 'BPS', 'BCS', 'IC'
-        if (badge.strategy === 'BPS') strategyCount.BPS++;
-        if (badge.strategy === 'BCS') strategyCount.BCS++;
-        if (badge.strategy === 'IC') strategyCount.IC++;
-      });
+    // Count sections (where tickers were selected from) instead of badge counts
+    // This ensures context-aware routing based on which section the ticker was selected from
+    const sectionCounts = { BPS: 0, BCS: 0, IC: 0 };
+    tickerSections.forEach((section) => {
+      sectionCounts[section]++;
     });
     
-    console.log('[Strategy Advisor] Strategy counts:', strategyCount);
+    console.log('[Strategy Advisor] sectionCounts:', sectionCounts);
     
-    // Navigate to the dashboard with the most selected tickers
-    // Determine which strategy has the most badges
-    const maxCount = Math.max(strategyCount.BPS, strategyCount.BCS, strategyCount.IC);
+    // Determine which dashboard to navigate to based on section counts
+    const maxCount = Math.max(sectionCounts.BPS, sectionCounts.BCS, sectionCounts.IC);
     
     let targetDashboard = '/csp';
     let strategyName = 'Bull Put Spreads';
     
-    // Route to the strategy with the highest count
-    // If IC has the max count, route to Iron Condor
-    if (maxCount === strategyCount.IC && strategyCount.IC > 0) {
+    // Route to the section with the highest count
+    if (sectionCounts.IC === maxCount && maxCount > 0) {
       targetDashboard = '/iron-condor';
       strategyName = 'Iron Condors';
-    } else if (maxCount === strategyCount.BCS && strategyCount.BCS > 0) {
+    } else if (sectionCounts.BCS === maxCount && maxCount > 0) {
       targetDashboard = '/cc';
       strategyName = 'Bear Call Spreads';
-    } else if (maxCount === strategyCount.BPS && strategyCount.BPS > 0) {
-      targetDashboard = '/csp';
-      strategyName = 'Bull Put Spreads';
     }
+    // Default to BPS if BPS has max count or all counts are equal
     
-    console.log('[Strategy Advisor] Max count:', maxCount, 'Target dashboard:', targetDashboard, 'Strategy name:', strategyName);
+    console.log('[Strategy Advisor] targetDashboard:', targetDashboard, 'strategyName:', strategyName);
     
     // Store selected tickers in localStorage for the target dashboard to pick up
     localStorage.setItem('strategyAdvisorSelectedTickers', JSON.stringify(Array.from(selectedTickers)));
@@ -590,7 +597,7 @@ export function StrategyAdvisor() {
                   !t.strategyBadges.some((b: any) => b.score >= 60)
                 ).sort((a: any, b: any) => b.score - a.score);
 
-                const renderTickerCard = (ticker: any, index: number) => {
+                const renderTickerCard = (ticker: any, index: number, section: 'BPS' | 'BCS' | 'IC') => {
                   // Check if this ticker's strategy is compatible with locked strategy
                   const tickerPrimaryStrategy = ticker.strategyBadges?.[0]?.strategy || null;
                   const isDisabled = lockedStrategy && tickerPrimaryStrategy && tickerPrimaryStrategy !== lockedStrategy;
@@ -611,7 +618,7 @@ export function StrategyAdvisor() {
                         <input
                           type="checkbox"
                           checked={selectedTickers.has(ticker.symbol)}
-                          onChange={() => handleTickerToggle(ticker.symbol)}
+                          onChange={() => handleTickerToggle(ticker.symbol, section)}
                           disabled={isDisabled}
                           className={`h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${
                             isDisabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
@@ -768,7 +775,7 @@ export function StrategyAdvisor() {
                           </Badge>
                         </div>
                         <div className="space-y-4">
-                          {bpsTickers.map((ticker: any, index: number) => renderTickerCard(ticker, index))}
+                          {bpsTickers.map((ticker: any, index: number) => renderTickerCard(ticker, index, 'BPS'))}
                         </div>
                       </div>
                     )}
@@ -784,7 +791,7 @@ export function StrategyAdvisor() {
                           </Badge>
                         </div>
                         <div className="space-y-4">
-                          {bcsTickers.map((ticker: any, index: number) => renderTickerCard(ticker, index))}
+                          {bcsTickers.map((ticker: any, index: number) => renderTickerCard(ticker, index, 'BCS'))}
                         </div>
                       </div>
                     )}
@@ -800,7 +807,7 @@ export function StrategyAdvisor() {
                           </Badge>
                         </div>
                         <div className="space-y-4">
-                          {icTickers.map((ticker: any, index: number) => renderTickerCard(ticker, index))}
+                          {icTickers.map((ticker: any, index: number) => renderTickerCard(ticker, index, 'IC'))}
                         </div>
                       </div>
                     )}
@@ -816,7 +823,7 @@ export function StrategyAdvisor() {
                           </Badge>
                         </div>
                         <div className="space-y-4">
-                          {notRecommended.map((ticker: any, index: number) => renderTickerCard(ticker, index))}
+                          {notRecommended.map((ticker: any, index: number) => renderTickerCard(ticker, index, 'BPS'))}
                         </div>
                       </div>
                     )}

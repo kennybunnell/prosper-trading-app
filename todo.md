@@ -6386,3 +6386,11 @@
 - [x] Verify targetDashboard value is set to '/iron-condor' when IC is selected
 - [x] Add console logging to debug redirect logic
 - [x] Fixed bug: badge.strategy uses abbreviations ('BPS', 'BCS', 'IC') not full names
+
+## Fix Strategy Advisor Context-Aware Routing
+- [x] Implement section-based routing that tracks which section each ticker was selected from (Bull Put Spreads, Bear Call Spreads, Iron Condors)
+- [x] When ticker has multiple badges (e.g., PG has both BPS and IC badges), route based on which SECTION it was selected from, not total badge counts
+- [x] Example: If PG is selected from "Bull Put Spreads" section, route to CSP dashboard (BPS mode) even if it also has IC badge
+- [x] Added tickerSections Map to track section context for each selected ticker
+- [x] Updated handleAnalyzeSelected to use section counts instead of badge counts
+- [x] Updated renderTickerCard to pass section parameter to handleTickerToggle
