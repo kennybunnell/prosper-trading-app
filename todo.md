@@ -6379,3 +6379,10 @@
 
 ## Fix Strategy Advisor Redirect Bug
 - [x] Fix Strategy Advisor redirect logic - Iron Condor selection incorrectly redirects to Bull Put Spread dashboard instead of Iron Condor dashboard
+
+## Debug Strategy Advisor IC Redirect Bug (URGENT)
+- [x] Investigate why "Fetch Opportunities for IC" button routes to /csp instead of /iron-condor
+- [x] Check if handleAnalyzeSelected is being called correctly
+- [x] Verify targetDashboard value is set to '/iron-condor' when IC is selected
+- [x] Add console logging to debug redirect logic
+- [x] Fixed bug: badge.strategy uses abbreviations ('BPS', 'BCS', 'IC') not full names

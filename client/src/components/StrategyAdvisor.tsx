@@ -157,12 +157,16 @@ export function StrategyAdvisor() {
     };
     
     selectedTickerData.forEach((ticker: any) => {
+      console.log('[Strategy Advisor] Ticker:', ticker.symbol, 'Badges:', ticker.strategyBadges);
       ticker.strategyBadges?.forEach((badge: any) => {
-        if (badge.strategy === 'Bull Put Spread') strategyCount.BPS++;
-        if (badge.strategy === 'Bear Call Spread') strategyCount.BCS++;
-        if (badge.strategy === 'Iron Condor') strategyCount.IC++;
+        // Badge strategy uses abbreviations: 'BPS', 'BCS', 'IC'
+        if (badge.strategy === 'BPS') strategyCount.BPS++;
+        if (badge.strategy === 'BCS') strategyCount.BCS++;
+        if (badge.strategy === 'IC') strategyCount.IC++;
       });
     });
+    
+    console.log('[Strategy Advisor] Strategy counts:', strategyCount);
     
     // Navigate to the dashboard with the most selected tickers
     // Determine which strategy has the most badges
@@ -183,6 +187,8 @@ export function StrategyAdvisor() {
       targetDashboard = '/csp';
       strategyName = 'Bull Put Spreads';
     }
+    
+    console.log('[Strategy Advisor] Max count:', maxCount, 'Target dashboard:', targetDashboard, 'Strategy name:', strategyName);
     
     // Store selected tickers in localStorage for the target dashboard to pick up
     localStorage.setItem('strategyAdvisorSelectedTickers', JSON.stringify(Array.from(selectedTickers)));
