@@ -6456,3 +6456,21 @@
 - [ ] Add email notification system
 - [ ] Create audit log viewer
 - [ ] Test automation in dry run mode
+
+## Daily Trading Automation System (In Progress)
+- [x] Create database schema for automation settings and logs (3 tables: automationSettings, automationLogs, automationPendingOrders)
+- [x] Create database helper functions in db-automation.ts
+- [x] Build automation router with tRPC procedures
+- [x] Implement close profitable positions logic (in runAutomation)
+- [ ] Implement covered call opportunity selection logic (TODO in runAutomation)
+- [x] Add multi-account looping with buying power prioritization
+- [x] Create automation dashboard UI page (/automation)
+- [x] Add control panel with toggles (Dry Run, Require Approval, Auto-Schedule, Email Notifications)
+- [x] Add configurable settings (profit threshold, DTE range, delta range)
+- [ ] Build approval queue interface (pending orders viewer)
+- [x] Add execution history viewer
+- [x] Implement node-cron scheduling for 9:35 AM ET
+- [x] Add email notification system (via Manus notifyOwner)
+- [x] Add navigation (sidebar + routing with Zap icon)
+- [ ] Test automation in dry run mode
+- [ ] Write unit tests for automation procedures

@@ -15,6 +15,7 @@ import IronCondorDashboard from "./pages/IronCondorDashboard";
 import Performance from "./pages/Performance";
 import StrategyAdvisorPage from "./pages/StrategyAdvisorPage";
 import PortfolioAdvisor from "./pages/PortfolioAdvisor";
+import AutomationDashboard from "./pages/AutomationDashboard";
 
 import ActionItems from "./pages/ActionItems";
 import PendingApproval from "./pages/PendingApproval";
@@ -129,6 +130,7 @@ function Router() {
           <Route path="/action-items" component={ActionItems} />
           <Route path="/strategy-advisor" component={StrategyAdvisorPage} />
           <Route path="/portfolio-advisor" component={PortfolioAdvisor} />
+          <Route path="/automation" component={AutomationDashboard} />
           <Route path={"/csp"} component={CSPDashboard} />
           <Route path={"/cc"} component={CCDashboard} />
           <Route path={"/iron-condor"} component={IronCondorDashboard} />

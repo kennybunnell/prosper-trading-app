@@ -21,7 +21,7 @@ export async function getAutomationSettings(userId: number) {
 
   if (!settings) {
     // Create default settings
-    const [newSettings] = await db
+    await db
       .insert(automationSettings)
       .values({
         userId,
@@ -36,6 +36,15 @@ export async function getAutomationSettings(userId: number) {
         ccDeltaMax: '0.30',
         emailNotificationsEnabled: true,
       });
+    
+    // Fetch the newly created settings
+    const [newSettings] = await db
+      .select()
+      .from(automationSettings)
+      .where(eq(automationSettings.userId, userId))
+      .limit(1);
+    
+    if (!newSettings) throw new Error('Failed to create automation settings');
     return newSettings;
   }
 
