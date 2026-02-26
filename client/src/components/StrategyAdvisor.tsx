@@ -165,15 +165,23 @@ export function StrategyAdvisor() {
     });
     
     // Navigate to the dashboard with the most selected tickers
+    // Determine which strategy has the most badges
+    const maxCount = Math.max(strategyCount.BPS, strategyCount.BCS, strategyCount.IC);
+    
     let targetDashboard = '/csp';
     let strategyName = 'Bull Put Spreads';
     
-    if (strategyCount.BCS > strategyCount.BPS && strategyCount.BCS > strategyCount.IC) {
-      targetDashboard = '/cc';
-      strategyName = 'Bear Call Spreads';
-    } else if (strategyCount.IC > strategyCount.BPS && strategyCount.IC > strategyCount.BCS) {
+    // Route to the strategy with the highest count
+    // If IC has the max count, route to Iron Condor
+    if (maxCount === strategyCount.IC && strategyCount.IC > 0) {
       targetDashboard = '/iron-condor';
       strategyName = 'Iron Condors';
+    } else if (maxCount === strategyCount.BCS && strategyCount.BCS > 0) {
+      targetDashboard = '/cc';
+      strategyName = 'Bear Call Spreads';
+    } else if (maxCount === strategyCount.BPS && strategyCount.BPS > 0) {
+      targetDashboard = '/csp';
+      strategyName = 'Bull Put Spreads';
     }
     
     // Store selected tickers in localStorage for the target dashboard to pick up

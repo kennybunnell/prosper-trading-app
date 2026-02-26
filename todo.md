@@ -6376,3 +6376,6 @@
 - [x] Display ROC % in Summary section for BCS orders
 - [x] Display ROC % in Summary section for IC orders
 - [x] Test ROC % display with real order data
+
+## Fix Strategy Advisor Redirect Bug
+- [x] Fix Strategy Advisor redirect logic - Iron Condor selection incorrectly redirects to Bull Put Spread dashboard instead of Iron Condor dashboard
