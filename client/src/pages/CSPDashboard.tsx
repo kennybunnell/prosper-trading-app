@@ -2354,23 +2354,23 @@ export default function CSPDashboard() {
                 <TableRow>
                   <TableHead className="w-12">Select</TableHead>
                   {(strategyType === 'spread' ? [
+                    { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
                     { key: 'symbol', label: 'Symbol', help: null, technical: false },
                     { key: 'strike', label: 'Strikes', help: null, technical: false },
                     { key: 'currentPrice', label: 'Current', help: null, technical: false },
                     { key: 'netCredit', label: 'Net Credit', help: HELP_CONTENT.NET_CREDIT, technical: false },
                     { key: 'capitalAtRisk', label: 'Capital Risk', help: HELP_CONTENT.CAPITAL_AT_RISK, technical: false },
                     { key: 'spreadROC', label: 'ROC %', help: HELP_CONTENT.SPREAD_ROC, technical: false },
-                    { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP, technical: true },
                     { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE, technical: false },
                     { key: 'weeklyPct', label: 'Weekly %', help: HELP_CONTENT.WEEKLY_RETURN, technical: false },
                     { key: 'breakeven', label: 'Breakeven', help: HELP_CONTENT.BREAKEVEN_BULL_PUT, technical: false },
+                    { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP, technical: true },
                     { key: 'openInterest', label: 'OI', help: 'dialog-oi-vol', technical: true },
                     { key: 'volume', label: 'Vol', help: 'dialog-oi-vol', technical: true },
                     { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, technical: true },
                     { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, technical: true },
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
                     { key: 'riskBadges', label: 'Risk', help: null, technical: false },
-                    { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
                   ] : [
                     { key: 'symbol', label: 'Symbol', help: null, technical: false },
                     { key: 'strike', label: 'Strike', help: null, technical: false },
@@ -2442,9 +2442,80 @@ export default function CSPDashboard() {
                             onCheckedChange={() => toggleOpportunity(opp)}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{opp.symbol}</TableCell>
                         {strategyType === 'spread' ? (
                           <>
+                            <TableCell>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge 
+                                      className={cn(
+                                        "font-bold cursor-help",
+                                        opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
+                                        opp.score >= 50 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
+                                        opp.score < 50 && "bg-red-500/20 text-red-500 border-red-500/50"
+                                      )}
+                                    >
+                                      {opp.score}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="bg-gray-900 border-orange-500/50 p-3 max-w-xs">
+                                    <div className="space-y-1.5 text-sm">
+                                      <div className="font-semibold text-orange-400 border-b border-orange-500/30 pb-1 mb-2">
+                                        Score Breakdown ({opp.score}/100)
+                                      </div>
+                                      {(opp as any).scoreBreakdown && (
+                                        <>
+                                          {(opp as any).scoreBreakdown.spreadEfficiency !== undefined ? (
+                                            <>
+                                              <div className="flex justify-between">
+                                                <span className="text-gray-400">Spread Efficiency:</span>
+                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.spreadEfficiency}/35</span>
+                                              </div>
+                                              <div className="flex justify-between">
+                                                <span className="text-gray-400">Greeks (Δ+DTE):</span>
+                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
+                                              </div>
+                                              <div className="flex justify-between">
+                                                <span className="text-gray-400">Technical (RSI+BB):</span>
+                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/20</span>
+                                              </div>
+                                              <div className="flex justify-between">
+                                                <span className="text-gray-400">Premium Quality:</span>
+                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/15</span>
+                                              </div>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <div className="flex justify-between">
+                                                <span className="text-gray-400">Technical (RSI+BB):</span>
+                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/40</span>
+                                              </div>
+                                              <div className="flex justify-between">
+                                                <span className="text-gray-400">Greeks (Δ+DTE+IV):</span>
+                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
+                                              </div>
+                                              <div className="flex justify-between">
+                                                <span className="text-gray-400">Premium (Return+Spread):</span>
+                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/20</span>
+                                              </div>
+                                              <div className="flex justify-between">
+                                                <span className="text-gray-400">Quality (Mag7+Cap):</span>
+                                                <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
+                                              </div>
+                                            </>
+                                          )}
+                                        </>
+                                      )}
+                                      {!(opp as any).scoreBreakdown && (
+                                        <div className="text-gray-400 text-xs">Breakdown not available</div>
+                                      )}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </TableCell>
+                            <TableCell className="font-medium">{opp.symbol}</TableCell>
                             <TableCell>
                               <div className="flex flex-col text-xs">
                                 <span className="text-blue-400 font-semibold">${opp.strike.toFixed(2)}</span>
@@ -2459,10 +2530,10 @@ export default function CSPDashboard() {
                                 {((opp as any).spreadROC || 0).toFixed(2)}%
                               </Badge>
                             </TableCell>
-                            {showTechnicalColumns && <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>}
                             <TableCell>{opp.dte}</TableCell>
                             <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
                             <TableCell className="text-blue-300">${(opp as any).breakeven?.toFixed(2)}</TableCell>
+                            {showTechnicalColumns && <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>}
                             {showTechnicalColumns && (
                               <>
                                 <TableCell>
@@ -2492,11 +2563,6 @@ export default function CSPDashboard() {
                                 </TableCell>
                               </>
                             )}
-                            <TableCell>
-                              <Badge className={cn("font-bold", getROCColor((opp as any).spreadROC || 0))}>
-                                {opp.score}
-                              </Badge>
-                            </TableCell>
                           </>
                         ) : (
                           <>
@@ -2553,80 +2619,7 @@ export default function CSPDashboard() {
                             return <RiskBadgeList badges={badges} size="sm" maxDisplay={3} />;
                           })()}
                         </TableCell>
-                        <TableCell>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Badge 
-                                  className={cn(
-                                    "font-bold cursor-help",
-                                    opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
-                                    opp.score >= 50 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
-                                    opp.score < 50 && "bg-red-500/20 text-red-500 border-red-500/50"
-                                  )}
-                                >
-                                  {opp.score}
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent side="left" className="bg-gray-900 border-orange-500/50 p-3 max-w-xs">
-                                <div className="space-y-1.5 text-sm">
-                                  <div className="font-semibold text-orange-400 border-b border-orange-500/30 pb-1 mb-2">
-                                    Score Breakdown ({opp.score}/100)
-                                  </div>
-                                  {(opp as any).scoreBreakdown && (
-                                    <>
-                                      {/* Check if this is BPS (has spreadEfficiency) or CSP (has quality) */}
-                                      {(opp as any).scoreBreakdown.spreadEfficiency !== undefined ? (
-                                        // BPS Score Breakdown
-                                        <>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-400">Spread Efficiency:</span>
-                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.spreadEfficiency}/35</span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-400">Greeks (Δ+DTE):</span>
-                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-400">Technical (RSI+BB):</span>
-                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/20</span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-400">Premium Quality:</span>
-                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/15</span>
-                                          </div>
-                                        </>
-                                      ) : (
-                                        // CSP Score Breakdown
-                                        <>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-400">Technical (RSI+BB):</span>
-                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.technical}/40</span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-400">Greeks (Δ+DTE+IV):</span>
-                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.greeks}/30</span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-400">Premium (Return+Spread):</span>
-                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.premium}/20</span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-400">Quality (Mag7+Cap):</span>
-                                            <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
-                                          </div>
-                                        </>
-                                      )}
-                                    </>
-                                  )}
-                                  {!(opp as any).scoreBreakdown && (
-                                    <div className="text-gray-400 text-xs">Breakdown not available</div>
-                                  )}
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </TableCell>
+
 
                       </TableRow>
                     );

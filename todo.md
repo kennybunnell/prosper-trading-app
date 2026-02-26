@@ -6402,3 +6402,12 @@
 - [x] Verify all columns have appropriate labels
 - [x] Investigate CMCSA contract count - EXPECTED BEHAVIOR: System correctly filters to only show spreads with positive net credit and valid quotes on both legs. CMCSA has limited liquid strikes that meet criteria.
 - [x] Test cleaned table compilation
+
+## Fix Bull Put Spread Table Column Order and Visibility
+- [x] Analyze current column structure when technical columns are hidden
+- [x] Move Score column to prominent position (right after Select checkbox)
+- [x] Ensure Score column always has header regardless of technical column visibility (technical: false)
+- [x] Verify Score column is sortable (has onClick handler for sorting)
+- [x] Risk badges column already at end (after all technical columns)
+- [x] Removed duplicate Score column that was appearing at the end
+- [x] Added tooltip with score breakdown to Score column at front
