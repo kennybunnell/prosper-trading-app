@@ -2372,25 +2372,25 @@ export default function CSPDashboard() {
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
                     { key: 'riskBadges', label: 'Risk', help: null, technical: false },
                   ] : [
+                    { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
                     { key: 'symbol', label: 'Symbol', help: null, technical: false },
-                    { key: 'strike', label: 'Strike', help: null, technical: false },
                     { key: 'currentPrice', label: 'Current', help: null, technical: false },
-                    { key: 'bid', label: 'Bid', help: null, technical: false },
-                    { key: 'ask', label: 'Ask', help: null, technical: false },
-                    { key: 'spreadPct', label: 'Spread %', help: null, technical: false },
-                    { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP, technical: true },
+                    { key: 'strike', label: 'Strike', help: null, technical: false },
                     { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE, technical: false },
                     { key: 'premium', label: 'Premium', help: null, technical: false },
-                    { key: 'weeklyPct', label: 'Weekly %', help: HELP_CONTENT.WEEKLY_RETURN, technical: false },
                     { key: 'collateral', label: 'Collateral', help: null, technical: false },
                     { key: 'roc', label: 'ROC %', help: null, technical: false },
+                    { key: 'weeklyPct', label: 'Weekly %', help: HELP_CONTENT.WEEKLY_RETURN, technical: false },
+                    { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP, technical: true },
                     { key: 'openInterest', label: 'OI', help: 'dialog-oi-vol', technical: true },
                     { key: 'volume', label: 'Vol', help: 'dialog-oi-vol', technical: true },
                     { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, technical: true },
                     { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, technical: true },
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
                     { key: 'riskBadges', label: 'Risk', help: null, technical: false },
-                    { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
+                    { key: 'bid', label: 'Bid', help: null, technical: false },
+                    { key: 'ask', label: 'Ask', help: null, technical: false },
+                    { key: 'spreadPct', label: 'Spread %', help: null, technical: false },
                   ]).filter(({ technical }) => !technical || showTechnicalColumns).map(({ key, label, help }) => (
                     <TableHead 
                       key={key}
@@ -2566,21 +2566,41 @@ export default function CSPDashboard() {
                           </>
                         ) : (
                           <>
-                            <TableCell>${opp.strike.toFixed(2)}</TableCell>
+                            {/* Score */}
+                            <TableCell>
+                              <Badge 
+                                className={cn(
+                                  "font-bold",
+                                  opp.score >= 70 && "bg-green-500/20 text-green-500 border-green-500/50",
+                                  opp.score >= 50 && opp.score < 70 && "bg-yellow-500/20 text-yellow-500 border-yellow-500/50",
+                                  opp.score < 50 && "bg-red-500/20 text-red-500 border-red-500/50"
+                                )}
+                              >
+                                {opp.score}
+                              </Badge>
+                            </TableCell>
+                            {/* Symbol */}
+                            <TableCell className="font-medium">{opp.symbol}</TableCell>
+                            {/* Current */}
                             <TableCell>${opp.currentPrice.toFixed(2)}</TableCell>
-                            <TableCell>${opp.bid.toFixed(2)}</TableCell>
-                            <TableCell>${opp.ask.toFixed(2)}</TableCell>
-                            <TableCell>{opp.spreadPct.toFixed(1)}%</TableCell>
-                            {showTechnicalColumns && <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>}
+                            {/* Strike */}
+                            <TableCell>${opp.strike.toFixed(2)}</TableCell>
+                            {/* DTE */}
                             <TableCell>{opp.dte}</TableCell>
+                            {/* Premium */}
                             <TableCell className="font-medium text-green-500">${opp.premium.toFixed(2)}</TableCell>
-                            <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
+                            {/* Collateral */}
                             <TableCell>${opp.collateral.toFixed(2)}</TableCell>
+                            {/* ROC % */}
                             <TableCell>
                               <Badge className={cn("font-bold", getROCColor(opp.roc))}>
                                 {opp.roc.toFixed(2)}%
                               </Badge>
                             </TableCell>
+                            {/* Weekly % */}
+                            <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
+                            {/* Delta (technical) */}
+                            {showTechnicalColumns && <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>}
                           </>
                         )}
                         {showTechnicalColumns && (
@@ -2619,7 +2639,14 @@ export default function CSPDashboard() {
                             return <RiskBadgeList badges={badges} size="sm" maxDisplay={3} />;
                           })()}
                         </TableCell>
-
+                        {/* CSP-specific columns: Bid, Ask, Spread% */}
+                        {!strategyType || strategyType === 'csp' ? (
+                          <>
+                            <TableCell>${opp.bid.toFixed(2)}</TableCell>
+                            <TableCell>${opp.ask.toFixed(2)}</TableCell>
+                            <TableCell>{opp.spreadPct.toFixed(1)}%</TableCell>
+                          </>
+                        ) : null}
 
                       </TableRow>
                     );

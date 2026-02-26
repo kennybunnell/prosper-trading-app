@@ -6411,3 +6411,18 @@
 - [x] Risk badges column already at end (after all technical columns)
 - [x] Removed duplicate Score column that was appearing at the end
 - [x] Added tooltip with score breakdown to Score column at front
+
+## Standardize Column Order Across All Strategy Tables
+- [x] Audit Bull Put Spread (BPS) table columns
+- [x] Audit Cash-Secured Put (CSP) table columns
+- [x] Audit Bear Call Spread (BCS) table columns
+- [x] Audit Covered Call (CC) table columns
+- [x] Audit Iron Condor table columns
+- [x] Design universal column order that works for all strategies
+- [x] Remove any duplicate columns found in each table
+- [x] Implement standardized order in BPS table (already done in previous checkpoint)
+- [x] Implement standardized order in CSP table (Score moved to position 2, columns reordered)
+- [ ] Implement standardized order in BCS table
+- [ ] Implement standardized order in CC table
+- [ ] Implement standardized order in Iron Condor table
+- [ ] Test all tables with technical columns shown and hidden
