@@ -6433,3 +6433,10 @@
 - [x] Add ROC% column to Iron Condor table (already exists, no action needed)
 - [ ] Implement column resize persistence using localStorage for all strategy tables (deferred - requires significant custom implementation)
 - [x] All tables now have consistent column order: Select → Score → Symbol → Current → [Strategy-specific] → [Technical] → Risk/Other
+
+## Add Quick Navigation to Strategy Sections
+- [x] Add navigation buttons next to "Top Watchlist Picks" header (Bull Put Spreads, Bear Call Spreads, Iron Condors)
+- [x] Implement smooth scroll to each strategy section when buttons are clicked
+- [x] Add floating "Back to Top" button that appears when user scrolls down
+- [x] Add IDs to strategy sections for scroll targeting
+- [x] Add scroll event listener to show/hide Back to Top button

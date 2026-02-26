@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { AlertCircle, TrendingUp, TrendingDown, Minus, RefreshCw, Lightbulb, Target, ArrowRight, Settings, Trophy, Medal, Award, X } from "lucide-react";
+import { AlertCircle, TrendingUp, TrendingDown, Minus, RefreshCw, Lightbulb, Target, ArrowRight, Settings, Trophy, Medal, Award, X, ArrowDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
@@ -19,6 +19,7 @@ export function StrategyAdvisor() {
   const [lockedStrategy, setLockedStrategy] = useState<string | null>(null);
   // Track which section each ticker was selected from for context-aware routing
   const [tickerSections, setTickerSections] = useState<Map<string, 'BPS' | 'BCS' | 'IC'>>(new Map());
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const utils = trpc.useUtils();
   
   // Fetch user preferences
@@ -36,6 +37,16 @@ export function StrategyAdvisor() {
       setRefreshInterval(userPrefs.strategyAdvisorRefreshInterval ?? 30);
     }
   }, [userPrefs]);
+  
+  // Show/hide Back to Top button based on scroll position
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 400);
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
   
   const { data, isLoading, error, refetch } = trpc.strategyAdvisor.getRecommendation.useQuery(undefined, {
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -551,14 +562,55 @@ export function StrategyAdvisor() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Lightbulb className="h-5 w-5 text-primary" />
-                Top Watchlist Picks
-              </CardTitle>
-              <CardDescription>
-                Ranked best → worst for {strategyNames[recommendation.recommendedStrategy]}
-              </CardDescription>
+            <div className="flex items-center gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Lightbulb className="h-5 w-5 text-primary" />
+                  Top Watchlist Picks
+                </CardTitle>
+                <CardDescription>
+                  Ranked best → worst for {strategyNames[recommendation.recommendedStrategy]}
+                </CardDescription>
+              </div>
+              {/* Quick Navigation Buttons */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    document.getElementById('bull-put-spreads-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                >
+                  <div className="h-2 w-2 rounded-full bg-green-500 mr-1.5" />
+                  BPS
+                  <ArrowDown className="h-3 w-3 ml-1" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    document.getElementById('bear-call-spreads-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                >
+                  <div className="h-2 w-2 rounded-full bg-red-500 mr-1.5" />
+                  BCS
+                  <ArrowDown className="h-3 w-3 ml-1" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    document.getElementById('iron-condors-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                >
+                  <div className="h-2 w-2 rounded-full bg-blue-500 mr-1.5" />
+                  IC
+                  <ArrowDown className="h-3 w-3 ml-1" />
+                </Button>
+              </div>
             </div>
             {rankedTickers.length > 0 && (
               <Badge variant="outline" className="text-xs">
@@ -766,7 +818,7 @@ export function StrategyAdvisor() {
                   <>
                     {/* Bull Put Spreads */}
                     {bpsTickers.length > 0 && (
-                      <div>
+                      <div id="bull-put-spreads-section">
                         <div className="flex items-center gap-2 mb-4 pb-2 border-b">
                           <div className="h-3 w-3 rounded-full bg-green-500" />
                           <h3 className="text-lg font-semibold">Bull Put Spreads</h3>
@@ -782,7 +834,7 @@ export function StrategyAdvisor() {
 
                     {/* Bear Call Spreads */}
                     {bcsTickers.length > 0 && (
-                      <div>
+                      <div id="bear-call-spreads-section">
                         <div className="flex items-center gap-2 mb-4 pb-2 border-b">
                           <div className="h-3 w-3 rounded-full bg-red-500" />
                           <h3 className="text-lg font-semibold">Bear Call Spreads</h3>
@@ -798,7 +850,7 @@ export function StrategyAdvisor() {
 
                     {/* Iron Condors */}
                     {icTickers.length > 0 && (
-                      <div>
+                      <div id="iron-condors-section">
                         <div className="flex items-center gap-2 mb-4 pb-2 border-b">
                           <div className="h-3 w-3 rounded-full bg-blue-500" />
                           <h3 className="text-lg font-semibold">Iron Condors</h3>
@@ -893,6 +945,19 @@ export function StrategyAdvisor() {
             </div>
           </CardContent>
         </Card>
+      )}
+      
+      {/* Floating Back to Top Button */}
+      {showBackToTop && (
+        <Button
+          className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full shadow-lg"
+          size="icon"
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        >
+          <ChevronUp className="h-5 w-5" />
+        </Button>
       )}
     </div>
   );
