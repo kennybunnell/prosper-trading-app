@@ -2371,7 +2371,6 @@ export default function CSPDashboard() {
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
                     { key: 'riskBadges', label: 'Risk', help: null, technical: false },
                     { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
-                    { key: 'aiRecommendation', label: 'AI', help: null, technical: false },
                   ] : [
                     { key: 'symbol', label: 'Symbol', help: null, technical: false },
                     { key: 'strike', label: 'Strike', help: null, technical: false },
@@ -2392,7 +2391,6 @@ export default function CSPDashboard() {
                     { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
                     { key: 'riskBadges', label: 'Risk', help: null, technical: false },
                     { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
-                    { key: 'aiRecommendation', label: 'AI', help: null, technical: false },
                   ]).filter(({ technical }) => !technical || showTechnicalColumns).map(({ key, label, help }) => (
                     <TableHead 
                       key={key}
@@ -2494,9 +2492,6 @@ export default function CSPDashboard() {
                                 </TableCell>
                               </>
                             )}
-                            <TableCell>
-                              <RiskBadgeList badges={(opp as any).riskBadges || []} size="sm" maxDisplay={3} />
-                            </TableCell>
                             <TableCell>
                               <Badge className={cn("font-bold", getROCColor((opp as any).spreadROC || 0))}>
                                 {opp.score}
@@ -2632,38 +2627,7 @@ export default function CSPDashboard() {
                             </Tooltip>
                           </TooltipProvider>
                         </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 hover:bg-purple-500/20"
-                            onClick={() => {
-                              const rowKey = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
-                              setAnalyzingRowKey(rowKey);
-                              explainScore.mutate({
-                                symbol: opp.symbol,
-                                strike: opp.strike,
-                                currentPrice: opp.currentPrice,
-                                premium: opp.premium,
-                                delta: Math.abs(opp.delta),
-                                dte: opp.dte,
-                                rsi: opp.rsi,
-                                bbPctB: opp.bbPctB,
-                                ivRank: opp.ivRank,
-                                score: opp.score,
-                                scoreBreakdown: opp.scoreBreakdown,
-                              });
-                            }}
-                            disabled={analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}`}
-                            title="Click to see AI explanation of this score"
-                          >
-                            {analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}` ? (
-                              <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
-                            ) : (
-                              <Sparkles className="w-4 h-4 text-purple-500" />
-                            )}
-                          </Button>
-                        </TableCell>
+
                       </TableRow>
                     );
                   })

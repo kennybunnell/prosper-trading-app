@@ -6394,3 +6394,11 @@
 - [x] Added tickerSections Map to track section context for each selected ticker
 - [x] Updated handleAnalyzeSelected to use section counts instead of badge counts
 - [x] Updated renderTickerCard to pass section parameter to handleTickerToggle
+
+## Clean Up Bull Put Spread Opportunities Table
+- [x] Analyze current table structure and identify all columns
+- [x] Remove duplicate Risk badge columns (was appearing twice - once inside spread conditional, once outside)
+- [x] Remove AI Score column (kept only Score column with tooltip breakdown)
+- [x] Verify all columns have appropriate labels
+- [x] Investigate CMCSA contract count - EXPECTED BEHAVIOR: System correctly filters to only show spreads with positive net credit and valid quotes on both legs. CMCSA has limited liquid strikes that meet criteria.
+- [x] Test cleaned table compilation
