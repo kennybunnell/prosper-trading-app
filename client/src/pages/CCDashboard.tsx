@@ -2571,9 +2571,10 @@ export default function CCDashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      {/* 1. Select */}
                       <TableHead className="w-12">Select</TableHead>
-                      <TableHead>Symbol</TableHead>
-                      <TableHead className="text-center">Risk</TableHead>
+                      
+                      {/* 2. Score */}
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('score')}>
                         <div className="flex items-center justify-end gap-1">
                           Score
@@ -2581,20 +2582,27 @@ export default function CCDashboard() {
                           {sortColumn === 'score' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
-                      <TableHead className="text-center">AI</TableHead>
-                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('strike')}>
-                        <div className="flex items-center justify-end gap-1">
-                          {strategyType === 'spread' ? 'Strikes (Short/Long)' : 'Strike'}
-                          {sortColumn === 'strike' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                        </div>
-                      </TableHead>
+                      
+                      {/* 3. Symbol */}
+                      <TableHead>Symbol</TableHead>
+                      
+                      {/* 4. Current Price */}
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('currentPrice')}>
                         <div className="flex items-center justify-end gap-1">
                           Current Price
                           {sortColumn === 'currentPrice' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
-                      <TableHead>Expiration</TableHead>
+                      
+                      {/* 5. Strikes */}
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('strike')}>
+                        <div className="flex items-center justify-end gap-1">
+                          {strategyType === 'spread' ? 'Strikes (Short/Long)' : 'Strike'}
+                          {sortColumn === 'strike' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      
+                      {/* 6. DTE */}
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('dte')}>
                         <div className="flex items-center justify-end gap-1">
                           DTE
@@ -2602,31 +2610,8 @@ export default function CCDashboard() {
                           {sortColumn === 'dte' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
-                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('delta')}>
-                        <div className="flex items-center justify-end gap-1">
-                          Delta
-                          <HelpBadge content={HELP_CONTENT.DELTA_CC} />
-                          {sortColumn === 'delta' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                        </div>
-                      </TableHead>
-                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('bid')}>
-                        <div className="flex items-center justify-end gap-1">
-                          Bid
-                          {sortColumn === 'bid' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                        </div>
-                      </TableHead>
-                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('ask')}>
-                        <div className="flex items-center justify-end gap-1">
-                          Ask
-                          {sortColumn === 'ask' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                        </div>
-                      </TableHead>
-                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('mid')}>
-                        <div className="flex items-center justify-end gap-1">
-                          Mid
-                          {sortColumn === 'mid' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                        </div>
-                      </TableHead>
+                      
+                      {/* 7. Premium/Net Credit */}
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('premium')}>
                         <div className="flex items-center justify-end gap-1">
                           {strategyType === 'spread' ? 'Net Credit' : 'Premium'}
@@ -2634,6 +2619,8 @@ export default function CCDashboard() {
                           {sortColumn === 'premium' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
+                      
+                      {/* 8. Capital at Risk (spread only) */}
                       {strategyType === 'spread' && (
                         <TableHead className="text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -2642,6 +2629,8 @@ export default function CCDashboard() {
                           </div>
                         </TableHead>
                       )}
+                      
+                      {/* 9. Weekly % */}
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('weeklyReturn')}>
                         <div className="flex items-center justify-end gap-1">
                           Weekly %
@@ -2649,54 +2638,19 @@ export default function CCDashboard() {
                           {sortColumn === 'weeklyReturn' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </div>
                       </TableHead>
-                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('distanceOtm')}>
-                        <div className="flex items-center justify-end gap-1">
-                          Distance OTM
-                          {sortColumn === 'distanceOtm' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                        </div>
-                      </TableHead>
+                      
+                      {/* 10. Delta (technical) */}
                       {showTechnicalColumns && (
-                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('rsi')}>
+                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('delta')}>
                           <div className="flex items-center justify-end gap-1">
-                            RSI
-                            <HelpBadge content={HELP_CONTENT.RSI_CC} />
-                            {sortColumn === 'rsi' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                            Delta
+                            <HelpBadge content={HELP_CONTENT.DELTA_CC} />
+                            {sortColumn === 'delta' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                           </div>
                         </TableHead>
                       )}
-                      {showTechnicalColumns && (
-                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('ivRank')}>
-                          <div className="flex items-center justify-end gap-1">
-                            IV Rank
-                            <HelpBadge content={HELP_CONTENT.IV_RANK} />
-                            {sortColumn === 'ivRank' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                          </div>
-                        </TableHead>
-                      )}
-                      {showTechnicalColumns && (
-                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('bbPctB')}>
-                          <div className="flex items-center justify-end gap-1">
-                            BB %B
-                            <HelpBadge content={HELP_CONTENT.BB_PCTB_CC} />
-                            {sortColumn === 'bbPctB' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                          </div>
-                        </TableHead>
-                      )}
-                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('spreadPct')}>
-                        <div className="flex items-center justify-end gap-1">
-                          Spread %
-                          {sortColumn === 'spreadPct' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                        </div>
-                      </TableHead>
-                      {showTechnicalColumns && (
-                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('volume')}>
-                          <div className="flex items-center justify-end gap-1">
-                            Volume
-                            <HelpDialog title="Open Interest & Volume" content={HELP_CONTENT.OPEN_INTEREST_VOLUME_DIALOG} />
-                            {sortColumn === 'volume' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                          </div>
-                        </TableHead>
-                      )}
+                      
+                      {/* 11. OI (technical) */}
                       {showTechnicalColumns && (
                         <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('openInterest')}>
                           <div className="flex items-center justify-end gap-1">
@@ -2706,13 +2660,105 @@ export default function CCDashboard() {
                           </div>
                         </TableHead>
                       )}
+                      
+                      {/* 12. Volume (technical) */}
+                      {showTechnicalColumns && (
+                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('volume')}>
+                          <div className="flex items-center justify-end gap-1">
+                            Volume
+                            <HelpDialog title="Open Interest & Volume" content={HELP_CONTENT.OPEN_INTEREST_VOLUME_DIALOG} />
+                            {sortColumn === 'volume' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                          </div>
+                        </TableHead>
+                      )}
+                      
+                      {/* 13. RSI (technical) */}
+                      {showTechnicalColumns && (
+                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('rsi')}>
+                          <div className="flex items-center justify-end gap-1">
+                            RSI
+                            <HelpBadge content={HELP_CONTENT.RSI_CC} />
+                            {sortColumn === 'rsi' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                          </div>
+                        </TableHead>
+                      )}
+                      
+                      {/* 14. BB %B (technical) */}
+                      {showTechnicalColumns && (
+                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('bbPctB')}>
+                          <div className="flex items-center justify-end gap-1">
+                            BB %B
+                            <HelpBadge content={HELP_CONTENT.BB_PCTB_CC} />
+                            {sortColumn === 'bbPctB' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                          </div>
+                        </TableHead>
+                      )}
+                      
+                      {/* 15. IV Rank (technical) */}
+                      {showTechnicalColumns && (
+                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('ivRank')}>
+                          <div className="flex items-center justify-end gap-1">
+                            IV Rank
+                            <HelpBadge content={HELP_CONTENT.IV_RANK} />
+                            {sortColumn === 'ivRank' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                          </div>
+                        </TableHead>
+                      )}
+                      
+                      {/* 16. Risk */}
+                      <TableHead className="text-center">Risk</TableHead>
+                      
+                      {/* 17. Bid */}
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('bid')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Bid
+                          {sortColumn === 'bid' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      
+                      {/* 18. Ask */}
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('ask')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Ask
+                          {sortColumn === 'ask' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      
+                      {/* 19. Mid */}
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('mid')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Mid
+                          {sortColumn === 'mid' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      
+                      {/* 20. Distance OTM */}
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('distanceOtm')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Distance OTM
+                          {sortColumn === 'distanceOtm' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      
+                      {/* 21. Spread % */}
+                      <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('spreadPct')}>
+                        <div className="flex items-center justify-end gap-1">
+                          Spread %
+                          {sortColumn === 'spreadPct' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </div>
+                      </TableHead>
+                      
+                      {/* 22. Expiration */}
+                      <TableHead>Expiration</TableHead>
                     </TableRow>
+
                   </TableHeader>
                   <TableBody>
                     {sortedOpportunities.map((opp, index) => {
                       const oppKey = getOpportunityKey(opp);
                       return (
                       <TableRow key={oppKey}>
+                        {/* 1. Select */}
                         <TableCell>
                           <Checkbox
                             checked={selectedOpportunities.has(oppKey)}
@@ -2720,70 +2766,23 @@ export default function CCDashboard() {
                             className="border-2 border-amber-500/50 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
                           />
                         </TableCell>
-                        <TableCell className="font-semibold">{opp.symbol}</TableCell>
-                        <TableCell className="text-center">
-                          <RiskBadgeList badges={(opp as any).riskBadges || []} />
-                        </TableCell>
+                        
+                        {/* 2. Score */}
                         <TableCell className="text-right">
                           <Badge variant="secondary" className={getScoreBadgeClass(opp.score)}>
                             {opp.score}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 hover:bg-purple-500/20"
-                            onClick={() => {
-                              const rowKey = getOpportunityKey(opp);
-                              setAnalyzingRowKey(rowKey);
-                              
-                              // Determine if this is a Covered Call or Bear Call Spread
-                              const isBearCallSpread = opp.longStrike && opp.longStrike > 0;
-                              
-                              if (isBearCallSpread) {
-                                // Bear Call Spread - use BCS endpoint
-                                explainBCSScore.mutate({
-                                  symbol: opp.symbol,
-                                  shortStrike: opp.strike,
-                                  longStrike: opp.longStrike || 0,
-                                  currentPrice: opp.currentPrice,
-                                  netCredit: opp.premium,
-                                  shortDelta: opp.delta,
-                                  dte: opp.dte,
-                                  rsi: opp.rsi,
-                                  bbPctB: opp.bbPctB,
-                                  ivRank: opp.ivRank,
-                                  score: opp.score,
-                                  scoreBreakdown: (opp as any).scoreBreakdown || { technical: 0, greeks: 0, premium: 0, quality: 0, total: 0 },
-                                });
-                              } else {
-                                // Covered Call - use CC endpoint
-                                explainCCScore.mutate({
-                                  symbol: opp.symbol,
-                                  strike: opp.strike,
-                                  currentPrice: opp.currentPrice,
-                                  premium: opp.premium,
-                                  delta: opp.delta,
-                                  dte: opp.dte,
-                                  weeklyReturn: opp.weeklyReturn || 0,
-                                  distanceOtm: opp.distanceOtm || 0,
-                                  rsi: opp.rsi,
-                                  bbPctB: opp.bbPctB,
-                                  spreadPct: opp.spreadPct,
-                                  score: opp.score,
-                                });
-                              }
-                            }}
-                            disabled={analyzingRowKey === getOpportunityKey(opp)}
-                          >
-                            {analyzingRowKey === getOpportunityKey(opp) ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
-                            ) : (
-                              <Sparkles className="h-4 w-4 text-purple-400" />
-                            )}
-                          </Button>
+                        
+                        {/* 3. Symbol */}
+                        <TableCell className="font-semibold">{opp.symbol}</TableCell>
+                        
+                        {/* 4. Current Price */}
+                        <TableCell className="text-right">
+                          <span className="text-muted-foreground">${opp.currentPrice.toFixed(2)}</span>
                         </TableCell>
+                        
+                        {/* 5. Strikes */}
                         <TableCell className="text-right">
                           {strategyType === 'spread' && opp.longStrike ? (
                             <span className="text-orange-400">
@@ -2793,20 +2792,18 @@ export default function CCDashboard() {
                             `$${opp.strike.toFixed(2)}`
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <span className="text-muted-foreground">${opp.currentPrice.toFixed(2)}</span>
-                        </TableCell>
-                        <TableCell>{opp.expiration}</TableCell>
+                        
+                        {/* 6. DTE */}
                         <TableCell className="text-right">{opp.dte}</TableCell>
-                        <TableCell className="text-right">{opp.delta.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">${opp.bid.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">${opp.ask.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">${opp.mid.toFixed(2)}</TableCell>
+                        
+                        {/* 7. Premium/Net Credit */}
                         <TableCell className="text-right">
                           <span className="text-green-400 font-semibold">
                             ${opp.premium.toFixed(2)}
                           </span>
                         </TableCell>
+                        
+                        {/* 8. Capital at Risk (spread only) */}
                         {strategyType === 'spread' && (
                           <TableCell className="text-right">
                             <span className="text-orange-400 font-semibold">
@@ -2814,39 +2811,20 @@ export default function CCDashboard() {
                             </span>
                           </TableCell>
                         )}
+                        
+                        {/* 9. Weekly % */}
                         <TableCell className="text-right">
                           <Badge className={cn("font-bold", getROCColor(opp.weeklyReturn))}>
                             {opp.weeklyReturn.toFixed(2)}%
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">{opp.distanceOtm.toFixed(1)}%</TableCell>
+                        
+                        {/* 10. Delta (technical) */}
                         {showTechnicalColumns && (
-                          <TableCell className="text-right">
-                            <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'cc'))}>
-                              {opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}
-                            </Badge>
-                          </TableCell>
+                          <TableCell className="text-right">{opp.delta.toFixed(2)}</TableCell>
                         )}
-                        {showTechnicalColumns && (
-                          <TableCell className="text-right">
-                            {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
-                          </TableCell>
-                        )}
-                        {showTechnicalColumns && (
-                          <TableCell className="text-right">
-                            <Badge className={cn("font-bold", getBBColor(opp.bbPctB, 'cc'))}>
-                              {opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}
-                            </Badge>
-                          </TableCell>
-                        )}
-                        <TableCell className="text-right">{opp.spreadPct.toFixed(1)}%</TableCell>
-                        {showTechnicalColumns && (
-                          <TableCell className="text-right">
-                            <Badge className={cn("font-bold", getLiquidityColor(opp.volume, 'vol'))}>
-                              {opp.volume.toLocaleString()}
-                            </Badge>
-                          </TableCell>
-                        )}
+                        
+                        {/* 11. OI (technical) */}
                         {showTechnicalColumns && (
                           <TableCell className="text-right">
                             <Badge className={cn("font-bold", getLiquidityColor(opp.openInterest, 'oi'))}>
@@ -2854,7 +2832,65 @@ export default function CCDashboard() {
                             </Badge>
                           </TableCell>
                         )}
+                        
+                        {/* 12. Volume (technical) */}
+                        {showTechnicalColumns && (
+                          <TableCell className="text-right">
+                            <Badge className={cn("font-bold", getLiquidityColor(opp.volume, 'vol'))}>
+                              {opp.volume.toLocaleString()}
+                            </Badge>
+                          </TableCell>
+                        )}
+                        
+                        {/* 13. RSI (technical) */}
+                        {showTechnicalColumns && (
+                          <TableCell className="text-right">
+                            <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'cc'))}>
+                              {opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}
+                            </Badge>
+                          </TableCell>
+                        )}
+                        
+                        {/* 14. BB %B (technical) */}
+                        {showTechnicalColumns && (
+                          <TableCell className="text-right">
+                            <Badge className={cn("font-bold", getBBColor(opp.bbPctB, 'cc'))}>
+                              {opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}
+                            </Badge>
+                          </TableCell>
+                        )}
+                        
+                        {/* 15. IV Rank (technical) */}
+                        {showTechnicalColumns && (
+                          <TableCell className="text-right">
+                            {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
+                          </TableCell>
+                        )}
+                        
+                        {/* 16. Risk */}
+                        <TableCell className="text-center">
+                          <RiskBadgeList badges={(opp as any).riskBadges || []} />
+                        </TableCell>
+                        
+                        {/* 17. Bid */}
+                        <TableCell className="text-right">${opp.bid.toFixed(2)}</TableCell>
+                        
+                        {/* 18. Ask */}
+                        <TableCell className="text-right">${opp.ask.toFixed(2)}</TableCell>
+                        
+                        {/* 19. Mid */}
+                        <TableCell className="text-right">${opp.mid.toFixed(2)}</TableCell>
+                        
+                        {/* 20. Distance OTM */}
+                        <TableCell className="text-right">{opp.distanceOtm.toFixed(1)}%</TableCell>
+                        
+                        {/* 21. Spread % */}
+                        <TableCell className="text-right">{opp.spreadPct.toFixed(1)}%</TableCell>
+                        
+                        {/* 22. Expiration */}
+                        <TableCell>{opp.expiration}</TableCell>
                       </TableRow>
+
                       );
                     })}
                   </TableBody>

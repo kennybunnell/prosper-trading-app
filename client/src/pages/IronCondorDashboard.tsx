@@ -1013,14 +1013,10 @@ export default function IronCondorDashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      {/* 1. Select */}
                       <TableHead className="w-12">Select</TableHead>
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'symbol' && prev.direction === 'asc' 
-                          ? { key: 'symbol', direction: 'desc' } 
-                          : { key: 'symbol', direction: 'asc' });
-                      }}>
-                        Symbol {sortConfig?.key === 'symbol' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </TableHead>
+                      
+                      {/* 2. Score */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'score' && prev.direction === 'desc' 
                           ? { key: 'score', direction: 'asc' } 
@@ -1028,6 +1024,17 @@ export default function IronCondorDashboard() {
                       }}>
                         Score {sortConfig?.key === 'score' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
+                      
+                      {/* 3. Symbol */}
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'symbol' && prev.direction === 'asc' 
+                          ? { key: 'symbol', direction: 'desc' } 
+                          : { key: 'symbol', direction: 'asc' });
+                      }}>
+                        Symbol {sortConfig?.key === 'symbol' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      </TableHead>
+                      
+                      {/* 4. Current */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'currentPrice' && prev.direction === 'desc' 
                           ? { key: 'currentPrice', direction: 'asc' } 
@@ -1035,6 +1042,8 @@ export default function IronCondorDashboard() {
                       }}>
                         Current {sortConfig?.key === 'currentPrice' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
+                      
+                      {/* 5. Put Strikes */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'putShortStrike' && prev.direction === 'desc' 
                           ? { key: 'putShortStrike', direction: 'asc' } 
@@ -1042,6 +1051,8 @@ export default function IronCondorDashboard() {
                       }}>
                         Put Strikes {sortConfig?.key === 'putShortStrike' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
+                      
+                      {/* 6. Call Strikes */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'callShortStrike' && prev.direction === 'desc' 
                           ? { key: 'callShortStrike', direction: 'asc' } 
@@ -1049,6 +1060,8 @@ export default function IronCondorDashboard() {
                       }}>
                         Call Strikes {sortConfig?.key === 'callShortStrike' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
+                      
+                      {/* 7. DTE */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'dte' && prev.direction === 'asc' 
                           ? { key: 'dte', direction: 'desc' } 
@@ -1056,6 +1069,8 @@ export default function IronCondorDashboard() {
                       }}>
                         DTE {sortConfig?.key === 'dte' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
+                      
+                      {/* 8. Net Credit */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'totalNetCredit' && prev.direction === 'desc' 
                           ? { key: 'totalNetCredit', direction: 'asc' } 
@@ -1063,6 +1078,8 @@ export default function IronCondorDashboard() {
                       }}>
                         Net Credit {sortConfig?.key === 'totalNetCredit' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
+                      
+                      {/* 9. Collateral */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'totalCollateral' && prev.direction === 'desc' 
                           ? { key: 'totalCollateral', direction: 'asc' } 
@@ -1070,6 +1087,8 @@ export default function IronCondorDashboard() {
                       }}>
                         Collateral {sortConfig?.key === 'totalCollateral' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
+                      
+                      {/* 10. ROC % */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'roc' && prev.direction === 'desc' 
                           ? { key: 'roc', direction: 'asc' } 
@@ -1077,6 +1096,8 @@ export default function IronCondorDashboard() {
                       }}>
                         ROC % {sortConfig?.key === 'roc' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
+                      
+                      {/* 11. Net Δ (technical) */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'netDelta' && prev.direction === 'asc' 
                           ? { key: 'netDelta', direction: 'desc' } 
@@ -1095,8 +1116,8 @@ export default function IronCondorDashboard() {
                           </Tooltip>
                         </TooltipProvider>
                       </TableHead>
-                      <TableHead>Profit Zone</TableHead>
-                      <TableHead>Breakevens</TableHead>
+                      
+                      {/* 12. IV Rank (technical) */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'ivRank' && prev.direction === 'desc' 
                           ? { key: 'ivRank', direction: 'asc' } 
@@ -1104,6 +1125,8 @@ export default function IronCondorDashboard() {
                       }}>
                         IV Rank {sortConfig?.key === 'ivRank' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
+                      
+                      {/* 13. RSI (technical) */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'rsi' && prev.direction === 'desc' 
                           ? { key: 'rsi', direction: 'asc' } 
@@ -1111,6 +1134,8 @@ export default function IronCondorDashboard() {
                       }}>
                         RSI {sortConfig?.key === 'rsi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
+                      
+                      {/* 14. BB %B (technical) */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'bbPctB' && prev.direction === 'desc' 
                           ? { key: 'bbPctB', direction: 'asc' } 
@@ -1118,7 +1143,14 @@ export default function IronCondorDashboard() {
                       }}>
                         BB %B {sortConfig?.key === 'bbPctB' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
+                      
+                      {/* 15. Profit Zone */}
+                      <TableHead>Profit Zone</TableHead>
+                      
+                      {/* 16. Breakevens */}
+                      <TableHead>Breakevens</TableHead>
                     </TableRow>
+
                   </TableHeader>
                   <TableBody>
                     {displayedOpportunities.length === 0 ? (
@@ -1134,13 +1166,15 @@ export default function IronCondorDashboard() {
 
                         return (
                           <TableRow key={key} className={isSelected ? "bg-primary/5" : ""}>
+                            {/* 1. Checkbox */}
                             <TableCell>
                               <Checkbox
                                 checked={isSelected}
                                 onCheckedChange={() => toggleOpportunity(key)}
                               />
                             </TableCell>
-                            <TableCell className="font-medium">{opp.symbol}</TableCell>
+                            
+                            {/* 2. Score */}
                             <TableCell>
                               <Badge className={`${
                                 (opp.score || 0) >= 70 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
@@ -1150,29 +1184,48 @@ export default function IronCondorDashboard() {
                                 {(opp.score || 0).toFixed(1)}
                               </Badge>
                             </TableCell>
+                            
+                            {/* 3. Symbol */}
+                            <TableCell className="font-medium">{opp.symbol}</TableCell>
+                            
+                            {/* 4. Current */}
                             <TableCell>${(opp.currentPrice || 0).toFixed(2)}</TableCell>
+                            
+                            {/* 5. Put Strikes */}
                             <TableCell>
                               <div className="text-sm">
                                 <div>Short: ${opp.putShortStrike}</div>
                                 <div className="text-muted-foreground">Long: ${opp.putLongStrike}</div>
                               </div>
                             </TableCell>
+                            
+                            {/* 6. Call Strikes */}
                             <TableCell>
                               <div className="text-sm">
                                 <div>Short: ${opp.callShortStrike}</div>
                                 <div className="text-muted-foreground">Long: ${opp.callLongStrike}</div>
                               </div>
                             </TableCell>
+                            
+                            {/* 7. DTE */}
                             <TableCell>{opp.dte}</TableCell>
+                            
+                            {/* 8. Net Credit */}
                             <TableCell className="text-green-500 font-medium">
                               ${((opp.totalNetCredit || 0) * 100).toFixed(2)}
                             </TableCell>
+                            
+                            {/* 9. Collateral */}
                             <TableCell>${(opp.totalCollateral || 0).toFixed(2)}</TableCell>
+                            
+                            {/* 10. ROC % */}
                             <TableCell>
                               <Badge className={getROCColor(opp.roc)}>
                                 {(opp.roc || 0).toFixed(2)}%
                               </Badge>
                             </TableCell>
+                            
+                            {/* 11. Net Δ (technical) */}
                             <TableCell>
                               <Badge className={`${
                                 Math.abs(opp.netDelta || 0) <= 0.05 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
@@ -1182,20 +1235,15 @@ export default function IronCondorDashboard() {
                                 {(opp.netDelta || 0).toFixed(3)}
                               </Badge>
                             </TableCell>
-                            <TableCell>
-                              ${opp.putShortStrike} - ${opp.callShortStrike}
-                            </TableCell>
-                            <TableCell>
-                              <div className="text-sm">
-                                <div>${(opp.lowerBreakeven || 0).toFixed(2)}</div>
-                                <div>${(opp.upperBreakeven || 0).toFixed(2)}</div>
-                              </div>
-                            </TableCell>
+                            
+                            {/* 12. IV Rank (technical) */}
                             <TableCell>
                               <Badge className={getIVRankColor(opp.ivRank)}>
                                 {opp.ivRank?.toFixed(0) ?? "N/A"}
                               </Badge>
                             </TableCell>
+                            
+                            {/* 13. RSI (technical) */}
                             <TableCell>
                               {opp.rsi !== null && opp.rsi !== undefined ? (
                                 <Badge className={`${
@@ -1209,6 +1257,8 @@ export default function IronCondorDashboard() {
                                 <span className="text-muted-foreground text-sm">N/A</span>
                               )}
                             </TableCell>
+                            
+                            {/* 14. BB %B (technical) */}
                             <TableCell>
                               {opp.bbPctB !== null && opp.bbPctB !== undefined ? (
                                 <Badge className={`${
@@ -1222,7 +1272,21 @@ export default function IronCondorDashboard() {
                                 <span className="text-muted-foreground text-sm">N/A</span>
                               )}
                             </TableCell>
+                            
+                            {/* 15. Profit Zone */}
+                            <TableCell>
+                              ${opp.putShortStrike} - ${opp.callShortStrike}
+                            </TableCell>
+                            
+                            {/* 16. Breakevens */}
+                            <TableCell>
+                              <div className="text-sm">
+                                <div>${(opp.lowerBreakeven || 0).toFixed(2)}</div>
+                                <div>${(opp.upperBreakeven || 0).toFixed(2)}</div>
+                              </div>
+                            </TableCell>
                           </TableRow>
+
                         );
                       })
                     )}

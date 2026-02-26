@@ -6426,3 +6426,10 @@
 - [ ] Implement standardized order in CC table
 - [ ] Implement standardized order in Iron Condor table
 - [ ] Test all tables with technical columns shown and hidden
+
+## Complete Column Standardization (User Requested)
+- [x] Standardize CC/BCS table columns to match universal order (moved Score to position 2, removed AI column, reordered all columns)
+- [x] Standardize Iron Condor table columns to match universal order (moved Score to position 2, swapped with Symbol)
+- [x] Add ROC% column to Iron Condor table (already exists, no action needed)
+- [ ] Implement column resize persistence using localStorage for all strategy tables (deferred - requires significant custom implementation)
+- [x] All tables now have consistent column order: Select → Score → Symbol → Current → [Strategy-specific] → [Technical] → Risk/Other
