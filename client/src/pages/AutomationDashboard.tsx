@@ -11,17 +11,51 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import {
+  Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle,
+  TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye
+} from 'lucide-react';
 import { toast } from 'sonner';
+
+type ScanResult = {
+  account: string;
+  symbol: string;
+  optionSymbol: string;
+  type: string;
+  quantity: number;
+  premium: number;
+  current: number;
+  realizedPercent: number;
+  action: 'WOULD_CLOSE' | 'BELOW_THRESHOLD' | 'SKIPPED';
+  reason?: string;
+};
+
+type RunResult = {
+  success: boolean;
+  runId: string;
+  summary: {
+    positionsClosedCount: number;
+    coveredCallsOpenedCount: number;
+    totalProfitRealized: string;
+    totalPremiumCollected: string;
+    accountsProcessed: number;
+    pendingOrdersCount: number;
+    totalScanned: number;
+    belowThreshold: number;
+  };
+  scanResults: ScanResult[];
+};
 
 export default function AutomationDashboard() {
   const [isRunning, setIsRunning] = useState(false);
+  const [lastRunResult, setLastRunResult] = useState<RunResult | null>(null);
+  const [showScanResults, setShowScanResults] = useState(true);
 
   // Fetch automation settings
   const { data: settings, isLoading: settingsLoading } = trpc.automation.getSettings.useQuery();
   
   // Fetch automation logs
-  const { data: logs, isLoading: logsLoading } = trpc.automation.getLogs.useQuery({ limit: 10 });
+  const { data: logs, isLoading: logsLoading, refetch: refetchLogs } = trpc.automation.getLogs.useQuery({ limit: 10 });
 
   // Update settings mutation
   const updateSettings = trpc.automation.updateSettings.useMutation({
@@ -37,7 +71,16 @@ export default function AutomationDashboard() {
   const runAutomation = trpc.automation.runAutomation.useMutation({
     onSuccess: (data) => {
       setIsRunning(false);
-      toast.success(`Automation completed! ${data.summary.pendingOrdersCount} orders pending approval`);
+      setLastRunResult(data as RunResult);
+      setShowScanResults(true);
+      refetchLogs();
+      const wouldClose = data.summary.positionsClosedCount;
+      const totalScanned = (data.summary as any).totalScanned ?? 0;
+      if (wouldClose > 0) {
+        toast.success(`Scan complete! Found ${wouldClose} position${wouldClose !== 1 ? 's' : ''} to close out of ${totalScanned} scanned.`);
+      } else {
+        toast.info(`Scan complete. ${totalScanned} position${totalScanned !== 1 ? 's' : ''} scanned — none meet the ${settings?.profitThresholdPercent ?? 75}% threshold.`);
+      }
     },
     onError: (error) => {
       setIsRunning(false);
@@ -47,6 +90,7 @@ export default function AutomationDashboard() {
 
   const handleRunAutomation = () => {
     setIsRunning(true);
+    setLastRunResult(null);
     runAutomation.mutate({ triggerType: 'manual' });
   };
 
@@ -65,6 +109,8 @@ export default function AutomationDashboard() {
       </div>
     );
   }
+
+  const threshold = settings?.profitThresholdPercent ?? 75;
 
   return (
     <div className="container py-8 space-y-8">
@@ -87,18 +133,21 @@ export default function AutomationDashboard() {
             <div>
               <h3 className="font-semibold">Run Automation Now</h3>
               <p className="text-sm text-muted-foreground">
-                Manually trigger the daily automation workflow
+                {settings?.dryRunMode
+                  ? 'Dry run: scan positions and show what would be closed (no orders submitted)'
+                  : 'Scan positions and submit close orders for profitable positions'}
               </p>
             </div>
             <Button
               onClick={handleRunAutomation}
               disabled={isRunning}
               size="lg"
+              className={settings?.dryRunMode ? 'bg-amber-600 hover:bg-amber-700' : ''}
             >
               {isRunning ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Running...
+                  Scanning...
                 </>
               ) : (
                 <>
@@ -240,6 +289,169 @@ export default function AutomationDashboard() {
         </CardContent>
       </Card>
 
+      {/* Dry Run Results Panel */}
+      {lastRunResult && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Eye className="h-5 w-5 text-amber-400" />
+                <div>
+                  <CardTitle className="text-lg">
+                    Scan Results
+                    {settings?.dryRunMode && (
+                      <Badge variant="outline" className="ml-2 text-amber-400 border-amber-400">
+                        Dry Run
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    {lastRunResult.summary.accountsProcessed} account{lastRunResult.summary.accountsProcessed !== 1 ? 's' : ''} scanned &bull;{' '}
+                    {lastRunResult.summary.totalScanned} position{lastRunResult.summary.totalScanned !== 1 ? 's' : ''} evaluated
+                  </CardDescription>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowScanResults(!showScanResults)}
+              >
+                {showScanResults ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+            </div>
+
+            {/* Summary Stats */}
+            <div className="grid grid-cols-3 gap-4 pt-2">
+              <div className="text-center p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <div className="text-2xl font-bold text-green-400">
+                  {lastRunResult.summary.positionsClosedCount}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {settings?.dryRunMode ? 'Would Close' : 'Orders Submitted'}
+                </div>
+                <div className="text-xs text-green-400 font-medium">
+                  ≥{threshold}% profit
+                </div>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-muted/50 border">
+                <div className="text-2xl font-bold text-muted-foreground">
+                  {lastRunResult.summary.belowThreshold}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">Below Threshold</div>
+                <div className="text-xs text-muted-foreground font-medium">
+                  &lt;{threshold}% profit
+                </div>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <div className="text-2xl font-bold text-blue-400">
+                  ${parseFloat(lastRunResult.summary.totalProfitRealized).toFixed(0)}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {settings?.dryRunMode ? 'Est. Profit' : 'Profit Realized'}
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+
+          {showScanResults && lastRunResult.scanResults.length > 0 && (
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-muted-foreground">
+                      <th className="text-left py-2 pr-4 font-medium">Symbol</th>
+                      <th className="text-left py-2 pr-4 font-medium">Type</th>
+                      <th className="text-left py-2 pr-4 font-medium">Account</th>
+                      <th className="text-right py-2 pr-4 font-medium">Qty</th>
+                      <th className="text-right py-2 pr-4 font-medium">Premium</th>
+                      <th className="text-right py-2 pr-4 font-medium">Current</th>
+                      <th className="text-right py-2 pr-4 font-medium">Realized %</th>
+                      <th className="text-center py-2 font-medium">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lastRunResult.scanResults
+                      .sort((a, b) => b.realizedPercent - a.realizedPercent)
+                      .map((result, idx) => (
+                        <tr
+                          key={idx}
+                          className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${
+                            result.action === 'WOULD_CLOSE' ? 'bg-green-500/5' : ''
+                          }`}
+                        >
+                          <td className="py-2.5 pr-4">
+                            <span className="font-semibold">{result.symbol}</span>
+                            <span className="text-xs text-muted-foreground block truncate max-w-[120px]" title={result.optionSymbol}>
+                              {result.optionSymbol}
+                            </span>
+                          </td>
+                          <td className="py-2.5 pr-4">
+                            <Badge
+                              variant="outline"
+                              className={result.type === 'CSP' ? 'text-blue-400 border-blue-400/50' : 'text-purple-400 border-purple-400/50'}
+                            >
+                              {result.type}
+                            </Badge>
+                          </td>
+                          <td className="py-2.5 pr-4 text-muted-foreground text-xs">
+                            {result.account}
+                          </td>
+                          <td className="py-2.5 pr-4 text-right">{result.quantity}</td>
+                          <td className="py-2.5 pr-4 text-right font-mono">
+                            ${result.premium.toFixed(2)}
+                          </td>
+                          <td className="py-2.5 pr-4 text-right font-mono">
+                            ${result.current.toFixed(2)}
+                          </td>
+                          <td className="py-2.5 pr-4 text-right">
+                            <span
+                              className={`font-bold ${
+                                result.realizedPercent >= threshold
+                                  ? 'text-green-400'
+                                  : result.realizedPercent >= threshold * 0.8
+                                  ? 'text-amber-400'
+                                  : 'text-muted-foreground'
+                              }`}
+                            >
+                              {result.realizedPercent.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="py-2.5 text-center">
+                            {result.action === 'WOULD_CLOSE' ? (
+                              <Badge className="bg-green-600/20 text-green-400 border-green-500/30 hover:bg-green-600/30">
+                                <TrendingUp className="h-3 w-3 mr-1" />
+                                {settings?.dryRunMode ? 'Would Close' : 'Closed'}
+                              </Badge>
+                            ) : result.action === 'BELOW_THRESHOLD' ? (
+                              <Badge variant="outline" className="text-muted-foreground">
+                                <Minus className="h-3 w-3 mr-1" />
+                                Hold
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-amber-400 border-amber-400/50">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Skipped
+                              </Badge>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {lastRunResult.scanResults.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  <TrendingDown className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                  <p>No short option positions found in any account</p>
+                  <p className="text-sm mt-1">Make sure your Tastytrade account has open CSP or CC positions</p>
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
+      )}
+
       {/* Execution History */}
       <Card>
         <CardHeader>
@@ -260,17 +472,17 @@ export default function AutomationDashboard() {
                 >
                   <div className="flex items-center gap-4">
                     {log.status === 'completed' && (
-                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
                     )}
                     {log.status === 'failed' && (
-                      <XCircle className="h-5 w-5 text-red-500" />
+                      <XCircle className="h-5 w-5 text-red-500 shrink-0" />
                     )}
                     {log.status === 'running' && (
-                      <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                      <Loader2 className="h-5 w-5 animate-spin text-blue-500 shrink-0" />
                     )}
                     
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">
                           {new Date(log.startedAt).toLocaleString()}
                         </span>
@@ -278,11 +490,13 @@ export default function AutomationDashboard() {
                           {log.triggerType}
                         </Badge>
                         {log.dryRun && (
-                          <Badge variant="outline">Dry Run</Badge>
+                          <Badge variant="outline" className="text-amber-400 border-amber-400/50">Dry Run</Badge>
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {log.positionsClosedCount} positions closed • {log.coveredCallsOpenedCount} covered calls opened
+                        {log.positionsClosedCount} positions {log.dryRun ? 'would close' : 'closed'} &bull;{' '}
+                        {log.coveredCallsOpenedCount} covered calls opened &bull;{' '}
+                        {log.accountsProcessed} account{log.accountsProcessed !== 1 ? 's' : ''} processed
                       </p>
                       {log.errorMessage && (
                         <p className="text-sm text-red-500 mt-1">
@@ -292,8 +506,8 @@ export default function AutomationDashboard() {
                     </div>
                   </div>
 
-                  <div className="text-right">
-                    <p className="font-semibold text-green-600">
+                  <div className="text-right shrink-0">
+                    <p className="font-semibold text-green-400">
                       +${log.totalProfitRealized}
                     </p>
                     <p className="text-sm text-muted-foreground">
@@ -305,7 +519,7 @@ export default function AutomationDashboard() {
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No automation runs yet</p>
               <p className="text-sm mt-1">Click "Run Now" to start your first automation</p>
             </div>

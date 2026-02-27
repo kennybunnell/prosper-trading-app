@@ -211,6 +211,19 @@ export const automationRouter = router({
         accountsWithBalances.sort((a: { buyingPower: number }, b: { buyingPower: number }) => b.buyingPower - a.buyingPower);
 
         const pendingOrders: Array<any> = [];
+        // Detailed scan results for dry-run visibility
+        const scanResults: Array<{
+          account: string;
+          symbol: string;
+          optionSymbol: string;
+          type: string;
+          quantity: number;
+          premium: number;
+          current: number;
+          realizedPercent: number;
+          action: 'WOULD_CLOSE' | 'BELOW_THRESHOLD' | 'SKIPPED';
+          reason?: string;
+        }> = [];
         let totalPositionsClosed = 0;
         let totalCoveredCallsOpened = 0;
         let totalProfitRealized = 0;
@@ -220,38 +233,105 @@ export const automationRouter = router({
         for (const account of accountsWithBalances) {
           try {
             // Step 1: Close profitable positions
+            // Uses same formula as Active Positions page:
+            //   premiumReceived = average-open-price × qty × multiplier
+            //   currentCost     = close-price × qty × multiplier
+            //   realizedPercent = (premiumReceived - currentCost) / premiumReceived × 100
             const positions = await tt.getPositions(account.accountNumber);
             
-            for (const position of positions) {
-              // Calculate profit percentage
-              const costBasis = Math.abs(parseFloat((position as any)['cost-basis'] || '0'));
-              const currentValue = Math.abs(parseFloat((position as any)['close-price'] || '0') * parseFloat(String(position.quantity || '0')) * 100);
-              
-              if (costBasis === 0) continue;
-              
-              const profitPercent = ((costBasis - currentValue) / costBasis) * 100;
+            // Build a map of long positions for spread detection
+            const longPositionMap = new Map<string, any>();
+            for (const pos of positions) {
+              const qty = parseInt(String(pos.quantity || '0'));
+              const direction = pos['quantity-direction']?.toLowerCase();
+              const isLong = direction === 'long' || qty > 0;
+              if (isLong && pos['instrument-type'] === 'Equity Option') {
+                longPositionMap.set(pos.symbol, pos);
+              }
+            }
 
-              if (profitPercent >= settings.profitThresholdPercent) {
+            for (const position of positions) {
+              // Only process short equity options (CSPs and CCs)
+              if (position['instrument-type'] !== 'Equity Option') continue;
+              const qty = parseInt(String(position.quantity || '0'));
+              const direction = position['quantity-direction']?.toLowerCase();
+              const isShort = direction === 'short' || qty < 0;
+              if (!isShort) continue;
+
+              const quantity = Math.abs(qty);
+              const multiplier = parseInt(String(position.multiplier || '100'));
+              const underlyingSymbol = position['underlying-symbol'] || position.symbol || '';
+              const optionSymbol = position.symbol || '';
+              const isPut = optionSymbol.includes('P');
+              const optionType = isPut ? 'CSP' : 'CC';
+
+              // Premium received = what we collected when we sold
+              const openPrice = Math.abs(parseFloat(String(position['average-open-price'] || '0')));
+              const premiumReceived = openPrice * quantity * multiplier;
+
+              if (premiumReceived === 0) {
+                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premium: 0, current: 0, realizedPercent: 0, action: 'SKIPPED', reason: 'No premium data (average-open-price is 0)' });
+                continue;
+              }
+
+              // Current cost = what it costs to buy back now
+              const closePrice = parseFloat(String(position['close-price'] || '0'));
+              let currentCost = closePrice * quantity * multiplier;
+
+              // Spread detection: look for matching long leg
+              let isSpread = false;
+              for (const [, longPos] of Array.from(longPositionMap.entries())) {
+                if (longPos['underlying-symbol'] === position['underlying-symbol'] &&
+                    longPos['expires-at'] === position['expires-at']) {
+                  const longIsPut = longPos.symbol.includes('P');
+                  if (longIsPut === isPut) {
+                    // Found matching long leg - adjust currentCost for spread
+                    const longClosePrice = parseFloat(String(longPos['close-price'] || '0'));
+                    const longCurrentCost = longClosePrice * quantity * parseInt(String(longPos.multiplier || '100'));
+                    // Spread close cost = pay to close short - receive to close long
+                    currentCost = currentCost - longCurrentCost;
+                    isSpread = true;
+                    break;
+                  }
+                }
+              }
+
+              // Realized % = (premiumReceived - currentCost) / premiumReceived × 100
+              const realizedPercent = ((premiumReceived - currentCost) / premiumReceived) * 100;
+              const estimatedProfit = premiumReceived - currentCost;
+
+              // Parse expiration from option symbol or position fields
+              const expiration = position['expires-at'] || null;
+
+              // Parse strike from option symbol (e.g., AAPL250117P00150000 -> 150)
+              const strikeMatch = optionSymbol.match(/[CP](\d+)/);
+              const strike = strikeMatch ? (parseFloat(strikeMatch[1]) / 1000).toFixed(2) : null;
+
+              console.log(`[Automation] ${underlyingSymbol} ${optionType}${isSpread ? ' (spread)' : ''}: premium=$${premiumReceived.toFixed(2)}, current=$${currentCost.toFixed(2)}, realized=${realizedPercent.toFixed(1)}%`);
+
+              if (realizedPercent >= settings.profitThresholdPercent) {
                 // This position should be closed
-                const estimatedProfit = costBasis - currentValue;
-                
                 pendingOrders.push({
                   runId,
                   userId: ctx.user.id,
                   accountNumber: account.accountNumber,
                   orderType: 'close_position' as const,
-                  symbol: position.symbol || '',
-                  strike: (position as any)['strike-price'] || null,
-                  expiration: (position as any)['expiration-date'] || null,
-                  quantity: Math.abs(parseInt(String(position.quantity || '0'))),
-                  price: String((position as any)['close-price'] || '0'),
-                  profitPercent: Math.round(profitPercent),
+                  symbol: optionSymbol,
+                  strike,
+                  expiration,
+                  quantity,
+                  price: String(closePrice),
+                  profitPercent: Math.round(realizedPercent),
                   estimatedProfit: estimatedProfit.toFixed(2),
                   status: 'pending' as const,
                 });
 
+                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premium: premiumReceived, current: currentCost, realizedPercent: Math.round(realizedPercent * 100) / 100, action: 'WOULD_CLOSE' });
+
                 totalPositionsClosed++;
                 totalProfitRealized += estimatedProfit;
+              } else {
+                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premium: premiumReceived, current: currentCost, realizedPercent: Math.round(realizedPercent * 100) / 100, action: 'BELOW_THRESHOLD' });
               }
             }
 
@@ -307,7 +387,10 @@ export const automationRouter = router({
             totalPremiumCollected: totalPremiumCollected.toFixed(2),
             accountsProcessed: accountsWithBalances.length,
             pendingOrdersCount: pendingOrders.length,
+            totalScanned: scanResults.length,
+            belowThreshold: scanResults.filter(r => r.action === 'BELOW_THRESHOLD').length,
           },
+          scanResults,
         };
       } catch (error) {
         // Update log with error

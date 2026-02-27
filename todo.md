@@ -6496,3 +6496,8 @@
 - [x] Fix: updated account number extraction to use acc.account?.['account-number'] with fallbacks
 - [x] Fix: corrected getBalances error logging (was copy-pasted from submitOrder with wrong label)
 - [x] Fix: getBalances now returns null on error instead of throwing (callers handle gracefully)
+
+## Fix Automation Profit Calculation + Dry Run Results Panel
+- [x] Fix automation router to use same profit formula as Active Positions
+- [x] Return detailed position results from runAutomation
+- [x] Add dry-run results panel to AutomationDashboard
