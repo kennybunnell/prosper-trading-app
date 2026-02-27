@@ -6520,3 +6520,7 @@
 - [x] Fix looping/repeating notification animation (toast/notification showing on constant loop)
 - [x] Fix runaway polling/refresh that caused Tastytrade token to expire (rate limit hit)
 - [x] Ensure ConnectionStatusIndicator does not trigger excessive API calls
+
+## Post-Submission Cache Reset (Session 2026-02-27 Part 5)
+- [x] After successful order submission and modal close, clear lastRunResult and selectedPositions so submitted tickers don't reappear on next scan
+- [x] Show a brief success summary (e.g., "X orders submitted — scan cleared") after modal closes

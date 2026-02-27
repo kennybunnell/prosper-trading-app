@@ -82,6 +82,8 @@ export default function AutomationDashboard() {
   const [previewPremiumCollected, setPreviewPremiumCollected] = useState<number>(0);
   const [orderSubmissionComplete, setOrderSubmissionComplete] = useState(false);
   const [orderFinalStatus, setOrderFinalStatus] = useState<string | null>(null);
+  // Track which positions were submitted in the last live run so we can remove them on modal close
+  const [submittedPositionKeys, setSubmittedPositionKeys] = useState<Set<string>>(new Set());
 
   // Open the order preview modal for a single position (individual close)
   const handleOpenSingleOrderPreview = useCallback((result: ScanResult) => {
@@ -203,6 +205,11 @@ export default function AutomationDashboard() {
     }));
     try {
       const response = await submitCloseOrders.mutateAsync({ orders: selected, dryRun: isDryRun });
+      // Record which positions were submitted in a live run so we can clear them on modal close
+      if (!isDryRun) {
+        const keys = new Set(selected.map(s => `${s.optionSymbol}|${s.accountNumber}`));
+        setSubmittedPositionKeys(keys);
+      }
       return { results: response.results ?? [] };
     } catch (err: any) {
       return { results: [] };
@@ -895,8 +902,35 @@ export default function AutomationDashboard() {
           open={showOrderPreview}
           onOpenChange={(open) => {
             setShowOrderPreview(open);
-            if (!open && orderSubmissionComplete) {
-              setSelectedPositions(new Set());
+            if (!open) {
+              if (orderSubmissionComplete && submittedPositionKeys.size > 0) {
+                // Remove submitted positions from the scan results so they don't reappear
+                setLastRunResult(prev => {
+                  if (!prev) return prev;
+                  const remaining = prev.scanResults.filter(
+                    r => !submittedPositionKeys.has(`${r.optionSymbol}|${r.account}`)
+                  );
+                  const removedCount = prev.scanResults.length - remaining.length;
+                  if (removedCount > 0) {
+                    toast.success(`${removedCount} submitted position${removedCount !== 1 ? 's' : ''} cleared from scan results`);
+                  }
+                  return {
+                    ...prev,
+                    scanResults: remaining,
+                    summary: {
+                      ...prev.summary,
+                      positionsClosedCount: remaining.filter(r => r.action === 'WOULD_CLOSE').length,
+                    },
+                  };
+                });
+                // Deselect everything that was submitted
+                setSelectedPositions(prev => {
+                  const next = new Set(prev);
+                  submittedPositionKeys.forEach(k => next.delete(k));
+                  return next;
+                });
+                setSubmittedPositionKeys(new Set());
+              }
               setUnifiedOrders([]);
               setOrderSubmissionComplete(false);
               setOrderFinalStatus(null);
