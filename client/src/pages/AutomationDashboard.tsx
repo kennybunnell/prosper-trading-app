@@ -59,16 +59,38 @@ type RunSummary = {
   belowThreshold: number;
 };
 
+type CCScanResult = {
+  account: string;
+  symbol: string;
+  optionSymbol: string;
+  strike: number;
+  expiration: string;
+  dte: number;
+  delta: number;
+  bid: number;
+  ask: number;
+  mid: number;
+  quantity: number;
+  premiumPerContract: number;
+  totalPremium: number;
+  returnPct: number;
+  weeklyReturn: number;
+  currentPrice: number;
+  action: 'WOULD_SELL_CC';
+};
+
 type RunResult = {
   success: boolean;
   runId: string;
   summary: RunSummary;
   scanResults: ScanResult[]; // populated after fetching the log
+  ccScanResults: CCScanResult[]; // populated after fetching the log
 };
 
 export default function AutomationDashboard() {
   const [isRunning, setIsRunning] = useState(false);
   const [lastRunResult, setLastRunResult] = useState<RunResult | null>(null);
+  const [selectedCCPositions, setSelectedCCPositions] = useState<Set<string>>(new Set());
   const [showScanResults, setShowScanResults] = useState(true);
   const [lastRunId, setLastRunId] = useState<string | null>(null);
   const [selectedPositions, setSelectedPositions] = useState<Set<string>>(new Set());
@@ -334,13 +356,19 @@ export default function AutomationDashboard() {
   useEffect(() => {
     if (latestLog && lastRunResult && lastRunResult.scanResults.length === 0) {
       const parsed: ScanResult[] = latestLog.scanResultsJson ? JSON.parse(latestLog.scanResultsJson as string) : [];
-      if (parsed.length > 0) {
-        setLastRunResult(prev => prev ? { ...prev, scanResults: parsed } : prev);
+      const ccParsed: CCScanResult[] = (latestLog as any).ccScanResultsJson ? JSON.parse((latestLog as any).ccScanResultsJson as string) : [];
+      if (parsed.length > 0 || ccParsed.length > 0) {
+        setLastRunResult(prev => prev ? { ...prev, scanResults: parsed, ccScanResults: ccParsed } : prev);
         // Auto-select WOULD_CLOSE positions, but NEVER DTE=0 (let them expire naturally)
         const keys = new Set(parsed
           .filter(r => r.action === 'WOULD_CLOSE' && r.dte !== 0)
           .map(r => `${r.optionSymbol}|${r.account}`));
         setSelectedPositions(keys);
+        // Auto-select all CC opportunities
+        if (ccParsed.length > 0) {
+          const ccKeys = new Set(ccParsed.map(r => `${r.optionSymbol}|${r.account}`));
+          setSelectedCCPositions(ccKeys);
+        }
       }
     }
   }, [latestLog]);
@@ -359,6 +387,7 @@ export default function AutomationDashboard() {
         runId: data.runId,
         summary: data.summary as RunSummary,
         scanResults: [],
+        ccScanResults: [],
       });
       setLastRunId(data.runId);
       // Invalidate so the getLog query fires
@@ -530,7 +559,20 @@ export default function AutomationDashboard() {
               </div>
             </div>
 
-            <h3 className="font-semibold pt-4">Covered Call Settings</h3>
+            <h3 className="font-semibold pt-4">Covered Call Automation</h3>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="cc-automation">Enable CC Scan</Label>
+                <p className="text-sm text-muted-foreground">
+                  Scan for covered call opportunities during automation runs
+                </p>
+              </div>
+              <Switch
+                id="cc-automation"
+                checked={settings?.ccAutomationEnabled ?? false}
+                onCheckedChange={(checked) => handleToggle('ccAutomationEnabled', checked)}
+              />
+            </div>
             
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -893,6 +935,150 @@ export default function AutomationDashboard() {
               })()}
             </CardContent>
           )}
+        </Card>
+      )}
+
+      {/* CC Opportunities Card */}
+      {lastRunResult && lastRunResult.ccScanResults && lastRunResult.ccScanResults.length > 0 && (
+        <Card className="border-blue-500/30 bg-blue-500/5">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <TrendingUp className="h-5 w-5 text-blue-400" />
+                <div>
+                  <CardTitle className="text-lg">Covered Calls to Open</CardTitle>
+                  <CardDescription>
+                    {lastRunResult.ccScanResults.length} opportunity{lastRunResult.ccScanResults.length !== 1 ? 'ies' : ''} found across your equity holdings
+                  </CardDescription>
+                </div>
+              </div>
+              {selectedCCPositions.size > 0 && (
+                <Button
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={() => {
+                    const selected = lastRunResult.ccScanResults.filter(r => selectedCCPositions.has(`${r.optionSymbol}|${r.account}`));
+                    const orders: UnifiedOrder[] = selected.map(r => ({
+                      symbol: r.symbol,
+                      strike: r.strike,
+                      expiration: r.expiration,
+                      premium: r.mid,
+                      action: 'STO',
+                      optionType: 'CALL',
+                      bid: r.bid,
+                      ask: r.ask,
+                      quantity: r.quantity,
+                      accountNumber: r.account,
+                    }));
+                    setUnifiedOrders(orders);
+                    setPreviewAccountId(selected[0]?.account ?? '');
+                    setPreviewPremiumCollected(0);
+                    setOrderSubmissionComplete(false);
+                    setOrderFinalStatus(null);
+                    setShowOrderPreview(true);
+                  }}
+                >
+                  <ShoppingCart className="h-4 w-4 mr-1" />
+                  Review &amp; Submit {selectedCCPositions.size} CC Order{selectedCCPositions.size !== 1 ? 's' : ''}
+                </Button>
+              )}
+            </div>
+
+            {/* CC Summary Stats */}
+            <div className="grid grid-cols-3 gap-3 pt-2">
+              <div className="text-center p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <div className="text-2xl font-bold text-blue-400">
+                  {lastRunResult.ccScanResults.length}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">CC Opportunities</div>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <div className="text-2xl font-bold text-green-400">
+                  ${lastRunResult.ccScanResults.reduce((s, r) => s + r.totalPremium, 0).toFixed(0)}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">Total Premium</div>
+                <div className="text-xs text-green-400 font-medium">if all submitted</div>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                <div className="text-2xl font-bold text-purple-400">
+                  {(lastRunResult.ccScanResults.reduce((s, r) => s + r.weeklyReturn, 0) / lastRunResult.ccScanResults.length).toFixed(2)}%
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">Avg Weekly Return</div>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="py-2 pr-2 w-8">
+                      <Checkbox
+                        checked={selectedCCPositions.size === lastRunResult.ccScanResults.length}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedCCPositions(new Set(lastRunResult.ccScanResults.map(r => `${r.optionSymbol}|${r.account}`)));
+                          } else {
+                            setSelectedCCPositions(new Set());
+                          }
+                        }}
+                        aria-label="Select all CC opportunities"
+                      />
+                    </th>
+                    <th className="text-left py-2 pr-3">Symbol</th>
+                    <th className="text-left py-2 pr-3">Account</th>
+                    <th className="text-right py-2 pr-3">Qty</th>
+                    <th className="text-left py-2 pr-3">Strike</th>
+                    <th className="text-left py-2 pr-3">Expiration</th>
+                    <th className="text-right py-2 pr-3">DTE</th>
+                    <th className="text-right py-2 pr-3">Delta</th>
+                    <th className="text-right py-2 pr-3">Mid</th>
+                    <th className="text-right py-2 pr-3">Premium/Contract</th>
+                    <th className="text-right py-2 pr-3">Total Premium</th>
+                    <th className="text-right py-2">Weekly Ret%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lastRunResult.ccScanResults.map((r, idx) => {
+                    const key = `${r.optionSymbol}|${r.account}`;
+                    const isSelected = selectedCCPositions.has(key);
+                    return (
+                      <tr key={idx} className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${isSelected ? 'bg-blue-500/5' : ''}`}>
+                        <td className="py-2 pr-2">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => {
+                              setSelectedCCPositions(prev => {
+                                const next = new Set(prev);
+                                if (next.has(key)) next.delete(key); else next.add(key);
+                                return next;
+                              });
+                            }}
+                          />
+                        </td>
+                        <td className="py-2 pr-3 font-semibold">{r.symbol}</td>
+                        <td className="py-2 pr-3 text-muted-foreground text-xs">{r.account}</td>
+                        <td className="py-2 pr-3 text-right">{r.quantity}</td>
+                        <td className="py-2 pr-3 font-mono text-blue-400">${r.strike.toFixed(2)}</td>
+                        <td className="py-2 pr-3">{r.expiration}</td>
+                        <td className="py-2 pr-3 text-right">{r.dte}</td>
+                        <td className="py-2 pr-3 text-right text-muted-foreground">{r.delta.toFixed(2)}</td>
+                        <td className="py-2 pr-3 text-right font-mono">${r.mid.toFixed(2)}</td>
+                        <td className="py-2 pr-3 text-right font-mono text-green-400">${r.premiumPerContract.toFixed(2)}</td>
+                        <td className="py-2 pr-3 text-right font-mono text-green-400 font-semibold">${r.totalPremium.toFixed(2)}</td>
+                        <td className="py-2 text-right">
+                          <Badge variant="outline" className="text-purple-400 border-purple-400/50">
+                            {r.weeklyReturn.toFixed(2)}%
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
         </Card>
       )}
 

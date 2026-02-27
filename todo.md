@@ -6524,3 +6524,21 @@
 ## Post-Submission Cache Reset (Session 2026-02-27 Part 5)
 - [x] After successful order submission and modal close, clear lastRunResult and selectedPositions so submitted tickers don't reappear on next scan
 - [x] Show a brief success summary (e.g., "X orders submitted — scan cleared") after modal closes
+
+## CC Automation (Session 2026-02-27 Part 6)
+- [x] Add ccAutomationEnabled boolean to automationSettings DB schema
+- [x] Add rollEnabled, rollDteThreshold, rollProfitThreshold to automationSettings DB schema
+- [x] Run pnpm db:push to migrate schema changes
+- [x] Wire CC scan into runAutomation: after BTC scan, fetch holdings per account, get option chains, score strikes by delta/DTE, return WOULD_SELL_CC results
+- [x] Add ccScanResults array to scan response and store in scanResultsJson
+- [x] Add ccAutomationEnabled toggle to Automation Settings panel
+- [x] Build "Covered Calls to Open" card in AutomationDashboard with checkbox table and batch submit
+- [x] Wire CC orders through UnifiedOrderPreviewModal with strategy="cc"
+
+## Roll Automation — Future (Multi-Leg Note)
+- [ ] NOTE: Roll scan must handle all strategy types:
+  - CSP/CC: 1-leg roll (BTC existing + STO new)
+  - Bear Call Spread / Bull Put Spread: 2-leg roll (close both legs + open both new legs = 4-leg combo order)
+  - Iron Condor: 4-leg roll (close all 4 legs + open 4 new legs = up to 8-leg combo order, or roll each spread independently)
+- [ ] Roll scan must detect spread type from position data before generating roll candidates
+- [ ] UnifiedOrderPreviewModal must support 2-leg and 4-leg roll order display

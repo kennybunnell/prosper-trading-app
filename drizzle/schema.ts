@@ -670,11 +670,16 @@ export const automationSettings = mysqlTable("automationSettings", {
   scheduleTime: varchar("scheduleTime", { length: 10 }).default("09:35").notNull(), // HH:MM format in ET
   // Close positions settings
   profitThresholdPercent: int("profitThresholdPercent").default(75).notNull(),
-  // Covered call settings
+  // Covered call automation settings
+  ccAutomationEnabled: boolean("ccAutomationEnabled").default(false).notNull(),
   ccDteMin: int("ccDteMin").default(7).notNull(),
   ccDteMax: int("ccDteMax").default(14).notNull(),
   ccDeltaMin: varchar("ccDeltaMin", { length: 10 }).default("0.25").notNull(),
   ccDeltaMax: varchar("ccDeltaMax", { length: 10 }).default("0.30").notNull(),
+  // Roll automation settings (future)
+  rollEnabled: boolean("rollEnabled").default(false).notNull(),
+  rollDteThreshold: int("rollDteThreshold").default(7).notNull(), // Roll when DTE <= this
+  rollProfitThreshold: int("rollProfitThreshold").default(50).notNull(), // Only roll if profit% < this
   // Email notifications
   emailNotificationsEnabled: boolean("emailNotificationsEnabled").default(true).notNull(),
   notificationEmail: varchar("notificationEmail", { length: 320 }),
@@ -702,7 +707,8 @@ export const automationLogs = mysqlTable("automationLogs", {
   totalPremiumCollected: varchar("totalPremiumCollected", { length: 20 }).default("0").notNull(),
   accountsProcessed: int("accountsProcessed").default(0).notNull(),
   errorMessage: text("errorMessage"),
-  scanResultsJson: text("scanResultsJson"), // JSON array of scan results for dry-run display
+  scanResultsJson: text("scanResultsJson"), // JSON array of BTC scan results for dry-run display
+  ccScanResultsJson: text("ccScanResultsJson"), // JSON array of CC scan results (covered calls to open)
   startedAt: timestamp("startedAt").defaultNow().notNull(),
   completedAt: timestamp("completedAt"),
 }, (table) => ({

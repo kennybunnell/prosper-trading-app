@@ -43,6 +43,7 @@ export const automationRouter = router({
         autoScheduleEnabled: z.boolean().optional(),
         scheduleTime: z.string().optional(),
         profitThresholdPercent: z.number().min(1).max(100).optional(),
+        ccAutomationEnabled: z.boolean().optional(),
         ccDteMin: z.number().min(1).max(365).optional(),
         ccDteMax: z.number().min(1).max(365).optional(),
         ccDeltaMin: z.string().optional(),
@@ -239,6 +240,26 @@ export const automationRouter = router({
         accountsWithBalances.sort((a: { buyingPower: number }, b: { buyingPower: number }) => b.buyingPower - a.buyingPower);
 
         const pendingOrders: Array<any> = [];
+        // CC scan results (covered calls to open)
+        const ccScanResults: Array<{
+          account: string;
+          symbol: string;
+          optionSymbol: string;
+          strike: number;
+          expiration: string;
+          dte: number;
+          delta: number;
+          bid: number;
+          ask: number;
+          mid: number;
+          quantity: number;
+          premiumPerContract: number;
+          totalPremium: number;
+          returnPct: number;
+          weeklyReturn: number;
+          currentPrice: number;
+          action: 'WOULD_SELL_CC';
+        }> = [];
         // Detailed scan results for dry-run visibility
         const scanResults: Array<{
           account: string;
@@ -404,13 +425,109 @@ export const automationRouter = router({
               }
             }
 
-            // Step 2: Find and submit covered call opportunities
-            // TODO: Implement covered call opportunity selection
-            // This will reuse logic from cc.submitOrders but with filtering:
-            // - DTE: settings.ccDteMin to settings.ccDteMax
-            // - Delta: settings.ccDeltaMin to settings.ccDeltaMax
-            // - Sort by score (descending)
-            // - Select best opportunity for each eligible stock
+            // Step 2: Find covered call opportunities for eligible stock positions
+            if (settings.ccAutomationEnabled) {
+              try {
+                console.log(`[Automation CC] Scanning account ${account.accountNumber} for CC opportunities`);
+                const allPositions = await tt.getPositions(account.accountNumber);
+                const stockPositions = allPositions.filter((p: any) => p['instrument-type'] === 'Equity' && parseFloat(p.quantity) > 0);
+                const optionPositions = allPositions.filter((p: any) => p['instrument-type'] === 'Equity Option');
+                // Identify existing short calls to avoid over-covering
+                const shortCalls: Record<string, number> = {};
+                for (const opt of optionPositions) {
+                  if ((opt as any)['quantity-direction'] === 'Short' && (opt as any).symbol.includes('C')) {
+                    const underlying = (opt as any)['underlying-symbol'];
+                    shortCalls[underlying] = (shortCalls[underlying] || 0) + Math.abs(parseFloat((opt as any).quantity));
+                  }
+                }
+                // Build list of eligible stocks with uncovered shares
+                const eligibleStocks = stockPositions
+                  .map((p: any) => ({
+                    symbol: p.symbol,
+                    quantity: parseFloat(p.quantity),
+                    currentPrice: parseFloat(p['close-price'] || p['mark'] || '0'),
+                    existingContracts: shortCalls[p.symbol] || 0,
+                  }))
+                  .map((s: any) => ({ ...s, maxContracts: Math.floor((s.quantity - s.existingContracts * 100) / 100) }))
+                  .filter((s: any) => s.maxContracts > 0 && s.currentPrice > 0);
+                if (eligibleStocks.length === 0) {
+                  console.log(`[Automation CC] No eligible stocks for CCs in account ${account.accountNumber}`);
+                } else {
+                  const { createTradierAPI } = await import('./tradier');
+                  const tradierApiKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY;
+                  if (!tradierApiKey) {
+                    console.warn('[Automation CC] No Tradier API key available, skipping CC scan');
+                  } else {
+                    const tradierApi = createTradierAPI(tradierApiKey);
+                    const minDelta = parseFloat(settings.ccDeltaMin);
+                    const maxDelta = parseFloat(settings.ccDeltaMax);
+                    const today = new Date();
+                    for (const stock of eligibleStocks) {
+                      try {
+                        const expirations = await tradierApi.getExpirations(stock.symbol);
+                        const validExpirations = expirations.filter((exp: string) => {
+                          const dte = Math.ceil((new Date(exp).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                          return dte >= settings.ccDteMin && dte <= settings.ccDteMax;
+                        });
+                        if (validExpirations.length === 0) continue;
+                        let bestOpp: any = null;
+                        for (const expiration of validExpirations) {
+                          const options = await tradierApi.getOptionChain(stock.symbol, expiration, true);
+                          const calls = options.filter((opt: any) => opt.option_type === 'call');
+                          for (const option of calls) {
+                            const strike = option.strike || 0;
+                            const delta = Math.abs(option.greeks?.delta || 0);
+                            const bid = option.bid || 0;
+                            const ask = option.ask || 0;
+                            const mid = (bid + ask) / 2;
+                            if (strike <= stock.currentPrice) continue;
+                            if (delta < minDelta || delta > maxDelta) continue;
+                            if (bid <= 0) continue;
+                            const dte = Math.ceil((new Date(expiration).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                            const returnPct = (mid / stock.currentPrice) * 100;
+                            const weeklyReturn = dte > 0 ? (returnPct / dte) * 7 : 0;
+                            const opp = { symbol: stock.symbol, strike, expiration, dte, delta, bid, ask, mid, returnPct, weeklyReturn, maxContracts: stock.maxContracts, currentPrice: stock.currentPrice };
+                            if (!bestOpp || weeklyReturn > bestOpp.weeklyReturn) bestOpp = opp;
+                          }
+                        }
+                        if (bestOpp) {
+                          // Build OCC option symbol: SYMBOL + YYMMDD + C/P + strike*1000 padded to 8 digits
+                          const expParts = bestOpp.expiration.split('-');
+                          const optSymDate = expParts[0].slice(2) + expParts[1] + expParts[2];
+                          const optionSymbol = `${bestOpp.symbol}${optSymDate}C${String(Math.round(bestOpp.strike * 1000)).padStart(8, '0')}`;
+                          const totalPremium = bestOpp.mid * bestOpp.maxContracts * 100;
+                          ccScanResults.push({
+                            account: account.accountNumber,
+                            symbol: bestOpp.symbol,
+                            optionSymbol,
+                            strike: bestOpp.strike,
+                            expiration: bestOpp.expiration,
+                            dte: bestOpp.dte,
+                            delta: bestOpp.delta,
+                            bid: bestOpp.bid,
+                            ask: bestOpp.ask,
+                            mid: bestOpp.mid,
+                            quantity: bestOpp.maxContracts,
+                            premiumPerContract: bestOpp.mid * 100,
+                            totalPremium,
+                            returnPct: bestOpp.returnPct,
+                            weeklyReturn: bestOpp.weeklyReturn,
+                            currentPrice: bestOpp.currentPrice,
+                            action: 'WOULD_SELL_CC' as const,
+                          });
+                          totalPremiumCollected += totalPremium;
+                          console.log(`[Automation CC] ${bestOpp.symbol}: Best CC = $${bestOpp.strike} exp ${bestOpp.expiration} (DTE ${bestOpp.dte}, delta ${bestOpp.delta.toFixed(2)}, mid $${bestOpp.mid.toFixed(2)})`);
+                        }
+                      } catch (stockErr: any) {
+                        console.error(`[Automation CC] Error scanning ${stock.symbol}:`, stockErr.message);
+                      }
+                    }
+                  }
+                }
+              } catch (ccErr: any) {
+                console.error(`[Automation CC] Error in CC scan for account ${account.accountNumber}:`, ccErr.message);
+              }
+            }
 
           } catch (accountError) {
             console.error(`[Automation] Error processing account ${account.accountNumber}:`, accountError);
@@ -432,6 +549,7 @@ export const automationRouter = router({
           totalPremiumCollected: totalPremiumCollected.toFixed(2),
           accountsProcessed: accountsWithBalances.length,
           scanResultsJson: JSON.stringify(scanResults),
+          ccScanResultsJson: JSON.stringify(ccScanResults),
           completedAt: new Date(),
         });
 
@@ -461,6 +579,7 @@ export const automationRouter = router({
             totalScanned: scanResults.length,
             wouldClose: scanResults.filter(r => r.action === 'WOULD_CLOSE').length,
             belowThreshold: scanResults.filter(r => r.action === 'BELOW_THRESHOLD').length,
+            wouldSellCC: ccScanResults.length,
           },
         };
       } catch (error) {

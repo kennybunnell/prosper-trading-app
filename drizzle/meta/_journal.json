@@ -330,6 +330,20 @@
       "when": 1772213921796,
       "tag": "0047_hesitant_human_torch",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "5",
+      "when": 1772226015655,
+      "tag": "0048_black_proteus",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "5",
+      "when": 1772226410142,
+      "tag": "0049_lyrical_black_tarantula",
+      "breakpoints": true
     }
   ]
 }
