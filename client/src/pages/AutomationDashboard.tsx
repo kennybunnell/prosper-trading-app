@@ -14,7 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle,
-  TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2, Square, CheckSquare, Send, ShoppingCart
+  TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2, Square, CheckSquare, Send, ShoppingCart,
+  Power, Settings2, RefreshCw, BarChart3, GitMerge, Zap, Lock, Unlock
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -30,6 +31,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { ConnectionStatusIndicator } from '@/components/ConnectionStatusIndicator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 
 type ScanResult = {
   account: string;
@@ -97,6 +100,8 @@ export default function AutomationDashboard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [hideExpiringToday, setHideExpiringToday] = useState(true); // Hide DTE=0 by default
+  const [activeTab, setActiveTab] = useState('step1-close');
+  const [killSwitchActive, setKillSwitchActive] = useState(false);
   // UnifiedOrderPreviewModal state
   const [showOrderPreview, setShowOrderPreview] = useState(false);
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
@@ -429,18 +434,97 @@ export default function AutomationDashboard() {
   const threshold = settings?.profitThresholdPercent ?? 75;
 
   return (
-    <div className="container py-8 space-y-8">
+    <div className="container py-8 space-y-6">
+      {/* Page Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold">Daily Trading Automation</h1>
-          <p className="text-muted-foreground mt-2">
-            Automate your daily trading workflow: close profitable positions and submit covered calls
+          <p className="text-muted-foreground mt-1">
+            Six-step automated workflow: close, roll, sell calls, sell puts, open spreads, manage PMCCs
           </p>
         </div>
-        <div className="mt-1">
+        <div className="flex items-center gap-3 mt-1">
           <ConnectionStatusIndicator />
+          {/* Kill Switch */}
+          <button
+            onClick={() => {
+              setKillSwitchActive(v => !v);
+              if (!killSwitchActive) toast.error('Kill switch activated — all automation paused');
+              else toast.success('Kill switch deactivated — automation resumed');
+            }}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+              killSwitchActive
+                ? 'bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30'
+                : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
+            }`}
+            title={killSwitchActive ? 'Automation paused — click to resume' : 'Click to pause all automation'}
+          >
+            {killSwitchActive ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+            {killSwitchActive ? 'Paused' : 'Kill Switch'}
+          </button>
+          {/* Master Run All button */}
+          <Button
+            onClick={handleRunAutomation}
+            disabled={isRunning || killSwitchActive}
+            size="sm"
+            className={`${
+              killSwitchActive ? 'opacity-50 cursor-not-allowed' :
+              settings?.dryRunMode ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'
+            } text-white`}
+          >
+            {isRunning ? (
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scanning...</>
+            ) : (
+              <><Zap className="mr-2 h-4 w-4" />Run All Steps</>
+            )}
+          </Button>
         </div>
       </div>
+
+      {/* Kill Switch Warning Banner */}
+      {killSwitchActive && (
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-red-600/10 border border-red-500/30 text-red-400">
+          <Lock className="h-5 w-5 shrink-0" />
+          <div>
+            <span className="font-semibold">All automation is paused.</span>
+            <span className="ml-2 text-sm">Click the Kill Switch button above to resume.</span>
+          </div>
+        </div>
+      )}
+
+      {/* Six-Step Automation Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-6 h-auto">
+          <TabsTrigger value="step1-close" className="flex flex-col gap-0.5 py-2 text-xs">
+            <span className="font-bold text-sm">1</span>
+            <span>Close for Profit</span>
+          </TabsTrigger>
+          <TabsTrigger value="step2-roll" className="flex flex-col gap-0.5 py-2 text-xs">
+            <span className="font-bold text-sm">2</span>
+            <span>Roll Positions</span>
+          </TabsTrigger>
+          <TabsTrigger value="step3-cc" className="flex flex-col gap-0.5 py-2 text-xs">
+            <span className="font-bold text-sm">3</span>
+            <span>Sell Calls</span>
+          </TabsTrigger>
+          <TabsTrigger value="step4-csp" className="flex flex-col gap-0.5 py-2 text-xs">
+            <span className="font-bold text-sm">4</span>
+            <span>Sell Puts</span>
+          </TabsTrigger>
+          <TabsTrigger value="step5-spreads" className="flex flex-col gap-0.5 py-2 text-xs">
+            <span className="font-bold text-sm">5</span>
+            <span>Open Spreads</span>
+          </TabsTrigger>
+          <TabsTrigger value="step6-pmcc" className="flex flex-col gap-0.5 py-2 text-xs">
+            <span className="font-bold text-sm">6</span>
+            <span>PMCC Mgmt</span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ─────────────────────────────────────────────────────────────────
+            STEP 1: Close for Profit (BTC scan)
+        ───────────────────────────────────────────────────────────────── */}
+        <TabsContent value="step1-close" className="space-y-4">
 
       {/* Control Panel */}
       <Card>
@@ -938,149 +1022,320 @@ export default function AutomationDashboard() {
         </Card>
       )}
 
-      {/* CC Opportunities Card */}
-      {lastRunResult && lastRunResult.ccScanResults && lastRunResult.ccScanResults.length > 0 && (
-        <Card className="border-blue-500/30 bg-blue-500/5">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
+        </TabsContent>{/* end step1-close */}
+
+        {/* ─────────────────────────────────────────────────────────────────
+            STEP 2: Roll Positions (Coming Soon)
+        ───────────────────────────────────────────────────────────────── */}
+        <TabsContent value="step2-roll">
+          <Card className="border-orange-500/30 bg-orange-500/5">
+            <CardHeader>
               <div className="flex items-center gap-3">
-                <TrendingUp className="h-5 w-5 text-blue-400" />
+                <GitMerge className="h-5 w-5 text-orange-400" />
                 <div>
-                  <CardTitle className="text-lg">Covered Calls to Open</CardTitle>
-                  <CardDescription>
-                    {lastRunResult.ccScanResults.length} opportunity{lastRunResult.ccScanResults.length !== 1 ? 'ies' : ''} found across your equity holdings
-                  </CardDescription>
+                  <CardTitle>Roll Positions</CardTitle>
+                  <CardDescription>Roll expiring or challenged positions to extend duration and collect additional premium</CardDescription>
                 </div>
               </div>
-              {selectedCCPositions.size > 0 && (
-                <Button
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                  onClick={() => {
-                    const selected = lastRunResult.ccScanResults.filter(r => selectedCCPositions.has(`${r.optionSymbol}|${r.account}`));
-                    const orders: UnifiedOrder[] = selected.map(r => ({
-                      symbol: r.symbol,
-                      strike: r.strike,
-                      expiration: r.expiration,
-                      premium: r.mid,
-                      action: 'STO',
-                      optionType: 'CALL',
-                      bid: r.bid,
-                      ask: r.ask,
-                      quantity: r.quantity,
-                      accountNumber: r.account,
-                    }));
-                    setUnifiedOrders(orders);
-                    setPreviewAccountId(selected[0]?.account ?? '');
-                    setPreviewPremiumCollected(0);
-                    setOrderSubmissionComplete(false);
-                    setOrderFinalStatus(null);
-                    setShowOrderPreview(true);
-                  }}
-                >
-                  <ShoppingCart className="h-4 w-4 mr-1" />
-                  Review &amp; Submit {selectedCCPositions.size} CC Order{selectedCCPositions.size !== 1 ? 's' : ''}
-                </Button>
-              )}
-            </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12 text-muted-foreground space-y-3">
+                <GitMerge className="h-12 w-12 mx-auto opacity-30" />
+                <p className="font-semibold text-base">Coming Soon</p>
+                <p className="text-sm max-w-md mx-auto">
+                  Roll scan will detect positions approaching expiry or under stress and suggest optimal rolls.
+                  Supports single-leg (CSP/CC), 2-leg spreads (bear call, bull put), and 4-leg iron condors.
+                </p>
+                <div className="flex flex-wrap justify-center gap-2 pt-2">
+                  <Badge variant="outline" className="text-orange-400 border-orange-400/40">CSP / CC — 1-leg roll</Badge>
+                  <Badge variant="outline" className="text-orange-400 border-orange-400/40">Bear Call / Bull Put — 2-leg roll</Badge>
+                  <Badge variant="outline" className="text-orange-400 border-orange-400/40">Iron Condor — up to 4-leg roll</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-            {/* CC Summary Stats */}
-            <div className="grid grid-cols-3 gap-3 pt-2">
-              <div className="text-center p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <div className="text-2xl font-bold text-blue-400">
-                  {lastRunResult.ccScanResults.length}
+        {/* ─────────────────────────────────────────────────────────────────
+            STEP 3: Sell Covered Calls (CC scan)
+        ───────────────────────────────────────────────────────────────── */}
+        <TabsContent value="step3-cc" className="space-y-4">
+          {/* CC Settings */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Settings2 className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <CardTitle className="text-base">Covered Call Settings</CardTitle>
+                    <CardDescription>Configure DTE range, delta targets, and enable/disable the CC scan</CardDescription>
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">CC Opportunities</div>
-              </div>
-              <div className="text-center p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                <div className="text-2xl font-bold text-green-400">
-                  ${lastRunResult.ccScanResults.reduce((s, r) => s + r.totalPremium, 0).toFixed(0)}
+                <div className="flex items-center gap-3">
+                  <Label htmlFor="cc-automation-tab">Enable CC Scan</Label>
+                  <Switch
+                    id="cc-automation-tab"
+                    checked={settings?.ccAutomationEnabled ?? false}
+                    onCheckedChange={(checked) => handleToggle('ccAutomationEnabled', checked)}
+                  />
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">Total Premium</div>
-                <div className="text-xs text-green-400 font-medium">if all submitted</div>
               </div>
-              <div className="text-center p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                <div className="text-2xl font-bold text-purple-400">
-                  {(lastRunResult.ccScanResults.reduce((s, r) => s + r.weeklyReturn, 0) / lastRunResult.ccScanResults.length).toFixed(2)}%
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-4">
+                <div className="space-y-2">
+                  <Label htmlFor="dte-min-tab">Min DTE</Label>
+                  <Input id="dte-min-tab" type="number" min="1" max="365" value={settings?.ccDteMin} onChange={(e) => handleNumberChange('ccDteMin', parseInt(e.target.value))} />
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">Avg Weekly Return</div>
+                <div className="space-y-2">
+                  <Label htmlFor="dte-max-tab">Max DTE</Label>
+                  <Input id="dte-max-tab" type="number" min="1" max="365" value={settings?.ccDteMax} onChange={(e) => handleNumberChange('ccDteMax', parseInt(e.target.value))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="delta-min-tab">Min Delta</Label>
+                  <Input id="delta-min-tab" type="text" value={settings?.ccDeltaMin} onChange={(e) => updateSettings.mutate({ ccDeltaMin: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="delta-max-tab">Max Delta</Label>
+                  <Input id="delta-max-tab" type="text" value={settings?.ccDeltaMax} onChange={(e) => updateSettings.mutate({ ccDeltaMax: e.target.value })} />
+                </div>
               </div>
-            </div>
-          </CardHeader>
-
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-muted-foreground">
-                    <th className="py-2 pr-2 w-8">
-                      <Checkbox
-                        checked={selectedCCPositions.size === lastRunResult.ccScanResults.length}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedCCPositions(new Set(lastRunResult.ccScanResults.map(r => `${r.optionSymbol}|${r.account}`)));
-                          } else {
-                            setSelectedCCPositions(new Set());
-                          }
-                        }}
-                        aria-label="Select all CC opportunities"
-                      />
-                    </th>
-                    <th className="text-left py-2 pr-3">Symbol</th>
-                    <th className="text-left py-2 pr-3">Account</th>
-                    <th className="text-right py-2 pr-3">Qty</th>
-                    <th className="text-left py-2 pr-3">Strike</th>
-                    <th className="text-left py-2 pr-3">Expiration</th>
-                    <th className="text-right py-2 pr-3">DTE</th>
-                    <th className="text-right py-2 pr-3">Delta</th>
-                    <th className="text-right py-2 pr-3">Mid</th>
-                    <th className="text-right py-2 pr-3">Premium/Contract</th>
-                    <th className="text-right py-2 pr-3">Total Premium</th>
-                    <th className="text-right py-2">Weekly Ret%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lastRunResult.ccScanResults.map((r, idx) => {
-                    const key = `${r.optionSymbol}|${r.account}`;
-                    const isSelected = selectedCCPositions.has(key);
-                    return (
-                      <tr key={idx} className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${isSelected ? 'bg-blue-500/5' : ''}`}>
-                        <td className="py-2 pr-2">
+            </CardContent>
+          </Card>
+          {/* CC Scan Results */}
+          {lastRunResult && lastRunResult.ccScanResults && lastRunResult.ccScanResults.length > 0 && (
+            <Card className="border-blue-500/30 bg-blue-500/5">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <TrendingUp className="h-5 w-5 text-blue-400" />
+                    <div>
+                      <CardTitle className="text-lg">Covered Calls to Open</CardTitle>
+                      <CardDescription>
+                        {lastRunResult.ccScanResults.length} opportunit{lastRunResult.ccScanResults.length !== 1 ? 'ies' : 'y'} found across your equity holdings
+                      </CardDescription>
+                    </div>
+                  </div>
+                  {selectedCCPositions.size > 0 && (
+                    <Button
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      onClick={() => {
+                        const selected = lastRunResult.ccScanResults.filter(r => selectedCCPositions.has(`${r.optionSymbol}|${r.account}`));
+                        const orders: UnifiedOrder[] = selected.map(r => ({
+                          symbol: r.symbol,
+                          strike: r.strike,
+                          expiration: r.expiration,
+                          premium: r.mid,
+                          action: 'STO',
+                          optionType: 'CALL',
+                          bid: r.bid,
+                          ask: r.ask,
+                          quantity: r.quantity,
+                          accountNumber: r.account,
+                        }));
+                        setUnifiedOrders(orders);
+                        setPreviewAccountId(selected[0]?.account ?? '');
+                        setPreviewPremiumCollected(0);
+                        setOrderSubmissionComplete(false);
+                        setOrderFinalStatus(null);
+                        setShowOrderPreview(true);
+                      }}
+                    >
+                      <ShoppingCart className="h-4 w-4 mr-1" />
+                      Review &amp; Submit {selectedCCPositions.size} CC Order{selectedCCPositions.size !== 1 ? 's' : ''}
+                    </Button>
+                  )}
+                </div>
+                {/* CC Summary Stats */}
+                <div className="grid grid-cols-3 gap-3 pt-2">
+                  <div className="text-center p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <div className="text-2xl font-bold text-blue-400">{lastRunResult.ccScanResults.length}</div>
+                    <div className="text-xs text-muted-foreground mt-1">CC Opportunities</div>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                    <div className="text-2xl font-bold text-green-400">${lastRunResult.ccScanResults.reduce((s, r) => s + r.totalPremium, 0).toFixed(0)}</div>
+                    <div className="text-xs text-muted-foreground mt-1">Total Premium</div>
+                    <div className="text-xs text-green-400 font-medium">if all submitted</div>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                    <div className="text-2xl font-bold text-purple-400">
+                      {lastRunResult.ccScanResults.length > 0 ? (lastRunResult.ccScanResults.reduce((s, r) => s + r.weeklyReturn, 0) / lastRunResult.ccScanResults.length).toFixed(2) : '0.00'}%
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">Avg Weekly Return</div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-muted-foreground">
+                        <th className="py-2 pr-2 w-8">
                           <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => {
-                              setSelectedCCPositions(prev => {
-                                const next = new Set(prev);
-                                if (next.has(key)) next.delete(key); else next.add(key);
-                                return next;
-                              });
+                            checked={selectedCCPositions.size === lastRunResult.ccScanResults.length}
+                            onCheckedChange={(checked) => {
+                              if (checked) setSelectedCCPositions(new Set(lastRunResult.ccScanResults.map(r => `${r.optionSymbol}|${r.account}`)));
+                              else setSelectedCCPositions(new Set());
                             }}
+                            aria-label="Select all CC opportunities"
                           />
-                        </td>
-                        <td className="py-2 pr-3 font-semibold">{r.symbol}</td>
-                        <td className="py-2 pr-3 text-muted-foreground text-xs">{r.account}</td>
-                        <td className="py-2 pr-3 text-right">{r.quantity}</td>
-                        <td className="py-2 pr-3 font-mono text-blue-400">${r.strike.toFixed(2)}</td>
-                        <td className="py-2 pr-3">{r.expiration}</td>
-                        <td className="py-2 pr-3 text-right">{r.dte}</td>
-                        <td className="py-2 pr-3 text-right text-muted-foreground">{r.delta.toFixed(2)}</td>
-                        <td className="py-2 pr-3 text-right font-mono">${r.mid.toFixed(2)}</td>
-                        <td className="py-2 pr-3 text-right font-mono text-green-400">${r.premiumPerContract.toFixed(2)}</td>
-                        <td className="py-2 pr-3 text-right font-mono text-green-400 font-semibold">${r.totalPremium.toFixed(2)}</td>
-                        <td className="py-2 text-right">
-                          <Badge variant="outline" className="text-purple-400 border-purple-400/50">
-                            {r.weeklyReturn.toFixed(2)}%
-                          </Badge>
-                        </td>
+                        </th>
+                        <th className="text-left py-2 pr-3">Symbol</th>
+                        <th className="text-left py-2 pr-3">Account</th>
+                        <th className="text-right py-2 pr-3">Qty</th>
+                        <th className="text-left py-2 pr-3">Strike</th>
+                        <th className="text-left py-2 pr-3">Expiration</th>
+                        <th className="text-right py-2 pr-3">DTE</th>
+                        <th className="text-right py-2 pr-3">Delta</th>
+                        <th className="text-right py-2 pr-3">Mid</th>
+                        <th className="text-right py-2 pr-3">Total Premium</th>
+                        <th className="text-right py-2">Weekly Ret%</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody>
+                      {lastRunResult.ccScanResults.map((r, idx) => {
+                        const key = `${r.optionSymbol}|${r.account}`;
+                        const isSelected = selectedCCPositions.has(key);
+                        return (
+                          <tr key={idx} className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${isSelected ? 'bg-blue-500/5' : ''}`}>
+                            <td className="py-2 pr-2">
+                              <Checkbox checked={isSelected} onCheckedChange={() => setSelectedCCPositions(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; })} />
+                            </td>
+                            <td className="py-2 pr-3 font-semibold">{r.symbol}</td>
+                            <td className="py-2 pr-3 text-xs text-muted-foreground">{r.account}</td>
+                            <td className="py-2 pr-3 text-right">{r.quantity}</td>
+                            <td className="py-2 pr-3 font-mono">${r.strike}</td>
+                            <td className="py-2 pr-3 font-mono text-xs">{new Date(r.expiration).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</td>
+                            <td className="py-2 pr-3 text-right font-mono text-xs">{r.dte}</td>
+                            <td className="py-2 pr-3 text-right font-mono text-xs">{r.delta.toFixed(2)}</td>
+                            <td className="py-2 pr-3 text-right font-mono text-green-400">${r.mid.toFixed(2)}</td>
+                            <td className="py-2 pr-3 text-right font-mono text-green-400">${r.totalPremium.toFixed(0)}</td>
+                            <td className="py-2 text-right font-mono text-purple-400">{r.weeklyReturn.toFixed(2)}%</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {lastRunResult && (!lastRunResult.ccScanResults || lastRunResult.ccScanResults.length === 0) && (
+            <div className="text-center py-10 text-muted-foreground">
+              <TrendingUp className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p>No covered call opportunities found in the last scan.</p>
+              <p className="text-sm mt-1">Make sure you have equity positions with ≥100 shares and CC scan is enabled.</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+          {!lastRunResult && (
+            <div className="text-center py-10 text-muted-foreground">
+              <TrendingUp className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p>Run the automation scan to find covered call opportunities.</p>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ─────────────────────────────────────────────────────────────────
+            STEP 4: Sell Cash-Secured Puts (Coming Soon)
+        ───────────────────────────────────────────────────────────────── */}
+        <TabsContent value="step4-csp">
+          <Card className="border-cyan-500/30 bg-cyan-500/5">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <BarChart3 className="h-5 w-5 text-cyan-400" />
+                <div>
+                  <CardTitle>Sell Cash-Secured Puts</CardTitle>
+                  <CardDescription>Find new CSP opportunities from your watchlist based on delta, DTE, and premium targets</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12 text-muted-foreground space-y-3">
+                <BarChart3 className="h-12 w-12 mx-auto opacity-30" />
+                <p className="font-semibold text-base">Coming Soon</p>
+                <p className="text-sm max-w-md mx-auto">
+                  CSP scanner will scan your watchlist for high-probability put-selling opportunities,
+                  filtered by earnings dates, IV rank, and buying power availability.
+                </p>
+                <div className="flex flex-wrap justify-center gap-2 pt-2">
+                  <Badge variant="outline" className="text-cyan-400 border-cyan-400/40">Earnings filter</Badge>
+                  <Badge variant="outline" className="text-cyan-400 border-cyan-400/40">IV rank filter</Badge>
+                  <Badge variant="outline" className="text-cyan-400 border-cyan-400/40">Position sizing by BP%</Badge>
+                  <Badge variant="outline" className="text-cyan-400 border-cyan-400/40">Configurable on/off</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ─────────────────────────────────────────────────────────────────
+            STEP 5: Open Spreads (Coming Soon)
+        ───────────────────────────────────────────────────────────────── */}
+        <TabsContent value="step5-spreads">
+          <Card className="border-violet-500/30 bg-violet-500/5">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <RefreshCw className="h-5 w-5 text-violet-400" />
+                <div>
+                  <CardTitle>Open Spreads</CardTitle>
+                  <CardDescription>Scan for bear call spreads, bull put spreads, and iron condors when BP is constrained</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12 text-muted-foreground space-y-3">
+                <RefreshCw className="h-12 w-12 mx-auto opacity-30" />
+                <p className="font-semibold text-base">Coming Soon</p>
+                <p className="text-sm max-w-md mx-auto">
+                  Spread scanner identifies capital-efficient multi-leg strategies when outright CSPs/CCs
+                  would exceed buying power limits. Supports 2-leg and 4-leg structures.
+                </p>
+                <div className="flex flex-wrap justify-center gap-2 pt-2">
+                  <Badge variant="outline" className="text-violet-400 border-violet-400/40">Bear Call Spread</Badge>
+                  <Badge variant="outline" className="text-violet-400 border-violet-400/40">Bull Put Spread</Badge>
+                  <Badge variant="outline" className="text-violet-400 border-violet-400/40">Iron Condor</Badge>
+                  <Badge variant="outline" className="text-violet-400 border-violet-400/40">Configurable on/off</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ─────────────────────────────────────────────────────────────────
+            STEP 6: PMCC Management (Coming Soon)
+        ───────────────────────────────────────────────────────────────── */}
+        <TabsContent value="step6-pmcc">
+          <Card className="border-pink-500/30 bg-pink-500/5">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Zap className="h-5 w-5 text-pink-400" />
+                <div>
+                  <CardTitle>PMCC Management</CardTitle>
+                  <CardDescription>Manage Poor Man's Covered Calls — scan LEAPS for short call opportunities and manage existing PMCCs</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12 text-muted-foreground space-y-3">
+                <Zap className="h-12 w-12 mx-auto opacity-30" />
+                <p className="font-semibold text-base">Coming Soon</p>
+                <p className="text-sm max-w-md mx-auto">
+                  PMCC manager tracks your long LEAPS positions and suggests optimal short call strikes
+                  to sell against them, maximizing premium collection while protecting the long leg.
+                </p>
+                <div className="flex flex-wrap justify-center gap-2 pt-2">
+                  <Badge variant="outline" className="text-pink-400 border-pink-400/40">LEAPS tracking</Badge>
+                  <Badge variant="outline" className="text-pink-400 border-pink-400/40">Short call scanner</Badge>
+                  <Badge variant="outline" className="text-pink-400 border-pink-400/40">Delta management</Badge>
+                  <Badge variant="outline" className="text-pink-400 border-pink-400/40">Configurable on/off</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+      </Tabs>{/* end six-step tabs */}
 
       {/* Unified Order Preview Modal */}
       {showOrderPreview && unifiedOrders.length > 0 && (
@@ -1272,6 +1527,8 @@ export default function AutomationDashboard() {
           )}
         </CardContent>
       </Card>
+
+
     </div>
   );
 }

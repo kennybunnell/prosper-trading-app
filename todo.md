@@ -6542,3 +6542,23 @@
   - Iron Condor: 4-leg roll (close all 4 legs + open 4 new legs = up to 8-leg combo order, or roll each spread independently)
 - [ ] Roll scan must detect spread type from position data before generating roll candidates
 - [ ] UnifiedOrderPreviewModal must support 2-leg and 4-leg roll order display
+
+## Automation Dashboard Six-Tab Shell (Session 2026-02-27 Part 7)
+- [x] Rebuild AutomationDashboard with six-tab workflow layout (shadcn Tabs component)
+- [x] Tab 1: Close for Profit (BTC scan — existing content moved here)
+- [x] Tab 2: Roll Positions (placeholder — Coming Soon with description)
+- [x] Tab 3: Sell Covered Calls (CC scan — existing content moved here)
+- [x] Tab 4: Sell Cash-Secured Puts (placeholder — Coming Soon with description)
+- [x] Tab 5: Open Spreads (placeholder — Coming Soon with description)
+- [x] Tab 6: PMCC Management (placeholder — Coming Soon with description)
+- [x] Master "Run Full Automation Scan" button at top of page (runs all enabled scans simultaneously)
+- [ ] Individual re-scan button on each tab header
+- [x] Global Kill Switch toggle at top of page (pauses all in-progress scans and submissions)
+- [ ] Per-tab enable/disable toggle in each tab header (respects automationSettings DB fields)
+- [ ] Horizontal step progress indicator (Step 1→2→3→4→5→6) with green checkmark after submit
+- [ ] Earnings filter warning — suppress/flag any position or opportunity with earnings within 5 days
+- [ ] Per-tab collateral limit configuration (max $ or % of BP to deploy in this step)
+- [ ] Live "Available BP after this step" figure that updates as orders are submitted
+- [ ] Add per-step enable/disable fields to automationSettings DB schema (btcEnabled, rollEnabled, ccEnabled, cspEnabled, spreadsEnabled, pmccEnabled)
+- [ ] Add per-step collateral limit fields (btcCollateralLimit, ccCollateralLimit, cspCollateralLimit, spreadsCollateralLimit)
+- [ ] Add earningsFilterEnabled boolean to automationSettings
