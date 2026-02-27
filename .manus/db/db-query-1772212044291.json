@@ -1,0 +1,103 @@
+{
+  "query": "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name;",
+  "rows": [
+    {
+      "table_name": "__drizzle_migrations"
+    },
+    {
+      "table_name": "apiCredentials"
+    },
+    {
+      "table_name": "apiUsage"
+    },
+    {
+      "table_name": "automationLogs"
+    },
+    {
+      "table_name": "automationPendingOrders"
+    },
+    {
+      "table_name": "automationSettings"
+    },
+    {
+      "table_name": "broadcastReads"
+    },
+    {
+      "table_name": "broadcasts"
+    },
+    {
+      "table_name": "chatConversations"
+    },
+    {
+      "table_name": "chatMessages"
+    },
+    {
+      "table_name": "cspFilterPresets"
+    },
+    {
+      "table_name": "feedback"
+    },
+    {
+      "table_name": "feedbackReplies"
+    },
+    {
+      "table_name": "filterPresets"
+    },
+    {
+      "table_name": "invites"
+    },
+    {
+      "table_name": "monthlyPremiumCache"
+    },
+    {
+      "table_name": "oauthTokens"
+    },
+    {
+      "table_name": "orderHistory"
+    },
+    {
+      "table_name": "paperTradingPerformance"
+    },
+    {
+      "table_name": "paperTradingPositions"
+    },
+    {
+      "table_name": "pmccLeapPositions"
+    },
+    {
+      "table_name": "positions"
+    },
+    {
+      "table_name": "premiumTracking"
+    },
+    {
+      "table_name": "scanConfigurations"
+    },
+    {
+      "table_name": "tastytradeAccounts"
+    },
+    {
+      "table_name": "trades"
+    },
+    {
+      "table_name": "userActivity"
+    },
+    {
+      "table_name": "userPreferences"
+    },
+    {
+      "table_name": "users"
+    },
+    {
+      "table_name": "watchlistSelections"
+    },
+    {
+      "table_name": "watchlists"
+    }
+  ],
+  "messages": [],
+  "stdout": "table_name\n__drizzle_migrations\napiCredentials\napiUsage\nautomationLogs\nautomationPendingOrders\nautomationSettings\nbroadcastReads\nbroadcasts\nchatConversations\nchatMessages\ncspFilterPresets\nfeedback\nfeedbackReplies\nfilterPresets\ninvites\nmonthlyPremiumCache\noauthTokens\norderHistory\npaperTradingPerformance\npaperTradingPositions\npmccLeapPositions\npositions\npremiumTracking\nscanConfigurations\ntastytradeAccounts\ntrades\nuserActivity\nuserPreferences\nusers\nwatchlistSelections\nwatchlists\n",
+  "stderr": "",
+  "execution_time_ms": 356
+}
