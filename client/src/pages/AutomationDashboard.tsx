@@ -37,6 +37,7 @@ type ScanResult = {
   premiumCollected: number;  // Total $ received when position was opened
   buyBackCost: number;       // Current $ cost to close the position
   realizedPercent: number;   // (premiumCollected - buyBackCost) / premiumCollected × 100
+  expiration: string | null; // ISO expiration date from Tastytrade
   action: 'WOULD_CLOSE' | 'BELOW_THRESHOLD' | 'SKIPPED';
   reason?: string;
 };
@@ -423,8 +424,9 @@ export default function AutomationDashboard() {
                       <th className="text-left py-2 pr-4 font-medium">Type</th>
                       <th className="text-left py-2 pr-4 font-medium">Account</th>
                       <th className="text-right py-2 pr-4 font-medium">Qty</th>
-                      <th className="text-right py-2 pr-4 font-medium">Premium</th>
-                      <th className="text-right py-2 pr-4 font-medium">Current</th>
+                      <th className="text-left py-2 pr-4 font-medium">Expiration</th>
+                      <th className="text-right py-2 pr-4 font-medium">Premium Collected</th>
+                      <th className="text-right py-2 pr-4 font-medium">Buy-Back Cost</th>
                       <th className="text-right py-2 pr-4 font-medium">Realized %</th>
                       <th className="text-center py-2 font-medium">Action</th>
                     </tr>
@@ -457,6 +459,20 @@ export default function AutomationDashboard() {
                             {result.account}
                           </td>
                           <td className="py-2.5 pr-4 text-right">{result.quantity}</td>
+                          <td className="py-2.5 pr-4 text-left">
+                            {(() => {
+                              if (!result.expiration) return <span className="text-muted-foreground text-xs">—</span>;
+                              const expDate = new Date(result.expiration);
+                              const today = new Date();
+                              const isToday = expDate.toDateString() === today.toDateString();
+                              const formatted = expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+                              return isToday ? (
+                                <Badge className="bg-red-600/20 text-red-400 border-red-500/30 text-xs">Expires Today</Badge>
+                              ) : (
+                                <span className="text-sm font-mono">{formatted}</span>
+                              );
+                            })()}
+                          </td>
                           <td className="py-2.5 pr-4 text-right font-mono text-green-400">
                             ${result.premiumCollected.toFixed(2)}
                           </td>

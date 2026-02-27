@@ -249,6 +249,7 @@ export const automationRouter = router({
           premiumCollected: number;  // Total premium received when position was opened
           buyBackCost: number;       // Current cost to close/buy back the position
           realizedPercent: number;   // (premiumCollected - buyBackCost) / premiumCollected × 100
+          expiration: string | null; // ISO expiration date from Tastytrade
           action: 'WOULD_CLOSE' | 'BELOW_THRESHOLD' | 'SKIPPED';
           reason?: string;
         }> = [];
@@ -298,7 +299,7 @@ export const automationRouter = router({
               const premiumReceived = openPrice * quantity * multiplier;
 
               if (premiumReceived === 0) {
-                  scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: 0, buyBackCost: 0, realizedPercent: 0, action: 'SKIPPED', reason: 'No premium data (average-open-price is 0)' });
+                  scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: 0, buyBackCost: 0, realizedPercent: 0, expiration: position['expires-at'] || null, action: 'SKIPPED', reason: 'No premium data (average-open-price is 0)' });
                 continue;
               }
 
@@ -360,12 +361,12 @@ export const automationRouter = router({
                   status: 'pending' as const,
                 });
 
-                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, action: 'WOULD_CLOSE' });
+                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, action: 'WOULD_CLOSE' });
 
                 totalPositionsClosed++;
                 totalProfitRealized += estimatedProfit;
               } else {
-                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, action: 'BELOW_THRESHOLD' });
+                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, action: 'BELOW_THRESHOLD' });
               }
             }
 
