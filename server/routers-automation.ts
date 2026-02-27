@@ -189,11 +189,22 @@ export const automationRouter = router({
         const accounts = await tt.getAccounts();
         const accountsWithBalances = await Promise.all(
           accounts.map(async (acc: any) => {
-            const balances = await tt.getBalances(acc.account.accountNumber);
-            return {
-              accountNumber: acc.account.accountNumber,
-              buyingPower: parseFloat(balances['net-liquidating-value'] || '0'),
-            };
+            // Account number is nested as acc.account['account-number'] (hyphenated)
+            const accountNumber = acc.account?.['account-number'] || acc['account-number'] || acc.accountNumber;
+            try {
+              const balances = await tt.getBalances(accountNumber);
+              return {
+                accountNumber,
+                accountName: acc.account?.nickname || accountNumber,
+                buyingPower: parseFloat(balances?.['derivative-buying-power'] || balances?.['net-liquidating-value'] || '0'),
+              };
+            } catch {
+              return {
+                accountNumber,
+                accountName: acc.account?.nickname || accountNumber,
+                buyingPower: 0,
+              };
+            }
           })
         );
 

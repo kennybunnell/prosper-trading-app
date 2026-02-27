@@ -6489,3 +6489,10 @@
 - [x] Fix: replaced getTastytradeAPI() with authenticateTastytrade(credentials, ctx.user.id) in runAutomation procedure
 - [x] Fix: added getApiCredentials() call to load user's stored Tastytrade credentials before authentication
 - [x] TypeScript errors cleared, server compiling successfully
+
+## Bug Fix: Automation Order Submission 404
+- [x] Check server logs for exact order payload and endpoint causing 404
+- [x] Root cause: account number accessed as acc.account.accountNumber but actual field is acc.account['account-number'] (hyphenated)
+- [x] Fix: updated account number extraction to use acc.account?.['account-number'] with fallbacks
+- [x] Fix: corrected getBalances error logging (was copy-pasted from submitOrder with wrong label)
+- [x] Fix: getBalances now returns null on error instead of throwing (callers handle gracefully)

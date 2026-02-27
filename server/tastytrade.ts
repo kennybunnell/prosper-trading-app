@@ -728,26 +728,14 @@ export class TastytradeAPI {
       return response.data.data;
     } catch (error: any) {
       // Log full error response for debugging
-      console.error('[Tastytrade submitOrder] Full error response:', JSON.stringify({
+      console.error('[Tastytrade getBalances] Error fetching balances for account:', accountNumber, JSON.stringify({
         status: error.response?.status,
         statusText: error.response?.statusText,
-        data: error.response?.data,
         message: error.message,
       }, null, 2));
       
-      // Extract detailed error message
-      const errorData = error.response?.data;
-      let errorMessage = 'Order submission failed';
-      
-      if (errorData?.error?.message) {
-        errorMessage = errorData.error.message;
-      } else if (errorData?.errors && Array.isArray(errorData.errors)) {
-        errorMessage = errorData.errors.map((e: any) => e.message || e).join(', ');
-      } else if (typeof errorData === 'string') {
-        errorMessage = errorData;
-      }
-      
-      throw new Error(`Failed to submit order: ${errorMessage}`);
+      // Return null instead of throwing - callers should handle missing balances gracefully
+      return null;
     }
   }
 
