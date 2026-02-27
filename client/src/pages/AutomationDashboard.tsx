@@ -82,6 +82,31 @@ export default function AutomationDashboard() {
   const [orderSubmissionComplete, setOrderSubmissionComplete] = useState(false);
   const [orderFinalStatus, setOrderFinalStatus] = useState<string | null>(null);
 
+  // Open the order preview modal for a single position (individual close)
+  const handleOpenSingleOrderPreview = useCallback((result: ScanResult) => {
+    const isCall = result.type === 'CC';
+    const strikeMatch = result.optionSymbol.match(/(\d{8})[CP](\d{8})$/);
+    const strike = strikeMatch ? parseInt(strikeMatch[2], 10) / 1000 : 0;
+    const order: UnifiedOrder = {
+      symbol: result.symbol,
+      strike,
+      expiration: result.expiration ?? '',
+      premium: result.buyBackCost / (result.quantity * 100),
+      action: 'BTC',
+      optionType: isCall ? 'CALL' : 'PUT',
+      bid: result.buyBackCost / (result.quantity * 100),
+      ask: result.buyBackCost / (result.quantity * 100),
+      currentPrice: result.buyBackCost / (result.quantity * 100),
+    };
+    setPreviewAccountId(result.account);
+    setUnifiedOrders([order]);
+    setOrderSubmissionComplete(false);
+    setOrderFinalStatus(null);
+    // Temporarily set selected positions to just this one so handleUnifiedSubmit works
+    setSelectedPositions(new Set([`${result.optionSymbol}|${result.account}`]));
+    setShowOrderPreview(true);
+  }, []);
+
   // Build UnifiedOrders from selected scan results and open the preview modal
   const handleOpenOrderPreview = useCallback(() => {
     if (!lastRunResult) return;
@@ -224,8 +249,10 @@ export default function AutomationDashboard() {
     r => !(hideExpiringToday && r.dte === 0)
   );
   const wouldCloseResults = visibleScanResults.filter(r => r.action === 'WOULD_CLOSE');
+  // DTE=0 positions are NEVER auto-selected or included in select-all (let them expire naturally)
+  const selectableResults = wouldCloseResults.filter(r => r.dte !== 0);
   // Use stable posKey for selection — survives sorting
-  const allSelected = wouldCloseResults.length > 0 && wouldCloseResults.every(r =>
+  const allSelected = selectableResults.length > 0 && selectableResults.every(r =>
     selectedPositions.has(`${r.optionSymbol}|${r.account}`)
   );
 
@@ -234,13 +261,12 @@ export default function AutomationDashboard() {
     if (allSelected) {
       setSelectedPositions(new Set());
     } else {
-      // Only select visible (non-filtered-out) WOULD_CLOSE positions
-      const keys = new Set(visibleScanResults
-        .filter(r => r.action === 'WOULD_CLOSE')
+      // Never select DTE=0 positions — let them expire worthless naturally
+      const keys = new Set(selectableResults
         .map(r => `${r.optionSymbol}|${r.account}`));
       setSelectedPositions(keys);
     }
-  }, [lastRunResult, allSelected, visibleScanResults]);
+  }, [lastRunResult, allSelected, selectableResults]);
 
   const togglePosition = useCallback((key: string) => {
     setSelectedPositions(prev => {
@@ -298,9 +324,9 @@ export default function AutomationDashboard() {
       const parsed: ScanResult[] = latestLog.scanResultsJson ? JSON.parse(latestLog.scanResultsJson as string) : [];
       if (parsed.length > 0) {
         setLastRunResult(prev => prev ? { ...prev, scanResults: parsed } : prev);
-        // Auto-select all WOULD_CLOSE positions using stable keys
+        // Auto-select WOULD_CLOSE positions, but NEVER DTE=0 (let them expire naturally)
         const keys = new Set(parsed
-          .filter(r => r.action === 'WOULD_CLOSE')
+          .filter(r => r.action === 'WOULD_CLOSE' && r.dte !== 0)
           .map(r => `${r.optionSymbol}|${r.account}`));
         setSelectedPositions(keys);
       }
@@ -687,7 +713,7 @@ export default function AutomationDashboard() {
                           }`}
                         >
                           <td className="py-2.5 pr-2">
-                            {result.action === 'WOULD_CLOSE' ? (
+                            {result.action === 'WOULD_CLOSE' && result.dte !== 0 ? (
                               <Checkbox
                                 checked={selectedPositions.has(`${result.optionSymbol}|${result.account}`)}
                                 onCheckedChange={() => togglePosition(`${result.optionSymbol}|${result.account}`)}
@@ -768,10 +794,22 @@ export default function AutomationDashboard() {
                           </td>
                           <td className="py-2.5 text-center">
                             {result.action === 'WOULD_CLOSE' ? (
-                              <Badge className="bg-cyan-600/20 text-cyan-400 border-cyan-500/30 hover:bg-cyan-600/30">
-                                <TrendingUp className="h-3 w-3 mr-1" />
-                                {settings?.dryRunMode ? 'Ready to Close' : 'Submitted'}
-                              </Badge>
+                              result.dte === 0 ? (
+                                // DTE=0: show informational badge only — no close button
+                                <Badge className="bg-amber-600/20 text-amber-400 border-amber-500/30">
+                                  <TrendingUp className="h-3 w-3 mr-1" />
+                                  Expires Today
+                                </Badge>
+                              ) : (
+                                // Normal WOULD_CLOSE: clickable button to open single-position modal
+                                <button
+                                  onClick={() => handleOpenSingleOrderPreview(result)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-600/40 hover:border-cyan-400/60 transition-colors cursor-pointer"
+                                >
+                                  <TrendingUp className="h-3 w-3" />
+                                  Ready to Close
+                                </button>
+                              )
                             ) : result.action === 'BELOW_THRESHOLD' ? (
                               <Badge variant="outline" className="text-muted-foreground">
                                 <Minus className="h-3 w-3 mr-1" />

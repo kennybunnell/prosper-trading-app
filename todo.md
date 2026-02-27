@@ -6507,3 +6507,8 @@
 - [x] Add top-level "Review & Submit" button in Scan Results card header (always visible when positions selected)
 - [x] Add "Hide Expiring Today" toggle to filter out DTE=0 positions from scan results table
 - [x] Add API connection status widget to Automation Dashboard page
+
+## Automation Dashboard Fixes (Session 2026-02-27 Part 2)
+- [x] Fix auto-select to never include DTE=0 positions (expiring today should never be auto-selected)
+- [x] Make "Ready to Close" badge a clickable button that opens the order modal for just that single position
+- [x] Ensure select-all checkbox also excludes DTE=0 positions regardless of hide/show toggle state
