@@ -311,28 +311,6 @@ export const automationRouter = router({
               const closePrice = Math.abs(parseFloat(String(position['close-price'] || '0')));
               let buyBackCost = closePrice * quantity * multiplier;
 
-              // Time-decay heuristic: when close-price is 0 (API has no quote), estimate using
-              // theta decay formula: estimatedPerShare = openPrice × sqrt(daysRemaining / daysOriginal)
-              // This gives a realistic near-zero estimate for deeply OTM options
-              let isEstimated = false;
-              if (closePrice === 0 && expiration) {
-                const now = new Date();
-                const expDate = new Date(expiration);
-                const daysRemaining = Math.max(0, (expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                // Assume original DTE of 30 days if we can't determine it
-                // (conservative: shorter assumed DTE = higher estimated cost)
-                const daysOriginal = 30;
-                if (daysRemaining > 0) {
-                  const decayFactor = Math.sqrt(daysRemaining / daysOriginal);
-                  const estimatedPerShare = openPrice * decayFactor;
-                  // Floor at $0.01 per share minimum (options rarely trade below this)
-                  const flooredPerShare = Math.max(0.01, estimatedPerShare);
-                  buyBackCost = flooredPerShare * quantity * multiplier;
-                  isEstimated = true;
-                  console.log(`[Automation] ${underlyingSymbol} ${optionType}: close-price=0, using time-decay estimate: $${buyBackCost.toFixed(2)} (${daysRemaining.toFixed(1)} days remaining, decay=${decayFactor.toFixed(3)})`);
-                }
-              }
-
               // Spread detection: look for matching long leg on the SAME expiration and same put/call type
               // Only net the spread if the long leg's close price is LOWER than the short leg's
               // (i.e., the long leg is worth less, which is the normal spread scenario)
@@ -353,6 +331,26 @@ export const automationRouter = router({
                     }
                     break;
                   }
+                }
+              }
+
+              // Time-decay heuristic: MUST run AFTER spread detection so spread netting can't zero it out.
+              // When buyBackCost is still 0 after spread netting (both legs have close-price=0),
+              // estimate using theta decay: estimatedPerShare = openPrice × sqrt(daysRemaining / daysOriginal)
+              let isEstimated = false;
+              if (buyBackCost === 0 && expiration) {
+                const now = new Date();
+                const expDate = new Date(expiration);
+                const daysRemaining = Math.max(0, (expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                const daysOriginal = 30; // Conservative assumption: shorter assumed DTE = higher estimate
+                if (daysRemaining > 0) {
+                  const decayFactor = Math.sqrt(daysRemaining / daysOriginal);
+                  const estimatedPerShare = openPrice * decayFactor;
+                  // Floor at $0.01 per share minimum (options rarely trade below this)
+                  const flooredPerShare = Math.max(0.01, estimatedPerShare);
+                  buyBackCost = flooredPerShare * quantity * multiplier;
+                  isEstimated = true;
+                  console.log(`[Automation] ${underlyingSymbol} ${optionType}: buyBackCost=0 after spread netting, using time-decay estimate: $${buyBackCost.toFixed(2)} (${daysRemaining.toFixed(1)} DTE, decay=${decayFactor.toFixed(3)})`);
                 }
               }
 
