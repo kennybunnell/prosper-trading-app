@@ -20,7 +20,7 @@ import {
   rejectPendingOrders,
   approveAllPendingOrders,
 } from './db-automation';
-import { getTastytradeAPI } from './tastytrade';
+import { authenticateTastytrade } from './tastytrade';
 
 export const automationRouter = router({
   /**
@@ -168,12 +168,20 @@ export const automationRouter = router({
       });
 
       try {
-        // Get Tastytrade client
-        const tt = getTastytradeAPI();
+        // Get Tastytrade client - authenticate with user's stored credentials
+        const { getApiCredentials } = await import('./db');
+        const credentials = await getApiCredentials(ctx.user.id);
+        if (!credentials?.tastytradeRefreshToken && !credentials?.tastytradePassword) {
+          throw new TRPCError({
+            code: 'PRECONDITION_FAILED',
+            message: 'Tastytrade API not connected. Please configure your Tastytrade credentials in Settings.',
+          });
+        }
+        const tt = await authenticateTastytrade(credentials, ctx.user.id);
         if (!tt) {
           throw new TRPCError({
             code: 'PRECONDITION_FAILED',
-            message: 'Tastytrade API not connected',
+            message: 'Failed to authenticate with Tastytrade API',
           });
         }
 

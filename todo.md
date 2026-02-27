@@ -6482,3 +6482,10 @@
 - [x] Remove unused Zap import from Sidebar
 - [x] Default active tab set to automation so it opens first
 - [x] Test tab navigation - compiles with no TypeScript errors
+
+## Bug Fix: Automation Dry Run 404 Error
+- [x] Diagnose 404 error when clicking Run Now in Automation tab
+- [x] Root cause: automation router was using getTastytradeAPI() (unauthenticated singleton) instead of authenticateTastytrade() with user credentials
+- [x] Fix: replaced getTastytradeAPI() with authenticateTastytrade(credentials, ctx.user.id) in runAutomation procedure
+- [x] Fix: added getApiCredentials() call to load user's stored Tastytrade credentials before authentication
+- [x] TypeScript errors cleared, server compiling successfully
