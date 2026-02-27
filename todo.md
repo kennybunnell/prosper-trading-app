@@ -6562,3 +6562,10 @@
 - [ ] Add per-step enable/disable fields to automationSettings DB schema (btcEnabled, rollEnabled, ccEnabled, cspEnabled, spreadsEnabled, pmccEnabled)
 - [ ] Add per-step collateral limit fields (btcCollateralLimit, ccCollateralLimit, cspCollateralLimit, spreadsCollateralLimit)
 - [ ] Add earningsFilterEnabled boolean to automationSettings
+
+## CC Scan Fixes (Session 2026-02-27 Part 8)
+- [x] Fix CC scan to loop through ALL accounts (not just one) — same pattern as BTC scan
+- [x] Fix "Enable CC Scan" toggle default to ON so scan runs by default
+- [x] Add individual "Scan Covered Calls" button on Tab 3 header (independent of Tab 1 scan)
+- [x] Debug why 0 CC opportunities returned despite eligible positions (AVGO, HOOD, CIFR, SOFI, HIMS)
+- [ ] Add per-tab scan state so Tab 3 can show its own loading/results independently

@@ -182,6 +182,7 @@ export const automationRouter = router({
     .input(
       z.object({
         triggerType: z.enum(['manual', 'scheduled']).default('manual'),
+        scanSteps: z.array(z.enum(['btc', 'cc', 'all'])).optional(), // if omitted, runs all enabled steps
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -281,6 +282,9 @@ export const automationRouter = router({
         let totalProfitRealized = 0;
         let totalPremiumCollected = 0;
 
+        // Determine which steps to run
+        const runBTCScan = !input.scanSteps || input.scanSteps.includes('btc') || input.scanSteps.includes('all');
+
         // Process each account
         for (const account of accountsWithBalances) {
           try {
@@ -289,16 +293,18 @@ export const automationRouter = router({
             //   premiumReceived = average-open-price × qty × multiplier
             //   currentCost     = close-price × qty × multiplier
             //   realizedPercent = (premiumReceived - currentCost) / premiumReceived × 100
-            const positions = await tt.getPositions(account.accountNumber);
+            const positions = runBTCScan ? await tt.getPositions(account.accountNumber) : [];
             
             // Build a map of long positions for spread detection
             const longPositionMap = new Map<string, any>();
-            for (const pos of positions) {
-              const qty = parseInt(String(pos.quantity || '0'));
-              const direction = pos['quantity-direction']?.toLowerCase();
-              const isLong = direction === 'long' || qty > 0;
-              if (isLong && pos['instrument-type'] === 'Equity Option') {
-                longPositionMap.set(pos.symbol, pos);
+            if (runBTCScan) {
+              for (const pos of positions) {
+                const qty = parseInt(String(pos.quantity || '0'));
+                const direction = pos['quantity-direction']?.toLowerCase();
+                const isLong = direction === 'long' || qty > 0;
+                if (isLong && pos['instrument-type'] === 'Equity Option') {
+                  longPositionMap.set(pos.symbol, pos);
+                }
               }
             }
 
@@ -426,7 +432,8 @@ export const automationRouter = router({
             }
 
             // Step 2: Find covered call opportunities for eligible stock positions
-            if (settings.ccAutomationEnabled) {
+            const runCCScan = !input.scanSteps || input.scanSteps.includes('cc') || input.scanSteps.includes('all');
+            if (runCCScan && settings.ccAutomationEnabled) {
               try {
                 console.log(`[Automation CC] Scanning account ${account.accountNumber} for CC opportunities`);
                 const allPositions = await tt.getPositions(account.accountNumber);

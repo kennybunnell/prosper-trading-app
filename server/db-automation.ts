@@ -30,6 +30,7 @@ export async function getAutomationSettings(userId: number) {
         autoScheduleEnabled: false,
         scheduleTime: '09:35',
         profitThresholdPercent: 75,
+        ccAutomationEnabled: true,
         ccDteMin: 7,
         ccDteMax: 14,
         ccDeltaMin: '0.25',
@@ -48,7 +49,12 @@ export async function getAutomationSettings(userId: number) {
     return newSettings;
   }
 
-  return settings;
+  // For existing rows that were created before ccAutomationEnabled was added,
+  // default it to true so the CC scan runs without requiring a manual toggle
+  return {
+    ...settings,
+    ccAutomationEnabled: settings.ccAutomationEnabled ?? true,
+  };
 }
 
 /**

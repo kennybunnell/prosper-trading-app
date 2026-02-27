@@ -1060,6 +1060,25 @@ export default function AutomationDashboard() {
             STEP 3: Sell Covered Calls (CC scan)
         ───────────────────────────────────────────────────────────────── */}
         <TabsContent value="step3-cc" className="space-y-4">
+          {/* Tab 3 header with individual scan button */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Sell Covered Calls</h3>
+              <p className="text-sm text-muted-foreground">Scan equity holdings for covered call opportunities</p>
+            </div>
+            <Button
+              onClick={() => runAutomation.mutate({ triggerType: 'manual', scanSteps: ['cc'] })}
+              disabled={isRunning || killSwitchActive}
+              variant="outline"
+              className="gap-2 border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+            >
+              {isRunning ? (
+                <><RefreshCw className="h-4 w-4 animate-spin" /> Scanning...</>
+              ) : (
+                <><RefreshCw className="h-4 w-4" /> Scan Covered Calls</>
+              )}
+            </Button>
+          </div>
           {/* CC Settings */}
           <Card>
             <CardHeader>
@@ -1075,7 +1094,7 @@ export default function AutomationDashboard() {
                   <Label htmlFor="cc-automation-tab">Enable CC Scan</Label>
                   <Switch
                     id="cc-automation-tab"
-                    checked={settings?.ccAutomationEnabled ?? false}
+                    checked={settings?.ccAutomationEnabled ?? true}
                     onCheckedChange={(checked) => handleToggle('ccAutomationEnabled', checked)}
                   />
                 </div>
