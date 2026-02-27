@@ -702,6 +702,7 @@ export const automationLogs = mysqlTable("automationLogs", {
   totalPremiumCollected: varchar("totalPremiumCollected", { length: 20 }).default("0").notNull(),
   accountsProcessed: int("accountsProcessed").default(0).notNull(),
   errorMessage: text("errorMessage"),
+  scanResultsJson: text("scanResultsJson"), // JSON array of scan results for dry-run display
   startedAt: timestamp("startedAt").defaultNow().notNull(),
   completedAt: timestamp("completedAt"),
 }, (table) => ({

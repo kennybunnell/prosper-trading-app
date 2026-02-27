@@ -1,0 +1,1 @@
+ALTER TABLE `automationLogs` ADD `scanResultsJson` text;

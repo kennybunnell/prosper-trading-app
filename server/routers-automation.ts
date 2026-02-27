@@ -354,7 +354,7 @@ export const automationRouter = router({
           await createPendingOrders(pendingOrders);
         }
 
-        // Update automation log
+        // Update automation log — store scanResults as JSON in DB so the response stays small
         await updateAutomationLog(runId, {
           status: 'completed',
           positionsClosedCount: totalPositionsClosed,
@@ -362,6 +362,7 @@ export const automationRouter = router({
           totalProfitRealized: totalProfitRealized.toFixed(2),
           totalPremiumCollected: totalPremiumCollected.toFixed(2),
           accountsProcessed: accountsWithBalances.length,
+          scanResultsJson: JSON.stringify(scanResults),
           completedAt: new Date(),
         });
 
@@ -377,6 +378,7 @@ export const automationRouter = router({
           });
         }
 
+        // Return only a slim summary — the UI fetches scan results via getLog query to avoid large payloads
         return {
           success: true,
           runId,
@@ -388,9 +390,9 @@ export const automationRouter = router({
             accountsProcessed: accountsWithBalances.length,
             pendingOrdersCount: pendingOrders.length,
             totalScanned: scanResults.length,
+            wouldClose: scanResults.filter(r => r.action === 'WOULD_CLOSE').length,
             belowThreshold: scanResults.filter(r => r.action === 'BELOW_THRESHOLD').length,
           },
-          scanResults,
         };
       } catch (error) {
         // Update log with error

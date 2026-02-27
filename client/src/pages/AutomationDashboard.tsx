@@ -3,7 +3,7 @@
  * Control panel for managing automated trading workflows
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,26 +30,36 @@ type ScanResult = {
   reason?: string;
 };
 
+type RunSummary = {
+  positionsClosedCount: number;
+  coveredCallsOpenedCount: number;
+  totalProfitRealized: string;
+  totalPremiumCollected: string;
+  accountsProcessed: number;
+  pendingOrdersCount: number;
+  totalScanned: number;
+  wouldClose: number;
+  belowThreshold: number;
+};
+
 type RunResult = {
   success: boolean;
   runId: string;
-  summary: {
-    positionsClosedCount: number;
-    coveredCallsOpenedCount: number;
-    totalProfitRealized: string;
-    totalPremiumCollected: string;
-    accountsProcessed: number;
-    pendingOrdersCount: number;
-    totalScanned: number;
-    belowThreshold: number;
-  };
-  scanResults: ScanResult[];
+  summary: RunSummary;
+  scanResults: ScanResult[]; // populated after fetching the log
 };
 
 export default function AutomationDashboard() {
   const [isRunning, setIsRunning] = useState(false);
   const [lastRunResult, setLastRunResult] = useState<RunResult | null>(null);
   const [showScanResults, setShowScanResults] = useState(true);
+  const [lastRunId, setLastRunId] = useState<string | null>(null);
+
+  // After a run completes, fetch the log to get scanResultsJson
+  const { data: latestLog } = trpc.automation.getLog.useQuery(
+    { runId: lastRunId! },
+    { enabled: !!lastRunId, refetchInterval: false }
+  );
 
   // Fetch automation settings
   const { data: settings, isLoading: settingsLoading } = trpc.automation.getSettings.useQuery();
@@ -67,15 +77,36 @@ export default function AutomationDashboard() {
     },
   });
 
+  const utils = trpc.useUtils();
+
+  // When the log is fetched after a run, populate scanResults from scanResultsJson
+  useEffect(() => {
+    if (latestLog && lastRunResult && lastRunResult.scanResults.length === 0) {
+      const parsed: ScanResult[] = latestLog.scanResultsJson ? JSON.parse(latestLog.scanResultsJson as string) : [];
+      if (parsed.length > 0) {
+        setLastRunResult(prev => prev ? { ...prev, scanResults: parsed } : prev);
+      }
+    }
+  }, [latestLog]);
+
   // Run automation mutation
   const runAutomation = trpc.automation.runAutomation.useMutation({
     onSuccess: (data) => {
       setIsRunning(false);
-      setLastRunResult(data as RunResult);
       setShowScanResults(true);
       refetchLogs();
-      const wouldClose = data.summary.positionsClosedCount;
-      const totalScanned = (data.summary as any).totalScanned ?? 0;
+      const wouldClose = data.summary.wouldClose ?? data.summary.positionsClosedCount;
+      const totalScanned = data.summary.totalScanned ?? 0;
+      // Set a placeholder result immediately, then fetch full scan results from the log
+      setLastRunResult({
+        success: true,
+        runId: data.runId,
+        summary: data.summary as RunSummary,
+        scanResults: [],
+      });
+      setLastRunId(data.runId);
+      // Invalidate so the getLog query fires
+      utils.automation.getLog.invalidate({ runId: data.runId });
       if (wouldClose > 0) {
         toast.success(`Scan complete! Found ${wouldClose} position${wouldClose !== 1 ? 's' : ''} to close out of ${totalScanned} scanned.`);
       } else {
