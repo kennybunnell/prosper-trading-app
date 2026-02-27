@@ -92,6 +92,7 @@ type RunResult = {
 
 export default function AutomationDashboard() {
   const [isRunning, setIsRunning] = useState(false);
+  const [activeScanStep, setActiveScanStep] = useState<'all' | 'btc' | 'cc' | null>(null); // Track which scan is running
   const [lastRunResult, setLastRunResult] = useState<RunResult | null>(null);
   const [selectedCCPositions, setSelectedCCPositions] = useState<Set<string>>(new Set());
   const [showScanResults, setShowScanResults] = useState(true);
@@ -359,60 +360,97 @@ export default function AutomationDashboard() {
 
   // When the log is fetched after a run, populate scanResults from scanResultsJson
   useEffect(() => {
-    if (latestLog && lastRunResult && lastRunResult.scanResults.length === 0) {
-      const parsed: ScanResult[] = latestLog.scanResultsJson ? JSON.parse(latestLog.scanResultsJson as string) : [];
-      const ccParsed: CCScanResult[] = (latestLog as any).ccScanResultsJson ? JSON.parse((latestLog as any).ccScanResultsJson as string) : [];
-      if (parsed.length > 0 || ccParsed.length > 0) {
-        setLastRunResult(prev => prev ? { ...prev, scanResults: parsed, ccScanResults: ccParsed } : prev);
-        // Auto-select WOULD_CLOSE positions, but NEVER DTE=0 (let them expire naturally)
-        const keys = new Set(parsed
-          .filter(r => r.action === 'WOULD_CLOSE' && r.dte !== 0)
-          .map(r => `${r.optionSymbol}|${r.account}`));
-        setSelectedPositions(keys);
-        // Auto-select all CC opportunities
-        if (ccParsed.length > 0) {
-          const ccKeys = new Set(ccParsed.map(r => `${r.optionSymbol}|${r.account}`));
-          setSelectedCCPositions(ccKeys);
-        }
-      }
+    if (!latestLog || !lastRunResult) return;
+    const parsed: ScanResult[] = latestLog.scanResultsJson ? JSON.parse(latestLog.scanResultsJson as string) : [];
+    const ccParsed: CCScanResult[] = (latestLog as any).ccScanResultsJson ? JSON.parse((latestLog as any).ccScanResultsJson as string) : [];
+    if (parsed.length === 0 && ccParsed.length === 0) return;
+
+    setLastRunResult(prev => {
+      if (!prev) return prev;
+      // Only update the arrays that are still empty (avoid overwriting already-populated results)
+      return {
+        ...prev,
+        scanResults: prev.scanResults.length === 0 ? parsed : prev.scanResults,
+        ccScanResults: prev.ccScanResults.length === 0 ? ccParsed : prev.ccScanResults,
+      };
+    });
+
+    // Auto-select WOULD_CLOSE positions, but NEVER DTE=0 (let them expire naturally)
+    if (lastRunResult.scanResults.length === 0 && parsed.length > 0) {
+      const keys = new Set(parsed
+        .filter(r => r.action === 'WOULD_CLOSE' && r.dte !== 0)
+        .map(r => `${r.optionSymbol}|${r.account}`));
+      setSelectedPositions(keys);
+    }
+    // Auto-select all CC opportunities
+    if (lastRunResult.ccScanResults.length === 0 && ccParsed.length > 0) {
+      const ccKeys = new Set(ccParsed.map(r => `${r.optionSymbol}|${r.account}`));
+      setSelectedCCPositions(ccKeys);
     }
   }, [latestLog]);
 
   // Run automation mutation
   const runAutomation = trpc.automation.runAutomation.useMutation({
     onSuccess: (data) => {
+      const scanStep = activeScanStep; // capture before clearing
       setIsRunning(false);
+      setActiveScanStep(null);
       setShowScanResults(true);
       refetchLogs();
       const wouldClose = data.summary.wouldClose ?? data.summary.positionsClosedCount;
       const totalScanned = data.summary.totalScanned ?? 0;
-      // Set a placeholder result immediately, then fetch full scan results from the log
-      setLastRunResult({
-        success: true,
-        runId: data.runId,
-        summary: data.summary as RunSummary,
-        scanResults: [],
-        ccScanResults: [],
-      });
+      // For CC-only scan: preserve existing BTC scan results, only reset CC results
+      if (scanStep === 'cc') {
+        setLastRunResult(prev => ({
+          success: true,
+          runId: data.runId,
+          summary: data.summary as RunSummary,
+          scanResults: prev?.scanResults ?? [],
+          ccScanResults: [],
+        }));
+      } else {
+        // Full scan or BTC-only: reset everything
+        setLastRunResult({
+          success: true,
+          runId: data.runId,
+          summary: data.summary as RunSummary,
+          scanResults: [],
+          ccScanResults: [],
+        });
+      }
       setLastRunId(data.runId);
       // Invalidate so the getLog query fires
       utils.automation.getLog.invalidate({ runId: data.runId });
-      if (wouldClose > 0) {
-        toast.success(`Scan complete! Found ${wouldClose} position${wouldClose !== 1 ? 's' : ''} to close out of ${totalScanned} scanned.`);
+      const wouldSellCC = data.summary.wouldSellCC ?? 0;
+      if (wouldClose > 0 || wouldSellCC > 0) {
+        const parts = [];
+        if (wouldClose > 0) parts.push(`${wouldClose} position${wouldClose !== 1 ? 's' : ''} to close`);
+        if (wouldSellCC > 0) parts.push(`${wouldSellCC} CC opportunit${wouldSellCC !== 1 ? 'ies' : 'y'}`);
+        toast.success(`Scan complete! Found ${parts.join(' · ')}`);
       } else {
         toast.info(`Scan complete. ${totalScanned} position${totalScanned !== 1 ? 's' : ''} scanned — none meet the ${settings?.profitThresholdPercent ?? 75}% threshold.`);
       }
     },
     onError: (error) => {
       setIsRunning(false);
+      setActiveScanStep(null);
       toast.error(`Automation failed: ${error.message}`);
     },
   });
 
   const handleRunAutomation = () => {
     setIsRunning(true);
+    setActiveScanStep('all');
     setLastRunResult(null);
     runAutomation.mutate({ triggerType: 'manual' });
+  };
+
+  const handleRunCCScan = () => {
+    setIsRunning(true);
+    setActiveScanStep('cc');
+    // Preserve existing BTC scan results, only clear CC results
+    setLastRunResult(prev => prev ? { ...prev, ccScanResults: [] } : null);
+    runAutomation.mutate({ triggerType: 'manual', scanSteps: ['cc'] });
   };
 
   const handleToggle = (key: string, value: boolean) => {
@@ -1067,13 +1105,15 @@ export default function AutomationDashboard() {
               <p className="text-sm text-muted-foreground">Scan equity holdings for covered call opportunities</p>
             </div>
             <Button
-              onClick={() => runAutomation.mutate({ triggerType: 'manual', scanSteps: ['cc'] })}
+              onClick={handleRunCCScan}
               disabled={isRunning || killSwitchActive}
               variant="outline"
               className="gap-2 border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
             >
-              {isRunning ? (
-                <><RefreshCw className="h-4 w-4 animate-spin" /> Scanning...</>
+              {isRunning && activeScanStep === 'cc' ? (
+                <><RefreshCw className="h-4 w-4 animate-spin" /> Scanning Accounts...</>
+              ) : isRunning ? (
+                <><RefreshCw className="h-4 w-4 animate-spin" /> Scan Running...</>
               ) : (
                 <><RefreshCw className="h-4 w-4" /> Scan Covered Calls</>
               )}

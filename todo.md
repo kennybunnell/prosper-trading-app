@@ -12,6 +12,15 @@
 - [x] Tradier Account ID and default account selection
 - [x] Comma-delimited ticker input for watchlist
 
+## ✅ CC Scan Fixes (Feb 27, 2026)
+- [x] Fixed Tradier API key fallback — automation router now uses env var when DB key is invalid/missing
+- [x] Fixed CC scan to loop through ALL accounts (was only checking first account)
+- [x] Added separate `handleRunCCScan` handler for Tab 3 scan button (independent from Tab 1)
+- [x] Added `activeScanStep` state to show correct loading text per button
+- [x] Fixed `onSuccess` handler to preserve BTC scan results on CC-only scan
+- [x] Fixed `useEffect` to only update empty arrays (prevents overwriting existing results)
+- [x] Improved toast notifications to mention CC opportunities found
+
 ## 🚧 Current Focus: Complete CSP Dashboard (Phase 1-4)
 
 ### Phase 1: Sidebar Navigation & Layout

@@ -461,7 +461,9 @@ export const automationRouter = router({
                   console.log(`[Automation CC] No eligible stocks for CCs in account ${account.accountNumber}`);
                 } else {
                   const { createTradierAPI } = await import('./tradier');
-                  const tradierApiKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY;
+                  // Use user's stored key if it looks valid (>15 chars), otherwise fall back to env var
+                  const storedKey = credentials?.tradierApiKey;
+                  const tradierApiKey = (storedKey && storedKey.length > 15 ? storedKey : null) || process.env.TRADIER_API_KEY;
                   if (!tradierApiKey) {
                     console.warn('[Automation CC] No Tradier API key available, skipping CC scan');
                   } else {
