@@ -69,7 +69,7 @@ export default function AutomationDashboard() {
   const [lastRunResult, setLastRunResult] = useState<RunResult | null>(null);
   const [showScanResults, setShowScanResults] = useState(true);
   const [lastRunId, setLastRunId] = useState<string | null>(null);
-  const [selectedPositions, setSelectedPositions] = useState<Set<number>>(new Set());
+  const [selectedPositions, setSelectedPositions] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
@@ -90,10 +90,13 @@ export default function AutomationDashboard() {
     },
   });
 
+  // Stable key for a position (used instead of array index to survive sorting)
+  const posKey = (r: ScanResult) => `${r.optionSymbol}|${r.account}`;
+
   const handleSubmitOrders = () => {
     if (!lastRunResult) return;
     const selected = lastRunResult.scanResults
-      .filter((r, i) => selectedPositions.has(i) && r.action === 'WOULD_CLOSE')
+      .filter(r => selectedPositions.has(posKey(r)) && r.action === 'WOULD_CLOSE')
       .map(r => ({
         accountNumber: r.account,
         optionSymbol: r.optionSymbol,
@@ -107,8 +110,9 @@ export default function AutomationDashboard() {
   };
 
   const wouldCloseResults = lastRunResult?.scanResults.filter(r => r.action === 'WOULD_CLOSE') ?? [];
-  const allSelected = wouldCloseResults.length > 0 && wouldCloseResults.every((_, i) =>
-    selectedPositions.has(lastRunResult!.scanResults.indexOf(wouldCloseResults[i]))
+  // Use stable posKey for selection — survives sorting
+  const allSelected = wouldCloseResults.length > 0 && wouldCloseResults.every(r =>
+    selectedPositions.has(`${r.optionSymbol}|${r.account}`)
   );
 
   const toggleSelectAll = useCallback(() => {
@@ -116,17 +120,17 @@ export default function AutomationDashboard() {
     if (allSelected) {
       setSelectedPositions(new Set());
     } else {
-      const indices = new Set(lastRunResult.scanResults
-        .map((r, i) => r.action === 'WOULD_CLOSE' ? i : -1)
-        .filter(i => i !== -1));
-      setSelectedPositions(indices);
+      const keys = new Set(lastRunResult.scanResults
+        .filter(r => r.action === 'WOULD_CLOSE')
+        .map(r => `${r.optionSymbol}|${r.account}`));
+      setSelectedPositions(keys);
     }
   }, [lastRunResult, allSelected]);
 
-  const togglePosition = useCallback((idx: number) => {
+  const togglePosition = useCallback((key: string) => {
     setSelectedPositions(prev => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   }, []);
@@ -179,11 +183,11 @@ export default function AutomationDashboard() {
       const parsed: ScanResult[] = latestLog.scanResultsJson ? JSON.parse(latestLog.scanResultsJson as string) : [];
       if (parsed.length > 0) {
         setLastRunResult(prev => prev ? { ...prev, scanResults: parsed } : prev);
-        // Auto-select all WOULD_CLOSE positions
-        const indices = new Set(parsed
-          .map((r, i) => r.action === 'WOULD_CLOSE' ? i : -1)
-          .filter(i => i !== -1));
-        setSelectedPositions(indices);
+        // Auto-select all WOULD_CLOSE positions using stable keys
+        const keys = new Set(parsed
+          .filter(r => r.action === 'WOULD_CLOSE')
+          .map(r => `${r.optionSymbol}|${r.account}`));
+        setSelectedPositions(keys);
       }
     }
   }, [latestLog]);
@@ -451,36 +455,50 @@ export default function AutomationDashboard() {
             </div>
 
             {/* Summary Stats */}
-            <div className="grid grid-cols-3 gap-4 pt-2">
-              <div className="text-center p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                <div className="text-2xl font-bold text-green-400">
-                  {lastRunResult.summary.positionsClosedCount}
+            {(() => {
+              const totalBuyBack = lastRunResult.scanResults
+                .filter(r => r.action === 'WOULD_CLOSE')
+                .reduce((sum, r) => sum + r.buyBackCost, 0);
+              return (
+                <div className="grid grid-cols-4 gap-3 pt-2">
+                  <div className="text-center p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                    <div className="text-2xl font-bold text-green-400">
+                      {lastRunResult.summary.positionsClosedCount}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {settings?.dryRunMode ? 'Ready to Close' : 'Orders Submitted'}
+                    </div>
+                    <div className="text-xs text-green-400 font-medium">
+                      ≥{threshold}% profit
+                    </div>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-muted/50 border">
+                    <div className="text-2xl font-bold text-muted-foreground">
+                      {lastRunResult.summary.belowThreshold}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">Below Threshold</div>
+                    <div className="text-xs text-muted-foreground font-medium">
+                      &lt;{threshold}% profit
+                    </div>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <div className="text-2xl font-bold text-amber-400">
+                      ${totalBuyBack.toFixed(0)}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">Total Buy-Back Cost</div>
+                    <div className="text-xs text-amber-400 font-medium">to close all</div>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <div className="text-2xl font-bold text-blue-400">
+                      ${parseFloat(lastRunResult.summary.totalProfitRealized).toFixed(0)}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {settings?.dryRunMode ? 'Est. Profit' : 'Profit Realized'}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {settings?.dryRunMode ? 'Would Close' : 'Orders Submitted'}
-                </div>
-                <div className="text-xs text-green-400 font-medium">
-                  ≥{threshold}% profit
-                </div>
-              </div>
-              <div className="text-center p-3 rounded-lg bg-muted/50 border">
-                <div className="text-2xl font-bold text-muted-foreground">
-                  {lastRunResult.summary.belowThreshold}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">Below Threshold</div>
-                <div className="text-xs text-muted-foreground font-medium">
-                  &lt;{threshold}% profit
-                </div>
-              </div>
-              <div className="text-center p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <div className="text-2xl font-bold text-blue-400">
-                  ${parseFloat(lastRunResult.summary.totalProfitRealized).toFixed(0)}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {settings?.dryRunMode ? 'Est. Profit' : 'Profit Realized'}
-                </div>
-              </div>
-            </div>
+              );
+            })()}
           </CardHeader>
 
           {showScanResults && lastRunResult.scanResults.length > 0 && (
@@ -516,15 +534,15 @@ export default function AutomationDashboard() {
                           key={idx}
                           className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${
                             result.action === 'WOULD_CLOSE'
-                              ? selectedPositions.has(idx) ? 'bg-green-500/10' : 'bg-green-500/5'
+                              ? selectedPositions.has(`${result.optionSymbol}|${result.account}`) ? 'bg-green-500/10' : 'bg-green-500/5'
                               : ''
                           }`}
                         >
                           <td className="py-2.5 pr-2">
                             {result.action === 'WOULD_CLOSE' ? (
                               <Checkbox
-                                checked={selectedPositions.has(idx)}
-                                onCheckedChange={() => togglePosition(idx)}
+                                checked={selectedPositions.has(`${result.optionSymbol}|${result.account}`)}
+                                onCheckedChange={() => togglePosition(`${result.optionSymbol}|${result.account}`)}
                                 aria-label={`Select ${result.symbol}`}
                               />
                             ) : <span />}
@@ -602,9 +620,9 @@ export default function AutomationDashboard() {
                           </td>
                           <td className="py-2.5 text-center">
                             {result.action === 'WOULD_CLOSE' ? (
-                              <Badge className="bg-green-600/20 text-green-400 border-green-500/30 hover:bg-green-600/30">
+                              <Badge className="bg-cyan-600/20 text-cyan-400 border-cyan-500/30 hover:bg-cyan-600/30">
                                 <TrendingUp className="h-3 w-3 mr-1" />
-                                {settings?.dryRunMode ? 'Would Close' : 'Closed'}
+                                {settings?.dryRunMode ? 'Ready to Close' : 'Submitted'}
                               </Badge>
                             ) : result.action === 'BELOW_THRESHOLD' ? (
                               <Badge variant="outline" className="text-muted-foreground">
@@ -638,10 +656,14 @@ export default function AutomationDashboard() {
                   <div>
                     <span className="font-semibold text-green-400">{selectedPositions.size} position{selectedPositions.size !== 1 ? 's' : ''} selected</span>
                     <span className="text-sm text-muted-foreground ml-2">
-                      Est. profit: ${lastRunResult.scanResults
-                        .filter((_, i) => selectedPositions.has(i))
+                      Buy-back cost: <span className="text-amber-400 font-mono">${lastRunResult.scanResults
+                        .filter(r => selectedPositions.has(`${r.optionSymbol}|${r.account}`))
+                        .reduce((sum, r) => sum + r.buyBackCost, 0)
+                        .toFixed(2)}</span>
+                      {' · '}Est. profit: <span className="text-green-400 font-mono">${lastRunResult.scanResults
+                        .filter(r => selectedPositions.has(`${r.optionSymbol}|${r.account}`))
                         .reduce((sum, r) => sum + (r.premiumCollected - r.buyBackCost), 0)
-                        .toFixed(2)}
+                        .toFixed(2)}</span>
                     </span>
                   </div>
                   <div className="flex gap-2">
