@@ -34,9 +34,9 @@ type ScanResult = {
   optionSymbol: string;
   type: string;
   quantity: number;
-  premium: number;
-  current: number;
-  realizedPercent: number;
+  premiumCollected: number;  // Total $ received when position was opened
+  buyBackCost: number;       // Current $ cost to close the position
+  realizedPercent: number;   // (premiumCollected - buyBackCost) / premiumCollected × 100
   action: 'WOULD_CLOSE' | 'BELOW_THRESHOLD' | 'SKIPPED';
   reason?: string;
 };
@@ -457,11 +457,11 @@ export default function AutomationDashboard() {
                             {result.account}
                           </td>
                           <td className="py-2.5 pr-4 text-right">{result.quantity}</td>
-                          <td className="py-2.5 pr-4 text-right font-mono">
-                            ${result.premium.toFixed(2)}
+                          <td className="py-2.5 pr-4 text-right font-mono text-green-400">
+                            ${result.premiumCollected.toFixed(2)}
                           </td>
-                          <td className="py-2.5 pr-4 text-right font-mono">
-                            ${result.current.toFixed(2)}
+                          <td className="py-2.5 pr-4 text-right font-mono text-amber-400">
+                            ${result.buyBackCost.toFixed(2)}
                           </td>
                           <td className="py-2.5 pr-4 text-right">
                             <span

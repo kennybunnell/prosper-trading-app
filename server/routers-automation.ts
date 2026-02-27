@@ -246,9 +246,9 @@ export const automationRouter = router({
           optionSymbol: string;
           type: string;
           quantity: number;
-          premium: number;
-          current: number;
-          realizedPercent: number;
+          premiumCollected: number;  // Total premium received when position was opened
+          buyBackCost: number;       // Current cost to close/buy back the position
+          realizedPercent: number;   // (premiumCollected - buyBackCost) / premiumCollected × 100
           action: 'WOULD_CLOSE' | 'BELOW_THRESHOLD' | 'SKIPPED';
           reason?: string;
         }> = [];
@@ -298,35 +298,41 @@ export const automationRouter = router({
               const premiumReceived = openPrice * quantity * multiplier;
 
               if (premiumReceived === 0) {
-                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premium: 0, current: 0, realizedPercent: 0, action: 'SKIPPED', reason: 'No premium data (average-open-price is 0)' });
+                  scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: 0, buyBackCost: 0, realizedPercent: 0, action: 'SKIPPED', reason: 'No premium data (average-open-price is 0)' });
                 continue;
               }
 
-              // Current cost = what it costs to buy back now
-              const closePrice = parseFloat(String(position['close-price'] || '0'));
-              let currentCost = closePrice * quantity * multiplier;
+              // Current cost = what it costs to buy back now (always positive — this is what we PAY)
+              const closePrice = Math.abs(parseFloat(String(position['close-price'] || '0')));
+              let buyBackCost = closePrice * quantity * multiplier;
 
-              // Spread detection: look for matching long leg
+              // Spread detection: look for matching long leg on the SAME expiration and same put/call type
+              // Only net the spread if the long leg's close price is LOWER than the short leg's
+              // (i.e., the long leg is worth less, which is the normal spread scenario)
               let isSpread = false;
               for (const [, longPos] of Array.from(longPositionMap.entries())) {
                 if (longPos['underlying-symbol'] === position['underlying-symbol'] &&
                     longPos['expires-at'] === position['expires-at']) {
                   const longIsPut = longPos.symbol.includes('P');
                   if (longIsPut === isPut) {
-                    // Found matching long leg - adjust currentCost for spread
-                    const longClosePrice = parseFloat(String(longPos['close-price'] || '0'));
-                    const longCurrentCost = longClosePrice * quantity * parseInt(String(longPos.multiplier || '100'));
-                    // Spread close cost = pay to close short - receive to close long
-                    currentCost = currentCost - longCurrentCost;
-                    isSpread = true;
+                    const longClosePrice = Math.abs(parseFloat(String(longPos['close-price'] || '0')));
+                    const longBuyBackCredit = longClosePrice * quantity * parseInt(String(longPos.multiplier || '100'));
+                    // Net spread cost = pay to close short leg - receive credit from closing long leg
+                    // Only apply if result stays positive (guards against bad data)
+                    const netCost = buyBackCost - longBuyBackCredit;
+                    if (netCost >= 0) {
+                      buyBackCost = netCost;
+                      isSpread = true;
+                    }
                     break;
                   }
                 }
               }
 
-              // Realized % = (premiumReceived - currentCost) / premiumReceived × 100
-              const realizedPercent = ((premiumReceived - currentCost) / premiumReceived) * 100;
-              const estimatedProfit = premiumReceived - currentCost;
+              // Realized % = (premiumReceived - buyBackCost) / premiumReceived × 100
+              // Example: sold for $300, buy back for $3 → (300-3)/300 = 99%
+              const realizedPercent = ((premiumReceived - buyBackCost) / premiumReceived) * 100;
+              const estimatedProfit = premiumReceived - buyBackCost;
 
               // Parse expiration from option symbol or position fields
               const expiration = position['expires-at'] || null;
@@ -335,7 +341,7 @@ export const automationRouter = router({
               const strikeMatch = optionSymbol.match(/[CP](\d+)/);
               const strike = strikeMatch ? (parseFloat(strikeMatch[1]) / 1000).toFixed(2) : null;
 
-              console.log(`[Automation] ${underlyingSymbol} ${optionType}${isSpread ? ' (spread)' : ''}: premium=$${premiumReceived.toFixed(2)}, current=$${currentCost.toFixed(2)}, realized=${realizedPercent.toFixed(1)}%`);
+              console.log(`[Automation] ${underlyingSymbol} ${optionType}${isSpread ? ' (spread)' : ''}: premiumCollected=$${premiumReceived.toFixed(2)}, buyBackCost=$${buyBackCost.toFixed(2)}, realized=${realizedPercent.toFixed(1)}%`);
 
               if (realizedPercent >= settings.profitThresholdPercent) {
                 // This position should be closed
@@ -354,12 +360,12 @@ export const automationRouter = router({
                   status: 'pending' as const,
                 });
 
-                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premium: premiumReceived, current: currentCost, realizedPercent: Math.round(realizedPercent * 100) / 100, action: 'WOULD_CLOSE' });
+                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, action: 'WOULD_CLOSE' });
 
                 totalPositionsClosed++;
                 totalProfitRealized += estimatedProfit;
               } else {
-                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premium: premiumReceived, current: currentCost, realizedPercent: Math.round(realizedPercent * 100) / 100, action: 'BELOW_THRESHOLD' });
+                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, action: 'BELOW_THRESHOLD' });
               }
             }
 
