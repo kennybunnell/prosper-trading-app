@@ -250,6 +250,7 @@ export const automationRouter = router({
           buyBackCost: number;       // Current cost to close/buy back the position
           realizedPercent: number;   // (premiumCollected - buyBackCost) / premiumCollected × 100
           expiration: string | null; // ISO expiration date from Tastytrade
+          isEstimated: boolean;        // true when buy-back cost is from time-decay heuristic (close-price=0)
           action: 'WOULD_CLOSE' | 'BELOW_THRESHOLD' | 'SKIPPED';
           reason?: string;
         }> = [];
@@ -299,13 +300,38 @@ export const automationRouter = router({
               const premiumReceived = openPrice * quantity * multiplier;
 
               if (premiumReceived === 0) {
-                  scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: 0, buyBackCost: 0, realizedPercent: 0, expiration: position['expires-at'] || null, action: 'SKIPPED', reason: 'No premium data (average-open-price is 0)' });
+                  scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: 0, buyBackCost: 0, realizedPercent: 0, expiration: position['expires-at'] || null, isEstimated: false, action: 'SKIPPED', reason: 'No premium data (average-open-price is 0)' });
                 continue;
               }
+
+              // Parse expiration early so it's available for the time-decay heuristic
+              const expiration = position['expires-at'] || null;
 
               // Current cost = what it costs to buy back now (always positive — this is what we PAY)
               const closePrice = Math.abs(parseFloat(String(position['close-price'] || '0')));
               let buyBackCost = closePrice * quantity * multiplier;
+
+              // Time-decay heuristic: when close-price is 0 (API has no quote), estimate using
+              // theta decay formula: estimatedPerShare = openPrice × sqrt(daysRemaining / daysOriginal)
+              // This gives a realistic near-zero estimate for deeply OTM options
+              let isEstimated = false;
+              if (closePrice === 0 && expiration) {
+                const now = new Date();
+                const expDate = new Date(expiration);
+                const daysRemaining = Math.max(0, (expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                // Assume original DTE of 30 days if we can't determine it
+                // (conservative: shorter assumed DTE = higher estimated cost)
+                const daysOriginal = 30;
+                if (daysRemaining > 0) {
+                  const decayFactor = Math.sqrt(daysRemaining / daysOriginal);
+                  const estimatedPerShare = openPrice * decayFactor;
+                  // Floor at $0.01 per share minimum (options rarely trade below this)
+                  const flooredPerShare = Math.max(0.01, estimatedPerShare);
+                  buyBackCost = flooredPerShare * quantity * multiplier;
+                  isEstimated = true;
+                  console.log(`[Automation] ${underlyingSymbol} ${optionType}: close-price=0, using time-decay estimate: $${buyBackCost.toFixed(2)} (${daysRemaining.toFixed(1)} days remaining, decay=${decayFactor.toFixed(3)})`);
+                }
+              }
 
               // Spread detection: look for matching long leg on the SAME expiration and same put/call type
               // Only net the spread if the long leg's close price is LOWER than the short leg's
@@ -335,9 +361,6 @@ export const automationRouter = router({
               const realizedPercent = ((premiumReceived - buyBackCost) / premiumReceived) * 100;
               const estimatedProfit = premiumReceived - buyBackCost;
 
-              // Parse expiration from option symbol or position fields
-              const expiration = position['expires-at'] || null;
-
               // Parse strike from option symbol (e.g., AAPL250117P00150000 -> 150)
               const strikeMatch = optionSymbol.match(/[CP](\d+)/);
               const strike = strikeMatch ? (parseFloat(strikeMatch[1]) / 1000).toFixed(2) : null;
@@ -361,12 +384,12 @@ export const automationRouter = router({
                   status: 'pending' as const,
                 });
 
-                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, action: 'WOULD_CLOSE' });
+                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, isEstimated, action: 'WOULD_CLOSE' });
 
                 totalPositionsClosed++;
                 totalProfitRealized += estimatedProfit;
               } else {
-                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, action: 'BELOW_THRESHOLD' });
+                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, isEstimated, action: 'BELOW_THRESHOLD' });
               }
             }
 

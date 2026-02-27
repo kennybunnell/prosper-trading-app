@@ -38,6 +38,7 @@ type ScanResult = {
   buyBackCost: number;       // Current $ cost to close the position
   realizedPercent: number;   // (premiumCollected - buyBackCost) / premiumCollected × 100
   expiration: string | null; // ISO expiration date from Tastytrade
+  isEstimated: boolean;       // true when buy-back cost is from time-decay heuristic
   action: 'WOULD_CLOSE' | 'BELOW_THRESHOLD' | 'SKIPPED';
   reason?: string;
 };
@@ -476,8 +477,17 @@ export default function AutomationDashboard() {
                           <td className="py-2.5 pr-4 text-right font-mono text-green-400">
                             ${result.premiumCollected.toFixed(2)}
                           </td>
-                          <td className="py-2.5 pr-4 text-right font-mono text-amber-400">
-                            ${result.buyBackCost.toFixed(2)}
+                          <td className="py-2.5 pr-4 text-right font-mono">
+                            {result.isEstimated ? (
+                              <span className="text-orange-400" title="Estimated via time-decay heuristic (no live quote available)">
+                                ~${result.buyBackCost.toFixed(2)}
+                                <span className="text-xs ml-1 opacity-70">est.</span>
+                              </span>
+                            ) : (
+                              <span className="text-amber-400">
+                                ${result.buyBackCost.toFixed(2)}
+                              </span>
+                            )}
                           </td>
                           <td className="py-2.5 pr-4 text-right">
                             <span
