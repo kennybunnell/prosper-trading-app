@@ -247,6 +247,49 @@ export async function approvePendingOrders(orderIds: number[]) {
 }
 
 /**
+ * Delete a specific automation log (pending orders cascade via FK)
+ */
+export async function deleteAutomationLog(runId: string) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+
+  // Delete pending orders first (in case cascade isn't set up)
+  await db
+    .delete(automationPendingOrders)
+    .where(eq(automationPendingOrders.runId, runId));
+
+  await db
+    .delete(automationLogs)
+    .where(eq(automationLogs.runId, runId));
+}
+
+/**
+ * Clear all automation logs for a user
+ */
+export async function clearAllAutomationLogs(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+
+  // Get all runIds for this user first
+  const logs = await db
+    .select({ runId: automationLogs.runId })
+    .from(automationLogs)
+    .where(eq(automationLogs.userId, userId));
+
+  // Delete pending orders for all runs
+  for (const log of logs) {
+    await db
+      .delete(automationPendingOrders)
+      .where(eq(automationPendingOrders.runId, log.runId));
+  }
+
+  // Delete all logs
+  await db
+    .delete(automationLogs)
+    .where(eq(automationLogs.userId, userId));
+}
+
+/**
  * Reject specific pending orders
  */
 export async function rejectPendingOrders(orderIds: number[]) {

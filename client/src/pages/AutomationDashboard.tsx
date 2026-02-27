@@ -13,8 +13,19 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle,
-  TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye
+  TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
 type ScanResult = {
@@ -65,7 +76,25 @@ export default function AutomationDashboard() {
   const { data: settings, isLoading: settingsLoading } = trpc.automation.getSettings.useQuery();
   
   // Fetch automation logs
-  const { data: logs, isLoading: logsLoading, refetch: refetchLogs } = trpc.automation.getLogs.useQuery({ limit: 10 });
+  const { data: logs, isLoading: logsLoading, refetch: refetchLogs } = trpc.automation.getLogs.useQuery({ limit: 20 });
+
+  // Delete a single log
+  const deleteLog = trpc.automation.deleteLog.useMutation({
+    onSuccess: () => {
+      refetchLogs();
+      toast.success('Run deleted');
+    },
+    onError: (err) => toast.error(`Failed to delete: ${err.message}`),
+  });
+
+  // Clear all logs
+  const clearAllLogs = trpc.automation.clearAllLogs.useMutation({
+    onSuccess: () => {
+      refetchLogs();
+      toast.success('All history cleared');
+    },
+    onError: (err) => toast.error(`Failed to clear: ${err.message}`),
+  });
 
   // Update settings mutation
   const updateSettings = trpc.automation.updateSettings.useMutation({
@@ -486,8 +515,39 @@ export default function AutomationDashboard() {
       {/* Execution History */}
       <Card>
         <CardHeader>
-          <CardTitle>Execution History</CardTitle>
-          <CardDescription>Recent automation runs and their results</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Execution History</CardTitle>
+              <CardDescription>Recent automation runs and their results</CardDescription>
+            </div>
+            {logs && logs.length > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-red-400 border-red-400/30 hover:bg-red-400/10">
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Clear All
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Clear all execution history?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete all {logs.length} automation run records. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-red-600 hover:bg-red-700"
+                      onClick={() => clearAllLogs.mutate()}
+                    >
+                      Delete All
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {logsLoading ? (
@@ -530,20 +590,46 @@ export default function AutomationDashboard() {
                         {log.accountsProcessed} account{log.accountsProcessed !== 1 ? 's' : ''} processed
                       </p>
                       {log.errorMessage && (
-                        <p className="text-sm text-red-500 mt-1">
-                          Error: {log.errorMessage}
+                        <p className="text-sm text-red-500 mt-1 max-w-lg truncate" title={log.errorMessage}>
+                          Error: {log.errorMessage.length > 120 ? log.errorMessage.slice(0, 120) + '…' : log.errorMessage}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0">
-                    <p className="font-semibold text-green-400">
-                      +${log.totalProfitRealized}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      ${log.totalPremiumCollected} premium
-                    </p>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <p className="font-semibold text-green-400">
+                        +${log.totalProfitRealized}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        ${log.totalPremiumCollected} premium
+                      </p>
+                    </div>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-400">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete this run?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete the run from {new Date(log.startedAt).toLocaleString()}. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-red-600 hover:bg-red-700"
+                            onClick={() => deleteLog.mutate({ runId: log.runId })}
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               ))}

@@ -722,9 +722,9 @@ export const automationPendingOrders = mysqlTable("automationPendingOrders", {
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   accountNumber: varchar("accountNumber", { length: 64 }).notNull(),
   orderType: mysqlEnum("orderType", ["close_position", "open_covered_call"]).notNull(),
-  symbol: varchar("symbol", { length: 10 }).notNull(),
+  symbol: varchar("symbol", { length: 64 }).notNull(),  // Option symbols can be 21+ chars e.g. AAPL250117P00150000
   strike: varchar("strike", { length: 20 }),
-  expiration: varchar("expiration", { length: 20 }),
+  expiration: varchar("expiration", { length: 64 }),  // ISO timestamps from Tastytrade can be 25+ chars
   quantity: int("quantity").notNull(),
   price: varchar("price", { length: 20 }).notNull(),
   // Additional context

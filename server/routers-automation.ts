@@ -14,6 +14,8 @@ import {
   updateAutomationLog,
   getAutomationLogs,
   getAutomationLog,
+  deleteAutomationLog,
+  clearAllAutomationLogs,
   createPendingOrders,
   getPendingOrders,
   approvePendingOrders,
@@ -77,6 +79,32 @@ export const automationRouter = router({
         });
       }
       return log;
+    }),
+
+  /**
+   * Delete a specific automation log (and its pending orders via cascade)
+   */
+  deleteLog: protectedProcedure
+    .input(z.object({ runId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const log = await getAutomationLog(input.runId);
+      if (!log || log.userId !== ctx.user.id) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Automation log not found',
+        });
+      }
+      await deleteAutomationLog(input.runId);
+      return { success: true };
+    }),
+
+  /**
+   * Delete all automation logs for the current user
+   */
+  clearAllLogs: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      await clearAllAutomationLogs(ctx.user.id);
+      return { success: true };
     }),
 
   /**
