@@ -79,6 +79,7 @@ export default function AutomationDashboard() {
   const [showOrderPreview, setShowOrderPreview] = useState(false);
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
   const [previewAccountId, setPreviewAccountId] = useState<string>('');
+  const [previewPremiumCollected, setPreviewPremiumCollected] = useState<number>(0);
   const [orderSubmissionComplete, setOrderSubmissionComplete] = useState(false);
   const [orderFinalStatus, setOrderFinalStatus] = useState<string | null>(null);
 
@@ -100,6 +101,7 @@ export default function AutomationDashboard() {
     };
     setPreviewAccountId(result.account);
     setUnifiedOrders([order]);
+    setPreviewPremiumCollected(result.premiumCollected);
     setOrderSubmissionComplete(false);
     setOrderFinalStatus(null);
     // Temporarily set selected positions to just this one so handleUnifiedSubmit works
@@ -137,6 +139,9 @@ export default function AutomationDashboard() {
         currentPrice: r.buyBackCost / (r.quantity * 100),
       };
     });
+    // Sum up total premium collected across all selected positions
+    const totalPremiumCollected = selected.reduce((sum, r) => sum + r.premiumCollected, 0);
+    setPreviewPremiumCollected(totalPremiumCollected);
     setUnifiedOrders(orders);
     setOrderSubmissionComplete(false);
     setOrderFinalStatus(null);
@@ -901,6 +906,7 @@ export default function AutomationDashboard() {
           strategy="btc"
           accountId={previewAccountId}
           availableBuyingPower={0}
+          premiumCollected={previewPremiumCollected}
           onSubmit={handleUnifiedSubmit}
           onPollStatuses={handlePollStatuses}
           allowQuantityEdit={false}

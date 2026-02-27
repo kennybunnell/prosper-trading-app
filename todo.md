@@ -6512,3 +6512,6 @@
 - [x] Fix auto-select to never include DTE=0 positions (expiring today should never be auto-selected)
 - [x] Make "Ready to Close" badge a clickable button that opens the order modal for just that single position
 - [x] Ensure select-all checkbox also excludes DTE=0 positions regardless of hide/show toggle state
+
+## Order Preview Modal Fixes (Session 2026-02-27 Part 3)
+- [x] Fix UnifiedOrderPreviewModal summary section for BTC orders: show Total Premium Received, Total Buy-Back Cost, and Estimated Profit instead of collateral/BP fields

@@ -107,6 +107,7 @@ export interface UnifiedOrderPreviewModalProps {
   allowQuantityEdit?: boolean; // False for closing orders (default: true)
   tradingMode?: "live" | "paper";
   initialSkipDryRun?: boolean; // If true, modal opens with "Submit Live" button instead of "Execute Dry Run"
+  premiumCollected?: number; // For BTC orders: total premium originally collected (to show profit calculation)
   
   // Lifted state for persistence across re-renders
   submissionComplete?: boolean;
@@ -131,6 +132,7 @@ export function UnifiedOrderPreviewModal({
   allowQuantityEdit = true,
   tradingMode = "live",
   initialSkipDryRun = false,
+  premiumCollected,
   submissionComplete: externalSubmissionComplete,
   finalOrderStatus: externalFinalOrderStatus,
   onSubmissionStateChange,
@@ -1072,35 +1074,70 @@ export function UnifiedOrderPreviewModal({
           {!isPolling && (
             <div className="p-4 bg-muted/30 rounded-lg border space-y-2">
               <h4 className="font-semibold mb-3">Summary</h4>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Premium:</span>
-                  <span className="font-medium text-green-500">${calculateTotalPremium().toFixed(2)}</span>
+              {(strategy === 'btc' || strategy === 'roll') ? (
+                // BTC / Roll summary: show premium received vs buy-back cost vs estimated profit
+                <div className="space-y-2 text-sm">
+                  {premiumCollected !== undefined && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total Premium Received:</span>
+                      <span className="font-medium text-green-400">${premiumCollected.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total Buy-Back Cost:</span>
+                    <span className="font-medium text-red-400">${calculateTotalCollateral().toFixed(2)}</span>
+                  </div>
+                  {premiumCollected !== undefined && (
+                    <div className="flex justify-between pt-2 border-t border-border/50">
+                      <span className="text-muted-foreground font-medium">Estimated Profit:</span>
+                      <span className={`font-semibold ${
+                        (premiumCollected - calculateTotalCollateral()) >= 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        ${(premiumCollected - calculateTotalCollateral()).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {premiumCollected !== undefined && premiumCollected > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Realized %:</span>
+                      <span className="font-semibold text-blue-400">
+                        {(((premiumCollected - calculateTotalCollateral()) / premiumCollected) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Collateral:</span>
-                  <span className="font-medium">${calculateTotalCollateral().toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Available BP:</span>
-                  <span className="font-medium">${availableBuyingPower.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Remaining BP:</span>
-                  <span className={`font-medium ${(availableBuyingPower - calculateTotalCollateral()) < 0 ? "text-red-500" : "text-green-500"}`}>
-                    ${(availableBuyingPower - calculateTotalCollateral()).toFixed(2)}
-                  </span>
-                </div>
-                {/* ROC % - Only show for spread strategies (BPS, BCS, IC) */}
-                {(strategy === 'bps' || strategy === 'bcs' || strategy === 'iron_condor') && calculateTotalCollateral() > 0 && (
-                  <div className="flex justify-between col-span-2 pt-2 border-t border-border/50">
-                    <span className="text-muted-foreground font-medium">Return on Capital:</span>
-                    <span className="font-semibold text-blue-400">
-                      {((calculateTotalPremium() / calculateTotalCollateral()) * 100).toFixed(2)}%
+              ) : (
+                // Standard summary for STO strategies (CSP, CC, spreads, etc.)
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total Premium:</span>
+                    <span className="font-medium text-green-500">${calculateTotalPremium().toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total Collateral:</span>
+                    <span className="font-medium">${calculateTotalCollateral().toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Available BP:</span>
+                    <span className="font-medium">${availableBuyingPower.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Remaining BP:</span>
+                    <span className={`font-medium ${(availableBuyingPower - calculateTotalCollateral()) < 0 ? "text-red-500" : "text-green-500"}`}>
+                      ${(availableBuyingPower - calculateTotalCollateral()).toFixed(2)}
                     </span>
                   </div>
-                )}
-              </div>
+                  {/* ROC % - Only show for spread strategies (BPS, BCS, IC) */}
+                  {(strategy === 'bps' || strategy === 'bcs' || strategy === 'iron_condor') && calculateTotalCollateral() > 0 && (
+                    <div className="flex justify-between col-span-2 pt-2 border-t border-border/50">
+                      <span className="text-muted-foreground font-medium">Return on Capital:</span>
+                      <span className="font-semibold text-blue-400">
+                        {((calculateTotalPremium() / calculateTotalCollateral()) * 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
           
