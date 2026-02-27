@@ -491,6 +491,7 @@ export const automationRouter = router({
             isEstimated: z.boolean(),
           })
         ),
+        dryRun: z.boolean().optional().default(false),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -524,6 +525,23 @@ export const automationRouter = router({
           const pricePerShare = order.buyBackCost / (order.quantity * 100);
           // Use a limit price slightly above current cost to ensure fill (add $0.01 buffer)
           const limitPrice = Math.max(0.01, Math.ceil((pricePerShare + 0.01) * 100) / 100);
+
+          // Dry run: skip actual order submission
+          if (input.dryRun) {
+            console.log('[Automation submitCloseOrders] DRY RUN — would submit BTC order:', {
+              symbol: order.symbol, optionSymbol: order.optionSymbol,
+              accountNumber: order.accountNumber, quantity: order.quantity,
+              pricePerShare, limitPrice, isEstimated: order.isEstimated,
+            });
+            results.push({
+              symbol: order.symbol,
+              optionSymbol: order.optionSymbol,
+              success: true,
+              orderId: `dry-run-${order.optionSymbol}`,
+              message: `[Dry Run] Would submit BTC limit @ $${limitPrice.toFixed(2)}`,
+            });
+            continue;
+          }
 
           console.log('[Automation submitCloseOrders] Submitting BTC order:', {
             symbol: order.symbol,

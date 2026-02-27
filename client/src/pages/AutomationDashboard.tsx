@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { UnifiedOrderPreviewModal, UnifiedOrder } from '@/components/UnifiedOrderPreviewModal';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle,
-  TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2, Square, CheckSquare, Send
+  TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2, Square, CheckSquare, Send, ShoppingCart
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -72,6 +73,48 @@ export default function AutomationDashboard() {
   const [selectedPositions, setSelectedPositions] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  // UnifiedOrderPreviewModal state
+  const [showOrderPreview, setShowOrderPreview] = useState(false);
+  const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
+  const [previewAccountId, setPreviewAccountId] = useState<string>('');
+  const [orderSubmissionComplete, setOrderSubmissionComplete] = useState(false);
+  const [orderFinalStatus, setOrderFinalStatus] = useState<string | null>(null);
+
+  // Build UnifiedOrders from selected scan results and open the preview modal
+  const handleOpenOrderPreview = useCallback(() => {
+    if (!lastRunResult) return;
+    const selected = lastRunResult.scanResults.filter(
+      r => selectedPositions.has(`${r.optionSymbol}|${r.account}`) && r.action === 'WOULD_CLOSE'
+    );
+    if (selected.length === 0) return;
+
+    // Group by account — use the first account as the modal accountId
+    const firstAccount = selected[0].account;
+    setPreviewAccountId(firstAccount);
+
+    // Map each selected scan result to a UnifiedOrder (BTC)
+    const orders: UnifiedOrder[] = selected.map(r => {
+      const isCall = r.type === 'CC';
+      // Parse strike from option symbol e.g. AAPL250117C00150000 → 150
+      const strikeMatch = r.optionSymbol.match(/(\d{8})[CP](\d{8})$/);
+      const strike = strikeMatch ? parseInt(strikeMatch[2], 10) / 1000 : 0;
+      return {
+        symbol: r.symbol,
+        strike,
+        expiration: r.expiration ?? '',
+        premium: r.buyBackCost / (r.quantity * 100), // per-share price
+        action: 'BTC',
+        optionType: isCall ? 'CALL' : 'PUT',
+        bid: r.buyBackCost / (r.quantity * 100),
+        ask: r.buyBackCost / (r.quantity * 100),
+        currentPrice: r.buyBackCost / (r.quantity * 100),
+      };
+    });
+    setUnifiedOrders(orders);
+    setOrderSubmissionComplete(false);
+    setOrderFinalStatus(null);
+    setShowOrderPreview(true);
+  }, [lastRunResult, selectedPositions]);
 
   const submitCloseOrders = trpc.automation.submitCloseOrders.useMutation({
     onSuccess: (data) => {
@@ -107,6 +150,71 @@ export default function AutomationDashboard() {
       }));
     setIsSubmitting(true);
     submitCloseOrders.mutate({ orders: selected });
+  };
+
+  // onSubmit callback for UnifiedOrderPreviewModal
+  const handleUnifiedSubmit = async (
+    orders: UnifiedOrder[],
+    quantities: Map<string, number>,
+    isDryRun: boolean
+  ): Promise<{ results: any[] }> => {
+    if (!lastRunResult) return { results: [] };
+    const selected = lastRunResult.scanResults.filter(
+      r => selectedPositions.has(`${r.optionSymbol}|${r.account}`) && r.action === 'WOULD_CLOSE'
+    ).map(r => ({
+      accountNumber: r.account,
+      optionSymbol: r.optionSymbol,
+      symbol: r.symbol,
+      quantity: r.quantity,
+      buyBackCost: r.buyBackCost,
+      isEstimated: r.isEstimated,
+    }));
+    try {
+      const response = await submitCloseOrders.mutateAsync({ orders: selected, dryRun: isDryRun });
+      return { results: response.results ?? [] };
+    } catch (err: any) {
+      return { results: [] };
+    }
+  };
+
+  // Poll order statuses for UnifiedOrderPreviewModal (matches Performance.tsx pattern)
+  const handlePollStatuses = async (
+    orderIds: string[],
+    accountId: string
+  ): Promise<Array<{
+    orderId: string;
+    symbol: string;
+    status: 'Filled' | 'Working' | 'Cancelled' | 'Rejected' | 'MarketClosed' | 'Pending';
+    message?: string;
+  }>> => {
+    try {
+      const statusMap = await utils.orders.checkStatusBatch.fetch({ accountId, orderIds });
+      return orderIds.map((orderId, idx) => {
+        const s = statusMap[orderId];
+        const mappedStatus = s?.status === 'Unknown' ? 'Rejected' as const : (s?.status ?? 'Rejected' as const);
+        return {
+          orderId,
+          symbol: unifiedOrders[idx]?.symbol ?? 'Unknown',
+          status: mappedStatus,
+          message: s?.status === 'Filled'
+            ? 'Order filled successfully'
+            : s?.status === 'Rejected'
+            ? `Order rejected: ${(s as any).rejectedReason ?? 'Unknown reason'}`
+            : s?.status === 'MarketClosed'
+            ? (s as any).marketClosedMessage ?? 'Market is closed'
+            : s?.status === 'Working'
+            ? 'Order is working'
+            : 'Status unknown',
+        };
+      });
+    } catch (error: any) {
+      return orderIds.map((orderId, idx) => ({
+        orderId,
+        symbol: unifiedOrders[idx]?.symbol ?? 'Unknown',
+        status: 'Rejected' as const,
+        message: `Failed to check status: ${error.message}`,
+      }));
+    }
   };
 
   const wouldCloseResults = lastRunResult?.scanResults.filter(r => r.action === 'WOULD_CLOSE') ?? [];
@@ -674,52 +782,51 @@ export default function AutomationDashboard() {
                     >
                       Clear Selection
                     </Button>
-                    <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          disabled={isSubmitting}
-                          onClick={() => {
-                            if (settings?.dryRunMode) {
-                              toast.info('Disable Dry Run Mode in settings to submit real orders');
-                              return;
-                            }
-                            setShowSubmitConfirm(true);
-                          }}
-                        >
-                          {isSubmitting ? (
-                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                          ) : (
-                            <Send className="h-4 w-4 mr-1" />
-                          )}
-                          {settings?.dryRunMode ? 'Submit Orders (Dry Run Off to Enable)' : `Submit ${selectedPositions.size} Close Order${selectedPositions.size !== 1 ? 's' : ''}`}
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Submit {selectedPositions.size} Buy-to-Close Orders?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will send <strong>{selectedPositions.size} real limit order{selectedPositions.size !== 1 ? 's' : ''}</strong> to Tastytrade to close the selected positions. Orders will be placed at a limit price slightly above the current buy-back cost to ensure a fill. This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            className="bg-green-600 hover:bg-green-700"
-                            onClick={handleSubmitOrders}
-                          >
-                            Confirm — Submit Orders
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={handleOpenOrderPreview}
+                    >
+                      <ShoppingCart className="h-4 w-4 mr-1" />
+                      Review &amp; Submit {selectedPositions.size} Order{selectedPositions.size !== 1 ? 's' : ''}
+                    </Button>
                   </div>
                 </div>
               )}
             </CardContent>
           )}
         </Card>
+      )}
+
+      {/* Unified Order Preview Modal */}
+      {showOrderPreview && unifiedOrders.length > 0 && (
+        <UnifiedOrderPreviewModal
+          open={showOrderPreview}
+          onOpenChange={(open) => {
+            setShowOrderPreview(open);
+            if (!open && orderSubmissionComplete) {
+              setSelectedPositions(new Set());
+              setUnifiedOrders([]);
+              setOrderSubmissionComplete(false);
+              setOrderFinalStatus(null);
+            }
+          }}
+          orders={unifiedOrders}
+          strategy="btc"
+          accountId={previewAccountId}
+          availableBuyingPower={0}
+          onSubmit={handleUnifiedSubmit}
+          onPollStatuses={handlePollStatuses}
+          allowQuantityEdit={false}
+          tradingMode="live"
+          initialSkipDryRun={false}
+          submissionComplete={orderSubmissionComplete}
+          finalOrderStatus={orderFinalStatus}
+          onSubmissionStateChange={(complete, status) => {
+            setOrderSubmissionComplete(complete);
+            setOrderFinalStatus(status);
+          }}
+        />
       )}
 
       {/* Execution History */}
