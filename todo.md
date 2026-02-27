@@ -6474,3 +6474,11 @@
 - [x] Add navigation (sidebar + routing with Zap icon)
 - [ ] Test automation in dry run mode
 - [ ] Write unit tests for automation procedures
+
+## Move Automation to Action Items Tab
+- [x] Add Automation as first tab in Action Items page (tab order: Automation, Daily Tasks, Active Positions, Working Orders, Inbox)
+- [x] Embed AutomationDashboard content inside the Automation tab
+- [x] Remove Automation from sidebar navigation
+- [x] Remove unused Zap import from Sidebar
+- [x] Default active tab set to automation so it opens first
+- [x] Test tab navigation - compiles with no TypeScript errors

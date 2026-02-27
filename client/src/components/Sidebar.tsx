@@ -23,7 +23,6 @@ import {
   ClipboardList,
   Sparkles,
   Inbox,
-  Zap,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -100,11 +99,6 @@ export function Sidebar({ className }: SidebarProps) {
       name: 'Strategy Advisor',
       path: '/strategy-advisor',
       icon: Sparkles,
-    },
-    {
-      name: 'Automation',
-      path: '/automation',
-      icon: Zap,
     },
     {
       name: 'CSP - BPS',

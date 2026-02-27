@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
 import { skipToken } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, TrendingUp, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, TrendingUp, RefreshCw, Zap } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 
@@ -17,6 +17,9 @@ import { OrderPreviewModal } from "@/components/OrderPreviewModal";
 
 // Import Inbox page component
 import Inbox from "./Inbox";
+
+// Import AutomationDashboard
+import AutomationDashboard from "./AutomationDashboard";
 import { RollsTable } from "@/components/RollsTable";
 import { useToast } from "@/hooks/use-toast";
 import { useAccount } from "@/contexts/AccountContext";
@@ -24,7 +27,7 @@ import { useTradingMode } from "@/contexts/TradingModeContext";
 
 export default function ActionItems() {
   const { mode: tradingMode } = useTradingMode();
-  const [activeTab, setActiveTab] = useState('daily-tasks');
+  const [activeTab, setActiveTab] = useState('automation');
   const [, setLocation] = useLocation();
   const { selectedAccountId } = useAccount();
   
@@ -244,12 +247,21 @@ export default function ActionItems() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="automation" className="flex items-center gap-1.5">
+            <Zap className="h-3.5 w-3.5" />
+            Automation
+          </TabsTrigger>
           <TabsTrigger value="daily-tasks">Daily Tasks</TabsTrigger>
           <TabsTrigger value="active-positions">Active Positions</TabsTrigger>
           <TabsTrigger value="working-orders">Working Orders</TabsTrigger>
           <TabsTrigger value="inbox">Inbox</TabsTrigger>
         </TabsList>
+
+        {/* Automation Tab */}
+        <TabsContent value="automation" className="space-y-6">
+          <AutomationDashboard />
+        </TabsContent>
 
         {/* Daily Tasks Tab */}
         <TabsContent value="daily-tasks" className="space-y-6">
