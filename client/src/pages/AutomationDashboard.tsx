@@ -3,7 +3,7 @@
  * Control panel for managing automated trading workflows
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle,
-  TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2
+  TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2, Square, CheckSquare, Send
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,6 +39,7 @@ type ScanResult = {
   buyBackCost: number;       // Current $ cost to close the position
   realizedPercent: number;   // (premiumCollected - buyBackCost) / premiumCollected × 100
   expiration: string | null; // ISO expiration date from Tastytrade
+  dte: number | null;          // Days to expiration (0 = expires today)
   isEstimated: boolean;       // true when buy-back cost is from time-decay heuristic
   action: 'WOULD_CLOSE' | 'BELOW_THRESHOLD' | 'SKIPPED';
   reason?: string;
@@ -67,6 +69,67 @@ export default function AutomationDashboard() {
   const [lastRunResult, setLastRunResult] = useState<RunResult | null>(null);
   const [showScanResults, setShowScanResults] = useState(true);
   const [lastRunId, setLastRunId] = useState<string | null>(null);
+  const [selectedPositions, setSelectedPositions] = useState<Set<number>>(new Set());
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+
+  const submitCloseOrders = trpc.automation.submitCloseOrders.useMutation({
+    onSuccess: (data) => {
+      setIsSubmitting(false);
+      setShowSubmitConfirm(false);
+      if (data.failCount === 0) {
+        toast.success(`${data.successCount} close order${data.successCount !== 1 ? 's' : ''} submitted successfully!`);
+      } else {
+        toast.warning(`${data.successCount} submitted, ${data.failCount} failed. Check Working Orders for details.`);
+      }
+      setSelectedPositions(new Set());
+    },
+    onError: (err) => {
+      setIsSubmitting(false);
+      toast.error(`Order submission failed: ${err.message}`);
+    },
+  });
+
+  const handleSubmitOrders = () => {
+    if (!lastRunResult) return;
+    const selected = lastRunResult.scanResults
+      .filter((r, i) => selectedPositions.has(i) && r.action === 'WOULD_CLOSE')
+      .map(r => ({
+        accountNumber: r.account,
+        optionSymbol: r.optionSymbol,
+        symbol: r.symbol,
+        quantity: r.quantity,
+        buyBackCost: r.buyBackCost,
+        isEstimated: r.isEstimated,
+      }));
+    setIsSubmitting(true);
+    submitCloseOrders.mutate({ orders: selected });
+  };
+
+  const wouldCloseResults = lastRunResult?.scanResults.filter(r => r.action === 'WOULD_CLOSE') ?? [];
+  const allSelected = wouldCloseResults.length > 0 && wouldCloseResults.every((_, i) =>
+    selectedPositions.has(lastRunResult!.scanResults.indexOf(wouldCloseResults[i]))
+  );
+
+  const toggleSelectAll = useCallback(() => {
+    if (!lastRunResult) return;
+    if (allSelected) {
+      setSelectedPositions(new Set());
+    } else {
+      const indices = new Set(lastRunResult.scanResults
+        .map((r, i) => r.action === 'WOULD_CLOSE' ? i : -1)
+        .filter(i => i !== -1));
+      setSelectedPositions(indices);
+    }
+  }, [lastRunResult, allSelected]);
+
+  const togglePosition = useCallback((idx: number) => {
+    setSelectedPositions(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  }, []);
 
   // After a run completes, fetch the log to get scanResultsJson
   const { data: latestLog } = trpc.automation.getLog.useQuery(
@@ -116,6 +179,11 @@ export default function AutomationDashboard() {
       const parsed: ScanResult[] = latestLog.scanResultsJson ? JSON.parse(latestLog.scanResultsJson as string) : [];
       if (parsed.length > 0) {
         setLastRunResult(prev => prev ? { ...prev, scanResults: parsed } : prev);
+        // Auto-select all WOULD_CLOSE positions
+        const indices = new Set(parsed
+          .map((r, i) => r.action === 'WOULD_CLOSE' ? i : -1)
+          .filter(i => i !== -1));
+        setSelectedPositions(indices);
       }
     }
   }, [latestLog]);
@@ -421,11 +489,19 @@ export default function AutomationDashboard() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-muted-foreground">
+                      <th className="py-2 pr-2 w-8">
+                        <Checkbox
+                          checked={allSelected}
+                          onCheckedChange={toggleSelectAll}
+                          aria-label="Select all closeable positions"
+                        />
+                      </th>
                       <th className="text-left py-2 pr-4 font-medium">Symbol</th>
                       <th className="text-left py-2 pr-4 font-medium">Type</th>
                       <th className="text-left py-2 pr-4 font-medium">Account</th>
                       <th className="text-right py-2 pr-4 font-medium">Qty</th>
                       <th className="text-left py-2 pr-4 font-medium">Expiration</th>
+                      <th className="text-right py-2 pr-2 font-medium">DTE</th>
                       <th className="text-right py-2 pr-4 font-medium">Premium Collected</th>
                       <th className="text-right py-2 pr-4 font-medium">Buy-Back Cost</th>
                       <th className="text-right py-2 pr-4 font-medium">Realized %</th>
@@ -439,9 +515,20 @@ export default function AutomationDashboard() {
                         <tr
                           key={idx}
                           className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${
-                            result.action === 'WOULD_CLOSE' ? 'bg-green-500/5' : ''
+                            result.action === 'WOULD_CLOSE'
+                              ? selectedPositions.has(idx) ? 'bg-green-500/10' : 'bg-green-500/5'
+                              : ''
                           }`}
                         >
+                          <td className="py-2.5 pr-2">
+                            {result.action === 'WOULD_CLOSE' ? (
+                              <Checkbox
+                                checked={selectedPositions.has(idx)}
+                                onCheckedChange={() => togglePosition(idx)}
+                                aria-label={`Select ${result.symbol}`}
+                              />
+                            ) : <span />}
+                          </td>
                           <td className="py-2.5 pr-4">
                             <span className="font-semibold">{result.symbol}</span>
                             <span className="text-xs text-muted-foreground block truncate max-w-[120px]" title={result.optionSymbol}>
@@ -473,6 +560,17 @@ export default function AutomationDashboard() {
                                 <span className="text-sm font-mono">{formatted}</span>
                               );
                             })()}
+                          </td>
+                          <td className="py-2.5 pr-4 text-right font-mono text-xs">
+                            {result.dte === null ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : result.dte === 0 ? (
+                              <span className="text-red-400 font-semibold">0</span>
+                            ) : result.dte <= 7 ? (
+                              <span className="text-amber-400 font-semibold">{result.dte}</span>
+                            ) : (
+                              <span className="text-muted-foreground">{result.dte}</span>
+                            )}
                           </td>
                           <td className="py-2.5 pr-4 text-right font-mono text-green-400">
                             ${result.premiumCollected.toFixed(2)}
@@ -531,6 +629,70 @@ export default function AutomationDashboard() {
                   <TrendingDown className="h-10 w-10 mx-auto mb-3 opacity-40" />
                   <p>No short option positions found in any account</p>
                   <p className="text-sm mt-1">Make sure your Tastytrade account has open CSP or CC positions</p>
+                </div>
+              )}
+
+              {/* Approval Queue Submit Bar */}
+              {selectedPositions.size > 0 && (
+                <div className="mt-4 p-4 rounded-lg bg-green-500/10 border border-green-500/30 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-green-400">{selectedPositions.size} position{selectedPositions.size !== 1 ? 's' : ''} selected</span>
+                    <span className="text-sm text-muted-foreground ml-2">
+                      Est. profit: ${lastRunResult.scanResults
+                        .filter((_, i) => selectedPositions.has(i))
+                        .reduce((sum, r) => sum + (r.premiumCollected - r.buyBackCost), 0)
+                        .toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedPositions(new Set())}
+                    >
+                      Clear Selection
+                    </Button>
+                    <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          disabled={isSubmitting}
+                          onClick={() => {
+                            if (settings?.dryRunMode) {
+                              toast.info('Disable Dry Run Mode in settings to submit real orders');
+                              return;
+                            }
+                            setShowSubmitConfirm(true);
+                          }}
+                        >
+                          {isSubmitting ? (
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4 mr-1" />
+                          )}
+                          {settings?.dryRunMode ? 'Submit Orders (Dry Run Off to Enable)' : `Submit ${selectedPositions.size} Close Order${selectedPositions.size !== 1 ? 's' : ''}`}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Submit {selectedPositions.size} Buy-to-Close Orders?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will send <strong>{selectedPositions.size} real limit order{selectedPositions.size !== 1 ? 's' : ''}</strong> to Tastytrade to close the selected positions. Orders will be placed at a limit price slightly above the current buy-back cost to ensure a fill. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={handleSubmitOrders}
+                          >
+                            Confirm — Submit Orders
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
               )}
             </CardContent>

@@ -250,6 +250,7 @@ export const automationRouter = router({
           buyBackCost: number;       // Current cost to close/buy back the position
           realizedPercent: number;   // (premiumCollected - buyBackCost) / premiumCollected × 100
           expiration: string | null; // ISO expiration date from Tastytrade
+          dte: number | null;          // Days to expiration (0 = expires today)
           isEstimated: boolean;        // true when buy-back cost is from time-decay heuristic (close-price=0)
           action: 'WOULD_CLOSE' | 'BELOW_THRESHOLD' | 'SKIPPED';
           reason?: string;
@@ -300,7 +301,9 @@ export const automationRouter = router({
               const premiumReceived = openPrice * quantity * multiplier;
 
               if (premiumReceived === 0) {
-                  scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: 0, buyBackCost: 0, realizedPercent: 0, expiration: position['expires-at'] || null, isEstimated: false, action: 'SKIPPED', reason: 'No premium data (average-open-price is 0)' });
+                  const skipExpiration = position['expires-at'] || null;
+                  const skipDte = skipExpiration ? Math.max(0, Math.round((new Date(skipExpiration).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null;
+                  scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: 0, buyBackCost: 0, realizedPercent: 0, expiration: skipExpiration, dte: skipDte, isEstimated: false, action: 'SKIPPED', reason: 'No premium data (average-open-price is 0)' });
                 continue;
               }
 
@@ -337,12 +340,17 @@ export const automationRouter = router({
               // Time-decay heuristic: MUST run AFTER spread detection so spread netting can't zero it out.
               // When buyBackCost is still 0 after spread netting (both legs have close-price=0),
               // estimate using theta decay: estimatedPerShare = openPrice × sqrt(daysRemaining / daysOriginal)
+              // Uses actual position created-at date for true original DTE (not a hardcoded assumption)
               let isEstimated = false;
               if (buyBackCost === 0 && expiration) {
                 const now = new Date();
                 const expDate = new Date(expiration);
                 const daysRemaining = Math.max(0, (expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                const daysOriginal = 30; // Conservative assumption: shorter assumed DTE = higher estimate
+                // Use actual open date from Tastytrade API for true original DTE
+                const openDateStr = position['created-at'] || null;
+                const daysOriginal = openDateStr
+                  ? Math.max(1, (expDate.getTime() - new Date(openDateStr).getTime()) / (1000 * 60 * 60 * 24))
+                  : 14; // Fallback if created-at not available
                 if (daysRemaining > 0) {
                   const decayFactor = Math.sqrt(daysRemaining / daysOriginal);
                   const estimatedPerShare = openPrice * decayFactor;
@@ -350,7 +358,7 @@ export const automationRouter = router({
                   const flooredPerShare = Math.max(0.01, estimatedPerShare);
                   buyBackCost = flooredPerShare * quantity * multiplier;
                   isEstimated = true;
-                  console.log(`[Automation] ${underlyingSymbol} ${optionType}: buyBackCost=0 after spread netting, using time-decay estimate: $${buyBackCost.toFixed(2)} (${daysRemaining.toFixed(1)} DTE, decay=${decayFactor.toFixed(3)})`);
+                  console.log(`[Automation] ${underlyingSymbol} ${optionType}: buyBackCost=0 after spread netting, using time-decay estimate: $${buyBackCost.toFixed(2)} (${daysRemaining.toFixed(1)} of ${daysOriginal.toFixed(1)} DTE remaining, decay=${decayFactor.toFixed(3)})`);
                 }
               }
 
@@ -358,6 +366,11 @@ export const automationRouter = router({
               // Example: sold for $300, buy back for $3 → (300-3)/300 = 99%
               const realizedPercent = ((premiumReceived - buyBackCost) / premiumReceived) * 100;
               const estimatedProfit = premiumReceived - buyBackCost;
+
+              // Calculate DTE (days to expiration)
+              const dte = expiration
+                ? Math.max(0, Math.round((new Date(expiration).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+                : null;
 
               // Parse strike from option symbol (e.g., AAPL250117P00150000 -> 150)
               const strikeMatch = optionSymbol.match(/[CP](\d+)/);
@@ -382,12 +395,12 @@ export const automationRouter = router({
                   status: 'pending' as const,
                 });
 
-                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, isEstimated, action: 'WOULD_CLOSE' });
+                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'WOULD_CLOSE' });
 
                 totalPositionsClosed++;
                 totalProfitRealized += estimatedProfit;
               } else {
-                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, isEstimated, action: 'BELOW_THRESHOLD' });
+                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'BELOW_THRESHOLD' });
               }
             }
 
@@ -460,5 +473,119 @@ export const automationRouter = router({
 
         throw error;
       }
+    }),
+
+  /**
+   * Submit BTC (Buy to Close) orders for selected positions from a dry-run scan
+   */
+  submitCloseOrders: protectedProcedure
+    .input(
+      z.object({
+        orders: z.array(
+          z.object({
+            accountNumber: z.string(),
+            optionSymbol: z.string(),
+            symbol: z.string(),
+            quantity: z.number(),
+            buyBackCost: z.number(), // per-contract cost (already × multiplier)
+            isEstimated: z.boolean(),
+          })
+        ),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeRefreshToken && !credentials?.tastytradePassword) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Tastytrade API not connected. Please configure your Tastytrade credentials in Settings.',
+        });
+      }
+      const tt = await authenticateTastytrade(credentials, ctx.user.id);
+      if (!tt) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Failed to authenticate with Tastytrade API',
+        });
+      }
+
+      const results: Array<{
+        symbol: string;
+        optionSymbol: string;
+        success: boolean;
+        orderId?: string;
+        message: string;
+      }> = [];
+
+      for (const order of input.orders) {
+        try {
+          // Price per share = buyBackCost / (quantity * 100), rounded up to nearest $0.01
+          const pricePerShare = order.buyBackCost / (order.quantity * 100);
+          // Use a limit price slightly above current cost to ensure fill (add $0.01 buffer)
+          const limitPrice = Math.max(0.01, Math.ceil((pricePerShare + 0.01) * 100) / 100);
+
+          console.log('[Automation submitCloseOrders] Submitting BTC order:', {
+            symbol: order.symbol,
+            optionSymbol: order.optionSymbol,
+            accountNumber: order.accountNumber,
+            quantity: order.quantity,
+            pricePerShare,
+            limitPrice,
+            isEstimated: order.isEstimated,
+          });
+
+          const result = await tt.submitOrder({
+            accountNumber: order.accountNumber,
+            timeInForce: 'Day',
+            orderType: 'Limit',
+            price: limitPrice.toFixed(2),
+            priceEffect: 'Debit',
+            legs: [
+              {
+                instrumentType: 'Equity Option',
+                symbol: order.optionSymbol,
+                quantity: order.quantity.toString(),
+                action: 'Buy to Close',
+              },
+            ],
+          });
+
+          console.log('[Automation submitCloseOrders] Order submitted:', {
+            symbol: order.symbol,
+            orderId: result.id,
+            status: result.status,
+          });
+
+          results.push({
+            symbol: order.symbol,
+            optionSymbol: order.optionSymbol,
+            success: true,
+            orderId: result.id,
+            message: `Order submitted (limit $${limitPrice.toFixed(2)})`,
+          });
+        } catch (error: any) {
+          console.error('[Automation submitCloseOrders] Order failed:', {
+            symbol: order.symbol,
+            error: error.message,
+          });
+          results.push({
+            symbol: order.symbol,
+            optionSymbol: order.optionSymbol,
+            success: false,
+            message: error.message,
+          });
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.filter(r => !r.success).length;
+
+      return {
+        results,
+        successCount,
+        failCount,
+        totalOrders: results.length,
+      };
     }),
 });

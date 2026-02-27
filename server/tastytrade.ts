@@ -63,6 +63,7 @@ export interface TastytradePosition {
   'is-frozen': boolean;
   'restricted-quantity': number;
   'expires-at'?: string;
+  'created-at'?: string;
   'realized-day-gain': string;
   'realized-day-gain-effect': string;
   'realized-day-gain-date': string;
