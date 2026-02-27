@@ -1,8 +1,8 @@
 import { trpc } from "@/lib/trpc";
-import { CheckCircle2, XCircle, Settings, RefreshCw } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -12,10 +12,18 @@ import {
 import { Button } from "@/components/ui/button";
 
 export function ConnectionStatusIndicator() {
-  const { data: connectionStatus, isLoading, refetch } = trpc.settings.getConnectionStatus.useQuery();
+  const { data: connectionStatus, isLoading, refetch } = trpc.settings.getConnectionStatus.useQuery(
+    undefined,
+    { refetchInterval: 5 * 60 * 1000 } // Poll every 5 minutes — not every second
+  );
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [, setLocation] = useLocation();
-  
+
+  // useRef persists across re-renders without triggering them — prevents the loop
+  const hasAutoRefreshed = useRef(false);
+  // Track which expiresAt value we last processed, so the guard resets on a new token
+  const lastExpiresAt = useRef<string>('' );
+
   const refreshTradierHealth = trpc.settings.refreshTradierHealth.useMutation({
     onSuccess: () => {
       toast.success('Tradier balance updated');
@@ -25,48 +33,65 @@ export function ConnectionStatusIndicator() {
       toast.error(`Failed to check balance: ${error.message}`);
     },
   });
-  
+
   const forceTokenRefresh = trpc.settings.forceTokenRefresh.useMutation({
     onSuccess: (data) => {
       const expiresAt = data.expiresAt ? new Date(data.expiresAt).toLocaleString() : 'Unknown';
       toast.success(`Token refreshed! Expires at: ${expiresAt}`);
-      refetch(); // Update the indicator immediately
+      // Reset the flag so the new token's countdown can auto-refresh again when needed
+      hasAutoRefreshed.current = false;
+      refetch();
     },
     onError: (error) => {
       toast.error(`Token refresh failed: ${error.message}`);
+      // Allow retry after failure
+      hasAutoRefreshed.current = false;
     },
   });
-  
-  // Update countdown timer every second AND auto-refresh when < 2 minutes remaining
+
+  // Stable mutate reference — does NOT go in the useEffect dependency array
+  const triggerRefresh = useCallback(() => {
+    if (!forceTokenRefresh.isPending) {
+      forceTokenRefresh.mutate();
+    }
+  }, [forceTokenRefresh]);
+
+  // Countdown timer — runs every second, but auto-refresh fires at most ONCE per token
   useEffect(() => {
-    if (!connectionStatus?.tastytrade.expiresAt) {
+    const expiresAtStr = connectionStatus?.tastytrade.expiresAt;
+    if (!expiresAtStr) {
       setTimeRemaining('');
       return;
     }
-    
-    let hasAutoRefreshed = false; // Prevent multiple auto-refresh attempts
-    
+
+    // If we received a brand-new token (different expiresAt), reset the guard
+    const expiresAtKey = expiresAtStr instanceof Date ? expiresAtStr.toISOString() : String(expiresAtStr);
+    if (lastExpiresAt.current !== expiresAtKey) {
+      lastExpiresAt.current = expiresAtKey;
+      hasAutoRefreshed.current = false;
+    }
+
     const updateCountdown = () => {
       const now = new Date();
-      const expiresAt = new Date(connectionStatus.tastytrade.expiresAt!);
+      const expiresAt = new Date(expiresAtStr);
       const diffMs = expiresAt.getTime() - now.getTime();
-      
+
       if (diffMs <= 0) {
         setTimeRemaining('Expired');
         return;
       }
-      
+
       const minutes = Math.floor(diffMs / 60000);
       const seconds = Math.floor((diffMs % 60000) / 1000);
-      
-      // Auto-refresh when < 2 minutes remaining (120 seconds)
-      if (diffMs < 120000 && !hasAutoRefreshed && !forceTokenRefresh.isPending) {
-        hasAutoRefreshed = true;
-        console.log('[ConnectionStatusIndicator] Auto-refreshing token (< 2 minutes remaining)');
-        toast.info('Refreshing authentication token...');
-        forceTokenRefresh.mutate();
+
+      // Auto-refresh exactly once when < 2 minutes remaining
+      if (diffMs < 120000 && !hasAutoRefreshed.current) {
+        hasAutoRefreshed.current = true; // Set BEFORE calling mutate to prevent races
+        console.log('[ConnectionStatusIndicator] Auto-refreshing token (< 2 min remaining)');
+        toast.info('Refreshing Tastytrade token...');
+        triggerRefresh();
       }
-      
+
       if (minutes > 60) {
         const hours = Math.floor(minutes / 60);
         const mins = minutes % 60;
@@ -77,12 +102,12 @@ export function ConnectionStatusIndicator() {
         setTimeRemaining(`${seconds}s`);
       }
     };
-    
+
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
-    
     return () => clearInterval(interval);
-  }, [connectionStatus?.tastytrade.expiresAt, forceTokenRefresh]);
+    // Only re-run when the token expiry timestamp changes — NOT when mutation state changes
+  }, [connectionStatus?.tastytrade.expiresAt, triggerRefresh]);
 
   if (isLoading) {
     return null;
@@ -163,7 +188,7 @@ export function ConnectionStatusIndicator() {
                   className="w-full flex items-center gap-2"
                   onClick={(e) => {
                     e.stopPropagation();
-                    forceTokenRefresh.mutate();
+                    triggerRefresh();
                   }}
                   disabled={forceTokenRefresh.isPending}
                 >

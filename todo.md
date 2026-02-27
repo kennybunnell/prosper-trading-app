@@ -6515,3 +6515,8 @@
 
 ## Order Preview Modal Fixes (Session 2026-02-27 Part 3)
 - [x] Fix UnifiedOrderPreviewModal summary section for BTC orders: show Total Premium Received, Total Buy-Back Cost, and Estimated Profit instead of collateral/BP fields
+
+## Notification Loop & Rate Limit Fix (Session 2026-02-27 Part 4)
+- [x] Fix looping/repeating notification animation (toast/notification showing on constant loop)
+- [x] Fix runaway polling/refresh that caused Tastytrade token to expire (rate limit hit)
+- [x] Ensure ConnectionStatusIndicator does not trigger excessive API calls
