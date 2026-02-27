@@ -384,22 +384,24 @@ export function UnifiedOrderPreviewModal({
   const validateOrders = (): ValidationError[] => {
     const errors: ValidationError[] = [];
     
-    // Check buying power
-    const totalCollateral = calculateTotalCollateral();
-    const remainingBP = availableBuyingPower - totalCollateral;
-    
-    if (remainingBP < 0) {
-      errors.push({
-        symbol: "ALL",
-        message: `Insufficient buying power. Need $${totalCollateral.toFixed(2)} but only $${availableBuyingPower.toFixed(2)} available.`,
-        severity: "error",
-      });
-    } else if (remainingBP < availableBuyingPower * 0.1) {
-      errors.push({
-        symbol: "ALL",
-        message: `Using ${((totalCollateral / availableBuyingPower) * 100).toFixed(0)}% of buying power. Consider leaving more buffer.`,
-        severity: "warning",
-      });
+    // Check buying power (skip for BTC/closing orders — no collateral required to close)
+    if (strategy !== "btc" && strategy !== "roll" && strategy !== "replace") {
+      const totalCollateral = calculateTotalCollateral();
+      const remainingBP = availableBuyingPower - totalCollateral;
+      
+      if (availableBuyingPower > 0 && remainingBP < 0) {
+        errors.push({
+          symbol: "ALL",
+          message: `Insufficient buying power. Need $${totalCollateral.toFixed(2)} but only $${availableBuyingPower.toFixed(2)} available.`,
+          severity: "error",
+        });
+      } else if (availableBuyingPower > 0 && remainingBP < availableBuyingPower * 0.1) {
+        errors.push({
+          symbol: "ALL",
+          message: `Using ${((totalCollateral / availableBuyingPower) * 100).toFixed(0)}% of buying power. Consider leaving more buffer.`,
+          severity: "warning",
+        });
+      }
     }
     
     // Strategy-specific validation

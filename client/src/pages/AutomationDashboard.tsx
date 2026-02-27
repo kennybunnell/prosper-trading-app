@@ -29,6 +29,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { ConnectionStatusIndicator } from '@/components/ConnectionStatusIndicator';
 
 type ScanResult = {
   account: string;
@@ -73,6 +74,7 @@ export default function AutomationDashboard() {
   const [selectedPositions, setSelectedPositions] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [hideExpiringToday, setHideExpiringToday] = useState(true); // Hide DTE=0 by default
   // UnifiedOrderPreviewModal state
   const [showOrderPreview, setShowOrderPreview] = useState(false);
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
@@ -217,7 +219,11 @@ export default function AutomationDashboard() {
     }
   };
 
-  const wouldCloseResults = lastRunResult?.scanResults.filter(r => r.action === 'WOULD_CLOSE') ?? [];
+  // Apply the hide-expiring-today filter to the full scan results list
+  const visibleScanResults = (lastRunResult?.scanResults ?? []).filter(
+    r => !(hideExpiringToday && r.dte === 0)
+  );
+  const wouldCloseResults = visibleScanResults.filter(r => r.action === 'WOULD_CLOSE');
   // Use stable posKey for selection — survives sorting
   const allSelected = wouldCloseResults.length > 0 && wouldCloseResults.every(r =>
     selectedPositions.has(`${r.optionSymbol}|${r.account}`)
@@ -228,12 +234,13 @@ export default function AutomationDashboard() {
     if (allSelected) {
       setSelectedPositions(new Set());
     } else {
-      const keys = new Set(lastRunResult.scanResults
+      // Only select visible (non-filtered-out) WOULD_CLOSE positions
+      const keys = new Set(visibleScanResults
         .filter(r => r.action === 'WOULD_CLOSE')
         .map(r => `${r.optionSymbol}|${r.account}`));
       setSelectedPositions(keys);
     }
-  }, [lastRunResult, allSelected]);
+  }, [lastRunResult, allSelected, visibleScanResults]);
 
   const togglePosition = useCallback((key: string) => {
     setSelectedPositions(prev => {
@@ -356,11 +363,16 @@ export default function AutomationDashboard() {
 
   return (
     <div className="container py-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Daily Trading Automation</h1>
-        <p className="text-muted-foreground mt-2">
-          Automate your daily trading workflow: close profitable positions and submit covered calls
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Daily Trading Automation</h1>
+          <p className="text-muted-foreground mt-2">
+            Automate your daily trading workflow: close profitable positions and submit covered calls
+          </p>
+        </div>
+        <div className="mt-1">
+          <ConnectionStatusIndicator />
+        </div>
       </div>
 
       {/* Control Panel */}
@@ -553,13 +565,25 @@ export default function AutomationDashboard() {
                   </CardDescription>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowScanResults(!showScanResults)}
-              >
-                {showScanResults ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
+              <div className="flex items-center gap-2">
+                {selectedPositions.size > 0 && (
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={handleOpenOrderPreview}
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-1" />
+                    Review &amp; Submit {selectedPositions.size} Order{selectedPositions.size !== 1 ? 's' : ''}
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowScanResults(!showScanResults)}
+                >
+                  {showScanResults ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
 
             {/* Summary Stats */}
@@ -609,8 +633,24 @@ export default function AutomationDashboard() {
             })()}
           </CardHeader>
 
-          {showScanResults && lastRunResult.scanResults.length > 0 && (
+          {showScanResults && (lastRunResult.scanResults.length > 0 || visibleScanResults.length === 0) && (
             <CardContent>
+              {/* Filter toolbar */}
+              <div className="flex items-center gap-3 mb-3">
+                <Button
+                  variant={hideExpiringToday ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setHideExpiringToday(v => !v)}
+                  className={hideExpiringToday ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'text-muted-foreground'}
+                >
+                  {hideExpiringToday ? '🙈 Hiding Expiring Today' : '👁 Show Expiring Today'}
+                </Button>
+                {hideExpiringToday && lastRunResult && lastRunResult.scanResults.some(r => r.dte === 0) && (
+                  <span className="text-xs text-muted-foreground">
+                    {lastRunResult.scanResults.filter(r => r.dte === 0).length} DTE=0 position{lastRunResult.scanResults.filter(r => r.dte === 0).length !== 1 ? 's' : ''} hidden
+                  </span>
+                )}
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -635,7 +675,7 @@ export default function AutomationDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {lastRunResult.scanResults
+                    {visibleScanResults
                       .sort((a, b) => b.realizedPercent - a.realizedPercent)
                       .map((result, idx) => (
                         <tr
@@ -750,28 +790,35 @@ export default function AutomationDashboard() {
                 </table>
               </div>
 
-              {lastRunResult.scanResults.length === 0 && (
+              {visibleScanResults.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   <TrendingDown className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                  <p>No short option positions found in any account</p>
-                  <p className="text-sm mt-1">Make sure your Tastytrade account has open CSP or CC positions</p>
+                  {lastRunResult.scanResults.length === 0 ? (
+                    <>
+                      <p>No short option positions found in any account</p>
+                      <p className="text-sm mt-1">Make sure your Tastytrade account has open CSP or CC positions</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>All positions are expiring today (DTE=0)</p>
+                      <p className="text-sm mt-1">Toggle "Show Expiring Today" above to view them</p>
+                    </>
+                  )}
                 </div>
               )}
 
               {/* Approval Queue Submit Bar */}
-              {selectedPositions.size > 0 && (
+              {selectedPositions.size > 0 && (() => {
+                const selResults = (lastRunResult?.scanResults ?? []).filter(r => selectedPositions.has(`${r.optionSymbol}|${r.account}`));
+                const selBuyBack = selResults.reduce((sum, r) => sum + r.buyBackCost, 0);
+                const selProfit = selResults.reduce((sum, r) => sum + (r.premiumCollected - r.buyBackCost), 0);
+                return (
                 <div className="mt-4 p-4 rounded-lg bg-green-500/10 border border-green-500/30 flex items-center justify-between">
                   <div>
                     <span className="font-semibold text-green-400">{selectedPositions.size} position{selectedPositions.size !== 1 ? 's' : ''} selected</span>
                     <span className="text-sm text-muted-foreground ml-2">
-                      Buy-back cost: <span className="text-amber-400 font-mono">${lastRunResult.scanResults
-                        .filter(r => selectedPositions.has(`${r.optionSymbol}|${r.account}`))
-                        .reduce((sum, r) => sum + r.buyBackCost, 0)
-                        .toFixed(2)}</span>
-                      {' · '}Est. profit: <span className="text-green-400 font-mono">${lastRunResult.scanResults
-                        .filter(r => selectedPositions.has(`${r.optionSymbol}|${r.account}`))
-                        .reduce((sum, r) => sum + (r.premiumCollected - r.buyBackCost), 0)
-                        .toFixed(2)}</span>
+                      Buy-back cost: <span className="text-amber-400 font-mono">${selBuyBack.toFixed(2)}</span>
+                      {' · '}Est. profit: <span className="text-green-400 font-mono">${selProfit.toFixed(2)}</span>
                     </span>
                   </div>
                   <div className="flex gap-2">
@@ -792,7 +839,8 @@ export default function AutomationDashboard() {
                     </Button>
                   </div>
                 </div>
-              )}
+                );
+              })()}
             </CardContent>
           )}
         </Card>

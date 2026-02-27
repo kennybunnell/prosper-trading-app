@@ -6501,3 +6501,9 @@
 - [x] Fix automation router to use same profit formula as Active Positions
 - [x] Return detailed position results from runAutomation
 - [x] Add dry-run results panel to AutomationDashboard
+
+## Automation Dashboard Fixes (Session 2026-02-27)
+- [x] Fix "Review & Submit Orders" button disabled due to buying power validation blocking BTC orders
+- [x] Add top-level "Review & Submit" button in Scan Results card header (always visible when positions selected)
+- [x] Add "Hide Expiring Today" toggle to filter out DTE=0 positions from scan results table
+- [x] Add API connection status widget to Automation Dashboard page
