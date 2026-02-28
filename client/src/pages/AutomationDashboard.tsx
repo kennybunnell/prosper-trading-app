@@ -1541,12 +1541,12 @@ export default function AutomationDashboard() {
                                       ? `${(pos as any).unrealizedPnl >= 0 ? '+' : ''}$${Math.abs((pos as any).unrealizedPnl).toFixed(0)}`
                                       : '—'}
                                   </td>
-                                  {/* % Max Profit */}
+                                  {/* % Max Profit — can be negative for losing positions */}
                                   <td className={`p-3 text-right font-mono font-semibold text-xs ${
                                     profitPct >= 80 ? 'text-green-400' : profitPct >= 50 ? 'text-emerald-400' :
-                                    profitPct >= 20 ? 'text-yellow-400' : 'text-red-400'
+                                    profitPct >= 20 ? 'text-yellow-400' : profitPct >= 0 ? 'text-orange-400' : 'text-red-500'
                                   }`}>
-                                    {profitPct.toFixed(0)}%
+                                    {profitPct >= 0 ? `${profitPct.toFixed(0)}%` : `${profitPct.toFixed(0)}%`}
                                   </td>
                                   {/* Symbol */}
                                   <td className="p-3 font-semibold text-xs">{pos.symbol}</td>

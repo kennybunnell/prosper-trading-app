@@ -78,13 +78,14 @@ function scoreSpreadUrgency(
   const profitPct = spread.profitCaptured; // 0-100%
 
   // ── P&L Status ───────────────────────────────────────────────────────────
+  // profitPct can now be negative (losing trade) or > 100 (debit spread that moved in our favor)
   let pnlStatus: 'winner' | 'breakeven' | 'loser';
   if (profitPct >= 50) {
     pnlStatus = 'winner';
   } else if (profitPct >= 20) {
     pnlStatus = 'breakeven';
   } else {
-    pnlStatus = 'loser'; // < 20% profit captured OR net loss
+    pnlStatus = 'loser'; // < 20% profit captured OR net loss (negative %)
   }
 
   // ── ITM Check (for spread short leg) ─────────────────────────────────────
@@ -115,7 +116,11 @@ function scoreSpreadUrgency(
     // Losing trade or ITM with little profit captured — needs immediate attention
     urgency = 'red';
     if (pnlStatus === 'loser') {
-      reasons.push(`🔴 Net loss — ${profitPct.toFixed(0)}% of premium captured (losing trade)`);
+      if (profitPct < 0) {
+        reasons.push(`🔴 Net loss — position is ${Math.abs(profitPct).toFixed(0)}% underwater (cost to close > premium received)`);
+      } else {
+        reasons.push(`🔴 Only ${profitPct.toFixed(0)}% of premium captured — minimal decay so far`);
+      }
     }
     if (isITM) {
       reasons.push(`🔴 ${itmPct.toFixed(1)}% ITM — assignment/max-loss risk`);

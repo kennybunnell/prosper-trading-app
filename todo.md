@@ -6650,3 +6650,15 @@
 
 ## ✅ Bug Fix: RollCandidateExpander setState-during-render (Feb 28, 2026)
 - [x] Fixed: onCandidatesLoaded was called directly during render (React anti-pattern) — moved into useEffect with [data, cachedCandidates, onCandidatesLoaded] dependency array
+
+## 🚧 Bug Fix: Tab 2 P&L Huge/Ridiculous Numbers (Feb 28, 2026)
+- [ ] Add debug logging to trace raw Tastytrade values (average-open-price, quantity, multiplier) vs calculated openPremium/currentValue
+- [ ] Find and fix all remaining multiplication errors in the P&L chain
+- [ ] Verify numbers match Tastytrade UI for a known position
+
+## ✅ Bug Fix: Tab 2 P&L Display — Negative % Profit + Debit Spread Fix (Feb 28, 2026)
+- [x] Fixed profitCaptured to show negative values for losers (removed Math.max(0,...) clamp)
+- [x] Fixed debit spread handling: when openPremium <= 0, uses abs(openPremium) as reference
+- [x] Removed debug logging from routers-rolls.ts
+- [x] Updated % Max Profit column: negative values show in red-500, 0-20% in orange, 20-50% in yellow, 50-80% in emerald, 80%+ in green
+- [x] Updated reason messages: losers now show '340% underwater' instead of '0% captured'

@@ -88,8 +88,19 @@ function calcDTE(expiration: string): number {
 }
 
 function calcProfitCaptured(openPremium: number, currentValue: number): number {
-  if (openPremium <= 0) return 0;
-  return Math.max(0, Math.min(100, ((openPremium - currentValue) / openPremium) * 100));
+  // For credit spreads: openPremium > 0 (net credit received)
+  // profitCaptured = how much of the original credit has decayed away
+  // Positive = winning (option decayed), Negative = losing (option moved against us)
+  // No clamping — show the real number including negative values
+  if (openPremium <= 0) {
+    // Debit spread or inverted: use currentValue as reference
+    // If currentValue < openPremium (both negative), we're losing on a debit spread
+    if (openPremium === 0) return 0;
+    // For debit spreads: profit = (currentValue - openPremium) / Math.abs(openPremium) * 100
+    return ((currentValue - openPremium) / Math.abs(openPremium)) * 100;
+  }
+  // Normal credit spread: (credit_received - cost_to_close) / credit_received * 100
+  return ((openPremium - currentValue) / openPremium) * 100;
 }
 
 /** Group key: underlying + expiry (used to find matching legs for spreads) */
