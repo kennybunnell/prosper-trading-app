@@ -54,34 +54,112 @@ function parseOptionSymbol(symbol: string): {
   return null;
 }
 
-// ─── Urgency Scoring for Spread Positions ────────────────────────────────────
+// ─── Urgency Scoring for Spread Positions (P&L-First) ───────────────────────
+//
+// PRIMARY signal: Is this position a winner or a loser right now?
+//   🔴 Red   = Net LOSS on the trade (losing money), OR ITM with < 30% profit
+//   🟡 Yellow = Breakeven zone (20-50% profit), OR near ATM (within 5%), OR ≤7 DTE with < 50% profit
+//   🟢 Green  = Winner (>50% profit captured) — consider closing, not necessarily rolling
+//
+// DTE and ITM are SECONDARY signals that can escalate urgency but never create it alone.
 
-function scoreSpreadUrgency(spread: SpreadPosition): { urgency: 'red' | 'yellow' | 'green'; reasons: string[]; score: number } {
+function scoreSpreadUrgency(
+  spread: SpreadPosition,
+  underlyingPrice?: number
+): { urgency: 'red' | 'yellow' | 'green'; reasons: string[]; score: number; unrealizedPnl: number; pnlStatus: 'winner' | 'breakeven' | 'loser' } {
   const reasons: string[] = [];
-  let score = 0;
 
-  // DTE urgency
-  if (spread.dte <= 7) {
-    score += 50;
-    reasons.push(`Only ${spread.dte} DTE — urgent`);
-  } else if (spread.dte <= 14) {
-    score += 25;
-    reasons.push(`${spread.dte} DTE — watch`);
+  // ── P&L Calculation ──────────────────────────────────────────────────────
+  // openPremium = what we collected when we sold (positive = credit received)
+  // currentValue = what it costs to close today (positive = debit to close)
+  // unrealizedPnl > 0 = we're ahead; < 0 = we're losing
+  const unrealizedPnl = (spread.openPremium - spread.currentValue) * 100; // per contract, in dollars
+  const profitPct = spread.profitCaptured; // 0-100%
+
+  // ── P&L Status ───────────────────────────────────────────────────────────
+  let pnlStatus: 'winner' | 'breakeven' | 'loser';
+  if (profitPct >= 50) {
+    pnlStatus = 'winner';
+  } else if (profitPct >= 20) {
+    pnlStatus = 'breakeven';
+  } else {
+    pnlStatus = 'loser'; // < 20% profit captured OR net loss
   }
 
-  // Profit captured
-  if (spread.profitCaptured >= 80) {
-    score += 30;
-    reasons.push(`${spread.profitCaptured.toFixed(0)}% profit captured — ready to close/roll`);
-  } else if (spread.profitCaptured >= 50) {
-    score += 10;
-    reasons.push(`${spread.profitCaptured.toFixed(0)}% profit captured`);
+  // ── ITM Check (for spread short leg) ─────────────────────────────────────
+  const shortLegStrike = spread.shortStrike || spread.putShortStrike || spread.callShortStrike || 0;
+  let itmPct = 0;
+  if (underlyingPrice && shortLegStrike > 0) {
+    // For puts: ITM when underlying < strike; for calls: ITM when underlying > strike
+    const isPut = spread.strategyType === 'BPS' || spread.strategyType === 'CSP';
+    if (isPut) {
+      itmPct = underlyingPrice < shortLegStrike
+        ? ((shortLegStrike - underlyingPrice) / shortLegStrike) * 100
+        : 0;
+    } else {
+      itmPct = underlyingPrice > shortLegStrike
+        ? ((underlyingPrice - shortLegStrike) / shortLegStrike) * 100
+        : 0;
+    }
+  }
+  const isITM = itmPct > 0;
+  const isNearATM = !isITM && underlyingPrice && shortLegStrike > 0
+    ? Math.abs(underlyingPrice - shortLegStrike) / shortLegStrike * 100 < 5
+    : false;
+
+  // ── Urgency Rules (P&L first) ─────────────────────────────────────────────
+  let urgency: 'red' | 'yellow' | 'green';
+
+  if (pnlStatus === 'loser' || (isITM && profitPct < 30)) {
+    // Losing trade or ITM with little profit captured — needs immediate attention
+    urgency = 'red';
+    if (pnlStatus === 'loser') {
+      reasons.push(`🔴 Net loss — ${profitPct.toFixed(0)}% of premium captured (losing trade)`);
+    }
+    if (isITM) {
+      reasons.push(`🔴 ${itmPct.toFixed(1)}% ITM — assignment/max-loss risk`);
+    }
+    if (spread.dte <= 7) {
+      reasons.push(`⚠️ ${spread.dte} DTE — high gamma risk`);
+    }
+  } else if (pnlStatus === 'winner' && profitPct >= 80) {
+    // High winner — flag green but note it's ready to close/roll for more premium
+    urgency = 'green';
+    reasons.push(`✅ ${profitPct.toFixed(0)}% profit captured — consider closing or rolling for more premium`);
+    if (spread.dte <= 7) {
+      urgency = 'yellow'; // Escalate if very close to expiry
+      reasons.push(`📅 ${spread.dte} DTE — close soon to avoid pin risk`);
+    }
+  } else if (pnlStatus === 'winner') {
+    // Winning but not at target yet — green, just monitor
+    urgency = 'green';
+    reasons.push(`📈 ${profitPct.toFixed(0)}% profit captured — on track`);
+    if (isNearATM) {
+      urgency = 'yellow';
+      reasons.push(`🟡 Near ATM — monitor closely`);
+    }
+    if (spread.dte <= 7) {
+      urgency = 'yellow';
+      reasons.push(`📅 ${spread.dte} DTE — approaching expiry`);
+    }
+  } else {
+    // Breakeven zone (20-50%) — yellow by default
+    urgency = 'yellow';
+    reasons.push(`🟡 ${profitPct.toFixed(0)}% profit captured — breakeven zone`);
+    if (isITM) {
+      urgency = 'red'; // Escalate: breakeven + ITM = urgent
+      reasons.push(`🔴 ${itmPct.toFixed(1)}% ITM — at risk`);
+    } else if (isNearATM) {
+      reasons.push(`🟡 Near ATM — watch closely`);
+    }
+    if (spread.dte <= 7) {
+      urgency = 'red'; // Escalate: breakeven + very low DTE = urgent
+      reasons.push(`⚠️ ${spread.dte} DTE — high gamma risk in breakeven zone`);
+    }
   }
 
-  const urgency: 'red' | 'yellow' | 'green' =
-    score >= 50 ? 'red' : score >= 20 ? 'yellow' : 'green';
-
-  return { urgency, reasons, score };
+  const score = urgency === 'red' ? 75 : urgency === 'yellow' ? 40 : 10;
+  return { urgency, reasons, score, unrealizedPnl, pnlStatus };
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -176,16 +254,32 @@ export const rollsRouter = router({
       // Detect spread strategies from all legs
       const spreads = detectSpreadStrategies(rawLegs);
 
-      // Score each spread for urgency
+      // Score each spread for urgency (P&L-first)
       const scoredSpreads = spreads.map(spread => {
-        const { urgency, reasons, score } = scoreSpreadUrgency(spread);
-        const underlyingPrice = currentPrices[spread.underlying] || spread.shortStrike || 0;
+        const underlyingPrice = currentPrices[spread.underlying] || 0;
+        const { urgency, reasons, score, unrealizedPnl, pnlStatus } = scoreSpreadUrgency(spread, underlyingPrice || undefined);
 
         // Build a positionId that encodes the spread for the frontend
         const positionId = spread.id;
 
         // For the roll candidates query, we need the short leg details
         const shortLeg = spread.legs.find(l => l.role === 'short');
+
+        // ITM depth: positive = ITM (bad), negative = OTM (good)
+        const shortStrike = shortLeg?.strike || spread.shortStrike || 0;
+        const isPut = spread.strategyType === 'BPS' || spread.strategyType === 'CSP';
+        let itmDepth = 0;
+        if (underlyingPrice > 0 && shortStrike > 0) {
+          if (isPut) {
+            itmDepth = underlyingPrice < shortStrike
+              ? ((shortStrike - underlyingPrice) / shortStrike) * 100
+              : -((underlyingPrice - shortStrike) / shortStrike) * 100;
+          } else {
+            itmDepth = underlyingPrice > shortStrike
+              ? ((underlyingPrice - shortStrike) / shortStrike) * 100
+              : -((shortStrike - underlyingPrice) / shortStrike) * 100;
+          }
+        }
 
         return {
           positionId,
@@ -194,6 +288,8 @@ export const rollsRouter = router({
           optionSymbol: shortLeg?.symbol || '',
           strategy: spread.strategyType,
           urgency,
+          pnlStatus,
+          unrealizedPnl,
           shouldRoll: urgency === 'red' || urgency === 'yellow',
           reasons,
           score,
@@ -201,12 +297,10 @@ export const rollsRouter = router({
           metrics: {
             dte: spread.dte,
             profitCaptured: spread.profitCaptured,
-            itmDepth: underlyingPrice > 0 && shortLeg
-              ? ((underlyingPrice - shortLeg.strike) / underlyingPrice) * 100
-              : 0,
+            itmDepth,
             delta: 0,
             currentPrice: underlyingPrice,
-            strikePrice: shortLeg?.strike || 0,
+            strikePrice: shortStrike,
             currentValue: spread.currentValue,
             openPremium: spread.openPremium,
             expiration: spread.expiration,

@@ -1289,13 +1289,13 @@ export default function AutomationDashboard() {
                 <GitMerge className="h-12 w-12 mx-auto opacity-30" />
                 <p className="font-semibold text-base">Ready to scan</p>
                 <p className="text-sm max-w-md mx-auto">
-                  Click "Scan Roll Positions" to detect positions approaching expiry (≤7 DTE), in-the-money,
-                  or that have captured 80%+ of premium and are ready to roll.
+                  Click "Scan Roll Positions" to see every open options position ranked by P&L health.
+                  The primary signal is whether you're winning or losing on each trade.
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 pt-2">
-                  <Badge variant="outline" className="text-red-400 border-red-400/40">🔴 Urgent — ≤7 DTE or deep ITM</Badge>
-                  <Badge variant="outline" className="text-yellow-400 border-yellow-400/40">🟡 Watch — 8–14 DTE or challenged</Badge>
-                  <Badge variant="outline" className="text-green-400 border-green-400/40">🟢 Monitor — 80%+ profit captured</Badge>
+                  <Badge variant="outline" className="text-red-400 border-red-400/40">🔴 Loser — net loss or ITM with &lt;30% profit</Badge>
+                  <Badge variant="outline" className="text-yellow-400 border-yellow-400/40">🟡 Breakeven — 20–50% profit or near ATM</Badge>
+                  <Badge variant="outline" className="text-green-400 border-green-400/40">🟢 Winner — &gt;50% profit captured</Badge>
                 </div>
               </CardContent>
             </Card>
@@ -1325,19 +1325,19 @@ export default function AutomationDashboard() {
                 <Card className="border-red-500/30 bg-red-500/5">
                   <CardContent className="pt-4 pb-3">
                     <div className="text-2xl font-bold text-red-400">{rollScanResults.red.length}</div>
-                    <div className="text-xs text-muted-foreground">Urgent (🔴)</div>
+                    <div className="text-xs text-muted-foreground">🔴 Losers — need attention</div>
                   </CardContent>
                 </Card>
                 <Card className="border-yellow-500/30 bg-yellow-500/5">
                   <CardContent className="pt-4 pb-3">
                     <div className="text-2xl font-bold text-yellow-400">{rollScanResults.yellow.length}</div>
-                    <div className="text-xs text-muted-foreground">Watch (🟡)</div>
+                    <div className="text-xs text-muted-foreground">🟡 Breakeven — monitor</div>
                   </CardContent>
                 </Card>
                 <Card className="border-green-500/30 bg-green-500/5">
                   <CardContent className="pt-4 pb-3">
                     <div className="text-2xl font-bold text-green-400">{rollScanResults.green.length}</div>
-                    <div className="text-xs text-muted-foreground">Monitor (🟢)</div>
+                    <div className="text-xs text-muted-foreground">🟢 Winners — on track</div>
                   </CardContent>
                 </Card>
               </div>
@@ -1358,15 +1358,15 @@ export default function AutomationDashboard() {
                         <thead>
                           <tr className="border-b border-border/50 bg-muted/30">
                             <th className="text-left p-3 w-8"></th>
-                            <th className="text-left p-3">Account</th>
+                            <th className="text-center p-3">P&amp;L</th>
+                            <th className="text-right p-3">Unreal. P&amp;L</th>
+                            <th className="text-right p-3">% Max Profit</th>
                             <th className="text-left p-3">Symbol</th>
                             <th className="text-left p-3">Strategy</th>
                             <th className="text-right p-3">Strike</th>
                             <th className="text-left p-3">Expiry</th>
                             <th className="text-right p-3">DTE</th>
-                            <th className="text-right p-3">% Profit</th>
-                            <th className="text-right p-3">ITM Depth</th>
-                            <th className="text-center p-3">Urgency</th>
+                            <th className="text-right p-3">ITM/OTM</th>
                             <th className="text-left p-3">Reason</th>
                             <th className="text-center p-3">Roll Candidate</th>
                           </tr>
@@ -1403,7 +1403,38 @@ export default function AutomationDashboard() {
                                       disabled={!selectedCandidate}
                                     />
                                   </td>
-                                  <td className="p-3 font-mono text-xs text-muted-foreground">{pos.accountId?.slice(-6) || '—'}</td>
+                                  {/* P&L Status badge — PRIMARY signal */}
+                                  <td className="p-3 text-center">
+                                    {(pos as any).pnlStatus === 'winner' ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 text-xs font-semibold">
+                                        🟢 Winner
+                                      </span>
+                                    ) : (pos as any).pnlStatus === 'loser' ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 text-xs font-semibold">
+                                        🔴 Loser
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 text-xs font-semibold">
+                                        🟡 Even
+                                      </span>
+                                    )}
+                                  </td>
+                                  {/* Unrealized P&L $ */}
+                                  <td className={`p-3 text-right font-mono font-bold ${
+                                    (pos as any).unrealizedPnl > 0 ? 'text-green-400' :
+                                    (pos as any).unrealizedPnl < 0 ? 'text-red-400' : 'text-muted-foreground'
+                                  }`}>
+                                    {(pos as any).unrealizedPnl !== undefined
+                                      ? `${(pos as any).unrealizedPnl >= 0 ? '+' : ''}$${((pos as any).unrealizedPnl).toFixed(0)}`
+                                      : '—'}
+                                  </td>
+                                  {/* % Max Profit */}
+                                  <td className={`p-3 text-right font-mono font-semibold ${
+                                    profitPct >= 80 ? 'text-green-400' : profitPct >= 50 ? 'text-emerald-400' :
+                                    profitPct >= 20 ? 'text-yellow-400' : 'text-red-400'
+                                  }`}>
+                                    {profitPct.toFixed(0)}%
+                                  </td>
                                   <td className="p-3 font-semibold">{pos.symbol}</td>
                                   <td className="p-3">
                                     <Badge variant="outline" className={
@@ -1419,21 +1450,19 @@ export default function AutomationDashboard() {
                                   </td>
                                   <td className="p-3 text-right font-mono">${pos.metrics.strikePrice.toFixed(2)}</td>
                                   <td className="p-3 text-xs">{pos.metrics.expiration}</td>
-                                  <td className={`p-3 text-right font-mono font-semibold ${
+                                  <td className={`p-3 text-right font-mono ${
                                     pos.metrics.dte <= 7 ? 'text-red-400' : pos.metrics.dte <= 14 ? 'text-yellow-400' : 'text-muted-foreground'
                                   }`}>{pos.metrics.dte}</td>
-                                  <td className={`p-3 text-right font-mono ${
-                                    profitPct >= 80 ? 'text-green-400' : profitPct >= 50 ? 'text-yellow-400' : 'text-muted-foreground'
-                                  }`}>{profitPct.toFixed(0)}%</td>
+                                  {/* ITM/OTM depth: positive = ITM (bad), negative = OTM (good) */}
                                   <td className={`p-3 text-right font-mono text-xs ${
-                                    itmDepth > 5 ? 'text-red-400' : itmDepth > 0 ? 'text-yellow-400' : 'text-muted-foreground'
-                                  }`}>{itmDepth > 0 ? `${itmDepth.toFixed(1)}%` : '—'}</td>
-                                  <td className="p-3 text-center">
-                                    <span className={`text-lg ${
-                                      pos.urgency === 'red' ? '' : pos.urgency === 'yellow' ? '' : ''
-                                    }`}>
-                                      {pos.urgency === 'red' ? '🔴' : pos.urgency === 'yellow' ? '🟡' : '🟢'}
-                                    </span>
+                                    itmDepth > 5 ? 'text-red-400' : itmDepth > 0 ? 'text-yellow-400' :
+                                    itmDepth < -10 ? 'text-green-400' : 'text-muted-foreground'
+                                  }`}>
+                                    {itmDepth > 0
+                                      ? `▲${itmDepth.toFixed(1)}% ITM`
+                                      : itmDepth < 0
+                                        ? `▼${Math.abs(itmDepth).toFixed(1)}% OTM`
+                                        : '—'}
                                   </td>
                                   <td className="p-3 text-xs text-muted-foreground max-w-[200px] truncate">
                                     {pos.reasons?.[0] || '—'}

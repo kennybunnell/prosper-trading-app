@@ -6612,3 +6612,17 @@
 - [x] Roll candidate selection for spreads: shows spread width, new strikes, net credit
 - [x] Submit spread roll as single multi-leg Tastytrade order
 - [x] Added vitest tests for spread detection logic (spreadDetection.ts)
+
+## ✅ Tab 2: P&L-First Urgency Redesign (Completed Feb 28, 2026)
+- [x] Fixed broken urgency thresholds (was: DTE<=14 alone = 25pts, threshold=20 → nearly everything was yellow/red)
+- [x] Redesigned urgency: P&L is now the PRIMARY signal, DTE and ITM are SECONDARY escalators
+- [x] New urgency rules:
+  - 🔴 Red: Net LOSS (< 20% profit captured) OR ITM with < 30% profit
+  - 🟡 Yellow: Breakeven zone (20-50% profit), OR near ATM (within 5%), OR ≤7 DTE with < 50% profit
+  - 🟢 Green: Winner (> 50% profit captured) — DTE/ATM can escalate to yellow but never create red alone
+- [x] Added Unrealized P&L ($) column — green = profit, red = loss, bold font
+- [x] Added % Max Profit as prominent second column with color gradient (red < 20%, yellow 20-50%, green > 50%)
+- [x] Added P&L Status badge (Winner / Even / Loser) as the first and most prominent column
+- [x] Moved DTE and ITM/OTM to secondary columns
+- [x] ITM/OTM now shows direction: ▲X% ITM (bad) or ▼X% OTM (good)
+- [x] Summary cards updated: "Losers — need attention" / "Breakeven — monitor" / "Winners — on track"
