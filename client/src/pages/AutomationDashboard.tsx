@@ -2214,10 +2214,12 @@ function RollCandidateExpander({
     staleTime: 5 * 60 * 1000,
   });
 
-  // When data arrives, cache it
-  if (data && !cachedCandidates) {
-    onCandidatesLoaded(data.candidates as RollCandidate[]);
-  }
+  // When data arrives, cache it in parent — must be in useEffect to avoid setState-during-render
+  useEffect(() => {
+    if (data && !cachedCandidates) {
+      onCandidatesLoaded(data.candidates as RollCandidate[]);
+    }
+  }, [data, cachedCandidates, onCandidatesLoaded]);
 
   const candidates = cachedCandidates || (data?.candidates as RollCandidate[] | undefined);
   const underlyingPrice = (data as any)?.underlyingPrice;

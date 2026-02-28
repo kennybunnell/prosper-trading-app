@@ -6647,3 +6647,6 @@
 - [x] Default sort: Unrealized P&L ascending (worst losers first)
 - [x] Sortable columns: P&L Status, Unreal. P&L, % Max Profit, Symbol, Strategy, Stock $, Expiry, DTE, ITM/OTM
 - [x] TypeScript clean (0 errors)
+
+## ✅ Bug Fix: RollCandidateExpander setState-during-render (Feb 28, 2026)
+- [x] Fixed: onCandidatesLoaded was called directly during render (React anti-pattern) — moved into useEffect with [data, cachedCandidates, onCandidatesLoaded] dependency array
