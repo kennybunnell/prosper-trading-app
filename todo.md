@@ -6596,3 +6596,19 @@
 - [x] Fix ReferenceError: require is not defined in RollCandidateExpander — replaced require('@tanstack/react-query') with ES import at top of file
 - [x] Fix missing key props — moved key from inner <tr> to outer <React.Fragment> wrapper
 - [x] Add missing React import (needed for React.Fragment JSX)
+
+## ✅ Tab 2: Spread Strategy Detection & Atomic Rolls (Completed Feb 28, 2026)
+- [x] Detect BPS (Bull Put Spread) — short put + long put, same expiry, short strike > long strike
+- [x] Detect BCS (Bear Call Spread) — short call + long call, same expiry, short strike < long strike
+- [x] Detect Iron Condor — BPS + BCS on same underlying, same expiry (4-leg)
+- [x] Group spread legs atomically by (accountNumber + underlying + expiry)
+- [x] Build atomic roll order: BTC all legs + STO new spread legs in one combo order
+  - BPS: 4-leg order (BTC short put + BTC long put + STO new short put + STO new long put)
+  - BCS: 4-leg order (BTC short call + BTC long call + STO new short call + STO new long call)
+  - IC: 8-leg order (BTC all 4 + STO 4 new)
+- [x] Update Tab 2 UI: show strategy type badge (BCS/BPS/IC/CSP/CC) with distinct colors
+  - CSP: blue, CC: purple, BPS: cyan, BCS: pink, IC: amber
+- [x] Show all spread legs in expanded row with Short/Long role labels
+- [x] Roll candidate selection for spreads: shows spread width, new strikes, net credit
+- [x] Submit spread roll as single multi-leg Tastytrade order
+- [x] Added vitest tests for spread detection logic (spreadDetection.ts)

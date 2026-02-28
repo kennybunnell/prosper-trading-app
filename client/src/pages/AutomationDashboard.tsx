@@ -84,11 +84,34 @@ type CCScanResult = {
 };
 
 // Roll Positions types
+type SpreadLeg = {
+  symbol: string;
+  optionType: 'PUT' | 'CALL';
+  strike: number;
+  expiration: string;
+  role: 'short' | 'long';
+  quantity: number;
+  markPrice: number;
+  openPrice: number;
+};
+
+type SpreadDetails = {
+  strategyType: 'CSP' | 'CC' | 'BPS' | 'BCS' | 'IC';
+  shortStrike?: number;
+  longStrike?: number;
+  spreadWidth?: number;
+  putShortStrike?: number;
+  putLongStrike?: number;
+  callShortStrike?: number;
+  callLongStrike?: number;
+  legs: SpreadLeg[];
+};
+
 type RollAnalysis = {
   positionId: string;
   symbol: string;
   optionSymbol: string;
-  strategy: 'CSP' | 'CC';
+  strategy: 'CSP' | 'CC' | 'BPS' | 'BCS' | 'IC';
   urgency: 'red' | 'yellow' | 'green';
   shouldRoll: boolean;
   reasons: string[];
@@ -105,6 +128,8 @@ type RollAnalysis = {
   };
   score: number;
   accountId?: string;
+  accountNumber?: string;
+  spreadDetails?: SpreadDetails;
 };
 
 type RollCandidate = {
@@ -297,19 +322,39 @@ export default function AutomationDashboard() {
       if (!pos) continue;
       const candidate = rollCandidateSelections[key];
       if (!candidate) continue;
-      orders.push({
-        accountNumber: pos.accountId || '',
-        symbol: pos.symbol,
-        strategy: pos.strategy.toLowerCase() as 'csp' | 'cc',
-        currentOptionSymbol: pos.optionSymbol,
-        currentQuantity: 1,
-        currentValue: pos.metrics.currentValue,
-        newStrike: candidate.action === 'roll' ? candidate.strike : undefined,
-        newExpiration: candidate.action === 'roll' ? candidate.expiration : undefined,
-        newPremium: candidate.action === 'roll' ? candidate.newPremium : undefined,
-        netCredit: candidate.action === 'roll' ? candidate.netCredit : undefined,
-        action: candidate.action,
-      });
+
+      const isSpread = ['BPS', 'BCS', 'IC'].includes(pos.strategy);
+      const accountNumber = pos.accountNumber || pos.accountId || '';
+
+      if (isSpread && pos.spreadDetails) {
+        // Multi-leg atomic roll for spreads
+        orders.push({
+          accountNumber,
+          symbol: pos.symbol,
+          strategyType: pos.strategy as 'BPS' | 'BCS' | 'IC',
+          action: candidate.action,
+          spreadLegs: pos.spreadDetails.legs,
+          spreadWidth: pos.spreadDetails.spreadWidth,
+          newExpiration: candidate.action === 'roll' ? candidate.expiration : undefined,
+          newShortStrike: candidate.action === 'roll' ? candidate.strike : undefined,
+          netCredit: candidate.action === 'roll' ? candidate.netCredit : undefined,
+        });
+      } else {
+        // Single-leg CSP / CC roll
+        orders.push({
+          accountNumber,
+          symbol: pos.symbol,
+          strategyType: pos.strategy as 'CSP' | 'CC',
+          currentOptionSymbol: pos.optionSymbol,
+          currentQuantity: 1,
+          currentValue: pos.metrics.currentValue,
+          newStrike: candidate.action === 'roll' ? candidate.strike : undefined,
+          newExpiration: candidate.action === 'roll' ? candidate.expiration : undefined,
+          newPremium: candidate.action === 'roll' ? candidate.newPremium : undefined,
+          netCredit: candidate.action === 'roll' ? candidate.netCredit : undefined,
+          action: candidate.action,
+        });
+      }
     }
     if (orders.length === 0) {
       toast.warning('No positions selected with a roll candidate chosen.');
@@ -1361,7 +1406,14 @@ export default function AutomationDashboard() {
                                   <td className="p-3 font-mono text-xs text-muted-foreground">{pos.accountId?.slice(-6) || '—'}</td>
                                   <td className="p-3 font-semibold">{pos.symbol}</td>
                                   <td className="p-3">
-                                    <Badge variant="outline" className={pos.strategy === 'CSP' ? 'text-blue-400 border-blue-400/40' : 'text-purple-400 border-purple-400/40'}>
+                                    <Badge variant="outline" className={
+                                      pos.strategy === 'CSP' ? 'text-blue-400 border-blue-400/40' :
+                                      pos.strategy === 'CC'  ? 'text-purple-400 border-purple-400/40' :
+                                      pos.strategy === 'BPS' ? 'text-cyan-400 border-cyan-400/40' :
+                                      pos.strategy === 'BCS' ? 'text-pink-400 border-pink-400/40' :
+                                      pos.strategy === 'IC'  ? 'text-amber-400 border-amber-400/40' :
+                                      'text-muted-foreground border-border/40'
+                                    }>
                                       {pos.strategy}
                                     </Badge>
                                   </td>
@@ -1988,14 +2040,23 @@ function RollCandidateExpander({
   onCandidatesLoaded: (candidates: RollCandidate[]) => void;
   onSelectCandidate: (candidate: RollCandidate) => void;
 }) {
+  // Map spread strategy to the getRollCandidates input enum
+  const strategyInput = (
+    pos.strategy === 'BPS' ? 'bps' :
+    pos.strategy === 'BCS' ? 'bcs' :
+    pos.strategy === 'IC'  ? 'ic'  :
+    pos.strategy === 'CC'  ? 'cc'  : 'csp'
+  ) as 'csp' | 'cc' | 'bps' | 'bcs' | 'ic';
+
   const queryInput = !cachedCandidates ? {
     positionId: pos.positionId,
     symbol: pos.symbol,
-    strategy: pos.strategy.toLowerCase() as 'csp' | 'cc',
+    strategy: strategyInput,
     strikePrice: pos.metrics.strikePrice,
     expirationDate: pos.metrics.expiration,
     currentValue: pos.metrics.currentValue,
     openPremium: pos.metrics.openPremium,
+    spreadWidth: pos.spreadDetails?.spreadWidth,
   } : skipToken;
 
   const { data, isLoading } = trpc.rolls.getRollCandidates.useQuery(queryInput, {
@@ -2027,6 +2088,8 @@ function RollCandidateExpander({
     );
   }
 
+  const isSpread = ['BPS', 'BCS', 'IC'].includes(pos.strategy);
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
@@ -2034,7 +2097,27 @@ function RollCandidateExpander({
         {underlyingPrice && <span>Underlying: <span className="font-mono text-blue-400">${underlyingPrice.toFixed(2)}</span></span>}
         <span>Current strike: <span className="font-mono">${pos.metrics.strikePrice.toFixed(2)}</span></span>
         <span>Current DTE: <span className={`font-mono ${pos.metrics.dte <= 7 ? 'text-red-400' : 'text-yellow-400'}`}>{pos.metrics.dte}</span></span>
+        {isSpread && pos.spreadDetails?.spreadWidth && (
+          <span>Width: <span className="font-mono text-amber-400">${pos.spreadDetails.spreadWidth.toFixed(0)}</span></span>
+        )}
       </div>
+      {/* Spread legs breakdown */}
+      {isSpread && pos.spreadDetails && (
+        <div className="mb-3 p-2 rounded-lg bg-muted/20 border border-border/30">
+          <div className="text-xs font-medium text-muted-foreground mb-1.5">{pos.strategy} Legs — atomic roll ({pos.spreadDetails.legs.length * 2} total legs)</div>
+          <div className="flex flex-wrap gap-2">
+            {pos.spreadDetails.legs.map((leg, i) => (
+              <div key={i} className={`text-xs px-2 py-1 rounded border ${
+                leg.role === 'short' ? 'border-red-400/30 bg-red-500/10 text-red-300' : 'border-green-400/30 bg-green-500/10 text-green-300'
+              }`}>
+                <span className="font-bold">{leg.role === 'short' ? 'Short' : 'Long'}</span>{' '}
+                {leg.optionType === 'PUT' ? 'Put' : 'Call'}{' '}
+                <span className="font-mono">${leg.strike.toFixed(0)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="grid gap-2">
         {candidates.map((c, i) => {
           const isSelected = selectedCandidate === c ||
