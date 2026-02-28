@@ -82,6 +82,44 @@ type CCScanResult = {
   action: 'WOULD_SELL_CC';
 };
 
+// Roll Positions types
+type RollAnalysis = {
+  positionId: string;
+  symbol: string;
+  optionSymbol: string;
+  strategy: 'CSP' | 'CC';
+  urgency: 'red' | 'yellow' | 'green';
+  shouldRoll: boolean;
+  reasons: string[];
+  metrics: {
+    dte: number;
+    profitCaptured: number;
+    itmDepth: number;
+    delta: number;
+    currentPrice: number;
+    strikePrice: number;
+    currentValue: number;
+    openPremium: number;
+    expiration: string;
+  };
+  score: number;
+  accountId?: string;
+};
+
+type RollCandidate = {
+  action: 'roll' | 'close';
+  strike?: number;
+  expiration?: string;
+  dte?: number;
+  netCredit?: number;
+  newPremium?: number;
+  annualizedReturn?: number;
+  meets3XRule?: boolean;
+  delta?: number;
+  score: number;
+  description: string;
+};
+
 type RunResult = {
   success: boolean;
   runId: string;
@@ -103,6 +141,15 @@ export default function AutomationDashboard() {
   const [hideExpiringToday, setHideExpiringToday] = useState(true); // Hide DTE=0 by default
   const [activeTab, setActiveTab] = useState('step1-close');
   const [killSwitchActive, setKillSwitchActive] = useState(false);
+  // Roll Positions state
+  const [rollScanResults, setRollScanResults] = useState<{ red: RollAnalysis[]; yellow: RollAnalysis[]; green: RollAnalysis[]; all: RollAnalysis[]; total: number; accountsScanned: number } | null>(null);
+  const [isRollScanning, setIsRollScanning] = useState(false);
+  const [expandedRollRow, setExpandedRollRow] = useState<string | null>(null);
+  const [rollCandidatesCache, setRollCandidatesCache] = useState<Record<string, RollCandidate[]>>({});
+  const [selectedRollPositions, setSelectedRollPositions] = useState<Set<string>>(new Set());
+  const [rollCandidateSelections, setRollCandidateSelections] = useState<Record<string, RollCandidate | null>>({});
+  const [isSubmittingRolls, setIsSubmittingRolls] = useState(false);
+  const [rollFilter, setRollFilter] = useState<'all' | 'red' | 'yellow' | 'green'>('all');
   // UnifiedOrderPreviewModal state
   const [showOrderPreview, setShowOrderPreview] = useState(false);
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
@@ -194,6 +241,82 @@ export default function AutomationDashboard() {
       toast.error(`Order submission failed: ${err.message}`);
     },
   });
+
+  // Roll Positions mutations
+  const scanRollPositions = trpc.rolls.scanRollPositions.useMutation({
+    onSuccess: (data) => {
+      setRollScanResults(data as any);
+      setIsRollScanning(false);
+      const total = (data as any).total || 0;
+      const red = (data as any).red?.length || 0;
+      if (total === 0) {
+        toast.info('No positions need rolling at this time.');
+      } else {
+        toast.success(`Found ${total} position${total !== 1 ? 's' : ''} to review · ${red} urgent`);
+      }
+    },
+    onError: (err) => {
+      setIsRollScanning(false);
+      toast.error(`Roll scan failed: ${err.message}`);
+    },
+  });
+
+  const submitRollOrders = trpc.rolls.submitRollOrders.useMutation({
+    onSuccess: (data) => {
+      setIsSubmittingRolls(false);
+      if (data.summary.failed === 0) {
+        toast.success(`${data.summary.success} roll order${data.summary.success !== 1 ? 's' : ''} submitted successfully!`);
+      } else {
+        toast.warning(`${data.summary.success} submitted, ${data.summary.failed} failed.`);
+      }
+      setSelectedRollPositions(new Set());
+      setRollCandidateSelections({});
+    },
+    onError: (err) => {
+      setIsSubmittingRolls(false);
+      toast.error(`Roll submission failed: ${err.message}`);
+    },
+  });
+
+  const handleRollScan = () => {
+    setIsRollScanning(true);
+    setRollScanResults(null);
+    setExpandedRollRow(null);
+    setSelectedRollPositions(new Set());
+    setRollCandidateSelections({});
+    scanRollPositions.mutate({});
+  };
+
+  const handleSubmitRolls = (dryRun = false) => {
+    if (!rollScanResults) return;
+    const allPositions = rollScanResults.all;
+    const orders: any[] = [];
+    for (const key of Array.from(selectedRollPositions)) {
+      const pos = allPositions.find(p => p.positionId === key);
+      if (!pos) continue;
+      const candidate = rollCandidateSelections[key];
+      if (!candidate) continue;
+      orders.push({
+        accountNumber: pos.accountId || '',
+        symbol: pos.symbol,
+        strategy: pos.strategy.toLowerCase() as 'csp' | 'cc',
+        currentOptionSymbol: pos.optionSymbol,
+        currentQuantity: 1,
+        currentValue: pos.metrics.currentValue,
+        newStrike: candidate.action === 'roll' ? candidate.strike : undefined,
+        newExpiration: candidate.action === 'roll' ? candidate.expiration : undefined,
+        newPremium: candidate.action === 'roll' ? candidate.newPremium : undefined,
+        netCredit: candidate.action === 'roll' ? candidate.netCredit : undefined,
+        action: candidate.action,
+      });
+    }
+    if (orders.length === 0) {
+      toast.warning('No positions selected with a roll candidate chosen.');
+      return;
+    }
+    setIsSubmittingRolls(true);
+    submitRollOrders.mutate({ orders, dryRun });
+  };
 
   // Stable key for a position (used instead of array index to survive sorting)
   const posKey = (r: ScanResult) => `${r.optionSymbol}|${r.account}`;
@@ -1063,35 +1186,291 @@ export default function AutomationDashboard() {
         </TabsContent>{/* end step1-close */}
 
         {/* ─────────────────────────────────────────────────────────────────
-            STEP 2: Roll Positions (Coming Soon)
+            STEP 2: Roll Positions
         ───────────────────────────────────────────────────────────────── */}
-        <TabsContent value="step2-roll">
-          <Card className="border-orange-500/30 bg-orange-500/5">
-            <CardHeader>
-              <div className="flex items-center gap-3">
+        <TabsContent value="step2-roll" className="space-y-4">
+          {/* Header row */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold flex items-center gap-2">
                 <GitMerge className="h-5 w-5 text-orange-400" />
-                <div>
-                  <CardTitle>Roll Positions</CardTitle>
-                  <CardDescription>Roll expiring or challenged positions to extend duration and collect additional premium</CardDescription>
+                Roll Positions
+              </h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Scan all accounts for CSP/CC positions approaching expiry or under stress
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {rollScanResults && (
+                <div className="flex gap-1">
+                  {(['all', 'red', 'yellow', 'green'] as const).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setRollFilter(f)}
+                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                        rollFilter === f
+                          ? f === 'red' ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                            : f === 'yellow' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40'
+                            : f === 'green' ? 'bg-green-500/20 text-green-400 border border-green-500/40'
+                            : 'bg-muted text-foreground border border-border'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {f === 'all' ? `All (${rollScanResults.total})` : f === 'red' ? `🔴 ${rollScanResults.red.length}` : f === 'yellow' ? `🟡 ${rollScanResults.yellow.length}` : `🟢 ${rollScanResults.green.length}`}
+                    </button>
+                  ))}
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-muted-foreground space-y-3">
+              )}
+              <Button
+                onClick={handleRollScan}
+                disabled={isRollScanning || killSwitchActive}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+                size="sm"
+              >
+                {isRollScanning ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Scanning Accounts...</>
+                ) : (
+                  <><RefreshCw className="h-4 w-4 mr-2" />Scan Roll Positions</>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Empty state */}
+          {!rollScanResults && !isRollScanning && (
+            <Card className="border-orange-500/20">
+              <CardContent className="py-12 text-center text-muted-foreground space-y-3">
                 <GitMerge className="h-12 w-12 mx-auto opacity-30" />
-                <p className="font-semibold text-base">Coming Soon</p>
+                <p className="font-semibold text-base">Ready to scan</p>
                 <p className="text-sm max-w-md mx-auto">
-                  Roll scan will detect positions approaching expiry or under stress and suggest optimal rolls.
-                  Supports single-leg (CSP/CC), 2-leg spreads (bear call, bull put), and 4-leg iron condors.
+                  Click "Scan Roll Positions" to detect positions approaching expiry (≤7 DTE), in-the-money,
+                  or that have captured 80%+ of premium and are ready to roll.
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 pt-2">
-                  <Badge variant="outline" className="text-orange-400 border-orange-400/40">CSP / CC — 1-leg roll</Badge>
-                  <Badge variant="outline" className="text-orange-400 border-orange-400/40">Bear Call / Bull Put — 2-leg roll</Badge>
-                  <Badge variant="outline" className="text-orange-400 border-orange-400/40">Iron Condor — up to 4-leg roll</Badge>
+                  <Badge variant="outline" className="text-red-400 border-red-400/40">🔴 Urgent — ≤7 DTE or deep ITM</Badge>
+                  <Badge variant="outline" className="text-yellow-400 border-yellow-400/40">🟡 Watch — 8–14 DTE or challenged</Badge>
+                  <Badge variant="outline" className="text-green-400 border-green-400/40">🟢 Monitor — 80%+ profit captured</Badge>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Loading state */}
+          {isRollScanning && (
+            <Card className="border-orange-500/20">
+              <CardContent className="py-12 text-center space-y-3">
+                <Loader2 className="h-10 w-10 mx-auto animate-spin text-orange-400" />
+                <p className="text-sm text-muted-foreground">Fetching positions from all accounts and analyzing roll opportunities...</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Results */}
+          {rollScanResults && !isRollScanning && (
+            <>
+              {/* Summary stats */}
+              <div className="grid grid-cols-4 gap-3">
+                <Card className="border-border/50">
+                  <CardContent className="pt-4 pb-3">
+                    <div className="text-2xl font-bold">{rollScanResults.total}</div>
+                    <div className="text-xs text-muted-foreground">Positions Found</div>
+                  </CardContent>
+                </Card>
+                <Card className="border-red-500/30 bg-red-500/5">
+                  <CardContent className="pt-4 pb-3">
+                    <div className="text-2xl font-bold text-red-400">{rollScanResults.red.length}</div>
+                    <div className="text-xs text-muted-foreground">Urgent (🔴)</div>
+                  </CardContent>
+                </Card>
+                <Card className="border-yellow-500/30 bg-yellow-500/5">
+                  <CardContent className="pt-4 pb-3">
+                    <div className="text-2xl font-bold text-yellow-400">{rollScanResults.yellow.length}</div>
+                    <div className="text-xs text-muted-foreground">Watch (🟡)</div>
+                  </CardContent>
+                </Card>
+                <Card className="border-green-500/30 bg-green-500/5">
+                  <CardContent className="pt-4 pb-3">
+                    <div className="text-2xl font-bold text-green-400">{rollScanResults.green.length}</div>
+                    <div className="text-xs text-muted-foreground">Monitor (🟢)</div>
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
+
+              {rollScanResults.total === 0 ? (
+                <Card className="border-green-500/20 bg-green-500/5">
+                  <CardContent className="py-8 text-center">
+                    <CheckCircle2 className="h-10 w-10 mx-auto text-green-400 mb-2" />
+                    <p className="font-semibold text-green-400">All positions are healthy</p>
+                    <p className="text-sm text-muted-foreground mt-1">No positions require rolling at this time.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="border-border/50">
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border/50 bg-muted/30">
+                            <th className="text-left p-3 w-8"></th>
+                            <th className="text-left p-3">Account</th>
+                            <th className="text-left p-3">Symbol</th>
+                            <th className="text-left p-3">Strategy</th>
+                            <th className="text-right p-3">Strike</th>
+                            <th className="text-left p-3">Expiry</th>
+                            <th className="text-right p-3">DTE</th>
+                            <th className="text-right p-3">% Profit</th>
+                            <th className="text-right p-3">ITM Depth</th>
+                            <th className="text-center p-3">Urgency</th>
+                            <th className="text-left p-3">Reason</th>
+                            <th className="text-center p-3">Roll Candidate</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(rollFilter === 'all' ? rollScanResults.all
+                            : rollFilter === 'red' ? rollScanResults.red
+                            : rollFilter === 'yellow' ? rollScanResults.yellow
+                            : rollScanResults.green
+                          ).map((pos) => {
+                            const isExpanded = expandedRollRow === pos.positionId;
+                            const isSelected = selectedRollPositions.has(pos.positionId);
+                            const selectedCandidate = rollCandidateSelections[pos.positionId];
+                            const cachedCandidates = rollCandidatesCache[pos.positionId];
+                            const itmDepth = pos.metrics.itmDepth;
+                            const profitPct = pos.metrics.profitCaptured;
+                            return (
+                              <>
+                                <tr
+                                  key={pos.positionId}
+                                  className={`border-b border-border/30 hover:bg-muted/20 transition-colors cursor-pointer ${
+                                    isSelected ? 'bg-orange-500/5' : ''
+                                  }`}
+                                  onClick={() => setExpandedRollRow(isExpanded ? null : pos.positionId)}
+                                >
+                                  <td className="p-3" onClick={e => e.stopPropagation()}>
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={(checked) => {
+                                        const next = new Set(selectedRollPositions);
+                                        if (checked) next.add(pos.positionId);
+                                        else next.delete(pos.positionId);
+                                        setSelectedRollPositions(next);
+                                      }}
+                                      disabled={!selectedCandidate}
+                                    />
+                                  </td>
+                                  <td className="p-3 font-mono text-xs text-muted-foreground">{pos.accountId?.slice(-6) || '—'}</td>
+                                  <td className="p-3 font-semibold">{pos.symbol}</td>
+                                  <td className="p-3">
+                                    <Badge variant="outline" className={pos.strategy === 'CSP' ? 'text-blue-400 border-blue-400/40' : 'text-purple-400 border-purple-400/40'}>
+                                      {pos.strategy}
+                                    </Badge>
+                                  </td>
+                                  <td className="p-3 text-right font-mono">${pos.metrics.strikePrice.toFixed(2)}</td>
+                                  <td className="p-3 text-xs">{pos.metrics.expiration}</td>
+                                  <td className={`p-3 text-right font-mono font-semibold ${
+                                    pos.metrics.dte <= 7 ? 'text-red-400' : pos.metrics.dte <= 14 ? 'text-yellow-400' : 'text-muted-foreground'
+                                  }`}>{pos.metrics.dte}</td>
+                                  <td className={`p-3 text-right font-mono ${
+                                    profitPct >= 80 ? 'text-green-400' : profitPct >= 50 ? 'text-yellow-400' : 'text-muted-foreground'
+                                  }`}>{profitPct.toFixed(0)}%</td>
+                                  <td className={`p-3 text-right font-mono text-xs ${
+                                    itmDepth > 5 ? 'text-red-400' : itmDepth > 0 ? 'text-yellow-400' : 'text-muted-foreground'
+                                  }`}>{itmDepth > 0 ? `${itmDepth.toFixed(1)}%` : '—'}</td>
+                                  <td className="p-3 text-center">
+                                    <span className={`text-lg ${
+                                      pos.urgency === 'red' ? '' : pos.urgency === 'yellow' ? '' : ''
+                                    }`}>
+                                      {pos.urgency === 'red' ? '🔴' : pos.urgency === 'yellow' ? '🟡' : '🟢'}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-xs text-muted-foreground max-w-[200px] truncate">
+                                    {pos.reasons?.[0] || '—'}
+                                  </td>
+                                  <td className="p-3 text-center text-xs">
+                                    {selectedCandidate ? (
+                                      <span className="text-green-400 font-medium">
+                                        {selectedCandidate.action === 'close' ? 'Close only' : `→ $${selectedCandidate.strike?.toFixed(0)} ${selectedCandidate.expiration?.slice(5)}`}
+                                      </span>
+                                    ) : (
+                                      <span className="text-muted-foreground italic">expand to select</span>
+                                    )}
+                                  </td>
+                                </tr>
+                                {/* Expanded roll candidates row */}
+                                {isExpanded && (
+                                  <tr key={`${pos.positionId}-expanded`} className="bg-muted/10">
+                                    <td colSpan={12} className="p-4">
+                                      <RollCandidateExpander
+                                        pos={pos}
+                                        cachedCandidates={cachedCandidates}
+                                        selectedCandidate={selectedCandidate}
+                                        onCandidatesLoaded={(candidates) => {
+                                          setRollCandidatesCache(prev => ({ ...prev, [pos.positionId]: candidates }));
+                                        }}
+                                        onSelectCandidate={(candidate) => {
+                                          setRollCandidateSelections(prev => ({ ...prev, [pos.positionId]: candidate }));
+                                          // Auto-select the position checkbox
+                                          setSelectedRollPositions(prev => {
+                                            const next = new Set(prev);
+                                            next.add(pos.positionId);
+                                            return next;
+                                          });
+                                        }}
+                                      />
+                                    </td>
+                                  </tr>
+                                )}
+                              </>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Submit bar */}
+              {selectedRollPositions.size > 0 && (
+                <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-orange-400">{selectedRollPositions.size} roll{selectedRollPositions.size !== 1 ? 's' : ''} selected</span>
+                    <span className="text-sm text-muted-foreground ml-2">
+                      {Array.from(selectedRollPositions).filter(k => rollCandidateSelections[k]?.action === 'roll').length} rolls,{' '}
+                      {Array.from(selectedRollPositions).filter(k => rollCandidateSelections[k]?.action === 'close').length} closes
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { setSelectedRollPositions(new Set()); setRollCandidateSelections({}); }}
+                    >
+                      Clear
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSubmitRolls(true)}
+                      disabled={isSubmittingRolls}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      Dry Run
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="bg-orange-600 hover:bg-orange-700 text-white"
+                      onClick={() => handleSubmitRolls(false)}
+                      disabled={isSubmittingRolls || killSwitchActive}
+                    >
+                      {isSubmittingRolls ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
+                      Submit {selectedRollPositions.size} Roll{selectedRollPositions.size !== 1 ? 's' : ''}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </TabsContent>
 
         {/* ─────────────────────────────────────────────────────────────────
@@ -1588,6 +1967,123 @@ export default function AutomationDashboard() {
       </Card>
 
 
+    </div>
+  );
+}
+
+/**
+ * RollCandidateExpander — lazy-loads roll candidates for a position when the row is expanded.
+ * Uses trpc.rolls.getRollCandidates.useQuery with skipToken until position data is available.
+ */
+function RollCandidateExpander({
+  pos,
+  cachedCandidates,
+  selectedCandidate,
+  onCandidatesLoaded,
+  onSelectCandidate,
+}: {
+  pos: RollAnalysis;
+  cachedCandidates: RollCandidate[] | undefined;
+  selectedCandidate: RollCandidate | null | undefined;
+  onCandidatesLoaded: (candidates: RollCandidate[]) => void;
+  onSelectCandidate: (candidate: RollCandidate) => void;
+}) {
+  const { skipToken } = require('@tanstack/react-query');
+
+  const queryInput = !cachedCandidates ? {
+    positionId: pos.positionId,
+    symbol: pos.symbol,
+    strategy: pos.strategy.toLowerCase() as 'csp' | 'cc',
+    strikePrice: pos.metrics.strikePrice,
+    expirationDate: pos.metrics.expiration,
+    currentValue: pos.metrics.currentValue,
+    openPremium: pos.metrics.openPremium,
+  } : skipToken;
+
+  const { data, isLoading } = trpc.rolls.getRollCandidates.useQuery(queryInput, {
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // When data arrives, cache it
+  if (data && !cachedCandidates) {
+    onCandidatesLoaded(data.candidates as RollCandidate[]);
+  }
+
+  const candidates = cachedCandidates || (data?.candidates as RollCandidate[] | undefined);
+  const underlyingPrice = (data as any)?.underlyingPrice;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Fetching option chain for {pos.symbol}...
+      </div>
+    );
+  }
+
+  if (!candidates || candidates.length === 0) {
+    return (
+      <div className="text-sm text-muted-foreground py-2">
+        No roll candidates found for {pos.symbol}.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
+        <span className="font-medium text-foreground">{pos.symbol} Roll Options</span>
+        {underlyingPrice && <span>Underlying: <span className="font-mono text-blue-400">${underlyingPrice.toFixed(2)}</span></span>}
+        <span>Current strike: <span className="font-mono">${pos.metrics.strikePrice.toFixed(2)}</span></span>
+        <span>Current DTE: <span className={`font-mono ${pos.metrics.dte <= 7 ? 'text-red-400' : 'text-yellow-400'}`}>{pos.metrics.dte}</span></span>
+      </div>
+      <div className="grid gap-2">
+        {candidates.map((c, i) => {
+          const isSelected = selectedCandidate === c ||
+            (selectedCandidate?.action === c.action && selectedCandidate?.strike === c.strike && selectedCandidate?.expiration === c.expiration);
+          return (
+            <button
+              key={i}
+              onClick={() => onSelectCandidate(c)}
+              className={`w-full text-left p-3 rounded-lg border text-sm transition-all ${
+                isSelected
+                  ? 'border-orange-500/60 bg-orange-500/10 text-foreground'
+                  : 'border-border/40 bg-muted/20 hover:bg-muted/40 text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                    c.action === 'close' ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'
+                  }`}>
+                    {c.action === 'close' ? 'CLOSE' : 'ROLL'}
+                  </span>
+                  <span className="font-medium">{c.description}</span>
+                </div>
+                <div className="flex items-center gap-4 text-xs">
+                  {c.action === 'roll' && c.netCredit !== undefined && (
+                    <span className={c.netCredit >= 0 ? 'text-green-400' : 'text-red-400'}>
+                      {c.netCredit >= 0 ? '+' : ''}{c.netCredit.toFixed(2)} {c.netCredit >= 0 ? 'credit' : 'debit'}
+                    </span>
+                  )}
+                  {c.action === 'roll' && c.delta !== undefined && (
+                    <span className="text-muted-foreground">δ {c.delta.toFixed(2)}</span>
+                  )}
+                  {c.action === 'roll' && c.annualizedReturn !== undefined && (
+                    <span className="text-blue-400">{c.annualizedReturn.toFixed(0)}% ann.</span>
+                  )}
+                  {c.meets3XRule && (
+                    <Badge variant="outline" className="text-green-400 border-green-400/40 text-xs py-0">3X ✓</Badge>
+                  )}
+                  <span className={`font-semibold ${isSelected ? 'text-orange-400' : 'text-muted-foreground'}`}>
+                    Score: {c.score}
+                  </span>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

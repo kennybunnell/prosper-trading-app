@@ -55,16 +55,17 @@ export default function ActionItems() {
     return profitPercent >= 80;
   }) || [];
 
-  // Fetch rolls data (filtered by selected account)
-  const { data: rollsData, isLoading: rollsLoading } = trpc.rolls.getRollsNeeded.useQuery(
-    selectedAccountId && selectedAccountId !== 'ALL_ACCOUNTS' 
-      ? { accountId: selectedAccountId }
-      : skipToken,
-    {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      retry: 3,
-    }
-  );
+  // Fetch rolls data via mutation (on-demand scan)
+  const [rollsData, setRollsData] = useState<{ red: any[]; yellow: any[]; green: any[]; all: any[]; total: number; accountsScanned: number } | null>(null);
+  const [rollsLoading, setRollsLoading] = useState(false);
+
+  const scanRolls = trpc.rolls.scanRollPositions.useMutation({
+    onSuccess: (data) => {
+      setRollsData(data);
+      setRollsLoading(false);
+    },
+    onError: () => setRollsLoading(false),
+  });
 
   const rollsRed = rollsData?.red || [];
   const rollsYellow = rollsData?.yellow || [];

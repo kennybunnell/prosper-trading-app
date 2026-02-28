@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, userId, tradierApiKey, tastytradeUsername, createdAt, updatedAt FROM apiCredentials LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT id, userId, tradierApiKey, tastytradeUsername, createdAt, updatedAt FROM apiCredentials LIMIT 5;",
+  "rows": [
+    {
+      "id": "150008",
+      "userId": "1",
+      "tradierApiKey": "NULL",
+      "tastytradeUsername": "updated_user",
+      "createdAt": "2026-02-27 16:24:29",
+      "updatedAt": "2026-02-27 23:15:10"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\ttradierApiKey\ttastytradeUsername\tcreatedAt\tupdatedAt\n150008\t1\tNULL\tupdated_user\t2026-02-27 16:24:29\t2026-02-27 23:15:10\n",
+  "stderr": "",
+  "execution_time_ms": 400
+}

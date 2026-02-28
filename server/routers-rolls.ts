@@ -8,169 +8,176 @@ import { z } from "zod";
 import type { PositionWithMetrics } from "./rollDetection";
 import { analyzePositionsForRolls, generateRollCandidates } from "./rollDetection";
 
+// Helper: Build OCC option symbol from components
+function buildOCCSymbol(underlying: string, expiration: string, optionType: 'C' | 'P', strike: number): string {
+  const expParts = expiration.split('-');
+  const dateStr = expParts[0].slice(2) + expParts[1] + expParts[2]; // YYMMDD
+  const strikeStr = String(Math.round(strike * 1000)).padStart(8, '0');
+  return `${underlying}${dateStr}${optionType}${strikeStr}`;
+}
+
 export const rollsRouter = router({
   /**
-   * Get positions that need rolling based on 7/14 DTE thresholds and 80% profit rule
-   * Returns positions grouped by urgency (red/yellow/green)
-   * Optionally filter by accountId
+   * Scan all accounts for positions that need rolling.
+   * Returns positions grouped by urgency (red/yellow/green) with real underlying prices from Tradier.
    */
-  getRollsNeeded: protectedProcedure
-    .input(
-      z.object({
-        accountId: z.string().optional(),
-      }).optional()
-    )
-    .query(async ({ ctx, input }) => {
-    const { getTastytradeAPI } = await import('./tastytrade');
-    const { getApiCredentials, getTastytradeAccounts } = await import('./db');
-    
-    // Get Tastytrade credentials
-    const credentials = await getApiCredentials(ctx.user.id);
-    if (!credentials || !credentials.tastytradeClientSecret || !credentials.tastytradeRefreshToken) {
-      throw new Error('Tastytrade credentials not found');
-    }
-    
-    const { authenticateTastytrade } = await import('./tastytrade');
+  scanRollPositions: protectedProcedure
+    .input(z.object({ accountId: z.string().optional() }).optional())
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials, getTastytradeAccounts } = await import('./db');
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const { TradierAPI } = await import('./tradier');
+
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials || !credentials.tastytradeClientSecret || !credentials.tastytradeRefreshToken) {
+        throw new Error('Tastytrade credentials not found');
+      }
+
+      const tradierApiKey = credentials.tradierApiKey || process.env.TRADIER_API_KEY;
+      if (!tradierApiKey) throw new Error('Tradier API key not configured');
+
       const api = await authenticateTastytrade(credentials);
-    
-    // Get all accounts
-    const accounts = await getTastytradeAccounts(ctx.user.id);
-    if (!accounts || accounts.length === 0) {
+      const tradier = new TradierAPI(tradierApiKey, false);
+
+      const accounts = await getTastytradeAccounts(ctx.user.id);
+      if (!accounts || accounts.length === 0) {
+        return { red: [], yellow: [], green: [], all: [], total: 0, accountsScanned: 0 };
+      }
+
+      // Filter by accountId if provided
+      let targetAccounts = accounts;
+      if (input?.accountId) {
+        const found = accounts.find(acc => acc.accountId === input.accountId);
+        if (found) targetAccounts = [found];
+      }
+
+      const allPositions: PositionWithMetrics[] = [];
+      const currentPrices: Record<string, number> = {};
+      const symbolsToFetch = new Set<string>();
+
+      // First pass: collect all positions and unique underlying symbols
+      const rawPositionsByAccount: Array<{ accountNumber: string; positions: any[] }> = [];
+      for (const account of targetAccounts) {
+        const positions = await api.getPositions(account.accountNumber);
+        if (!positions) continue;
+        rawPositionsByAccount.push({ accountNumber: account.accountNumber, positions });
+        for (const pos of positions) {
+          if (pos['instrument-type'] !== 'Equity Option') continue;
+          const symbol = pos.symbol || '';
+          const parsed = parseOptionSymbol(symbol);
+          if (parsed) symbolsToFetch.add(parsed.underlying);
+        }
+      }
+
+      // Batch fetch underlying prices from Tradier
+      if (symbolsToFetch.size > 0) {
+        try {
+          const symbols = Array.from(symbolsToFetch);
+          // Fetch in batches of 10
+          for (let i = 0; i < symbols.length; i += 10) {
+            const batch = symbols.slice(i, i + 10);
+            for (const sym of batch) {
+              try {
+                const quote = await tradier.getQuote(sym);
+                if (quote && quote.last) {
+                  currentPrices[sym] = quote.last;
+                }
+              } catch (e) {
+                console.warn(`[scanRollPositions] Could not fetch price for ${sym}:`, e);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[scanRollPositions] Error fetching prices:', e);
+        }
+      }
+
+      // Second pass: build PositionWithMetrics using real prices
+      for (const { accountNumber, positions } of rawPositionsByAccount) {
+        for (const pos of positions) {
+          if (pos['instrument-type'] !== 'Equity Option') continue;
+
+          const quantity = parseInt(String(pos.quantity || '0'));
+          const quantityDirection = pos['quantity-direction'];
+          const isShort = quantityDirection?.toLowerCase() === 'short' || quantity < 0;
+          if (!isShort) continue;
+
+          const symbol = pos.symbol || '';
+          const parsed = parseOptionSymbol(symbol);
+          if (!parsed) continue;
+
+          let strategy: 'csp' | 'cc' | null = null;
+          if (parsed.optionType === 'PUT') strategy = 'csp';
+          else if (parsed.optionType === 'CALL') strategy = 'cc';
+          if (!strategy) continue;
+
+          const openPrice = parseFloat(String(pos['average-open-price'] || '0'));
+          const closePrice = parseFloat(String(pos['close-price'] || '0'));
+          const markPrice = parseFloat(String((pos as any)['mark-price'] || closePrice || '0'));
+          const multiplier = parseInt(String(pos.multiplier || '100'));
+          const qty = Math.abs(quantity);
+
+          const openPremium = openPrice * qty * multiplier;
+          const currentValue = markPrice * qty * multiplier;
+
+          const underlyingSymbol = parsed.underlying;
+          // Use real price from Tradier, fallback to strike if unavailable
+          const underlyingPrice = currentPrices[underlyingSymbol] || parsed.strike;
+
+          const positionWithMetrics: PositionWithMetrics = {
+            id: Math.floor(Math.random() * 1000000),
+            userId: ctx.user.id,
+            accountId: accountNumber,
+            symbol: underlyingSymbol,
+            positionType: 'option',
+            strategy,
+            strike: parsed.strike.toString(),
+            expiration: parsed.expiration,
+            quantity: qty,
+            costBasis: openPremium.toString(),
+            currentValue: currentValue.toString(),
+            unrealizedPnL: (openPremium - currentValue).toString(),
+            realizedPnL: '0',
+            status: 'open',
+            spreadType: null,
+            longStrike: null,
+            spreadWidth: null,
+            capitalAtRisk: null,
+            openedAt: new Date(),
+            closedAt: null,
+            updatedAt: new Date(),
+            option_symbol: symbol,
+            open_premium: openPremium,
+            current_value: currentValue,
+            expiration_date: parsed.expiration,
+            strike_price: parsed.strike,
+            delta: 0,
+          };
+
+          allPositions.push(positionWithMetrics);
+        }
+      }
+
+      // Analyze positions for rolls using real prices
+      const analyses = analyzePositionsForRolls(allPositions, currentPrices);
+
+      // Return ALL analyses (not just shouldRoll=true) so user can see full picture
+      const red = analyses.filter(a => a.urgency === 'red');
+      const yellow = analyses.filter(a => a.urgency === 'yellow');
+      const green = analyses.filter(a => a.urgency === 'green');
+
       return {
-        red: [],
-        yellow: [],
-        green: [],
-        total: 0,
+        red,
+        yellow,
+        green,
+        all: analyses,
+        total: analyses.length,
+        accountsScanned: targetAccounts.length,
       };
-    }
-    
-    // Filter by accountId if provided
-    let accountNumbers = accounts.map((acc) => acc.accountNumber);
-    if (input?.accountId) {
-      const selectedAccount = accounts.find(acc => acc.accountId === input.accountId);
-      if (selectedAccount) {
-        accountNumbers = [selectedAccount.accountNumber];
-      } else {
-        // Account not found, return empty results
-        return {
-          red: [],
-          yellow: [],
-          green: [],
-          total: 0,
-        };
-      }
-    }
-    
-    // Fetch positions from all accounts
-    const allPositions: PositionWithMetrics[] = [];
-    const currentPrices: Record<string, number> = {};
-    
-    for (const accountNumber of accountNumbers) {
-      const positions = await api.getPositions(accountNumber);
-      if (!positions) continue;
-      
-      for (const pos of positions) {
-        const instrumentType = pos['instrument-type'];
-        
-        // Only process equity options
-        if (instrumentType !== 'Equity Option') continue;
-        
-        const quantity = parseInt(String(pos.quantity || '0'));
-        const quantityDirection = pos['quantity-direction'];
-        const isShort = quantityDirection?.toLowerCase() === 'short' || quantity < 0;
-        
-        // Only process short options (CSP and CC)
-        if (!isShort) continue;
-        
-        const symbol = pos.symbol || '';
-        const parsed = parseOptionSymbol(symbol);
-        if (!parsed) continue;
-        
-        // Determine strategy type
-        let strategy: 'csp' | 'cc' | null = null;
-        if (parsed.optionType === 'PUT') {
-          strategy = 'csp';
-        } else if (parsed.optionType === 'CALL') {
-          strategy = 'cc';
-        }
-        
-        if (!strategy) continue;
-        
-        // Calculate metrics
-        const openPrice = parseFloat(String(pos['average-open-price'] || '0'));
-        const closePrice = parseFloat(String(pos['close-price'] || '0'));
-        const markPrice = parseFloat(String((pos as any)['mark-price'] || closePrice || '0'));
-        const multiplier = parseInt(String(pos.multiplier || '100'));
-        const qty = Math.abs(quantity);
-        
-        const openPremium = openPrice * qty * multiplier;
-        const currentValue = markPrice * qty * multiplier;
-        // Delta is not available in position data, will need to fetch from greeks
-        const delta = 0; // TODO: Fetch from greeks API in Phase 1B
-        
-        // Get underlying price from close-price or mark-price
-        const underlyingSymbol = parsed.underlying;
-        if (!currentPrices[underlyingSymbol]) {
-          // Use close price as proxy for underlying price
-          // TODO: Fetch actual underlying price from market data API in Phase 1B
-          currentPrices[underlyingSymbol] = parsed.strike;
-        }
-        
-        // Create position with metrics
-        const positionWithMetrics: PositionWithMetrics = {
-          id: Math.floor(Math.random() * 1000000), // Generate random ID for now
-          userId: ctx.user.id,
-          accountId: accountNumber,
-          symbol: underlyingSymbol,
-          positionType: 'option',
-          strategy,
-          strike: parsed.strike.toString(),
-          expiration: parsed.expiration,
-          quantity: qty,
-          costBasis: openPremium.toString(),
-          currentValue: currentValue.toString(),
-          unrealizedPnL: (openPremium - currentValue).toString(),
-          realizedPnL: '0',
-          status: 'open',
-          spreadType: null,
-          longStrike: null,
-          spreadWidth: null,
-          capitalAtRisk: null,
-          openedAt: new Date(),
-          closedAt: null,
-          updatedAt: new Date(),
-          // Extended fields for roll analysis
-          option_symbol: symbol, // Store the full OCC option symbol from Tastytrade
-          open_premium: openPremium,
-          current_value: currentValue,
-          expiration_date: parsed.expiration,
-          strike_price: parsed.strike,
-          delta: delta,
-        };
-        
-        allPositions.push(positionWithMetrics);
-      }
-    }
-    
-    // Analyze positions for rolls
-    const analyses = analyzePositionsForRolls(allPositions, currentPrices);
-    
-    // Group by urgency
-    const red = analyses.filter(a => a.urgency === 'red' && a.shouldRoll);
-    const yellow = analyses.filter(a => a.urgency === 'yellow' && a.shouldRoll);
-    const green = analyses.filter(a => a.urgency === 'green' && a.shouldRoll);
-    
-    return {
-      red,
-      yellow,
-      green,
-      total: red.length + yellow.length + green.length,
-    };
-  }),
-  
+    }),
+
   /**
-   * Get roll candidates for a specific position
-   * Returns top 5 roll options plus "close without rolling" option
+   * Get roll candidates for a specific position (called when user expands a row)
    */
   getRollCandidates: protectedProcedure
     .input(z.object({
@@ -183,50 +190,31 @@ export const rollsRouter = router({
       openPremium: z.number(),
     }))
     .query(async ({ input, ctx }) => {
-      const { getTastytradeAPI } = await import('./tastytrade');
       const { getApiCredentials } = await import('./db');
-      
-      // Get Tastytrade credentials
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const { TradierAPI } = await import('./tradier');
+
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials || !credentials.tastytradeClientSecret || !credentials.tastytradeRefreshToken) {
         throw new Error('Tastytrade credentials not found');
       }
-      
-      const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
-      
-      // Use Tradier API for option chains and Greeks
-      const { TradierAPI } = await import('./tradier');
-      const tradierApiKey = process.env.TRADIER_API_KEY;
-      
-      if (!tradierApiKey) {
-        throw new Error('TRADIER_API_KEY not configured');
-      }
-      
+
+      const tradierApiKey = credentials.tradierApiKey || process.env.TRADIER_API_KEY;
+      if (!tradierApiKey) throw new Error('Tradier API key not configured');
+
       const tradier = new TradierAPI(tradierApiKey, false);
-      
+
       try {
-        // Fetch underlying price from Tradier
         const quote = await tradier.getQuote(input.symbol);
         const underlyingPrice = quote.last;
-        
-        // Fetch option expirations from Tradier
         const expirations = await tradier.getExpirations(input.symbol);
-        
-        // Create option chain structure for generateRollCandidates
-        const optionChain = {
-          symbol: input.symbol,
-          expirations: expirations.map(exp => ({ date: exp })),
-        };
-        
-        // Calculate DTE for current position
+
         const currentDTE = Math.ceil(
           (new Date(input.expirationDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
         );
-        
-        // Create mock position and analysis for generateRollCandidates
+
         const mockPosition: PositionWithMetrics = {
-          id: parseInt(input.positionId),
+          id: parseInt(input.positionId) || Math.floor(Math.random() * 1000000),
           userId: ctx.user.id,
           accountId: 'mock',
           symbol: input.symbol,
@@ -247,14 +235,19 @@ export const rollsRouter = router({
           openedAt: new Date(),
           closedAt: null,
           updatedAt: new Date(),
-          option_symbol: `${input.symbol}     ${input.expirationDate.replace(/-/g, '')}${input.strategy === 'csp' ? 'P' : 'C'}${(input.strikePrice * 1000).toString().padStart(8, '0')}`, // Construct OCC symbol as placeholder
+          option_symbol: buildOCCSymbol(
+            input.symbol,
+            input.expirationDate,
+            input.strategy === 'csp' ? 'P' : 'C',
+            input.strikePrice
+          ),
           open_premium: input.openPremium,
           current_value: input.currentValue,
           expiration_date: input.expirationDate,
           strike_price: input.strikePrice,
           delta: 0,
         };
-        
+
         const mockAnalysis = {
           positionId: input.positionId,
           symbol: input.symbol,
@@ -265,7 +258,9 @@ export const rollsRouter = router({
           reasons: [],
           metrics: {
             dte: currentDTE,
-            profitCaptured: ((input.openPremium - input.currentValue) / input.openPremium) * 100,
+            profitCaptured: input.openPremium > 0
+              ? ((input.openPremium - input.currentValue) / input.openPremium) * 100
+              : 0,
             itmDepth: 0,
             delta: 0,
             currentPrice: underlyingPrice,
@@ -276,8 +271,7 @@ export const rollsRouter = router({
           },
           score: 50,
         };
-        
-        // Generate roll candidates
+
         const candidates = await generateRollCandidates(
           mockPosition,
           mockAnalysis,
@@ -285,28 +279,175 @@ export const rollsRouter = router({
           underlyingPrice,
           tradier
         );
-        
-        return { candidates };
+
+        return { candidates, underlyingPrice };
       } catch (error: any) {
         console.error('[getRollCandidates] Error:', error.message);
-        // Return close option only on error
         return {
-          candidates: [
-            {
-              action: 'close' as const,
-              score: 50,
-              description: `Close for $${input.currentValue.toFixed(2)} debit (Error fetching roll options: ${error.message})`,
-            },
-          ],
+          candidates: [{
+            action: 'close' as const,
+            score: 50,
+            description: `Close position (Error fetching roll options: ${error.message})`,
+          }],
+          underlyingPrice: input.strikePrice,
         };
       }
+    }),
+
+  /**
+   * Submit roll orders: BTC current position + STO new position (2-leg combo)
+   * Or just BTC if action is 'close'
+   */
+  submitRollOrders: protectedProcedure
+    .input(z.object({
+      dryRun: z.boolean().default(false),
+      orders: z.array(z.object({
+        accountNumber: z.string(),
+        symbol: z.string(),
+        strategy: z.enum(['csp', 'cc']),
+        // Current position (BTC leg)
+        currentOptionSymbol: z.string(),
+        currentQuantity: z.number(),
+        currentValue: z.number(), // per-contract cost to close
+        // New position (STO leg) — null if just closing
+        newStrike: z.number().optional(),
+        newExpiration: z.string().optional(),
+        newPremium: z.number().optional(), // per-contract credit from new STO
+        netCredit: z.number().optional(),
+        action: z.enum(['roll', 'close']),
+      }))
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const { authenticateTastytrade } = await import('./tastytrade');
+
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials || !credentials.tastytradeClientSecret || !credentials.tastytradeRefreshToken) {
+        throw new Error('Tastytrade credentials not found');
+      }
+
+      const api = await authenticateTastytrade(credentials);
+
+      const results: Array<{
+        symbol: string;
+        accountNumber: string;
+        action: string;
+        success: boolean;
+        orderId?: string;
+        error?: string;
+        dryRun: boolean;
+      }> = [];
+
+      for (const order of input.orders) {
+        try {
+          const legs: any[] = [];
+
+          // Leg 1: BTC current position
+          legs.push({
+            instrumentType: 'Equity Option' as const,
+            symbol: order.currentOptionSymbol,
+            quantity: String(order.currentQuantity),
+            action: 'Buy to Close' as const,
+          });
+
+          // Leg 2: STO new position (if rolling, not just closing)
+          if (order.action === 'roll' && order.newStrike && order.newExpiration) {
+            const newOCCSymbol = buildOCCSymbol(
+              order.symbol,
+              order.newExpiration,
+              order.strategy === 'csp' ? 'P' : 'C',
+              order.newStrike
+            );
+            legs.push({
+              instrumentType: 'Equity Option' as const,
+              symbol: newOCCSymbol,
+              quantity: String(order.currentQuantity),
+              action: 'Sell to Open' as const,
+            });
+          }
+
+          // Calculate limit price
+          // For a roll: net credit = new premium - close cost (positive = credit)
+          // For close only: debit = current value
+          let price: string;
+          let priceEffect: 'Credit' | 'Debit';
+
+          if (order.action === 'roll' && order.netCredit !== undefined) {
+            const absPrice = Math.abs(order.netCredit);
+            price = absPrice.toFixed(2);
+            priceEffect = order.netCredit >= 0 ? 'Credit' : 'Debit';
+          } else {
+            // Close only: pay current value
+            price = Math.abs(order.currentValue).toFixed(2);
+            priceEffect = 'Debit';
+          }
+
+          const orderRequest = {
+            accountNumber: order.accountNumber,
+            timeInForce: 'Day' as const,
+            orderType: 'Limit' as const,
+            price,
+            priceEffect,
+            legs,
+          };
+
+          if (input.dryRun) {
+            const dryResult = await api.dryRunOrder(orderRequest);
+            results.push({
+              symbol: order.symbol,
+              accountNumber: order.accountNumber,
+              action: order.action,
+              success: true,
+              orderId: `dry-run-${order.currentOptionSymbol}`,
+              dryRun: true,
+            });
+          } else {
+            const submitted = await api.submitOrder(orderRequest);
+            results.push({
+              symbol: order.symbol,
+              accountNumber: order.accountNumber,
+              action: order.action,
+              success: true,
+              orderId: submitted.id,
+              dryRun: false,
+            });
+          }
+        } catch (error: any) {
+          results.push({
+            symbol: order.symbol,
+            accountNumber: order.accountNumber,
+            action: order.action,
+            success: false,
+            error: error.message,
+            dryRun: input.dryRun,
+          });
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.filter(r => !r.success).length;
+
+      return {
+        results,
+        summary: {
+          total: results.length,
+          success: successCount,
+          failed: failCount,
+          dryRun: input.dryRun,
+        },
+      };
     }),
 });
 
 /**
  * Helper function to parse OCC option symbols
  */
-function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
+function parseOptionSymbol(symbol: string): {
+  underlying: string;
+  expiration: string;
+  optionType: string;
+  strike: number;
+} | null {
   try {
     const cleanSymbol = symbol.replace(/\s/g, '');
     const match = cleanSymbol.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);

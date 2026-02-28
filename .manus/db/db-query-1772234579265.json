@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, userId, CHAR_LENGTH(tradierApiKey) as keyLength, LEFT(tradierApiKey, 8) as keyPrefix, tradierApiKey IS NULL as isNull, updatedAt FROM apiCredentials LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT id, userId, CHAR_LENGTH(tradierApiKey) as keyLength, LEFT(tradierApiKey, 8) as keyPrefix, tradierApiKey IS NULL as isNull, updatedAt FROM apiCredentials LIMIT 5;",
+  "rows": [
+    {
+      "id": "150008",
+      "userId": "1",
+      "keyLength": "NULL",
+      "keyPrefix": "NULL",
+      "isNull": "1",
+      "updatedAt": "2026-02-27 23:15:10"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tkeyLength\tkeyPrefix\tisNull\tupdatedAt\n150008\t1\tNULL\tNULL\t1\t2026-02-27 23:15:10\n",
+  "stderr": "",
+  "execution_time_ms": 367
+}

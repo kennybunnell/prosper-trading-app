@@ -6578,3 +6578,16 @@
 - [x] Add individual "Scan Covered Calls" button on Tab 3 header (independent of Tab 1 scan)
 - [x] Debug why 0 CC opportunities returned despite eligible positions (AVGO, HOOD, CIFR, SOFI, HIMS)
 - [ ] Add per-tab scan state so Tab 3 can show its own loading/results independently
+
+## ✅ Tab 2: Roll Positions (Completed Feb 28, 2026)
+- [x] Enhance getRollsNeeded to fetch real underlying prices from Tradier (not strike as proxy)
+- [x] Add submitRollOrders procedure to Tastytrade (BTC current + STO new strike/expiry)
+- [x] Build Tab 2 UI: Scan button, results table with urgency badges
+- [x] Table columns: Account, Symbol, Strategy, Strike, Expiry, DTE, % Profit, ITM depth, Urgency
+- [x] Expandable row → show roll candidates (new strike, expiry, net credit, delta) via RollCandidateExpander
+- [x] Checkbox selection + Submit Selected Rolls button
+- [x] Handle "close only" option (no roll, just BTC)
+- [x] Show per-account grouping in results
+- [x] Added urgency filter buttons (All / 🔴 / 🟡 / 🟢)
+- [x] Added Dry Run mode for safe testing
+- [x] 18 vitest tests passing for roll logic
