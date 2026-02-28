@@ -6591,3 +6591,8 @@
 - [x] Added urgency filter buttons (All / 🔴 / 🟡 / 🟢)
 - [x] Added Dry Run mode for safe testing
 - [x] 18 vitest tests passing for roll logic
+
+## Bug Fixes (Feb 28, 2026 — Tab 2 Roll Positions)
+- [x] Fix ReferenceError: require is not defined in RollCandidateExpander — replaced require('@tanstack/react-query') with ES import at top of file
+- [x] Fix missing key props — moved key from inner <tr> to outer <React.Fragment> wrapper
+- [x] Add missing React import (needed for React.Fragment JSX)

@@ -3,7 +3,7 @@
  * Control panel for managing automated trading workflows
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { UnifiedOrderPreviewModal, UnifiedOrder } from '@/components/UnifiedOrderPreviewModal';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +33,7 @@ import { toast } from 'sonner';
 import { ConnectionStatusIndicator } from '@/components/ConnectionStatusIndicator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { skipToken } from '@tanstack/react-query';
 
 type ScanResult = {
   account: string;
@@ -1338,9 +1339,8 @@ export default function AutomationDashboard() {
                             const itmDepth = pos.metrics.itmDepth;
                             const profitPct = pos.metrics.profitCaptured;
                             return (
-                              <>
+                              <React.Fragment key={pos.positionId}>
                                 <tr
-                                  key={pos.positionId}
                                   className={`border-b border-border/30 hover:bg-muted/20 transition-colors cursor-pointer ${
                                     isSelected ? 'bg-orange-500/5' : ''
                                   }`}
@@ -1420,7 +1420,7 @@ export default function AutomationDashboard() {
                                     </td>
                                   </tr>
                                 )}
-                              </>
+                              </React.Fragment>
                             );
                           })}
                         </tbody>
@@ -1988,8 +1988,6 @@ function RollCandidateExpander({
   onCandidatesLoaded: (candidates: RollCandidate[]) => void;
   onSelectCandidate: (candidate: RollCandidate) => void;
 }) {
-  const { skipToken } = require('@tanstack/react-query');
-
   const queryInput = !cachedCandidates ? {
     positionId: pos.positionId,
     symbol: pos.symbol,
