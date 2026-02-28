@@ -70,10 +70,11 @@ function scoreSpreadUrgency(
   const reasons: string[] = [];
 
   // ── P&L Calculation ──────────────────────────────────────────────────────
-  // openPremium = what we collected when we sold (positive = credit received)
-  // currentValue = what it costs to close today (positive = debit to close)
-  // unrealizedPnl > 0 = we're ahead; < 0 = we're losing
-  const unrealizedPnl = (spread.openPremium - spread.currentValue) * 100; // per contract, in dollars
+  // openPremium = net credit received when opening (already × qty × 100 in spreadDetection.ts)
+  // currentValue = net cost to close today (already × qty × 100)
+  // unrealizedPnl > 0 = we're ahead (option decayed); < 0 = we're losing
+  // NOTE: do NOT multiply by 100 again — spreadDetection already applied the multiplier
+  const unrealizedPnl = spread.openPremium - spread.currentValue; // already in dollars
   const profitPct = spread.profitCaptured; // 0-100%
 
   // ── P&L Status ───────────────────────────────────────────────────────────

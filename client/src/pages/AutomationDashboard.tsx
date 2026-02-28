@@ -178,6 +178,8 @@ export default function AutomationDashboard() {
   const [rollFilter, setRollFilter] = useState<'all' | 'red' | 'yellow' | 'green'>('all');
   const [rollStrategyFilter, setRollStrategyFilter] = useState<'all' | 'CSP' | 'CC' | 'BPS' | 'BCS' | 'IC'>('all');
   const [rollPnlFilter, setRollPnlFilter] = useState<'all' | 'winner' | 'breakeven' | 'loser'>('all');
+  const [rollSortCol, setRollSortCol] = useState<string>('unrealizedPnl');
+  const [rollSortDir, setRollSortDir] = useState<'asc' | 'desc'>('asc');
   // UnifiedOrderPreviewModal state
   const [showOrderPreview, setShowOrderPreview] = useState(false);
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
@@ -1416,34 +1418,68 @@ export default function AutomationDashboard() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b border-border/50 bg-muted/30">
+                          <tr className="border-b border-border/50 bg-muted/30 text-xs">
                             <th className="text-left p-3 w-8"></th>
-                            <th className="text-center p-3">P&amp;L</th>
-                            <th className="text-right p-3">Unreal. P&amp;L</th>
-                            <th className="text-right p-3">% Max Profit</th>
-                            <th className="text-left p-3">Symbol</th>
-                            <th className="text-left p-3">Strategy</th>
-                            <th className="text-right p-3">Strike</th>
-                            <th className="text-left p-3">Expiry</th>
-                            <th className="text-right p-3">DTE</th>
-                            <th className="text-right p-3">ITM/OTM</th>
-                            <th className="text-left p-3">Reason</th>
-                            <th className="text-center p-3">Roll Candidate</th>
+                            {/* Sortable column helper */}
+                            {([
+                              { key: 'pnlStatus', label: 'P&L', align: 'center' },
+                              { key: 'unrealizedPnl', label: 'Unreal. P&L', align: 'right' },
+                              { key: 'profitPct', label: '% Max Profit', align: 'right' },
+                              { key: 'symbol', label: 'Symbol', align: 'left' },
+                              { key: 'strategy', label: 'Strategy', align: 'left' },
+                              { key: 'stockPrice', label: 'Stock $', align: 'right' },
+                              { key: 'strikes', label: 'Strikes', align: 'right' },
+                              { key: 'expiry', label: 'Expiry', align: 'left' },
+                              { key: 'dte', label: 'DTE', align: 'right' },
+                              { key: 'itmDepth', label: 'ITM/OTM', align: 'right' },
+                              { key: 'reason', label: 'Reason', align: 'left' },
+                              { key: 'rollCandidate', label: 'Roll Candidate', align: 'center' },
+                            ] as const).map(col => (
+                              <th
+                                key={col.key}
+                                className={`p-3 text-${col.align} cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap ${
+                                  rollSortCol === col.key ? 'text-orange-400' : 'text-muted-foreground'
+                                } ${
+                                  col.key === 'reason' || col.key === 'rollCandidate' ? 'cursor-default' : ''
+                                }`}
+                                onClick={() => {
+                                  if (col.key === 'reason' || col.key === 'rollCandidate' || col.key === 'strikes') return;
+                                  if (rollSortCol === col.key) setRollSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                                  else { setRollSortCol(col.key); setRollSortDir('asc'); }
+                                }}
+                              >
+                                {col.label}{rollSortCol === col.key ? (rollSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                              </th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody>
                           {rollScanResults.all.filter(pos => {
-                            // Urgency filter
                             if (rollFilter !== 'all') {
                               if (rollFilter === 'red' && pos.urgency !== 'red') return false;
                               if (rollFilter === 'yellow' && pos.urgency !== 'yellow') return false;
                               if (rollFilter === 'green' && pos.urgency !== 'green') return false;
                             }
-                            // Strategy filter
                             if (rollStrategyFilter !== 'all' && pos.strategy !== rollStrategyFilter) return false;
-                            // P&L status filter
                             if (rollPnlFilter !== 'all' && (pos as any).pnlStatus !== rollPnlFilter) return false;
                             return true;
+                          }).sort((a, b) => {
+                            const dir = rollSortDir === 'asc' ? 1 : -1;
+                            switch (rollSortCol) {
+                              case 'unrealizedPnl': return ((a as any).unrealizedPnl - (b as any).unrealizedPnl) * dir;
+                              case 'profitPct': return (a.metrics.profitCaptured - b.metrics.profitCaptured) * dir;
+                              case 'symbol': return a.symbol.localeCompare(b.symbol) * dir;
+                              case 'strategy': return a.strategy.localeCompare(b.strategy) * dir;
+                              case 'stockPrice': return (a.metrics.currentPrice - b.metrics.currentPrice) * dir;
+                              case 'expiry': return a.metrics.expiration.localeCompare(b.metrics.expiration) * dir;
+                              case 'dte': return (a.metrics.dte - b.metrics.dte) * dir;
+                              case 'itmDepth': return (a.metrics.itmDepth - b.metrics.itmDepth) * dir;
+                              case 'pnlStatus': {
+                                const order = { loser: 0, breakeven: 1, winner: 2 };
+                                return ((order[(a as any).pnlStatus as keyof typeof order] ?? 1) - (order[(b as any).pnlStatus as keyof typeof order] ?? 1)) * dir;
+                              }
+                              default: return 0;
+                            }
                           }).map((pos) => {
                             const isExpanded = expandedRollRow === pos.positionId;
                             const isSelected = selectedRollPositions.has(pos.positionId);
@@ -1451,6 +1487,21 @@ export default function AutomationDashboard() {
                             const cachedCandidates = rollCandidatesCache[pos.positionId];
                             const itmDepth = pos.metrics.itmDepth;
                             const profitPct = pos.metrics.profitCaptured;
+                            const stockPrice = pos.metrics.currentPrice;
+                            const sd = (pos as any).spreadDetails;
+
+                            // Build strikes display: show all legs for spreads
+                            const strikesDisplay = (() => {
+                              if (!sd) return pos.metrics.strikePrice > 0 ? `$${pos.metrics.strikePrice.toFixed(0)}` : '—';
+                              if (sd.strategyType === 'IC') {
+                                return `$${sd.putLongStrike}/$${sd.putShortStrike} | $${sd.callShortStrike}/$${sd.callLongStrike}`;
+                              }
+                              if (sd.strategyType === 'BPS' || sd.strategyType === 'BCS') {
+                                return `$${sd.shortStrike}/$${sd.longStrike} (${sd.spreadWidth}w)`;
+                              }
+                              return `$${sd.shortStrike || pos.metrics.strikePrice}`;
+                            })();
+
                             return (
                               <React.Fragment key={pos.positionId}>
                                 <tr
@@ -1471,77 +1522,80 @@ export default function AutomationDashboard() {
                                       disabled={!selectedCandidate}
                                     />
                                   </td>
-                                  {/* P&L Status badge — PRIMARY signal */}
+                                  {/* P&L Status badge */}
                                   <td className="p-3 text-center">
                                     {(pos as any).pnlStatus === 'winner' ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 text-xs font-semibold">
-                                        🟢 Winner
-                                      </span>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 text-xs font-semibold">🟢 Win</span>
                                     ) : (pos as any).pnlStatus === 'loser' ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 text-xs font-semibold">
-                                        🔴 Loser
-                                      </span>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 text-xs font-semibold">🔴 Loss</span>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 text-xs font-semibold">
-                                        🟡 Even
-                                      </span>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 text-xs font-semibold">🟡 Even</span>
                                     )}
                                   </td>
                                   {/* Unrealized P&L $ */}
-                                  <td className={`p-3 text-right font-mono font-bold ${
+                                  <td className={`p-3 text-right font-mono font-bold text-xs ${
                                     (pos as any).unrealizedPnl > 0 ? 'text-green-400' :
                                     (pos as any).unrealizedPnl < 0 ? 'text-red-400' : 'text-muted-foreground'
                                   }`}>
                                     {(pos as any).unrealizedPnl !== undefined
-                                      ? `${(pos as any).unrealizedPnl >= 0 ? '+' : ''}$${((pos as any).unrealizedPnl).toFixed(0)}`
+                                      ? `${(pos as any).unrealizedPnl >= 0 ? '+' : ''}$${Math.abs((pos as any).unrealizedPnl).toFixed(0)}`
                                       : '—'}
                                   </td>
                                   {/* % Max Profit */}
-                                  <td className={`p-3 text-right font-mono font-semibold ${
+                                  <td className={`p-3 text-right font-mono font-semibold text-xs ${
                                     profitPct >= 80 ? 'text-green-400' : profitPct >= 50 ? 'text-emerald-400' :
                                     profitPct >= 20 ? 'text-yellow-400' : 'text-red-400'
                                   }`}>
                                     {profitPct.toFixed(0)}%
                                   </td>
-                                  <td className="p-3 font-semibold">{pos.symbol}</td>
+                                  {/* Symbol */}
+                                  <td className="p-3 font-semibold text-xs">{pos.symbol}</td>
+                                  {/* Strategy badge */}
                                   <td className="p-3">
-                                    <Badge variant="outline" className={
+                                    <Badge variant="outline" className={`text-xs ${
                                       pos.strategy === 'CSP' ? 'text-blue-400 border-blue-400/40' :
                                       pos.strategy === 'CC'  ? 'text-purple-400 border-purple-400/40' :
                                       pos.strategy === 'BPS' ? 'text-cyan-400 border-cyan-400/40' :
                                       pos.strategy === 'BCS' ? 'text-pink-400 border-pink-400/40' :
                                       pos.strategy === 'IC'  ? 'text-amber-400 border-amber-400/40' :
                                       'text-muted-foreground border-border/40'
-                                    }>
+                                    }`}>
                                       {pos.strategy}
                                     </Badge>
                                   </td>
-                                  <td className="p-3 text-right font-mono">${pos.metrics.strikePrice.toFixed(2)}</td>
+                                  {/* Stock Price */}
+                                  <td className="p-3 text-right font-mono text-xs text-sky-400">
+                                    {stockPrice > 0 ? `$${stockPrice.toFixed(2)}` : '—'}
+                                  </td>
+                                  {/* Strikes — all legs for spreads */}
+                                  <td className="p-3 text-right font-mono text-xs whitespace-nowrap">
+                                    {strikesDisplay}
+                                  </td>
+                                  {/* Expiry */}
                                   <td className="p-3 text-xs">{pos.metrics.expiration}</td>
-                                  <td className={`p-3 text-right font-mono ${
+                                  {/* DTE */}
+                                  <td className={`p-3 text-right font-mono text-xs ${
                                     pos.metrics.dte <= 7 ? 'text-red-400' : pos.metrics.dte <= 14 ? 'text-yellow-400' : 'text-muted-foreground'
                                   }`}>{pos.metrics.dte}</td>
-                                  {/* ITM/OTM depth: positive = ITM (bad), negative = OTM (good) */}
+                                  {/* ITM/OTM */}
                                   <td className={`p-3 text-right font-mono text-xs ${
                                     itmDepth > 5 ? 'text-red-400' : itmDepth > 0 ? 'text-yellow-400' :
                                     itmDepth < -10 ? 'text-green-400' : 'text-muted-foreground'
                                   }`}>
-                                    {itmDepth > 0
-                                      ? `▲${itmDepth.toFixed(1)}% ITM`
-                                      : itmDepth < 0
-                                        ? `▼${Math.abs(itmDepth).toFixed(1)}% OTM`
-                                        : '—'}
+                                    {itmDepth > 0 ? `▲${itmDepth.toFixed(1)}%` : itmDepth < 0 ? `▼${Math.abs(itmDepth).toFixed(1)}%` : '—'}
                                   </td>
-                                  <td className="p-3 text-xs text-muted-foreground max-w-[200px] truncate">
+                                  {/* Reason */}
+                                  <td className="p-3 text-xs text-muted-foreground max-w-[160px] truncate">
                                     {pos.reasons?.[0] || '—'}
                                   </td>
+                                  {/* Roll Candidate */}
                                   <td className="p-3 text-center text-xs">
                                     {selectedCandidate ? (
                                       <span className="text-green-400 font-medium">
                                         {selectedCandidate.action === 'close' ? 'Close only' : `→ $${selectedCandidate.strike?.toFixed(0)} ${selectedCandidate.expiration?.slice(5)}`}
                                       </span>
                                     ) : (
-                                      <span className="text-muted-foreground italic">expand to select</span>
+                                      <span className="text-muted-foreground italic">expand ↓</span>
                                     )}
                                   </td>
                                 </tr>

@@ -6635,3 +6635,15 @@
 - [x] Added P&L status filters: All P&L / 🟢 Winners / 🟡 Breakeven / 🔴 Losers (with live counts)
 - [x] All three filter rows (Urgency + Strategy + P&L) combine simultaneously for precise slicing
 - [x] Filters auto-hide strategies with 0 positions to reduce clutter
+
+## ✅ Tab 2: Sortable Columns + Stock Price + Spread Legs + P&L Fix (Completed Feb 28, 2026)
+- [x] Fixed unrealized P&L double-multiplication bug (openPremium already ×100 in spreadDetection.ts — was being ×100 again in scoreSpreadUrgency)
+- [x] Added Stock Price column (sky blue, real-time Tradier underlying price)
+- [x] Strikes column now shows all legs inline:
+  - IC: $putL/$putS | $callS/$callL
+  - BPS/BCS: $short/$long (Xw spread width)
+  - CSP/CC: $strike
+- [x] All columns sortable by clicking header (orange highlight + ↑↓ arrow)
+- [x] Default sort: Unrealized P&L ascending (worst losers first)
+- [x] Sortable columns: P&L Status, Unreal. P&L, % Max Profit, Symbol, Strategy, Stock $, Expiry, DTE, ITM/OTM
+- [x] TypeScript clean (0 errors)
