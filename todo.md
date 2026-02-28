@@ -6626,3 +6626,12 @@
 - [x] Moved DTE and ITM/OTM to secondary columns
 - [x] ITM/OTM now shows direction: ▲X% ITM (bad) or ▼X% OTM (good)
 - [x] Summary cards updated: "Losers — need attention" / "Breakeven — monitor" / "Winners — on track"
+
+## ✅ Tab 2: P&L Bug Fix + Strategy/Status Filters (Completed Feb 28, 2026)
+- [x] Root cause: Tastytrade Position object has no mark-price field; code was falling back to close-price (previous day's close, stale)
+- [x] Fix: Batch-fetch live mark prices from Tastytrade /market-data/by-type endpoint for all option symbols (up to 100/batch)
+- [x] Use mark > mid > last priority; close-price only as last-resort fallback
+- [x] Added strategy filters: All Strategies / CSP / CC / BPS / BCS / IC (only shows strategies with > 0 positions)
+- [x] Added P&L status filters: All P&L / 🟢 Winners / 🟡 Breakeven / 🔴 Losers (with live counts)
+- [x] All three filter rows (Urgency + Strategy + P&L) combine simultaneously for precise slicing
+- [x] Filters auto-hide strategies with 0 positions to reduce clutter

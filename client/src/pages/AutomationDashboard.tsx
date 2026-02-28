@@ -176,6 +176,8 @@ export default function AutomationDashboard() {
   const [rollCandidateSelections, setRollCandidateSelections] = useState<Record<string, RollCandidate | null>>({});
   const [isSubmittingRolls, setIsSubmittingRolls] = useState(false);
   const [rollFilter, setRollFilter] = useState<'all' | 'red' | 'yellow' | 'green'>('all');
+  const [rollStrategyFilter, setRollStrategyFilter] = useState<'all' | 'CSP' | 'CC' | 'BPS' | 'BCS' | 'IC'>('all');
+  const [rollPnlFilter, setRollPnlFilter] = useState<'all' | 'winner' | 'breakeven' | 'loser'>('all');
   // UnifiedOrderPreviewModal state
   const [showOrderPreview, setShowOrderPreview] = useState(false);
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
@@ -1247,26 +1249,6 @@ export default function AutomationDashboard() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {rollScanResults && (
-                <div className="flex gap-1">
-                  {(['all', 'red', 'yellow', 'green'] as const).map(f => (
-                    <button
-                      key={f}
-                      onClick={() => setRollFilter(f)}
-                      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                        rollFilter === f
-                          ? f === 'red' ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                            : f === 'yellow' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40'
-                            : f === 'green' ? 'bg-green-500/20 text-green-400 border border-green-500/40'
-                            : 'bg-muted text-foreground border border-border'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      {f === 'all' ? `All (${rollScanResults.total})` : f === 'red' ? `🔴 ${rollScanResults.red.length}` : f === 'yellow' ? `🟡 ${rollScanResults.yellow.length}` : `🟢 ${rollScanResults.green.length}`}
-                    </button>
-                  ))}
-                </div>
-              )}
               <Button
                 onClick={handleRollScan}
                 disabled={isRollScanning || killSwitchActive}
@@ -1281,6 +1263,84 @@ export default function AutomationDashboard() {
               </Button>
             </div>
           </div>
+
+          {/* Filter bar — only shown when results are available */}
+          {rollScanResults && (
+            <div className="space-y-2 mb-4">
+              {/* Row 1: Urgency filter */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground font-medium w-16 shrink-0">Urgency:</span>
+                {(['all', 'red', 'yellow', 'green'] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setRollFilter(f)}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors border ${
+                      rollFilter === f
+                        ? f === 'red' ? 'bg-red-500/20 text-red-400 border-red-500/40'
+                          : f === 'yellow' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40'
+                          : f === 'green' ? 'bg-green-500/20 text-green-400 border-green-500/40'
+                          : 'bg-muted text-foreground border-border'
+                        : 'text-muted-foreground border-transparent hover:border-border hover:text-foreground'
+                    }`}
+                  >
+                    {f === 'all' ? `All (${rollScanResults.total})` : f === 'red' ? `🔴 Loser (${rollScanResults.red.length})` : f === 'yellow' ? `🟡 Even (${rollScanResults.yellow.length})` : `🟢 Winner (${rollScanResults.green.length})`}
+                  </button>
+                ))}
+              </div>
+              {/* Row 2: Strategy filter */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground font-medium w-16 shrink-0">Strategy:</span>
+                {(['all', 'CSP', 'CC', 'BPS', 'BCS', 'IC'] as const).map(s => {
+                  const allPositions = rollScanResults.all;
+                  const count = s === 'all' ? allPositions.length : allPositions.filter(p => p.strategy === s).length;
+                  if (s !== 'all' && count === 0) return null;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setRollStrategyFilter(s)}
+                      className={`px-2.5 py-1 rounded text-xs font-medium transition-colors border ${
+                        rollStrategyFilter === s
+                          ? s === 'CSP' ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                            : s === 'CC' ? 'bg-purple-500/20 text-purple-400 border-purple-500/40'
+                            : s === 'BPS' ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
+                            : s === 'BCS' ? 'bg-pink-500/20 text-pink-400 border-pink-500/40'
+                            : s === 'IC' ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                            : 'bg-muted text-foreground border-border'
+                          : 'text-muted-foreground border-transparent hover:border-border hover:text-foreground'
+                      }`}
+                    >
+                      {s === 'all' ? `All Strategies` : `${s} (${count})`}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Row 3: P&L Status filter */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground font-medium w-16 shrink-0">P&amp;L:</span>
+                {(['all', 'winner', 'breakeven', 'loser'] as const).map(p => {
+                  const allPositions = rollScanResults.all;
+                  const count = p === 'all' ? allPositions.length : allPositions.filter(pos => (pos as any).pnlStatus === p).length;
+                  if (p !== 'all' && count === 0) return null;
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => setRollPnlFilter(p)}
+                      className={`px-2.5 py-1 rounded text-xs font-medium transition-colors border ${
+                        rollPnlFilter === p
+                          ? p === 'winner' ? 'bg-green-500/20 text-green-400 border-green-500/40'
+                            : p === 'loser' ? 'bg-red-500/20 text-red-400 border-red-500/40'
+                            : p === 'breakeven' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40'
+                            : 'bg-muted text-foreground border-border'
+                          : 'text-muted-foreground border-transparent hover:border-border hover:text-foreground'
+                      }`}
+                    >
+                      {p === 'all' ? 'All P&L' : p === 'winner' ? `🟢 Winners (${count})` : p === 'loser' ? `🔴 Losers (${count})` : `🟡 Breakeven (${count})`}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Empty state */}
           {!rollScanResults && !isRollScanning && (
@@ -1372,11 +1432,19 @@ export default function AutomationDashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {(rollFilter === 'all' ? rollScanResults.all
-                            : rollFilter === 'red' ? rollScanResults.red
-                            : rollFilter === 'yellow' ? rollScanResults.yellow
-                            : rollScanResults.green
-                          ).map((pos) => {
+                          {rollScanResults.all.filter(pos => {
+                            // Urgency filter
+                            if (rollFilter !== 'all') {
+                              if (rollFilter === 'red' && pos.urgency !== 'red') return false;
+                              if (rollFilter === 'yellow' && pos.urgency !== 'yellow') return false;
+                              if (rollFilter === 'green' && pos.urgency !== 'green') return false;
+                            }
+                            // Strategy filter
+                            if (rollStrategyFilter !== 'all' && pos.strategy !== rollStrategyFilter) return false;
+                            // P&L status filter
+                            if (rollPnlFilter !== 'all' && (pos as any).pnlStatus !== rollPnlFilter) return false;
+                            return true;
+                          }).map((pos) => {
                             const isExpanded = expandedRollRow === pos.positionId;
                             const isSelected = selectedRollPositions.has(pos.positionId);
                             const selectedCandidate = rollCandidateSelections[pos.positionId];

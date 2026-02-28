@@ -199,8 +199,21 @@ export const rollsRouter = router({
       }
 
       const rawLegs: RawOptionLeg[] = [];
-      const symbolsToFetch = new Set<string>();
+      const optionSymbolsToFetch = new Set<string>();
+      const underlyingSymbolsToFetch = new Set<string>();
       const currentPrices: Record<string, number> = {};
+      // Stash raw position data so we can apply live marks after the batch fetch
+      const rawPositions: Array<{
+        symbol: string;
+        underlying: string;
+        optionType: 'PUT' | 'CALL';
+        strike: number;
+        expiration: string;
+        signedQty: number;
+        openPrice: number;
+        closePrice: number; // stale — used only as fallback
+        accountNumber: string;
+      }> = [];
 
       // First pass: collect ALL option legs (long and short) across all accounts
       for (const account of targetAccounts) {
@@ -214,34 +227,72 @@ export const rollsRouter = router({
           const parsed = parseOptionSymbol(symbol);
           if (!parsed) continue;
 
-          symbolsToFetch.add(parsed.underlying);
+          optionSymbolsToFetch.add(symbol);
+          underlyingSymbolsToFetch.add(parsed.underlying);
 
           const rawQty = parseInt(String(pos.quantity || '0'));
           const direction = pos['quantity-direction']?.toLowerCase();
-          // Tastytrade: quantity is always positive, direction tells us long/short
           const signedQty = direction === 'short' ? -Math.abs(rawQty) : Math.abs(rawQty);
-
           const openPrice = parseFloat(String(pos['average-open-price'] || '0'));
           const closePrice = parseFloat(String(pos['close-price'] || '0'));
-          const markPrice = parseFloat(String((pos as any)['mark-price'] || closePrice || '0'));
 
-          rawLegs.push({
+          rawPositions.push({
             symbol,
             underlying: parsed.underlying,
             optionType: parsed.optionType,
             strike: parsed.strike,
             expiration: parsed.expiration,
-            quantity: signedQty,
+            signedQty,
             openPrice,
-            markPrice,
+            closePrice,
             accountNumber: account.accountNumber,
           });
         }
       }
 
-      // Batch fetch underlying prices from Tradier
-      if (symbolsToFetch.size > 0) {
-        for (const sym of Array.from(symbolsToFetch)) {
+      // Batch fetch LIVE mark prices from Tastytrade for all option symbols
+      // This is the critical fix: close-price is stale (previous day), mark is real-time
+      const liveOptionMarks: Record<string, number> = {};
+      if (optionSymbolsToFetch.size > 0) {
+        try {
+          const allSymbols = Array.from(optionSymbolsToFetch);
+          // Tastytrade batch endpoint handles up to ~200 symbols
+          const BATCH_SIZE = 100;
+          for (let i = 0; i < allSymbols.length; i += BATCH_SIZE) {
+            const batch = allSymbols.slice(i, i + BATCH_SIZE);
+            const quotes = await api.getOptionQuotesBatch(batch);
+            for (const [sym, q] of Object.entries(quotes)) {
+              // Prefer mark > mid > last as the best current price estimate
+              const mark = (q as any).mark || (q as any).mid || (q as any).last || 0;
+              if (mark > 0) liveOptionMarks[sym] = mark;
+            }
+          }
+          console.log(`[scanRollPositions] Fetched live marks for ${Object.keys(liveOptionMarks).length}/${optionSymbolsToFetch.size} options`);
+        } catch (e) {
+          console.warn('[scanRollPositions] Failed to fetch live option marks, falling back to close-price:', e);
+        }
+      }
+
+      // Build raw legs using live marks (fall back to close-price if live mark unavailable)
+      for (const rp of rawPositions) {
+        const liveMarkPrice = liveOptionMarks[rp.symbol];
+        const markPrice = liveMarkPrice ?? rp.closePrice; // live mark preferred, close-price as fallback
+        rawLegs.push({
+          symbol: rp.symbol,
+          underlying: rp.underlying,
+          optionType: rp.optionType,
+          strike: rp.strike,
+          expiration: rp.expiration,
+          quantity: rp.signedQty,
+          openPrice: rp.openPrice,
+          markPrice,
+          accountNumber: rp.accountNumber,
+        });
+      }
+
+      // Batch fetch underlying prices from Tradier for ITM/OTM depth calculation
+      if (underlyingSymbolsToFetch.size > 0) {
+        for (const sym of Array.from(underlyingSymbolsToFetch)) {
           try {
             const quote = await tradier.getQuote(sym);
             if (quote?.last) currentPrices[sym] = quote.last;
