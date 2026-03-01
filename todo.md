@@ -6684,3 +6684,23 @@
 - [x] Add fix actions: Buy to Cover (short stock), Close (BTC) option for naked/orphaned/ITM violations
 - [x] Add dry-run / live toggle to IRA Safety tab with confirmation dialog before live orders
 - [x] Add educational "Understanding IRA Violations" section to IRA Safety tab
+
+## 🛡️ IRA Spread Safeguards (Mar 1, 2026)
+- [ ] Safeguard 1: Pre-close stock coverage check — block/warn closing stock when active short call exists against it
+- [ ] Safeguard 2: Spread integrity lock — warn when BTC on one leg of a spread would leave the other leg naked
+- [ ] Safeguard 3: Coverage ratio enforcement on CC order submission — block selling more calls than shares/100
+- [ ] Safeguard 4: ITM short call daily scan alert — flag any short call ITM with ≤5 DTE in Automation tab
+- [ ] Safeguard 5: Pre-expiration Friday sweep — auto-scan for expiring ITM short calls every Friday morning
+- [ ] Wire safeguard checks into OrderPreviewModal (show warnings before any order is confirmed)
+- [ ] Wire safeguard checks into Roll Positions flow (check coverage before rolling)
+- [ ] Add "Safeguard Violations" section to IRA Safety tab showing pre-trade warnings
+
+## ✅ Five IRA Spread Safeguards (Mar 1, 2026)
+- [x] Safeguard 1: Pre-close stock coverage check (blocks closing stock with active short calls)
+- [x] Safeguard 2: Spread integrity lock (blocks closing long leg of spread independently)
+- [x] Safeguard 3: Coverage ratio enforcement (blocks selling more calls than shares allow)
+- [x] Safeguard 4: ITM expiration risk daily scan (ExpirationRiskPanel in AutomationDashboard)
+- [x] Safeguard 5: Friday expiration sweep (mode="friday" in ExpirationRiskPanel)
+- [x] SafeguardWarningModal component (reusable intercept modal for all order flows)
+- [x] ExpirationRiskPanel component (shows ITM alerts with BTC close actions)
+- [x] Wired Safeguard 3 into CCDashboard handleSubmitOrders

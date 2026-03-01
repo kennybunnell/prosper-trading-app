@@ -26,6 +26,7 @@ import { taxRouter } from './routers-tax';
 import { portfolioAdvisorRouter } from './routers-portfolio-advisor';
 import { automationRouter } from './routers-automation';
 import { iraSafetyRouter } from './routers-ira-safety';
+import { safeguardsRouter } from './routers-safeguards';
 
 // Helper function to parse OCC option symbols
 function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
@@ -318,6 +319,7 @@ export const appRouter = router({
   portfolioAdvisor: portfolioAdvisorRouter,
   automation: automationRouter,
   iraSafety: iraSafetyRouter,
+  safeguards: safeguardsRouter,
   rolls: rollsRouter,
   rollRecommendations: rollRecommendationsRouter,
   orders: ordersRouter,

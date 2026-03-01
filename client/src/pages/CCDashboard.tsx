@@ -54,6 +54,7 @@ import { HelpBadge } from "@/components/HelpBadge";
 import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
 import { RiskBadgeList } from "@/components/RiskBadge";
+import { SafeguardWarningModal, SafeguardWarning } from "@/components/SafeguardWarningModal";
 
 // Strategy types
 type StrategyType = 'cc' | 'spread';
@@ -276,6 +277,12 @@ export default function CCDashboard() {
   const [minDte, setMinDte] = useState<number>(7);
   const [maxDte, setMaxDte] = useState<number>(30);
   
+  // Safeguard warning state
+  const [showSafeguardModal, setShowSafeguardModal] = useState(false);
+  const [safeguardWarnings, setSafeguardWarnings] = useState<SafeguardWarning[]>([]);
+  const [pendingOrderDescription, setPendingOrderDescription] = useState('');
+  const [pendingOrderAction, setPendingOrderAction] = useState<(() => void) | null>(null);
+
   // Order preview dialog state
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
@@ -860,8 +867,44 @@ export default function CCDashboard() {
       currentPrice: opp.currentPrice,
     }));
 
-    // Set orders for preview dialog
+     // Set orders for preview dialog
     setUnifiedOrders(orders);
+
+    // ── Safeguard 3: Coverage ratio check before showing preview ──
+    // Run a quick client-side coverage check using the data we already have
+    const coverageViolations: SafeguardWarning[] = [];
+    if (strategyType === 'cc') {
+      for (const opp of selectedOpps) {
+        const holding = holdings.find(h => h.symbol === opp.symbol);
+        if (holding) {
+          const requestedContracts = 1; // Each opportunity is 1 contract
+          if (requestedContracts > holding.maxContracts) {
+            coverageViolations.push({
+              safeguard: 3,
+              severity: 'block',
+              accountNumber: selectedAccountId,
+              symbol: opp.symbol,
+              title: `⛔ Coverage Violation — ${opp.symbol}: No available contracts`,
+              description: `You own ${holding.quantity} shares of ${opp.symbol} but ${holding.existingContracts} contract${holding.existingContracts !== 1 ? 's are' : ' is'} already sold. No shares available to cover a new call.`,
+              requiredAction: `Close an existing covered call on ${opp.symbol} first, or remove this order from your selection.`,
+              sharesOwned: holding.quantity,
+              sharesNeeded: 100,
+              contractsRequested: requestedContracts,
+            });
+          }
+        }
+      }
+    }
+
+    if (coverageViolations.length > 0) {
+      // Show safeguard modal instead of proceeding
+      const orderDesc = selectedOpps.map(o => `${o.symbol} $${o.strike} Call`).join(', ');
+      setSafeguardWarnings(coverageViolations);
+      setPendingOrderDescription(orderDesc);
+      setPendingOrderAction(null); // Blocked — no proceed action
+      setShowSafeguardModal(true);
+      return;
+    }
 
     setShowPreviewDialog(true);
   };
@@ -3016,6 +3059,22 @@ export default function CCDashboard() {
         orderStatuses={submissionStatuses}
         onPollStatuses={handlePollStatuses}
         accountId={selectedAccountId || ''}
+      />
+
+      {/* Safeguard Warning Modal - intercepts orders with violations */}
+      <SafeguardWarningModal
+        open={showSafeguardModal}
+        warnings={safeguardWarnings}
+        orderDescription={pendingOrderDescription}
+        onProceed={() => {
+          setShowSafeguardModal(false);
+          if (pendingOrderAction) pendingOrderAction();
+        }}
+        onCancel={() => {
+          setShowSafeguardModal(false);
+          setSafeguardWarnings([]);
+          setPendingOrderAction(null);
+        }}
       />
 
       {/* AI Analysis Modal */}
