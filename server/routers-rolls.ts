@@ -282,7 +282,8 @@ export const rollsRouter = router({
       // Build raw legs using live marks (fall back to close-price if live mark unavailable)
       for (const rp of rawPositions) {
         const liveMarkPrice = liveOptionMarks[rp.symbol];
-        const markPrice = liveMarkPrice ?? rp.closePrice; // live mark preferred, close-price as fallback
+        const isStale = liveMarkPrice === undefined || liveMarkPrice === 0;
+        const markPrice = (!isStale ? liveMarkPrice : rp.closePrice) ?? 0;
         rawLegs.push({
           symbol: rp.symbol,
           underlying: rp.underlying,
@@ -293,6 +294,7 @@ export const rollsRouter = router({
           openPrice: rp.openPrice,
           markPrice,
           accountNumber: rp.accountNumber,
+          isStale,
         });
       }
 
@@ -363,6 +365,7 @@ export const rollsRouter = router({
             expiration: spread.expiration,
           },
           // Spread-specific fields for the UI
+          hasStaleMarks: spread.hasStaleMarks ?? false,
           spreadDetails: {
             strategyType: spread.strategyType,
             shortStrike: spread.shortStrike,
@@ -381,6 +384,7 @@ export const rollsRouter = router({
               quantity: l.quantity,
               markPrice: l.markPrice,
               openPrice: l.openPrice,
+              isStale: (l as any).isStale ?? false,
             })),
           },
         };

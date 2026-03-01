@@ -117,6 +117,9 @@ type RollAnalysis = {
   optionSymbol: string;
   strategy: 'CSP' | 'CC' | 'BPS' | 'BCS' | 'IC';
   urgency: 'red' | 'yellow' | 'green';
+  pnlStatus?: 'winner' | 'breakeven' | 'loser';
+  unrealizedPnl?: number;
+  hasStaleMarks?: boolean;
   shouldRoll: boolean;
   reasons: string[];
   metrics: {
@@ -1818,21 +1821,27 @@ export default function AutomationDashboard() {
                                   </td>
                                   {/* P&L Status badge */}
                                   <td className="p-3 text-center">
-                                    {(pos as any).pnlStatus === 'winner' ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 text-xs font-semibold">🟢 Win</span>
-                                    ) : (pos as any).pnlStatus === 'loser' ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 text-xs font-semibold">🔴 Loss</span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 text-xs font-semibold">🟡 Even</span>
-                                    )}
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      {(pos as any).pnlStatus === 'winner' ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 text-xs font-semibold">🟢 Win</span>
+                                      ) : (pos as any).pnlStatus === 'loser' ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 text-xs font-semibold">🔴 Loss</span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 text-xs font-semibold">🟡 Even</span>
+                                      )}
+                                      {pos.hasStaleMarks && (
+                                        <span title="P&L uses yesterday's close price — live marks unavailable" className="text-[9px] text-amber-400/70 font-medium">⚠ stale</span>
+                                      )}
+                                    </div>
                                   </td>
                                   {/* Unrealized P&L $ */}
                                   <td className={`p-3 text-right font-mono font-bold text-xs ${
+                                    pos.hasStaleMarks ? 'text-muted-foreground/60' :
                                     (pos as any).unrealizedPnl > 0 ? 'text-green-400' :
                                     (pos as any).unrealizedPnl < 0 ? 'text-red-400' : 'text-muted-foreground'
                                   }`}>
                                     {(pos as any).unrealizedPnl !== undefined
-                                      ? `${(pos as any).unrealizedPnl >= 0 ? '+' : ''}$${Math.abs((pos as any).unrealizedPnl).toFixed(0)}`
+                                      ? `${pos.hasStaleMarks ? '~' : ''}${(pos as any).unrealizedPnl >= 0 ? '+' : ''}$${Math.abs((pos as any).unrealizedPnl).toFixed(0)}`
                                       : '—'}
                                   </td>
                                   {/* % Max Profit — can be negative for losing positions */}

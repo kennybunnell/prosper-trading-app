@@ -44,6 +44,8 @@ export interface RawOptionLeg {
   markPrice: number;
   /** Account number this leg belongs to */
   accountNumber: string;
+  /** True when markPrice is a stale close-price fallback (no live quote available) */
+  isStale?: boolean;
 }
 
 export interface SpreadLeg {
@@ -78,6 +80,8 @@ export interface SpreadPosition {
   profitCaptured: number;
   /** Days to expiration */
   dte: number;
+  /** True when any leg's mark price is a stale close-price fallback */
+  hasStaleMarks?: boolean;
 
   // For spreads: short and long strikes
   shortStrike?: number;
@@ -207,6 +211,7 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
         unrealizedPnl,
         profitCaptured: calcProfitCaptured(openPremium, unrealizedPnl),
         dte,
+        hasStaleMarks: icLegs.some(l => l.isStale),
         putShortStrike: sp.strike,
         putLongStrike: lp.strike,
         callShortStrike: sc.strike,
@@ -244,6 +249,7 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
         unrealizedPnl,
         profitCaptured: calcProfitCaptured(openPremium, unrealizedPnl),
         dte,
+        hasStaleMarks: bpsLegs.some(l => l.isStale),
         shortStrike: sp.strike,
         longStrike: lp.strike,
         spreadWidth: width,
@@ -274,6 +280,7 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
         unrealizedPnl,
         profitCaptured: calcProfitCaptured(openPremium, unrealizedPnl),
         dte,
+        hasStaleMarks: bcsLegs.some(l => l.isStale),
         shortStrike: sc.strike,
         longStrike: lc.strike,
         spreadWidth: width,

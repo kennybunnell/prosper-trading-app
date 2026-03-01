@@ -6812,3 +6812,7 @@
 
 ## Scan Results Symbol Column Cleanup (Mar 1, 2026)
 - [x] Replace verbose OCC symbol text under ticker with compact human-readable strike display (e.g. "Put $320 / Put $310") — show full OCC symbols only on hover tooltip
+
+## Roll Dashboard Fixes (Mar 1, 2026)
+- [x] Fix P&L/Win-Loss calculation bug for BCS/BPS/IC spreads — BCS below strikes should show as Win/profit, not Loss (stale mark detection + warning badge added)
+- [x] Add strategy type filter pills (All / BPS / BCS / IC / CSP / CC) to Roll Dashboard matching Close for Profit tab (already existed, confirmed working)
