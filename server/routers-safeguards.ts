@@ -32,6 +32,8 @@
 
 import { router, protectedProcedure } from './_core/trpc';
 import { z } from 'zod';
+import { getDb } from './db';
+import { eq } from 'drizzle-orm';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -827,6 +829,161 @@ export const safeguardsRouter = router({
           lastSweepAlertCount: input.lastSweepAlertCount,
         });
       }
+      return { ok: true };
+    }),
+
+  /** Get whether the daily 9:00 AM ITM scan is enabled */
+  getDailyScanEnabled: protectedProcedure.query(async ({ ctx }) => {
+    const { getDb } = await import('./db');
+    const { userPreferences } = await import('../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+    const db = await getDb();
+    if (!db) return { enabled: true };
+    const prefs = await db.select().from(userPreferences).where(eq(userPreferences.userId, ctx.user.id)).limit(1);
+    if (prefs.length === 0) return { enabled: true };
+    return { enabled: (prefs[0] as any).dailyScanEnabled ?? true };
+  }),
+
+  /** Enable or disable the daily 9:00 AM ITM scan */
+  setDailyScanEnabled: protectedProcedure
+    .input(z.object({ enabled: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const { userPreferences } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) throw new Error('Database unavailable');
+      const existing = await db.select().from(userPreferences).where(eq(userPreferences.userId, ctx.user.id)).limit(1);
+      if (existing.length > 0) {
+        await db.update(userPreferences)
+          .set({ dailyScanEnabled: input.enabled } as any)
+          .where(eq(userPreferences.userId, ctx.user.id));
+      } else {
+        await db.insert(userPreferences).values({ userId: ctx.user.id, dailyScanEnabled: input.enabled } as any);
+      }
+      return { enabled: input.enabled };
+    }),
+
+  /** Manually trigger the daily ITM assignment risk scan (5 DTE cutoff) */
+  triggerDailyScan: protectedProcedure.mutation(async ({ ctx }) => {
+    try {
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const { notifyOwner } = await import('./_core/notification');
+      const { getApiCredentials } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new Error('Tastytrade not connected — please link your account in Settings');
+      }
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+      if (!api) throw new Error('Tastytrade not connected');
+
+      const accounts = await api.getAccounts();
+      const allAlerts: Array<{ symbol: string; accountId: string; strike: number; expiration: string; dte: number; optionSymbol: string; sharesOwned: number; sharesNeeded: number }> = [];
+
+      for (const account of accounts) {
+        const accountNumber = account.account['account-number'];
+        const positions = await api.getPositions(accountNumber);
+        const today = new Date();
+
+        for (const pos of positions) {
+          if (pos['instrument-type'] !== 'Equity Option') continue;
+          const qty = parseFloat(String(pos['quantity'] ?? '0'));
+          const direction = pos['quantity-direction'];
+          if (direction !== 'Short' || qty <= 0) continue;
+
+          const optSym = pos['symbol'] || '';
+          const occMatch = optSym.replace(/\s/g, '').match(/^([A-Z]+)(\d{2})(\d{2})(\d{2})([CP])(\d+)$/);
+          if (!occMatch) continue;
+          const [, underlying, yy, mm, dd, optType] = occMatch;
+          if (optType !== 'C') continue;
+
+          const expDate = new Date(`20${yy}-${mm}-${dd}`);
+          const dte = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (dte > 5 || dte < 0) continue;
+
+          const strike = parseFloat(occMatch[6]) / 1000;
+          const contracts = Math.abs(qty);
+          const sharesNeeded = contracts * 100;
+
+          const stockPos = positions.find((p: any) =>
+            p['symbol'] === underlying && p['instrument-type'] === 'Equity' && p['quantity-direction'] === 'Long'
+          );
+          const sharesOwned = stockPos ? parseFloat(String((stockPos as any)['quantity'] ?? '0')) : 0;
+
+          if (sharesOwned < sharesNeeded) {
+            allAlerts.push({ symbol: underlying, accountId: accountNumber, strike, expiration: `20${yy}-${mm}-${dd}`, dte, optionSymbol: optSym, sharesOwned, sharesNeeded });
+          }
+        }
+      }
+
+      if (allAlerts.length > 0) {
+        const alertLines = allAlerts.map(a =>
+          `• ${a.symbol} $${a.strike} call exp ${a.expiration} (${a.dte} DTE) — own ${a.sharesOwned}/${a.sharesNeeded} shares [Acct: ...${a.accountId.slice(-4)}]`
+        ).join('\n');
+        await notifyOwner({
+          title: `⚠️ Daily ITM Scan: ${allAlerts.length} uncovered short call${allAlerts.length !== 1 ? 's' : ''} expiring ≤5 DTE`,
+          content: `Daily 9:00 AM ITM scan found ${allAlerts.length} short call${allAlerts.length !== 1 ? 's' : ''} expiring within 5 days without full stock coverage:\n\n${alertLines}\n\nAction required: Close (BTC) or roll before market close to avoid overnight assignment.`,
+        });
+      }
+
+      return {
+        alertCount: allAlerts.length,
+        message: allAlerts.length === 0
+          ? '✅ Daily scan complete — no uncovered ITM short calls within 5 DTE'
+          : `⚠️ Daily scan found ${allAlerts.length} uncovered short call${allAlerts.length !== 1 ? 's' : ''} — notification sent`,
+        alerts: allAlerts,
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Daily scan failed: ${msg}`);
+    }
+  }),
+
+  /** Get last 10 scan history entries for the current user */
+  getScanHistory: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const { scanHistory } = await import('../drizzle/schema');
+    const { desc } = await import('drizzle-orm');
+    const rows = await db
+      .select()
+      .from(scanHistory)
+      .where(eq(scanHistory.userId, ctx.user.id))
+      .orderBy(desc(scanHistory.ranAt))
+      .limit(10);
+    return rows.map((r: typeof scanHistory.$inferSelect) => ({
+      id: r.id,
+      scanType: r.scanType as 'friday_sweep' | 'daily_scan',
+      ranAt: r.ranAt,
+      alertCount: r.alertCount,
+      accountsScanned: r.accountsScanned,
+      triggeredBy: r.triggeredBy as 'auto' | 'manual',
+      summaryJson: r.summaryJson,
+    }));
+  }),
+
+  /** Record a scan result to history */
+  recordScanHistory: protectedProcedure
+    .input(z.object({
+      scanType: z.enum(['friday_sweep', 'daily_scan']),
+      alertCount: z.number(),
+      accountsScanned: z.number(),
+      triggeredBy: z.enum(['auto', 'manual']),
+      summaryJson: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false };
+      const { scanHistory } = await import('../drizzle/schema');
+      await db.insert(scanHistory).values({
+        userId: ctx.user.id,
+        scanType: input.scanType,
+        ranAt: Date.now(),
+        alertCount: input.alertCount,
+        accountsScanned: input.accountsScanned,
+        triggeredBy: input.triggeredBy,
+        summaryJson: input.summaryJson ?? null,
+      });
       return { ok: true };
     }),
 });

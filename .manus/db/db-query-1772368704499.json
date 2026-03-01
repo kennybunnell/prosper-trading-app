@@ -1,0 +1,9 @@
+{
+  "query": "\nCREATE TABLE IF NOT EXISTS scan_history (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  user_id INT NOT NULL,\n  scan_type VARCHAR(20) NOT NULL COMMENT 'friday_sweep or daily_scan',\n  ran_at BIGINT NOT NULL COMMENT 'UTC ms timestamp',\n  alert_count INT NOT NULL DEFAULT 0,\n  accounts_scanned INT NOT NULL DEFAULT 0,\n  triggered_by VARCHAR(20) NOT NULL DEFAULT 'auto' COMMENT 'auto or manual',\n  summary_json TEXT COMMENT 'JSON array of alert summaries',\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  INDEX idx_user_ran (user_id, ran_at DESC)\n);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute \nCREATE TABLE IF NOT EXISTS scan_history (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  user_id INT NOT NULL,\n  scan_type VARCHAR(20) NOT NULL COMMENT 'friday_sweep or daily_scan',\n  ran_at BIGINT NOT NULL COMMENT 'UTC ms timestamp',\n  alert_count INT NOT NULL DEFAULT 0,\n  accounts_scanned INT NOT NULL DEFAULT 0,\n  triggered_by VARCHAR(20) NOT NULL DEFAULT 'auto' COMMENT 'auto or manual',\n  summary_json TEXT COMMENT 'JSON array of alert summaries',\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  INDEX idx_user_ran (user_id, ran_at DESC)\n);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 638
+}

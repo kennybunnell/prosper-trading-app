@@ -272,6 +272,8 @@ export const userPreferences = mysqlTable("userPreferences", {
   
   // Friday expiration sweep schedule toggle
   fridaySweepEnabled: boolean("fridaySweepEnabled").notNull().default(true), // Auto-run sweep every Friday at 9:30 AM ET
+  // Daily ITM scan schedule toggle
+  dailyScanEnabled: boolean("dailyScanEnabled").notNull().default(true), // Auto-run daily ITM scan every weekday at 9:00 AM ET
   // Last sweep audit trail
   lastSweepAt: bigint("lastSweepAt", { mode: "number" }), // UTC ms timestamp of last sweep run
   lastSweepAlertCount: int("lastSweepAlertCount").notNull().default(0), // Number of alerts found in last sweep
@@ -759,3 +761,23 @@ export const automationPendingOrders = mysqlTable("automationPendingOrders", {
 
 export type AutomationPendingOrder = typeof automationPendingOrders.$inferSelect;
 export type InsertAutomationPendingOrder = typeof automationPendingOrders.$inferInsert;
+
+/**
+ * Scan history log — records every Friday sweep and daily scan run
+ */
+export const scanHistory = mysqlTable('scan_history', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('user_id').notNull(),
+  scanType: varchar('scan_type', { length: 20 }).notNull(), // 'friday_sweep' | 'daily_scan'
+  ranAt: bigint('ran_at', { mode: 'number' }).notNull(),
+  alertCount: int('alert_count').notNull().default(0),
+  accountsScanned: int('accounts_scanned').notNull().default(0),
+  triggeredBy: varchar('triggered_by', { length: 20 }).notNull().default('auto'), // 'auto' | 'manual'
+  summaryJson: text('summary_json'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => ({
+  userRanIdx: index('scan_history_user_ran_idx').on(table.userId, table.ranAt),
+}));
+
+export type ScanHistory = typeof scanHistory.$inferSelect;
+export type InsertScanHistory = typeof scanHistory.$inferInsert;

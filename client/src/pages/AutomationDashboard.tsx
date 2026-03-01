@@ -168,6 +168,34 @@ export default function AutomationDashboard() {
   const [activeTab, setActiveTab] = useState('step1-close');
   const [killSwitchActive, setKillSwitchActive] = useState(false);
   const [isSweeping, setIsSweeping] = useState(false);
+  const [isDailyScanning, setIsDailyScanning] = useState(false);
+
+  // Daily scan schedule toggle
+  const { data: dailyScanScheduleData, refetch: refetchDailyScanSchedule } = trpc.safeguards.getDailyScanEnabled.useQuery();
+  const dailyScanEnabled = dailyScanScheduleData?.enabled ?? true;
+  const setDailyScanEnabledMutation = trpc.safeguards.setDailyScanEnabled.useMutation({
+    onSuccess: (data) => {
+      refetchDailyScanSchedule();
+      toast.success(data.enabled
+        ? 'Daily scan scheduled — runs every weekday at 9:00 AM ET'
+        : 'Daily scan disabled — you can still run it manually');
+    },
+    onError: (err) => toast.error(`Failed to update daily scan schedule: ${err.message}`),
+  });
+  const triggerDailyScanMutation = trpc.safeguards.triggerDailyScan.useMutation({
+    onSuccess: (data) => {
+      setIsDailyScanning(false);
+      if (data.alertCount === 0) {
+        toast.success(data.message);
+      } else {
+        toast.warning(data.message, { duration: 8000 });
+      }
+    },
+    onError: (err) => {
+      setIsDailyScanning(false);
+      toast.error(`Daily scan failed: ${err.message}`);
+    },
+  });
 
   // Friday Sweep schedule toggle
   const { data: sweepScheduleData, refetch: refetchSweepSchedule } = trpc.safeguards.getFridaySweepEnabled.useQuery();
@@ -744,6 +772,39 @@ export default function AutomationDashboard() {
               )}
             </div>
           ) : null}
+          {/* Test Daily Scan */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setIsDailyScanning(true);
+              triggerDailyScanMutation.mutate();
+            }}
+            disabled={isDailyScanning}
+            className="flex items-center gap-2 text-xs border-violet-500/40 text-violet-400 hover:bg-violet-600/10"
+            title="Manually run the daily ITM assignment risk scan (5 DTE cutoff) and send a notification if uncovered short calls are found"
+          >
+            {isDailyScanning ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" />Scanning...</>
+            ) : (
+              <><BarChart3 className="h-3.5 w-3.5" />Test Daily Scan</>
+            )}
+          </Button>
+          {/* Daily Scan Schedule Toggle */}
+          <div
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer select-none ${
+              dailyScanEnabled
+                ? 'bg-violet-600/10 border-violet-500/30 text-violet-400 hover:bg-violet-600/20'
+                : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50'
+            }`}
+            title={dailyScanEnabled
+              ? 'Daily scan is scheduled — runs every weekday at 9:00 AM ET. Click to disable.'
+              : 'Daily scan is disabled — click to enable automatic 9:00 AM weekday scan'}
+            onClick={() => setDailyScanEnabledMutation.mutate({ enabled: !dailyScanEnabled })}
+          >
+            <span className={`h-2 w-2 rounded-full ${dailyScanEnabled ? 'bg-violet-400 animate-pulse' : 'bg-muted-foreground'}`} />
+            {dailyScanEnabled ? 'Daily Scan ON' : 'Daily Scan OFF'}
+          </div>
           {/* Kill Switch */}
           <button
             onClick={() => {

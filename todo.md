@@ -6758,3 +6758,16 @@
 - [x] Add Last Swept timestamp and alert count to Automation header
 - [x] Add daily 9:00 AM ITM assignment risk scan (Mon-Fri) to automation scheduler
 - [x] Add fridaySweepEnabled, lastSweepAt, lastSweepAlertCount to userPreferences schema
+
+## 🔧 Automation Scan Controls (Mar 2026)
+- [ ] Add Test Daily Scan button to Automation header
+- [ ] Add daily scan ON/OFF toggle to Automation header
+- [ ] Add scan history log panel to Portfolio Safety tab (last 10 sweeps)
+
+## ✅ Scan Monitoring Enhancements (Mar 2026)
+- [x] Add Test Daily Scan button to Automation header
+- [x] Add daily scan ON/OFF toggle (persisted to DB) in Automation header
+- [x] Add scan history log panel to Portfolio Safety tab (last 10 runs with timestamps, alert counts, scan type, triggered-by)
+- [x] Wire safeguards into CSP-BPS and CC-BCS (confirmed: UnifiedOrderPreviewModal already covers all flows)
+- [x] Add Last Swept timestamp to Automation header
+- [x] Add daily 9:00 AM ITM assignment risk scan (Mon-Fri) to automation scheduler

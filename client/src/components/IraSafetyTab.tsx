@@ -40,6 +40,8 @@ import {
   ChevronDown,
   ChevronUp,
   BookOpen,
+  History,
+  BarChart3,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -495,6 +497,9 @@ export function IraSafetyTab() {
         </>
       )}
 
+      {/* Scan History Log */}
+      <ScanHistoryPanel />
+
       {/* Education section — always visible */}
       <Card className="border-blue-500/20 bg-blue-950/10">
         <CardHeader className="pb-3">
@@ -523,5 +528,97 @@ export function IraSafetyTab() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ── Scan History Panel ────────────────────────────────────────────────────────
+
+function ScanHistoryPanel() {
+  const { data: history, isLoading } = trpc.safeguards.getScanHistory.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <History className="h-4 w-4 text-muted-foreground" />
+            Scan History
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading scan history...
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!history || history.length === 0) {
+    return (
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <History className="h-4 w-4 text-muted-foreground" />
+            Scan History
+          </CardTitle>
+          <CardDescription className="text-xs">No scans recorded yet. Use the Test buttons in the Automation tab to run a scan.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <History className="h-4 w-4 text-muted-foreground" />
+          Scan History
+          <span className="text-xs font-normal text-muted-foreground ml-1">(last {history.length} runs)</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y divide-border/50">
+          {history.map((entry) => {
+            const date = new Date(entry.ranAt);
+            const isFriday = entry.scanType === 'friday_sweep';
+            const hasAlerts = entry.alertCount > 0;
+            return (
+              <div key={entry.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/20 transition-colors">
+                <div className="flex items-center gap-3">
+                  <BarChart3 className={`h-3.5 w-3.5 ${isFriday ? 'text-blue-400' : 'text-violet-400'}`} />
+                  <div>
+                    <span className={`text-xs font-medium ${isFriday ? 'text-blue-400' : 'text-violet-400'}`}>
+                      {isFriday ? 'Friday Sweep' : 'Daily Scan'}
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-2">
+                      {entry.triggeredBy === 'manual' ? '(manual)' : '(auto)'}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {hasAlerts ? (
+                    <span className="text-xs bg-amber-500/20 text-amber-300 rounded px-2 py-0.5">
+                      {entry.alertCount} alert{entry.alertCount !== 1 ? 's' : ''}
+                    </span>
+                  ) : (
+                    <span className="text-xs bg-emerald-500/20 text-emerald-400 rounded px-2 py-0.5 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Clean
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {date.toLocaleDateString([], { month: 'short', day: 'numeric' })}{' '}
+                    {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
