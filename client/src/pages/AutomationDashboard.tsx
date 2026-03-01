@@ -805,7 +805,7 @@ export default function AutomationDashboard() {
             <span className={`h-2 w-2 rounded-full ${dailyScanEnabled ? 'bg-violet-400 animate-pulse' : 'bg-muted-foreground'}`} />
             {dailyScanEnabled ? 'Daily Scan ON' : 'Daily Scan OFF'}
           </div>
-          {/* Kill Switch — prominent toggle */}
+          {/* Kill Switch — pill button matching Auto-Sweep/Daily Scan style */}
           <div
             onClick={() => {
               setKillSwitchActive(v => !v);
@@ -813,32 +813,14 @@ export default function AutomationDashboard() {
               else toast.success('Kill switch deactivated — automation resumed');
             }}
             title={killSwitchActive ? 'Automation PAUSED — click to resume' : 'Kill Switch — click to pause all automation'}
-            className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg border cursor-pointer select-none transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer select-none ${
               killSwitchActive
-                ? 'bg-red-600/20 border-red-500/60 shadow-[0_0_8px_rgba(239,68,68,0.4)]'
-                : 'bg-muted/40 border-border hover:border-red-500/40 hover:bg-red-600/5'
+                ? 'bg-red-600/10 border-red-500/30 text-red-400 hover:bg-red-600/20'
+                : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50'
             }`}
           >
-            {/* Power icon */}
-            <Power className={`h-4 w-4 shrink-0 ${
-              killSwitchActive ? 'text-red-400' : 'text-muted-foreground'
-            }`} />
-            {/* Label */}
-            <span className={`text-xs font-semibold ${
-              killSwitchActive ? 'text-red-400' : 'text-muted-foreground'
-            }`}>
-              {killSwitchActive ? 'PAUSED' : 'Kill Switch'}
-            </span>
-            {/* The actual toggle track */}
-            <div className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 transition-colors ${
-              killSwitchActive
-                ? 'bg-red-600 border-red-500'
-                : 'bg-muted border-border'
-            }`}>
-              <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-md transform transition-transform ${
-                killSwitchActive ? 'translate-x-4' : 'translate-x-0'
-              }`} />
-            </div>
+            <Power className="h-3.5 w-3.5" />
+            {killSwitchActive ? 'Kill Switch ON' : 'Kill Switch'}
           </div>
           {/* Master Run All button */}
           <Button
