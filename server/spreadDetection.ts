@@ -10,6 +10,17 @@
  *
  * All multi-leg strategies are returned as a single SpreadPosition so the roll
  * engine can construct an atomic order (BTC all legs + STO new legs in one request).
+ *
+ * P&L FORMULA (matches routers-spread-analytics.ts classifyActiveSpreads):
+ *   legPL = (currentMark - openPrice) * signedQty * 100
+ *   totalPL = sum of all leg P&Ls
+ *
+ * This works because:
+ *   - Short leg: signedQty = -1, openPrice = 0.45 (positive), mark = 0.05
+ *     → (0.05 - 0.45) * -1 * 100 = +$40 profit (option decayed)
+ *   - Long leg: signedQty = +1, openPrice = 0.20, mark = 0.01
+ *     → (0.01 - 0.20) * +1 * 100 = -$19 (hedge cost)
+ *   - Net = +$21 ✅
  */
 
 export type StrategyType = 'CSP' | 'CC' | 'BPS' | 'BCS' | 'IC';
@@ -25,11 +36,11 @@ export interface RawOptionLeg {
   strike: number;
   /** Expiration date string YYYY-MM-DD */
   expiration: string;
-  /** Positive = long, negative = short */
+  /** Positive = long, negative = short (signed quantity from Tastytrade) */
   quantity: number;
-  /** Average open price per share (not multiplied by 100) */
+  /** Average open price per share (always positive from Tastytrade) */
   openPrice: number;
-  /** Current mark price per share */
+  /** Current mark price per share (always positive) */
   markPrice: number;
   /** Account number this leg belongs to */
   accountNumber: string;
@@ -57,11 +68,13 @@ export interface SpreadPosition {
   legs: SpreadLeg[];
 
   // Aggregated metrics
-  /** Net premium received when opening (sum of short credits - long debits) */
+  /** Net premium received when opening (sum of short credits - long debits), in dollars */
   openPremium: number;
-  /** Net current value to close (sum of current mark prices) */
+  /** Net current value to close (sum of current mark prices × signed qty × 100), in dollars */
   currentValue: number;
-  /** Profit captured as % of max profit */
+  /** Unrealized P&L in dollars (positive = winning) */
+  unrealizedPnl: number;
+  /** Profit captured as % of max profit (can be negative for losers) */
   profitCaptured: number;
   /** Days to expiration */
   dte: number;
@@ -87,25 +100,49 @@ function calcDTE(expiration: string): number {
   return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
 }
 
-function calcProfitCaptured(openPremium: number, currentValue: number): number {
-  // For credit spreads: openPremium > 0 (net credit received)
-  // profitCaptured = how much of the original credit has decayed away
-  // Positive = winning (option decayed), Negative = losing (option moved against us)
-  // No clamping — show the real number including negative values
-  if (openPremium <= 0) {
-    // Debit spread or inverted: use currentValue as reference
-    // If currentValue < openPremium (both negative), we're losing on a debit spread
-    if (openPremium === 0) return 0;
-    // For debit spreads: profit = (currentValue - openPremium) / Math.abs(openPremium) * 100
-    return ((currentValue - openPremium) / Math.abs(openPremium)) * 100;
-  }
-  // Normal credit spread: (credit_received - cost_to_close) / credit_received * 100
-  return ((openPremium - currentValue) / openPremium) * 100;
+/**
+ * Calculate P&L for a single leg using the signed-quantity formula.
+ * This matches the proven formula in routers-spread-analytics.ts:
+ *   legPL = (currentMark - openPrice) * signedQty * 100
+ *
+ * For a short leg (signedQty = -1):
+ *   If the option decays from 0.45 → 0.05: (0.05 - 0.45) * -1 * 100 = +$40 ✅
+ * For a long leg (signedQty = +1):
+ *   If the option decays from 0.20 → 0.01: (0.01 - 0.20) * +1 * 100 = -$19
+ */
+function legPnl(leg: RawOptionLeg): number {
+  return (leg.markPrice - leg.openPrice) * leg.quantity * 100;
 }
 
-/** Group key: underlying + expiry (used to find matching legs for spreads) */
-function groupKey(underlying: string, expiration: string): string {
-  return `${underlying}::${expiration}`;
+/**
+ * Calculate the net premium received when opening (for % profit calculation).
+ * For credit spreads: sum of (openPrice * |qty| * 100) for short legs
+ *                   - sum of (openPrice * |qty| * 100) for long legs
+ * This is always positive for a net-credit spread.
+ */
+function calcOpenPremium(legs: RawOptionLeg[]): number {
+  return legs.reduce((sum, leg) => {
+    // Short legs (negative qty) contributed a credit; long legs cost a debit
+    // openPremium = credit_received - debit_paid = net credit
+    const contribution = leg.openPrice * Math.abs(leg.quantity) * 100;
+    return sum + (leg.quantity < 0 ? contribution : -contribution);
+  }, 0);
+}
+
+/**
+ * Calculate profit captured as % of max profit (openPremium).
+ * - Positive = winning (option decayed toward zero)
+ * - Negative = losing (option moved against us)
+ * - 100% = full max profit captured
+ */
+function calcProfitCaptured(openPremium: number, unrealizedPnl: number): number {
+  if (openPremium === 0) return 0;
+  if (openPremium < 0) {
+    // Debit spread: profit = gain above cost
+    return (unrealizedPnl / Math.abs(openPremium)) * 100;
+  }
+  // Credit spread: profit % = unrealized gain / original credit
+  return (unrealizedPnl / openPremium) * 100;
 }
 
 // ─── Main Detection Function ──────────────────────────────────────────────────
@@ -125,8 +162,6 @@ function groupKey(underlying: string, expiration: string): string {
  *    - Anything else → treat each short leg as standalone CSP/CC
  */
 export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
-  const multiplier = 100;
-
   // Group by account + underlying + expiration
   const groups = new Map<string, RawOptionLeg[]>();
   for (const leg of legs) {
@@ -141,21 +176,19 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
     const [accountNumber, underlying, expiration] = key.split('::');
     const dte = calcDTE(expiration);
 
-      const shortPuts = groupLegs.filter((l: RawOptionLeg) => l.optionType === 'PUT' && l.quantity < 0);
-      const longPuts  = groupLegs.filter((l: RawOptionLeg) => l.optionType === 'PUT' && l.quantity > 0);
-      const shortCalls = groupLegs.filter((l: RawOptionLeg) => l.optionType === 'CALL' && l.quantity < 0);
-      const longCalls  = groupLegs.filter((l: RawOptionLeg) => l.optionType === 'CALL' && l.quantity > 0);
+    const shortPuts  = groupLegs.filter((l: RawOptionLeg) => l.optionType === 'PUT'  && l.quantity < 0);
+    const longPuts   = groupLegs.filter((l: RawOptionLeg) => l.optionType === 'PUT'  && l.quantity > 0);
+    const shortCalls = groupLegs.filter((l: RawOptionLeg) => l.optionType === 'CALL' && l.quantity < 0);
+    const longCalls  = groupLegs.filter((l: RawOptionLeg) => l.optionType === 'CALL' && l.quantity > 0);
 
     const absQty = (l: RawOptionLeg) => Math.abs(l.quantity);
 
     // ── Iron Condor: 1 short put + 1 long put + 1 short call + 1 long call ──
     if (shortPuts.length >= 1 && longPuts.length >= 1 && shortCalls.length >= 1 && longCalls.length >= 1) {
       const sp = shortPuts[0], lp = longPuts[0], sc = shortCalls[0], lc = longCalls[0];
-      const qty = absQty(sp);
-
-      // Net premium: credits from shorts - debits for longs
-      const openPremium = (sp.openPrice + sc.openPrice - lp.openPrice - lc.openPrice) * qty * multiplier;
-      const currentValue = (sp.markPrice + sc.markPrice - lp.markPrice - lc.markPrice) * qty * multiplier;
+      const icLegs = [sp, lp, sc, lc];
+      const openPremium = calcOpenPremium(icLegs);
+      const unrealizedPnl = icLegs.reduce((sum, l) => sum + legPnl(l), 0);
 
       spreads.push({
         id: `${accountNumber}::${underlying}::${expiration}::IC`,
@@ -170,8 +203,9 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
           { ...lc, role: 'long' },
         ],
         openPremium,
-        currentValue,
-        profitCaptured: calcProfitCaptured(openPremium, currentValue),
+        currentValue: openPremium - unrealizedPnl,
+        unrealizedPnl,
+        profitCaptured: calcProfitCaptured(openPremium, unrealizedPnl),
         dte,
         putShortStrike: sp.strike,
         putLongStrike: lp.strike,
@@ -184,10 +218,16 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
     // ── BPS: 1 short put + 1 long put (short strike > long strike) ──
     if (shortPuts.length >= 1 && longPuts.length >= 1 && shortCalls.length === 0) {
       const sp = shortPuts[0], lp = longPuts[0];
-      const qty = absQty(sp);
-      const openPremium = (sp.openPrice - lp.openPrice) * qty * multiplier;
-      const currentValue = (sp.markPrice - lp.markPrice) * qty * multiplier;
+      const bpsLegs = [sp, lp];
+      const openPremium = calcOpenPremium(bpsLegs);
+      const unrealizedPnl = bpsLegs.reduce((sum, l) => sum + legPnl(l), 0);
       const width = Math.abs(sp.strike - lp.strike);
+
+      // DIAGNOSTIC: log raw values to trace P&L calculation
+      console.log(`[BPS DIAG] ${underlying} exp=${expiration} qty=${absQty(sp)}`);
+      console.log(`  short put: strike=${sp.strike} qty=${sp.quantity} openPrice=${sp.openPrice} markPrice=${sp.markPrice}`);
+      console.log(`  long  put: strike=${lp.strike} qty=${lp.quantity} openPrice=${lp.openPrice} markPrice=${lp.markPrice}`);
+      console.log(`  openPremium=$${openPremium.toFixed(2)} unrealizedPnl=$${unrealizedPnl.toFixed(2)} profitPct=${calcProfitCaptured(openPremium, unrealizedPnl).toFixed(1)}%`);
 
       spreads.push({
         id: `${accountNumber}::${underlying}::${expiration}::BPS`,
@@ -200,8 +240,9 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
           { ...lp, role: 'long' },
         ],
         openPremium,
-        currentValue,
-        profitCaptured: calcProfitCaptured(openPremium, currentValue),
+        currentValue: openPremium - unrealizedPnl,
+        unrealizedPnl,
+        profitCaptured: calcProfitCaptured(openPremium, unrealizedPnl),
         dte,
         shortStrike: sp.strike,
         longStrike: lp.strike,
@@ -213,9 +254,9 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
     // ── BCS: 1 short call + 1 long call (short strike < long strike) ──
     if (shortCalls.length >= 1 && longCalls.length >= 1 && shortPuts.length === 0) {
       const sc = shortCalls[0], lc = longCalls[0];
-      const qty = absQty(sc);
-      const openPremium = (sc.openPrice - lc.openPrice) * qty * multiplier;
-      const currentValue = (sc.markPrice - lc.markPrice) * qty * multiplier;
+      const bcsLegs = [sc, lc];
+      const openPremium = calcOpenPremium(bcsLegs);
+      const unrealizedPnl = bcsLegs.reduce((sum, l) => sum + legPnl(l), 0);
       const width = Math.abs(sc.strike - lc.strike);
 
       spreads.push({
@@ -229,8 +270,9 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
           { ...lc, role: 'long' },
         ],
         openPremium,
-        currentValue,
-        profitCaptured: calcProfitCaptured(openPremium, currentValue),
+        currentValue: openPremium - unrealizedPnl,
+        unrealizedPnl,
+        profitCaptured: calcProfitCaptured(openPremium, unrealizedPnl),
         dte,
         shortStrike: sc.strike,
         longStrike: lc.strike,
@@ -241,9 +283,8 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
 
     // ── Standalone CSP: short put(s) with no matching long put ──
     for (const sp of shortPuts) {
-      const qty = absQty(sp);
-      const openPremium = sp.openPrice * qty * multiplier;
-      const currentValue = sp.markPrice * qty * multiplier;
+      const openPremium = sp.openPrice * Math.abs(sp.quantity) * 100;
+      const unrealizedPnl = legPnl(sp);
       spreads.push({
         id: `${accountNumber}::${underlying}::${expiration}::CSP::${sp.strike}`,
         underlying,
@@ -252,8 +293,9 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
         accountNumber,
         legs: [{ ...sp, role: 'short' }],
         openPremium,
-        currentValue,
-        profitCaptured: calcProfitCaptured(openPremium, currentValue),
+        currentValue: openPremium - unrealizedPnl,
+        unrealizedPnl,
+        profitCaptured: calcProfitCaptured(openPremium, unrealizedPnl),
         dte,
         shortStrike: sp.strike,
       });
@@ -261,9 +303,8 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
 
     // ── Standalone CC: short call(s) with no matching long call ──
     for (const sc of shortCalls) {
-      const qty = absQty(sc);
-      const openPremium = sc.openPrice * qty * multiplier;
-      const currentValue = sc.markPrice * qty * multiplier;
+      const openPremium = sc.openPrice * Math.abs(sc.quantity) * 100;
+      const unrealizedPnl = legPnl(sc);
       spreads.push({
         id: `${accountNumber}::${underlying}::${expiration}::CC::${sc.strike}`,
         underlying,
@@ -272,8 +313,9 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
         accountNumber,
         legs: [{ ...sc, role: 'short' }],
         openPremium,
-        currentValue,
-        profitCaptured: calcProfitCaptured(openPremium, currentValue),
+        currentValue: openPremium - unrealizedPnl,
+        unrealizedPnl,
+        profitCaptured: calcProfitCaptured(openPremium, unrealizedPnl),
         dte,
         shortStrike: sc.strike,
       });
@@ -304,120 +346,75 @@ export interface SpreadRollOrder {
 
 function buildOCCSymbol(underlying: string, expiration: string, optionType: 'C' | 'P', strike: number): string {
   const expParts = expiration.split('-');
-  const dateStr = expParts[0].slice(2) + expParts[1] + expParts[2];
+  const dateStr = expParts[0].slice(2) + expParts[1] + expParts[2]; // YYMMDD
   const strikeStr = String(Math.round(strike * 1000)).padStart(8, '0');
   return `${underlying}${dateStr}${optionType}${strikeStr}`;
 }
 
 /**
- * Build the legs for an atomic roll order for a spread position.
- *
- * For BPS roll: BTC short put + BTC long put + STO new short put + STO new long put
- * For BCS roll: BTC short call + BTC long call + STO new short call + STO new long call
- * For IC roll:  BTC all 4 legs + STO 4 new legs
- * For CSP/CC:   BTC current + STO new (same as before)
- *
- * @param spread       The existing spread position to roll
- * @param newExpiration New expiration date YYYY-MM-DD
- * @param newShortStrike New short strike (for BPS/BCS/CSP/CC); same width maintained for spreads
- * @param netCredit    Expected net credit (positive) or debit (negative) for the whole roll
+ * Build an atomic roll order for a spread position.
+ * Returns a multi-leg order that BTCs all existing legs and STOs new legs.
  */
 export function buildSpreadRollOrder(
   spread: SpreadPosition,
   newExpiration: string,
   newShortStrike: number,
-  netCredit: number,
+  newLongStrike?: number,
+  rollCredit?: number
 ): SpreadRollOrder {
   const legs: SpreadRollOrder['legs'] = [];
-  const qty = Math.abs(spread.legs[0].quantity);
 
-  switch (spread.strategyType) {
-    case 'CSP': {
-      const shortLeg = spread.legs[0];
-      // BTC existing
-      legs.push({ symbol: shortLeg.symbol, action: 'Buy to Close', quantity: String(qty), instrumentType: 'Equity Option' });
-      // STO new
-      const newSym = buildOCCSymbol(spread.underlying, newExpiration, 'P', newShortStrike);
-      legs.push({ symbol: newSym, action: 'Sell to Open', quantity: String(qty), instrumentType: 'Equity Option' });
-      break;
-    }
-    case 'CC': {
-      const shortLeg = spread.legs[0];
-      legs.push({ symbol: shortLeg.symbol, action: 'Buy to Close', quantity: String(qty), instrumentType: 'Equity Option' });
-      const newSym = buildOCCSymbol(spread.underlying, newExpiration, 'C', newShortStrike);
-      legs.push({ symbol: newSym, action: 'Sell to Open', quantity: String(qty), instrumentType: 'Equity Option' });
-      break;
-    }
-    case 'BPS': {
-      const shortLeg = spread.legs.find(l => l.role === 'short')!;
-      const longLeg  = spread.legs.find(l => l.role === 'long')!;
-      const width = spread.spreadWidth || Math.abs(shortLeg.strike - longLeg.strike);
-      const newLongStrike = newShortStrike - width;
-      // BTC existing legs
-      legs.push({ symbol: shortLeg.symbol, action: 'Buy to Close', quantity: String(qty), instrumentType: 'Equity Option' });
-      legs.push({ symbol: longLeg.symbol,  action: 'Buy to Close', quantity: String(qty), instrumentType: 'Equity Option' });
-      // STO new legs
-      legs.push({ symbol: buildOCCSymbol(spread.underlying, newExpiration, 'P', newShortStrike), action: 'Sell to Open', quantity: String(qty), instrumentType: 'Equity Option' });
-      legs.push({ symbol: buildOCCSymbol(spread.underlying, newExpiration, 'P', newLongStrike),  action: 'Sell to Open', quantity: String(qty), instrumentType: 'Equity Option' });
-      break;
-    }
-    case 'BCS': {
-      const shortLeg = spread.legs.find(l => l.role === 'short')!;
-      const longLeg  = spread.legs.find(l => l.role === 'long')!;
-      const width = spread.spreadWidth || Math.abs(shortLeg.strike - longLeg.strike);
-      const newLongStrike = newShortStrike + width;
-      legs.push({ symbol: shortLeg.symbol, action: 'Buy to Close', quantity: String(qty), instrumentType: 'Equity Option' });
-      legs.push({ symbol: longLeg.symbol,  action: 'Buy to Close', quantity: String(qty), instrumentType: 'Equity Option' });
-      legs.push({ symbol: buildOCCSymbol(spread.underlying, newExpiration, 'C', newShortStrike), action: 'Sell to Open', quantity: String(qty), instrumentType: 'Equity Option' });
-      legs.push({ symbol: buildOCCSymbol(spread.underlying, newExpiration, 'C', newLongStrike),  action: 'Sell to Open', quantity: String(qty), instrumentType: 'Equity Option' });
-      break;
-    }
-    case 'IC': {
-      // Put spread legs
-      const putShort = spread.legs.find(l => l.optionType === 'PUT'  && l.role === 'short')!;
-      const putLong  = spread.legs.find(l => l.optionType === 'PUT'  && l.role === 'long')!;
-      const callShort = spread.legs.find(l => l.optionType === 'CALL' && l.role === 'short')!;
-      const callLong  = spread.legs.find(l => l.optionType === 'CALL' && l.role === 'long')!;
-      const putWidth  = Math.abs(putShort.strike  - putLong.strike);
-      const callWidth = Math.abs(callShort.strike - callLong.strike);
-      // newShortStrike is the new put short strike; call short strike mirrors it symmetrically
-      const newPutLong   = newShortStrike - putWidth;
-      // For IC, call short is typically ATM + same offset as put short is ATM - offset
-      // We keep the same distance from ATM; caller should provide newCallShortStrike separately
-      // For now, use the same offset from ATM as the original
-      const putOffset  = spread.putShortStrike ? spread.putShortStrike  : newShortStrike;
-      const callOffset = spread.callShortStrike ? spread.callShortStrike : newShortStrike;
-      const strikeGap = callOffset - putOffset; // gap between put short and call short
-      const newCallShort = newShortStrike + strikeGap;
-      const newCallLong  = newCallShort + callWidth;
-      // BTC all 4 existing legs
-      legs.push({ symbol: putShort.symbol,  action: 'Buy to Close', quantity: String(qty), instrumentType: 'Equity Option' });
-      legs.push({ symbol: putLong.symbol,   action: 'Buy to Close', quantity: String(qty), instrumentType: 'Equity Option' });
-      legs.push({ symbol: callShort.symbol, action: 'Buy to Close', quantity: String(qty), instrumentType: 'Equity Option' });
-      legs.push({ symbol: callLong.symbol,  action: 'Buy to Close', quantity: String(qty), instrumentType: 'Equity Option' });
-      // STO 4 new legs
-      legs.push({ symbol: buildOCCSymbol(spread.underlying, newExpiration, 'P', newShortStrike), action: 'Sell to Open', quantity: String(qty), instrumentType: 'Equity Option' });
-      legs.push({ symbol: buildOCCSymbol(spread.underlying, newExpiration, 'P', newPutLong),     action: 'Sell to Open', quantity: String(qty), instrumentType: 'Equity Option' });
-      legs.push({ symbol: buildOCCSymbol(spread.underlying, newExpiration, 'C', newCallShort),   action: 'Sell to Open', quantity: String(qty), instrumentType: 'Equity Option' });
-      legs.push({ symbol: buildOCCSymbol(spread.underlying, newExpiration, 'C', newCallLong),    action: 'Sell to Open', quantity: String(qty), instrumentType: 'Equity Option' });
-      break;
-    }
+  // BTC existing legs
+  for (const leg of spread.legs) {
+    const optType = leg.optionType === 'PUT' ? 'P' : 'C';
+    const symbol = buildOCCSymbol(spread.underlying, spread.expiration, optType, leg.strike);
+    legs.push({
+      symbol,
+      action: 'Buy to Close',
+      quantity: String(Math.abs(leg.quantity)),
+      instrumentType: 'Equity Option',
+    });
   }
 
-  const absPrice = Math.abs(netCredit);
-  const priceEffect: 'Credit' | 'Debit' = netCredit >= 0 ? 'Credit' : 'Debit';
+  // STO new legs based on strategy
+  const qty = String(Math.abs(spread.legs[0].quantity));
 
-  const strategyLabels: Record<StrategyType, string> = {
-    CSP: 'CSP', CC: 'CC', BPS: 'Bull Put Spread', BCS: 'Bear Call Spread', IC: 'Iron Condor',
-  };
+  if (spread.strategyType === 'CSP') {
+    const symbol = buildOCCSymbol(spread.underlying, newExpiration, 'P', newShortStrike);
+    legs.push({ symbol, action: 'Sell to Open', quantity: qty, instrumentType: 'Equity Option' });
+  } else if (spread.strategyType === 'CC') {
+    const symbol = buildOCCSymbol(spread.underlying, newExpiration, 'C', newShortStrike);
+    legs.push({ symbol, action: 'Sell to Open', quantity: qty, instrumentType: 'Equity Option' });
+  } else if (spread.strategyType === 'BPS') {
+    const shortSymbol = buildOCCSymbol(spread.underlying, newExpiration, 'P', newShortStrike);
+    const longSymbol  = buildOCCSymbol(spread.underlying, newExpiration, 'P', newLongStrike ?? (newShortStrike - (spread.spreadWidth ?? 5)));
+    legs.push({ symbol: shortSymbol, action: 'Sell to Open', quantity: qty, instrumentType: 'Equity Option' });
+    legs.push({ symbol: longSymbol,  action: 'Buy to Close', quantity: qty, instrumentType: 'Equity Option' });
+  } else if (spread.strategyType === 'BCS') {
+    const shortSymbol = buildOCCSymbol(spread.underlying, newExpiration, 'C', newShortStrike);
+    const longSymbol  = buildOCCSymbol(spread.underlying, newExpiration, 'C', newLongStrike ?? (newShortStrike + (spread.spreadWidth ?? 5)));
+    legs.push({ symbol: shortSymbol, action: 'Sell to Open', quantity: qty, instrumentType: 'Equity Option' });
+    legs.push({ symbol: longSymbol,  action: 'Buy to Close', quantity: qty, instrumentType: 'Equity Option' });
+  } else if (spread.strategyType === 'IC') {
+    // Roll both sides
+    const putShort  = buildOCCSymbol(spread.underlying, newExpiration, 'P', newShortStrike);
+    const putLong   = buildOCCSymbol(spread.underlying, newExpiration, 'P', newLongStrike ?? (newShortStrike - 5));
+    const callShort = buildOCCSymbol(spread.underlying, newExpiration, 'C', newShortStrike + 10);
+    const callLong  = buildOCCSymbol(spread.underlying, newExpiration, 'C', newShortStrike + 15);
+    legs.push({ symbol: putShort,  action: 'Sell to Open', quantity: qty, instrumentType: 'Equity Option' });
+    legs.push({ symbol: putLong,   action: 'Buy to Close', quantity: qty, instrumentType: 'Equity Option' });
+    legs.push({ symbol: callShort, action: 'Sell to Open', quantity: qty, instrumentType: 'Equity Option' });
+    legs.push({ symbol: callLong,  action: 'Buy to Close', quantity: qty, instrumentType: 'Equity Option' });
+  }
 
+  const credit = rollCredit ?? 0.05;
   return {
     accountNumber: spread.accountNumber,
     underlying: spread.underlying,
     strategyType: spread.strategyType,
     legs,
-    price: absPrice.toFixed(2),
-    priceEffect,
-    description: `Roll ${strategyLabels[spread.strategyType]} ${spread.underlying} → ${newExpiration} @ ${netCredit >= 0 ? '+' : ''}$${netCredit.toFixed(2)} net ${priceEffect.toLowerCase()}`,
+    price: credit.toFixed(2),
+    priceEffect: credit >= 0 ? 'Credit' : 'Debit',
+    description: `Roll ${spread.strategyType} ${spread.underlying} ${spread.expiration} → ${newExpiration}`,
   };
 }

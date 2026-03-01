@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { ConnectionStatusIndicator } from '@/components/ConnectionStatusIndicator';
+import { IraSafetyMonitor } from '@/components/IraSafetyMonitor';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { skipToken } from '@tanstack/react-query';
@@ -702,6 +703,9 @@ export default function AutomationDashboard() {
           </div>
         </div>
       )}
+
+      {/* IRA Safety Monitor — always visible, scans for SL call triggers and assignment risks */}
+      <IraSafetyMonitor />
 
       {/* Six-Step Automation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">

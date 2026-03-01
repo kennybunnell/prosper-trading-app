@@ -6662,3 +6662,16 @@
 - [x] Removed debug logging from routers-rolls.ts
 - [x] Updated % Max Profit column: negative values show in red-500, 0-20% in orange, 20-50% in yellow, 50-80% in emerald, 80%+ in green
 - [x] Updated reason messages: losers now show '340% underwater' instead of '0% captured'
+
+## 🚧 Bug Fix: BPS openPremium Sign Convention (Feb 28, 2026)
+- [ ] Diagnose why BPS positions OTM (stock below short strike) are showing as losses
+- [ ] Fix openPremium calculation: short put credit received - long put premium paid = net credit
+- [ ] Verify Tastytrade average-open-price sign for short vs long legs
+
+## 🚨 IRA Safety Monitor (Mar 1, 2026)
+- [x] Server: Add `scanIraViolations` procedure — detect short stock, naked short calls, orphaned spread legs
+- [x] Server: Flag account type (IRA vs margin) from Tastytrade account metadata
+- [x] UI: Add IRA Safety Alert banner/card in AutomationDashboard — shows violations with one-click close action
+- [ ] UI: Add "Assignment Risk" warning to Roll Positions tab for ITM short calls in IRA accounts
+- [x] Logic: Auto-detect orphaned legs (spread where one leg was closed/assigned, leaving naked short)
+- [x] Logic: In CC scan, warn if short call is ITM and account is IRA (assignment risk)
