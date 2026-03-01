@@ -691,4 +691,67 @@ export const safeguardsRouter = router({
         orderType: input.orderType,
       };
     }),
+
+  // ── Manual Friday Sweep trigger ────────────────────────────────────────────
+  /**
+   * Manually trigger the Friday expiration sweep on demand.
+   * Runs the same scan as the scheduled Friday 9:30 AM job and sends an owner notification.
+   * Use from the Automation tab to verify the sweep works before next Friday.
+   */
+  triggerFridaySweep: protectedProcedure
+    .mutation(async ({ ctx }): Promise<{ alertCount: number; notificationSent: boolean; message: string }> => {
+      // Run the Friday sweep scan (mode='friday' looks 7 DTE out)
+      // We call scanExpirationRisk inline to avoid circular import with automation-scheduler
+      const { getApiCredentials, getTastytradeAccounts } = await import('./db');
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const { notifyOwner } = await import('./_core/notification');
+
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        return { alertCount: 0, notificationSent: false, message: 'No Tastytrade credentials configured.' };
+      }
+
+      const accounts = await getTastytradeAccounts(ctx.user.id);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+      const dteCutoff = 7; // Friday sweep looks 7 days out
+      const allAlerts: string[] = [];
+
+      for (const account of accounts) {
+        try {
+          const positions = await api.getPositions(account.accountId);
+          const shortCalls = positions.filter((p: any) =>
+            p['instrument-type'] === 'Equity Option' &&
+            p['quantity-direction']?.toLowerCase() === 'short' &&
+            (p.symbol || '').replace(/\s/g, '').match(/[A-Z]+\d{6}C/)
+          );
+          for (const pos of shortCalls) {
+            const dte = pos['expires-at'] ? calcDTE(pos['expires-at']) : 99;
+            if (dte <= dteCutoff) {
+              const strike = parseStrikeFromSymbol(pos.symbol);
+              const underlying = pos['underlying-symbol'] || pos.symbol;
+              allAlerts.push(`${underlying} $${strike} call (${dte} DTE) in acct ${account.accountNumber}`);
+            }
+          }
+        } catch (e: any) {
+          console.warn(`[Friday Sweep] Error scanning ${account.accountNumber}:`, e.message);
+        }
+      }
+
+      let notificationSent = false;
+      if (allAlerts.length > 0) {
+        const title = `⚠️ Friday Sweep: ${allAlerts.length} short call${allAlerts.length !== 1 ? 's' : ''} expiring within 7 DTE`;
+        const content = `The following short calls require attention before expiration:\n\n` +
+          allAlerts.map((a, i) => `${i + 1}. ${a}`).join('\n') +
+          `\n\nPlease review in the Portfolio Safety tab and close or roll as needed.`;
+        notificationSent = await notifyOwner({ title, content });
+      }
+
+      return {
+        alertCount: allAlerts.length,
+        notificationSent,
+        message: allAlerts.length === 0
+          ? 'No short calls expiring within 7 DTE. Portfolio looks clean!'
+          : `Found ${allAlerts.length} short call${allAlerts.length !== 1 ? 's' : ''} expiring within 7 DTE. Notification sent.`,
+      };
+    }),
 });

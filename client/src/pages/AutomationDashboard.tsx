@@ -167,6 +167,22 @@ export default function AutomationDashboard() {
   const [hideExpiringToday, setHideExpiringToday] = useState(true); // Hide DTE=0 by default
   const [activeTab, setActiveTab] = useState('step1-close');
   const [killSwitchActive, setKillSwitchActive] = useState(false);
+  const [isSweeping, setIsSweeping] = useState(false);
+
+  const triggerFridaySweepMutation = trpc.safeguards.triggerFridaySweep.useMutation({
+    onSuccess: (data) => {
+      setIsSweeping(false);
+      if (data.alertCount === 0) {
+        toast.success(data.message);
+      } else {
+        toast.warning(data.message, { duration: 8000 });
+      }
+    },
+    onError: (err) => {
+      setIsSweeping(false);
+      toast.error(`Friday sweep failed: ${err.message}`);
+    },
+  });
   // Roll Positions state
   const [rollScanResults, setRollScanResults] = useState<{ red: RollAnalysis[]; yellow: RollAnalysis[]; green: RollAnalysis[]; all: RollAnalysis[]; total: number; accountsScanned: number } | null>(null);
   const [isRollScanning, setIsRollScanning] = useState(false);
@@ -656,6 +672,24 @@ export default function AutomationDashboard() {
         </div>
         <div className="flex items-center gap-3 mt-1">
           <ConnectionStatusIndicator />
+          {/* Test Friday Sweep */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setIsSweeping(true);
+              triggerFridaySweepMutation.mutate();
+            }}
+            disabled={isSweeping}
+            className="flex items-center gap-2 text-xs border-blue-500/40 text-blue-400 hover:bg-blue-600/10"
+            title="Manually run the Friday expiration sweep and send a notification if short calls are found within 7 DTE"
+          >
+            {isSweeping ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" />Sweeping...</>
+            ) : (
+              <><RefreshCw className="h-3.5 w-3.5" />Test Friday Sweep</>
+            )}
+          </Button>
           {/* Kill Switch */}
           <button
             onClick={() => {

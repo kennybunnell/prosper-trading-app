@@ -6721,3 +6721,14 @@
 - [x] Rename "IRA Safety" → "Portfolio Safety" everywhere (tab label, badge, component title, router)
 - [x] Remove Active Positions and Working Orders tabs from Performance page
 - [x] Performance page tabs: Overview, Spread Analysis, Stock Basis, Projections, Tax only
+
+## 🔧 Quick Improvements (Mar 1, 2026 - Round 2)
+- [ ] Add Portfolio Safety violation badge to Action Items sidebar nav item
+- [ ] Update Performance page description text to reflect 5 actual tabs
+- [ ] Add "Test Friday Sweep" button to Automation tab
+
+## ✅ Nav Badge + Performance + Friday Sweep (Mar 1 2026)
+- [x] Add Portfolio Safety violation count badge to Action Items sidebar nav (red=critical, amber=warnings)
+- [x] Update Performance page description to reflect 5 actual tabs (removed active positions reference)
+- [x] Add Test Friday Sweep button to Automation tab header (triggers scan + owner notification on demand)
+- [x] Delete unused ExpirationRiskPanel.tsx (dead code cleanup)

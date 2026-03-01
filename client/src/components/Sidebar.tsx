@@ -51,6 +51,14 @@ export function Sidebar({ className }: SidebarProps) {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
+  // Fetch Portfolio Safety violation count for Action Items badge
+  const { data: safetyData } = trpc.iraSafety.scanViolations.useQuery(undefined, {
+    enabled: !!user,
+    refetchInterval: 120000, // Refresh every 2 minutes
+    staleTime: 60000,
+  });
+  const safetyViolationCount = (safetyData?.criticalCount ?? 0) + (safetyData?.warningCount ?? 0);
+
   // Check if user is on free trial (demo mode)
   const isTrialUser = user?.subscriptionTier === 'free_trial';
   
@@ -89,6 +97,8 @@ export function Sidebar({ className }: SidebarProps) {
       name: 'Action Items',
       path: '/action-items',
       icon: CheckSquare,
+      badge: safetyViolationCount,
+      badgeCritical: (safetyData?.criticalCount ?? 0) > 0,
     },
     {
       name: 'Performance',
@@ -254,7 +264,12 @@ export function Sidebar({ className }: SidebarProps) {
                     !isActive && "text-foreground"
                   )}>{item.name}</span>
                   {(item as any).badge > 0 && (
-                    <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-0.5 rounded-full">
+                    <span className={cn(
+                      'text-xs font-bold px-2 py-0.5 rounded-full',
+                      (item as any).badgeCritical
+                        ? 'bg-red-600 text-white'
+                        : 'bg-amber-500 text-white'
+                    )}>
                       {(item as any).badge}
                     </span>
                   )}

@@ -38,7 +38,7 @@ export default function Performance() {
             Performance Analytics
           </h1>
           <p className="text-muted-foreground mt-1">
-            Track your trading performance, active positions, and premium realization
+            Track performance analytics, spread analysis, stock basis, income projections, and tax insights
           </p>
         </div>
         <div className="flex items-center gap-2">
