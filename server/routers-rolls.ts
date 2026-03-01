@@ -81,21 +81,22 @@ function scoreSpreadUrgency(
   // profitPct can now be negative (losing trade) or > 100 (debit spread that moved in our favor)
   let pnlStatus: 'winner' | 'breakeven' | 'loser';
 
-  // STALE MARK OVERRIDE: When marks are stale (yesterday's close), the P&L calculation
-  // is unreliable for OTM options. Use stock-vs-strike as ground truth instead.
-  // For BPS: if stock is above the short put strike → clearly OTM → winner
-  // For BCS: if stock is below the short call strike → clearly OTM → winner
-  // For IC: if stock is between put short and call short strikes → OTM on both sides → winner
+  // STOCK-VS-STRIKE OVERRIDE: Use stock price vs. short strike as the primary signal
+  // for Win/Loss classification. This is more reliable than P&L % capture alone because:
+  //   - When marks are stale (yesterday's close), P&L is unreliable for OTM options
+  //   - Even with live marks, a position that is clearly OTM is "winning" (on track to expire worthless)
+  //   - A position that is clearly ITM is "losing" regardless of P&L % captured
+  // Threshold: >2% OTM = winner, >2% ITM = loser, within 2% = use P&L % as tiebreaker
   const shortStrikeForCheck = spread.shortStrike || spread.putShortStrike || spread.callShortStrike || 0;
   let staleOverride: 'winner' | 'loser' | null = null;
-  if (spread.hasStaleMarks && underlyingPrice && underlyingPrice > 0 && shortStrikeForCheck > 0) {
+  if (underlyingPrice && underlyingPrice > 0 && shortStrikeForCheck > 0) {
     if (spread.strategyType === 'BPS' || spread.strategyType === 'CSP') {
-      // Put spread: OTM when stock > short put strike
+      // Put: OTM when stock > short put strike (stock is above the level we'd be assigned)
       const otmPct = ((underlyingPrice - shortStrikeForCheck) / shortStrikeForCheck) * 100;
       if (otmPct > 2) staleOverride = 'winner';   // >2% OTM → clearly winning
       else if (otmPct < -2) staleOverride = 'loser'; // >2% ITM → clearly losing
     } else if (spread.strategyType === 'BCS' || spread.strategyType === 'CC') {
-      // Call spread: OTM when stock < short call strike
+      // Call: OTM when stock < short call strike (stock is below the level we'd be called away)
       const otmPct = ((shortStrikeForCheck - underlyingPrice) / shortStrikeForCheck) * 100;
       if (otmPct > 2) staleOverride = 'winner';   // >2% OTM → clearly winning
       else if (otmPct < -2) staleOverride = 'loser'; // >2% ITM → clearly losing
@@ -168,10 +169,14 @@ function scoreSpreadUrgency(
     // High winner or stale-override winner — flag green
     urgency = 'green';
     if (staleOverride === 'winner') {
+      const isPut = spread.strategyType === 'BPS' || spread.strategyType === 'CSP';
       const otmPctDisplay = underlyingPrice && shortStrikeForCheck > 0
-        ? Math.abs(((underlyingPrice - shortStrikeForCheck) / shortStrikeForCheck) * 100).toFixed(1)
+        ? isPut
+          ? ((underlyingPrice - shortStrikeForCheck) / shortStrikeForCheck * 100).toFixed(1)
+          : ((shortStrikeForCheck - underlyingPrice) / shortStrikeForCheck * 100).toFixed(1)
         : '?';
-      reasons.push(`✅ OTM — stock is ${otmPctDisplay}% beyond short strike (live marks unavailable, using stock price)`);
+      const staleSuffix = spread.hasStaleMarks ? ' (stale marks — using stock price)' : '';
+      reasons.push(`✅ OTM — stock is ${otmPctDisplay}% beyond short strike${staleSuffix}`);
     } else {
       reasons.push(`✅ ${profitPct.toFixed(0)}% profit captured — consider closing or rolling for more premium`);
     }

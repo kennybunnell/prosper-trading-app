@@ -304,6 +304,7 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
         unrealizedPnl,
         profitCaptured: calcProfitCaptured(openPremium, unrealizedPnl),
         dte,
+        hasStaleMarks: sp.isStale === true,
         shortStrike: sp.strike,
       });
     }
@@ -324,6 +325,7 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
         unrealizedPnl,
         profitCaptured: calcProfitCaptured(openPremium, unrealizedPnl),
         dte,
+        hasStaleMarks: sc.isStale === true,
         shortStrike: sc.strike,
       });
     }

@@ -6824,3 +6824,8 @@
 ## BPS/BCS P&L Classification Fix (Mar 1, 2026)
 - [x] Fix Win/Loss/Even classification for BPS — OTM BPS (stock above short put strike) now shows as Win via stale-mark stock-vs-strike override
 - [x] Fix Win/Loss/Even classification for BCS — OTM BCS (stock below short call strike) now shows as Win via stale-mark stock-vs-strike override
+
+## CC/CSP/IC OTM Override Fix (Mar 1, 2026)
+- [x] Apply stock-vs-strike OTM override to CC — hasStaleMarks now propagated; override is universal (not just stale)
+- [x] Apply stock-vs-strike OTM override to CSP — hasStaleMarks now propagated; override is universal (not just stale)
+- [x] IC override already covers both put and call sides correctly — verified
