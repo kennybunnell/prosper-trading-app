@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ExpirationRiskPanel } from '@/components/ExpirationRiskPanel';
 import { UnifiedOrderPreviewModal, UnifiedOrder } from '@/components/UnifiedOrderPreviewModal';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -703,9 +702,6 @@ export default function AutomationDashboard() {
           </div>
         </div>
       )}
-
-      {/* Safeguard 4: ITM Expiration Risk Scan — shown above automation tabs */}
-      <ExpirationRiskPanel mode="daily" isDryRun={true} />
 
       {/* Six-Step Automation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">

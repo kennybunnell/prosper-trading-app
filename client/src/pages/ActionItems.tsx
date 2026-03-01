@@ -19,7 +19,7 @@ import Inbox from "./Inbox";
 // Import AutomationDashboard
 import AutomationDashboard from "./AutomationDashboard";
 
-// Import IRA Safety tab
+// Import Portfolio Safety tab
 import { IraSafetyTab } from "@/components/IraSafetyTab";
 
 import { useToast } from "@/hooks/use-toast";
@@ -41,7 +41,7 @@ export default function ActionItems() {
 
   const { toast } = useToast();
 
-  // ── IRA Safety violation badge count ────────────────────────────────────────
+  // ── Portfolio Safety violation badge count ─────────────────────────────────
   // Only fetch when we're not already on the IRA tab (avoid double-fetching)
   const { data: iraSafetyData } = trpc.iraSafety.scanViolations.useQuery(
     undefined,
@@ -190,7 +190,7 @@ export default function ActionItems() {
         </p>
       </div>
 
-      {/* Tabs — 5 tabs: Automation | IRA Safety (badge) | Active Positions | Working Orders | Inbox */}
+      {/* Tabs — 5 tabs: Automation | Portfolio Safety (badge) | Active Positions | Working Orders | Inbox */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="automation" className="flex items-center gap-1.5">
@@ -200,7 +200,7 @@ export default function ActionItems() {
 
           <TabsTrigger value="ira-safety" className="flex items-center gap-1.5 relative">
             <ShieldAlert className="h-3.5 w-3.5" />
-            IRA Safety
+            Portfolio Safety
             {iraTotalCount > 0 && (
               <Badge
                 className={`ml-1 text-[10px] px-1.5 py-0 h-4 min-w-[1rem] ${
@@ -224,7 +224,7 @@ export default function ActionItems() {
           <AutomationDashboard />
         </TabsContent>
 
-        {/* IRA Safety Tab */}
+        {/* Portfolio Safety Tab */}
         <TabsContent value="ira-safety" className="space-y-6">
           <IraSafetyTab />
         </TabsContent>

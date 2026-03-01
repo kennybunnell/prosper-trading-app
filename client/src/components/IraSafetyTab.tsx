@@ -1,5 +1,5 @@
 /**
- * IRA Safety Tab Component
+ * Portfolio Safety Tab Component
  *
  * Full-page tab for the Action Items page.
  * Shows all IRA/cash account violations and provides one-click fix actions:
@@ -370,7 +370,7 @@ export function IraSafetyTab() {
 
   const handleRefresh = () => {
     refetch();
-    toast.info('Scanning all accounts for IRA violations...');
+    toast.info('Scanning all accounts for portfolio violations...');
   };
 
   return (
@@ -380,7 +380,7 @@ export function IraSafetyTab() {
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
             <ShieldAlert className="h-5 w-5 text-red-400" />
-            IRA Safety Monitor
+            Portfolio Safety Monitor
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
             Scans all accounts for violations that require immediate action — short stock, naked calls, orphaned legs, and assignment risks.
@@ -441,7 +441,7 @@ export function IraSafetyTab() {
           <CardContent className="flex items-center justify-center py-12">
             <div className="flex items-center gap-3 text-muted-foreground">
               <RefreshCw className="h-5 w-5 animate-spin" />
-              <span>Scanning all accounts for IRA violations...</span>
+              <span>Scanning all accounts for portfolio violations...</span>
             </div>
           </CardContent>
         </Card>
@@ -500,7 +500,7 @@ export function IraSafetyTab() {
         <CardHeader className="pb-3">
           <CardTitle className="text-sm text-blue-400 flex items-center gap-2">
             <BookOpen className="h-4 w-4" />
-            Understanding IRA Violations
+            Understanding Portfolio Safety Violations
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm text-muted-foreground">

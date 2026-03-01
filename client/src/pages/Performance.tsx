@@ -21,23 +21,13 @@ import { LockedInIncomeCards } from '@/components/projections/LockedInIncomeCard
 import { ThetaDecayCards } from '@/components/projections/ThetaDecayCards';
 import { InteractiveROICalculator } from '@/components/projections/InteractiveROICalculator';
 import { DollarSign, Package, TrendingUp as TrendingUpIcon, TrendingDown as TrendingDownIcon } from 'lucide-react';
-import { useLocation } from 'wouter';
 import { ConnectionStatusIndicator } from '@/components/ConnectionStatusIndicator';
 import { SpreadAnalyticsTab } from '@/components/SpreadAnalyticsTab';
 import { TaxTab } from '@/components/TaxTab';
 
 export default function Performance() {
-  const [location] = useLocation();
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Handle route-based tab switching for Action Items sub-navigation
-  useEffect(() => {
-    if (location === '/action-items/active-positions') {
-      setActiveTab('active-positions');
-    } else if (location === '/action-items/working-orders') {
-      setActiveTab('working-orders');
-    }
-  }, [location]);
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -67,11 +57,9 @@ export default function Performance() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="active-positions">Active Positions</TabsTrigger>
           <TabsTrigger value="spread-analytics">Spread Analytics</TabsTrigger>
-          <TabsTrigger value="working-orders">Working Orders</TabsTrigger>
           <TabsTrigger value="stock-basis">Stock Basis</TabsTrigger>
           <TabsTrigger value="projections">Projections</TabsTrigger>
           <TabsTrigger value="tax">Tax</TabsTrigger>
@@ -82,27 +70,21 @@ export default function Performance() {
           <PerformanceOverviewTab />
         </TabsContent>
 
-        {/* Active Positions Tab */}
-        <TabsContent value="active-positions" className="space-y-6">
-          <ActivePositionsTab />
-        </TabsContent>
-
         {/* Spread Analytics Tab */}
         <TabsContent value="spread-analytics" className="space-y-6">
           <SpreadAnalyticsTab />
         </TabsContent>
 
-        {/* Working Orders Tab */}
-        <TabsContent value="working-orders" className="space-y-6">
-          <WorkingOrdersTab />
-        </TabsContent>
+        {/* Stock Basis Tab */}
         <TabsContent value="stock-basis" className="space-y-6">
           <StockBasisTab />
         </TabsContent>
+
+        {/* Projections Tab */}
         <TabsContent value="projections" className="space-y-6">
           <ProjectionsTab />
         </TabsContent>
-        
+
         {/* Tax Loss Harvesting Tab */}
         <TabsContent value="tax" className="space-y-6">
           <TaxTab />

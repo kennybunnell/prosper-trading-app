@@ -6715,3 +6715,9 @@
 - [x] Add Friday sweep cron job at 9:30 AM ET every Friday with owner notification
 - [x] Wire Safeguard 2 (spread integrity lock) into submitRollOrders server mutation
 - [x] Add manuallyTriggerFridaySweep export for testing
+
+## 🧹 UI Cleanup (Mar 1, 2026)
+- [x] Remove ExpirationRiskPanel from AutomationDashboard (duplicate of Portfolio Safety tab)
+- [x] Rename "IRA Safety" → "Portfolio Safety" everywhere (tab label, badge, component title, router)
+- [x] Remove Active Positions and Working Orders tabs from Performance page
+- [x] Performance page tabs: Overview, Spread Analysis, Stock Basis, Projections, Tax only

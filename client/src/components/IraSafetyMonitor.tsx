@@ -1,5 +1,5 @@
 /**
- * IRA Safety Monitor Component
+ * Portfolio Safety Monitor Component
  *
  * Displays a real-time alert panel for IRA/cash account violations:
  *   - SHORT_STOCK: Negative equity position (SL call trigger — must close TODAY)
@@ -167,7 +167,7 @@ export function IraSafetyMonitor() {
     return (
       <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-green-500/20 bg-green-950/20 text-sm">
         <ShieldCheck className="h-4 w-4 text-green-400 shrink-0" />
-        <span className="text-green-400 font-medium">IRA Safety Check: No violations detected</span>
+        <span className="text-green-400 font-medium">Portfolio Safety Check: No violations detected</span>
         <span className="text-muted-foreground text-xs ml-1">
           ({data?.accountsScanned ?? 0} account{(data?.accountsScanned ?? 0) !== 1 ? 's' : ''} scanned)
         </span>
@@ -203,7 +203,7 @@ export function IraSafetyMonitor() {
               <div className="flex items-center gap-3">
                 <ShieldAlert className={`h-5 w-5 ${criticalCount > 0 ? 'text-red-400' : 'text-amber-400'}`} />
                 <CardTitle className={`text-base ${criticalCount > 0 ? 'text-red-400' : 'text-amber-400'}`}>
-                  IRA Safety Monitor
+                  Portfolio Safety Monitor
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   {criticalCount > 0 && (
