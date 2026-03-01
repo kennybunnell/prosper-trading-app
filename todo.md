@@ -6675,3 +6675,12 @@
 - [ ] UI: Add "Assignment Risk" warning to Roll Positions tab for ITM short calls in IRA accounts
 - [x] Logic: Auto-detect orphaned legs (spread where one leg was closed/assigned, leaving naked short)
 - [x] Logic: In CC scan, warn if short call is ITM and account is IRA (assignment risk)
+
+## 🔄 Action Items Tab Restructure (Mar 1, 2026)
+- [x] Move IRA Safety Monitor to its own tab on Action Items page (after Automation)
+- [x] Remove Daily Tasks tab and all related content
+- [x] Add violation count badge to IRA Safety tab label (red for critical, amber for warnings)
+- [x] Tab order: Automation → IRA Safety (badge) → Active Positions → Working Orders → Inbox
+- [x] Add fix actions: Buy to Cover (short stock), Close (BTC) option for naked/orphaned/ITM violations
+- [x] Add dry-run / live toggle to IRA Safety tab with confirmation dialog before live orders
+- [x] Add educational "Understanding IRA Violations" section to IRA Safety tab

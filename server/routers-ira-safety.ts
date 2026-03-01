@@ -113,13 +113,13 @@ export const iraSafetyRouter = router({
 
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
-        return { violations: [], accountsScanned: 0, hasViolations: false };
+        return { violations: [], accountsScanned: 0, hasViolations: false, criticalCount: 0, warningCount: 0 };
       }
 
       const api = await authenticateTastytrade(credentials, ctx.user.id);
       const dbAccounts = await getTastytradeAccounts(ctx.user.id);
       if (!dbAccounts || dbAccounts.length === 0) {
-        return { violations: [], accountsScanned: 0, hasViolations: false };
+        return { violations: [], accountsScanned: 0, hasViolations: false, criticalCount: 0, warningCount: 0 };
       }
 
       let targetAccounts = dbAccounts;
@@ -156,7 +156,6 @@ export const iraSafetyRouter = router({
           if (isShort) {
             const sharesShort = Math.abs(qty);
             const underlying = pos['underlying-symbol'] || pos.symbol || '';
-            const openPrice = parseFloat(String(pos['average-open-price'] || '0'));
 
             violations.push({
               violationType: 'SHORT_STOCK',
@@ -224,7 +223,7 @@ export const iraSafetyRouter = router({
             const qty = Math.abs(parseInt(String(sc.quantity || '1')));
             const sharesNeeded = qty * 100;
             const isCovered = sharesOwned >= sharesNeeded;
-            const isSpread  = hasLongCalls; // has a long call as protection
+            const isSpread  = hasLongCalls;
 
             if (!isCovered && !isSpread) {
               const strike = parseStrikeFromSymbol(sc.symbol);
@@ -253,14 +252,10 @@ export const iraSafetyRouter = router({
         }
 
         // ── 3. ORPHANED SHORT LEG — short put with no matching long put ──────
-        // (This catches the case where someone closed the long leg of a BPS
-        //  and left the short put exposed as a naked short in an IRA)
         for (const [underlying, puts] of Array.from(shortPuts.entries())) {
           const hasLongPuts = (longPuts.get(underlying) || []).length > 0;
 
           if (!hasLongPuts) {
-            // Short put with no long protection — naked put in IRA
-            // Note: CSPs are allowed in IRAs IF fully cash-secured, so we flag as warning not critical
             for (const sp of puts) {
               const strike = parseStrikeFromSymbol(sp.symbol);
               const expiration = sp['expires-at'] ? sp['expires-at'].split('T')[0] : parseExpirationFromSymbol(sp.symbol);
@@ -275,7 +270,7 @@ export const iraSafetyRouter = router({
                 description: `Short put on ${underlying} ($${strike} strike, ${expiration}) has no matching long put. ` +
                   `If this was originally a Bull Put Spread, the long leg may have been closed or assigned, ` +
                   `leaving a naked short put. Verify this is a fully cash-secured put (CSP) with sufficient cash.`,
-                action: `Verify you have enough cash to cover assignment (${strike * 100} per contract). ` +
+                action: `Verify you have enough cash to cover assignment ($${(strike * 100).toLocaleString()} per contract). ` +
                   `If this was a spread that lost its long leg, buy a lower-strike put to restore protection, ` +
                   `or close (BTC) the short put.`,
                 optionSymbol: sp.symbol,
@@ -295,13 +290,7 @@ export const iraSafetyRouter = router({
             const strike = parseStrikeFromSymbol(sc.symbol);
             const expiration = sc['expires-at'] ? sc['expires-at'].split('T')[0] : parseExpirationFromSymbol(sc.symbol);
             const dte = sc['expires-at'] ? calcDTE(sc['expires-at']) : 0;
-            const closePrice = parseFloat(String(sc['close-price'] || '0'));
-            const underlyingClose = parseFloat(String(sc['average-daily-market-close-price'] || '0'));
 
-            // We need the underlying price — use close-price of the underlying if available
-            // For a more accurate check we'd need a live quote, but close-price is a reasonable proxy
-            // The key signal: short call is ITM when underlying > strike
-            // We flag if DTE ≤ 5 and we can infer ITM from the option's close price being > intrinsic
             if (dte <= 5 && strike > 0) {
               const qty = Math.abs(parseInt(String(sc.quantity || '1')));
               const sharesNeeded = qty * 100;
@@ -345,5 +334,129 @@ export const iraSafetyRouter = router({
         criticalCount: violations.filter(v => v.severity === 'critical').length,
         warningCount: violations.filter(v => v.severity === 'warning').length,
       };
+    }),
+
+  /**
+   * Fix: Buy to Cover short stock (SHORT_STOCK violation)
+   * Submits a market order to buy the exact number of short shares.
+   */
+  buyToCoverShortStock: protectedProcedure
+    .input(z.object({
+      accountNumber: z.string(),
+      symbol: z.string(),
+      sharesShort: z.number().int().positive(),
+      dryRun: z.boolean().default(true),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const { authenticateTastytrade } = await import('./tastytrade');
+
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new Error('Tastytrade credentials not configured');
+      }
+
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+
+      console.log(`[IRA Safety] BUY TO COVER: ${input.sharesShort} shares of ${input.symbol} in ${input.accountNumber} (dryRun=${input.dryRun})`);
+
+      if (input.dryRun) {
+        return {
+          success: true,
+          dryRun: true,
+          message: `DRY RUN: Would submit market order to buy ${input.sharesShort} shares of ${input.symbol} in account ${input.accountNumber}`,
+          orderId: null,
+        };
+      }
+
+      // Submit a market equity order to buy the short shares
+      try {
+        const result = await api.submitOrder({
+          accountNumber: input.accountNumber,
+          timeInForce: 'Day',
+          orderType: 'Market',
+          legs: [
+            {
+              instrumentType: 'Equity',
+              symbol: input.symbol,
+              quantity: String(input.sharesShort),
+              action: 'Buy to Open',
+            },
+          ],
+        });
+        console.log(`[IRA Safety] BUY TO COVER order submitted:`, result);
+
+        return {
+          success: true,
+          dryRun: false,
+          message: `Market order submitted: Buy ${input.sharesShort} shares of ${input.symbol}`,
+          orderId: result?.id || null,
+        };
+      } catch (err: any) {
+        console.error(`[IRA Safety] BUY TO COVER failed:`, err);
+        throw new Error(`Failed to submit buy order: ${err.message}`);
+      }
+    }),
+
+  /**
+   * Fix: Close (Buy to Close) a short option position
+   * Used for NAKED_SHORT_CALL, ORPHANED_SHORT_LEG, and ITM_ASSIGNMENT_RISK violations.
+   */
+  closeShortOption: protectedProcedure
+    .input(z.object({
+      accountNumber: z.string(),
+      symbol: z.string(),           // underlying symbol (e.g. "ADBE")
+      optionSymbol: z.string(),     // full OCC option symbol
+      quantity: z.number().int().positive().default(1),
+      dryRun: z.boolean().default(true),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const { authenticateTastytrade } = await import('./tastytrade');
+
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new Error('Tastytrade credentials not configured');
+      }
+
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+
+      console.log(`[IRA Safety] CLOSE SHORT OPTION: ${input.optionSymbol} qty=${input.quantity} in ${input.accountNumber} (dryRun=${input.dryRun})`);
+
+      if (input.dryRun) {
+        return {
+          success: true,
+          dryRun: true,
+          message: `DRY RUN: Would submit market BTC order for ${input.quantity} contract(s) of ${input.optionSymbol}`,
+          orderId: null,
+        };
+      }
+
+      try {
+        const result = await api.submitOrder({
+          accountNumber: input.accountNumber,
+          timeInForce: 'Day',
+          orderType: 'Market',
+          legs: [
+            {
+              instrumentType: 'Equity Option',
+              symbol: input.optionSymbol,
+              quantity: String(input.quantity),
+              action: 'Buy to Close',
+            },
+          ],
+        });
+        console.log(`[IRA Safety] CLOSE SHORT OPTION order submitted:`, result);
+
+        return {
+          success: true,
+          dryRun: false,
+          message: `Market BTC order submitted for ${input.quantity} contract(s) of ${input.optionSymbol}`,
+          orderId: result?.id || null,
+        };
+      } catch (err: any) {
+        console.error(`[IRA Safety] CLOSE SHORT OPTION failed:`, err);
+        throw new Error(`Failed to submit close order: ${err.message}`);
+      }
     }),
 });
