@@ -805,23 +805,41 @@ export default function AutomationDashboard() {
             <span className={`h-2 w-2 rounded-full ${dailyScanEnabled ? 'bg-violet-400 animate-pulse' : 'bg-muted-foreground'}`} />
             {dailyScanEnabled ? 'Daily Scan ON' : 'Daily Scan OFF'}
           </div>
-          {/* Kill Switch */}
-          <button
+          {/* Kill Switch — prominent toggle */}
+          <div
             onClick={() => {
               setKillSwitchActive(v => !v);
               if (!killSwitchActive) toast.error('Kill switch activated — all automation paused');
               else toast.success('Kill switch deactivated — automation resumed');
             }}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+            title={killSwitchActive ? 'Automation PAUSED — click to resume' : 'Kill Switch — click to pause all automation'}
+            className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg border cursor-pointer select-none transition-all ${
               killSwitchActive
-                ? 'bg-red-600/20 border-red-500/50 text-red-400 hover:bg-red-600/30'
-                : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
+                ? 'bg-red-600/20 border-red-500/60 shadow-[0_0_8px_rgba(239,68,68,0.4)]'
+                : 'bg-muted/40 border-border hover:border-red-500/40 hover:bg-red-600/5'
             }`}
-            title={killSwitchActive ? 'Automation paused — click to resume' : 'Click to pause all automation'}
           >
-            {killSwitchActive ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
-            {killSwitchActive ? 'Paused' : 'Kill Switch'}
-          </button>
+            {/* Power icon */}
+            <Power className={`h-4 w-4 shrink-0 ${
+              killSwitchActive ? 'text-red-400' : 'text-muted-foreground'
+            }`} />
+            {/* Label */}
+            <span className={`text-xs font-semibold ${
+              killSwitchActive ? 'text-red-400' : 'text-muted-foreground'
+            }`}>
+              {killSwitchActive ? 'PAUSED' : 'Kill Switch'}
+            </span>
+            {/* The actual toggle track */}
+            <div className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 transition-colors ${
+              killSwitchActive
+                ? 'bg-red-600 border-red-500'
+                : 'bg-muted border-border'
+            }`}>
+              <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-md transform transition-transform ${
+                killSwitchActive ? 'translate-x-4' : 'translate-x-0'
+              }`} />
+            </div>
+          </div>
           {/* Master Run All button */}
           <Button
             onClick={handleRunAutomation}
@@ -855,9 +873,20 @@ export default function AutomationDashboard() {
       {/* Six-Step Automation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-6 h-auto">
-          <TabsTrigger value="step1-close" className="flex flex-col gap-0.5 py-2 text-xs">
+          <TabsTrigger value="step1-close" className="relative flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">1</span>
-            <span>Close for Profit</span>
+            <span className="flex items-center gap-1">
+              Close for Profit
+              {(() => {
+                const profitCount = lastRunResult?.scanResults?.filter(r => r.action === 'WOULD_CLOSE').length ?? 0;
+                return profitCount > 0 ? (
+                  <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold leading-none">
+                    {profitCount}
+                  </span>
+                ) : null;
+              })()
+              }
+            </span>
           </TabsTrigger>
           <TabsTrigger value="step2-roll" className="flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">2</span>

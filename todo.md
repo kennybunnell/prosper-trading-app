@@ -6784,3 +6784,7 @@
 - [x] Show snoozedCount indicator in violations summary bar
 - [x] Update triggerFridaySweep to write structured summaryJson (symbol/strike/expiration/dte/accountId)
 - [x] Add 11 unit tests for snooze filtering logic (all passing)
+
+## Kill Switch & Close-for-Profit Badge (Mar 1 2026)
+- [x] Redesign Kill Switch as a prominent toggle/switch with red glow when active
+- [x] Add emerald badge on "Close for Profit" tab showing WOULD_CLOSE count from last scan
