@@ -6816,3 +6816,7 @@
 ## Roll Dashboard Fixes (Mar 1, 2026)
 - [x] Fix P&L/Win-Loss calculation bug for BCS/BPS/IC spreads — BCS below strikes should show as Win/profit, not Loss (stale mark detection + warning badge added)
 - [x] Add strategy type filter pills (All / BPS / BCS / IC / CSP / CC) to Roll Dashboard matching Close for Profit tab (already existed, confirmed working)
+
+## Roll Positions Filter UI Polish (Mar 1, 2026)
+- [x] Restyle Roll Positions filter rows to match compact single-row pill-badge style from Close for Profit
+- [x] Add count badge to Roll Positions step tab (red badge for losers needing attention, orange for total)

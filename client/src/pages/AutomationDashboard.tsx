@@ -921,9 +921,23 @@ export default function AutomationDashboard() {
               }
             </span>
           </TabsTrigger>
-          <TabsTrigger value="step2-roll" className="flex flex-col gap-0.5 py-2 text-xs">
+          <TabsTrigger value="step2-roll" className="relative flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">2</span>
-            <span>Roll Positions</span>
+            <span className="flex items-center gap-1">
+              Roll Positions
+              {(() => {
+                const rollCount = rollScanResults?.red?.length ?? 0;
+                return rollCount > 0 ? (
+                  <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                    {rollCount}
+                  </span>
+                ) : rollScanResults && rollScanResults.total > 0 ? (
+                  <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-orange-500 text-white text-[10px] font-bold leading-none">
+                    {rollScanResults.total}
+                  </span>
+                ) : null;
+              })()}
+            </span>
           </TabsTrigger>
           <TabsTrigger value="step3-cc" className="flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">3</span>
@@ -1563,81 +1577,56 @@ export default function AutomationDashboard() {
             </div>
           </div>
 
-          {/* Filter bar — only shown when results are available */}
+          {/* Filter bar — compact single-row pill style matching Close for Profit */}
           {rollScanResults && (
-            <div className="space-y-2 mb-4">
-              {/* Row 1: Urgency filter */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-16 shrink-0">Urgency:</span>
-                {(['all', 'red', 'yellow', 'green'] as const).map(f => (
+            <div className="flex flex-wrap items-center gap-1.5 mb-4">
+              {/* Strategy pills */}
+              {(['all', 'BPS', 'BCS', 'IC', 'CSP', 'CC'] as const).map(s => {
+                const count = s === 'all' ? rollScanResults.all.length : rollScanResults.all.filter(p => p.strategy === s).length;
+                if (s !== 'all' && count === 0) return null;
+                const isActive = rollStrategyFilter === s;
+                const colorClass =
+                  s === 'BPS' ? (isActive ? 'bg-cyan-500/30 text-cyan-300 border-cyan-400/60' : 'text-cyan-400/70 border-cyan-400/30 hover:bg-cyan-500/10') :
+                  s === 'BCS' ? (isActive ? 'bg-pink-500/30 text-pink-300 border-pink-400/60' : 'text-pink-400/70 border-pink-400/30 hover:bg-pink-500/10') :
+                  s === 'IC'  ? (isActive ? 'bg-amber-500/30 text-amber-300 border-amber-400/60' : 'text-amber-400/70 border-amber-400/30 hover:bg-amber-500/10') :
+                  s === 'CSP' ? (isActive ? 'bg-blue-500/30 text-blue-300 border-blue-400/60' : 'text-blue-400/70 border-blue-400/30 hover:bg-blue-500/10') :
+                  s === 'CC'  ? (isActive ? 'bg-purple-500/30 text-purple-300 border-purple-400/60' : 'text-purple-400/70 border-purple-400/30 hover:bg-purple-500/10') :
+                                (isActive ? 'bg-muted text-foreground border-border' : 'text-muted-foreground border-border/50 hover:bg-muted/40');
+                return (
                   <button
-                    key={f}
-                    onClick={() => setRollFilter(f)}
-                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors border ${
-                      rollFilter === f
-                        ? f === 'red' ? 'bg-red-500/20 text-red-400 border-red-500/40'
-                          : f === 'yellow' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40'
-                          : f === 'green' ? 'bg-green-500/20 text-green-400 border-green-500/40'
-                          : 'bg-muted text-foreground border-border'
-                        : 'text-muted-foreground border-transparent hover:border-border hover:text-foreground'
-                    }`}
+                    key={s}
+                    onClick={() => { setRollStrategyFilter(s); setRollFilter('all'); setRollPnlFilter('all'); }}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${colorClass}`}
                   >
-                    {f === 'all' ? `All (${rollScanResults.total})` : f === 'red' ? `🔴 Loser (${rollScanResults.red.length})` : f === 'yellow' ? `🟡 Even (${rollScanResults.yellow.length})` : `🟢 Winner (${rollScanResults.green.length})`}
+                    {s === 'all' ? 'All' : s}
+                    <span className="opacity-60">({count})</span>
                   </button>
-                ))}
-              </div>
-              {/* Row 2: Strategy filter */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-16 shrink-0">Strategy:</span>
-                {(['all', 'CSP', 'CC', 'BPS', 'BCS', 'IC'] as const).map(s => {
-                  const allPositions = rollScanResults.all;
-                  const count = s === 'all' ? allPositions.length : allPositions.filter(p => p.strategy === s).length;
-                  if (s !== 'all' && count === 0) return null;
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => setRollStrategyFilter(s)}
-                      className={`px-2.5 py-1 rounded text-xs font-medium transition-colors border ${
-                        rollStrategyFilter === s
-                          ? s === 'CSP' ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
-                            : s === 'CC' ? 'bg-purple-500/20 text-purple-400 border-purple-500/40'
-                            : s === 'BPS' ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
-                            : s === 'BCS' ? 'bg-pink-500/20 text-pink-400 border-pink-500/40'
-                            : s === 'IC' ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
-                            : 'bg-muted text-foreground border-border'
-                          : 'text-muted-foreground border-transparent hover:border-border hover:text-foreground'
-                      }`}
-                    >
-                      {s === 'all' ? `All Strategies` : `${s} (${count})`}
-                    </button>
-                  );
-                })}
-              </div>
-              {/* Row 3: P&L Status filter */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-16 shrink-0">P&amp;L:</span>
-                {(['all', 'winner', 'breakeven', 'loser'] as const).map(p => {
-                  const allPositions = rollScanResults.all;
-                  const count = p === 'all' ? allPositions.length : allPositions.filter(pos => (pos as any).pnlStatus === p).length;
-                  if (p !== 'all' && count === 0) return null;
-                  return (
-                    <button
-                      key={p}
-                      onClick={() => setRollPnlFilter(p)}
-                      className={`px-2.5 py-1 rounded text-xs font-medium transition-colors border ${
-                        rollPnlFilter === p
-                          ? p === 'winner' ? 'bg-green-500/20 text-green-400 border-green-500/40'
-                            : p === 'loser' ? 'bg-red-500/20 text-red-400 border-red-500/40'
-                            : p === 'breakeven' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40'
-                            : 'bg-muted text-foreground border-border'
-                          : 'text-muted-foreground border-transparent hover:border-border hover:text-foreground'
-                      }`}
-                    >
-                      {p === 'all' ? 'All P&L' : p === 'winner' ? `🟢 Winners (${count})` : p === 'loser' ? `🔴 Losers (${count})` : `🟡 Breakeven (${count})`}
-                    </button>
-                  );
-                })}
-              </div>
+                );
+              })}
+              {/* Separator */}
+              <div className="w-px h-4 bg-border/60 mx-0.5" />
+              {/* P&L pills */}
+              {(['all', 'winner', 'breakeven', 'loser'] as const).map(p => {
+                const count = p === 'all' ? rollScanResults.all.length : rollScanResults.all.filter(pos => pos.pnlStatus === p).length;
+                if (p !== 'all' && count === 0) return null;
+                const isActive = rollPnlFilter === p;
+                const colorClass =
+                  p === 'winner'    ? (isActive ? 'bg-green-500/30 text-green-300 border-green-400/60' : 'text-green-400/70 border-green-400/30 hover:bg-green-500/10') :
+                  p === 'loser'     ? (isActive ? 'bg-red-500/30 text-red-300 border-red-400/60' : 'text-red-400/70 border-red-400/30 hover:bg-red-500/10') :
+                  p === 'breakeven' ? (isActive ? 'bg-yellow-500/30 text-yellow-300 border-yellow-400/60' : 'text-yellow-400/70 border-yellow-400/30 hover:bg-yellow-500/10') :
+                                      (isActive ? 'bg-muted text-foreground border-border' : 'text-muted-foreground border-border/50 hover:bg-muted/40');
+                const label = p === 'all' ? 'All P&L' : p === 'winner' ? '🟢 Win' : p === 'loser' ? '🔴 Loss' : '🟡 Even';
+                return (
+                  <button
+                    key={p}
+                    onClick={() => { setRollPnlFilter(p); setRollFilter('all'); }}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${colorClass}`}
+                  >
+                    {label}
+                    <span className="opacity-60">({count})</span>
+                  </button>
+                );
+              })}
             </div>
           )}
 
