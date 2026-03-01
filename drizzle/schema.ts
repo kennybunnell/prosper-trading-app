@@ -781,3 +781,23 @@ export const scanHistory = mysqlTable('scan_history', {
 
 export type ScanHistory = typeof scanHistory.$inferSelect;
 export type InsertScanHistory = typeof scanHistory.$inferInsert;
+
+/**
+ * Snoozed violations — lets users dismiss ITM_ASSIGNMENT_RISK warnings for 24 hours.
+ * Only applies to warnings (ITM_ASSIGNMENT_RISK); critical violations cannot be snoozed.
+ */
+export const snoozedViolations = mysqlTable('snoozed_violations', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  symbol: varchar('symbol', { length: 10 }).notNull(),
+  accountNumber: varchar('account_number', { length: 64 }).notNull(),
+  violationType: varchar('violation_type', { length: 40 }).notNull(), // ITM_ASSIGNMENT_RISK only
+  snoozedUntil: bigint('snoozed_until', { mode: 'number' }).notNull(), // UTC ms timestamp
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  userIdx: index('snoozed_violations_user_idx').on(table.userId),
+  lookupIdx: index('snoozed_violations_lookup_idx').on(table.userId, table.symbol, table.accountNumber, table.violationType),
+}));
+
+export type SnoozedViolation = typeof snoozedViolations.$inferSelect;
+export type InsertSnoozedViolation = typeof snoozedViolations.$inferInsert;

@@ -27,6 +27,8 @@
 
 import { router, protectedProcedure } from './_core/trpc';
 import { z } from 'zod';
+import { getDb } from './db';
+import { eq, and, gt } from 'drizzle-orm';
 
 // IRA/cash account type names from Tastytrade API
 const IRA_ACCOUNT_TYPES = [
@@ -327,12 +329,46 @@ export const iraSafetyRouter = router({
         return (order[a.violationType] ?? 9) - (order[b.violationType] ?? 9);
       });
 
+      // ── Filter out snoozed ITM_ASSIGNMENT_RISK violations ─────────────────
+      let filteredViolations = violations;
+      let snoozedCount = 0;
+      try {
+        const db = await getDb();
+        if (db) {
+          const { snoozedViolations } = await import('../drizzle/schema');
+          const now = Date.now();
+          const activeSnoozes = await db
+            .select()
+            .from(snoozedViolations)
+            .where(eq(snoozedViolations.userId, ctx.user.id));
+          const validSnoozes = activeSnoozes.filter(
+            (s: typeof snoozedViolations.$inferSelect) => s.snoozedUntil > now
+          );
+          if (validSnoozes.length > 0) {
+            const snoozeSet = new Set(
+              validSnoozes.map((s: typeof snoozedViolations.$inferSelect) =>
+                `${s.symbol}|${s.accountNumber}|${s.violationType}`
+              )
+            );
+            const before = filteredViolations.length;
+            filteredViolations = filteredViolations.filter(v => {
+              if (v.violationType !== 'ITM_ASSIGNMENT_RISK') return true; // never filter critical
+              return !snoozeSet.has(`${v.symbol}|${v.accountNumber}|${v.violationType}`);
+            });
+            snoozedCount = before - filteredViolations.length;
+          }
+        }
+      } catch (e) {
+        console.warn('[IRA Safety] Could not load snoozes:', e);
+      }
+
       return {
-        violations,
+        violations: filteredViolations,
         accountsScanned: targetAccounts.length,
-        hasViolations: violations.length > 0,
-        criticalCount: violations.filter(v => v.severity === 'critical').length,
-        warningCount: violations.filter(v => v.severity === 'warning').length,
+        hasViolations: filteredViolations.length > 0,
+        criticalCount: filteredViolations.filter(v => v.severity === 'critical').length,
+        warningCount: filteredViolations.filter(v => v.severity === 'warning').length,
+        snoozedCount,
       };
     }),
 

@@ -716,7 +716,7 @@ export const safeguardsRouter = router({
       const accounts = await getTastytradeAccounts(ctx.user.id);
       const api = await authenticateTastytrade(credentials, ctx.user.id);
       const dteCutoff = 7; // Friday sweep looks 7 days out
-      const allAlerts: string[] = [];
+      const allAlerts: Array<{ symbol: string; accountId: string; accountName?: string; strike: number; expiration: string; dte: number; violationType: string }> = [];
 
       for (const account of accounts) {
         try {
@@ -731,7 +731,16 @@ export const safeguardsRouter = router({
             if (dte <= dteCutoff) {
               const strike = parseStrikeFromSymbol(pos.symbol);
               const underlying = pos['underlying-symbol'] || pos.symbol;
-              allAlerts.push(`${underlying} $${strike} call (${dte} DTE) in acct ${account.accountNumber}`);
+              const expiration = pos['expires-at'] ? pos['expires-at'].split('T')[0] : parseExpirationFromSymbol(pos.symbol);
+              allAlerts.push({
+                symbol: underlying,
+                accountId: account.accountNumber,
+                accountName: account.nickname || account.accountType || undefined,
+                strike,
+                expiration,
+                dte,
+                violationType: 'ITM_ASSIGNMENT_RISK',
+              });
             }
           }
         } catch (e: any) {
@@ -743,9 +752,28 @@ export const safeguardsRouter = router({
       if (allAlerts.length > 0) {
         const title = `⚠️ Friday Sweep: ${allAlerts.length} short call${allAlerts.length !== 1 ? 's' : ''} expiring within 7 DTE`;
         const content = `The following short calls require attention before expiration:\n\n` +
-          allAlerts.map((a, i) => `${i + 1}. ${a}`).join('\n') +
+          allAlerts.map((a, i) => `${i + 1}. ${a.symbol} $${a.strike} call exp ${a.expiration} (${a.dte} DTE) in acct ...${a.accountId.slice(-4)}`).join('\n') +
           `\n\nPlease review in the Portfolio Safety tab and close or roll as needed.`;
         notificationSent = await notifyOwner({ title, content });
+      }
+
+      // Record to scan history with structured summaryJson
+      try {
+        const db = await getDb();
+        if (db) {
+          const { scanHistory } = await import('../drizzle/schema');
+          await db.insert(scanHistory).values({
+            userId: ctx.user.id,
+            scanType: 'friday_sweep',
+            ranAt: Date.now(),
+            alertCount: allAlerts.length,
+            accountsScanned: accounts.length,
+            triggeredBy: 'manual',
+            summaryJson: JSON.stringify(allAlerts),
+          });
+        }
+      } catch (e) {
+        console.warn('[Friday Sweep] Failed to record scan history:', e);
       }
 
       return {
@@ -926,6 +954,35 @@ export const safeguardsRouter = router({
         });
       }
 
+      // Record to scan history with structured summaryJson
+      try {
+        const db = await getDb();
+        if (db) {
+          const { scanHistory } = await import('../drizzle/schema');
+          const summaryItems = allAlerts.map(a => ({
+            symbol: a.symbol,
+            strike: a.strike,
+            expiration: a.expiration,
+            dte: a.dte,
+            accountId: a.accountId,
+            sharesOwned: a.sharesOwned,
+            sharesNeeded: a.sharesNeeded,
+            type: 'itm_assignment_risk',
+          }));
+          await db.insert(scanHistory).values({
+            userId: ctx.user.id,
+            scanType: 'daily_scan',
+            ranAt: Date.now(),
+            alertCount: allAlerts.length,
+            accountsScanned: accounts.length,
+            triggeredBy: 'manual',
+            summaryJson: JSON.stringify(summaryItems),
+          });
+        }
+      } catch (e) {
+        console.warn('[Daily Scan] Failed to record scan history:', e);
+      }
+
       return {
         alertCount: allAlerts.length,
         message: allAlerts.length === 0
@@ -984,6 +1041,83 @@ export const safeguardsRouter = router({
         triggeredBy: input.triggeredBy,
         summaryJson: input.summaryJson ?? null,
       });
+      return { ok: true };
+    }),
+
+  /**
+   * Snooze an ITM_ASSIGNMENT_RISK violation for 24 hours.
+   * Only warnings can be snoozed — critical violations (SHORT_STOCK, NAKED_SHORT_CALL) cannot.
+   */
+  snoozeViolation: protectedProcedure
+    .input(z.object({
+      symbol: z.string(),
+      accountNumber: z.string(),
+      violationType: z.literal('ITM_ASSIGNMENT_RISK'),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error('Database unavailable');
+      const { snoozedViolations } = await import('../drizzle/schema');
+      const { and } = await import('drizzle-orm');
+      const snoozedUntil = Date.now() + 24 * 60 * 60 * 1000; // 24 hours from now
+
+      // Upsert: delete any existing snooze for this key, then insert fresh
+      await db.delete(snoozedViolations).where(
+        and(
+          eq(snoozedViolations.userId, ctx.user.id),
+          eq(snoozedViolations.symbol, input.symbol),
+          eq(snoozedViolations.accountNumber, input.accountNumber),
+          eq(snoozedViolations.violationType, input.violationType),
+        )
+      );
+      await db.insert(snoozedViolations).values({
+        userId: ctx.user.id,
+        symbol: input.symbol,
+        accountNumber: input.accountNumber,
+        violationType: input.violationType,
+        snoozedUntil,
+      });
+      return { ok: true, snoozedUntil };
+    }),
+
+  /** Get all active (non-expired) snoozes for the current user */
+  getActiveSnoozes: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const { snoozedViolations } = await import('../drizzle/schema');
+    const now = Date.now();
+    const rows = await db
+      .select()
+      .from(snoozedViolations)
+      .where(
+        eq(snoozedViolations.userId, ctx.user.id)
+      );
+    // Filter in JS to only return non-expired snoozes
+    return rows
+      .filter((r: typeof snoozedViolations.$inferSelect) => r.snoozedUntil > now)
+      .map((r: typeof snoozedViolations.$inferSelect) => ({
+        id: r.id,
+        symbol: r.symbol,
+        accountNumber: r.accountNumber,
+        violationType: r.violationType,
+        snoozedUntil: r.snoozedUntil,
+      }));
+  }),
+
+  /** Remove a specific snooze (un-snooze) */
+  unsnoozeViolation: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false };
+      const { snoozedViolations } = await import('../drizzle/schema');
+      const { and } = await import('drizzle-orm');
+      await db.delete(snoozedViolations).where(
+        and(
+          eq(snoozedViolations.id, input.id),
+          eq(snoozedViolations.userId, ctx.user.id), // security: only own snoozes
+        )
+      );
       return { ok: true };
     }),
 });

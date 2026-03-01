@@ -137,13 +137,29 @@ function FixDialog({ open, onClose, title, description, dryRun, onConfirm, isSub
 
 // ── Individual violation card with fix actions ────────────────────────────────
 
-function ViolationCard({ violation, dryRun }: { violation: IraViolation; dryRun: boolean }) {
+function ViolationCard({ violation, dryRun, onSnoozed }: { violation: IraViolation; dryRun: boolean; onSnoozed?: () => void }) {
   const [expanded, setExpanded] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<'buyToCover' | 'closeOption' | null>(null);
   const [lastResult, setLastResult] = useState<{ message: string; orderId: string | null } | null>(null);
+  const [snoozed, setSnoozed] = useState(false);
 
   const isCritical = violation.severity === 'critical';
+
+  const utils = trpc.useUtils();
+
+  const snooze = trpc.safeguards.snoozeViolation.useMutation({
+    onSuccess: () => {
+      setSnoozed(true);
+      toast.success(`${violation.symbol} ITM risk snoozed for 24 hours`);
+      // Invalidate so the violation disappears from the list after a moment
+      setTimeout(() => {
+        utils.iraSafety.scanViolations.invalidate();
+        onSnoozed?.();
+      }, 1500);
+    },
+    onError: (err) => toast.error(`Snooze failed: ${err.message}`),
+  });
 
   const buyToCover = trpc.iraSafety.buyToCoverShortStock.useMutation({
     onSuccess: (data) => {
@@ -319,6 +335,31 @@ function ViolationCard({ violation, dryRun }: { violation: IraViolation; dryRun:
                 </Button>
               )}
 
+              {/* Snooze button — only for ITM_ASSIGNMENT_RISK warnings */}
+              {violation.violationType === 'ITM_ASSIGNMENT_RISK' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-7 border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-400"
+                  onClick={() => snooze.mutate({
+                    symbol: violation.symbol,
+                    accountNumber: violation.accountNumber,
+                    violationType: 'ITM_ASSIGNMENT_RISK',
+                  })}
+                  disabled={snooze.isPending || snoozed}
+                  title="Dismiss this warning for 24 hours (use when you have already decided to let the position expire)"
+                >
+                  {snooze.isPending ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : snoozed ? (
+                    <CheckCircle2 className="h-3 w-3 mr-1 text-emerald-400" />
+                  ) : (
+                    <span className="mr-1 text-xs">&#128164;</span>
+                  )}
+                  {snoozed ? 'Snoozed' : 'Snooze 24h'}
+                </Button>
+              )}
+
               {dryRun && (
                 <span className="text-xs text-amber-400/70 italic ml-1">
                   (Dry Run — no real order will be placed)
@@ -368,6 +409,7 @@ export function IraSafetyTab() {
   const hasViolations = data?.hasViolations ?? false;
   const criticalCount = data?.criticalCount ?? 0;
   const warningCount = data?.warningCount ?? 0;
+  const snoozedCount = data?.snoozedCount ?? 0;
   const violations = data?.violations ?? [];
 
   const handleRefresh = () => {
@@ -485,12 +527,20 @@ export function IraSafetyTab() {
             )}
           </div>
 
+          {snoozedCount > 0 && (
+            <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-800/40 rounded px-3 py-2 border border-slate-700/50">
+              <span>&#128164;</span>
+              <span>{snoozedCount} ITM risk warning{snoozedCount !== 1 ? 's' : ''} snoozed for 24h — they will reappear automatically.</span>
+            </div>
+          )}
+
           <div className="space-y-3">
             {violations.map((v, i) => (
               <ViolationCard
                 key={`${v.accountNumber}-${v.symbol}-${v.violationType}-${i}`}
                 violation={v}
                 dryRun={dryRun}
+                onSnoozed={refetch}
               />
             ))}
           </div>
@@ -533,10 +583,25 @@ export function IraSafetyTab() {
 
 // ── Scan History Panel ────────────────────────────────────────────────────────
 
+type ScanSummaryEntry = {
+  symbol?: string;
+  violationType?: string;
+  accountId?: string;
+  accountName?: string;
+  strike?: number;
+  expiration?: string;
+  dte?: number;
+  sharesOwned?: number;
+  sharesNeeded?: number;
+  itmPct?: number;
+  raw?: string;
+};
+
 function ScanHistoryPanel() {
   const { data: history, isLoading } = trpc.safeguards.getScanHistory.useQuery(undefined, {
     refetchInterval: 60_000,
   });
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   if (isLoading) {
     return (
@@ -586,34 +651,115 @@ function ScanHistoryPanel() {
             const date = new Date(entry.ranAt);
             const isFriday = entry.scanType === 'friday_sweep';
             const hasAlerts = entry.alertCount > 0;
+            const isExpanded = expandedId === entry.id;
+
+            let details: ScanSummaryEntry[] = [];
+            if (entry.summaryJson) {
+              try { details = JSON.parse(entry.summaryJson) as ScanSummaryEntry[]; } catch { /* ignore */ }
+            }
+
+            const VIOLATION_LABEL: Record<string, string> = {
+              SHORT_STOCK: 'Short Stock',
+              NAKED_SHORT_CALL: 'Naked Call',
+              ORPHANED_SHORT_LEG: 'Orphaned Leg',
+              ITM_ASSIGNMENT_RISK: 'ITM Risk',
+            };
+
             return (
-              <div key={entry.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/20 transition-colors">
-                <div className="flex items-center gap-3">
-                  <BarChart3 className={`h-3.5 w-3.5 ${isFriday ? 'text-blue-400' : 'text-violet-400'}`} />
-                  <div>
-                    <span className={`text-xs font-medium ${isFriday ? 'text-blue-400' : 'text-violet-400'}`}>
-                      {isFriday ? 'Friday Sweep' : 'Daily Scan'}
+              <div key={entry.id}>
+                {/* Row header */}
+                <div
+                  className={`flex items-center justify-between px-4 py-2.5 transition-colors ${
+                    hasAlerts ? 'cursor-pointer hover:bg-amber-500/5' : 'hover:bg-muted/20'
+                  }`}
+                  onClick={() => hasAlerts && setExpandedId(isExpanded ? null : entry.id)}
+                >
+                  <div className="flex items-center gap-3">
+                    <BarChart3 className={`h-3.5 w-3.5 ${isFriday ? 'text-blue-400' : 'text-violet-400'}`} />
+                    <div>
+                      <span className={`text-xs font-medium ${isFriday ? 'text-blue-400' : 'text-violet-400'}`}>
+                        {isFriday ? 'Friday Sweep' : 'Daily Scan'}
+                      </span>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {entry.triggeredBy === 'manual' ? '(manual)' : '(auto)'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {hasAlerts ? (
+                      <span className="text-xs bg-amber-500/20 text-amber-300 rounded px-2 py-0.5">
+                        {entry.alertCount} alert{entry.alertCount !== 1 ? 's' : ''}
+                      </span>
+                    ) : (
+                      <span className="text-xs bg-emerald-500/20 text-emerald-400 rounded px-2 py-0.5 flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> Clean
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {date.toLocaleDateString([], { month: 'short', day: 'numeric' })}{' '}
+                      {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
-                    <span className="text-xs text-muted-foreground ml-2">
-                      {entry.triggeredBy === 'manual' ? '(manual)' : '(auto)'}
-                    </span>
+                    {hasAlerts && (
+                      <ChevronDown
+                        className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${
+                          isExpanded ? 'rotate-180' : ''
+                        }`}
+                      />
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  {hasAlerts ? (
-                    <span className="text-xs bg-amber-500/20 text-amber-300 rounded px-2 py-0.5">
-                      {entry.alertCount} alert{entry.alertCount !== 1 ? 's' : ''}
-                    </span>
-                  ) : (
-                    <span className="text-xs bg-emerald-500/20 text-emerald-400 rounded px-2 py-0.5 flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> Clean
-                    </span>
-                  )}
-                  <span className="text-xs text-muted-foreground">
-                    {date.toLocaleDateString([], { month: 'short', day: 'numeric' })}{' '}
-                    {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
+
+                {/* Expandable details panel */}
+                {isExpanded && hasAlerts && (
+                  <div className="bg-muted/10 border-t border-border/30 px-4 py-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                      Flagged positions
+                    </p>
+                    {details.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-muted-foreground border-b border-border/30">
+                              <th className="text-left pb-1.5 pr-3 font-medium">Symbol</th>
+                              <th className="text-left pb-1.5 pr-3 font-medium">Violation</th>
+                              <th className="text-left pb-1.5 pr-3 font-medium">Strike</th>
+                              <th className="text-left pb-1.5 pr-3 font-medium">Expiration</th>
+                              <th className="text-left pb-1.5 pr-3 font-medium">DTE</th>
+                              <th className="text-left pb-1.5 font-medium">Account</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/20">
+                            {details.map((d, i) => (
+                              <tr key={i} className="hover:bg-muted/10">
+                                <td className="py-1.5 pr-3 font-semibold text-amber-300">{d.symbol ?? '—'}</td>
+                                <td className="py-1.5 pr-3 text-foreground/70">
+                                  {d.violationType ? (VIOLATION_LABEL[d.violationType] ?? d.violationType) : '—'}
+                                </td>
+                                <td className="py-1.5 pr-3 text-foreground/70">{d.strike ? `$${d.strike}` : '—'}</td>
+                                <td className="py-1.5 pr-3 text-foreground/70">{d.expiration ?? '—'}</td>
+                                <td className="py-1.5 pr-3">
+                                  {d.dte !== undefined ? (
+                                    <span className={d.dte <= 2 ? 'text-red-400 font-semibold' : 'text-amber-400'}>
+                                      {d.dte}d
+                                    </span>
+                                  ) : '—'}
+                                </td>
+                                <td className="py-1.5 text-foreground/70">
+                                  {d.accountId ? `…${d.accountId.slice(-4)}` : '—'}
+                                  {d.accountName ? ` (${d.accountName})` : ''}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">
+                        No detailed breakdown available for this scan. Re-run a test scan to capture details.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

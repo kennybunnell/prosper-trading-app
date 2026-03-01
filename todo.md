@@ -6771,3 +6771,16 @@
 - [x] Wire safeguards into CSP-BPS and CC-BCS (confirmed: UnifiedOrderPreviewModal already covers all flows)
 - [x] Add Last Swept timestamp to Automation header
 - [x] Add daily 9:00 AM ITM assignment risk scan (Mon-Fri) to automation scheduler
+
+## 🔍 Scan History & Snooze Features (Mar 2026)
+- [ ] Add expandable View Details to scan history rows (show flagged symbols from summaryJson)
+- [ ] Add Snooze button to ITM Assignment Risk violations (24hr dismiss, persisted to DB)
+## ✅ Scan History & Snooze Features (Mar 2026)
+- [x] Add expandable View Details to scan history rows (show flagged symbols from summaryJson)
+- [x] Add Snooze button to ITM Assignment Risk violations (24hr dismiss, persisted to DB)
+- [x] Create snoozed_violations DB table with userId/symbol/accountNumber/violationType/snoozedUntil
+- [x] Add snoozeViolation, getActiveSnoozes, unsnoozeViolation procedures to safeguards router
+- [x] Filter snoozed violations from scanViolations query (only ITM_ASSIGNMENT_RISK, never critical)
+- [x] Show snoozedCount indicator in violations summary bar
+- [x] Update triggerFridaySweep to write structured summaryJson (symbol/strike/expiration/dte/accountId)
+- [x] Add 11 unit tests for snooze filtering logic (all passing)
