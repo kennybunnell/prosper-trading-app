@@ -6809,3 +6809,6 @@
 - [x] Add sortable column headers to scan results table (Symbol, Type, Account, Qty, Expiration, DTE, Premium, Buy-Back, Realized %)
 - [x] Add type filter pill buttons (All / BPS / BCS / IC / CSP / CC) above the scan results table
 - [x] Persist sort direction indicator (▲/▼) on active column header
+
+## Scan Results Symbol Column Cleanup (Mar 1, 2026)
+- [x] Replace verbose OCC symbol text under ticker with compact human-readable strike display (e.g. "Put $320 / Put $310") — show full OCC symbols only on hover tooltip

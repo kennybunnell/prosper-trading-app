@@ -1328,17 +1328,38 @@ export default function AutomationDashboard() {
                           </td>
                           <td className="py-2.5 pr-4">
                             <span className="font-semibold">{result.symbol}</span>
-                            {result.spreadLongSymbol ? (
-                              <span className="text-xs text-muted-foreground block">
-                                <span className="text-red-400/80">S</span> {result.optionSymbol.slice(-15)}
-                                <span className="mx-1 text-muted-foreground">/</span>
-                                <span className="text-green-400/80">L</span> {result.spreadLongSymbol.slice(-15)}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground block truncate max-w-[120px]" title={result.optionSymbol}>
-                                {result.optionSymbol}
-                              </span>
-                            )}
+                            {(() => {
+                              // Parse OCC symbol: AAPL260307P00277500 → P $277.50
+                              const parseStrike = (sym: string) => {
+                                const m = sym?.match(/([CP])(\d{8})$/);
+                                if (!m) return sym?.slice(-10) ?? '?';
+                                const type = m[1]; // C or P
+                                const raw = parseInt(m[2], 10) / 1000;
+                                return `${type === 'C' ? 'Call' : 'Put'} $${raw % 1 === 0 ? raw.toFixed(0) : raw.toFixed(1)}`;
+                              };
+                              if (result.spreadLongSymbol) {
+                                const shortLabel = parseStrike(result.optionSymbol);
+                                const longLabel = parseStrike(result.spreadLongSymbol);
+                                return (
+                                  <span
+                                    className="text-xs text-muted-foreground block cursor-help"
+                                    title={`Short: ${result.optionSymbol}\nLong:  ${result.spreadLongSymbol}`}
+                                  >
+                                    <span className="text-red-400/70">S</span> {shortLabel}
+                                    <span className="mx-1 opacity-40">/</span>
+                                    <span className="text-green-400/70">L</span> {longLabel}
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span
+                                  className="text-xs text-muted-foreground block cursor-help"
+                                  title={result.optionSymbol}
+                                >
+                                  {parseStrike(result.optionSymbol)}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="py-2.5 pr-4">
                             <Badge
