@@ -15,7 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Minus, Plus, AlertCircle, CheckCircle2, DollarSign } from "lucide-react";
+import { Loader2, Minus, Plus, AlertCircle, CheckCircle2, DollarSign, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // Order interface - flexible for all strategies
@@ -150,6 +150,10 @@ export function UnifiedOrderPreviewModal({
   const [orderStatuses, setOrderStatuses] = useState<OrderSubmissionStatus[]>([]);
   const [showMarketClosedWarning, setShowMarketClosedWarning] = useState(false);
   const [marketStatus, setMarketStatus] = useState<{ isOpen: boolean; description: string } | null>(null);
+  // Safeguard pre-flight check state
+  const [safeguardWarnings, setSafeguardWarnings] = useState<Array<{ title: string; description: string; requiredAction: string; severity: string }>>([]);
+  const [showSafeguardWarning, setShowSafeguardWarning] = useState(false);
+  const [safeguardBlocked, setSafeguardBlocked] = useState(false);
   
   // Use external state if provided, otherwise use internal state (for backward compatibility)
   const submissionComplete = externalSubmissionComplete ?? false;
@@ -453,6 +457,76 @@ export function UnifiedOrderPreviewModal({
     }
   };
   
+  // Safeguard pre-flight check — runs before any live submission
+  const runSafeguardCheck = async (): Promise<boolean> => {
+    try {
+      const checkableStrategies = ['btc', 'roll', 'cc', 'csp', 'bps', 'bcs', 'iron_condor'];
+      if (!checkableStrategies.includes(strategy)) return true;
+      if (!accountId || orders.length === 0) return true;
+
+      const allWarnings: Array<{ title: string; description: string; requiredAction: string; severity: string }> = [];
+
+      for (const order of orders) {
+        let orderType: string | null = null;
+        if (order.action === 'BTC' || order.action === 'STC') orderType = 'btc_option';
+        else if (strategy === 'roll') orderType = 'roll';
+        else if (strategy === 'cc' && (order.action === 'STO')) orderType = 'sell_call';
+        if (!orderType) continue;
+
+        // Build OCC symbol from order fields
+        const expFormatted = order.expiration ? order.expiration.replace(/-/g, '').slice(2) : '';
+        const optChar = order.optionType === 'CALL' ? 'C' : 'P';
+        const strikeFormatted = String(Math.round((order.strike || 0) * 1000)).padStart(8, '0');
+        const optionSymbol = expFormatted ? `${order.symbol}${expFormatted}${optChar}${strikeFormatted}` : undefined;
+
+        const params = new URLSearchParams({
+          input: JSON.stringify({
+            json: {
+              accountNumber: accountId,
+              orderType,
+              symbol: order.symbol,
+              ...(optionSymbol ? { optionSymbol } : {}),
+              contracts: orderQuantities.get(`${order.symbol}-${order.strike}-${order.expiration}`) || 1,
+            }
+          })
+        });
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        try {
+          const resp = await fetch(`/api/trpc/safeguards.preTradeCheck?${params.toString()}`, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (!resp.ok) continue;
+          const data = await resp.json();
+          const result = data?.result?.data?.json || data?.result?.data;
+          if (result?.warnings?.length) {
+            allWarnings.push(...result.warnings.map((w: any) => ({
+              title: w.title,
+              description: w.description,
+              requiredAction: w.requiredAction,
+              severity: w.severity,
+            })));
+          }
+        } catch {
+          clearTimeout(timeoutId);
+          // Fail open — don't block on network errors
+        }
+      }
+
+      if (allWarnings.length > 0) {
+        setSafeguardWarnings(allWarnings);
+        setSafeguardBlocked(allWarnings.some(w => w.severity === 'block'));
+        setShowSafeguardWarning(true);
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      console.warn('[Safeguard Check] Error:', e);
+      return true; // Fail open
+    }
+  };
+
   // Check market hours before live submission
   const checkMarketHours = async () => {
     try {
@@ -508,7 +582,13 @@ export function UnifiedOrderPreviewModal({
   
   // Handle live submission
   const handleLiveSubmit = async () => {
-    // Check market hours first
+    // Step 1: Run safeguard pre-flight check
+    const safeguardClear = await runSafeguardCheck();
+    if (!safeguardClear) {
+      return; // Wait for user to acknowledge safeguard warning
+    }
+
+    // Step 2: Check market hours
     const canProceed = await checkMarketHours();
     if (!canProceed) {
       return; // Wait for user confirmation
@@ -1224,6 +1304,60 @@ export function UnifiedOrderPreviewModal({
       </DialogContent>
     </Dialog>
     
+    {/* Safeguard Pre-Flight Warning Dialog */}
+    <Dialog open={showSafeguardWarning} onOpenChange={setShowSafeguardWarning}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-red-500" />
+            {safeguardBlocked ? '⛔ Order Blocked — Spread Integrity Violation' : '⚠️ Safeguard Warning — Review Before Proceeding'}
+          </DialogTitle>
+          <DialogDescription>
+            {safeguardBlocked
+              ? 'This order cannot be submitted because it would create a prohibited naked position.'
+              : 'This order has been flagged by the IRA safety system. Review carefully before proceeding.'}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 max-h-80 overflow-y-auto">
+          {safeguardWarnings.map((w, i) => (
+            <div key={i} className={`rounded-lg border p-3 space-y-2 ${
+              w.severity === 'block' ? 'border-red-500/50 bg-red-500/10' : 'border-yellow-500/50 bg-yellow-500/10'
+            }`}>
+              <p className="text-sm font-semibold">{w.title}</p>
+              <p className="text-xs text-muted-foreground">{w.description}</p>
+              <div className={`text-xs font-medium rounded p-2 ${
+                w.severity === 'block' ? 'bg-red-500/20 text-red-300' : 'bg-yellow-500/20 text-yellow-300'
+              }`}>
+                <span className="font-bold">Required Action: </span>{w.requiredAction}
+              </div>
+            </div>
+          ))}
+        </div>
+        <DialogFooter className="flex-row gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowSafeguardWarning(false)}
+            className="flex-1"
+          >
+            Cancel Order
+          </Button>
+          {!safeguardBlocked && (
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                setShowSafeguardWarning(false);
+                const canProceed = await checkMarketHours();
+                if (canProceed) await executeLiveSubmission();
+              }}
+              className="flex-1"
+            >
+              Override Warning &amp; Submit
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     {/* Market Closed Warning Dialog */}
     <Dialog open={showMarketClosedWarning} onOpenChange={setShowMarketClosedWarning}>
       <DialogContent className="sm:max-w-md">

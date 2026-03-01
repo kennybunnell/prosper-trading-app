@@ -6704,3 +6704,14 @@
 - [x] SafeguardWarningModal component (reusable intercept modal for all order flows)
 - [x] ExpirationRiskPanel component (shows ITM alerts with BTC close actions)
 - [x] Wired Safeguard 3 into CCDashboard handleSubmitOrders
+
+## 🔒 Safeguard Integrations (Mar 1, 2026 - Round 2)
+- [ ] Wire Safeguard 1 into Automation Step 1 (Close for Profit) - check for active short calls before closing stock
+- [ ] Add Friday sweep scheduled automation - auto-run at 9:30 AM every Friday with owner notification
+- [ ] Wire Safeguard 2 into Roll Positions flow - verify both legs handled together before submitting roll
+
+## ✅ Safeguard Integrations (Mar 1, 2026)
+- [x] Wire Safeguard 1+2 into UnifiedOrderPreviewModal (pre-flight check before every live submission)
+- [x] Add Friday sweep cron job at 9:30 AM ET every Friday with owner notification
+- [x] Wire Safeguard 2 (spread integrity lock) into submitRollOrders server mutation
+- [x] Add manuallyTriggerFridaySweep export for testing

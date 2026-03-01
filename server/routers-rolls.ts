@@ -599,6 +599,37 @@ export const rollsRouter = router({
         legCount: number;
       }> = [];
 
+      // ── Safeguard 2: Spread Integrity Lock ──────────────────────────────────
+      // Prevent closing only one leg of a spread. For BPS/BCS/IC close actions,
+      // the order MUST include spreadLegs with both short AND long legs present.
+      for (const order of input.orders) {
+        if (['BPS', 'BCS', 'IC'].includes(order.strategyType) && order.action === 'close') {
+          const spreadLegs = order.spreadLegs || [];
+          const hasShort = spreadLegs.some(l => l.role === 'short');
+          const hasLong = spreadLegs.some(l => l.role === 'long');
+          if (!hasShort || !hasLong) {
+            throw new Error(
+              `[Safeguard 2 — Spread Integrity] Cannot close only one leg of a ${order.strategyType} spread on ${order.symbol}. ` +
+              `Both the short and long legs must be closed together as a unit to maintain defined risk. ` +
+              `Use the Roll Positions scanner to close the full spread atomically.`
+            );
+          }
+          if (order.strategyType === 'IC') {
+            const putShort  = spreadLegs.filter(l => l.role === 'short' && l.optionType === 'PUT').length;
+            const putLong   = spreadLegs.filter(l => l.role === 'long'  && l.optionType === 'PUT').length;
+            const callShort = spreadLegs.filter(l => l.role === 'short' && l.optionType === 'CALL').length;
+            const callLong  = spreadLegs.filter(l => l.role === 'long'  && l.optionType === 'CALL').length;
+            if (putShort < 1 || putLong < 1 || callShort < 1 || callLong < 1) {
+              throw new Error(
+                `[Safeguard 2 — Spread Integrity] Iron Condor close on ${order.symbol} is missing legs. ` +
+                `An IC requires all 4 legs to be closed together. ` +
+                `Found: ${putShort} put-short, ${putLong} put-long, ${callShort} call-short, ${callLong} call-long.`
+              );
+            }
+          }
+        }
+      }
+
       for (const order of input.orders) {
         try {
           let legs: Array<{
