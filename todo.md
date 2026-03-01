@@ -6732,3 +6732,15 @@
 - [x] Update Performance page description to reflect 5 actual tabs (removed active positions reference)
 - [x] Add Test Friday Sweep button to Automation tab header (triggers scan + owner notification on demand)
 - [x] Delete unused ExpirationRiskPanel.tsx (dead code cleanup)
+
+## 🛡️ Safeguard + UI Enhancements (Mar 1 2026 - batch 2)
+- [ ] Wire Safeguard 1 into Active Positions Close button for stock positions
+- [ ] Add Friday Sweep schedule toggle (enable/disable cron) to Automation tab UI
+- [ ] Add Portfolio Safety violation count to browser tab title
+
+## ✅ Three Safeguard Integrations (Mar 2026 - Session 3)
+- [x] Wire Safeguard 1 into Active Positions CC close flow (pre-flight check before order preview)
+- [x] Add Friday Sweep schedule toggle (Auto-Sweep ON/OFF) to Automation header
+- [x] Add Portfolio Safety violation count to browser tab title (e.g., "(5) Prosper Trading Dashboard")
+- [x] Add fridaySweepEnabled column to userPreferences table (via SQL)
+- [x] Add getFridaySweepEnabled and setFridaySweepEnabled procedures to safeguardsRouter

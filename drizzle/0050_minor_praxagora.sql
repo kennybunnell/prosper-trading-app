@@ -1,0 +1,1 @@
+ALTER TABLE `userPreferences` ADD `fridaySweepEnabled` boolean DEFAULT true NOT NULL;

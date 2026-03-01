@@ -270,6 +270,9 @@ export const userPreferences = mysqlTable("userPreferences", {
   // Tax settings
   taxRate: int("taxRate").notNull().default(24), // User's marginal tax rate percentage (e.g., 24, 32, 37)
   
+  // Friday expiration sweep schedule toggle
+  fridaySweepEnabled: boolean("fridaySweepEnabled").notNull().default(true), // Auto-run sweep every Friday at 9:30 AM ET
+  
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

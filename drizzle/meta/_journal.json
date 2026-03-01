@@ -344,6 +344,13 @@
       "when": 1772226410142,
       "tag": "0049_lyrical_black_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "5",
+      "when": 1772367505280,
+      "tag": "0050_minor_praxagora",
+      "breakpoints": true
     }
   ]
 }

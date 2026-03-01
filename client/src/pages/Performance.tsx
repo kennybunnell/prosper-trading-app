@@ -109,6 +109,8 @@ export function ActivePositionsTab() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [submissionComplete, setSubmissionComplete] = useState(false);
   const [finalOrderStatus, setFinalOrderStatus] = useState<string | null>(null);
+  const [safeguardWarning, setSafeguardWarning] = useState<{ symbol: string; message: string } | null>(null);
+  const [pendingCloseOrders, setPendingCloseOrders] = useState<UnifiedOrder[] | null>(null);
 
   // Play success sound
   const playSuccessSound = () => {
@@ -365,8 +367,43 @@ export function ActivePositionsTab() {
       }
     })
     
+    // Safeguard 1: for CC positions, warn if closing this call leaves stock exposed
+    // (i.e., the user might then sell the stock thinking the call is gone)
+    if (positionType === 'cc') {
+      const symbols = selectedPositionsData.map(p => p.symbol);
+      const uniqueSymbols = Array.from(new Set(symbols));
+      // Check each symbol for coverage issues
+      for (const sym of uniqueSymbols) {
+        const ccCount = selectedPositionsData.filter(p => p.symbol === sym).length;
+        const totalCCs = (data?.positions || []).filter(p => p.symbol === sym).length;
+        if (ccCount === totalCCs) {
+          // Closing ALL calls for this symbol — warn user not to then sell the stock
+          setSafeguardWarning({
+            symbol: sym,
+            message: `You are closing ALL covered calls on ${sym}. If you then sell the underlying ${sym} shares separately, any remaining short calls will become naked — triggering the same SL call pattern seen with ADBE. Only proceed if you intend to keep the shares.`,
+          });
+          setPendingCloseOrders(orders);
+          return; // Hold — show warning first
+        }
+      }
+    }
+
     setUnifiedOrders(orders);
     setShowPreviewModal(true);
+  };
+
+  const handleSafeguardProceed = () => {
+    setSafeguardWarning(null);
+    if (pendingCloseOrders) {
+      setUnifiedOrders(pendingCloseOrders);
+      setPendingCloseOrders(null);
+      setShowPreviewModal(true);
+    }
+  };
+
+  const handleSafeguardCancel = () => {
+    setSafeguardWarning(null);
+    setPendingCloseOrders(null);
   };
 
   // Callback for UnifiedOrderPreviewModal
@@ -837,6 +874,34 @@ export function ActivePositionsTab() {
           }}
         />
       )}
+
+      {/* Safeguard 1 Warning Dialog */}
+      <Dialog open={!!safeguardWarning} onOpenChange={(open) => { if (!open) handleSafeguardCancel(); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-400">
+              <span>⚠️</span> Coverage Warning — {safeguardWarning?.symbol}
+            </DialogTitle>
+            <DialogDescription className="text-base pt-2">
+              {safeguardWarning?.message}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 text-sm text-amber-200">
+            <strong>Safe to proceed</strong> if you are closing this covered call to take profit on the option and plan to <strong>keep the underlying shares</strong>. The shares will remain in your account and can back future calls.
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={handleSafeguardCancel}>
+              Cancel — Review First
+            </Button>
+            <Button
+              className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border-amber-500/50"
+              onClick={handleSafeguardProceed}
+            >
+              I Understand — Proceed
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Results Dialog */}
       {closeResults && (

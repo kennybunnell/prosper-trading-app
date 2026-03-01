@@ -169,6 +169,19 @@ export default function AutomationDashboard() {
   const [killSwitchActive, setKillSwitchActive] = useState(false);
   const [isSweeping, setIsSweeping] = useState(false);
 
+  // Friday Sweep schedule toggle
+  const { data: sweepScheduleData, refetch: refetchSweepSchedule } = trpc.safeguards.getFridaySweepEnabled.useQuery();
+  const fridaySweepEnabled = sweepScheduleData?.enabled ?? true;
+  const setSweepEnabledMutation = trpc.safeguards.setFridaySweepEnabled.useMutation({
+    onSuccess: (data) => {
+      refetchSweepSchedule();
+      toast.success(data.enabled
+        ? 'Friday sweep scheduled — runs every Friday at 9:30 AM ET'
+        : 'Friday sweep disabled — you can still run it manually');
+    },
+    onError: (err) => toast.error(`Failed to update sweep schedule: ${err.message}`),
+  });
+
   const triggerFridaySweepMutation = trpc.safeguards.triggerFridaySweep.useMutation({
     onSuccess: (data) => {
       setIsSweeping(false);
@@ -690,6 +703,21 @@ export default function AutomationDashboard() {
               <><RefreshCw className="h-3.5 w-3.5" />Test Friday Sweep</>
             )}
           </Button>
+          {/* Friday Sweep Schedule Toggle */}
+          <div
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer select-none ${
+              fridaySweepEnabled
+                ? 'bg-blue-600/10 border-blue-500/30 text-blue-400 hover:bg-blue-600/20'
+                : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50'
+            }`}
+            title={fridaySweepEnabled
+              ? 'Friday sweep is scheduled — runs every Friday at 9:30 AM ET. Click to disable.'
+              : 'Friday sweep is disabled — click to enable automatic Friday 9:30 AM scan'}
+            onClick={() => setSweepEnabledMutation.mutate({ enabled: !fridaySweepEnabled })}
+          >
+            <span className={`h-2 w-2 rounded-full ${fridaySweepEnabled ? 'bg-blue-400 animate-pulse' : 'bg-muted-foreground'}`} />
+            {fridaySweepEnabled ? 'Auto-Sweep ON' : 'Auto-Sweep OFF'}
+          </div>
           {/* Kill Switch */}
           <button
             onClick={() => {

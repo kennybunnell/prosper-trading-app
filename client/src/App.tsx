@@ -43,7 +43,30 @@ function Router() {
   const [showTrialModal, setShowTrialModal] = useState(false);
   const { data: user, refetch } = trpc.auth.me.useQuery();
   const subscriptionStatus = trpc.stripe.getSubscriptionStatus.useQuery();
-  
+
+  // Portfolio Safety: fetch violation count for browser tab title badge
+  const { data: violationData } = trpc.iraSafety.scanViolations.useQuery(
+    undefined,
+    {
+      enabled: !!user,
+      refetchInterval: 5 * 60 * 1000, // refresh every 5 minutes
+      staleTime: 4 * 60 * 1000,
+    }
+  );
+  const totalViolations = violationData
+    ? (violationData.criticalCount ?? 0) + (violationData.warningCount ?? 0)
+    : 0;
+
+  // Update browser tab title with violation count
+  useEffect(() => {
+    const appTitle = import.meta.env.VITE_APP_TITLE || 'Prosper Trading Dashboard';
+    if (totalViolations > 0) {
+      document.title = `(${totalViolations}) ${appTitle}`;
+    } else {
+      document.title = appTitle;
+    }
+  }, [totalViolations]);
+
   // Enable heartbeat in development to prevent sandbox hibernation
   const isDevelopment = import.meta.env.DEV;
   useHeartbeat(isDevelopment);

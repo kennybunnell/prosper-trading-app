@@ -754,4 +754,40 @@ export const safeguardsRouter = router({
           : `Found ${allAlerts.length} short call${allAlerts.length !== 1 ? 's' : ''} expiring within 7 DTE. Notification sent.`,
       };
     }),
+
+  // ── Friday Sweep schedule toggle ──────────────────────────────────────────
+  /** Get whether the Friday sweep cron is enabled for this user */
+  getFridaySweepEnabled: protectedProcedure.query(async ({ ctx }) => {
+    const { getDb } = await import('./db');
+    const { userPreferences } = await import('../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+    const db = await getDb();
+    if (!db) return { enabled: true };
+    const prefs = await db.select().from(userPreferences).where(eq(userPreferences.userId, ctx.user.id)).limit(1);
+    const enabled = prefs.length > 0 ? (prefs[0].fridaySweepEnabled ?? true) : true;
+    return { enabled };
+  }),
+
+  /** Toggle the Friday sweep cron on or off for this user */
+  setFridaySweepEnabled: protectedProcedure
+    .input(z.object({ enabled: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const { userPreferences } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) return { enabled: input.enabled };
+      const existing = await db.select().from(userPreferences).where(eq(userPreferences.userId, ctx.user.id)).limit(1);
+      if (existing.length > 0) {
+        await db.update(userPreferences)
+          .set({ fridaySweepEnabled: input.enabled })
+          .where(eq(userPreferences.userId, ctx.user.id));
+      } else {
+        await db.insert(userPreferences).values({
+          userId: ctx.user.id,
+          fridaySweepEnabled: input.enabled,
+        });
+      }
+      return { enabled: input.enabled };
+    }),
 });
