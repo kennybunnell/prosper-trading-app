@@ -6820,3 +6820,7 @@
 ## Roll Positions Filter UI Polish (Mar 1, 2026)
 - [x] Restyle Roll Positions filter rows to match compact single-row pill-badge style from Close for Profit
 - [x] Add count badge to Roll Positions step tab (red badge for losers needing attention, orange for total)
+
+## BPS/BCS P&L Classification Fix (Mar 1, 2026)
+- [x] Fix Win/Loss/Even classification for BPS — OTM BPS (stock above short put strike) now shows as Win via stale-mark stock-vs-strike override
+- [x] Fix Win/Loss/Even classification for BCS — OTM BCS (stock below short call strike) now shows as Win via stale-mark stock-vs-strike override

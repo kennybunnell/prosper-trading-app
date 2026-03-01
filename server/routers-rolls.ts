@@ -80,7 +80,41 @@ function scoreSpreadUrgency(
   // ── P&L Status ───────────────────────────────────────────────────────────
   // profitPct can now be negative (losing trade) or > 100 (debit spread that moved in our favor)
   let pnlStatus: 'winner' | 'breakeven' | 'loser';
-  if (profitPct >= 50) {
+
+  // STALE MARK OVERRIDE: When marks are stale (yesterday's close), the P&L calculation
+  // is unreliable for OTM options. Use stock-vs-strike as ground truth instead.
+  // For BPS: if stock is above the short put strike → clearly OTM → winner
+  // For BCS: if stock is below the short call strike → clearly OTM → winner
+  // For IC: if stock is between put short and call short strikes → OTM on both sides → winner
+  const shortStrikeForCheck = spread.shortStrike || spread.putShortStrike || spread.callShortStrike || 0;
+  let staleOverride: 'winner' | 'loser' | null = null;
+  if (spread.hasStaleMarks && underlyingPrice && underlyingPrice > 0 && shortStrikeForCheck > 0) {
+    if (spread.strategyType === 'BPS' || spread.strategyType === 'CSP') {
+      // Put spread: OTM when stock > short put strike
+      const otmPct = ((underlyingPrice - shortStrikeForCheck) / shortStrikeForCheck) * 100;
+      if (otmPct > 2) staleOverride = 'winner';   // >2% OTM → clearly winning
+      else if (otmPct < -2) staleOverride = 'loser'; // >2% ITM → clearly losing
+    } else if (spread.strategyType === 'BCS' || spread.strategyType === 'CC') {
+      // Call spread: OTM when stock < short call strike
+      const otmPct = ((shortStrikeForCheck - underlyingPrice) / shortStrikeForCheck) * 100;
+      if (otmPct > 2) staleOverride = 'winner';   // >2% OTM → clearly winning
+      else if (otmPct < -2) staleOverride = 'loser'; // >2% ITM → clearly losing
+    } else if (spread.strategyType === 'IC') {
+      // IC: OTM on both sides when stock is between put short and call short
+      const putShort = spread.putShortStrike || 0;
+      const callShort = spread.callShortStrike || 0;
+      if (putShort > 0 && callShort > 0) {
+        const abovePut = underlyingPrice > putShort * 1.02;
+        const belowCall = underlyingPrice < callShort * 0.98;
+        if (abovePut && belowCall) staleOverride = 'winner';
+        else if (underlyingPrice < putShort * 0.98 || underlyingPrice > callShort * 1.02) staleOverride = 'loser';
+      }
+    }
+  }
+
+  if (staleOverride) {
+    pnlStatus = staleOverride;
+  } else if (profitPct >= 50) {
     pnlStatus = 'winner';
   } else if (profitPct >= 20) {
     pnlStatus = 'breakeven';
@@ -116,7 +150,9 @@ function scoreSpreadUrgency(
     // Losing trade or ITM with little profit captured — needs immediate attention
     urgency = 'red';
     if (pnlStatus === 'loser') {
-      if (profitPct < 0) {
+      if (staleOverride === 'loser') {
+        reasons.push(`🔴 ITM — stock has moved through the short strike (stale marks, using stock price as signal)`);
+      } else if (profitPct < 0) {
         reasons.push(`🔴 Net loss — position is ${Math.abs(profitPct).toFixed(0)}% underwater (cost to close > premium received)`);
       } else {
         reasons.push(`🔴 Only ${profitPct.toFixed(0)}% of premium captured — minimal decay so far`);
@@ -128,10 +164,17 @@ function scoreSpreadUrgency(
     if (spread.dte <= 7) {
       reasons.push(`⚠️ ${spread.dte} DTE — high gamma risk`);
     }
-  } else if (pnlStatus === 'winner' && profitPct >= 80) {
-    // High winner — flag green but note it's ready to close/roll for more premium
+  } else if (pnlStatus === 'winner' && (staleOverride === 'winner' || profitPct >= 80)) {
+    // High winner or stale-override winner — flag green
     urgency = 'green';
-    reasons.push(`✅ ${profitPct.toFixed(0)}% profit captured — consider closing or rolling for more premium`);
+    if (staleOverride === 'winner') {
+      const otmPctDisplay = underlyingPrice && shortStrikeForCheck > 0
+        ? Math.abs(((underlyingPrice - shortStrikeForCheck) / shortStrikeForCheck) * 100).toFixed(1)
+        : '?';
+      reasons.push(`✅ OTM — stock is ${otmPctDisplay}% beyond short strike (live marks unavailable, using stock price)`);
+    } else {
+      reasons.push(`✅ ${profitPct.toFixed(0)}% profit captured — consider closing or rolling for more premium`);
+    }
     if (spread.dte <= 7) {
       urgency = 'yellow'; // Escalate if very close to expiry
       reasons.push(`📅 ${spread.dte} DTE — close soon to avoid pin risk`);
