@@ -6804,3 +6804,8 @@
 - [x] Add spreadLongSymbol, spreadLongStrike, spreadLongPrice columns to automationPendingOrders DB table
 - [x] Add close_spread to orderType enum in automationPendingOrders
 - [x] Write 11 unit tests for spread detection and order generation (all passing)
+
+## Scan Results Table UX (Mar 1, 2026)
+- [x] Add sortable column headers to scan results table (Symbol, Type, Account, Qty, Expiration, DTE, Premium, Buy-Back, Realized %)
+- [x] Add type filter pill buttons (All / BPS / BCS / IC / CSP / CC) above the scan results table
+- [x] Persist sort direction indicator (▲/▼) on active column header

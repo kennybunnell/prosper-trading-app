@@ -3,7 +3,7 @@
  * Control panel for managing automated trading workflows
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { UnifiedOrderPreviewModal, UnifiedOrder } from '@/components/UnifiedOrderPreviewModal';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -250,6 +250,18 @@ export default function AutomationDashboard() {
   const [rollPnlFilter, setRollPnlFilter] = useState<'all' | 'winner' | 'breakeven' | 'loser'>('all');
   const [rollSortCol, setRollSortCol] = useState<string>('unrealizedPnl');
   const [rollSortDir, setRollSortDir] = useState<'asc' | 'desc'>('asc');
+  // Scan results sort + type filter
+  const [scanSortCol, setScanSortCol] = useState<string>('realizedPercent');
+  const [scanSortDir, setScanSortDir] = useState<'asc' | 'desc'>('desc');
+  const [scanTypeFilter, setScanTypeFilter] = useState<string>('all');
+  const handleScanSort = (col: string) => {
+    if (scanSortCol === col) {
+      setScanSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setScanSortCol(col);
+      setScanSortDir('desc');
+    }
+  };
   // UnifiedOrderPreviewModal state
   const [showOrderPreview, setShowOrderPreview] = useState(false);
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
@@ -533,10 +545,36 @@ export default function AutomationDashboard() {
     }
   };
 
-  // Apply the hide-expiring-today filter to the full scan results list
-  const visibleScanResults = (lastRunResult?.scanResults ?? []).filter(
-    r => !(hideExpiringToday && r.dte === 0)
-  );
+  // Apply hide-expiring-today + type filter, then sort
+  const visibleScanResults = useMemo(() => {
+    let rows = (lastRunResult?.scanResults ?? []).filter(
+      r => !(hideExpiringToday && r.dte === 0)
+    );
+    if (scanTypeFilter !== 'all') {
+      rows = rows.filter(r => r.type === scanTypeFilter);
+    }
+    rows = [...rows].sort((a, b) => {
+      let av: number | string = 0;
+      let bv: number | string = 0;
+      switch (scanSortCol) {
+        case 'symbol':        av = a.symbol;            bv = b.symbol;            break;
+        case 'type':          av = a.type;              bv = b.type;              break;
+        case 'account':       av = a.account;           bv = b.account;           break;
+        case 'quantity':      av = a.quantity;          bv = b.quantity;          break;
+        case 'expiration':    av = a.expiration ?? '';  bv = b.expiration ?? '';  break;
+        case 'dte':           av = a.dte ?? 9999;       bv = b.dte ?? 9999;       break;
+        case 'premium':       av = a.premiumCollected;  bv = b.premiumCollected;  break;
+        case 'buyBack':       av = a.buyBackCost;       bv = b.buyBackCost;       break;
+        case 'realizedPercent': av = a.realizedPercent; bv = b.realizedPercent;   break;
+        default:              av = a.realizedPercent;   bv = b.realizedPercent;
+      }
+      if (typeof av === 'string' && typeof bv === 'string') {
+        return scanSortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+      }
+      return scanSortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
+    });
+    return rows;
+  }, [lastRunResult?.scanResults, hideExpiringToday, scanTypeFilter, scanSortCol, scanSortDir]);
   const wouldCloseResults = visibleScanResults.filter(r => r.action === 'WOULD_CLOSE');
   // DTE=0 positions are NEVER auto-selected or included in select-all (let them expire naturally)
   const selectableResults = wouldCloseResults.filter(r => r.dte !== 0);
@@ -1181,7 +1219,8 @@ export default function AutomationDashboard() {
           {showScanResults && (lastRunResult.scanResults.length > 0 || visibleScanResults.length === 0) && (
             <CardContent>
               {/* Filter toolbar */}
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                {/* Hide expiring today toggle */}
                 <Button
                   variant={hideExpiringToday ? 'default' : 'outline'}
                   size="sm"
@@ -1192,36 +1231,83 @@ export default function AutomationDashboard() {
                 </Button>
                 {hideExpiringToday && lastRunResult && lastRunResult.scanResults.some(r => r.dte === 0) && (
                   <span className="text-xs text-muted-foreground">
-                    {lastRunResult.scanResults.filter(r => r.dte === 0).length} DTE=0 position{lastRunResult.scanResults.filter(r => r.dte === 0).length !== 1 ? 's' : ''} hidden
+                    {lastRunResult.scanResults.filter(r => r.dte === 0).length} DTE=0 hidden
                   </span>
                 )}
+                {/* Separator */}
+                <div className="w-px h-5 bg-border/60 mx-1" />
+                {/* Type filter pills */}
+                {(['all', 'BPS', 'BCS', 'IC', 'CSP', 'CC'] as const).map(t => {
+                  const count = t === 'all'
+                    ? (lastRunResult?.scanResults ?? []).filter(r => !(hideExpiringToday && r.dte === 0)).length
+                    : (lastRunResult?.scanResults ?? []).filter(r => r.type === t && !(hideExpiringToday && r.dte === 0)).length;
+                  const isActive = scanTypeFilter === t;
+                  const colorClass =
+                    t === 'BPS' ? (isActive ? 'bg-cyan-500/30 text-cyan-300 border-cyan-400/60' : 'text-cyan-400/70 border-cyan-400/30 hover:bg-cyan-500/10') :
+                    t === 'BCS' ? (isActive ? 'bg-pink-500/30 text-pink-300 border-pink-400/60' : 'text-pink-400/70 border-pink-400/30 hover:bg-pink-500/10') :
+                    t === 'IC'  ? (isActive ? 'bg-amber-500/30 text-amber-300 border-amber-400/60' : 'text-amber-400/70 border-amber-400/30 hover:bg-amber-500/10') :
+                    t === 'CSP' ? (isActive ? 'bg-blue-500/30 text-blue-300 border-blue-400/60' : 'text-blue-400/70 border-blue-400/30 hover:bg-blue-500/10') :
+                    t === 'CC'  ? (isActive ? 'bg-purple-500/30 text-purple-300 border-purple-400/60' : 'text-purple-400/70 border-purple-400/30 hover:bg-purple-500/10') :
+                                  (isActive ? 'bg-muted text-foreground border-border' : 'text-muted-foreground border-border/50 hover:bg-muted/40');
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setScanTypeFilter(t)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${colorClass}`}
+                    >
+                      {t === 'all' ? 'All' : t}
+                      <span className="opacity-60">({count})</span>
+                    </button>
+                  );
+                })}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-muted-foreground">
-                      <th className="py-2 pr-2 w-8">
-                        <Checkbox
-                          checked={allSelected}
-                          onCheckedChange={toggleSelectAll}
-                          aria-label="Select all closeable positions"
-                        />
-                      </th>
-                      <th className="text-left py-2 pr-4 font-medium">Symbol</th>
-                      <th className="text-left py-2 pr-4 font-medium">Type</th>
-                      <th className="text-left py-2 pr-4 font-medium">Account</th>
-                      <th className="text-right py-2 pr-4 font-medium">Qty</th>
-                      <th className="text-left py-2 pr-4 font-medium">Expiration</th>
-                      <th className="text-right py-2 pr-2 font-medium">DTE</th>
-                      <th className="text-right py-2 pr-4 font-medium">Premium Collected</th>
-                      <th className="text-right py-2 pr-4 font-medium">Buy-Back Cost</th>
-                      <th className="text-right py-2 pr-4 font-medium">Realized %</th>
-                      <th className="text-center py-2 font-medium">Action</th>
-                    </tr>
+                    {/* Helper: sortable column header */}
+                    {(() => {
+                      const SortTh = ({ col, label, align = 'left', className = '' }: { col: string; label: string; align?: 'left' | 'right' | 'center'; className?: string }) => (
+                        <th
+                          className={`py-2 pr-4 font-medium cursor-pointer select-none whitespace-nowrap hover:text-foreground transition-colors text-${align} ${className}`}
+                          onClick={() => handleScanSort(col)}
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            {label}
+                            {scanSortCol === col ? (
+                              scanSortDir === 'asc'
+                                ? <ChevronUp className="h-3 w-3 text-cyan-400" />
+                                : <ChevronDown className="h-3 w-3 text-cyan-400" />
+                            ) : (
+                              <span className="h-3 w-3 opacity-20">↕</span>
+                            )}
+                          </span>
+                        </th>
+                      );
+                      return (
+                        <tr className="border-b text-muted-foreground">
+                          <th className="py-2 pr-2 w-8">
+                            <Checkbox
+                              checked={allSelected}
+                              onCheckedChange={toggleSelectAll}
+                              aria-label="Select all closeable positions"
+                            />
+                          </th>
+                          <SortTh col="symbol" label="Symbol" />
+                          <SortTh col="type" label="Type" />
+                          <SortTh col="account" label="Account" />
+                          <SortTh col="quantity" label="Qty" align="right" />
+                          <SortTh col="expiration" label="Expiration" />
+                          <SortTh col="dte" label="DTE" align="right" />
+                          <SortTh col="premium" label="Premium Collected" align="right" />
+                          <SortTh col="buyBack" label="Buy-Back Cost" align="right" />
+                          <SortTh col="realizedPercent" label="Realized %" align="right" />
+                          <th className="text-center py-2 font-medium">Action</th>
+                        </tr>
+                      );
+                    })()}
                   </thead>
                   <tbody>
                     {visibleScanResults
-                      .sort((a, b) => b.realizedPercent - a.realizedPercent)
                       .map((result, idx) => (
                         <tr
                           key={idx}
