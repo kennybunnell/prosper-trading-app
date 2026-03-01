@@ -49,6 +49,10 @@ type ScanResult = {
   isEstimated: boolean;       // true when buy-back cost is from time-decay heuristic
   action: 'WOULD_CLOSE' | 'BELOW_THRESHOLD' | 'SKIPPED';
   reason?: string;
+  // Spread fields — only populated when type is BPS/BCS/IC
+  spreadLongSymbol?: string;   // Long leg OCC symbol
+  spreadLongStrike?: string;   // Long leg strike
+  spreadLongPrice?: string;    // Long leg close price
 };
 
 type RunSummary = {
@@ -448,6 +452,9 @@ export default function AutomationDashboard() {
         quantity: r.quantity,
         buyBackCost: r.buyBackCost,
         isEstimated: r.isEstimated,
+        // Pass spread leg data for atomic spread closure
+        spreadLongSymbol: r.spreadLongSymbol,
+        spreadLongPrice: r.spreadLongPrice,
       }));
     setIsSubmitting(true);
     submitCloseOrders.mutate({ orders: selected });
@@ -469,6 +476,9 @@ export default function AutomationDashboard() {
       quantity: r.quantity,
       buyBackCost: r.buyBackCost,
       isEstimated: r.isEstimated,
+      // Pass spread leg data for atomic spread closure
+      spreadLongSymbol: r.spreadLongSymbol,
+      spreadLongPrice: r.spreadLongPrice,
     }));
     try {
       const response = await submitCloseOrders.mutateAsync({ orders: selected, dryRun: isDryRun });
@@ -1232,16 +1242,33 @@ export default function AutomationDashboard() {
                           </td>
                           <td className="py-2.5 pr-4">
                             <span className="font-semibold">{result.symbol}</span>
-                            <span className="text-xs text-muted-foreground block truncate max-w-[120px]" title={result.optionSymbol}>
-                              {result.optionSymbol}
-                            </span>
+                            {result.spreadLongSymbol ? (
+                              <span className="text-xs text-muted-foreground block">
+                                <span className="text-red-400/80">S</span> {result.optionSymbol.slice(-15)}
+                                <span className="mx-1 text-muted-foreground">/</span>
+                                <span className="text-green-400/80">L</span> {result.spreadLongSymbol.slice(-15)}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground block truncate max-w-[120px]" title={result.optionSymbol}>
+                                {result.optionSymbol}
+                              </span>
+                            )}
                           </td>
                           <td className="py-2.5 pr-4">
                             <Badge
                               variant="outline"
-                              className={result.type === 'CSP' ? 'text-blue-400 border-blue-400/50' : 'text-purple-400 border-purple-400/50'}
+                              className={
+                                result.type === 'BPS' ? 'text-cyan-400 border-cyan-400/50 bg-cyan-400/10' :
+                                result.type === 'BCS' ? 'text-pink-400 border-pink-400/50 bg-pink-400/10' :
+                                result.type === 'IC'  ? 'text-amber-400 border-amber-400/50 bg-amber-400/10' :
+                                result.type === 'CSP' ? 'text-blue-400 border-blue-400/50' :
+                                                        'text-purple-400 border-purple-400/50'
+                              }
                             >
-                              {result.type}
+                              {result.type === 'BPS' ? '⬡ BPS' :
+                               result.type === 'BCS' ? '⬡ BCS' :
+                               result.type === 'IC'  ? '⬡ IC'  :
+                               result.type}
                             </Badge>
                           </td>
                           <td className="py-2.5 pr-4 text-muted-foreground text-xs">

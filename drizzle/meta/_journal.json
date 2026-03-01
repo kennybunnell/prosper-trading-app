@@ -372,6 +372,13 @@
       "when": 1772369430150,
       "tag": "0053_flimsy_falcon",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "5",
+      "when": 1772400584990,
+      "tag": "0054_aspiring_magma",
+      "breakpoints": true
     }
   ]
 }

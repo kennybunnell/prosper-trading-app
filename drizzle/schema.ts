@@ -735,8 +735,12 @@ export const automationPendingOrders = mysqlTable("automationPendingOrders", {
   runId: varchar("runId", { length: 64 }).notNull().references(() => automationLogs.runId, { onDelete: "cascade" }),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
   accountNumber: varchar("accountNumber", { length: 64 }).notNull(),
-  orderType: mysqlEnum("orderType", ["close_position", "open_covered_call"]).notNull(),
+  orderType: mysqlEnum("orderType", ["close_position", "open_covered_call", "close_spread"]).notNull(),
   symbol: varchar("symbol", { length: 64 }).notNull(),  // Option symbols can be 21+ chars e.g. AAPL250117P00150000
+  // Spread order fields (populated when orderType = 'close_spread')
+  spreadLongSymbol: varchar("spreadLongSymbol", { length: 64 }),  // Long leg OCC symbol
+  spreadLongStrike: varchar("spreadLongStrike", { length: 20 }),  // Long leg strike price
+  spreadLongPrice: varchar("spreadLongPrice", { length: 20 }),    // Long leg close price
   strike: varchar("strike", { length: 20 }),
   expiration: varchar("expiration", { length: 64 }),  // ISO timestamps from Tastytrade can be 25+ chars
   quantity: int("quantity").notNull(),

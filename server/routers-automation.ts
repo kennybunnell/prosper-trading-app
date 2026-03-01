@@ -276,6 +276,10 @@ export const automationRouter = router({
           isEstimated: boolean;        // true when buy-back cost is from time-decay heuristic (close-price=0)
           action: 'WOULD_CLOSE' | 'BELOW_THRESHOLD' | 'SKIPPED';
           reason?: string;
+          // Spread fields — only populated when type is BPS/BCS/IC
+          spreadLongSymbol?: string;   // Long leg OCC symbol
+          spreadLongStrike?: string;   // Long leg strike
+          spreadLongPrice?: string;    // Long leg close price
         }> = [];
         let totalPositionsClosed = 0;
         let totalCoveredCallsOpened = 0;
@@ -295,7 +299,7 @@ export const automationRouter = router({
             //   realizedPercent = (premiumReceived - currentCost) / premiumReceived × 100
             const positions = runBTCScan ? await tt.getPositions(account.accountNumber) : [];
             
-            // Build a map of long positions for spread detection
+            // Build a map of long positions for spread detection (keyed by OCC symbol)
             const longPositionMap = new Map<string, any>();
             if (runBTCScan) {
               for (const pos of positions) {
@@ -305,6 +309,26 @@ export const automationRouter = router({
                 if (isLong && pos['instrument-type'] === 'Equity Option') {
                   longPositionMap.set(pos.symbol, pos);
                 }
+              }
+            }
+
+            // Build a map of short puts and short calls per underlying+expiration for IC detection
+            // key: `${underlying}|${expiration}` → { put?: position, call?: position }
+            const shortByUnderlying = new Map<string, { put?: any; call?: any }>();
+            if (runBTCScan) {
+              for (const pos of positions) {
+                if (pos['instrument-type'] !== 'Equity Option') continue;
+                const qty = parseInt(String(pos.quantity || '0'));
+                const direction = pos['quantity-direction']?.toLowerCase();
+                const isShortPos = direction === 'short' || qty < 0;
+                if (!isShortPos) continue;
+                const und = pos['underlying-symbol'] || pos.symbol || '';
+                const exp = pos['expires-at'] || '';
+                const key = `${und}|${exp}`;
+                const entry = shortByUnderlying.get(key) || {};
+                if (pos.symbol?.includes('P')) entry.put = pos;
+                else entry.call = pos;
+                shortByUnderlying.set(key, entry);
               }
             }
 
@@ -321,7 +345,8 @@ export const automationRouter = router({
               const underlyingSymbol = position['underlying-symbol'] || position.symbol || '';
               const optionSymbol = position.symbol || '';
               const isPut = optionSymbol.includes('P');
-              const optionType = isPut ? 'CSP' : 'CC';
+              // Will be refined to BPS/BCS/IC after spread detection below
+              let optionType: string = isPut ? 'CSP' : 'CC';
 
               // Premium received = what we collected when we sold
               const openPrice = Math.abs(parseFloat(String(position['average-open-price'] || '0')));
@@ -341,10 +366,14 @@ export const automationRouter = router({
               const closePrice = Math.abs(parseFloat(String(position['close-price'] || '0')));
               let buyBackCost = closePrice * quantity * multiplier;
 
-              // Spread detection: look for matching long leg on the SAME expiration and same put/call type
-              // Only net the spread if the long leg's close price is LOWER than the short leg's
-              // (i.e., the long leg is worth less, which is the normal spread scenario)
+              // ── Spread detection ──────────────────────────────────────────────────────
+              // Step A: find a matching long leg (same underlying, same expiration, same put/call)
+              //         → Bull Put Spread (BPS) if puts, Bear Call Spread (BCS) if calls
+              // Step B: check if this short option is part of an Iron Condor
+              //         (there is ALSO a short option of the opposite type on the same underlying+expiration)
               let isSpread = false;
+              let matchedLongLeg: any = null;
+
               for (const [, longPos] of Array.from(longPositionMap.entries())) {
                 if (longPos['underlying-symbol'] === position['underlying-symbol'] &&
                     longPos['expires-at'] === position['expires-at']) {
@@ -352,15 +381,26 @@ export const automationRouter = router({
                   if (longIsPut === isPut) {
                     const longClosePrice = Math.abs(parseFloat(String(longPos['close-price'] || '0')));
                     const longBuyBackCredit = longClosePrice * quantity * parseInt(String(longPos.multiplier || '100'));
-                    // Net spread cost = pay to close short leg - receive credit from closing long leg
-                    // Only apply if result stays positive (guards against bad data)
                     const netCost = buyBackCost - longBuyBackCredit;
                     if (netCost >= 0) {
                       buyBackCost = netCost;
                       isSpread = true;
+                      matchedLongLeg = longPos;
+                      // Rename type: CSP+long put → BPS, CC+long call → BCS
+                      optionType = isPut ? 'BPS' : 'BCS';
                     }
                     break;
                   }
+                }
+              }
+
+              // Step B: Iron Condor check — if this short option has a counterpart short of the
+              // opposite type on the same underlying+expiration, it is part of an IC.
+              if (isSpread) {
+                const icKey = `${underlyingSymbol}|${expiration}`;
+                const icEntry = shortByUnderlying.get(icKey);
+                if (icEntry && icEntry.put && icEntry.call) {
+                  optionType = 'IC';
                 }
               }
 
@@ -403,31 +443,69 @@ export const automationRouter = router({
               const strikeMatch = optionSymbol.match(/[CP](\d+)/);
               const strike = strikeMatch ? (parseFloat(strikeMatch[1]) / 1000).toFixed(2) : null;
 
-              console.log(`[Automation] ${underlyingSymbol} ${optionType}${isSpread ? ' (spread)' : ''}: premiumCollected=$${premiumReceived.toFixed(2)}, buyBackCost=$${buyBackCost.toFixed(2)}, realized=${realizedPercent.toFixed(1)}%`);
+              console.log(`[Automation] ${underlyingSymbol} ${optionType}${isSpread ? ` (spread, long=${matchedLongLeg?.symbol})` : ''}: premiumCollected=$${premiumReceived.toFixed(2)}, buyBackCost=$${buyBackCost.toFixed(2)}, realized=${realizedPercent.toFixed(1)}%`);
 
               if (realizedPercent >= settings.profitThresholdPercent) {
-                // This position should be closed
-                pendingOrders.push({
-                  runId,
-                  userId: ctx.user.id,
-                  accountNumber: account.accountNumber,
-                  orderType: 'close_position' as const,
-                  symbol: optionSymbol,
-                  strike,
-                  expiration,
-                  quantity,
-                  price: String(closePrice),
-                  profitPercent: Math.round(realizedPercent),
-                  estimatedProfit: estimatedProfit.toFixed(2),
-                  status: 'pending' as const,
-                });
+                if (isSpread && matchedLongLeg) {
+                  // ── Spread close: emit a SINGLE spread order covering both legs atomically ──
+                  const longStrikeMatch = matchedLongLeg.symbol?.match(/[CP](\d+)/);
+                  const longStrike = longStrikeMatch ? (parseFloat(longStrikeMatch[1]) / 1000).toFixed(2) : null;
+                  const longClosePrice = Math.abs(parseFloat(String(matchedLongLeg['close-price'] || '0')));
+                  pendingOrders.push({
+                    runId,
+                    userId: ctx.user.id,
+                    accountNumber: account.accountNumber,
+                    orderType: 'close_spread' as const,
+                    symbol: optionSymbol,                // short leg OCC symbol
+                    spreadLongSymbol: matchedLongLeg.symbol, // long leg OCC symbol
+                    strike,
+                    spreadLongStrike: longStrike,
+                    expiration,
+                    quantity,
+                    price: String(closePrice),
+                    spreadLongPrice: String(longClosePrice),
+                    profitPercent: Math.round(realizedPercent),
+                    estimatedProfit: estimatedProfit.toFixed(2),
+                    status: 'pending' as const,
+                  });
+                } else {
+                  // Standalone CC or CSP — single-leg close
+                  pendingOrders.push({
+                    runId,
+                    userId: ctx.user.id,
+                    accountNumber: account.accountNumber,
+                    orderType: 'close_position' as const,
+                    symbol: optionSymbol,
+                    strike,
+                    expiration,
+                    quantity,
+                    price: String(closePrice),
+                    profitPercent: Math.round(realizedPercent),
+                    estimatedProfit: estimatedProfit.toFixed(2),
+                    status: 'pending' as const,
+                  });
+                }
 
-                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'WOULD_CLOSE' });
+                const wouldCloseEntry: typeof scanResults[number] = { account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'WOULD_CLOSE' };
+                if (isSpread && matchedLongLeg) {
+                  const longStrikeMatch2 = matchedLongLeg.symbol?.match(/[CP](\d+)/);
+                  wouldCloseEntry.spreadLongSymbol = matchedLongLeg.symbol;
+                  wouldCloseEntry.spreadLongStrike = longStrikeMatch2 ? (parseFloat(longStrikeMatch2[1]) / 1000).toFixed(2) : undefined;
+                  wouldCloseEntry.spreadLongPrice = String(Math.abs(parseFloat(String(matchedLongLeg['close-price'] || '0'))));
+                }
+                scanResults.push(wouldCloseEntry);
 
                 totalPositionsClosed++;
                 totalProfitRealized += estimatedProfit;
               } else {
-                scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'BELOW_THRESHOLD' });
+                const belowThresholdEntry: typeof scanResults[number] = { account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'BELOW_THRESHOLD' };
+                if (isSpread && matchedLongLeg) {
+                  const longStrikeMatch3 = matchedLongLeg.symbol?.match(/[CP](\d+)/);
+                  belowThresholdEntry.spreadLongSymbol = matchedLongLeg.symbol;
+                  belowThresholdEntry.spreadLongStrike = longStrikeMatch3 ? (parseFloat(longStrikeMatch3[1]) / 1000).toFixed(2) : undefined;
+                  belowThresholdEntry.spreadLongPrice = String(Math.abs(parseFloat(String(matchedLongLeg['close-price'] || '0'))));
+                }
+                scanResults.push(belowThresholdEntry);
               }
             }
 
@@ -617,6 +695,9 @@ export const automationRouter = router({
             quantity: z.number(),
             buyBackCost: z.number(), // per-contract cost (already × multiplier)
             isEstimated: z.boolean(),
+            // Spread order fields (optional — present when closing a spread atomically)
+            spreadLongSymbol: z.string().optional(),  // Long leg OCC symbol
+            spreadLongPrice: z.string().optional(),   // Long leg close price (string)
           })
         ),
         dryRun: z.boolean().optional().default(false),
@@ -649,36 +730,79 @@ export const automationRouter = router({
 
       for (const order of input.orders) {
         try {
-          // Price per share = buyBackCost / (quantity * 100), rounded up to nearest $0.01
-          const pricePerShare = order.buyBackCost / (order.quantity * 100);
-          // Use a limit price slightly above current cost to ensure fill (add $0.01 buffer)
-          const limitPrice = Math.max(0.01, Math.ceil((pricePerShare + 0.01) * 100) / 100);
+          const isSpreadOrder = !!order.spreadLongSymbol;
+          // Net debit for spread = short leg cost - long leg credit
+          // For single-leg: just the short leg cost
+          const shortLegCostPerShare = order.buyBackCost / (order.quantity * 100);
+          const longLegCreditPerShare = isSpreadOrder
+            ? Math.abs(parseFloat(order.spreadLongPrice || '0'))
+            : 0;
+          // Net debit per share (what we pay to close the spread)
+          const netDebitPerShare = shortLegCostPerShare - longLegCreditPerShare;
+          // Use a limit price slightly above current net cost (add $0.01 buffer), minimum $0.01
+          const limitPrice = Math.max(0.01, Math.ceil((netDebitPerShare + 0.01) * 100) / 100);
 
           // Dry run: skip actual order submission
           if (input.dryRun) {
-            console.log('[Automation submitCloseOrders] DRY RUN — would submit BTC order:', {
-              symbol: order.symbol, optionSymbol: order.optionSymbol,
-              accountNumber: order.accountNumber, quantity: order.quantity,
-              pricePerShare, limitPrice, isEstimated: order.isEstimated,
-            });
-            results.push({
-              symbol: order.symbol,
-              optionSymbol: order.optionSymbol,
-              success: true,
-              orderId: `dry-run-${order.optionSymbol}`,
-              message: `[Dry Run] Would submit BTC limit @ $${limitPrice.toFixed(2)}`,
-            });
+            if (isSpreadOrder) {
+              console.log('[Automation submitCloseOrders] DRY RUN — would submit SPREAD BTC order:', {
+                symbol: order.symbol, shortLeg: order.optionSymbol, longLeg: order.spreadLongSymbol,
+                accountNumber: order.accountNumber, quantity: order.quantity,
+                shortLegCostPerShare, longLegCreditPerShare, netDebitPerShare, limitPrice,
+              });
+              results.push({
+                symbol: order.symbol,
+                optionSymbol: order.optionSymbol,
+                success: true,
+                orderId: `dry-run-spread-${order.optionSymbol}`,
+                message: `[Dry Run] Would submit SPREAD BTC (2-leg atomic) net debit @ $${limitPrice.toFixed(2)} | Short: ${order.optionSymbol} | Long: ${order.spreadLongSymbol}`,
+              });
+            } else {
+              console.log('[Automation submitCloseOrders] DRY RUN — would submit BTC order:', {
+                symbol: order.symbol, optionSymbol: order.optionSymbol,
+                accountNumber: order.accountNumber, quantity: order.quantity,
+                shortLegCostPerShare, limitPrice, isEstimated: order.isEstimated,
+              });
+              results.push({
+                symbol: order.symbol,
+                optionSymbol: order.optionSymbol,
+                success: true,
+                orderId: `dry-run-${order.optionSymbol}`,
+                message: `[Dry Run] Would submit BTC limit @ $${limitPrice.toFixed(2)}`,
+              });
+            }
             continue;
           }
 
-          console.log('[Automation submitCloseOrders] Submitting BTC order:', {
+          // Build order legs
+          const legs: import('./tastytrade').OrderLeg[] = [
+            {
+              instrumentType: 'Equity Option',
+              symbol: order.optionSymbol,
+              quantity: order.quantity.toString(),
+              action: 'Buy to Close',
+            },
+          ];
+          if (isSpreadOrder && order.spreadLongSymbol) {
+            // Long leg: Sell to Close (we bought it to open, now sell it to close)
+            legs.push({
+              instrumentType: 'Equity Option',
+              symbol: order.spreadLongSymbol,
+              quantity: order.quantity.toString(),
+              action: 'Sell to Close',
+            });
+          }
+
+          console.log(`[Automation submitCloseOrders] Submitting ${isSpreadOrder ? 'SPREAD' : 'single-leg'} BTC order:`, {
             symbol: order.symbol,
             optionSymbol: order.optionSymbol,
+            spreadLongSymbol: order.spreadLongSymbol,
             accountNumber: order.accountNumber,
             quantity: order.quantity,
-            pricePerShare,
+            netDebitPerShare,
             limitPrice,
             isEstimated: order.isEstimated,
+            legs: legs.length,
           });
 
           const result = await tt.submitOrder({
@@ -687,14 +811,7 @@ export const automationRouter = router({
             orderType: 'Limit',
             price: limitPrice.toFixed(2),
             priceEffect: 'Debit',
-            legs: [
-              {
-                instrumentType: 'Equity Option',
-                symbol: order.optionSymbol,
-                quantity: order.quantity.toString(),
-                action: 'Buy to Close',
-              },
-            ],
+            legs,
           });
 
           console.log('[Automation submitCloseOrders] Order submitted:', {
@@ -708,7 +825,9 @@ export const automationRouter = router({
             optionSymbol: order.optionSymbol,
             success: true,
             orderId: result.id,
-            message: `Order submitted (limit $${limitPrice.toFixed(2)})`,
+            message: isSpreadOrder
+              ? `Spread order submitted (net debit $${limitPrice.toFixed(2)}) — 2 legs atomic`
+              : `Order submitted (limit $${limitPrice.toFixed(2)})`,
           });
         } catch (error: any) {
           console.error('[Automation submitCloseOrders] Order failed:', {

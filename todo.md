@@ -6788,3 +6788,19 @@
 ## Kill Switch & Close-for-Profit Badge (Mar 1 2026)
 - [x] Redesign Kill Switch as a prominent toggle/switch with red glow when active
 - [x] Add emerald badge on "Close for Profit" tab showing WOULD_CLOSE count from last scan
+
+## Spread Detection Bug (Mar 1 2026)
+- [ ] Fix spread pairing algorithm: match short+long legs by symbol+expiration+option type, tag as BPS/BCS/IC
+- [ ] Prevent automation from closing one leg of a spread without the other
+- [ ] Update scan results UI to show spread type badges and group paired legs visually
+
+## Spread Detection & Atomic Order Fix (Mar 1, 2026)
+- [x] Fix scan results Type column to show BPS/BCS/IC with distinct colored badges (cyan/pink/amber)
+- [x] Add spreadLongSymbol/spreadLongStrike/spreadLongPrice fields to scanResults in backend
+- [x] Update ScanResult frontend type to include spread fields
+- [x] Update scan results table to show both short (S) and long (L) leg symbols for spreads
+- [x] Update submitCloseOrders backend to handle close_spread orders with 2-leg atomic submission
+- [x] Update handleSubmitOrders and handleUnifiedSubmit to pass spreadLongSymbol/spreadLongPrice
+- [x] Add spreadLongSymbol, spreadLongStrike, spreadLongPrice columns to automationPendingOrders DB table
+- [x] Add close_spread to orderType enum in automationPendingOrders
+- [x] Write 11 unit tests for spread detection and order generation (all passing)
