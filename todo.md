@@ -6744,3 +6744,17 @@
 - [x] Add Portfolio Safety violation count to browser tab title (e.g., "(5) Prosper Trading Dashboard")
 - [x] Add fridaySweepEnabled column to userPreferences table (via SQL)
 - [x] Add getFridaySweepEnabled and setFridaySweepEnabled procedures to safeguardsRouter
+
+## 🛡️ Safeguard & Sweep Enhancements (Mar 2026 - Session 4)
+- [ ] Wire pre-flight safeguard check into CSP-BPS dashboard order submission
+- [ ] Wire pre-flight safeguard check into CC-BCS dashboard order submission
+- [ ] Add Last Swept timestamp and alert count to Automation header
+- [ ] Persist last sweep result (timestamp + count) to userPreferences DB
+- [ ] Add daily 9:00 AM ITM assignment risk scan to automation scheduler
+- [ ] Add daily scan notification with alert details
+
+## ✅ Safeguard Integrations Round 3 (Mar 2026)
+- [x] Safeguards 1+2 already covered by UnifiedOrderPreviewModal in CSP-BPS and CC-BCS (confirmed)
+- [x] Add Last Swept timestamp and alert count to Automation header
+- [x] Add daily 9:00 AM ITM assignment risk scan (Mon-Fri) to automation scheduler
+- [x] Add fridaySweepEnabled, lastSweepAt, lastSweepAlertCount to userPreferences schema

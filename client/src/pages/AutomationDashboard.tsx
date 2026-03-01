@@ -182,9 +182,18 @@ export default function AutomationDashboard() {
     onError: (err) => toast.error(`Failed to update sweep schedule: ${err.message}`),
   });
 
+  // Last sweep audit trail
+  const { data: lastSweepInfo, refetch: refetchLastSweepInfo } = trpc.safeguards.getLastSweepInfo.useQuery();
+  const updateLastSweepInfoMutation = trpc.safeguards.updateLastSweepInfo.useMutation();
+
   const triggerFridaySweepMutation = trpc.safeguards.triggerFridaySweep.useMutation({
     onSuccess: (data) => {
       setIsSweeping(false);
+      // Persist last sweep result for audit trail
+      updateLastSweepInfoMutation.mutate(
+        { lastSweepAt: Date.now(), lastSweepAlertCount: data.alertCount ?? 0 },
+        { onSuccess: () => refetchLastSweepInfo() }
+      );
       if (data.alertCount === 0) {
         toast.success(data.message);
       } else {
@@ -718,6 +727,23 @@ export default function AutomationDashboard() {
             <span className={`h-2 w-2 rounded-full ${fridaySweepEnabled ? 'bg-blue-400 animate-pulse' : 'bg-muted-foreground'}`} />
             {fridaySweepEnabled ? 'Auto-Sweep ON' : 'Auto-Sweep OFF'}
           </div>
+          {/* Last Swept Audit Trail */}
+          {lastSweepInfo?.lastSweepAt ? (
+            <div
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium ${
+                lastSweepInfo.lastSweepAlertCount > 0
+                  ? 'bg-amber-600/10 border-amber-500/30 text-amber-400'
+                  : 'bg-emerald-600/10 border-emerald-500/30 text-emerald-400'
+              }`}
+              title={`Last sweep: ${new Date(lastSweepInfo.lastSweepAt).toLocaleString()} — ${lastSweepInfo.lastSweepAlertCount} alert${lastSweepInfo.lastSweepAlertCount !== 1 ? 's' : ''} found`}
+            >
+              <CheckCircle2 className="h-3 w-3" />
+              <span>Last swept {new Date(lastSweepInfo.lastSweepAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+              {lastSweepInfo.lastSweepAlertCount > 0 && (
+                <span className="bg-amber-500/20 text-amber-300 rounded px-1">{lastSweepInfo.lastSweepAlertCount} alert{lastSweepInfo.lastSweepAlertCount !== 1 ? 's' : ''}</span>
+              )}
+            </div>
+          ) : null}
           {/* Kill Switch */}
           <button
             onClick={() => {

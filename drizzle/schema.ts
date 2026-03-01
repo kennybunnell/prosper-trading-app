@@ -1,4 +1,4 @@
-import { boolean, index, int, mysqlEnum, mysqlTable, text, timestamp, unique, varchar } from "drizzle-orm/mysql-core";
+import { bigint, boolean, index, int, mysqlEnum, mysqlTable, text, timestamp, unique, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -272,6 +272,9 @@ export const userPreferences = mysqlTable("userPreferences", {
   
   // Friday expiration sweep schedule toggle
   fridaySweepEnabled: boolean("fridaySweepEnabled").notNull().default(true), // Auto-run sweep every Friday at 9:30 AM ET
+  // Last sweep audit trail
+  lastSweepAt: bigint("lastSweepAt", { mode: "number" }), // UTC ms timestamp of last sweep run
+  lastSweepAlertCount: int("lastSweepAlertCount").notNull().default(0), // Number of alerts found in last sweep
   
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

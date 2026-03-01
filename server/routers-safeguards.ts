@@ -790,4 +790,43 @@ export const safeguardsRouter = router({
       }
       return { enabled: input.enabled };
     }),
+
+  /** Get the last sweep timestamp and alert count for audit trail display */
+  getLastSweepInfo: protectedProcedure.query(async ({ ctx }) => {
+    const { getDb } = await import('./db');
+    const { userPreferences } = await import('../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+    const db = await getDb();
+    if (!db) return { lastSweepAt: null, lastSweepAlertCount: 0 };
+    const prefs = await db.select().from(userPreferences).where(eq(userPreferences.userId, ctx.user.id)).limit(1);
+    if (prefs.length === 0) return { lastSweepAt: null, lastSweepAlertCount: 0 };
+    return {
+      lastSweepAt: prefs[0].lastSweepAt ?? null,
+      lastSweepAlertCount: prefs[0].lastSweepAlertCount ?? 0,
+    };
+  }),
+
+  /** Update the last sweep timestamp and alert count after a sweep runs */
+  updateLastSweepInfo: protectedProcedure
+    .input(z.object({ lastSweepAt: z.number(), lastSweepAlertCount: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const { userPreferences } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) return { ok: false };
+      const existing = await db.select().from(userPreferences).where(eq(userPreferences.userId, ctx.user.id)).limit(1);
+      if (existing.length > 0) {
+        await db.update(userPreferences)
+          .set({ lastSweepAt: input.lastSweepAt, lastSweepAlertCount: input.lastSweepAlertCount })
+          .where(eq(userPreferences.userId, ctx.user.id));
+      } else {
+        await db.insert(userPreferences).values({
+          userId: ctx.user.id,
+          lastSweepAt: input.lastSweepAt,
+          lastSweepAlertCount: input.lastSweepAlertCount,
+        });
+      }
+      return { ok: true };
+    }),
 });

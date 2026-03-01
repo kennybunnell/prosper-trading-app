@@ -13,6 +13,7 @@ import { notifyOwner } from './_core/notification';
 
 let scheduledTask: cron.ScheduledTask | null = null;
 let fridaySweepTask: cron.ScheduledTask | null = null;
+let dailyITMScanTask: cron.ScheduledTask | null = null;
 
 /**
  * Initialize the automation scheduler
@@ -46,6 +47,19 @@ export function initializeAutomationScheduler() {
     }
   );
   console.log('[Automation Scheduler] Friday sweep initialized. Will run at 9:30 AM ET every Friday.');
+
+  // Daily ITM assignment risk scan at 9:00 AM ET every weekday (Mon-Fri)
+  dailyITMScanTask = cron.schedule(
+    '0 9 * * 1-5', // 9:00 AM Monday-Friday
+    async () => {
+      console.log('[Daily ITM Scan] Running daily ITM assignment risk scan...');
+      await runDailyITMScan();
+    },
+    {
+      timezone: 'America/New_York',
+    }
+  );
+  console.log('[Automation Scheduler] Daily ITM scan initialized. Will run at 9:00 AM ET every weekday.');
 }
 
 /**
@@ -61,6 +75,11 @@ export function stopAutomationScheduler() {
     fridaySweepTask.stop();
     fridaySweepTask = null;
     console.log('[Friday Sweep] Stopped');
+  }
+  if (dailyITMScanTask) {
+    dailyITMScanTask.stop();
+    dailyITMScanTask = null;
+    console.log('[Daily ITM Scan] Stopped');
   }
 }
 
@@ -188,6 +207,77 @@ async function runFridayExpirationSweep() {
     }
   } catch (error) {
     console.error('[Friday Sweep] Error in Friday sweep run:', error);
+  }
+}
+
+/**
+ * Daily ITM assignment risk scan — runs every weekday at 9:00 AM ET.
+ * Scans for short calls that are ITM with ≤5 DTE and sends a notification if found.
+ * This catches mid-week assignment risks that the Friday sweep would miss.
+ */
+async function runDailyITMScan() {
+  try {
+    const db = await getDb();
+    if (!db) {
+      console.error('[Daily ITM Scan] Database not available');
+      return;
+    }
+
+    // Get all users with auto-schedule enabled
+    const users = await db
+      .select({ userId: automationSettings.userId })
+      .from(automationSettings)
+      .where(eq(automationSettings.autoScheduleEnabled, true));
+
+    console.log(`[Daily ITM Scan] Scanning ${users.length} users for ITM assignment risk...`);
+
+    for (const user of users) {
+      try {
+        const { safeguardsRouter } = await import('./routers-safeguards');
+        const mockCtx = { user: { id: user.userId }, req: {} as any, res: {} as any };
+
+        // Use 'daily' mode (≤5 DTE) — Friday uses 'friday' mode (≤7 DTE)
+        const result = await safeguardsRouter.createCaller(mockCtx as any).scanExpirationRisk({
+          mode: 'daily',
+        });
+
+        if (result.hasAlerts) {
+          const uncovered = result.alerts.filter((a: any) => !a.isCovered);
+          const covered = result.alerts.filter((a: any) => a.isCovered);
+          const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+          // Only notify if there are uncovered ITM calls — covered positions are just monitoring
+          if (uncovered.length > 0) {
+            let content = `**Daily ITM Assignment Risk Scan — ${dateStr}**\n\n`;
+            content += `Found ${uncovered.length} uncovered ITM short call(s) expiring within 5 DTE.\n\n`;
+            content += `🚨 **IMMEDIATE ACTION REQUIRED:**\n`;
+            for (const alert of uncovered) {
+              content += `• ${alert.symbol} $${alert.strike} exp ${alert.expiration} (${alert.dte} DTE) — Acct ${alert.accountNumber}\n`;
+              content += `  ${alert.requiredAction}\n`;
+            }
+            if (covered.length > 0) {
+              content += `\n⚠️ ${covered.length} covered position(s) also expiring soon (no action needed unless going ITM).\n`;
+            }
+            content += `\nLog in to the Prosper Trading app → Action Items → Portfolio Safety to review and take action.`;
+
+            await notifyOwner({
+              title: `🚨 Daily Scan: ${uncovered.length} Uncovered ITM Call(s) — ${dateStr}`,
+              content,
+            });
+
+            console.log(`[Daily ITM Scan] Alert sent for user ${user.userId}: ${uncovered.length} uncovered ITM calls`);
+          } else {
+            console.log(`[Daily ITM Scan] User ${user.userId}: ${covered.length} covered positions expiring soon — no uncovered ITM calls.`);
+          }
+        } else {
+          console.log(`[Daily ITM Scan] User ${user.userId}: No ITM assignment risk found — all clear.`);
+        }
+      } catch (userError) {
+        console.error(`[Daily ITM Scan] Error scanning user ${user.userId}:`, userError);
+      }
+    }
+  } catch (error) {
+    console.error('[Daily ITM Scan] Error in daily ITM scan run:', error);
   }
 }
 
