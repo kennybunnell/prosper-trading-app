@@ -6956,3 +6956,10 @@
 - [x] "Polling live status every 30s" spinner shown while interval is active
 - [x] Spread leg sub-row in BTC spread orders — shows long leg OCC symbol and price with blue styling
 - [x] Unit tests for live quotes pricing logic (17 tests, all passing)
+
+## Order Preview Modal - Spread Fixes (Mar 2, 2026)
+- [x] Fix long-leg label: changed "BTO" to "STC" (Sell to Close) — closing a spread sells the long leg
+- [x] Audit spread order submission: confirmed long leg is sent as Sell to Close, not Buy to Open
+- [x] Fix slider: always allow manual price override — extended range to $0.01 min, 2x ask max
+- [x] Fix slider increments: use $0.01 steps for prices under $0.50, $0.05 for larger prices
+- [x] Fix hasMarketData: always show slider when order has any price (even without live bid/ask)

@@ -857,32 +857,42 @@ export function UnifiedOrderPreviewModal({
   };
   
   // Helper: get the full price range for an order (min=best-case, max=worst-case)
+  // Range is always wider than the natural bid/ask so the user can tune freely:
+  //   - minimum is always $0.01 (can go below bid for aggressive BTC)
+  //   - maximum is always at least 2x the ask (can go above ask if needed)
   const getOrderPriceRange = (order: UnifiedOrder) => {
-    if (!order.bid || !order.ask) return { minPrice: order.premium, maxPrice: order.premium, midPrice: order.premium };
-    if (order.longStrike && order.longBid !== undefined && order.longAsk !== undefined) {
-      // Spread: net debit range
-      const minPrice = order.bid - order.longAsk;  // Best case for BTC
-      const maxPrice = order.ask - order.longBid;  // Worst case for BTC
-      return { minPrice, maxPrice, midPrice: (minPrice + maxPrice) / 2 };
+    if (!order.bid || !order.ask) {
+      const fallback = Math.max(0.01, order.premium);
+      return { minPrice: 0.01, maxPrice: Math.max(fallback * 2, 0.50), midPrice: fallback };
     }
-    // Single-leg
-    return { minPrice: order.bid, maxPrice: order.ask, midPrice: (order.bid + order.ask) / 2 };
+    if (order.longStrike && order.longBid !== undefined && order.longAsk !== undefined) {
+      // Spread: net debit range (short leg ask - long leg bid = worst case; short bid - long ask = best case)
+      const naturalMin = order.bid - order.longAsk;  // Best case for BTC
+      const naturalMax = order.ask - order.longBid;  // Worst case for BTC
+      const midPrice = (naturalMin + naturalMax) / 2;
+      // Always allow going below natural min (down to $0.01) and above natural max (up to 2x)
+      return { minPrice: 0.01, maxPrice: Math.max(naturalMax * 2, 0.50), midPrice };
+    }
+    // Single-leg: extend range below bid and above ask for full manual control
+    const midPrice = (order.bid + order.ask) / 2;
+    return { minPrice: 0.01, maxPrice: Math.max(order.ask * 2, 0.50), midPrice };
   };
 
   // Set price via slider (full bid→ask range)
   const setPriceFromSlider = (order: UnifiedOrder, value: number[]) => {
-    if (!order.bid || !order.ask) return;
+    // Allow slider even when bid/ask are 0 or missing — use fallback range
     const { minPrice, maxPrice } = getOrderPriceRange(order);
     const priceRange = maxPrice - minPrice;
     const newPrice = minPrice + (priceRange * value[0] / 100);
-    const roundedPrice = Math.round(Math.max(0.01, newPrice) * 20) / 20; // $0.05 increments
+    // Use $0.01 increments for prices under $0.50, $0.05 for larger prices
+    const increment = newPrice < 0.50 ? 100 : 20;
+    const roundedPrice = Math.round(Math.max(0.01, newPrice) * increment) / increment;
     const key = getOrderKey(order);
     setAdjustedPrices(prev => new Map(prev).set(key, roundedPrice));
   };
   
   // Calculate slider position (0-100) based on current price across full bid→ask range
   const getSliderPosition = (order: UnifiedOrder): number[] => {
-    if (!order.bid || !order.ask) return [50];
     const { minPrice, maxPrice } = getOrderPriceRange(order);
     const key = getOrderKey(order);
     const currentPrice = adjustedPrices.get(key) ?? order.premium;
@@ -1081,10 +1091,10 @@ export function UnifiedOrderPreviewModal({
                     ? { ...order, bid: effectiveBid, ask: effectiveAsk }
                     : order;
                   // Check if we have market data for price adjustment slider
-                  // For spreads: need both legs' bid/ask; for single-leg: just bid/ask
-                  const hasMarketData = order.longStrike 
-                    ? (effectiveBid && effectiveAsk && order.longBid && order.longAsk)
-                    : (effectiveBid && effectiveAsk && effectiveBid > 0 && effectiveAsk > 0);
+                  // Show slider whenever we have at least a bid or ask, or a stored premium price
+                  // For BTC spread orders from automation: they have a stored price even without live bid/ask
+                  const hasMarketData = (effectiveBid && effectiveAsk && effectiveBid > 0 && effectiveAsk > 0)
+                    || (order.premium > 0);  // Always show slider if we have any price to work from
                   
                   // Check if this is an Iron Condor (has all 4 legs)
                   const isIronCondor = order.callShortStrike && order.callLongStrike;
@@ -1121,7 +1131,7 @@ export function UnifiedOrderPreviewModal({
                             </Badge>
                           )}
                           {isBTCSpread && (
-                            <span className="text-[10px] text-blue-400">+ BTO long leg</span>
+                            <span className="text-[10px] text-blue-400">+ STC long leg</span>
                           )}
                         </div>
                       </TableCell>
@@ -1248,7 +1258,7 @@ export function UnifiedOrderPreviewModal({
                                     size="sm"
                                     variant="outline"
                                     className="h-6 w-6 p-0"
-                                    onClick={() => adjustPrice(orderWithLive, -0.05)}
+                                    onClick={() => adjustPrice(orderWithLive, price < 0.50 ? -0.01 : -0.05)}
                                     disabled={isSubmitting}
                                   >
                                     <Minus className="h-3 w-3" />
@@ -1260,7 +1270,7 @@ export function UnifiedOrderPreviewModal({
                                     size="sm"
                                     variant="outline"
                                     className="h-6 w-6 p-0"
-                                    onClick={() => adjustPrice(orderWithLive, 0.05)}
+                                    onClick={() => adjustPrice(orderWithLive, price < 0.50 ? 0.01 : 0.05)}
                                     disabled={isSubmitting}
                                   >
                                     <Plus className="h-3 w-3" />
@@ -1290,7 +1300,7 @@ export function UnifiedOrderPreviewModal({
                     {isBTCSpread && order.spreadLongSymbol && (
                       <TableRow key={`${idx}-long`} className="bg-blue-950/20">
                         <TableCell className="text-xs text-blue-400 pl-6" colSpan={2}>
-                          <span className="font-medium">↳ Long leg (BTO):</span>
+                          <span className="font-medium">↳ Long leg (STC):</span>
                         </TableCell>
                         <TableCell className="text-right text-xs text-blue-300" colSpan={2}>
                           <span className="font-mono text-[10px] break-all">{order.spreadLongSymbol}</span>
