@@ -317,6 +317,26 @@ function PositionCard({
           <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 ${cfg.badgeClass}`}>
             {cfg.label}
           </Badge>
+          {/* Liquidation flag toggle — prominent, in header */}
+          {pos.recommendation !== 'KEEP' && (
+            <button
+              onClick={() => !isFlagging && onToggleFlag(pos, !isFlagged)}
+              disabled={isFlagging}
+              style={isFlagged
+                ? { border: '2px solid #ef4444', background: 'rgba(127,29,29,0.7)', color: '#fca5a5', padding: '3px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }
+                : { border: '2px solid #f97316', background: 'rgba(154,52,18,0.25)', color: '#fdba74', padding: '3px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }
+              }
+            >
+              {isFlagging ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : isFlagged ? (
+                <ShieldAlert className="h-3.5 w-3.5" />
+              ) : (
+                <ShieldOff className="h-3.5 w-3.5" />
+              )}
+              {isFlagged ? '⛔ Flagged for Exit' : '🚩 Flag for Exit'}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {/* One-click Sell ATM CC button */}
@@ -487,39 +507,10 @@ function PositionCard({
         </div>
       )}
 
-      {/* Account badge + Liquidation flag checkbox */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-muted-foreground">Acct: ...{pos.accountNumber.slice(-4)}</span>
-          <span className="text-[10px] text-muted-foreground">({pos.accountType})</span>
-        </div>
-        {/* Only show flag checkbox for LIQUIDATE/HARVEST cards */}
-        {pos.recommendation !== 'KEEP' && (
-          <div
-            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border cursor-pointer transition-colors ${
-              isFlagged
-                ? 'border-red-600/60 bg-red-950/40 text-red-300'
-                : 'border-white/10 bg-black/20 text-muted-foreground hover:border-red-700/40 hover:text-red-400'
-            }`}
-            onClick={() => !isFlagging && onToggleFlag(pos, !isFlagged)}
-          >
-            {isFlagging ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : isFlagged ? (
-              <ShieldAlert className="h-3.5 w-3.5 text-red-400" />
-            ) : (
-              <ShieldOff className="h-3.5 w-3.5" />
-            )}
-            <Checkbox
-              checked={isFlagged}
-              onCheckedChange={(checked) => !isFlagging && onToggleFlag(pos, !!checked)}
-              className="h-3.5 w-3.5 border-current data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
-            />
-            <span className="text-[11px] font-medium">
-              {isFlagged ? '🚫 Flagged for Liquidation' : 'Mark for Liquidation'}
-            </span>
-          </div>
-        )}
+      {/* Account badge row */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground">Acct: ...{pos.accountNumber.slice(-4)}</span>
+        <span className="text-[10px] text-muted-foreground">({pos.accountType})</span>
       </div>
     </div>
   );
