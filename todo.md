@@ -6922,3 +6922,11 @@
 - [ ] Frontend: Disable Liquidate button with tooltip when all contracts are already covered
 - [ ] Frontend: Show automation block badge on flagged positions ("🚫 Automation Blocked")
 - [x] Frontend: Manual checkbox on LIQUIDATE/HARVEST cards to set flag; persists across sessions
+
+## Position Analyzer: Open CCs + Batch Sell + Liquidity Bar (Mar 2, 2026)
+- [ ] Backend: Fetch open short calls per position in analyzePositions (strike, expiry, contracts, DTE)
+- [ ] Backend: Add batchSellCCs mutation — submit ITM CC orders for all flagged positions at once
+- [ ] Backend: Add getLiquidationProgress query — total proceeds from completed liquidations vs TSLA target
+- [ ] Frontend: Show open CCs panel on flagged cards (strike, expiry, DTE, contracts locked)
+- [ ] Frontend: Sell All Harvest CCs batch button in summary banner with combined preview dialog
+- [ ] Frontend: Liquidity progress bar in summary banner (freed capital vs $100k TSLA coverage target)

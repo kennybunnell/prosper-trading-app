@@ -38,19 +38,18 @@ export interface AnalyzedPosition {
   unrealizedPnlPct: number;
   week52High: number;
   week52Low: number;
-  drawdownFromHigh: number; // % below 52-wk high
+  drawdownFromHigh: number;
   isCore: boolean;
-  // CC premium data (nearest Friday expiry)
   ccExpiration: string | null;
   ccAtmStrike: number | null;
-  ccAtmPremium: number | null;   // mid price
-  ccWeeklyYield: number | null;  // premium / stock price %
-  ccEffectiveExit: number | null; // strike + premium
-  // Recommendation
+  ccAtmPremium: number | null;
+  ccWeeklyYield: number | null;
+  ccEffectiveExit: number | null;
   recommendation: PositionRecommendation;
   recommendationReason: string;
-  // Redeployment suggestion
-  ccIsItm: boolean;  // true = ITM strike chosen for harvest/exit, false = ATM for keep
+  ccIsItm: boolean;
+  openShortCalls: Array<{ strike: number; expiration: string; quantity: number; daysToExpiry: number }>;
+  availableContracts: number;
 }
 
 export interface PositionAnalyzerResult {
@@ -281,6 +280,39 @@ export const positionAnalyzerRouter = router({
         }
       }
 
+      // Fetch open short call positions per account to detect locked contracts
+      // Map: `${symbol}-${accountNumber}` -> array of open short calls
+      const openShortCallsMap = new Map<string, Array<{ strike: number; expiration: string; quantity: number; daysToExpiry: number }>>();
+      for (const account of accountList) {
+        try {
+          const positions = await api.getPositions(account.accountNumber);
+          const shortCalls = (positions || []).filter((p: any) =>
+            p['instrument-type'] === 'Equity Option' &&
+            p['option-type'] === 'C' &&
+            p.quantity < 0 // short position
+          );
+          for (const sc of shortCalls) {
+            const underlying = sc['underlying-symbol'] || sc.symbol?.slice(0, 6).trim();
+            if (!underlying) continue;
+            const raw = sc as any;
+            const expDateStr = raw['expiration-date'] || raw.symbol?.slice(6, 12);
+            const expDate = expDateStr ? new Date(expDateStr) : null;
+            const daysToExpiry = expDate ? Math.max(0, Math.round((expDate.getTime() - today.getTime()) / 86400000)) : 0;
+            const strike = parseFloat(raw['strike-price'] || raw.symbol?.slice(13) || '0');
+            const key = `${underlying}-${account.accountNumber}`;
+            if (!openShortCallsMap.has(key)) openShortCallsMap.set(key, []);
+            openShortCallsMap.get(key)!.push({
+              strike,
+              expiration: expDateStr || '',
+              quantity: Math.abs(sc.quantity),
+              daysToExpiry,
+            });
+          }
+        } catch (e) {
+          console.warn(`[PositionAnalyzer] Could not fetch option positions for ${account.accountNumber}:`, e);
+        }
+      }
+
       // Build analyzed positions
       const analyzedPositions: AnalyzedPosition[] = [];
 
@@ -328,6 +360,8 @@ export const positionAnalyzerRouter = router({
           recommendation,
           recommendationReason: reason,
           ccIsItm: useItm,
+          openShortCalls: openShortCallsMap.get(`${pos.symbol}-${pos.accountNumber}`) || [],
+          availableContracts: Math.max(0, Math.floor(pos.quantity / 100) - (openShortCallsMap.get(`${pos.symbol}-${pos.accountNumber}`) || []).reduce((s, sc) => s + sc.quantity, 0)),
         });
       }
 
@@ -588,5 +622,103 @@ export const positionAnalyzerRouter = router({
           eq(liquidationFlags.accountNumber, input.accountNumber),
         )).limit(1);
       return { isFlagged: flags.length > 0, flaggedAt: flags[0]?.flaggedAt ?? null };
+    }),
+
+  /**
+   * Batch sell ITM covered calls for all flagged/LIQUIDATE positions at once
+   */
+  batchSellCCs: protectedProcedure
+    .input(z.object({
+      orders: z.array(z.object({
+        accountNumber: z.string(),
+        symbol: z.string(),
+        strike: z.number(),
+        expiration: z.string(),
+        quantity: z.number().int().positive(),
+        limitPrice: z.number().positive(),
+      })),
+      dryRun: z.boolean().default(true),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const { authenticateTastytrade } = await import('./tastytrade');
+
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tastytrade OAuth2 credentials not configured.' });
+      }
+
+      const results: Array<{
+        symbol: string; strike: number; expiration: string; quantity: number;
+        limitPrice: number; estimatedCredit: number; success: boolean;
+        orderId?: string; error?: string;
+      }> = [];
+
+      const api = input.dryRun ? null : await authenticateTastytrade(credentials, ctx.user.id);
+
+      for (const order of input.orders) {
+        try {
+          const expDate = new Date(order.expiration);
+          const expStr = expDate.toISOString().slice(2, 10).replace(/-/g, '');
+          const strikeStr = (order.strike * 1000).toFixed(0).padStart(8, '0');
+          const optionSymbol = `${order.symbol.padEnd(6)}${expStr}C${strikeStr}`;
+          const estimatedCredit = order.limitPrice * order.quantity * 100;
+
+          if (input.dryRun) {
+            results.push({ symbol: order.symbol, strike: order.strike, expiration: order.expiration,
+              quantity: order.quantity, limitPrice: order.limitPrice, estimatedCredit, success: true });
+          } else {
+            const result = await api!.submitOrder({
+              accountNumber: order.accountNumber,
+              timeInForce: 'Day',
+              orderType: 'Limit',
+              price: order.limitPrice.toFixed(2),
+              priceEffect: 'Credit',
+              legs: [{ instrumentType: 'Equity Option', symbol: optionSymbol,
+                quantity: order.quantity.toString(), action: 'Sell to Open' }],
+            });
+            results.push({ symbol: order.symbol, strike: order.strike, expiration: order.expiration,
+              quantity: order.quantity, limitPrice: order.limitPrice, estimatedCredit, success: true, orderId: result.id });
+          }
+        } catch (e: any) {
+          results.push({ symbol: order.symbol, strike: order.strike, expiration: order.expiration,
+            quantity: order.quantity, limitPrice: order.limitPrice, estimatedCredit: 0, success: false, error: e.message });
+        }
+      }
+
+      const totalCredit = results.filter(r => r.success).reduce((s, r) => s + r.estimatedCredit, 0);
+      return { dryRun: input.dryRun, results, totalCredit, successCount: results.filter(r => r.success).length };
+    }),
+
+  /**
+   * Get liquidity progress toward TSLA coverage target
+   */
+  getLiquidationProgress: protectedProcedure
+    .input(z.object({
+      targetAmount: z.number().default(100750),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) return { freedCapital: 0, targetAmount: input?.targetAmount ?? 100750, progressPct: 0, flaggedCount: 0 };
+      const { liquidationFlags } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const flags = await db.select().from(liquidationFlags).where(eq(liquidationFlags.userId, ctx.user.id));
+      let freedCapital = 0;
+      for (const f of flags) {
+        if (f.note) {
+          try {
+            const parsed = JSON.parse(f.note);
+            if (parsed.freed) freedCapital += parsed.freed;
+          } catch (_) {}
+        }
+      }
+      const target = input?.targetAmount ?? 100750;
+      return {
+        freedCapital,
+        targetAmount: target,
+        progressPct: target > 0 ? Math.min(100, (freedCapital / target) * 100) : 0,
+        flaggedCount: flags.length,
+      };
     }),
 });

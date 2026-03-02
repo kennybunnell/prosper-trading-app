@@ -41,10 +41,21 @@ import {
   Mail,
   ShieldAlert,
   ShieldOff,
+  Clock,
+  Layers,
+  Target,
 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 
 type Recommendation = 'KEEP' | 'HARVEST' | 'LIQUIDATE';
+
+interface OpenShortCall {
+  strike: number;
+  expiration: string;
+  quantity: number;
+  daysToExpiry: number;
+}
 
 interface AnalyzedPosition {
   symbol: string;
@@ -68,11 +79,18 @@ interface AnalyzedPosition {
   recommendation: Recommendation;
   recommendationReason: string;
   ccIsItm: boolean;
+  openShortCalls?: OpenShortCall[];
+  availableContracts?: number;
 }
 
 interface SellCCDialogState {
   open: boolean;
   position: AnalyzedPosition | null;
+  dryRun: boolean;
+}
+
+interface BatchSellDialogState {
+  open: boolean;
   dryRun: boolean;
 }
 
@@ -280,8 +298,11 @@ function PositionCard({
   isFlagging: boolean;
 }) {
   const cfg = REC_CONFIG[pos.recommendation];
-  const contracts = Math.floor(pos.quantity / 100);
-  const canSellCC = pos.recommendation !== 'KEEP' && pos.ccAtmStrike !== null && pos.ccAtmPremium !== null && contracts > 0;
+  const totalContracts = Math.floor(pos.quantity / 100);
+  const availableContracts = pos.availableContracts ?? totalContracts;
+  const lockedContracts = totalContracts - availableContracts;
+  const contracts = availableContracts;
+  const canSellCC = pos.recommendation !== 'KEEP' && pos.ccAtmStrike !== null && pos.ccAtmPremium !== null && availableContracts > 0;
 
   return (
     <div className={`rounded-lg border ${cfg.borderColor} ${cfg.bgColor} p-4 space-y-3`}>
@@ -377,6 +398,42 @@ function PositionCard({
         <span>{pos.recommendationReason}</span>
       </div>
 
+      {/* Open short calls panel */}
+      {pos.openShortCalls && pos.openShortCalls.length > 0 && (
+        <div className="rounded-md bg-black/30 border border-amber-800/30 p-2.5 space-y-1.5">
+          <div className="flex items-center gap-1.5 text-xs text-amber-400 font-medium">
+            <Layers className="h-3.5 w-3.5" />
+            <span>Open Short Calls ({pos.openShortCalls.length} position{pos.openShortCalls.length > 1 ? 's' : ''})</span>
+            {lockedContracts > 0 && (
+              <span className="ml-auto text-amber-300/70">{lockedContracts} contract{lockedContracts > 1 ? 's' : ''} locked</span>
+            )}
+          </div>
+          <div className="space-y-1">
+            {pos.openShortCalls.map((cc, idx) => (
+              <div key={idx} className="flex items-center justify-between text-xs">
+                <span className="text-white font-medium">${fmt(cc.strike)} Call</span>
+                <span className="text-muted-foreground">{cc.expiration}</span>
+                <span className="flex items-center gap-1 text-amber-300">
+                  <Clock className="h-3 w-3" />
+                  {cc.daysToExpiry}d to expiry
+                </span>
+                <span className="text-muted-foreground">{cc.quantity} contract{cc.quantity > 1 ? 's' : ''}</span>
+              </div>
+            ))}
+          </div>
+          {availableContracts > 0 && (
+            <div className="text-xs text-emerald-400/80">
+              {availableContracts} contract{availableContracts > 1 ? 's' : ''} available to sell
+            </div>
+          )}
+          {availableContracts === 0 && (
+            <div className="text-xs text-red-400/80">
+              All contracts covered — wait for existing CCs to expire before selling the exit CC
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Liquidate / Sell ITM CC — always visible for LIQUIDATE/HARVEST */}
       {pos.recommendation !== 'KEEP' && (
         <div className="space-y-2">
@@ -468,12 +525,154 @@ function PositionCard({
   );
 }
 
+// ─── Batch Sell Dialog ───────────────────────────────────────────────────────
+function BatchSellDialog({
+  state,
+  positions,
+  flaggedSet,
+  onClose,
+}: {
+  state: BatchSellDialogState;
+  positions: AnalyzedPosition[];
+  flaggedSet: Set<string>;
+  onClose: () => void;
+}) {
+  const [dryRun, setDryRun] = useState(true);
+  const [result, setResult] = useState<{ totalCredit: number; successCount: number; results: Array<{ symbol: string; estimatedCredit: number; success: boolean; error?: string }> } | null>(null);
+
+  const batchMutation = trpc.positionAnalyzer.batchSellCCs.useMutation({
+    onSuccess: (data) => {
+      setResult(data);
+      if (!dryRun) {
+        toast.success(`${data.successCount} orders submitted — total credit: $${fmt(data.totalCredit, 0)}`);
+      } else {
+        toast.info(`Dry run: ${data.successCount} orders previewed — estimated credit: $${fmt(data.totalCredit, 0)}`);
+      }
+    },
+    onError: (err) => toast.error(`Batch failed: ${err.message}`),
+  });
+
+  // Build eligible orders: flagged positions with CC data and available contracts
+  const eligiblePositions = positions.filter(p =>
+    p.recommendation !== 'KEEP' &&
+    p.ccAtmStrike !== null &&
+    p.ccAtmPremium !== null &&
+    p.ccExpiration !== null &&
+    (p.availableContracts ?? Math.floor(p.quantity / 100)) > 0
+  );
+
+  const totalEstimatedCredit = eligiblePositions.reduce((sum, p) => {
+    const contracts = p.availableContracts ?? Math.floor(p.quantity / 100);
+    return sum + (p.ccAtmPremium! * contracts * 100);
+  }, 0);
+
+  const handleSubmit = () => {
+    setResult(null);
+    batchMutation.mutate({
+      orders: eligiblePositions.map(p => ({
+        accountNumber: p.accountNumber,
+        symbol: p.symbol,
+        strike: p.ccAtmStrike!,
+        expiration: p.ccExpiration!,
+        quantity: p.availableContracts ?? Math.floor(p.quantity / 100),
+        limitPrice: p.ccAtmPremium!,
+      })),
+      dryRun,
+    });
+  };
+
+  return (
+    <Dialog open={state.open} onOpenChange={(open) => { if (!open) { onClose(); setResult(null); } }}>
+      <DialogContent className="max-w-lg bg-card border-border">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Layers className="h-5 w-5 text-emerald-400" />
+            Sell All Harvest CCs
+          </DialogTitle>
+          <DialogDescription>
+            Queue ITM covered call orders for all {eligiblePositions.length} LIQUIDATE/HARVEST positions with available contracts.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 max-h-64 overflow-y-auto">
+          {eligiblePositions.map((p, i) => {
+            const contracts = p.availableContracts ?? Math.floor(p.quantity / 100);
+            const credit = p.ccAtmPremium! * contracts * 100;
+            return (
+              <div key={i} className="flex items-center justify-between text-sm rounded-md bg-muted/10 border border-border px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-white">{p.symbol}</span>
+                  <span className="text-muted-foreground text-xs">{p.ccIsItm ? 'ITM' : 'ATM'} ${fmt(p.ccAtmStrike!)} · {p.ccExpiration}</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-emerald-400 font-semibold">${fmt(credit, 0)}</div>
+                  <div className="text-xs text-muted-foreground">{contracts} contract{contracts > 1 ? 's' : ''}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="rounded-lg bg-emerald-950/30 border border-emerald-800/30 p-3 flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Total Estimated Credit</span>
+          <span className="text-emerald-400 font-bold text-lg">${fmt(totalEstimatedCredit, 0)}</span>
+        </div>
+
+        <div className="flex items-center justify-between rounded-lg bg-muted/10 border border-border px-3 py-2">
+          <div>
+            <Label htmlFor="batch-dry-run" className="text-sm font-medium">Dry Run Mode</Label>
+            <p className="text-xs text-muted-foreground">Preview only — no real orders placed</p>
+          </div>
+          <Switch id="batch-dry-run" checked={dryRun} onCheckedChange={setDryRun} />
+        </div>
+
+        {!dryRun && (
+          <Alert className="border-amber-800/40 bg-amber-950/20">
+            <AlertTriangle className="h-4 w-4 text-amber-400" />
+            <AlertDescription className="text-amber-300 text-xs">
+              <strong>Live mode:</strong> This will submit {eligiblePositions.length} real Sell to Open orders on Tastytrade.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {result && (
+          <div className="rounded-lg bg-emerald-950/30 border border-emerald-800/30 p-3 text-xs text-emerald-300 space-y-1">
+            <div className="font-semibold">{dryRun ? 'Dry Run Preview' : 'Orders Submitted'}: {result.successCount}/{eligiblePositions.length} succeeded</div>
+            <div>Total credit: <span className="font-bold">${fmt(result.totalCredit, 0)}</span></div>
+            {result.results.filter(r => !r.success).map((r, i) => (
+              <div key={i} className="text-red-400">{r.symbol}: {r.error}</div>
+            ))}
+          </div>
+        )}
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => { onClose(); setResult(null); }}>Cancel</Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={batchMutation.isPending || eligiblePositions.length === 0}
+            className={dryRun ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}
+          >
+            {batchMutation.isPending ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Processing…</>
+            ) : dryRun ? (
+              `Preview ${eligiblePositions.length} Orders`
+            ) : (
+              `★ Submit ${eligiblePositions.length} Live Orders`
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 type FilterType = 'ALL' | Recommendation;
 
 // ─── Main Tab Component ───────────────────────────────────────────────────────
 export function PositionAnalyzerTab() {
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [sellDialog, setSellDialog] = useState<SellCCDialogState>({ open: false, position: null, dryRun: true });
+  const [batchDialog, setBatchDialog] = useState<BatchSellDialogState>({ open: false, dryRun: true });
   const [flaggingKey, setFlaggingKey] = useState<string | null>(null); // key = `${symbol}-${accountNumber}`
 
   // Liquidation flags
@@ -638,14 +837,44 @@ export function PositionAnalyzerTab() {
         </div>
       )}
 
-      {/* Liquidity context banner */}
+      {/* Liquidity progress bar toward TSLA coverage */}
       {summary && summary.estimatedLiquidationProceeds > 0 && (
-        <Alert className="border-blue-800/40 bg-blue-950/20">
-          <DollarSign className="h-4 w-4 text-blue-400" />
-          <AlertDescription className="text-blue-300 text-sm">
-            <strong>Liquidity opportunity:</strong> Liquidating the flagged positions could free up ~${(summary.estimatedLiquidationProceeds / 1000).toFixed(0)}k in capital — enough to cover additional TSLA shares or fund new iron condors and PMCC positions.
-          </AlertDescription>
-        </Alert>
+        <div className="rounded-lg border border-blue-800/40 bg-blue-950/20 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-blue-400" />
+              <span className="text-sm font-semibold text-blue-300">Liquidity Progress — TSLA Coverage Target</span>
+            </div>
+            <span className="text-xs text-muted-foreground">Goal: $100,750 (250 shares @ ~$403)</span>
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Available from flagged liquidations</span>
+              <span className="text-blue-300 font-semibold">~${(summary.estimatedLiquidationProceeds / 1000).toFixed(0)}k of $100.8k</span>
+            </div>
+            <Progress
+              value={Math.min(100, (summary.estimatedLiquidationProceeds / 100750) * 100)}
+              className="h-2 bg-blue-950/50"
+            />
+            <div className="text-xs text-muted-foreground">
+              {summary.estimatedLiquidationProceeds >= 100750
+                ? '✅ Sufficient liquidity to fully cover TSLA position'
+                : `$${((100750 - summary.estimatedLiquidationProceeds) / 1000).toFixed(0)}k more needed — liquidate additional positions or use premium income`
+              }
+            </div>
+          </div>
+          {/* Sell All button */}
+          {positions.filter(p => p.recommendation !== 'KEEP' && p.ccAtmStrike && p.ccAtmPremium && ((p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100)) > 0).length > 0 && (
+            <Button
+              size="sm"
+              onClick={() => setBatchDialog({ open: true, dryRun: true })}
+              className="bg-emerald-700 hover:bg-emerald-600 text-white border-0 text-xs h-8"
+            >
+              <Layers className="h-3.5 w-3.5 mr-1.5" />
+              Sell All Harvest CCs ({positions.filter(p => p.recommendation !== 'KEEP' && p.ccAtmStrike && p.ccAtmPremium && ((p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100)) > 0).length} positions)
+            </Button>
+          )}
+        </div>
       )}
 
       {/* Filter tabs */}
@@ -711,6 +940,14 @@ export function PositionAnalyzerTab() {
       <SellCCDialog
         state={sellDialog}
         onClose={() => setSellDialog({ open: false, position: null, dryRun: true })}
+      />
+
+      {/* Batch sell dialog */}
+      <BatchSellDialog
+        state={batchDialog}
+        positions={positions}
+        flaggedSet={flaggedSet}
+        onClose={() => setBatchDialog({ open: false, dryRun: true })}
       />
 
     </div>
