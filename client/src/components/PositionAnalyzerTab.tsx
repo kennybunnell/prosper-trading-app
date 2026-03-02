@@ -168,7 +168,8 @@ function SellCCDialog({
 
   const contracts = Math.floor(pos.quantity / 100);
   const estimatedCredit = pos.ccAtmPremium * contracts * 100;
-
+  // Round to nearest $0.05 (Tastytrade requirement for equity options)
+  const roundToNickel = (price: number) => Math.round(price * 20) / 20;
   const handleSubmit = () => {
     setLastResult(null);
     sellMutation.mutate({
@@ -177,14 +178,14 @@ function SellCCDialog({
       strike: pos.ccAtmStrike!,
       expiration: pos.ccExpiration!,
       quantity: contracts,
-      limitPrice: pos.ccAtmPremium!,
+      limitPrice: roundToNickel(pos.ccAtmPremium!),
       dryRun,
     });
   };
 
   return (
     <Dialog open={state.open} onOpenChange={(open) => { if (!open) { onClose(); setLastResult(null); } }}>
-      <DialogContent className="max-w-md bg-card border-border">
+      <DialogContent className="max-w-md bg-card" style={{ border: '2px solid #374151', boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 25px 50px rgba(0,0,0,0.8)' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-emerald-400" />
@@ -564,6 +565,9 @@ function BatchSellDialog({
     return sum + (p.ccAtmPremium! * contracts * 100);
   }, 0);
 
+  // Round a price to the nearest $0.05 increment (Tastytrade requirement)
+  const roundToNickel = (price: number) => Math.round(price * 20) / 20;
+
   const handleSubmit = () => {
     setResult(null);
     batchMutation.mutate({
@@ -573,7 +577,7 @@ function BatchSellDialog({
         strike: p.ccAtmStrike!,
         expiration: p.ccExpiration!,
         quantity: p.availableContracts ?? Math.floor(p.quantity / 100),
-        limitPrice: p.ccAtmPremium!,
+        limitPrice: roundToNickel(p.ccAtmPremium!),
       })),
       dryRun,
     });
@@ -581,7 +585,7 @@ function BatchSellDialog({
 
   return (
     <Dialog open={state.open} onOpenChange={(open) => { if (!open) { onClose(); setResult(null); } }}>
-      <DialogContent className="max-w-lg bg-card border-border">
+      <DialogContent className="max-w-lg bg-card" style={{ border: '2px solid #374151', boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 25px 50px rgba(0,0,0,0.8)' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="h-5 w-5 text-emerald-400" />
@@ -644,20 +648,25 @@ function BatchSellDialog({
         )}
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => { onClose(); setResult(null); }}>Cancel</Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={batchMutation.isPending || eligiblePositions.length === 0}
-            className={dryRun ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}
-          >
-            {batchMutation.isPending ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Processing…</>
-            ) : dryRun ? (
-              `Preview ${eligiblePositions.length} Orders`
-            ) : (
-              `★ Submit ${eligiblePositions.length} Live Orders`
-            )}
+          <Button variant="outline" onClick={() => { onClose(); setResult(null); }}>
+            {result && !dryRun ? 'Close' : 'Cancel'}
           </Button>
+          {/* Hide submit button once live orders have been submitted */}
+          {!(result && !dryRun) && (
+            <Button
+              onClick={handleSubmit}
+              disabled={batchMutation.isPending || eligiblePositions.length === 0}
+              className={dryRun ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}
+            >
+              {batchMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Processing…</>
+              ) : dryRun ? (
+                `Preview ${eligiblePositions.length} Orders`
+              ) : (
+                `★ Submit ${eligiblePositions.length} Live Orders`
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
