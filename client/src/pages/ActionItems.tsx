@@ -21,6 +21,7 @@ import AutomationDashboard from "./AutomationDashboard";
 
 // Import Portfolio Safety tab
 import { IraSafetyTab } from "@/components/IraSafetyTab";
+import { PositionAnalyzerTab } from "@/components/PositionAnalyzerTab";
 
 import { useToast } from "@/hooks/use-toast";
 import { useAccount } from "@/contexts/AccountContext";
@@ -224,9 +225,24 @@ export default function ActionItems() {
           <AutomationDashboard />
         </TabsContent>
 
-        {/* Portfolio Safety Tab */}
-        <TabsContent value="ira-safety" className="space-y-6">
-          <IraSafetyTab />
+        {/* Portfolio Safety Tab — with sub-tabs */}
+        <TabsContent value="ira-safety" className="space-y-0">
+          <Tabs defaultValue="safety-monitor" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-2 max-w-sm">
+              <TabsTrigger value="safety-monitor" className="text-xs">
+                Safety Monitor
+              </TabsTrigger>
+              <TabsTrigger value="position-analyzer" className="text-xs">
+                Position Analyzer
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="safety-monitor" className="space-y-6">
+              <IraSafetyTab />
+            </TabsContent>
+            <TabsContent value="position-analyzer" className="space-y-6">
+              <PositionAnalyzerTab />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         {/* Active Positions Tab */}

@@ -26,6 +26,7 @@ import { taxRouter } from './routers-tax';
 import { portfolioAdvisorRouter } from './routers-portfolio-advisor';
 import { automationRouter } from './routers-automation';
 import { iraSafetyRouter } from './routers-ira-safety';
+import { positionAnalyzerRouter } from './routers-position-analyzer';
 import { safeguardsRouter } from './routers-safeguards';
 
 // Helper function to parse OCC option symbols
@@ -319,6 +320,7 @@ export const appRouter = router({
   portfolioAdvisor: portfolioAdvisorRouter,
   automation: automationRouter,
   iraSafety: iraSafetyRouter,
+  positionAnalyzer: positionAnalyzerRouter,
   safeguards: safeguardsRouter,
   rolls: rollsRouter,
   rollRecommendations: rollRecommendationsRouter,

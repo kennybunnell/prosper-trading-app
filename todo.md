@@ -6879,3 +6879,10 @@
 - [x] Add stockPrice field to violation scanner backend (fetch from Tradier)
 - [x] Display current stock price vs strike in violation card metadata row
 - [x] Add contextual narrative line per violation using live numbers (price, strike, DTE, % distance)
+
+## Position Analyzer Tab (Mar 2, 2026)
+- [x] Add two-tab layout to Portfolio Safety page: "Safety Monitor" + "Position Analyzer"
+- [x] Backend: tRPC procedure to scan all held stock positions, compute CC premium yield, drawdown from 52-wk high, and generate KEEP/LIQUIDATE/HARVEST recommendation
+- [x] Frontend: Position Analyzer tab with sortable table, recommendation badges, covered call ladder per position, and estimated weekly premium yield
+- [x] Show "Redeploy Capital" suggestion when a position is flagged for liquidation (e.g., "Redeploy $X into TSLA iron condor")
+- [x] Integrate live stock price + option chain data from Tradier for each held position
