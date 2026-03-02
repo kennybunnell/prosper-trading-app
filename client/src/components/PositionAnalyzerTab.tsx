@@ -562,14 +562,16 @@ function BatchSellDialog({
     onError: (err) => toast.error(`Batch failed: ${err.message}`),
   });
 
-  // Build eligible orders: flagged positions with CC data and available contracts
-  const eligiblePositions = positions.filter(p =>
-    p.recommendation !== 'KEEP' &&
-    p.ccAtmStrike !== null &&
-    p.ccAtmPremium !== null &&
-    p.ccExpiration !== null &&
-    (p.availableContracts ?? Math.floor(p.quantity / 100)) > 0
-  );
+  // Build eligible orders: FLAGGED positions with CC data and available contracts
+  const eligiblePositions = positions.filter(p => {
+    const key = `${p.symbol}-${p.accountNumber}`;
+    return flaggedSet.has(key) &&
+      p.recommendation !== 'KEEP' &&
+      p.ccAtmStrike !== null &&
+      p.ccAtmPremium !== null &&
+      p.ccExpiration !== null &&
+      (p.availableContracts ?? Math.floor(p.quantity / 100)) > 0;
+  });
 
   const totalEstimatedCredit = eligiblePositions.reduce((sum, p) => {
     const contracts = p.availableContracts ?? Math.floor(p.quantity / 100);
@@ -600,10 +602,10 @@ function BatchSellDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="h-5 w-5 text-emerald-400" />
-            Sell All Harvest CCs
+            Sell All Flagged &amp; Eligible
           </DialogTitle>
           <DialogDescription>
-            Queue ITM covered call orders for all {eligiblePositions.length} LIQUIDATE/HARVEST positions with available contracts.
+            Queue ITM covered call orders for {eligiblePositions.length} flagged-for-exit position{eligiblePositions.length !== 1 ? 's' : ''} with available contracts. Only positions you’ve marked ⛔ Flagged for Exit are included.
           </DialogDescription>
         </DialogHeader>
 
@@ -875,7 +877,17 @@ export function PositionAnalyzerTab() {
           return available === 0;
         }).length;
         const pct = totalFlagged > 0 ? Math.round((clearedCount / totalFlagged) * 100) : 0;
-        const sellableCount = positions.filter(p => p.recommendation !== 'KEEP' && p.ccAtmStrike && p.ccAtmPremium && ((p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100)) > 0).length;
+        // Flagged + eligible = flagged AND has available contracts AND has CC data
+        const flaggedEligible = positions.filter(p => {
+          const key = `${p.symbol}-${p.accountNumber}`;
+          return flaggedSet.has(key)
+            && p.recommendation !== 'KEEP'
+            && p.ccAtmStrike !== null
+            && p.ccAtmPremium !== null
+            && p.ccExpiration !== null
+            && ((p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100)) > 0;
+        });
+        const sellableCount = flaggedEligible.length;
         return (
           <div className="rounded-lg border border-orange-800/40 bg-orange-950/20 p-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -901,7 +913,7 @@ export function PositionAnalyzerTab() {
                 </span>
               </div>
             </div>
-            {/* Sell All button */}
+            {/* Sell All button — only flagged + eligible positions */}
             {sellableCount > 0 && (
               <Button
                 size="sm"
@@ -909,7 +921,7 @@ export function PositionAnalyzerTab() {
                 className="bg-emerald-700 hover:bg-emerald-600 text-white border-0 text-xs h-8"
               >
                 <Layers className="h-3.5 w-3.5 mr-1.5" />
-                Sell All Harvest CCs ({sellableCount} eligible)
+                Sell All Flagged &amp; Eligible ({sellableCount})
               </Button>
             )}
           </div>

@@ -6942,3 +6942,4 @@
 - [x] Auto-unflag positions when they disappear from Tastytrade holdings during position analyzer refresh
 - [x] Add expiry countdown to CC Active badge (e.g., "CC Active — 8d left") on position cards
 - [x] Weekly Monday morning digest notification listing all flagged positions, expiring this week, and estimated proceeds
+- [x] Batch "Sell All" scoped to flagged + eligible positions only (excludes unflagged HARVEST positions)
