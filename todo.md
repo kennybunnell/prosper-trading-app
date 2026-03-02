@@ -6898,3 +6898,9 @@
 - [x] Exclude CORE/blue-chip stocks from LIQUIDATE recommendation (mark as KEEP regardless of drawdown/yield)
 - [x] Wire Redeploy button to open a confirmation dialog with dry-run toggle and actionable order submission
 - [x] Confirmation dialog shows: strategy, strikes, estimated credit, contracts, account, dry-run/live toggle
+
+## Harvest & Exit Rebuild (Mar 2, 2026)
+- [x] Backend: For LIQUIDATE/HARVEST positions, compute ITM CC strike (1-2 strikes below current price) on next Friday expiry to maximize premium and ensure assignment
+- [x] Frontend: Replace "Redeploy" suggestion row with "Harvest & Exit" covered call details row (strike, expiry, premium, effective exit price)
+- [x] Frontend: Replace Redeploy dialog with "Harvest & Exit" STO dialog — next Friday expiry, ITM strike, premium, contracts, dry-run toggle
+- [x] Remove all "Redeploy capital" language from Position Analyzer tab

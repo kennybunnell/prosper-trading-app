@@ -338,10 +338,14 @@ async function runWeeklyPositionDigest() {
         content += `Total market value: $${(summary.totalMarketValue / 1000).toFixed(0)}k | Unrealized P&L: ${summary.totalUnrealizedPnl >= 0 ? '+' : ''}$${(summary.totalUnrealizedPnl / 1000).toFixed(0)}k\n\n`;
 
         if (liquidate.length > 0) {
-          content += `🔴 **LIQUIDATE (${liquidate.length}) — ~$${(summary.estimatedLiquidationProceeds / 1000).toFixed(0)}k to redeploy:**\n`;
+          content += `🔴 **LIQUIDATE via ITM CC (${liquidate.length}) — ~$${(summary.estimatedLiquidationProceeds / 1000).toFixed(0)}k in shares to exit:**\n`;
           for (const p of liquidate) {
-            content += `• ${p.symbol} @ $${p.currentPrice.toFixed(2)} (${p.drawdownFromHigh.toFixed(0)}% from 52-wk high) — ${p.recommendationReason}\n`;
-            if (p.redeploymentSuggestion) content += `  → ${p.redeploymentSuggestion}\n`;
+            const contracts = Math.floor(p.quantity / 100);
+            const credit = p.ccAtmPremium && contracts > 0 ? p.ccAtmPremium * contracts * 100 : 0;
+            content += `• ${p.symbol} @ $${p.currentPrice.toFixed(2)} (${p.drawdownFromHigh.toFixed(0)}% from high) — ${p.recommendationReason}\n`;
+            if (p.ccAtmStrike && p.ccAtmPremium) {
+              content += `  → Sell ${contracts}x $${p.ccAtmStrike.toFixed(0)} ITM call (${p.ccExpiration}) for ~$${credit.toFixed(0)} credit — effective exit $${p.ccEffectiveExit?.toFixed(2)}\n`;
+            }
           }
           content += '\n';
         }

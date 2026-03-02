@@ -50,7 +50,7 @@ export interface AnalyzedPosition {
   recommendation: PositionRecommendation;
   recommendationReason: string;
   // Redeployment suggestion
-  redeploymentSuggestion: string | null;
+  ccIsItm: boolean;  // true = ITM strike chosen for harvest/exit, false = ATM for keep
 }
 
 export interface PositionAnalyzerResult {
@@ -238,7 +238,7 @@ export const positionAnalyzerRouter = router({
       const fridayStr = nearestFriday.toISOString().split('T')[0];
 
       // Fetch ATM call option for each unique symbol (nearest Friday)
-      const ccPremiumMap = new Map<string, { strike: number; premium: number; expiration: string }>();
+      const ccPremiumMap = new Map<string, { atmStrike: number; atmPremium: number; itmStrike: number; itmPremium: number; expiration: string }>();
       for (const sym of uniqueSymbols) {
         const quote = quoteMap.get(sym);
         if (!quote) continue;
@@ -253,13 +253,27 @@ export const positionAnalyzerRouter = router({
           const chain = await tradierApi.getOptionChain(sym, targetExp, false);
           const calls = chain.filter(o => o.type === 'call');
           if (calls.length === 0) continue;
-          // Find ATM call (closest strike to current price)
-          const atm = calls.reduce((best, c) =>
+          // Sort calls by strike ascending
+          const sortedCalls = calls.slice().sort((a, b) => a.strike - b.strike);
+          // For LIQUIDATE/HARVEST: pick ITM strike 1-2 strikes below current price to maximize premium & ensure assignment
+          // For KEEP: pick ATM (closest to price)
+          // We store both options; the frontend/recommendation logic picks which to show
+          const atmCall = sortedCalls.reduce((best, c) =>
             Math.abs(c.strike - price) < Math.abs(best.strike - price) ? c : best
           );
-          const mid = (atm.bid + atm.ask) / 2;
-          if (mid > 0) {
-            ccPremiumMap.set(sym, { strike: atm.strike, premium: mid, expiration: targetExp });
+          // ITM: find the strike 1-2 steps below ATM (highest strike still below current price)
+          const itmCandidates = sortedCalls.filter(c => c.strike < price);
+          const itmCall = itmCandidates.length > 0
+            ? itmCandidates[itmCandidates.length - 1]  // highest strike below price
+            : atmCall;
+          const atmMid = (atmCall.bid + atmCall.ask) / 2;
+          const itmMid = (itmCall.bid + itmCall.ask) / 2;
+          if (atmMid > 0 || itmMid > 0) {
+            ccPremiumMap.set(sym, {
+              atmStrike: atmCall.strike, atmPremium: atmMid,
+              itmStrike: itmCall.strike, itmPremium: itmMid > 0 ? itmMid : atmMid,
+              expiration: targetExp,
+            });
           }
         } catch (e) {
           // Skip if option chain unavailable (e.g., no options on this name)
@@ -279,14 +293,18 @@ export const positionAnalyzerRouter = router({
         const unrealizedPnlPct = pos.avgOpenPrice > 0 ? ((currentPrice - pos.avgOpenPrice) / pos.avgOpenPrice) * 100 : 0;
         const drawdownFromHigh = week52High > 0 ? ((currentPrice - week52High) / week52High) * 100 : 0;
 
-        const ccData = ccPremiumMap.get(pos.symbol);
-        const ccWeeklyYield = ccData && currentPrice > 0 ? (ccData.premium / currentPrice) * 100 : null;
-        const ccEffectiveExit = ccData ? ccData.strike + ccData.premium : null;
-
+          const ccData = ccPremiumMap.get(pos.symbol);
         const isCore = CORE_NAMES.has(pos.symbol);
+        // Use ATM yield for recommendation scoring
+        const ccWeeklyYield = ccData && currentPrice > 0 ? (ccData.atmPremium / currentPrice) * 100 : null;
         const { recommendation, reason } = getRecommendation(drawdownFromHigh, ccWeeklyYield, isCore, marketValue);
-        const redeploymentSuggestion = getRedeploymentSuggestion(pos.symbol, marketValue, recommendation);
-
+        // For LIQUIDATE/HARVEST: use ITM strike to maximize premium and ensure assignment
+        // For KEEP: use ATM strike to continue wheeling without forcing assignment
+        const useItm = recommendation !== 'KEEP';
+        const chosenStrike = ccData ? (useItm ? ccData.itmStrike : ccData.atmStrike) : null;
+        const chosenPremium = ccData ? (useItm ? ccData.itmPremium : ccData.atmPremium) : null;
+        const ccEffectiveExit = (chosenStrike && chosenPremium) ? chosenStrike + chosenPremium : null;
+        const ccEffectiveYield = chosenPremium && currentPrice > 0 ? (chosenPremium / currentPrice) * 100 : null;
         analyzedPositions.push({
           symbol: pos.symbol,
           accountNumber: pos.accountNumber,
@@ -302,13 +320,13 @@ export const positionAnalyzerRouter = router({
           drawdownFromHigh,
           isCore,
           ccExpiration: ccData?.expiration || null,
-          ccAtmStrike: ccData?.strike || null,
-          ccAtmPremium: ccData?.premium || null,
-          ccWeeklyYield,
+          ccAtmStrike: chosenStrike || null,
+          ccAtmPremium: chosenPremium || null,
+          ccWeeklyYield: ccEffectiveYield,
           ccEffectiveExit,
           recommendation,
           recommendationReason: reason,
-          redeploymentSuggestion,
+          ccIsItm: useItm,
         });
       }
 
@@ -328,6 +346,7 @@ export const positionAnalyzerRouter = router({
       const estimatedWeeklyPremium = analyzedPositions
         .filter(p => p.recommendation !== 'KEEP' && p.ccAtmPremium)
         .reduce((s, p) => s + (p.ccAtmPremium! * Math.floor(p.quantity / 100) * 100), 0);
+      // Also remove the old getRedeploymentSuggestion reference if any
       const estimatedLiquidationProceeds = analyzedPositions
         .filter(p => p.recommendation === 'LIQUIDATE')
         .reduce((s, p) => s + p.marketValue, 0);
