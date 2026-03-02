@@ -6,20 +6,28 @@
  *   HARVEST    — sell ITM/ATM covered call to collect premium on the way out
  *   KEEP       — core holding with strong CC yield, continue wheeling
  *
- * Shows live stock price, 52-wk drawdown, ATM CC premium, and a redeployment suggestion.
+ * Each HARVEST/LIQUIDATE card has a one-click "★ Sell ATM CC" button that opens
+ * a confirmation dialog (dry-run preview) before submitting the order.
  */
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   RefreshCw,
   TrendingDown,
-  TrendingUp,
-  Minus,
-  AlertTriangle,
   CheckCircle2,
   Loader2,
   ArrowRight,
@@ -27,6 +35,9 @@ import {
   BarChart3,
   Zap,
   Info,
+  TrendingUp,
+  AlertTriangle,
+  Mail,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -54,6 +65,12 @@ interface AnalyzedPosition {
   recommendation: Recommendation;
   recommendationReason: string;
   redeploymentSuggestion: string | null;
+}
+
+interface SellCCDialogState {
+  open: boolean;
+  position: AnalyzedPosition | null;
+  dryRun: boolean;
 }
 
 const REC_CONFIG: Record<Recommendation, {
@@ -100,16 +117,168 @@ function fmtDollar(n: number): string {
   return `${sign}$${abs.toFixed(0)}`;
 }
 
-function PositionCard({ pos }: { pos: AnalyzedPosition }) {
-  const [expanded, setExpanded] = useState(false);
+// ─── Sell CC Confirmation Dialog ─────────────────────────────────────────────
+function SellCCDialog({
+  state,
+  onClose,
+}: {
+  state: SellCCDialogState;
+  onClose: () => void;
+}) {
+  const [dryRun, setDryRun] = useState(true);
+  const [lastResult, setLastResult] = useState<string | null>(null);
+
+  const sellMutation = trpc.positionAnalyzer.sellCoveredCall.useMutation({
+    onSuccess: (data) => {
+      setLastResult(data.message);
+      if (!dryRun) {
+        toast.success(`Order submitted: ${data.symbol} ${data.strike}C — ${data.quantity} contract(s)`);
+      } else {
+        toast.info('Dry run complete — no real order placed');
+      }
+    },
+    onError: (err) => {
+      toast.error(`Order failed: ${err.message}`);
+    },
+  });
+
+  const pos = state.position;
+  if (!pos || !pos.ccAtmStrike || !pos.ccAtmPremium || !pos.ccExpiration) return null;
+
+  const contracts = Math.floor(pos.quantity / 100);
+  const estimatedCredit = pos.ccAtmPremium * contracts * 100;
+
+  const handleSubmit = () => {
+    setLastResult(null);
+    sellMutation.mutate({
+      accountNumber: pos.accountNumber,
+      symbol: pos.symbol,
+      strike: pos.ccAtmStrike!,
+      expiration: pos.ccExpiration!,
+      quantity: contracts,
+      limitPrice: pos.ccAtmPremium!,
+      dryRun,
+    });
+  };
+
+  return (
+    <Dialog open={state.open} onOpenChange={(open) => { if (!open) { onClose(); setLastResult(null); } }}>
+      <DialogContent className="max-w-md bg-card border-border">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-emerald-400" />
+            Sell ATM Covered Call — {pos.symbol}
+          </DialogTitle>
+          <DialogDescription>
+            Review the order details below before submitting.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Order details */}
+        <div className="space-y-3">
+          <div className="rounded-lg bg-muted/20 border border-border p-3 space-y-2 text-sm">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="text-muted-foreground text-xs">Symbol</div>
+                <div className="font-semibold text-white">{pos.symbol}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs">Action</div>
+                <div className="font-semibold text-emerald-400">Sell to Open (STO)</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs">Strike</div>
+                <div className="font-semibold text-white">${fmt(pos.ccAtmStrike)}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs">Expiration</div>
+                <div className="font-semibold text-white">{pos.ccExpiration}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs">Contracts</div>
+                <div className="font-semibold text-white">{contracts}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground text-xs">Limit Price (mid)</div>
+                <div className="font-semibold text-white">${fmt(pos.ccAtmPremium)}/share</div>
+              </div>
+            </div>
+            <div className="border-t border-border pt-2 flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Estimated Credit</span>
+              <span className="text-emerald-400 font-bold text-base">${fmt(estimatedCredit, 0)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Effective Exit Price</span>
+              <span className="text-blue-400 font-semibold">${fmt(pos.ccEffectiveExit ?? 0)} vs. ${fmt(pos.currentPrice)} today</span>
+            </div>
+          </div>
+
+          {/* Dry run toggle */}
+          <div className="flex items-center justify-between rounded-lg bg-muted/10 border border-border px-3 py-2">
+            <div>
+              <Label htmlFor="sell-dry-run" className="text-sm font-medium">Dry Run Mode</Label>
+              <p className="text-xs text-muted-foreground">Preview only — no real order placed</p>
+            </div>
+            <Switch id="sell-dry-run" checked={dryRun} onCheckedChange={setDryRun} />
+          </div>
+
+          {!dryRun && (
+            <Alert className="border-amber-800/40 bg-amber-950/20">
+              <AlertTriangle className="h-4 w-4 text-amber-400" />
+              <AlertDescription className="text-amber-300 text-xs">
+                <strong>Live mode:</strong> This will submit a real Sell to Open order on Tastytrade. Make sure you have {pos.quantity} shares of {pos.symbol} in account ...{pos.accountNumber.slice(-4)}.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Result */}
+          {lastResult && (
+            <div className="rounded-lg bg-emerald-950/30 border border-emerald-800/30 p-3 text-xs text-emerald-300">
+              {lastResult}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => { onClose(); setLastResult(null); }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={sellMutation.isPending}
+            className={dryRun ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}
+          >
+            {sellMutation.isPending ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Submitting…</>
+            ) : dryRun ? (
+              'Preview Order'
+            ) : (
+              '★ Submit Live Order'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Position Card ────────────────────────────────────────────────────────────
+function PositionCard({
+  pos,
+  onSellCC,
+}: {
+  pos: AnalyzedPosition;
+  onSellCC: (pos: AnalyzedPosition) => void;
+}) {
   const cfg = REC_CONFIG[pos.recommendation];
   const contracts = Math.floor(pos.quantity / 100);
+  const canSellCC = pos.recommendation !== 'KEEP' && pos.ccAtmStrike !== null && pos.ccAtmPremium !== null && contracts > 0;
 
   return (
     <div className={`rounded-lg border ${cfg.borderColor} ${cfg.bgColor} p-4 space-y-3`}>
       {/* Header row */}
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
           {cfg.icon}
           <span className="font-bold text-base text-white">{pos.symbol}</span>
           {pos.isCore && (
@@ -119,10 +288,23 @@ function PositionCard({ pos }: { pos: AnalyzedPosition }) {
             {cfg.label}
           </Badge>
         </div>
-        <div className="text-right shrink-0">
-          <div className="text-sm font-semibold text-white">${fmt(pos.currentPrice)}</div>
-          <div className={`text-xs ${pos.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {fmtDollar(pos.unrealizedPnl)} ({pos.unrealizedPnlPct >= 0 ? '+' : ''}{fmt(pos.unrealizedPnlPct, 1)}%)
+        <div className="flex items-center gap-2 shrink-0">
+          {/* One-click Sell ATM CC button */}
+          {canSellCC && (
+            <Button
+              size="sm"
+              onClick={() => onSellCC(pos)}
+              className="h-7 px-2.5 text-xs bg-emerald-700 hover:bg-emerald-600 text-white border-0"
+            >
+              <TrendingUp className="h-3 w-3 mr-1" />
+              ★ Sell ATM CC
+            </Button>
+          )}
+          <div className="text-right">
+            <div className="text-sm font-semibold text-white">${fmt(pos.currentPrice)}</div>
+            <div className={`text-xs ${pos.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {fmtDollar(pos.unrealizedPnl)} ({pos.unrealizedPnlPct >= 0 ? '+' : ''}{fmt(pos.unrealizedPnlPct, 1)}%)
+            </div>
           </div>
         </div>
       </div>
@@ -205,8 +387,10 @@ function PositionCard({ pos }: { pos: AnalyzedPosition }) {
 
 type FilterType = 'ALL' | Recommendation;
 
+// ─── Main Tab Component ───────────────────────────────────────────────────────
 export function PositionAnalyzerTab() {
   const [filter, setFilter] = useState<FilterType>('ALL');
+  const [sellDialog, setSellDialog] = useState<SellCCDialogState>({ open: false, position: null, dryRun: true });
 
   const { data, isLoading, error, refetch, isFetching } = trpc.positionAnalyzer.analyzePositions.useQuery(
     undefined,
@@ -216,9 +400,17 @@ export function PositionAnalyzerTab() {
     }
   );
 
+  const { data: digestSettings } = trpc.positionAnalyzer.getDigestSettings.useQuery();
+  const updateDigest = trpc.positionAnalyzer.updateDigestSettings.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.weeklyPositionDigestEnabled
+        ? 'Weekly digest enabled — you\'ll receive a Monday morning summary'
+        : 'Weekly digest disabled');
+    },
+  });
+
   const positions = data?.positions ?? [];
   const summary = data?.summary;
-
   const filtered = filter === 'ALL' ? positions : positions.filter(p => p.recommendation === filter);
 
   const handleRefresh = () => {
@@ -254,19 +446,26 @@ export function PositionAnalyzerTab() {
         <div>
           <h2 className="text-xl font-bold text-white">Position Analyzer</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Evaluates every stock position as a premium harvesting machine. Identifies dogs to exit and suggests covered call strategies to maximize exit value.
+            Evaluates every stock position as a premium harvesting machine. Identifies dogs to exit and provides one-click covered call orders to maximize exit value.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isFetching}
-          className="shrink-0"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isFetching ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Weekly digest toggle */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/10">
+            <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+            <Label htmlFor="weekly-digest" className="text-xs text-muted-foreground cursor-pointer">Weekly Digest</Label>
+            <Switch
+              id="weekly-digest"
+              checked={digestSettings?.weeklyPositionDigestEnabled ?? false}
+              onCheckedChange={(val) => updateDigest.mutate({ weeklyPositionDigestEnabled: val })}
+              disabled={updateDigest.isPending}
+            />
+          </div>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isFetching}>
+            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isFetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -311,7 +510,7 @@ export function PositionAnalyzerTab() {
         </div>
       )}
 
-      {/* TSLA liquidity context banner */}
+      {/* Liquidity context banner */}
       {summary && summary.estimatedLiquidationProceeds > 0 && (
         <Alert className="border-blue-800/40 bg-blue-950/20">
           <DollarSign className="h-4 w-4 text-blue-400" />
@@ -359,7 +558,11 @@ export function PositionAnalyzerTab() {
       ) : (
         <div className="space-y-3">
           {filtered.map((pos, i) => (
-            <PositionCard key={`${pos.symbol}-${pos.accountNumber}-${i}`} pos={pos} />
+            <PositionCard
+              key={`${pos.symbol}-${pos.accountNumber}-${i}`}
+              pos={pos}
+              onSellCC={(p) => setSellDialog({ open: true, position: p, dryRun: true })}
+            />
           ))}
         </div>
       )}
@@ -369,6 +572,12 @@ export function PositionAnalyzerTab() {
           Last scanned: {new Date(data.scannedAt).toLocaleString()}
         </p>
       )}
+
+      {/* Sell CC confirmation dialog */}
+      <SellCCDialog
+        state={sellDialog}
+        onClose={() => setSellDialog({ open: false, position: null, dryRun: true })}
+      />
     </div>
   );
 }

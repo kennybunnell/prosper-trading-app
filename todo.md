@@ -6886,3 +6886,10 @@
 - [x] Frontend: Position Analyzer tab with sortable table, recommendation badges, covered call ladder per position, and estimated weekly premium yield
 - [x] Show "Redeploy Capital" suggestion when a position is flagged for liquidation (e.g., "Redeploy $X into TSLA iron condor")
 - [x] Integrate live stock price + option chain data from Tradier for each held position
+
+## One-Click ATM CC + Weekly Digest Email (Mar 2, 2026)
+- [x] Backend: Add sellCoveredCall mutation to positionAnalyzerRouter (STO limit order at mid price, dry-run support)
+- [x] Frontend: Add "★ Sell ATM CC" button to each HARVEST/LIQUIDATE card in PositionAnalyzerTab
+- [x] Frontend: Confirmation dialog showing strike, expiry, premium, contracts, estimated proceeds before submitting
+- [x] Backend: Weekly Monday digest email using notifyOwner — runs via scheduled cron, includes LIQUIDATE/HARVEST positions, estimated weekly premium, and redeployment suggestions
+- [x] Frontend: Settings toggle to enable/disable weekly digest email

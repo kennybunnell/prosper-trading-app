@@ -14,6 +14,7 @@ import { notifyOwner } from './_core/notification';
 let scheduledTask: cron.ScheduledTask | null = null;
 let fridaySweepTask: cron.ScheduledTask | null = null;
 let dailyITMScanTask: cron.ScheduledTask | null = null;
+let weeklyPositionDigestTask: cron.ScheduledTask | null = null;
 
 /**
  * Initialize the automation scheduler
@@ -60,6 +61,19 @@ export function initializeAutomationScheduler() {
     }
   );
   console.log('[Automation Scheduler] Daily ITM scan initialized. Will run at 9:00 AM ET every weekday.');
+
+  // Weekly position digest every Monday at 8:00 AM ET
+  weeklyPositionDigestTask = cron.schedule(
+    '0 8 * * 1', // 8:00 AM every Monday
+    async () => {
+      console.log('[Weekly Digest] Running weekly position digest...');
+      await runWeeklyPositionDigest();
+    },
+    {
+      timezone: 'America/New_York',
+    }
+  );
+  console.log('[Automation Scheduler] Weekly position digest initialized. Will run at 8:00 AM ET every Monday.');
 }
 
 /**
@@ -80,6 +94,11 @@ export function stopAutomationScheduler() {
     dailyITMScanTask.stop();
     dailyITMScanTask = null;
     console.log('[Daily ITM Scan] Stopped');
+  }
+  if (weeklyPositionDigestTask) {
+    weeklyPositionDigestTask.stop();
+    weeklyPositionDigestTask = null;
+    console.log('[Weekly Digest] Stopped');
   }
 }
 
@@ -278,6 +297,83 @@ async function runDailyITMScan() {
     }
   } catch (error) {
     console.error('[Daily ITM Scan] Error in daily ITM scan run:', error);
+  }
+}
+
+/**
+ * Weekly Monday morning position digest.
+ * Scans all stock positions for users with weeklyPositionDigestEnabled=true
+ * and sends a summary notification with LIQUIDATE/HARVEST/KEEP breakdown.
+ */
+async function runWeeklyPositionDigest() {
+  try {
+    const db = await getDb();
+    if (!db) {
+      console.error('[Weekly Digest] Database not available');
+      return;
+    }
+
+    const users = await db
+      .select({ userId: automationSettings.userId })
+      .from(automationSettings)
+      .where(eq(automationSettings.weeklyPositionDigestEnabled, true));
+
+    console.log(`[Weekly Digest] Sending digest to ${users.length} users...`);
+
+    for (const user of users) {
+      try {
+        const { positionAnalyzerRouter } = await import('./routers-position-analyzer');
+        const mockCtx = { user: { id: user.userId }, req: {} as any, res: {} as any };
+        const result = await positionAnalyzerRouter.createCaller(mockCtx as any).analyzePositions();
+
+        const { positions, summary } = result;
+        const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+        const liquidate = positions.filter(p => p.recommendation === 'LIQUIDATE');
+        const harvest = positions.filter(p => p.recommendation === 'HARVEST');
+        const keep = positions.filter(p => p.recommendation === 'KEEP');
+
+        let content = `**Weekly Position Digest — ${dateStr}**\n\n`;
+        content += `Scanned ${summary.totalPositions} stock position(s) across all accounts.\n`;
+        content += `Total market value: $${(summary.totalMarketValue / 1000).toFixed(0)}k | Unrealized P&L: ${summary.totalUnrealizedPnl >= 0 ? '+' : ''}$${(summary.totalUnrealizedPnl / 1000).toFixed(0)}k\n\n`;
+
+        if (liquidate.length > 0) {
+          content += `🔴 **LIQUIDATE (${liquidate.length}) — ~$${(summary.estimatedLiquidationProceeds / 1000).toFixed(0)}k to redeploy:**\n`;
+          for (const p of liquidate) {
+            content += `• ${p.symbol} @ $${p.currentPrice.toFixed(2)} (${p.drawdownFromHigh.toFixed(0)}% from 52-wk high) — ${p.recommendationReason}\n`;
+            if (p.redeploymentSuggestion) content += `  → ${p.redeploymentSuggestion}\n`;
+          }
+          content += '\n';
+        }
+
+        if (harvest.length > 0) {
+          content += `🟡 **HARVEST & EXIT (${harvest.length}) — ~$${summary.estimatedWeeklyPremium.toFixed(0)} premium/wk:**\n`;
+          for (const p of harvest) {
+            const contracts = Math.floor(p.quantity / 100);
+            const weeklyCredit = p.ccAtmPremium && contracts > 0 ? p.ccAtmPremium * contracts * 100 : 0;
+            content += `• ${p.symbol} @ $${p.currentPrice.toFixed(2)} — Sell ${contracts} x $${p.ccAtmStrike?.toFixed(0)} call (${p.ccExpiration}) for ~$${weeklyCredit.toFixed(0)} credit\n`;
+          }
+          content += '\n';
+        }
+
+        if (keep.length > 0) {
+          content += `🟢 **KEEP & WHEEL (${keep.length}):** ${keep.map(p => p.symbol).join(', ')}\n\n`;
+        }
+
+        content += `Log in to Prosper Trading → Action Items → Portfolio Safety → Position Analyzer to act on these recommendations.`;
+
+        await notifyOwner({
+          title: `📊 Weekly Digest: ${liquidate.length} Liquidate, ${harvest.length} Harvest, ${keep.length} Keep — ${dateStr}`,
+          content,
+        });
+
+        console.log(`[Weekly Digest] Sent digest for user ${user.userId}: ${liquidate.length} liquidate, ${harvest.length} harvest, ${keep.length} keep`);
+      } catch (userError) {
+        console.error(`[Weekly Digest] Error for user ${user.userId}:`, userError);
+      }
+    }
+  } catch (error) {
+    console.error('[Weekly Digest] Error in weekly digest run:', error);
   }
 }
 

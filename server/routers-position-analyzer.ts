@@ -342,4 +342,125 @@ export const positionAnalyzerRouter = router({
         scannedAt: new Date().toISOString(),
       } as PositionAnalyzerResult;
     }),
+
+  /**
+   * Sell ATM covered call for a specific position (one-click from Position Analyzer)
+   */
+  sellCoveredCall: protectedProcedure
+    .input(z.object({
+      accountNumber: z.string(),
+      symbol: z.string(),
+      strike: z.number(),
+      expiration: z.string(), // YYYY-MM-DD
+      quantity: z.number().int().positive(),
+      limitPrice: z.number().positive(), // per-share mid price
+      dryRun: z.boolean().default(true),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const { authenticateTastytrade } = await import('./tastytrade');
+
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Tastytrade OAuth2 credentials not configured.',
+        });
+      }
+
+      // Format OCC option symbol: SYMBOL  YYMMDDCSTRIKE (padded)
+      const expDate = new Date(input.expiration);
+      const expStr = expDate.toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
+      const strikeStr = (input.strike * 1000).toFixed(0).padStart(8, '0');
+      const optionSymbol = `${input.symbol.padEnd(6)}${expStr}C${strikeStr}`;
+
+      if (input.dryRun) {
+        return {
+          success: true,
+          dryRun: true,
+          optionSymbol,
+          symbol: input.symbol,
+          strike: input.strike,
+          expiration: input.expiration,
+          quantity: input.quantity,
+          limitPrice: input.limitPrice,
+          estimatedCredit: input.limitPrice * input.quantity * 100,
+          message: `[Dry Run] Would sell ${input.quantity} contract(s) of ${optionSymbol} at $${input.limitPrice.toFixed(2)} limit — estimated credit: $${(input.limitPrice * input.quantity * 100).toFixed(2)}`,
+        };
+      }
+
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+      const result = await api.submitOrder({
+        accountNumber: input.accountNumber,
+        timeInForce: 'Day',
+        orderType: 'Limit',
+        price: input.limitPrice.toFixed(2),
+        priceEffect: 'Credit',
+        legs: [
+          {
+            instrumentType: 'Equity Option',
+            symbol: optionSymbol,
+            quantity: input.quantity.toString(),
+            action: 'Sell to Open',
+          },
+        ],
+      });
+
+      return {
+        success: true,
+        dryRun: false,
+        optionSymbol,
+        symbol: input.symbol,
+        strike: input.strike,
+        expiration: input.expiration,
+        quantity: input.quantity,
+        limitPrice: input.limitPrice,
+        estimatedCredit: input.limitPrice * input.quantity * 100,
+        orderId: result.id,
+        orderStatus: result.status,
+        message: `Sell to Open order submitted: ${input.quantity} contract(s) of ${optionSymbol} at $${input.limitPrice.toFixed(2)}`,
+      };
+    }),
+
+  /**
+   * Update weekly position digest settings
+   */
+  updateDigestSettings: protectedProcedure
+    .input(z.object({
+      weeklyPositionDigestEnabled: z.boolean(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      const { automationSettings } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      // Upsert automation settings
+      const existing = await db.select().from(automationSettings).where(eq(automationSettings.userId, ctx.user.id)).limit(1);
+      if (existing.length === 0) {
+        await db.insert(automationSettings).values({
+          userId: ctx.user.id,
+          weeklyPositionDigestEnabled: input.weeklyPositionDigestEnabled,
+        });
+      } else {
+        await db.update(automationSettings)
+          .set({ weeklyPositionDigestEnabled: input.weeklyPositionDigestEnabled })
+          .where(eq(automationSettings.userId, ctx.user.id));
+      }
+      return { success: true, weeklyPositionDigestEnabled: input.weeklyPositionDigestEnabled };
+    }),
+
+  /**
+   * Get current digest settings
+   */
+  getDigestSettings: protectedProcedure
+    .query(async ({ ctx }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) return { weeklyPositionDigestEnabled: false };
+      const { automationSettings } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const [settings] = await db.select().from(automationSettings).where(eq(automationSettings.userId, ctx.user.id)).limit(1);
+      return { weeklyPositionDigestEnabled: settings?.weeklyPositionDigestEnabled ?? false };
+    }),
 });

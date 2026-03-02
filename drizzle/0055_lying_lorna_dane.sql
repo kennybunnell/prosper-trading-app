@@ -1,0 +1,1 @@
+ALTER TABLE `automationSettings` ADD `weeklyPositionDigestEnabled` boolean DEFAULT false NOT NULL;

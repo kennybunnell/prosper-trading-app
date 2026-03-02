@@ -691,6 +691,8 @@ export const automationSettings = mysqlTable("automationSettings", {
   // Email notifications
   emailNotificationsEnabled: boolean("emailNotificationsEnabled").default(true).notNull(),
   notificationEmail: varchar("notificationEmail", { length: 320 }),
+  // Weekly Monday morning position digest
+  weeklyPositionDigestEnabled: boolean("weeklyPositionDigestEnabled").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
