@@ -6910,3 +6910,15 @@
 - [x] Add prominent "Liquidate / Sell ITM CC" button to every LIQUIDATE/HARVEST card (always visible, not conditional on CC data)
 - [x] Button opens confirmation dialog showing: strike, expiry, per-share premium, total credit (premium × contracts × 100), contracts, account
 - [x] If no option chain data: show loading/retry message instead of broken button
+
+## Liquidation Eligibility & Automation Block (Mar 2, 2026)
+- [x] DB: Add liquidation_flags table (symbol, accountNumber, flaggedAt, flaggedBy) to track symbols marked for liquidation
+- [ ] Backend: In analyzePositions, fetch all open short call positions from Tastytrade for each stock position to detect existing CCs
+- [ ] Backend: Compute coveredContracts (existing short calls), availableContracts (total - covered), and eligibleToSellCC boolean
+- [x] Backend: Add flagForLiquidation and unflagForLiquidation mutations to positionAnalyzerRouter
+- [x] Backend: In automation router (close-for-profit, sell-calls), check liquidation_flags table and skip any flagged symbols
+- [ ] Frontend: Show existing CCs panel on LIQUIDATE cards (strike, expiry, contracts locked)
+- [ ] Frontend: Show "X of Y contracts available" — only allow selling CCs on available contracts
+- [ ] Frontend: Disable Liquidate button with tooltip when all contracts are already covered
+- [ ] Frontend: Show automation block badge on flagged positions ("🚫 Automation Blocked")
+- [x] Frontend: Manual checkbox on LIQUIDATE/HARVEST cards to set flag; persists across sessions

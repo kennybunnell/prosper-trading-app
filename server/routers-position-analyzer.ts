@@ -488,4 +488,105 @@ export const positionAnalyzerRouter = router({
       const [settings] = await db.select().from(automationSettings).where(eq(automationSettings.userId, ctx.user.id)).limit(1);
       return { weeklyPositionDigestEnabled: settings?.weeklyPositionDigestEnabled ?? false };
     }),
+
+  /**
+   * Get all liquidation flags for the current user
+   */
+  getLiquidationFlags: protectedProcedure
+    .query(async ({ ctx }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) return { flags: [] as Array<{ symbol: string; accountNumber: string; flaggedAt: Date }> };
+      const { liquidationFlags } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const flags = await db.select({
+        symbol: liquidationFlags.symbol,
+        accountNumber: liquidationFlags.accountNumber,
+        flaggedAt: liquidationFlags.flaggedAt,
+      }).from(liquidationFlags).where(eq(liquidationFlags.userId, ctx.user.id));
+      return { flags };
+    }),
+
+  /**
+   * Flag a symbol/account for liquidation — blocks new covered call STO orders
+   */
+  flagForLiquidation: protectedProcedure
+    .input(z.object({
+      symbol: z.string().min(1).max(10),
+      accountNumber: z.string().min(1).max(64),
+      note: z.string().max(255).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      const { liquidationFlags } = await import('../drizzle/schema');
+      const { eq, and } = await import('drizzle-orm');
+      // Check if already flagged
+      const existing = await db.select().from(liquidationFlags)
+        .where(and(
+          eq(liquidationFlags.userId, ctx.user.id),
+          eq(liquidationFlags.symbol, input.symbol.toUpperCase()),
+          eq(liquidationFlags.accountNumber, input.accountNumber),
+        )).limit(1);
+      if (existing.length > 0) {
+        return { success: true, alreadyFlagged: true, symbol: input.symbol.toUpperCase() };
+      }
+      await db.insert(liquidationFlags).values({
+        userId: ctx.user.id,
+        symbol: input.symbol.toUpperCase(),
+        accountNumber: input.accountNumber,
+        note: input.note,
+      });
+      console.log(`[LiquidationFlag] ${input.symbol.toUpperCase()} flagged for liquidation by user ${ctx.user.id}`);
+      return { success: true, alreadyFlagged: false, symbol: input.symbol.toUpperCase() };
+    }),
+
+  /**
+   * Remove a liquidation flag — re-enables covered call automation for this symbol
+   */
+  unflagForLiquidation: protectedProcedure
+    .input(z.object({
+      symbol: z.string().min(1).max(10),
+      accountNumber: z.string().min(1).max(64),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      const { liquidationFlags } = await import('../drizzle/schema');
+      const { eq, and } = await import('drizzle-orm');
+      await db.delete(liquidationFlags)
+        .where(and(
+          eq(liquidationFlags.userId, ctx.user.id),
+          eq(liquidationFlags.symbol, input.symbol.toUpperCase()),
+          eq(liquidationFlags.accountNumber, input.accountNumber),
+        ));
+      console.log(`[LiquidationFlag] ${input.symbol.toUpperCase()} unflagged for liquidation by user ${ctx.user.id}`);
+      return { success: true, symbol: input.symbol.toUpperCase() };
+    }),
+
+  /**
+   * Check if a specific symbol/account is flagged for liquidation
+   * Used by automation and CC dashboard before submitting STO orders
+   */
+  checkLiquidationFlag: protectedProcedure
+    .input(z.object({
+      symbol: z.string().min(1).max(10),
+      accountNumber: z.string().min(1).max(64),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) return { isFlagged: false };
+      const { liquidationFlags } = await import('../drizzle/schema');
+      const { eq, and } = await import('drizzle-orm');
+      const flags = await db.select().from(liquidationFlags)
+        .where(and(
+          eq(liquidationFlags.userId, ctx.user.id),
+          eq(liquidationFlags.symbol, input.symbol.toUpperCase()),
+          eq(liquidationFlags.accountNumber, input.accountNumber),
+        )).limit(1);
+      return { isFlagged: flags.length > 0, flaggedAt: flags[0]?.flaggedAt ?? null };
+    }),
 });

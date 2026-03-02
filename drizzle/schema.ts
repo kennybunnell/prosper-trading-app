@@ -807,3 +807,22 @@ export const snoozedViolations = mysqlTable('snoozed_violations', {
 
 export type SnoozedViolation = typeof snoozedViolations.$inferSelect;
 export type InsertSnoozedViolation = typeof snoozedViolations.$inferInsert;
+
+/**
+ * Liquidation flags — manually set by the user to mark a stock position for exit.
+ * When flagged: no new covered call STO orders will be opened on this symbol/account
+ * by automation or the CC-BCS dashboard. Spreads (BPS, BCS, IC) are still allowed.
+ */
+export const liquidationFlags = mysqlTable('liquidation_flags', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  symbol: varchar('symbol', { length: 10 }).notNull(),
+  accountNumber: varchar('account_number', { length: 64 }).notNull(),
+  flaggedAt: timestamp('flagged_at').defaultNow().notNull(),
+  note: varchar('note', { length: 255 }),
+}, (table) => ({
+  userIdx: index('liquidation_flags_user_idx').on(table.userId),
+  lookupIdx: index('liquidation_flags_lookup_idx').on(table.userId, table.symbol, table.accountNumber),
+}));
+export type LiquidationFlag = typeof liquidationFlags.$inferSelect;
+export type InsertLiquidationFlag = typeof liquidationFlags.$inferInsert;

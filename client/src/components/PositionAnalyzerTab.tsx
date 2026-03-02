@@ -25,6 +25,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   RefreshCw,
   TrendingDown,
@@ -38,6 +39,8 @@ import {
   TrendingUp,
   AlertTriangle,
   Mail,
+  ShieldAlert,
+  ShieldOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -266,9 +269,15 @@ function SellCCDialog({
 function PositionCard({
   pos,
   onSellCC,
+  isFlagged,
+  onToggleFlag,
+  isFlagging,
 }: {
   pos: AnalyzedPosition;
   onSellCC: (pos: AnalyzedPosition) => void;
+  isFlagged: boolean;
+  onToggleFlag: (pos: AnalyzedPosition, flag: boolean) => void;
+  isFlagging: boolean;
 }) {
   const cfg = REC_CONFIG[pos.recommendation];
   const contracts = Math.floor(pos.quantity / 100);
@@ -421,10 +430,39 @@ function PositionCard({
         </div>
       )}
 
-      {/* Account badge */}
-      <div className="flex items-center gap-1.5">
-        <span className="text-[10px] text-muted-foreground">Acct: ...{pos.accountNumber.slice(-4)}</span>
-        <span className="text-[10px] text-muted-foreground">({pos.accountType})</span>
+      {/* Account badge + Liquidation flag checkbox */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground">Acct: ...{pos.accountNumber.slice(-4)}</span>
+          <span className="text-[10px] text-muted-foreground">({pos.accountType})</span>
+        </div>
+        {/* Only show flag checkbox for LIQUIDATE/HARVEST cards */}
+        {pos.recommendation !== 'KEEP' && (
+          <div
+            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border cursor-pointer transition-colors ${
+              isFlagged
+                ? 'border-red-600/60 bg-red-950/40 text-red-300'
+                : 'border-white/10 bg-black/20 text-muted-foreground hover:border-red-700/40 hover:text-red-400'
+            }`}
+            onClick={() => !isFlagging && onToggleFlag(pos, !isFlagged)}
+          >
+            {isFlagging ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : isFlagged ? (
+              <ShieldAlert className="h-3.5 w-3.5 text-red-400" />
+            ) : (
+              <ShieldOff className="h-3.5 w-3.5" />
+            )}
+            <Checkbox
+              checked={isFlagged}
+              onCheckedChange={(checked) => !isFlagging && onToggleFlag(pos, !!checked)}
+              className="h-3.5 w-3.5 border-current data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
+            />
+            <span className="text-[11px] font-medium">
+              {isFlagged ? '🚫 Flagged for Liquidation' : 'Mark for Liquidation'}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -436,6 +474,50 @@ type FilterType = 'ALL' | Recommendation;
 export function PositionAnalyzerTab() {
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [sellDialog, setSellDialog] = useState<SellCCDialogState>({ open: false, position: null, dryRun: true });
+  const [flaggingKey, setFlaggingKey] = useState<string | null>(null); // key = `${symbol}-${accountNumber}`
+
+  // Liquidation flags
+  const { data: flagsData, refetch: refetchFlags } = trpc.positionAnalyzer.getLiquidationFlags.useQuery(
+    undefined,
+    { staleTime: 30 * 1000 }
+  );
+  const flaggedSet = new Set(
+    (flagsData?.flags ?? []).map(f => `${f.symbol}-${f.accountNumber}`)
+  );
+
+  const flagMutation = trpc.positionAnalyzer.flagForLiquidation.useMutation({
+    onSuccess: (data) => {
+      refetchFlags();
+      toast.success(`${data.symbol} flagged for liquidation — automation blocked for new covered calls`);
+      setFlaggingKey(null);
+    },
+    onError: (err) => {
+      toast.error(`Failed to flag: ${err.message}`);
+      setFlaggingKey(null);
+    },
+  });
+
+  const unflagMutation = trpc.positionAnalyzer.unflagForLiquidation.useMutation({
+    onSuccess: (data) => {
+      refetchFlags();
+      toast.success(`${data.symbol} unflagged — covered call automation re-enabled`);
+      setFlaggingKey(null);
+    },
+    onError: (err) => {
+      toast.error(`Failed to unflag: ${err.message}`);
+      setFlaggingKey(null);
+    },
+  });
+
+  const handleToggleFlag = (pos: AnalyzedPosition, flag: boolean) => {
+    const key = `${pos.symbol}-${pos.accountNumber}`;
+    setFlaggingKey(key);
+    if (flag) {
+      flagMutation.mutate({ symbol: pos.symbol, accountNumber: pos.accountNumber });
+    } else {
+      unflagMutation.mutate({ symbol: pos.symbol, accountNumber: pos.accountNumber });
+    }
+  };
 
 
   const { data, isLoading, error, refetch, isFetching } = trpc.positionAnalyzer.analyzePositions.useQuery(
@@ -603,14 +685,19 @@ export function PositionAnalyzerTab() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((pos, i) => (
-            <PositionCard
-              key={`${pos.symbol}-${pos.accountNumber}-${i}`}
-              pos={pos}
-              onSellCC={(p) => setSellDialog({ open: true, position: p, dryRun: true })}
-
-            />
-          ))}
+          {filtered.map((pos, i) => {
+            const flagKey = `${pos.symbol}-${pos.accountNumber}`;
+            return (
+              <PositionCard
+                key={`${pos.symbol}-${pos.accountNumber}-${i}`}
+                pos={pos}
+                onSellCC={(p) => setSellDialog({ open: true, position: p, dryRun: true })}
+                isFlagged={flaggedSet.has(flagKey)}
+                onToggleFlag={handleToggleFlag}
+                isFlagging={flaggingKey === flagKey}
+              />
+            );
+          })}
         </div>
       )}
 

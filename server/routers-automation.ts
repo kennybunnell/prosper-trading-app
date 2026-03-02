@@ -525,6 +525,22 @@ export const automationRouter = router({
                     shortCalls[underlying] = (shortCalls[underlying] || 0) + Math.abs(parseFloat((opt as any).quantity));
                   }
                 }
+                // Load liquidation flags — skip any symbol the user has flagged for exit
+                const { liquidationFlags: liqFlags } = await import('../drizzle/schema');
+                const { eq: eqLF, and: andLF } = await import('drizzle-orm');
+                const { getDb: getDbLF } = await import('./db');
+                const dbLF = await getDbLF();
+                const flaggedRows = dbLF ? await dbLF.select({ symbol: liqFlags.symbol })
+                  .from(liqFlags)
+                  .where(andLF(
+                    eqLF(liqFlags.userId, ctx.user.id),
+                    eqLF(liqFlags.accountNumber, account.accountNumber),
+                  )) : [];
+                const flaggedSymbolsSet = new Set(flaggedRows.map((f: { symbol: string }) => f.symbol.toUpperCase()));
+                if (flaggedSymbolsSet.size > 0) {
+                  console.log(`[Automation CC] Skipping flagged-for-liquidation symbols: ${Array.from(flaggedSymbolsSet).join(', ')}`);
+                }
+
                 // Build list of eligible stocks with uncovered shares
                 const eligibleStocks = stockPositions
                   .map((p: any) => ({
@@ -534,7 +550,9 @@ export const automationRouter = router({
                     existingContracts: shortCalls[p.symbol] || 0,
                   }))
                   .map((s: any) => ({ ...s, maxContracts: Math.floor((s.quantity - s.existingContracts * 100) / 100) }))
-                  .filter((s: any) => s.maxContracts > 0 && s.currentPrice > 0);
+                  .filter((s: any) => s.maxContracts > 0 && s.currentPrice > 0)
+                  // ⛔ Skip symbols flagged for liquidation — no new CCs on exit positions
+                  .filter((s: any) => !flaggedSymbolsSet.has(s.symbol.toUpperCase()));
                 if (eligibleStocks.length === 0) {
                   console.log(`[Automation CC] No eligible stocks for CCs in account ${account.accountNumber}`);
                 } else {
