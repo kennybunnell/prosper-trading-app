@@ -6930,3 +6930,7 @@
 - [ ] Frontend: Show open CCs panel on flagged cards (strike, expiry, DTE, contracts locked)
 - [ ] Frontend: Sell All Harvest CCs batch button in summary banner with combined preview dialog
 - [ ] Frontend: Liquidity progress bar in summary banner (freed capital vs $100k TSLA coverage target)
+
+## Position Analyzer UX Fixes (Mar 2, 2026)
+- [x] Replace Tesla-specific liquidity progress bar with generic "clearing the dogs" progress bar (LIQUIDATE+HARVEST positions exited vs total)
+- [x] Add "CC Active — Cannot Liquidate Yet" indicator on cards that have open short calls covering all contracts

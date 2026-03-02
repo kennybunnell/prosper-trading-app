@@ -317,6 +317,13 @@ function PositionCard({
           <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 ${cfg.badgeClass}`}>
             {cfg.label}
           </Badge>
+          {/* CC-locked indicator — shown when all contracts are covered by existing short calls */}
+          {pos.recommendation !== 'KEEP' && availableContracts === 0 && lockedContracts > 0 && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-amber-600/60 bg-amber-950/40 text-amber-300 flex items-center gap-1">
+              <Clock className="h-2.5 w-2.5" />
+              CC Active — Wait to Exit
+            </Badge>
+          )}
           {/* Liquidation flag toggle — prominent, in header */}
           {pos.recommendation !== 'KEEP' && (
             <button
@@ -828,45 +835,55 @@ export function PositionAnalyzerTab() {
         </div>
       )}
 
-      {/* Liquidity progress bar toward TSLA coverage */}
-      {summary && summary.estimatedLiquidationProceeds > 0 && (
-        <div className="rounded-lg border border-blue-800/40 bg-blue-950/20 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-blue-400" />
-              <span className="text-sm font-semibold text-blue-300">Liquidity Progress — TSLA Coverage Target</span>
+      {/* Clearing the Dogs — progress bar */}
+      {summary && (summary.liquidateCount + summary.harvestCount) > 0 && (() => {
+        const totalDogs = summary.liquidateCount + summary.harvestCount;
+        // A position is "cleared" when it has no available contracts left (all covered by CCs)
+        // We approximate this by counting positions with availableContracts === 0
+        const clearedCount = positions.filter(
+          p => p.recommendation !== 'KEEP' && ((p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100)) === 0
+        ).length;
+        const pct = totalDogs > 0 ? Math.round((clearedCount / totalDogs) * 100) : 0;
+        const sellableCount = positions.filter(p => p.recommendation !== 'KEEP' && p.ccAtmStrike && p.ccAtmPremium && ((p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100)) > 0).length;
+        return (
+          <div className="rounded-lg border border-orange-800/40 bg-orange-950/20 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-orange-400" />
+                <span className="text-sm font-semibold text-orange-300">Clearing the Dogs</span>
+                <span className="text-xs text-muted-foreground">— {clearedCount} of {totalDogs} positions covered or exited</span>
+              </div>
+              <span className="text-sm font-bold text-orange-300">{pct}%</span>
             </div>
-            <span className="text-xs text-muted-foreground">Goal: $100,750 (250 shares @ ~$403)</span>
+            <div className="space-y-1.5">
+              <Progress
+                value={pct}
+                className="h-3 bg-orange-950/50"
+              />
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{summary.liquidateCount} to liquidate &middot; {summary.harvestCount} to harvest</span>
+                <span>
+                  {pct === 100
+                    ? '✅ All dogs cleared!'
+                    : `${totalDogs - clearedCount} position${totalDogs - clearedCount !== 1 ? 's' : ''} still need exit CCs`
+                  }
+                </span>
+              </div>
+            </div>
+            {/* Sell All button */}
+            {sellableCount > 0 && (
+              <Button
+                size="sm"
+                onClick={() => setBatchDialog({ open: true, dryRun: true })}
+                className="bg-emerald-700 hover:bg-emerald-600 text-white border-0 text-xs h-8"
+              >
+                <Layers className="h-3.5 w-3.5 mr-1.5" />
+                Sell All Harvest CCs ({sellableCount} positions)
+              </Button>
+            )}
           </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Available from flagged liquidations</span>
-              <span className="text-blue-300 font-semibold">~${(summary.estimatedLiquidationProceeds / 1000).toFixed(0)}k of $100.8k</span>
-            </div>
-            <Progress
-              value={Math.min(100, (summary.estimatedLiquidationProceeds / 100750) * 100)}
-              className="h-2 bg-blue-950/50"
-            />
-            <div className="text-xs text-muted-foreground">
-              {summary.estimatedLiquidationProceeds >= 100750
-                ? '✅ Sufficient liquidity to fully cover TSLA position'
-                : `$${((100750 - summary.estimatedLiquidationProceeds) / 1000).toFixed(0)}k more needed — liquidate additional positions or use premium income`
-              }
-            </div>
-          </div>
-          {/* Sell All button */}
-          {positions.filter(p => p.recommendation !== 'KEEP' && p.ccAtmStrike && p.ccAtmPremium && ((p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100)) > 0).length > 0 && (
-            <Button
-              size="sm"
-              onClick={() => setBatchDialog({ open: true, dryRun: true })}
-              className="bg-emerald-700 hover:bg-emerald-600 text-white border-0 text-xs h-8"
-            >
-              <Layers className="h-3.5 w-3.5 mr-1.5" />
-              Sell All Harvest CCs ({positions.filter(p => p.recommendation !== 'KEEP' && p.ccAtmStrike && p.ccAtmPremium && ((p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100)) > 0).length} positions)
-            </Button>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* Filter tabs */}
       {positions.length > 0 && (
