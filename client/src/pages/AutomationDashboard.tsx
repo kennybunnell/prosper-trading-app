@@ -472,7 +472,7 @@ export default function AutomationDashboard() {
         spreadLongPrice: r.spreadLongPrice,
       }));
     setIsSubmitting(true);
-    submitCloseOrders.mutate({ orders: selected });
+    submitCloseOrders.mutate({ orders: selected, dryRun: settings?.dryRunMode ?? true });
   };
 
   // onSubmit callback for UnifiedOrderPreviewModal
@@ -2319,7 +2319,7 @@ export default function AutomationDashboard() {
           onPollStatuses={handlePollStatuses}
           allowQuantityEdit={false}
           tradingMode="live"
-          initialSkipDryRun={false}
+          initialSkipDryRun={!settings?.dryRunMode}
           submissionComplete={orderSubmissionComplete}
           finalOrderStatus={orderFinalStatus}
           onSubmissionStateChange={(complete, status) => {

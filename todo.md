@@ -6829,3 +6829,20 @@
 - [x] Apply stock-vs-strike OTM override to CC — hasStaleMarks now propagated; override is universal (not just stale)
 - [x] Apply stock-vs-strike OTM override to CSP — hasStaleMarks now propagated; override is universal (not just stale)
 - [x] IC override already covers both put and call sides correctly — verified
+
+## Live Order Submission for Fix Actions (Mar 2, 2026)
+- [ ] Audit all fix-action backend procedures (buyToCover, closeOptionBTC, etc.) for dry-run-only logic
+- [ ] Implement live stock market order for Buy to Cover when dryRun === false
+- [ ] Implement live option BTC limit-at-mark order for Close (BTC) Option when dryRun === false
+- [ ] Add confirmation modal in frontend before any live order fires
+- [ ] Show order status (submitted / filled / rejected) after live submission
+- [ ] Write unit tests for live order submission paths
+
+## Live Order Submission Audit (Mar 2, 2026)
+- [x] Audited all fix-action procedures — buyToCoverShortStock and closeShortOption already fully wired for live orders
+- [x] Confirmed IraSafetyTab dryRun toggle correctly controls live vs dry-run mode for Action Items
+- [x] Fixed Close for Profit modal — initialSkipDryRun now reads from settings.dryRunMode (was hardcoded false)
+- [x] Fixed handleSubmitOrders direct path — now passes dryRun: settings?.dryRunMode ?? true
+- [x] Confirmed Roll Positions submit path has explicit Dry Run / Submit Live buttons (correct as-is)
+- [x] Confirmed submitRollOrders backend fully wired for live orders when dryRun=false
+- [x] TypeScript clean (0 errors) after all changes
