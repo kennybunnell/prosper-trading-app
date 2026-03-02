@@ -51,6 +51,14 @@ export interface UnifiedOrder {
   // Optional fields for replace mode
   oldPrice?: number;      // Original order price (for comparison)
   oldOrderId?: string;    // Original order ID (for tracking)
+
+  // Optional fields for BTC close orders (carry scan result identity)
+  optionSymbol?: string;      // OCC option symbol (e.g. HIMS  260306C00018000)
+  accountNumber?: string;     // Tastytrade account number
+  spreadLongSymbol?: string;  // Long leg OCC symbol for spread closure
+  spreadLongPrice?: number;   // Long leg close price
+  quantity?: number;          // Number of contracts
+  isEstimated?: boolean;      // Whether buy-back cost is estimated
 }
 
 // Holding interface for stock ownership validation (CC strategy)

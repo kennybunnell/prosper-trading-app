@@ -280,24 +280,32 @@ export default function AutomationDashboard() {
     const isCall = result.type === 'CC';
     const strikeMatch = result.optionSymbol.match(/(\d{8})[CP](\d{8})$/);
     const strike = strikeMatch ? parseInt(strikeMatch[2], 10) / 1000 : 0;
+    const perShareCost = result.buyBackCost / (result.quantity * 100);
+    const estimatedBid = Math.max(0.01, perShareCost * 0.8);
+    const estimatedAsk = Math.max(0.02, perShareCost * 1.2);
     const order: UnifiedOrder = {
       symbol: result.symbol,
       strike,
       expiration: result.expiration ?? '',
-      premium: result.buyBackCost / (result.quantity * 100),
+      premium: perShareCost,
       action: 'BTC',
       optionType: isCall ? 'CALL' : 'PUT',
-      bid: result.buyBackCost / (result.quantity * 100),
-      ask: result.buyBackCost / (result.quantity * 100),
-      currentPrice: result.buyBackCost / (result.quantity * 100),
+      bid: estimatedBid,
+      ask: estimatedAsk,
+      currentPrice: perShareCost,
+      // Identity fields for submission
+      optionSymbol: result.optionSymbol,
+      accountNumber: result.account,
+      spreadLongSymbol: result.spreadLongSymbol,
+      spreadLongPrice: result.spreadLongPrice ? parseFloat(result.spreadLongPrice) : undefined,
+      quantity: result.quantity,
+      isEstimated: result.isEstimated,
     };
     setPreviewAccountId(result.account);
     setUnifiedOrders([order]);
     setPreviewPremiumCollected(result.premiumCollected);
     setOrderSubmissionComplete(false);
     setOrderFinalStatus(null);
-    // Temporarily set selected positions to just this one so handleUnifiedSubmit works
-    setSelectedPositions(new Set([`${result.optionSymbol}|${result.account}`]));
     setShowOrderPreview(true);
   }, []);
 
@@ -314,21 +322,33 @@ export default function AutomationDashboard() {
     setPreviewAccountId(firstAccount);
 
     // Map each selected scan result to a UnifiedOrder (BTC)
+    // Embed the scan result identity fields so handleUnifiedSubmit can use orders directly
     const orders: UnifiedOrder[] = selected.map(r => {
       const isCall = r.type === 'CC';
       // Parse strike from option symbol e.g. AAPL250117C00150000 → 150
       const strikeMatch = r.optionSymbol.match(/(\d{8})[CP](\d{8})$/);
       const strike = strikeMatch ? parseInt(strikeMatch[2], 10) / 1000 : 0;
+      const perShareCost = r.buyBackCost / (r.quantity * 100);
+      // Estimate bid/ask spread: bid = 80% of cost, ask = 120% of cost (typical for near-worthless options)
+      const estimatedBid = Math.max(0.01, perShareCost * 0.8);
+      const estimatedAsk = Math.max(0.02, perShareCost * 1.2);
       return {
         symbol: r.symbol,
         strike,
         expiration: r.expiration ?? '',
-        premium: r.buyBackCost / (r.quantity * 100), // per-share price
+        premium: perShareCost,
         action: 'BTC',
         optionType: isCall ? 'CALL' : 'PUT',
-        bid: r.buyBackCost / (r.quantity * 100),
-        ask: r.buyBackCost / (r.quantity * 100),
-        currentPrice: r.buyBackCost / (r.quantity * 100),
+        bid: estimatedBid,
+        ask: estimatedAsk,
+        currentPrice: perShareCost,
+        // Identity fields for submission
+        optionSymbol: r.optionSymbol,
+        accountNumber: r.account,
+        spreadLongSymbol: r.spreadLongSymbol,
+        spreadLongPrice: r.spreadLongPrice ? parseFloat(r.spreadLongPrice) : undefined,
+        quantity: r.quantity,
+        isEstimated: r.isEstimated,
       };
     });
     // Sum up total premium collected across all selected positions
@@ -481,20 +501,30 @@ export default function AutomationDashboard() {
     quantities: Map<string, number>,
     isDryRun: boolean
   ): Promise<{ results: any[] }> => {
-    if (!lastRunResult) return { results: [] };
-    const selected = lastRunResult.scanResults.filter(
-      r => selectedPositions.has(`${r.optionSymbol}|${r.account}`) && r.action === 'WOULD_CLOSE'
-    ).map(r => ({
-      accountNumber: r.account,
-      optionSymbol: r.optionSymbol,
-      symbol: r.symbol,
-      quantity: r.quantity,
-      buyBackCost: r.buyBackCost,
-      isEstimated: r.isEstimated,
-      // Pass spread leg data for atomic spread closure
-      spreadLongSymbol: r.spreadLongSymbol,
-      spreadLongPrice: r.spreadLongPrice,
-    }));
+    // Use the orders array directly — it carries optionSymbol, accountNumber, spreadLongSymbol
+    // from the scan result (embedded in handleOpenOrderPreview). This avoids the selectedPositions
+    // re-filter that was returning an empty array.
+    const selected = orders
+      .filter(o => o.optionSymbol && o.accountNumber)
+      .map(o => {
+        const qty = quantities.get(`${o.symbol}-${o.strike}-${o.expiration}`) ?? o.quantity ?? 1;
+        return {
+          accountNumber: o.accountNumber!,
+          optionSymbol: o.optionSymbol!,
+          symbol: o.symbol,
+          quantity: qty,
+          buyBackCost: (o.premium ?? 0) * qty * 100,
+          isEstimated: o.isEstimated ?? false,
+          spreadLongSymbol: o.spreadLongSymbol,
+          spreadLongPrice: o.spreadLongPrice !== undefined ? String(o.spreadLongPrice) : undefined,
+        };
+      });
+
+    if (selected.length === 0) {
+      console.warn('[handleUnifiedSubmit] No orders with optionSymbol/accountNumber — cannot submit');
+      return { results: [] };
+    }
+
     try {
       const response = await submitCloseOrders.mutateAsync({ orders: selected, dryRun: isDryRun });
       // Record which positions were submitted in a live run so we can clear them on modal close
@@ -504,6 +534,7 @@ export default function AutomationDashboard() {
       }
       return { results: response.results ?? [] };
     } catch (err: any) {
+      console.error('[handleUnifiedSubmit] submitCloseOrders error:', err);
       return { results: [] };
     }
   };
