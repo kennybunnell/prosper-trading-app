@@ -6937,3 +6937,8 @@
 
 - [x] Fix short call detection bug (was using option-type field which doesn't exist; now uses quantity-direction + OCC symbol parsing)
 - [x] Add Eligible Now filter tab showing only LIQUIDATE/HARVEST positions with available contracts
+
+## Three New Features (Mar 2, 2026)
+- [x] Auto-unflag positions when they disappear from Tastytrade holdings during position analyzer refresh
+- [x] Add expiry countdown to CC Active badge (e.g., "CC Active — 8d left") on position cards
+- [x] Weekly Monday morning digest notification listing all flagged positions, expiring this week, and estimated proceeds

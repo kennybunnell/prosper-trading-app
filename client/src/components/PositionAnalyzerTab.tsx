@@ -319,12 +319,23 @@ function PositionCard({
             {cfg.label}
           </Badge>
           {/* CC-locked indicator — shown when all contracts are covered by existing short calls */}
-          {pos.recommendation !== 'KEEP' && availableContracts === 0 && lockedContracts > 0 && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-amber-600/60 bg-amber-950/40 text-amber-300 flex items-center gap-1">
-              <Clock className="h-2.5 w-2.5" />
-              CC Active — Wait to Exit
-            </Badge>
-          )}
+          {pos.recommendation !== 'KEEP' && availableContracts === 0 && lockedContracts > 0 && (() => {
+            // Find the soonest expiring short call for the countdown
+            const calls = pos.openShortCalls ?? [];
+            const soonest = calls.length > 0
+              ? calls.reduce((min, c) => c.daysToExpiry < min.daysToExpiry ? c : min, calls[0])
+              : null;
+            const daysLeft = soonest ? soonest.daysToExpiry : null;
+            const countdownLabel = daysLeft !== null
+              ? (daysLeft <= 0 ? 'Expiring Today' : `${daysLeft}d left`)
+              : null;
+            return (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-amber-600/60 bg-amber-950/40 text-amber-300 flex items-center gap-1">
+                <Clock className="h-2.5 w-2.5" />
+                CC Active{countdownLabel ? ` — ${countdownLabel}` : ' — Wait to Exit'}
+              </Badge>
+            );
+          })()}
           {/* Liquidation flag toggle — prominent, in header */}
           {pos.recommendation !== 'KEEP' && (
             <button

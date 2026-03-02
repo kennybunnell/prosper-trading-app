@@ -399,6 +399,42 @@ export const positionAnalyzerRouter = router({
         });
       }
 
+      // ─── Auto-unflag: remove flags for positions that no longer exist in Tastytrade ──────────
+      // Build a set of all live equity symbols across all scanned accounts
+      try {
+        const { getDb } = await import('./db');
+        const db = await getDb();
+        if (db) {
+          const { liquidationFlags } = await import('../drizzle/schema');
+          const { eq, and, notInArray } = await import('drizzle-orm');
+          // Get all current flags for this user
+          const existingFlags = await db.select({
+            symbol: liquidationFlags.symbol,
+            accountNumber: liquidationFlags.accountNumber,
+          }).from(liquidationFlags).where(eq(liquidationFlags.userId, ctx.user.id));
+          // Build set of live positions: "SYMBOL-ACCOUNT"
+          const liveKeys = new Set(allStockPositions.map(p => `${p.symbol.toUpperCase()}-${p.accountNumber}`));
+          // Find flags whose symbol is no longer in any live account position
+          const staleFlags = existingFlags.filter(f => !liveKeys.has(`${f.symbol.toUpperCase()}-${f.accountNumber}`));
+          for (const stale of staleFlags) {
+            await db.delete(liquidationFlags).where(
+              and(
+                eq(liquidationFlags.userId, ctx.user.id),
+                eq(liquidationFlags.symbol, stale.symbol),
+                eq(liquidationFlags.accountNumber, stale.accountNumber),
+              )
+            );
+            console.log(`[PositionAnalyzer] Auto-unflagged ${stale.symbol} (${stale.accountNumber}) — position no longer in Tastytrade`);
+          }
+          if (staleFlags.length > 0) {
+            console.log(`[PositionAnalyzer] Auto-removed ${staleFlags.length} stale liquidation flag(s)`);
+          }
+        }
+      } catch (e) {
+        console.warn('[PositionAnalyzer] Auto-unflag check failed (non-fatal):', e);
+      }
+      // ─────────────────────────────────────────────────────────────────────────────────────────
+
       // Sort: LIQUIDATE first, then HARVEST, then KEEP; within each group by market value desc
       const order: Record<PositionRecommendation, number> = { LIQUIDATE: 0, HARVEST: 1, KEEP: 2 };
       analyzedPositions.sort((a, b) => {

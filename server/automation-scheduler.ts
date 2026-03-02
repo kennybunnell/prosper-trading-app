@@ -302,8 +302,8 @@ async function runDailyITMScan() {
 
 /**
  * Weekly Monday morning position digest.
- * Scans all stock positions for users with weeklyPositionDigestEnabled=true
- * and sends a summary notification with LIQUIDATE/HARVEST/KEEP breakdown.
+ * Focuses on FLAGGED-for-exit positions: which are locked (CC active), which are eligible
+ * to harvest this week, and estimated proceeds from clearing all dogs.
  */
 async function runWeeklyPositionDigest() {
   try {
@@ -322,56 +322,114 @@ async function runWeeklyPositionDigest() {
 
     for (const user of users) {
       try {
+        // Run full position analysis (this also auto-unflags any closed positions)
         const { positionAnalyzerRouter } = await import('./routers-position-analyzer');
         const mockCtx = { user: { id: user.userId }, req: {} as any, res: {} as any };
         const result = await positionAnalyzerRouter.createCaller(mockCtx as any).analyzePositions();
+        const { positions } = result;
 
-        const { positions, summary } = result;
+        // Load current liquidation flags after auto-unflag has run
+        const { liquidationFlags } = await import('../drizzle/schema');
+        const flags = await db.select({
+          symbol: liquidationFlags.symbol,
+          accountNumber: liquidationFlags.accountNumber,
+        }).from(liquidationFlags).where(eq(liquidationFlags.userId, user.userId));
+
+        if (flags.length === 0) {
+          console.log(`[Weekly Digest] User ${user.userId}: No flagged positions — skipping digest.`);
+          continue;
+        }
+
+        const flagSet = new Set(flags.map(f => `${f.symbol.toUpperCase()}-${f.accountNumber}`));
+        const flaggedPositions = positions.filter(p =>
+          flagSet.has(`${p.symbol.toUpperCase()}-${p.accountNumber}`)
+        );
+
         const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        const today = new Date();
+        const sevenDaysOut = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-        const liquidate = positions.filter(p => p.recommendation === 'LIQUIDATE');
-        const harvest = positions.filter(p => p.recommendation === 'HARVEST');
-        const keep = positions.filter(p => p.recommendation === 'KEEP');
+        // Split into: eligible now (available contracts > 0) vs locked (CC active)
+        const eligibleNow = flaggedPositions.filter(p => {
+          const available = (p as any).availableContracts ?? Math.floor(p.quantity / 100);
+          return available > 0;
+        });
+        const locked = flaggedPositions.filter(p => {
+          const available = (p as any).availableContracts ?? Math.floor(p.quantity / 100);
+          return available === 0;
+        });
 
-        let content = `**Weekly Position Digest — ${dateStr}**\n\n`;
-        content += `Scanned ${summary.totalPositions} stock position(s) across all accounts.\n`;
-        content += `Total market value: $${(summary.totalMarketValue / 1000).toFixed(0)}k | Unrealized P&L: ${summary.totalUnrealizedPnl >= 0 ? '+' : ''}$${(summary.totalUnrealizedPnl / 1000).toFixed(0)}k\n\n`;
+        // Locked positions expiring this week (soonest CC expires within 7 days)
+        const expiringThisWeek = locked.filter(p => {
+          const calls: any[] = (p as any).openShortCalls ?? [];
+          return calls.some(c => {
+            const exp = new Date(c.expiration);
+            return exp <= sevenDaysOut;
+          });
+        });
 
-        if (liquidate.length > 0) {
-          content += `🔴 **LIQUIDATE via ITM CC (${liquidate.length}) — ~$${(summary.estimatedLiquidationProceeds / 1000).toFixed(0)}k in shares to exit:**\n`;
-          for (const p of liquidate) {
-            const contracts = Math.floor(p.quantity / 100);
+        // Estimated proceeds: eligible now (market value) + expiring this week (market value)
+        const estimatedEligibleProceeds = eligibleNow.reduce((s, p) => s + p.marketValue, 0);
+        const estimatedExpiringProceeds = expiringThisWeek.reduce((s, p) => s + p.marketValue, 0);
+        const totalEstimatedProceeds = estimatedEligibleProceeds + estimatedExpiringProceeds;
+
+        let content = `**Weekly Dog Clearing Digest — ${dateStr}**\n\n`;
+        content += `You have **${flaggedPositions.length} position(s) flagged for exit** across all accounts.\n`;
+        content += `Estimated proceeds from clearing all flagged dogs: **~$${(totalEstimatedProceeds / 1000).toFixed(1)}k**\n\n`;
+
+        // --- Eligible Now ---
+        if (eligibleNow.length > 0) {
+          content += `⚡ **ELIGIBLE TO HARVEST NOW (${eligibleNow.length}) — ~$${(estimatedEligibleProceeds / 1000).toFixed(1)}k in shares:**\n`;
+          for (const p of eligibleNow) {
+            const contracts = (p as any).availableContracts ?? Math.floor(p.quantity / 100);
             const credit = p.ccAtmPremium && contracts > 0 ? p.ccAtmPremium * contracts * 100 : 0;
-            content += `• ${p.symbol} @ $${p.currentPrice.toFixed(2)} (${p.drawdownFromHigh.toFixed(0)}% from high) — ${p.recommendationReason}\n`;
+            content += `• ${p.symbol} (${p.recommendation}) @ $${p.currentPrice.toFixed(2)} — ${contracts} contract(s) free`;
             if (p.ccAtmStrike && p.ccAtmPremium) {
-              content += `  → Sell ${contracts}x $${p.ccAtmStrike.toFixed(0)} ITM call (${p.ccExpiration}) for ~$${credit.toFixed(0)} credit — effective exit $${p.ccEffectiveExit?.toFixed(2)}\n`;
+              content += ` → Sell $${p.ccAtmStrike.toFixed(0)} ITM call for ~$${credit.toFixed(0)} credit`;
             }
+            content += `\n`;
           }
           content += '\n';
         }
 
-        if (harvest.length > 0) {
-          content += `🟡 **HARVEST & EXIT (${harvest.length}) — ~$${summary.estimatedWeeklyPremium.toFixed(0)} premium/wk:**\n`;
-          for (const p of harvest) {
-            const contracts = Math.floor(p.quantity / 100);
-            const weeklyCredit = p.ccAtmPremium && contracts > 0 ? p.ccAtmPremium * contracts * 100 : 0;
-            content += `• ${p.symbol} @ $${p.currentPrice.toFixed(2)} — Sell ${contracts} x $${p.ccAtmStrike?.toFixed(0)} call (${p.ccExpiration}) for ~$${weeklyCredit.toFixed(0)} credit\n`;
+        // --- Expiring This Week (becoming eligible) ---
+        if (expiringThisWeek.length > 0) {
+          content += `📅 **CC EXPIRING THIS WEEK — WILL BECOME ELIGIBLE (${expiringThisWeek.length}):**\n`;
+          for (const p of expiringThisWeek) {
+            const calls: any[] = (p as any).openShortCalls ?? [];
+            const soonest = calls.reduce((min: any, c: any) => c.daysToExpiry < min.daysToExpiry ? c : min, calls[0]);
+            content += `• ${p.symbol} — $${soonest?.strike?.toFixed(0) ?? '?'} call expires ${soonest?.expiration ?? '?'} (${soonest?.daysToExpiry ?? '?'}d) — $${(p.marketValue / 1000).toFixed(1)}k in shares\n`;
           }
           content += '\n';
         }
 
-        if (keep.length > 0) {
-          content += `🟢 **KEEP & WHEEL (${keep.length}):** ${keep.map(p => p.symbol).join(', ')}\n\n`;
+        // --- Still Locked (not expiring this week) ---
+        const stillLocked = locked.filter(p => !expiringThisWeek.includes(p));
+        if (stillLocked.length > 0) {
+          content += `🔒 **STILL LOCKED — CC ACTIVE BEYOND THIS WEEK (${stillLocked.length}):**\n`;
+          for (const p of stillLocked) {
+            const calls: any[] = (p as any).openShortCalls ?? [];
+            const soonest = calls.length > 0
+              ? calls.reduce((min: any, c: any) => c.daysToExpiry < min.daysToExpiry ? c : min, calls[0])
+              : null;
+            content += `• ${p.symbol} — ${soonest ? `$${soonest.strike?.toFixed(0)} call exp ${soonest.expiration} (${soonest.daysToExpiry}d)` : 'CC details unavailable'}\n`;
+          }
+          content += '\n';
         }
 
-        content += `Log in to Prosper Trading → Action Items → Portfolio Safety → Position Analyzer to act on these recommendations.`;
+        content += `Log in to Prosper Trading → Position Analyzer → ⚡ Eligible Now to act on today’s opportunities.`;
+
+        const titleParts = [];
+        if (eligibleNow.length > 0) titleParts.push(`${eligibleNow.length} eligible now`);
+        if (expiringThisWeek.length > 0) titleParts.push(`${expiringThisWeek.length} expiring this week`);
+        if (stillLocked.length > 0) titleParts.push(`${stillLocked.length} still locked`);
 
         await notifyOwner({
-          title: `📊 Weekly Digest: ${liquidate.length} Liquidate, ${harvest.length} Harvest, ${keep.length} Keep — ${dateStr}`,
+          title: `🐕 Dog Clearing Digest: ${titleParts.join(' · ')} — ${dateStr}`,
           content,
         });
 
-        console.log(`[Weekly Digest] Sent digest for user ${user.userId}: ${liquidate.length} liquidate, ${harvest.length} harvest, ${keep.length} keep`);
+        console.log(`[Weekly Digest] Sent flagged-position digest for user ${user.userId}: ${eligibleNow.length} eligible, ${expiringThisWeek.length} expiring, ${stillLocked.length} locked`);
       } catch (userError) {
         console.error(`[Weekly Digest] Error for user ${user.userId}:`, userError);
       }
