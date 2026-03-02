@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -1094,8 +1094,8 @@ export function UnifiedOrderPreviewModal({
                   const isBTCSpread = strategy === 'btc' && isSpread;
 
                   return (
-                    <>
-                    <TableRow key={idx}>
+                    <React.Fragment key={idx}>
+                    <TableRow>
                       {/* Symbol */}
                       <TableCell className="font-semibold">
                         <div className="flex flex-col">
@@ -1307,7 +1307,7 @@ export function UnifiedOrderPreviewModal({
                         <TableCell />
                       </TableRow>
                     )}
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </TableBody>
