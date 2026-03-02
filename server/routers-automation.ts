@@ -467,6 +467,7 @@ export const automationRouter = router({
                     profitPercent: Math.round(realizedPercent),
                     estimatedProfit: estimatedProfit.toFixed(2),
                     status: 'pending' as const,
+                    createdAt: new Date(),
                   });
                 } else {
                   // Standalone CC or CSP — single-leg close
@@ -483,6 +484,7 @@ export const automationRouter = router({
                     profitPercent: Math.round(realizedPercent),
                     estimatedProfit: estimatedProfit.toFixed(2),
                     status: 'pending' as const,
+                    createdAt: new Date(),
                   });
                 }
 

@@ -1,0 +1,138 @@
+{
+  "query": "DESCRIBE automationLogs;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute DESCRIBE automationLogs;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "userId",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "runId",
+      "Type": "varchar(64)",
+      "Null": "NO",
+      "Key": "UNI",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "status",
+      "Type": "enum('running','completed','failed','cancelled')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "running",
+      "Extra": ""
+    },
+    {
+      "Field": "triggerType",
+      "Type": "enum('manual','scheduled')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "dryRun",
+      "Type": "tinyint(1)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "1",
+      "Extra": ""
+    },
+    {
+      "Field": "positionsClosedCount",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "coveredCallsOpenedCount",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "totalProfitRealized",
+      "Type": "varchar(20)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "totalPremiumCollected",
+      "Type": "varchar(20)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "accountsProcessed",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "errorMessage",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "scanResultsJson",
+      "Type": "longtext",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "startedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "completedAt",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "ccScanResultsJson",
+      "Type": "longtext",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\nuserId\tint\tNO\tMUL\tNULL\t\nrunId\tvarchar(64)\tNO\tUNI\tNULL\t\nstatus\tenum('running','completed','failed','cancelled')\tNO\t\trunning\t\ntriggerType\tenum('manual','scheduled')\tNO\t\tNULL\t\ndryRun\ttinyint(1)\tNO\t\t1\t\npositionsClosedCount\tint\tNO\t\t0\t\ncoveredCallsOpenedCount\tint\tNO\t\t0\t\ntotalProfitRealized\tvarchar(20)\tNO\t\t0\t\ntotalPremiumCollected\tvarchar(20)\tNO\t\t0\t\naccountsProcessed\tint\tNO\t\t0\t\nerrorMessage\ttext\tYES\t\tNULL\t\nscanResultsJson\tlongtext\tYES\t\tNULL\t\nstartedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\ncompletedAt\ttimestamp\tYES\t\tNULL\t\nccScanResultsJson\tlongtext\tYES\t\tNULL\t\n",
+  "stderr": "",
+  "execution_time_ms": 347
+}
