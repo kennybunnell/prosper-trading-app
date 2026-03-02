@@ -852,15 +852,18 @@ export function PositionAnalyzerTab() {
         </div>
       )}
 
-      {/* Clearing the Dogs — progress bar */}
-      {summary && (summary.liquidateCount + summary.harvestCount) > 0 && (() => {
-        const totalDogs = summary.liquidateCount + summary.harvestCount;
-        // A position is "cleared" when it has no available contracts left (all covered by CCs)
-        // We approximate this by counting positions with availableContracts === 0
-        const clearedCount = positions.filter(
-          p => p.recommendation !== 'KEEP' && ((p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100)) === 0
-        ).length;
-        const pct = totalDogs > 0 ? Math.round((clearedCount / totalDogs) * 100) : 0;
+      {/* Clearing the Dogs — progress bar (tracks flagged-for-exit positions only) */}
+      {flaggedSet.size > 0 && (() => {
+        // Total = all positions you've explicitly flagged for exit
+        const totalFlagged = flaggedSet.size;
+        // Cleared = flagged positions that have no available contracts left (CC locked or already exited)
+        const clearedCount = positions.filter(p => {
+          const key = `${p.symbol}-${p.accountNumber}`;
+          if (!flaggedSet.has(key)) return false;
+          const available = (p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100);
+          return available === 0;
+        }).length;
+        const pct = totalFlagged > 0 ? Math.round((clearedCount / totalFlagged) * 100) : 0;
         const sellableCount = positions.filter(p => p.recommendation !== 'KEEP' && p.ccAtmStrike && p.ccAtmPremium && ((p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100)) > 0).length;
         return (
           <div className="rounded-lg border border-orange-800/40 bg-orange-950/20 p-4 space-y-3">
@@ -868,7 +871,7 @@ export function PositionAnalyzerTab() {
               <div className="flex items-center gap-2">
                 <Target className="h-4 w-4 text-orange-400" />
                 <span className="text-sm font-semibold text-orange-300">Clearing the Dogs</span>
-                <span className="text-xs text-muted-foreground">— {clearedCount} of {totalDogs} positions covered or exited</span>
+                <span className="text-xs text-muted-foreground">— {clearedCount} of {totalFlagged} flagged positions covered or exited</span>
               </div>
               <span className="text-sm font-bold text-orange-300">{pct}%</span>
             </div>
@@ -878,11 +881,11 @@ export function PositionAnalyzerTab() {
                 className="h-3 bg-orange-950/50"
               />
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>{summary.liquidateCount} to liquidate &middot; {summary.harvestCount} to harvest</span>
+                <span>{totalFlagged} flagged for exit &middot; {clearedCount} cleared</span>
                 <span>
                   {pct === 100
-                    ? '✅ All dogs cleared!'
-                    : `${totalDogs - clearedCount} position${totalDogs - clearedCount !== 1 ? 's' : ''} still need exit CCs`
+                    ? '✅ All flagged dogs cleared!'
+                    : `${totalFlagged - clearedCount} still need exit CCs or liquidation`
                   }
                 </span>
               </div>
@@ -895,7 +898,7 @@ export function PositionAnalyzerTab() {
                 className="bg-emerald-700 hover:bg-emerald-600 text-white border-0 text-xs h-8"
               >
                 <Layers className="h-3.5 w-3.5 mr-1.5" />
-                Sell All Harvest CCs ({sellableCount} positions)
+                Sell All Harvest CCs ({sellableCount} eligible)
               </Button>
             )}
           </div>

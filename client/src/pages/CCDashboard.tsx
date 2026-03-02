@@ -1090,6 +1090,15 @@ export default function CCDashboard() {
   // Filter holdings to only show those with available contracts
   const availableHoldings = holdings.filter(h => h.maxContracts > 0);
 
+  // Load liquidation flags so flagged-for-exit positions are visually marked and non-selectable
+  const { data: flagsData } = trpc.positionAnalyzer.getLiquidationFlags.useQuery(
+    undefined,
+    { staleTime: 30 * 1000, enabled: !!selectedAccountId }
+  );
+  const flaggedSymbols = new Set(
+    (flagsData?.flags ?? []).map(f => f.symbol.toUpperCase())
+  );
+
   return (
     <div className="container mx-auto py-8 space-y-8">
       {/* Header */}
@@ -1466,19 +1475,26 @@ export default function CCDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {availableHoldings.map((holding) => (
-                        <TableRow key={holding.symbol}>
+                      {availableHoldings.map((holding) => {
+                        const isFlaggedForExit = flaggedSymbols.has(holding.symbol.toUpperCase());
+                        return (
+                        <TableRow key={holding.symbol} className={isFlaggedForExit ? 'opacity-60' : ''}>
                           <TableCell>
                     <Checkbox
                       checked={selectedStocks.includes(holding.symbol)}
-                      onCheckedChange={() => toggleStockSelection(holding.symbol)}
-                      disabled={holding.maxContracts === 0}
+                      onCheckedChange={() => !isFlaggedForExit && toggleStockSelection(holding.symbol)}
+                      disabled={holding.maxContracts === 0 || isFlaggedForExit}
                       className="border-2 border-amber-500/50 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed"
                     />
                           </TableCell>
                           <TableCell className="font-semibold">
                             {holding.symbol}
-                            {holding.hasExistingCalls && (
+                            {isFlaggedForExit && (
+                              <Badge variant="outline" className="ml-2 text-[10px] px-1.5 py-0 border-red-600/60 bg-red-950/40 text-red-400">
+                                ⛔ Flagged for Exit
+                              </Badge>
+                            )}
+                            {!isFlaggedForExit && holding.hasExistingCalls && (
                               <Badge variant="outline" className="ml-2 text-xs">
                                 Has Calls
                               </Badge>
@@ -1505,7 +1521,8 @@ export default function CCDashboard() {
                             </Badge>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
 
