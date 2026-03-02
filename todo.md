@@ -6943,3 +6943,16 @@
 - [x] Add expiry countdown to CC Active badge (e.g., "CC Active — 8d left") on position cards
 - [x] Weekly Monday morning digest notification listing all flagged positions, expiring this week, and estimated proceeds
 - [x] Batch "Sell All" scoped to flagged + eligible positions only (excludes unflagged HARVEST positions)
+
+## Order Preview Modal Enhancements (Mar 2, 2026)
+- [x] Live bid/ask quotes in UnifiedOrderPreviewModal — fetch real market data at modal open time via fetchOptionQuotes tRPC query
+- [x] Good Fill Zone auto-prices from live quotes when available (BTC: mid + 25% toward ask)
+- [x] Live quote status indicator in modal header ("Fetching live quotes…" / "Live quotes loaded" / "Using estimated prices")
+- [x] Per-row Live/Est. badge in Limit Price column showing data source
+- [x] Slider and +/- buttons use live bid/ask data when available (orderWithLive pattern)
+- [x] Bid/Ask values shown in Limit Price cell (Bid: $X.XX / Ask: $X.XX)
+- [x] Continuous 30s polling for order fill status after live submission (setInterval with terminal state detection)
+- [x] Order Status section persists after submission (no longer hidden after 5s)
+- [x] "Polling live status every 30s" spinner shown while interval is active
+- [x] Spread leg sub-row in BTC spread orders — shows long leg OCC symbol and price with blue styling
+- [x] Unit tests for live quotes pricing logic (17 tests, all passing)

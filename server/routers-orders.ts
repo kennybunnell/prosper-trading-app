@@ -1,10 +1,49 @@
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from './_core/trpc.js';
 import { TRPCError } from '@trpc/server';
-import { submitRollOrder, submitCloseOrder } from './tastytrade.js';
+import { submitRollOrder, submitCloseOrder, authenticateTastytrade } from './tastytrade.js';
 import { checkOrderStatus, pollOrderStatus, checkOrderStatusBatch } from './tastytrade-order-status.js';
 
 export const ordersRouter = router({
+  /**
+   * Fetch live bid/ask quotes for a batch of option symbols
+   * Used by the Order Preview modal to populate accurate Good Fill Zone sliders
+   */
+  fetchOptionQuotes: protectedProcedure
+    .input(
+      z.object({
+        symbols: z.array(z.string()).max(50),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const { getDb } = await import('./db');
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        const { apiCredentials } = await import('../drizzle/schema.js');
+        const { eq } = await import('drizzle-orm');
+        const [creds] = await db.select().from(apiCredentials).where(eq(apiCredentials.userId, ctx.user.id));
+        if (!creds) return {} as Record<string, { bid: number; ask: number }>;
+        const api = await authenticateTastytrade(creds, ctx.user.id);
+        const quotes = await api.getOptionQuotesBatch(input.symbols);
+        // quotes is Record<symbol, {bid, ask, mark?, mid?, last?}>
+        // Normalise to a simple map of symbol -> {bid, ask}
+        const result: Record<string, { bid: number; ask: number }> = {};
+        for (const [sym, q] of Object.entries(quotes)) {
+          const qAny = q as any;
+          result[sym] = {
+            bid: typeof qAny.bid === 'number' ? qAny.bid : 0,
+            ask: typeof qAny.ask === 'number' ? qAny.ask : 0,
+          };
+        }
+        return result;
+      } catch (err: any) {
+        console.error('[fetchOptionQuotes] Failed:', err.message);
+        // Return empty map — caller falls back to estimated bid/ask
+        return {} as Record<string, { bid: number; ask: number }>;
+      }
+    }),
+
   /**
    * Check order status by order ID
    */

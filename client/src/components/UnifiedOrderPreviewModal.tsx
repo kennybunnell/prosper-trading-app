@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, Minus, Plus, AlertCircle, CheckCircle2, DollarSign, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { trpc } from "@/lib/trpc";
 
 // Order interface - flexible for all strategies
 export interface UnifiedOrder {
@@ -156,12 +157,29 @@ export function UnifiedOrderPreviewModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [orderStatuses, setOrderStatuses] = useState<OrderSubmissionStatus[]>([]);
+  // Continuous polling state: track submitted order IDs and polling interval
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const submittedOrderIdsRef = useRef<string[]>([]);
+  const [pollCount, setPollCount] = useState(0); // Increments to trigger re-poll
   const [showMarketClosedWarning, setShowMarketClosedWarning] = useState(false);
   const [marketStatus, setMarketStatus] = useState<{ isOpen: boolean; description: string } | null>(null);
   // Safeguard pre-flight check state
   const [safeguardWarnings, setSafeguardWarnings] = useState<Array<{ title: string; description: string; requiredAction: string; severity: string }>>([]);
   const [showSafeguardWarning, setShowSafeguardWarning] = useState(false);
   const [safeguardBlocked, setSafeguardBlocked] = useState(false);
+  // Live bid/ask quotes fetched at modal open time
+  // Collect all option symbols from orders (for BTC strategy, use optionSymbol; for others use OCC symbol if available)
+  const optionSymbolsForQuotes = useMemo(() => {
+    if (!open || strategy !== 'btc') return [];
+    return orders
+      .map(o => o.optionSymbol)
+      .filter((s): s is string => !!s);
+  }, [open, strategy, orders]);
+  const { data: liveQuotesData, isFetching: isQuotesFetching } = trpc.orders.fetchOptionQuotes.useQuery(
+    { symbols: optionSymbolsForQuotes },
+    { enabled: open && strategy === 'btc' && optionSymbolsForQuotes.length > 0, staleTime: 30_000 }
+  );
+  const liveQuotes = liveQuotesData ?? {};
   
   // Use external state if provided, otherwise use internal state (for backward compatibility)
   const submissionComplete = externalSubmissionComplete ?? false;
@@ -244,6 +262,83 @@ export function UnifiedOrderPreviewModal({
       setSubmissionState(false, null);
     }
   }, [open, submissionComplete]); // Check submissionComplete to prevent reset after live submission
+
+  // Helper: compute Good Fill Zone price for a single-leg BTC order given bid/ask
+  const computeGoodFillPrice = (bid: number, ask: number, isBTC: boolean): number => {
+    if (bid > 0 && ask > 0) {
+      const mid = (bid + ask) / 2;
+      const price = isBTC ? mid + (ask - mid) * 0.25 : mid;
+      return Math.round(Math.max(0.01, price) * 20) / 20;
+    }
+    return 0;
+  };
+
+  // Re-initialize prices when live quotes arrive (overrides the estimated bid/ask fallback)
+  useEffect(() => {
+    if (!open || strategy !== 'btc' || Object.keys(liveQuotes).length === 0) return;
+    setAdjustedPrices(prev => {
+      const updated = new Map(prev);
+      orders.forEach(order => {
+        const key = getOrderKey(order);
+        const sym = order.optionSymbol;
+        if (!sym) return;
+        const q = liveQuotes[sym];
+        if (!q || q.bid === 0 || q.ask === 0) return;
+        const price = computeGoodFillPrice(q.bid, q.ask, order.action === 'BTC');
+        if (price > 0) updated.set(key, price);
+      });
+      return updated;
+    });
+  }, [liveQuotes, open, strategy]);
+
+  // Continuous 30s polling for order fill status after live submission
+  useEffect(() => {
+    // Start polling when we have submitted order IDs and a polling callback
+    const ids = submittedOrderIdsRef.current;
+    if (!onPollStatuses || ids.length === 0) return;
+    // Check if all orders are in a terminal state — stop polling if so
+    const allTerminal = orderStatuses.length > 0 && orderStatuses.every(
+      s => s.status === 'Filled' || s.status === 'Rejected' || s.status === 'Cancelled'
+    );
+    if (allTerminal) {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      return;
+    }
+    // Start interval if not already running
+    if (!pollingIntervalRef.current) {
+      pollingIntervalRef.current = setInterval(() => {
+        setPollCount(c => c + 1);
+      }, 30_000);
+    }
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [submittedOrderIdsRef.current.length, orderStatuses, onPollStatuses]);
+
+  // Execute a poll whenever pollCount increments
+  useEffect(() => {
+    if (pollCount === 0) return;
+    const ids = submittedOrderIdsRef.current;
+    if (!onPollStatuses || ids.length === 0) return;
+    (async () => {
+      try {
+        const polledStatuses = await onPollStatuses(ids, accountId);
+        setOrderStatuses(prev => {
+          // Merge: keep failed (FAILED orderId) entries, update the rest
+          const failed = prev.filter(s => s.orderId === 'FAILED');
+          return [...polledStatuses, ...failed];
+        });
+      } catch (err) {
+        console.warn('[UnifiedOrderPreviewModal] Polling error:', err);
+      }
+    })();
+  }, [pollCount]);
   
   // Real-time validation whenever quantities change
   useEffect(() => {
@@ -663,6 +758,13 @@ export function UnifiedOrderPreviewModal({
       setOrderStatuses(allStatuses);
       console.log('[UnifiedOrderPreviewModal] Initial order statuses set:', allStatuses);
       
+      // Store submitted order IDs for continuous 30s polling
+      const successOrderIds = allStatuses
+        .filter(s => s.orderId !== 'FAILED')
+        .map(s => s.orderId);
+      submittedOrderIdsRef.current = successOrderIds;
+      setPollCount(0); // Reset poll count so interval starts fresh
+      
       // Poll order statuses if callback provided (only for successful submissions)
       const successfulStatuses = allStatuses.filter(s => s.orderId !== 'FAILED');
       console.log('[UnifiedOrderPreviewModal] Successful statuses to poll:', successfulStatuses);
@@ -846,11 +948,28 @@ export function UnifiedOrderPreviewModal({
           <DialogTitle>
             {operationMode === "replace" ? "Replace Orders - Review Changes" : "Order Preview - Review and Adjust"}
           </DialogTitle>
-          <DialogDescription>
-            {operationMode === "replace" 
-              ? `Review pricing details before replacing ${orders.length} order${orders.length > 1 ? 's' : ''}` 
-              : "Adjust quantities and prices before submitting"
-            }
+          <DialogDescription className="flex items-center gap-2">
+            <span>
+              {operationMode === "replace" 
+                ? `Review pricing details before replacing ${orders.length} order${orders.length > 1 ? 's' : ''}` 
+                : "Adjust quantities and prices before submitting"
+              }
+            </span>
+            {strategy === 'btc' && optionSymbolsForQuotes.length > 0 && (
+              isQuotesFetching ? (
+                <span className="flex items-center gap-1 text-xs text-yellow-400">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Fetching live quotes…
+                </span>
+              ) : Object.keys(liveQuotes).length > 0 ? (
+                <span className="flex items-center gap-1 text-xs text-green-400">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Live quotes loaded
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">Using estimated prices</span>
+              )
+            )}
           </DialogDescription>
         </DialogHeader>
         
@@ -951,31 +1070,60 @@ export function UnifiedOrderPreviewModal({
                   const maxQty = getMaxQuantity(order);
                   const price = adjustedPrices.get(key) || order.premium;
                   const totalPremium = price * 100 * qty;
+                  // Check if we have live quotes for this order
+                  const liveQ = order.optionSymbol ? liveQuotes[order.optionSymbol] : undefined;
+                  const hasLiveQuote = !!(liveQ && liveQ.bid > 0 && liveQ.ask > 0);
+                  // Use live quotes if available, otherwise fall back to estimated bid/ask from order
+                  const effectiveBid = hasLiveQuote ? liveQ!.bid : order.bid;
+                  const effectiveAsk = hasLiveQuote ? liveQ!.ask : order.ask;
+                  // Merge live quotes into order for slider calculations
+                  const orderWithLive: UnifiedOrder = hasLiveQuote
+                    ? { ...order, bid: effectiveBid, ask: effectiveAsk }
+                    : order;
                   // Check if we have market data for price adjustment slider
                   // For spreads: need both legs' bid/ask; for single-leg: just bid/ask
                   const hasMarketData = order.longStrike 
-                    ? (order.bid && order.ask && order.longBid && order.longAsk)
-                    : (order.bid && order.ask && order.bid > 0 && order.ask > 0);
+                    ? (effectiveBid && effectiveAsk && order.longBid && order.longAsk)
+                    : (effectiveBid && effectiveAsk && effectiveBid > 0 && effectiveAsk > 0);
                   
                   // Check if this is an Iron Condor (has all 4 legs)
                   const isIronCondor = order.callShortStrike && order.callLongStrike;
                   
+                  // For BTC spread orders, check if we have a long leg to display
+                  const isSpread = !!(order.spreadLongSymbol || order.longStrike);
+                  const isBTCSpread = strategy === 'btc' && isSpread;
+
                   return (
+                    <>
                     <TableRow key={idx}>
                       {/* Symbol */}
-                      <TableCell className="font-semibold">{order.symbol}</TableCell>
+                      <TableCell className="font-semibold">
+                        <div className="flex flex-col">
+                          <span>{order.symbol}</span>
+                          {isBTCSpread && (
+                            <span className="text-[10px] text-muted-foreground font-normal">
+                              2-leg spread
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       
                       {/* Strategy */}
                       <TableCell>
-                        {isIronCondor ? (
-                          <Badge variant="default" className="bg-purple-600">
-                            Iron Condor
-                          </Badge>
-                        ) : (
-                          <Badge variant={order.action.includes("BTC") ? "destructive" : "default"}>
-                            {order.action}
-                          </Badge>
-                        )}
+                        <div className="flex flex-col gap-0.5">
+                          {isIronCondor ? (
+                            <Badge variant="default" className="bg-purple-600">
+                              Iron Condor
+                            </Badge>
+                          ) : (
+                            <Badge variant={order.action.includes("BTC") ? "destructive" : "default"}>
+                              {order.action}
+                            </Badge>
+                          )}
+                          {isBTCSpread && (
+                            <span className="text-[10px] text-blue-400">+ BTO long leg</span>
+                          )}
+                        </div>
                       </TableCell>
                       
                       {/* Strike - show all 4 legs for Iron Condor */}
@@ -1031,23 +1179,33 @@ export function UnifiedOrderPreviewModal({
                       
                       {/* Limit Price */}
                       <TableCell className="text-right">
-                        <div className="flex flex-col items-end">
+                        <div className="flex flex-col items-end gap-0.5">
                           <span className="font-semibold text-green-600">
                             ${price.toFixed(2)}
                           </span>
                           {hasMarketData && (
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-xs text-muted-foreground space-y-0.5">
                               <div>Mid: ${(() => {
                                 // For spreads, show net credit midpoint
                                 if (order.longStrike && order.longBid && order.longAsk) {
-                                  const minCredit = order.bid! - order.longAsk;
-                                  const maxCredit = order.ask! - order.longBid;
+                                  const minCredit = effectiveBid! - order.longAsk;
+                                  const maxCredit = effectiveAsk! - order.longBid;
                                   return ((minCredit + maxCredit) / 2).toFixed(2);
                                 }
                                 // For single-leg, show bid/ask midpoint
-                                return ((order.bid! + order.ask!) / 2).toFixed(2);
+                                return ((effectiveBid! + effectiveAsk!) / 2).toFixed(2);
                               })()}</div>
+                              <div className="text-[10px]">
+                                Bid: ${effectiveBid?.toFixed(2)} / Ask: ${effectiveAsk?.toFixed(2)}
+                              </div>
                             </div>
+                          )}
+                          {strategy === 'btc' && (
+                            hasLiveQuote ? (
+                              <span className="text-[10px] text-green-400 font-medium">● Live</span>
+                            ) : (
+                              <span className="text-[10px] text-yellow-500">~ Est.</span>
+                            )
                           )}
                         </div>
                       </TableCell>
@@ -1073,8 +1231,8 @@ export function UnifiedOrderPreviewModal({
                                 
                                 {/* Slider */}
                                 <Slider
-                                  value={getSliderPosition(order)}
-                                  onValueChange={(value) => setPriceFromSlider(order, value)}
+                                  value={getSliderPosition(orderWithLive)}
+                                  onValueChange={(value) => setPriceFromSlider(orderWithLive, value)}
                                   min={0}
                                   max={100}
                                   step={1}
@@ -1090,7 +1248,7 @@ export function UnifiedOrderPreviewModal({
                                     size="sm"
                                     variant="outline"
                                     className="h-6 w-6 p-0"
-                                    onClick={() => adjustPrice(order, -0.05)}
+                                    onClick={() => adjustPrice(orderWithLive, -0.05)}
                                     disabled={isSubmitting}
                                   >
                                     <Minus className="h-3 w-3" />
@@ -1102,7 +1260,7 @@ export function UnifiedOrderPreviewModal({
                                     size="sm"
                                     variant="outline"
                                     className="h-6 w-6 p-0"
-                                    onClick={() => adjustPrice(order, 0.05)}
+                                    onClick={() => adjustPrice(orderWithLive, 0.05)}
                                     disabled={isSubmitting}
                                   >
                                     <Plus className="h-3 w-3" />
@@ -1110,7 +1268,7 @@ export function UnifiedOrderPreviewModal({
                                 </div>
                                 <div className="text-xs text-muted-foreground">
                                   {(() => {
-                                    const sliderPos = getSliderPosition(order)[0];
+                                    const sliderPos = getSliderPosition(orderWithLive)[0];
                                     const guidance = getFillZoneGuidance(sliderPos, order.action);
                                     return <span className={guidance.color}>{guidance.text}</span>;
                                   })()}
@@ -1128,6 +1286,28 @@ export function UnifiedOrderPreviewModal({
                         ${totalPremium.toFixed(2)}
                       </TableCell>
                     </TableRow>
+                    {/* Long leg sub-row for BTC spread orders */}
+                    {isBTCSpread && order.spreadLongSymbol && (
+                      <TableRow key={`${idx}-long`} className="bg-blue-950/20">
+                        <TableCell className="text-xs text-blue-400 pl-6" colSpan={2}>
+                          <span className="font-medium">↳ Long leg (BTO):</span>
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-blue-300" colSpan={2}>
+                          <span className="font-mono text-[10px] break-all">{order.spreadLongSymbol}</span>
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-blue-300">
+                          {order.quantity || qty}x
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-blue-300" colSpan={2}>
+                          {order.spreadLongPrice !== undefined
+                            ? `$${order.spreadLongPrice.toFixed(2)} limit`
+                            : <span className="text-muted-foreground">Market</span>
+                          }
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
+                    )}
+                    </>
                   );
                 })}
               </TableBody>
@@ -1223,9 +1403,17 @@ export function UnifiedOrderPreviewModal({
           )}
           
           {/* Order Status Display (after live submission) */}
-          {isPolling && orderStatuses.length > 0 && (
+          {orderStatuses.length > 0 && (
             <div className="p-4 bg-muted/30 rounded-lg border space-y-3">
-              <h4 className="font-semibold mb-3">Order Status</h4>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-semibold">Order Status</h4>
+                {pollingIntervalRef.current && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Polling live status every 30s
+                  </span>
+                )}
+              </div>
               <div className="space-y-2">
                 {orderStatuses.map((status, idx) => (
                   <div key={idx} className="flex items-center justify-between p-2 rounded bg-background/50">
