@@ -6846,3 +6846,28 @@
 - [x] Confirmed Roll Positions submit path has explicit Dry Run / Submit Live buttons (correct as-is)
 - [x] Confirmed submitRollOrders backend fully wired for live orders when dryRun=false
 - [x] TypeScript clean (0 errors) after all changes
+
+## Orphaned Short Leg Dual Fix Options (Mar 2, 2026)
+- [ ] Add buyProtectivePut backend procedure — buys a lower-strike put at same expiry to restore spread protection
+- [ ] Update ORPHANED_SHORT_LEG ViolationCard to show two fix buttons: "Close (BTC) Option" + "Buy Protective Put"
+- [ ] Add "Recommended" badge to the better option based on DTE (≤7 DTE → close is recommended; >7 DTE → restore protection is recommended)
+- [ ] Wire Buy Protective Put button to confirmation dialog and live order submission
+
+## Multi-Fix Buttons for All Violation Types (Mar 2, 2026)
+- [ ] SHORT_STOCK: Add "Buy to Cover" (Recommended) + "Contact Broker" info button
+- [ ] NAKED_SHORT_CALL: Add "Close (BTC) Option" (Recommended if DTE≤5) + "Buy Long Call to Spread" + "Buy 100 Shares to Cover"
+- [ ] ORPHANED_SHORT_LEG: Add "Close (BTC) Option" (Recommended if DTE≤7) + "Buy Protective Put" (Recommended if DTE>7)
+- [ ] ITM_ASSIGNMENT_RISK: Add "Close (BTC) Option" (Recommended) + "Roll to Later Expiry" + "Snooze 24h"
+- [ ] Add buyProtectivePut backend procedure
+- [ ] Add buyLongCall backend procedure (for NAKED_SHORT_CALL spread restoration)
+- [ ] Update ViolationCard UI to show all fix buttons per violation type with Recommended badge
+
+## Multi-Path Fix Actions for IRA Violations (Mar 2, 2026)
+- [x] Remove duplicate buyProtectivePut block in routers-ira-safety.ts
+- [x] Update ViolationCard to show all fix options per violation type with Recommended badges
+- [x] SHORT_STOCK: single "Buy to Cover" with ★ Recommended badge
+- [x] NAKED_SHORT_CALL: "Close (BTC) Option" (★ if DTE≤5) + "Buy Long Call (→ BCS)" (★ if DTE>5)
+- [x] ORPHANED_SHORT_LEG: "Close (BTC) Option" (★ if DTE≤7) + "Buy Protective Put (→ BPS)" (★ if DTE>7)
+- [x] ITM_ASSIGNMENT_RISK: "Close (BTC) Option" (★ always) + "Snooze 24h" (Alternative)
+- [x] Wire buyProtectivePut and buyLongCall mutations in ViolationCard
+- [x] TypeScript clean (0 errors)

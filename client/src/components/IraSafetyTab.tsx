@@ -137,14 +137,17 @@ function FixDialog({ open, onClose, title, description, dryRun, onConfirm, isSub
 
 // ── Individual violation card with fix actions ────────────────────────────────
 
+type FixAction = 'buyToCover' | 'closeOption' | 'buyProtectivePut' | 'buyLongCall';
+
 function ViolationCard({ violation, dryRun, onSnoozed }: { violation: IraViolation; dryRun: boolean; onSnoozed?: () => void }) {
   const [expanded, setExpanded] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'buyToCover' | 'closeOption' | null>(null);
+  const [pendingAction, setPendingAction] = useState<FixAction | null>(null);
   const [lastResult, setLastResult] = useState<{ message: string; orderId: string | null } | null>(null);
   const [snoozed, setSnoozed] = useState(false);
 
   const isCritical = violation.severity === 'critical';
+  const dte = violation.dte ?? 999;
 
   const utils = trpc.useUtils();
 
@@ -152,7 +155,6 @@ function ViolationCard({ violation, dryRun, onSnoozed }: { violation: IraViolati
     onSuccess: () => {
       setSnoozed(true);
       toast.success(`${violation.symbol} ITM risk snoozed for 24 hours`);
-      // Invalidate so the violation disappears from the list after a moment
       setTimeout(() => {
         utils.iraSafety.scanViolations.invalidate();
         onSnoozed?.();
@@ -164,67 +166,64 @@ function ViolationCard({ violation, dryRun, onSnoozed }: { violation: IraViolati
   const buyToCover = trpc.iraSafety.buyToCoverShortStock.useMutation({
     onSuccess: (data) => {
       setLastResult({ message: data.message, orderId: data.orderId });
-      if (!data.dryRun) {
-        toast.success(`Order submitted: ${data.message}`);
-      } else {
-        toast.info(`Dry run: ${data.message}`);
-      }
+      data.dryRun ? toast.info(`Dry run: ${data.message}`) : toast.success(`Order submitted: ${data.message}`);
     },
-    onError: (err) => {
-      toast.error(`Failed: ${err.message}`);
-      setDialogOpen(false);
-    },
+    onError: (err) => { toast.error(`Failed: ${err.message}`); setDialogOpen(false); },
   });
 
   const closeOption = trpc.iraSafety.closeShortOption.useMutation({
     onSuccess: (data) => {
       setLastResult({ message: data.message, orderId: data.orderId });
-      if (!data.dryRun) {
-        toast.success(`Order submitted: ${data.message}`);
-      } else {
-        toast.info(`Dry run: ${data.message}`);
-      }
+      data.dryRun ? toast.info(`Dry run: ${data.message}`) : toast.success(`Order submitted: ${data.message}`);
     },
-    onError: (err) => {
-      toast.error(`Failed: ${err.message}`);
-      setDialogOpen(false);
-    },
+    onError: (err) => { toast.error(`Failed: ${err.message}`); setDialogOpen(false); },
   });
 
-  const isSubmitting = buyToCover.isPending || closeOption.isPending;
+  const buyProtectivePut = trpc.iraSafety.buyProtectivePut.useMutation({
+    onSuccess: (data) => {
+      setLastResult({ message: data.message, orderId: data.orderId });
+      data.dryRun ? toast.info(`Dry run: ${data.message}`) : toast.success(`Order submitted: ${data.message}`);
+    },
+    onError: (err) => { toast.error(`Failed: ${err.message}`); setDialogOpen(false); },
+  });
+
+  const buyLongCall = trpc.iraSafety.buyLongCall.useMutation({
+    onSuccess: (data) => {
+      setLastResult({ message: data.message, orderId: data.orderId });
+      data.dryRun ? toast.info(`Dry run: ${data.message}`) : toast.success(`Order submitted: ${data.message}`);
+    },
+    onError: (err) => { toast.error(`Failed: ${err.message}`); setDialogOpen(false); },
+  });
+
+  const isSubmitting = buyToCover.isPending || closeOption.isPending || buyProtectivePut.isPending || buyLongCall.isPending;
 
   const handleConfirm = () => {
     if (pendingAction === 'buyToCover' && violation.sharesShort) {
-      buyToCover.mutate({
-        accountNumber: violation.accountNumber,
-        symbol: violation.symbol,
-        sharesShort: violation.sharesShort,
-        dryRun,
-      });
+      buyToCover.mutate({ accountNumber: violation.accountNumber, symbol: violation.symbol, sharesShort: violation.sharesShort, dryRun });
     } else if (pendingAction === 'closeOption' && violation.optionSymbol) {
-      closeOption.mutate({
-        accountNumber: violation.accountNumber,
-        symbol: violation.symbol,
-        optionSymbol: violation.optionSymbol,
-        quantity: 1,
-        dryRun,
-      });
+      closeOption.mutate({ accountNumber: violation.accountNumber, symbol: violation.symbol, optionSymbol: violation.optionSymbol, quantity: 1, dryRun });
+    } else if (pendingAction === 'buyProtectivePut' && violation.strike && violation.expiration) {
+      buyProtectivePut.mutate({ accountNumber: violation.accountNumber, symbol: violation.symbol, shortStrike: violation.strike, expiration: violation.expiration, quantity: 1, dryRun });
+    } else if (pendingAction === 'buyLongCall' && violation.strike && violation.expiration) {
+      buyLongCall.mutate({ accountNumber: violation.accountNumber, symbol: violation.symbol, shortStrike: violation.strike, expiration: violation.expiration, quantity: 1, dryRun });
     }
   };
 
-  const openFix = (action: 'buyToCover' | 'closeOption') => {
+  const openFix = (action: FixAction) => {
     setPendingAction(action);
     setLastResult(null);
     setDialogOpen(true);
   };
 
   const getDialogDescription = () => {
-    if (pendingAction === 'buyToCover') {
+    if (pendingAction === 'buyToCover')
       return `Submit a market order to buy ${violation.sharesShort} shares of ${violation.symbol} in account ...${violation.accountNumber.slice(-4)}. This will satisfy the SL call and close the short stock position.`;
-    }
-    if (pendingAction === 'closeOption') {
+    if (pendingAction === 'closeOption')
       return `Submit a market Buy to Close (BTC) order for 1 contract of ${violation.optionSymbol} in account ...${violation.accountNumber.slice(-4)}. This will close the short option position immediately.`;
-    }
+    if (pendingAction === 'buyProtectivePut')
+      return `Buy a lower-strike put option (~5% below $${violation.strike}) at the same expiration to restore spread protection on ${violation.symbol}. This converts the orphaned short put back into a Bull Put Spread.`;
+    if (pendingAction === 'buyLongCall')
+      return `Buy a higher-strike call option (~5% above $${violation.strike}) at the same expiration to cap risk on the naked short call on ${violation.symbol}. This converts it into a Bear Call Spread.`;
     return '';
   };
 
@@ -306,65 +305,98 @@ function ViolationCard({ violation, dryRun, onSnoozed }: { violation: IraViolati
             )}
 
             {/* ── Fix Action Buttons ── */}
-            <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-border/30">
-              <span className="text-xs text-muted-foreground font-medium">Fix:</span>
+            <div className="pt-1 border-t border-border/30 space-y-2">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground font-medium">Fix options:</span>
+                {dryRun && (
+                  <span className="text-xs text-amber-400/70 italic ml-1">(Dry Run — no real order will be placed)</span>
+                )}
+              </div>
 
-              {violation.violationType === 'SHORT_STOCK' && violation.sharesShort && (
-                <Button
-                  size="sm"
-                  className="bg-red-600 hover:bg-red-700 text-white text-xs h-7"
-                  onClick={() => openFix('buyToCover')}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-                  Buy to Cover ({violation.sharesShort} shares)
-                </Button>
-              )}
+              <div className="flex items-start gap-2 flex-wrap">
 
-              {(violation.violationType === 'NAKED_SHORT_CALL' ||
-                violation.violationType === 'ORPHANED_SHORT_LEG' ||
-                violation.violationType === 'ITM_ASSIGNMENT_RISK') && violation.optionSymbol && (
-                <Button
-                  size="sm"
-                  className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-7"
-                  onClick={() => openFix('closeOption')}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <X className="h-3 w-3 mr-1" />}
-                  Close (BTC) Option
-                </Button>
-              )}
+                {/* ── SHORT_STOCK: only one fix ── */}
+                {violation.violationType === 'SHORT_STOCK' && violation.sharesShort && (
+                  <div className="flex flex-col items-start gap-0.5">
+                    <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">★ Recommended</span>
+                    <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white text-xs h-7" onClick={() => openFix('buyToCover')} disabled={isSubmitting}>
+                      {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+                      Buy to Cover ({violation.sharesShort} shares)
+                    </Button>
+                  </div>
+                )}
 
-              {/* Snooze button — only for ITM_ASSIGNMENT_RISK warnings */}
-              {violation.violationType === 'ITM_ASSIGNMENT_RISK' && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs h-7 border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-400"
-                  onClick={() => snooze.mutate({
-                    symbol: violation.symbol,
-                    accountNumber: violation.accountNumber,
-                    violationType: 'ITM_ASSIGNMENT_RISK',
-                  })}
-                  disabled={snooze.isPending || snoozed}
-                  title="Dismiss this warning for 24 hours (use when you have already decided to let the position expire)"
-                >
-                  {snooze.isPending ? (
-                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                  ) : snoozed ? (
-                    <CheckCircle2 className="h-3 w-3 mr-1 text-emerald-400" />
-                  ) : (
-                    <span className="mr-1 text-xs">&#128164;</span>
-                  )}
-                  {snoozed ? 'Snoozed' : 'Snooze 24h'}
-                </Button>
-              )}
+                {/* ── NAKED_SHORT_CALL: BTC (recommended if DTE≤5), Buy Long Call to spread, or Buy 100 shares ── */}
+                {violation.violationType === 'NAKED_SHORT_CALL' && violation.optionSymbol && (
+                  <>
+                    <div className="flex flex-col items-start gap-0.5">
+                      {dte <= 5 && <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">★ Recommended</span>}
+                      <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-7" onClick={() => openFix('closeOption')} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <X className="h-3 w-3 mr-1" />}
+                        Close (BTC) Option
+                      </Button>
+                    </div>
+                    {violation.strike && violation.expiration && (
+                      <div className="flex flex-col items-start gap-0.5">
+                        {dte > 5 && <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">★ Recommended</span>}
+                        <Button size="sm" variant="outline" className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-950/30 text-xs h-7" onClick={() => openFix('buyLongCall')} disabled={isSubmitting}>
+                          {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <BarChart3 className="h-3 w-3 mr-1" />}
+                          Buy Long Call (→ BCS)
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
 
-              {dryRun && (
-                <span className="text-xs text-amber-400/70 italic ml-1">
-                  (Dry Run — no real order will be placed)
-                </span>
-              )}
+                {/* ── ORPHANED_SHORT_LEG: BTC (recommended if DTE≤7), Buy Protective Put (recommended if DTE>7) ── */}
+                {violation.violationType === 'ORPHANED_SHORT_LEG' && violation.optionSymbol && (
+                  <>
+                    <div className="flex flex-col items-start gap-0.5">
+                      {dte <= 7 && <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">★ Recommended</span>}
+                      <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-7" onClick={() => openFix('closeOption')} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <X className="h-3 w-3 mr-1" />}
+                        Close (BTC) Option
+                      </Button>
+                    </div>
+                    {violation.strike && violation.expiration && (
+                      <div className="flex flex-col items-start gap-0.5">
+                        {dte > 7 && <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">★ Recommended</span>}
+                        <Button size="sm" variant="outline" className="border-purple-500/50 text-purple-400 hover:bg-purple-950/30 text-xs h-7" onClick={() => openFix('buyProtectivePut')} disabled={isSubmitting}>
+                          {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <ShieldCheck className="h-3 w-3 mr-1" />}
+                          Buy Protective Put (→ BPS)
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* ── ITM_ASSIGNMENT_RISK: BTC (always recommended), Roll (secondary), Snooze ── */}
+                {violation.violationType === 'ITM_ASSIGNMENT_RISK' && violation.optionSymbol && (
+                  <>
+                    <div className="flex flex-col items-start gap-0.5">
+                      <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">★ Recommended</span>
+                      <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-7" onClick={() => openFix('closeOption')} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <X className="h-3 w-3 mr-1" />}
+                        Close (BTC) Option
+                      </Button>
+                    </div>
+                    <div className="flex flex-col items-start gap-0.5">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Alternative</span>
+                      <Button
+                        size="sm" variant="outline"
+                        className="text-xs h-7 border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-400"
+                        onClick={() => snooze.mutate({ symbol: violation.symbol, accountNumber: violation.accountNumber, violationType: 'ITM_ASSIGNMENT_RISK' })}
+                        disabled={snooze.isPending || snoozed}
+                        title="Dismiss this warning for 24 hours"
+                      >
+                        {snooze.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : snoozed ? <CheckCircle2 className="h-3 w-3 mr-1 text-emerald-400" /> : <span className="mr-1 text-xs">&#128164;</span>}
+                        {snoozed ? 'Snoozed' : 'Snooze 24h'}
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+              </div>
             </div>
 
             {/* Last result feedback */}

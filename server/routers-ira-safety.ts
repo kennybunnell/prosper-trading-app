@@ -495,4 +495,127 @@ export const iraSafetyRouter = router({
         throw new Error(`Failed to submit close order: ${err.message}`);
       }
     }),
+
+  /**
+   * Fix: Buy a protective put to restore spread protection for an orphaned short put.
+   * Buys a lower-strike put at the same expiration to convert the naked short put
+   * back into a Bull Put Spread.
+   */
+  buyProtectivePut: protectedProcedure
+    .input(z.object({
+      accountNumber: z.string(),
+      symbol: z.string(),
+      shortStrike: z.number(),
+      expiration: z.string(),   // YYYY-MM-DD
+      quantity: z.number().int().positive().default(1),
+      dryRun: z.boolean().default(true),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const { authenticateTastytrade } = await import('./tastytrade');
+
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new Error('Tastytrade credentials not configured');
+      }
+
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+
+      // Protective put strike: 5% below short strike, rounded to nearest $2.50
+      const rawProtectiveStrike = input.shortStrike * 0.95;
+      const protectiveStrike = Math.round(rawProtectiveStrike / 2.5) * 2.5;
+
+      // Build OCC symbol: SYMBOL(6) + YYMMDD + P + strike*1000 (8 digits)
+      const expParts = input.expiration.replace(/-/g, '').slice(2); // YYMMDD
+      const strikeFormatted = String(Math.round(protectiveStrike * 1000)).padStart(8, '0');
+      const underlyingPadded = input.symbol.padEnd(6, ' ');
+      const protectivePutSymbol = `${underlyingPadded}${expParts}P${strikeFormatted}`;
+
+      console.log(`[IRA Safety] BUY PROTECTIVE PUT: ${protectivePutSymbol} qty=${input.quantity} in ${input.accountNumber} (dryRun=${input.dryRun})`);
+
+      if (input.dryRun) {
+        return {
+          success: true, dryRun: true, protectiveStrike, protectivePutSymbol,
+          message: `DRY RUN: Would buy ${input.quantity} contract(s) of $${protectiveStrike} put to restore spread protection on ${input.symbol}`,
+          orderId: null,
+        };
+      }
+
+      try {
+        const result = await api.submitOrder({
+          accountNumber: input.accountNumber,
+          timeInForce: 'Day',
+          orderType: 'Market',
+          legs: [{ instrumentType: 'Equity Option', symbol: protectivePutSymbol, quantity: String(input.quantity), action: 'Buy to Open' }],
+        });
+        return {
+          success: true, dryRun: false, protectiveStrike, protectivePutSymbol,
+          message: `Market order submitted: Buy ${input.quantity}x $${protectiveStrike} put to restore protection on ${input.symbol}`,
+          orderId: result?.id || null,
+        };
+      } catch (err: any) {
+        throw new Error(`Failed to submit protective put order: ${err.message}`);
+      }
+    }),
+
+  /**
+   * Fix: Buy a long call to convert a naked short call into a Bear Call Spread.
+   * Buys a higher-strike call at the same expiration.
+   */
+  buyLongCall: protectedProcedure
+    .input(z.object({
+      accountNumber: z.string(),
+      symbol: z.string(),
+      shortStrike: z.number(),
+      expiration: z.string(),   // YYYY-MM-DD
+      quantity: z.number().int().positive().default(1),
+      dryRun: z.boolean().default(true),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const { authenticateTastytrade } = await import('./tastytrade');
+
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new Error('Tastytrade credentials not configured');
+      }
+
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+
+      // Long call strike: 5% above short strike, rounded to nearest $2.50
+      const rawLongStrike = input.shortStrike * 1.05;
+      const longStrike = Math.round(rawLongStrike / 2.5) * 2.5;
+
+      // Build OCC symbol: SYMBOL(6) + YYMMDD + C + strike*1000 (8 digits)
+      const expParts = input.expiration.replace(/-/g, '').slice(2);
+      const strikeFormatted = String(Math.round(longStrike * 1000)).padStart(8, '0');
+      const underlyingPadded = input.symbol.padEnd(6, ' ');
+      const longCallSymbol = `${underlyingPadded}${expParts}C${strikeFormatted}`;
+
+      console.log(`[IRA Safety] BUY LONG CALL: ${longCallSymbol} qty=${input.quantity} in ${input.accountNumber} (dryRun=${input.dryRun})`);
+
+      if (input.dryRun) {
+        return {
+          success: true, dryRun: true, longStrike, longCallSymbol,
+          message: `DRY RUN: Would buy ${input.quantity} contract(s) of $${longStrike} call to convert naked short call into a Bear Call Spread on ${input.symbol}`,
+          orderId: null,
+        };
+      }
+
+      try {
+        const result = await api.submitOrder({
+          accountNumber: input.accountNumber,
+          timeInForce: 'Day',
+          orderType: 'Market',
+          legs: [{ instrumentType: 'Equity Option', symbol: longCallSymbol, quantity: String(input.quantity), action: 'Buy to Open' }],
+        });
+        return {
+          success: true, dryRun: false, longStrike, longCallSymbol,
+          message: `Market order submitted: Buy ${input.quantity}x $${longStrike} call to create Bear Call Spread on ${input.symbol}`,
+          orderId: result?.id || null,
+        };
+      } catch (err: any) {
+        throw new Error(`Failed to submit long call order: ${err.message}`);
+      }
+    }),
 });
