@@ -6871,3 +6871,11 @@
 - [x] ITM_ASSIGNMENT_RISK: "Close (BTC) Option" (★ always) + "Snooze 24h" (Alternative)
 - [x] Wire buyProtectivePut and buyLongCall mutations in ViolationCard
 - [x] TypeScript clean (0 errors)
+
+## IRA Violation Card UX Improvements (Mar 2, 2026)
+- [x] Fix ITM_ASSIGNMENT_RISK button label bug: change "Buy to Cover X shares" to "Close BTC Short Calls"
+- [x] Reorder fix buttons so Recommended is always first (leftmost)
+- [x] Embed ★ Rec badge inside the recommended button itself (not above it)
+- [x] Add stockPrice field to violation scanner backend (fetch from Tradier)
+- [x] Display current stock price vs strike in violation card metadata row
+- [x] Add contextual narrative line per violation using live numbers (price, strike, DTE, % distance)

@@ -61,6 +61,8 @@ interface IraViolation {
   expiration?: string;
   dte?: number;
   itmPct?: number;
+  stockPrice?: number;
+  strikeDistancePct?: number;
 }
 
 // ── Fix confirmation dialog ───────────────────────────────────────────────────
@@ -290,10 +292,26 @@ function ViolationCard({ violation, dryRun, onSnoozed }: { violation: IraViolati
               <span className="text-muted-foreground">{violation.action}</span>
             </div>
 
-            {/* Option details */}
-            {(violation.strike || violation.expiration || violation.dte !== undefined) && (
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                {violation.strike && <span>Strike: <strong>${violation.strike}</strong></span>}
+            {/* Position context row — strike, stock price, distance, expiry, DTE */}
+            {(violation.strike || violation.expiration || violation.dte !== undefined || violation.sharesShort) && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                {violation.strike && (
+                  <span>Strike: <strong className="text-foreground">${violation.strike}</strong></span>
+                )}
+                {violation.stockPrice && (
+                  <span>Stock: <strong className="text-foreground">${violation.stockPrice.toFixed(2)}</strong></span>
+                )}
+                {violation.stockPrice && violation.strike && violation.strikeDistancePct !== undefined && (
+                  <span className={`font-semibold ${
+                    violation.strikeDistancePct >= 2 ? 'text-emerald-400' :
+                    violation.strikeDistancePct >= 0 ? 'text-amber-400' : 'text-red-400'
+                  }`}>
+                    {violation.strikeDistancePct >= 0
+                      ? `${violation.strikeDistancePct.toFixed(1)}% OTM`
+                      : `${Math.abs(violation.strikeDistancePct).toFixed(1)}% ITM`
+                    }
+                  </span>
+                )}
                 {violation.expiration && <span>Exp: <strong>{violation.expiration}</strong></span>}
                 {violation.dte !== undefined && (
                   <span>DTE: <strong className={violation.dte <= 2 ? 'text-red-400' : 'text-amber-400'}>{violation.dte}</strong></span>
@@ -304,95 +322,168 @@ function ViolationCard({ violation, dryRun, onSnoozed }: { violation: IraViolati
               </div>
             )}
 
+            {/* Contextual narrative — plain-English situation summary */}
+            {(() => {
+              const { violationType: vt, stockPrice: sp, strike, strikeDistancePct: dist, dte: d, sharesShort } = violation;
+              const distStr = dist !== undefined ? `${Math.abs(dist).toFixed(1)}%` : null;
+              const dirStr  = dist !== undefined ? (dist >= 0 ? 'OTM' : 'ITM') : null;
+              if (vt === 'ITM_ASSIGNMENT_RISK' && sp && strike) {
+                const riskLevel = dist !== undefined && dist < 0 ? 'high' : dist !== undefined && dist < 2 ? 'moderate' : 'low';
+                const riskColor = riskLevel === 'high' ? 'text-red-400' : riskLevel === 'moderate' ? 'text-amber-400' : 'text-emerald-400';
+                return (
+                  <p className="text-xs text-muted-foreground italic border-l-2 border-amber-500/40 pl-2">
+                    <span className={`font-semibold ${riskColor}`}>Assignment risk is {riskLevel}.</span>{' '}
+                    {violation.symbol} is currently ${sp.toFixed(2)}, which is{' '}
+                    {distStr && dirStr ? <><strong className={riskColor}>{distStr} {dirStr}</strong> of the ${strike} strike</> : <>near the ${strike} strike</>}.
+                    {d !== undefined && d <= 1 ? ' Expiration is TODAY — act before market close.' :
+                     d !== undefined && d <= 2 ? ` Only ${d} day${d !== 1 ? 's' : ''} to expiration — close or roll soon.` :
+                     ` With ${d} DTE, you have a short window to act.`}
+                  </p>
+                );
+              }
+              if (vt === 'ORPHANED_SHORT_LEG' && sp && strike) {
+                return (
+                  <p className="text-xs text-muted-foreground italic border-l-2 border-amber-500/40 pl-2">
+                    {violation.symbol} is at ${sp.toFixed(2)}{distStr && dirStr ? <>, <strong>{distStr} {dirStr}</strong> of the ${strike} short put strike</> : ''}.
+                    {' '}The long put that was protecting this position is gone.
+                    {d !== undefined && d > 7
+                      ? ' With enough time remaining, buying a new protective put to restore the spread is the most capital-efficient fix.'
+                      : ' Close to expiration — buying back the short put outright is faster and cleaner.'}
+                  </p>
+                );
+              }
+              if (vt === 'NAKED_SHORT_CALL' && sp && strike) {
+                return (
+                  <p className="text-xs text-muted-foreground italic border-l-2 border-red-500/40 pl-2">
+                    {violation.symbol} is at ${sp.toFixed(2)}{distStr && dirStr ? <>, <strong>{distStr} {dirStr}</strong> of the ${strike} short call strike</> : ''}.
+                    {' '}A naked short call in an IRA has unlimited upside risk.
+                    {d !== undefined && d <= 5
+                      ? ' With ≤5 DTE, closing outright is the safest move.'
+                      : ' With time remaining, buying a higher-strike call to create a Bear Call Spread caps the risk without closing the position.'}
+                  </p>
+                );
+              }
+              if (vt === 'SHORT_STOCK' && sp && sharesShort) {
+                const cost = sp * sharesShort;
+                return (
+                  <p className="text-xs text-muted-foreground italic border-l-2 border-red-500/40 pl-2">
+                    Buying {sharesShort} shares of {violation.symbol} at the current price of ${sp.toFixed(2)} would cost approximately <strong className="text-foreground">${cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong>.
+                    {' '}This must be done before market close to satisfy the Tastytrade SL call.
+                  </p>
+                );
+              }
+              return null;
+            })()}
+
             {/* ── Fix Action Buttons ── */}
             <div className="pt-1 border-t border-border/30 space-y-2">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground font-medium">Fix options:</span>
                 {dryRun && (
-                  <span className="text-xs text-amber-400/70 italic ml-1">(Dry Run — no real order will be placed)</span>
+                  <span className="text-xs text-amber-400/70 italic">(Dry Run — no real order)</span>
                 )}
               </div>
 
-              <div className="flex items-start gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
 
                 {/* ── SHORT_STOCK: only one fix ── */}
                 {violation.violationType === 'SHORT_STOCK' && violation.sharesShort && (
-                  <div className="flex flex-col items-start gap-0.5">
-                    <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">★ Recommended</span>
-                    <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white text-xs h-7" onClick={() => openFix('buyToCover')} disabled={isSubmitting}>
-                      {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-                      Buy to Cover ({violation.sharesShort} shares)
-                    </Button>
-                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-red-600 hover:bg-red-700 text-white text-xs h-8 gap-1.5"
+                    onClick={() => openFix('buyToCover')}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <TrendingDown className="h-3 w-3" />}
+                    Buy to Cover ({violation.sharesShort} shares)
+                    <span className="ml-1 bg-emerald-500/20 text-emerald-300 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-emerald-500/40">★ REC</span>
+                  </Button>
                 )}
 
-                {/* ── NAKED_SHORT_CALL: BTC (recommended if DTE≤5), Buy Long Call to spread, or Buy 100 shares ── */}
+                {/* ── NAKED_SHORT_CALL: recommended first, then alternative ── */}
                 {violation.violationType === 'NAKED_SHORT_CALL' && violation.optionSymbol && (
                   <>
-                    <div className="flex flex-col items-start gap-0.5">
-                      {dte <= 5 && <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">★ Recommended</span>}
-                      <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-7" onClick={() => openFix('closeOption')} disabled={isSubmitting}>
-                        {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <X className="h-3 w-3 mr-1" />}
-                        Close (BTC) Option
+                    {/* Recommended: BTC if DTE≤5, Buy Long Call if DTE>5 */}
+                    {dte <= 5 ? (
+                      <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-8 gap-1.5" onClick={() => openFix('closeOption')} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                        Close (BTC) Short Call
+                        <span className="ml-1 bg-emerald-500/20 text-emerald-300 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-emerald-500/40">★ REC</span>
                       </Button>
-                    </div>
-                    {violation.strike && violation.expiration && (
-                      <div className="flex flex-col items-start gap-0.5">
-                        {dte > 5 && <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">★ Recommended</span>}
-                        <Button size="sm" variant="outline" className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-950/30 text-xs h-7" onClick={() => openFix('buyLongCall')} disabled={isSubmitting}>
-                          {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <BarChart3 className="h-3 w-3 mr-1" />}
-                          Buy Long Call (→ BCS)
-                        </Button>
-                      </div>
+                    ) : violation.strike && violation.expiration ? (
+                      <Button size="sm" variant="outline" className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-950/30 text-xs h-8 gap-1.5" onClick={() => openFix('buyLongCall')} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <BarChart3 className="h-3 w-3" />}
+                        Buy Long Call (→ BCS)
+                        <span className="ml-1 bg-emerald-500/20 text-emerald-300 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-emerald-500/40">★ REC</span>
+                      </Button>
+                    ) : null}
+                    {/* Alternative */}
+                    {dte <= 5 && violation.strike && violation.expiration && (
+                      <Button size="sm" variant="outline" className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-950/30 text-xs h-8" onClick={() => openFix('buyLongCall')} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <BarChart3 className="h-3 w-3" />}
+                        Buy Long Call (→ BCS)
+                      </Button>
+                    )}
+                    {dte > 5 && (
+                      <Button size="sm" variant="outline" className="border-orange-500/50 text-orange-400 hover:bg-orange-950/30 text-xs h-8" onClick={() => openFix('closeOption')} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                        Close (BTC) Short Call
+                      </Button>
                     )}
                   </>
                 )}
 
-                {/* ── ORPHANED_SHORT_LEG: BTC (recommended if DTE≤7), Buy Protective Put (recommended if DTE>7) ── */}
+                {/* ── ORPHANED_SHORT_LEG: recommended first, then alternative ── */}
                 {violation.violationType === 'ORPHANED_SHORT_LEG' && violation.optionSymbol && (
                   <>
-                    <div className="flex flex-col items-start gap-0.5">
-                      {dte <= 7 && <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">★ Recommended</span>}
-                      <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-7" onClick={() => openFix('closeOption')} disabled={isSubmitting}>
-                        {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <X className="h-3 w-3 mr-1" />}
-                        Close (BTC) Option
+                    {/* Recommended: BTC if DTE≤7, Buy Protective Put if DTE>7 */}
+                    {dte <= 7 ? (
+                      <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-8 gap-1.5" onClick={() => openFix('closeOption')} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                        Close (BTC) Short Put
+                        <span className="ml-1 bg-emerald-500/20 text-emerald-300 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-emerald-500/40">★ REC</span>
                       </Button>
-                    </div>
-                    {violation.strike && violation.expiration && (
-                      <div className="flex flex-col items-start gap-0.5">
-                        {dte > 7 && <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">★ Recommended</span>}
-                        <Button size="sm" variant="outline" className="border-purple-500/50 text-purple-400 hover:bg-purple-950/30 text-xs h-7" onClick={() => openFix('buyProtectivePut')} disabled={isSubmitting}>
-                          {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <ShieldCheck className="h-3 w-3 mr-1" />}
-                          Buy Protective Put (→ BPS)
-                        </Button>
-                      </div>
+                    ) : violation.strike && violation.expiration ? (
+                      <Button size="sm" variant="outline" className="border-purple-500/50 text-purple-400 hover:bg-purple-950/30 text-xs h-8 gap-1.5" onClick={() => openFix('buyProtectivePut')} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}
+                        Buy Protective Put (→ BPS)
+                        <span className="ml-1 bg-emerald-500/20 text-emerald-300 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-emerald-500/40">★ REC</span>
+                      </Button>
+                    ) : null}
+                    {/* Alternative */}
+                    {dte <= 7 && violation.strike && violation.expiration && (
+                      <Button size="sm" variant="outline" className="border-purple-500/50 text-purple-400 hover:bg-purple-950/30 text-xs h-8" onClick={() => openFix('buyProtectivePut')} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}
+                        Buy Protective Put (→ BPS)
+                      </Button>
+                    )}
+                    {dte > 7 && (
+                      <Button size="sm" variant="outline" className="border-orange-500/50 text-orange-400 hover:bg-orange-950/30 text-xs h-8" onClick={() => openFix('closeOption')} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                        Close (BTC) Short Put
+                      </Button>
                     )}
                   </>
                 )}
 
-                {/* ── ITM_ASSIGNMENT_RISK: BTC (always recommended), Roll (secondary), Snooze ── */}
+                {/* ── ITM_ASSIGNMENT_RISK: BTC always recommended, Snooze as alt ── */}
                 {violation.violationType === 'ITM_ASSIGNMENT_RISK' && violation.optionSymbol && (
                   <>
-                    <div className="flex flex-col items-start gap-0.5">
-                      <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">★ Recommended</span>
-                      <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-7" onClick={() => openFix('closeOption')} disabled={isSubmitting}>
-                        {isSubmitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <X className="h-3 w-3 mr-1" />}
-                        Close (BTC) Option
-                      </Button>
-                    </div>
-                    <div className="flex flex-col items-start gap-0.5">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Alternative</span>
-                      <Button
-                        size="sm" variant="outline"
-                        className="text-xs h-7 border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-400"
-                        onClick={() => snooze.mutate({ symbol: violation.symbol, accountNumber: violation.accountNumber, violationType: 'ITM_ASSIGNMENT_RISK' })}
-                        disabled={snooze.isPending || snoozed}
-                        title="Dismiss this warning for 24 hours"
-                      >
-                        {snooze.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : snoozed ? <CheckCircle2 className="h-3 w-3 mr-1 text-emerald-400" /> : <span className="mr-1 text-xs">&#128164;</span>}
-                        {snoozed ? 'Snoozed' : 'Snooze 24h'}
-                      </Button>
-                    </div>
+                    <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-8 gap-1.5" onClick={() => openFix('closeOption')} disabled={isSubmitting}>
+                      {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                      Close (BTC) Short Call
+                      <span className="ml-1 bg-emerald-500/20 text-emerald-300 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-emerald-500/40">★ REC</span>
+                    </Button>
+                    <Button
+                      size="sm" variant="outline"
+                      className="text-xs h-8 border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-400"
+                      onClick={() => snooze.mutate({ symbol: violation.symbol, accountNumber: violation.accountNumber, violationType: 'ITM_ASSIGNMENT_RISK' })}
+                      disabled={snooze.isPending || snoozed}
+                      title="Dismiss for 24h — only safe if you are certain the call will expire OTM"
+                    >
+                      {snooze.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : snoozed ? <CheckCircle2 className="h-3 w-3 text-emerald-400" /> : <span className="text-xs">&#128164;</span>}
+                      <span className="ml-1">{snoozed ? 'Snoozed' : 'Snooze 24h'}</span>
+                    </Button>
                   </>
                 )}
 

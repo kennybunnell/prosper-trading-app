@@ -76,6 +76,10 @@ export interface IraViolation {
   dte?: number;
   /** For option violations: how far ITM (%) */
   itmPct?: number;
+  /** Current stock price (from Tradier, best-effort) */
+  stockPrice?: number;
+  /** % distance between stock price and strike (positive = OTM, negative = ITM) */
+  strikeDistancePct?: number;
 }
 
 function calcDTE(expiresAt: string): number {
@@ -360,6 +364,47 @@ export const iraSafetyRouter = router({
         }
       } catch (e) {
         console.warn('[IRA Safety] Could not load snoozes:', e);
+      }
+
+      // ── Enrich violations with live stock prices from Tradier ─────────────
+      try {
+        const { getApiCredentials: getCreds } = await import('./db');
+        const creds = await getCreds(ctx.user.id);
+        const storedKey = creds?.tradierApiKey;
+        const tradierApiKey = (storedKey && storedKey.length > 15 ? storedKey : null) || process.env.TRADIER_API_KEY;
+        if (tradierApiKey) {
+          const { createTradierAPI } = await import('./tradier');
+          const tradierApi = createTradierAPI(tradierApiKey);
+          const symbolsNeedingPrice = Array.from(new Set(
+            filteredViolations
+              .filter(v => v.strike && v.strike > 0)
+              .map(v => v.symbol)
+          ));
+          if (symbolsNeedingPrice.length > 0) {
+            const quotes = await tradierApi.getQuotes(symbolsNeedingPrice);
+            const priceMap = new Map<string, number>();
+            for (const q of quotes) {
+              const price = q.last || q.close || ((q.bid + q.ask) / 2) || 0;
+              if (price > 0) priceMap.set(q.symbol, price);
+            }
+            for (const v of filteredViolations) {
+              const price = priceMap.get(v.symbol);
+              if (price && v.strike && v.strike > 0) {
+                v.stockPrice = price;
+                // Calls: OTM when stock < strike (positive pct = OTM)
+                // Puts:  OTM when stock > strike (positive pct = OTM)
+                const isCall = v.optionSymbol?.replace(/\s/g, '').match(/[A-Z]+\d{6}C/) != null;
+                if (isCall) {
+                  v.strikeDistancePct = ((v.strike - price) / price) * 100;
+                } else {
+                  v.strikeDistancePct = ((price - v.strike) / price) * 100;
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[IRA Safety] Could not enrich with stock prices:', e);
       }
 
       return {
