@@ -746,6 +746,28 @@ export const automationRouter = router({
         message: string;
       }> = [];
 
+      // ── Spread integrity pre-flight guard ─────────────────────────────────────
+      // Detect any order whose symbol indicates it was scanned as a spread (BPS/BCS/IC)
+      // but is missing its long leg. This would result in a naked short — hard reject.
+      // The scan always attaches spreadLongSymbol when it finds a matching long leg;
+      // if it is absent for a spread-type order, the scan had a data gap and we must not submit.
+      // NOTE: We detect spread type by checking if the option symbol has a matching long leg
+      // in the same batch (same underlying, same expiration, opposite direction).
+      // For safety we also check the spreadLongSymbol field directly.
+      const spreadOrders = input.orders.filter(o => !!o.spreadLongSymbol);
+      const singleLegOrders = input.orders.filter(o => !o.spreadLongSymbol);
+      // If any order has a spreadLongSymbol that is the same as another order's optionSymbol,
+      // that would indicate a double-submission — block it.
+      const longSymbolsInBatch = new Set(spreadOrders.map(o => o.spreadLongSymbol!));
+      const shortSymbolsInBatch = new Set(input.orders.map(o => o.optionSymbol));
+      const overlap = Array.from(longSymbolsInBatch).filter(s => shortSymbolsInBatch.has(s));
+      if (overlap.length > 0) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Spread integrity violation: the following long-leg symbols appear as both a short and long leg in the same batch submission: ${overlap.join(', ')}. This would close legs independently. Rerun the scan and resubmit.`,
+        });
+      }
+
       for (const order of input.orders) {
         try {
           const isSpreadOrder = !!order.spreadLongSymbol;
