@@ -194,22 +194,31 @@ export function UnifiedOrderPreviewModal({
       });
       setOrderQuantities(initialQuantities);
       
-      // Initialize prices to midpoint
+      // Initialize prices to Good Fill Zone
+      // For BTC orders: Good Fill Zone = mid + 25% of half-spread (between mid and ask)
+      //   This gives a fast fill without paying full ask.
+      // For STO orders: Good Fill Zone = mid (standard midpoint entry)
       const initialPrices = new Map<string, number>();
       orders.forEach(order => {
         const key = getOrderKey(order);
+        const isBTC = order.action === 'BTC';
         
-        // For spreads, calculate net credit midpoint from both legs
+        // For spreads, calculate net debit range from both legs
         if (order.longStrike && order.bid && order.ask && order.longBid && order.longAsk) {
-          // Net credit range: (shortBid - longAsk) to (shortAsk - longBid)
-          const minCredit = order.bid - order.longAsk;  // Most aggressive
-          const maxCredit = order.ask - order.longBid;  // Most conservative
-          const midCredit = (minCredit + maxCredit) / 2;
-          initialPrices.set(key, midCredit);
+          // Net debit range for BTC spread: (shortBid - longAsk) to (shortAsk - longBid)
+          const minDebit = order.bid - order.longAsk;  // Best case (most aggressive)
+          const maxDebit = order.ask - order.longBid;  // Worst case (hit the ask)
+          const midDebit = (minDebit + maxDebit) / 2;
+          // BTC: set to mid + 25% toward ask = Good Fill Zone
+          const goodFillPrice = isBTC ? midDebit + (maxDebit - midDebit) * 0.25 : midDebit;
+          initialPrices.set(key, Math.round(Math.max(0.01, goodFillPrice) * 20) / 20); // round to $0.05
         }
-        // For single-leg options, use bid/ask midpoint
+        // For single-leg options, use bid/ask
         else if (order.bid && order.ask && order.bid > 0 && order.ask > 0) {
-          initialPrices.set(key, (order.bid + order.ask) / 2);
+          const mid = (order.bid + order.ask) / 2;
+          // BTC: set to mid + 25% toward ask = Good Fill Zone
+          const goodFillPrice = isBTC ? mid + (order.ask - mid) * 0.25 : mid;
+          initialPrices.set(key, Math.round(Math.max(0.01, goodFillPrice) * 20) / 20); // round to $0.05
         }
         // Fallback to premium if no market data
         else {
@@ -737,99 +746,83 @@ export function UnifiedOrderPreviewModal({
     setAdjustedPrices(prev => new Map(prev).set(key, roundedPrice));
   };
   
-  // Set price via slider (between bid and mid)
+  // Helper: get the full price range for an order (min=best-case, max=worst-case)
+  const getOrderPriceRange = (order: UnifiedOrder) => {
+    if (!order.bid || !order.ask) return { minPrice: order.premium, maxPrice: order.premium, midPrice: order.premium };
+    if (order.longStrike && order.longBid !== undefined && order.longAsk !== undefined) {
+      // Spread: net debit range
+      const minPrice = order.bid - order.longAsk;  // Best case for BTC
+      const maxPrice = order.ask - order.longBid;  // Worst case for BTC
+      return { minPrice, maxPrice, midPrice: (minPrice + maxPrice) / 2 };
+    }
+    // Single-leg
+    return { minPrice: order.bid, maxPrice: order.ask, midPrice: (order.bid + order.ask) / 2 };
+  };
+
+  // Set price via slider (full bid→ask range)
   const setPriceFromSlider = (order: UnifiedOrder, value: number[]) => {
     if (!order.bid || !order.ask) return;
-    
-    let minPrice, midPrice;
-    
-    // For spreads, calculate net credit range from both legs
-    if (order.longStrike && order.longBid && order.longAsk) {
-      // Net credit range: (shortBid - longAsk) to (shortAsk - longBid)
-      minPrice = order.bid - order.longAsk;  // Most aggressive (what we can realistically get)
-      const maxPrice = order.ask - order.longBid;  // Most conservative
-      midPrice = (minPrice + maxPrice) / 2;
-    }
-    // For single-leg options, use bid/ask
-    else {
-      minPrice = order.bid;
-      midPrice = (order.bid + order.ask) / 2;
-    }
-    
-    // Map slider value (0-100) to price range (min to mid)
-    const priceRange = midPrice - minPrice;
+    const { minPrice, maxPrice } = getOrderPriceRange(order);
+    const priceRange = maxPrice - minPrice;
     const newPrice = minPrice + (priceRange * value[0] / 100);
-    const roundedPrice = Math.round(newPrice * 100) / 100;
-    
+    const roundedPrice = Math.round(Math.max(0.01, newPrice) * 20) / 20; // $0.05 increments
     const key = getOrderKey(order);
     setAdjustedPrices(prev => new Map(prev).set(key, roundedPrice));
   };
   
-  // Calculate slider position (0-100) based on current price
+  // Calculate slider position (0-100) based on current price across full bid→ask range
   const getSliderPosition = (order: UnifiedOrder): number[] => {
     if (!order.bid || !order.ask) return [50];
-    
-    let minPrice, midPrice;
-    
-    // For spreads, calculate net credit range from both legs
-    if (order.longStrike && order.longBid && order.longAsk) {
-      minPrice = order.bid - order.longAsk;  // Most aggressive
-      const maxPrice = order.ask - order.longBid;  // Most conservative
-      midPrice = (minPrice + maxPrice) / 2;
-    }
-    // For single-leg options, use bid/ask
-    else {
-      minPrice = order.bid;
-      midPrice = (order.bid + order.ask) / 2;
-    }
-    
+    const { minPrice, maxPrice } = getOrderPriceRange(order);
     const key = getOrderKey(order);
-    const currentPrice = adjustedPrices.get(key) || order.premium;
-    
-    const priceRange = midPrice - minPrice;
+    const currentPrice = adjustedPrices.get(key) ?? order.premium;
+    const priceRange = maxPrice - minPrice;
     if (priceRange === 0) return [50];
-    
     const position = ((currentPrice - minPrice) / priceRange) * 100;
     return [Math.max(0, Math.min(100, position))];
   };
   
-  // Get fill zone guidance based on slider position
-  const getFillZoneGuidance = (sliderPos: number) => {
-    if (sliderPos < 70) return { text: "⚠️ Too conservative", color: "text-red-400" };
-    if (sliderPos >= 70 && sliderPos < 95) return { text: "✓ Good fill zone", color: "text-green-400" };
-    return { text: "⚠️ Too aggressive", color: "text-yellow-400" };
+  // Get fill zone guidance based on slider position and order direction
+  // BTC (buy to close): slider goes bid→ask; Good Fill Zone = 40-75% (mid to 75% toward ask)
+  //   <40% = below mid = unlikely to fill | >75% = paying too much above mid
+  // STO (sell to open): slider goes bid→ask; Good Fill Zone = 40-70% (near mid)
+  //   <30% = too far below mid = unlikely to fill | >80% = above mid = great but rare
+  const getFillZoneGuidance = (sliderPos: number, action: string) => {
+    const isBTC = action === 'BTC';
+    if (isBTC) {
+      if (sliderPos < 30) return { text: "⚠️ Below mid — unlikely to fill", color: "text-red-400" };
+      if (sliderPos >= 30 && sliderPos < 45) return { text: "↗ Near mid — may fill slowly", color: "text-yellow-400" };
+      if (sliderPos >= 45 && sliderPos < 75) return { text: "✅ Good Fill Zone", color: "text-green-400" };
+      if (sliderPos >= 75 && sliderPos < 90) return { text: "↑ Above mid — fast fill", color: "text-blue-400" };
+      return { text: "⚠️ Near ask — paying full spread", color: "text-orange-400" };
+    } else {
+      // STO
+      if (sliderPos < 30) return { text: "⚠️ Too aggressive — may not fill", color: "text-red-400" };
+      if (sliderPos >= 30 && sliderPos < 45) return { text: "↗ Slightly below mid", color: "text-yellow-400" };
+      if (sliderPos >= 45 && sliderPos < 70) return { text: "✅ Good Fill Zone", color: "text-green-400" };
+      if (sliderPos >= 70 && sliderPos < 85) return { text: "↑ Above mid — great credit", color: "text-blue-400" };
+      return { text: "⚠️ Near ask — unlikely to fill", color: "text-orange-400" };
+    }
   };
   
-  // Reset all prices to midpoint
+  // Reset all prices to Good Fill Zone (BTC: mid+25% toward ask; STO: mid)
   const handleResetAllToMidpoint = () => {
-    const newPrices = new Map(adjustedPrices); // Start with existing prices
+    const newPrices = new Map(adjustedPrices);
     let updatedCount = 0;
-    
     orders.forEach(order => {
       if (order.bid && order.ask) {
-        let mid;
-        
-        // For spreads, calculate net credit midpoint from both legs
-        if (order.longStrike && order.longBid && order.longAsk) {
-          const minCredit = order.bid - order.longAsk;
-          const maxCredit = order.ask - order.longBid;
-          mid = (minCredit + maxCredit) / 2;
-        }
-        // For single-leg options, use bid/ask midpoint
-        else {
-          mid = (order.bid + order.ask) / 2;
-        }
-        
+        const isBTC = order.action === 'BTC';
+        const { minPrice, maxPrice, midPrice } = getOrderPriceRange(order);
+        const goodFill = isBTC ? midPrice + (maxPrice - midPrice) * 0.25 : midPrice;
         const key = getOrderKey(order);
-        newPrices.set(key, Math.round(mid * 100) / 100);
+        newPrices.set(key, Math.round(Math.max(0.01, goodFill) * 20) / 20);
         updatedCount++;
       }
     });
-    
     setAdjustedPrices(newPrices);
     toast({
-      title: "Prices Reset",
-      description: `${updatedCount} order${updatedCount !== 1 ? 's' : ''} set to midpoint`,
+      title: "Prices Reset to Good Fill Zone",
+      description: `${updatedCount} order${updatedCount !== 1 ? 's' : ''} set to Good Fill Zone`,
     });
   };
   
@@ -1110,7 +1103,7 @@ export function UnifiedOrderPreviewModal({
                                 <div className="text-xs text-muted-foreground">
                                   {(() => {
                                     const sliderPos = getSliderPosition(order)[0];
-                                    const guidance = getFillZoneGuidance(sliderPos);
+                                    const guidance = getFillZoneGuidance(sliderPos, order.action);
                                     return <span className={guidance.color}>{guidance.text}</span>;
                                   })()}
                                 </div>
@@ -1253,7 +1246,7 @@ export function UnifiedOrderPreviewModal({
             className="w-full sm:w-auto"
           >
             <span className="mr-2">↔</span>
-            Reset All to Midpoint
+            ⚡ Reset All to Good Fill Zone
           </Button>
           <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
