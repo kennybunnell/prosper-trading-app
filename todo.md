@@ -6904,3 +6904,9 @@
 - [x] Frontend: Replace "Redeploy" suggestion row with "Harvest & Exit" covered call details row (strike, expiry, premium, effective exit price)
 - [x] Frontend: Replace Redeploy dialog with "Harvest & Exit" STO dialog — next Friday expiry, ITM strike, premium, contracts, dry-run toggle
 - [x] Remove all "Redeploy capital" language from Position Analyzer tab
+
+## Liquidate Button Fix (Mar 2, 2026)
+- [x] Debug option chain fetch for IREN, IBIT, MSTR — fix why CC data returns 0.0%/wk
+- [x] Add prominent "Liquidate / Sell ITM CC" button to every LIQUIDATE/HARVEST card (always visible, not conditional on CC data)
+- [x] Button opens confirmation dialog showing: strike, expiry, per-share premium, total credit (premium × contracts × 100), contracts, account
+- [x] If no option chain data: show loading/retry message instead of broken button

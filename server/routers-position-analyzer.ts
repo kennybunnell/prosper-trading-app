@@ -251,7 +251,8 @@ export const positionAnalyzerRouter = router({
           const sortedExps = expirations.sort();
           const targetExp = sortedExps.find(e => e >= fridayStr) || sortedExps[0];
           const chain = await tradierApi.getOptionChain(sym, targetExp, false);
-          const calls = chain.filter(o => o.type === 'call');
+          // Tradier raw API returns option_type ('call'/'put'); the wrapper preserves it
+          const calls = chain.filter(o => (o as any).option_type === 'call' || o.type === 'call');
           if (calls.length === 0) continue;
           // Sort calls by strike ascending
           const sortedCalls = calls.slice().sort((a, b) => a.strike - b.strike);

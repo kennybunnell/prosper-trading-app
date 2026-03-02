@@ -368,22 +368,57 @@ function PositionCard({
         <span>{pos.recommendationReason}</span>
       </div>
 
-      {/* Harvest & Exit CC details row — shown for LIQUIDATE/HARVEST when option data is available */}
-      {pos.recommendation !== 'KEEP' && pos.ccAtmStrike && pos.ccAtmPremium && (
-        <button
-          onClick={() => onSellCC(pos)}
-          className="w-full flex items-start gap-1.5 rounded-md bg-emerald-950/30 border border-emerald-800/30 p-2 text-xs text-emerald-300 hover:bg-emerald-900/40 hover:border-emerald-700/50 transition-colors cursor-pointer text-left group"
-        >
-          <TrendingUp className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-400 group-hover:translate-x-0.5 transition-transform" />
-          <span className="flex-1">
-            <span className="font-medium">{pos.ccIsItm ? 'ITM' : 'ATM'} CC:</span>{' '}
-            ${fmt(pos.ccAtmStrike)} strike · {pos.ccExpiration} · ~${fmt(pos.ccAtmPremium)}/share premium
-            {pos.ccEffectiveExit && (
-              <span className="text-emerald-400/70"> · Effective exit ${fmt(pos.ccEffectiveExit)}</span>
-            )}
-          </span>
-          <span className="shrink-0 text-emerald-500 group-hover:text-emerald-300 font-medium">★ Sell CC</span>
-        </button>
+      {/* Liquidate / Sell ITM CC — always visible for LIQUIDATE/HARVEST */}
+      {pos.recommendation !== 'KEEP' && (
+        <div className="space-y-2">
+          {pos.ccAtmStrike && pos.ccAtmPremium ? (
+            <>
+              {/* CC details summary */}
+              <div className="rounded-md bg-black/30 border border-emerald-800/30 p-2.5 text-xs space-y-1.5">
+                <div className="text-muted-foreground font-medium uppercase tracking-wide text-[10px]">Harvest &amp; Exit — Sell {pos.ccIsItm ? 'ITM' : 'ATM'} Covered Call</div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div>
+                    <div className="text-muted-foreground">Strike</div>
+                    <div className="font-bold text-white">${fmt(pos.ccAtmStrike)} {pos.ccIsItm ? <span className="text-amber-400">(ITM)</span> : <span className="text-blue-400">(ATM)</span>}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Expiry</div>
+                    <div className="font-bold text-white">{pos.ccExpiration}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Premium/share</div>
+                    <div className="font-bold text-emerald-400">${fmt(pos.ccAtmPremium)}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Total Credit</div>
+                    <div className="font-bold text-emerald-400">${fmt(pos.ccAtmPremium * contracts * 100, 0)}</div>
+                  </div>
+                </div>
+                {pos.ccEffectiveExit && (
+                  <div className="text-xs text-muted-foreground">
+                    Effective exit price: <span className="text-blue-400 font-medium">${fmt(pos.ccEffectiveExit)}</span>
+                    {' '}· {contracts} contract{contracts !== 1 ? 's' : ''} ({pos.quantity.toLocaleString()} shares)
+                  </div>
+                )}
+              </div>
+              {/* Action button */}
+              <Button
+                size="sm"
+                onClick={() => onSellCC(pos)}
+                className="w-full h-9 text-sm font-semibold bg-emerald-700 hover:bg-emerald-600 text-white border-0"
+              >
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Liquidate / Sell {pos.ccIsItm ? 'ITM' : 'ATM'} CC — Collect ${fmt(pos.ccAtmPremium * contracts * 100, 0)} Premium
+              </Button>
+            </>
+          ) : (
+            /* No CC data yet — loading or unavailable */
+            <div className="rounded-md border border-white/10 bg-black/20 p-2.5 text-xs text-muted-foreground flex items-center gap-2">
+              <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+              <span>Loading covered call data for {pos.symbol}… Refresh to retry.</span>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Account badge */}
