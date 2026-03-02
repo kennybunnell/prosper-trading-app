@@ -6934,3 +6934,6 @@
 ## Position Analyzer UX Fixes (Mar 2, 2026)
 - [x] Replace Tesla-specific liquidity progress bar with generic "clearing the dogs" progress bar (LIQUIDATE+HARVEST positions exited vs total)
 - [x] Add "CC Active — Cannot Liquidate Yet" indicator on cards that have open short calls covering all contracts
+
+- [x] Fix short call detection bug (was using option-type field which doesn't exist; now uses quantity-direction + OCC symbol parsing)
+- [x] Add Eligible Now filter tab showing only LIQUIDATE/HARVEST positions with available contracts

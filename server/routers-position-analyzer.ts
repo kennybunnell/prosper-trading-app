@@ -282,31 +282,65 @@ export const positionAnalyzerRouter = router({
 
       // Fetch open short call positions per account to detect locked contracts
       // Map: `${symbol}-${accountNumber}` -> array of open short calls
+      // NOTE: Tastytrade positions API uses 'quantity-direction' ("Short"/"Long"), NOT 'option-type'.
+      //       We detect calls by checking if the OCC symbol contains 'C' (call marker).
       const openShortCallsMap = new Map<string, Array<{ strike: number; expiration: string; quantity: number; daysToExpiry: number }>>();
       for (const account of accountList) {
         try {
           const positions = await api.getPositions(account.accountNumber);
-          const shortCalls = (positions || []).filter((p: any) =>
-            p['instrument-type'] === 'Equity Option' &&
-            p['option-type'] === 'C' &&
-            p.quantity < 0 // short position
-          );
+          const optionPositions = (positions || []).filter((p: any) => p['instrument-type'] === 'Equity Option');
+          const shortCalls = optionPositions.filter((p: any) => {
+            const direction = (p['quantity-direction'] || '').toLowerCase();
+            const isShort = direction === 'short' || (typeof p.quantity === 'number' && p.quantity < 0);
+            // OCC symbol format: AAPL  250117C00150000 — 'C' appears after the date digits
+            const sym: string = p.symbol || '';
+            const isCall = /\d{6}C\d/.test(sym) || sym.includes('C');
+            return isShort && isCall;
+          });
           for (const sc of shortCalls) {
-            const underlying = sc['underlying-symbol'] || sc.symbol?.slice(0, 6).trim();
+            const underlying = sc['underlying-symbol'] || (sc.symbol || '').replace(/\s+\d.*$/, '').trim();
             if (!underlying) continue;
-            const raw = sc as any;
-            const expDateStr = raw['expiration-date'] || raw.symbol?.slice(6, 12);
-            const expDate = expDateStr ? new Date(expDateStr) : null;
+            // Parse expiration from 'expires-at' field, then OCC symbol date (YYMMDD at positions 6-12)
+            const expiresAt = sc['expires-at'];
+            let expDateStr = '';
+            let expDate: Date | null = null;
+            if (expiresAt) {
+              expDate = new Date(expiresAt);
+              expDateStr = expDate.toISOString().split('T')[0];
+            } else {
+              // OCC symbol: underlying (padded to 6) + YYMMDD + C/P + strike
+              const sym: string = sc.symbol || '';
+              const dateMatch = sym.match(/\d{6}([CP])/);
+              if (dateMatch) {
+                const dateIdx = sym.indexOf(dateMatch[0]);
+                const yymmdd = sym.slice(dateIdx - 6, dateIdx);
+                if (yymmdd.length === 6) {
+                  const yy = parseInt(yymmdd.slice(0, 2), 10);
+                  const mm = parseInt(yymmdd.slice(2, 4), 10) - 1;
+                  const dd = parseInt(yymmdd.slice(4, 6), 10);
+                  expDate = new Date(2000 + yy, mm, dd);
+                  expDateStr = expDate.toISOString().split('T')[0];
+                }
+              }
+            }
             const daysToExpiry = expDate ? Math.max(0, Math.round((expDate.getTime() - today.getTime()) / 86400000)) : 0;
-            const strike = parseFloat(raw['strike-price'] || raw.symbol?.slice(13) || '0');
+            // Parse strike from 'strike-price' field or OCC symbol (last 8 digits / 1000)
+            let strike = parseFloat((sc as any)['strike-price'] || '0');
+            if (!strike) {
+              const sym: string = sc.symbol || '';
+              const strikeMatch = sym.match(/[CP](\d{8})$/);
+              if (strikeMatch) strike = parseInt(strikeMatch[1], 10) / 1000;
+            }
+            const qty = typeof sc.quantity === 'number' ? Math.abs(sc.quantity) : 1;
             const key = `${underlying}-${account.accountNumber}`;
             if (!openShortCallsMap.has(key)) openShortCallsMap.set(key, []);
             openShortCallsMap.get(key)!.push({
               strike,
-              expiration: expDateStr || '',
-              quantity: Math.abs(sc.quantity),
+              expiration: expDateStr,
+              quantity: qty,
               daysToExpiry,
             });
+            console.log(`[PositionAnalyzer] Detected short call: ${underlying} $${strike} ${expDateStr} (${daysToExpiry}d) in ${account.accountNumber}`);
           }
         } catch (e) {
           console.warn(`[PositionAnalyzer] Could not fetch option positions for ${account.accountNumber}:`, e);

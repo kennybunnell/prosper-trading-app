@@ -664,7 +664,7 @@ function BatchSellDialog({
   );
 }
 
-type FilterType = 'ALL' | Recommendation;
+type FilterType = 'ALL' | Recommendation | 'ELIGIBLE';
 
 // ─── Main Tab Component ───────────────────────────────────────────────────────
 export function PositionAnalyzerTab() {
@@ -736,7 +736,15 @@ export function PositionAnalyzerTab() {
 
   const positions = data?.positions ?? [];
   const summary = data?.summary;
-  const filtered = filter === 'ALL' ? positions : positions.filter(p => p.recommendation === filter);
+  // ELIGIBLE = LIQUIDATE or HARVEST with at least 1 available contract (can act right now)
+  const eligibleNow = positions.filter(
+    p => p.recommendation !== 'KEEP' && ((p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100)) > 0
+  );
+  const filtered = filter === 'ALL'
+    ? positions
+    : filter === 'ELIGIBLE'
+      ? eligibleNow
+      : positions.filter(p => p.recommendation === filter);
 
   const handleRefresh = () => {
     refetch();
@@ -887,7 +895,19 @@ export function PositionAnalyzerTab() {
 
       {/* Filter tabs */}
       {positions.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          {/* Eligible Now — highlighted as the primary action filter */}
+          <button
+            onClick={() => setFilter('ELIGIBLE')}
+            style={filter === 'ELIGIBLE'
+              ? { background: 'rgba(22,101,52,0.7)', border: '2px solid #16a34a', color: '#86efac', fontWeight: 700 }
+              : { background: 'transparent', border: '2px solid #16a34a', color: '#16a34a', fontWeight: 700 }
+            }
+            className="px-3 py-1.5 rounded-md text-xs transition-colors hover:opacity-90"
+          >
+            ⚡ Eligible Now ({eligibleNow.length})
+          </button>
+          <span className="text-white/20 text-xs">|</span>
           {(['ALL', 'LIQUIDATE', 'HARVEST', 'KEEP'] as const).map(f => (
             <button
               key={f}
