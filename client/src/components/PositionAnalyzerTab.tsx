@@ -266,9 +266,11 @@ function SellCCDialog({
 function PositionCard({
   pos,
   onSellCC,
+  onRedeploy,
 }: {
   pos: AnalyzedPosition;
   onSellCC: (pos: AnalyzedPosition) => void;
+  onRedeploy: (pos: AnalyzedPosition) => void;
 }) {
   const cfg = REC_CONFIG[pos.recommendation];
   const contracts = Math.floor(pos.quantity / 100);
@@ -368,12 +370,16 @@ function PositionCard({
         <span>{pos.recommendationReason}</span>
       </div>
 
-      {/* Redeployment suggestion */}
+      {/* Redeployment suggestion — clickable button */}
       {pos.redeploymentSuggestion && pos.recommendation !== 'KEEP' && (
-        <div className="flex items-start gap-1.5 rounded-md bg-blue-950/30 border border-blue-800/30 p-2 text-xs text-blue-300">
-          <ArrowRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-400" />
-          <span>{pos.redeploymentSuggestion}</span>
-        </div>
+        <button
+          onClick={() => onRedeploy(pos)}
+          className="w-full flex items-start gap-1.5 rounded-md bg-blue-950/30 border border-blue-800/30 p-2 text-xs text-blue-300 hover:bg-blue-900/40 hover:border-blue-700/50 transition-colors cursor-pointer text-left group"
+        >
+          <ArrowRight className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-400 group-hover:translate-x-0.5 transition-transform" />
+          <span className="flex-1">{pos.redeploymentSuggestion}</span>
+          <span className="shrink-0 text-blue-500 group-hover:text-blue-300 font-medium">→ Act</span>
+        </button>
       )}
 
       {/* Account badge */}
@@ -391,6 +397,7 @@ type FilterType = 'ALL' | Recommendation;
 export function PositionAnalyzerTab() {
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [sellDialog, setSellDialog] = useState<SellCCDialogState>({ open: false, position: null, dryRun: true });
+  const [redeployPos, setRedeployPos] = useState<AnalyzedPosition | null>(null);
 
   const { data, isLoading, error, refetch, isFetching } = trpc.positionAnalyzer.analyzePositions.useQuery(
     undefined,
@@ -562,6 +569,7 @@ export function PositionAnalyzerTab() {
               key={`${pos.symbol}-${pos.accountNumber}-${i}`}
               pos={pos}
               onSellCC={(p) => setSellDialog({ open: true, position: p, dryRun: true })}
+              onRedeploy={(p) => setRedeployPos(p)}
             />
           ))}
         </div>
@@ -578,6 +586,68 @@ export function PositionAnalyzerTab() {
         state={sellDialog}
         onClose={() => setSellDialog({ open: false, position: null, dryRun: true })}
       />
+      {/* Redeploy Capital dialog */}
+      <Dialog open={!!redeployPos} onOpenChange={(open) => { if (!open) setRedeployPos(null); }}>
+        <DialogContent className="max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-blue-400" />
+              Redeploy Capital — {redeployPos?.symbol}
+            </DialogTitle>
+            <DialogDescription>
+              Suggested strategy to redeploy ~${redeployPos ? Math.round(redeployPos.marketValue / 1000) * 1000 : 0} from liquidating this position.
+            </DialogDescription>
+          </DialogHeader>
+          {redeployPos && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted/20 border border-border p-3 space-y-2 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-muted-foreground text-xs">Position</div>
+                    <div className="font-semibold text-white">{redeployPos.symbol} × {redeployPos.quantity} shares</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-xs">Market Value</div>
+                    <div className="font-semibold text-white">${(redeployPos.marketValue / 1000).toFixed(1)}k</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-xs">Unrealized P&L</div>
+                    <div className={`font-semibold ${redeployPos.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {fmtDollar(redeployPos.unrealizedPnl)} ({redeployPos.unrealizedPnlPct >= 0 ? '+' : ''}{fmt(redeployPos.unrealizedPnlPct, 1)}%)
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-xs">52-Wk Drawdown</div>
+                    <div className="font-semibold text-red-400">{fmt(redeployPos.drawdownFromHigh, 1)}%</div>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-lg bg-blue-950/30 border border-blue-800/40 p-3">
+                <div className="text-xs text-blue-400 font-medium mb-1">Recommended Redeployment</div>
+                <div className="text-sm text-blue-200">{redeployPos.redeploymentSuggestion}</div>
+              </div>
+              <Alert className="border-amber-800/40 bg-amber-950/20">
+                <AlertTriangle className="h-4 w-4 text-amber-400" />
+                <AlertDescription className="text-amber-300 text-xs">
+                  To execute this redeployment, first liquidate {redeployPos.symbol} shares in Tastytrade, then use the CSP-BPS or Iron Condor builder to enter the new position. One-click redeployment orders are on the roadmap.
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRedeployPos(null)}>Close</Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={() => {
+                toast.info(`Navigate to CSP-BPS or Iron Condor to set up the redeployment for ${redeployPos?.symbol}`);
+                setRedeployPos(null);
+              }}
+            >
+              Go to Strategy Builder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

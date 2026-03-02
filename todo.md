@@ -6893,3 +6893,8 @@
 - [x] Frontend: Confirmation dialog showing strike, expiry, premium, contracts, estimated proceeds before submitting
 - [x] Backend: Weekly Monday digest email using notifyOwner — runs via scheduled cron, includes LIQUIDATE/HARVEST positions, estimated weekly premium, and redeployment suggestions
 - [x] Frontend: Settings toggle to enable/disable weekly digest email
+
+## Position Analyzer Fixes (Mar 2, 2026)
+- [x] Exclude CORE/blue-chip stocks from LIQUIDATE recommendation (mark as KEEP regardless of drawdown/yield)
+- [x] Wire Redeploy button to open a confirmation dialog with dry-run toggle and actionable order submission
+- [x] Confirmation dialog shows: strategy, strikes, estimated credit, contracts, account, dry-run/live toggle

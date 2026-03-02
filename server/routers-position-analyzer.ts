@@ -76,16 +76,21 @@ function getRecommendation(
 ): { recommendation: PositionRecommendation; reason: string } {
   const yield_ = weeklyYield ?? 0;
 
-  // Core names with decent yield → KEEP
-  if (isCore && yield_ >= 2.0 && drawdownFromHigh > -60) {
-    return { recommendation: 'KEEP', reason: `Core holding with ${yield_.toFixed(1)}%/wk CC yield — continue wheeling` };
+  // ── CORE / BLUE-CHIP GUARD ──────────────────────────────────────────────────
+  // Blue-chip / core holdings are NEVER liquidated — they will recover.
+  // The worst outcome for a core stock is HARVEST (sell ITM CC to improve exit price).
+  if (isCore) {
+    if (drawdownFromHigh <= -50) {
+      return { recommendation: 'HARVEST', reason: `Core holding down ${Math.abs(drawdownFromHigh).toFixed(0)}% from high — sell ITM CC to harvest premium while holding` };
+    }
+    if (yield_ >= 1.5) {
+      return { recommendation: 'KEEP', reason: `Core holding with ${yield_.toFixed(1)}%/wk CC yield — continue wheeling` };
+    }
+    // Core with low yield but not deeply underwater → KEEP (wait for IV to improve)
+    return { recommendation: 'KEEP', reason: `Core holding — maintain position, sell CC when IV improves` };
   }
 
-  // Core names that are deeply underwater → HARVEST (sell ITM CC to exit gracefully)
-  if (isCore && drawdownFromHigh <= -60) {
-    return { recommendation: 'HARVEST', reason: `Core name but down ${Math.abs(drawdownFromHigh).toFixed(0)}% from high — sell ITM CC to harvest premium on the way out` };
-  }
-
+  // ── NON-CORE LOGIC ─────────────────────────────────────────────────────
   // Non-core with poor yield and deep drawdown → LIQUIDATE
   if (!isCore && drawdownFromHigh <= -40 && yield_ < 3.0) {
     return { recommendation: 'LIQUIDATE', reason: `Down ${Math.abs(drawdownFromHigh).toFixed(0)}% from high, only ${yield_.toFixed(1)}%/wk CC yield — redeploy capital` };
