@@ -32,7 +32,11 @@ const redirectToLoginIfUnauthorized = (error: unknown, queryKey?: readonly unkno
 queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.query.state.error;
-    redirectToLoginIfUnauthorized(error, event.query.queryKey);
+    // Only redirect after all retries are exhausted (failureCount >= 2 means retry: 1 has been used)
+    const failureCount = event.query.state.fetchFailureCount ?? 0;
+    if (failureCount >= 2) {
+      redirectToLoginIfUnauthorized(error, event.query.queryKey);
+    }
     
     // Suppress "Account not found" errors when query is disabled (expected behavior)
     const isAccountNotFoundError = error && typeof error === 'object' && 'message' in error && error.message === 'Account not found';
