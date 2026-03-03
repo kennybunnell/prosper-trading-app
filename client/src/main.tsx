@@ -42,7 +42,11 @@ queryClient.getQueryCache().subscribe(event => {
     const isTastytradeAuthError = error && typeof error === 'object' && 'message' in error && 
       (error.message.includes('Tastytrade login failed') || error.message.includes('Tastytrade authentication failed'));
     
-    if ((!isAccountNotFoundError || !isQueryDisabled) && !isTastytradeAuthError) {
+    // Suppress expected 401s from queries that fire before auth.me resolves —
+    // these are not real errors; the queries will retry once the user is authenticated.
+    const isExpectedUnauthError = error instanceof TRPCClientError && error.message === UNAUTHED_ERR_MSG;
+    
+    if ((!isAccountNotFoundError || !isQueryDisabled) && !isTastytradeAuthError && !isExpectedUnauthError) {
       console.error("[API Query Error]", error);
     }
   }
