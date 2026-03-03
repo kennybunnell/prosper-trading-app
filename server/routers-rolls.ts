@@ -79,31 +79,27 @@ function scoreSpreadUrgency(
 
   // ── P&L Status ───────────────────────────────────────────────────────────
   // profitPct can now be negative (losing trade) or > 100 (debit spread that moved in our favor)
-  let pnlStatus: 'winner' | 'breakeven' | 'loser' | 'at-risk';
+  let pnlStatus: 'winner' | 'breakeven' | 'loser';
 
   // STOCK-VS-STRIKE OVERRIDE: Use stock price vs. short strike as the primary signal
   // for Win/Loss classification. This is more reliable than P&L % capture alone because:
   //   - When marks are stale (yesterday's close), P&L is unreliable for OTM options
   //   - Even with live marks, a position that is clearly OTM is "winning" (on track to expire worthless)
   //   - A position that is clearly ITM is "losing" regardless of P&L % captured
-  // Threshold: ANY OTM = winner, >1% ITM = loser, 0-1% ITM = "at-risk" (falls to P&L % tiebreaker)
+  // Threshold: >2% OTM = winner, >2% ITM = loser, within 2% = use P&L % as tiebreaker
   const shortStrikeForCheck = spread.shortStrike || spread.putShortStrike || spread.callShortStrike || 0;
-  let staleOverride: 'winner' | 'loser' | 'at-risk' | null = null;
+  let staleOverride: 'winner' | 'loser' | null = null;
   if (underlyingPrice && underlyingPrice > 0 && shortStrikeForCheck > 0) {
     if (spread.strategyType === 'BPS' || spread.strategyType === 'CSP') {
       // Put: OTM when stock > short put strike (stock is above the level we'd be assigned)
-      // ANY amount OTM = winner; 0-1% ITM = at-risk (yellow); >1% ITM = loser (red)
       const otmPct = ((underlyingPrice - shortStrikeForCheck) / shortStrikeForCheck) * 100;
-      if (otmPct > 0) staleOverride = 'winner';      // Any OTM → stock above short put → winning
-      else if (otmPct > -1) staleOverride = 'at-risk'; // 0-1% ITM → near ATM → at risk (yellow)
-      else staleOverride = 'loser';                    // >1% ITM → stock below short put → losing
+      if (otmPct > 2) staleOverride = 'winner';   // >2% OTM → clearly winning
+      else if (otmPct < -2) staleOverride = 'loser'; // >2% ITM → clearly losing
     } else if (spread.strategyType === 'BCS' || spread.strategyType === 'CC') {
       // Call: OTM when stock < short call strike (stock is below the level we'd be called away)
-      // ANY amount OTM = winner; 0-1% ITM = at-risk (yellow); >1% ITM = loser (red)
       const otmPct = ((shortStrikeForCheck - underlyingPrice) / shortStrikeForCheck) * 100;
-      if (otmPct > 0) staleOverride = 'winner';      // Any OTM → stock below short call → winning
-      else if (otmPct > -1) staleOverride = 'at-risk'; // 0-1% ITM → near ATM → at risk (yellow)
-      else staleOverride = 'loser';                    // >1% ITM → stock above short call → losing
+      if (otmPct > 2) staleOverride = 'winner';   // >2% OTM → clearly winning
+      else if (otmPct < -2) staleOverride = 'loser'; // >2% ITM → clearly losing
     } else if (spread.strategyType === 'IC') {
       // IC: OTM on both sides when stock is between put short and call short
       const putShort = spread.putShortStrike || 0;
@@ -118,7 +114,7 @@ function scoreSpreadUrgency(
   }
 
   if (staleOverride) {
-    pnlStatus = staleOverride === 'at-risk' ? 'breakeven' : staleOverride; // map at-risk → breakeven for pnlStatus
+    pnlStatus = staleOverride;
   } else if (profitPct >= 50) {
     pnlStatus = 'winner';
   } else if (profitPct >= 20) {
@@ -151,21 +147,7 @@ function scoreSpreadUrgency(
   // ── Urgency Rules (P&L first) ─────────────────────────────────────────────
   let urgency: 'red' | 'yellow' | 'green';
 
-  // Handle the explicit at-risk zone: 0-1% ITM — always yellow regardless of P&L
-  if (staleOverride === 'at-risk') {
-    urgency = 'yellow';
-    const isPutStrategy = spread.strategyType === 'BPS' || spread.strategyType === 'CSP';
-    const atRiskPct = underlyingPrice && shortStrikeForCheck > 0
-      ? isPutStrategy
-        ? ((shortStrikeForCheck - underlyingPrice) / shortStrikeForCheck * 100).toFixed(1)
-        : ((underlyingPrice - shortStrikeForCheck) / shortStrikeForCheck * 100).toFixed(1)
-      : '?';
-    reasons.push(`⚠️ At Risk — stock is ${atRiskPct}% into the short strike (0–1% ITM zone)`);
-    if (spread.dte <= 7) {
-      urgency = 'red';
-      reasons.push(`⚠️ ${spread.dte} DTE — high gamma risk at the strike`);
-    }
-  } else if (pnlStatus === 'loser' || (isITM && profitPct < 30)) {
+  if (pnlStatus === 'loser' || (isITM && profitPct < 30)) {
     // Losing trade or ITM with little profit captured — needs immediate attention
     urgency = 'red';
     if (pnlStatus === 'loser') {

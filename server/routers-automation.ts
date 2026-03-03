@@ -280,6 +280,9 @@ export const automationRouter = router({
           spreadLongSymbol?: string;   // Long leg OCC symbol
           spreadLongStrike?: string;   // Long leg strike
           spreadLongPrice?: string;    // Long leg close price
+          // Mismatch flag — set when short qty > long qty (partial spread + standalone remainder)
+          hasMismatch?: boolean;
+          standaloneRemainder?: number; // Number of unmatched short contracts routed as single-leg BTC
         }> = [];
         let totalPositionsClosed = 0;
         let totalCoveredCallsOpened = 0;
@@ -326,7 +329,9 @@ export const automationRouter = router({
                 const exp = pos['expires-at'] || '';
                 const key = `${und}|${exp}`;
                 const entry = shortByUnderlying.get(key) || {};
-                if (pos.symbol?.includes('P')) entry.put = pos;
+                const posOccMatch = pos.symbol?.match(/([CP])(\d{8})$/);
+                const posIsPut = posOccMatch ? posOccMatch[1] === 'P' : (pos.symbol?.includes('P') ?? false);
+                if (posIsPut) entry.put = pos;
                 else entry.call = pos;
                 shortByUnderlying.set(key, entry);
               }
@@ -344,7 +349,11 @@ export const automationRouter = router({
               const multiplier = parseInt(String(position.multiplier || '100'));
               const underlyingSymbol = position['underlying-symbol'] || position.symbol || '';
               const optionSymbol = position.symbol || '';
-              const isPut = optionSymbol.includes('P');
+              // OCC symbol format: {UNDERLYING}{YYMMDD}{C|P}{8-digit-strike}
+              // Use regex to find the C/P type character immediately before the 8-digit strike
+              // to avoid false positives from underlyings that contain 'P' (e.g., APLD, SPY, PLTR)
+              const occTypeMatch = optionSymbol.match(/([CP])(\d{8})$/);
+              const isPut = occTypeMatch ? occTypeMatch[1] === 'P' : optionSymbol.includes('P');
               // Will be refined to BPS/BCS/IC after spread detection below
               let optionType: string = isPut ? 'CSP' : 'CC';
 
@@ -369,23 +378,34 @@ export const automationRouter = router({
               // ── Spread detection ──────────────────────────────────────────────────────
               // Step A: find a matching long leg (same underlying, same expiration, same put/call)
               //         → Bull Put Spread (BPS) if puts, Bear Call Spread (BCS) if calls
+              // QUANTITY-AWARE: if long qty < short qty, only the matched portion is a spread;
+              //   the remainder is a standalone CC/CSP and gets a separate single-leg BTC order.
               // Step B: check if this short option is part of an Iron Condor
               //         (there is ALSO a short option of the opposite type on the same underlying+expiration)
               let isSpread = false;
               let matchedLongLeg: any = null;
+              let spreadQuantity = quantity;   // how many contracts to close as a spread
+              let singleLegRemainder = 0;       // how many contracts to close as single-leg BTC
 
               for (const [, longPos] of Array.from(longPositionMap.entries())) {
                 if (longPos['underlying-symbol'] === position['underlying-symbol'] &&
                     longPos['expires-at'] === position['expires-at']) {
-                  const longIsPut = longPos.symbol.includes('P');
+                  const longOccMatch = longPos.symbol?.match(/([CP])(\d{8})$/);
+                  const longIsPut = longOccMatch ? longOccMatch[1] === 'P' : (longPos.symbol?.includes('P') ?? false);
                   if (longIsPut === isPut) {
+                    const longQty = Math.abs(parseInt(String(longPos.quantity || '0')));
+                    const matchedQty = Math.min(quantity, longQty); // only match up to long qty
                     const longClosePrice = Math.abs(parseFloat(String(longPos['close-price'] || '0')));
-                    const longBuyBackCredit = longClosePrice * quantity * parseInt(String(longPos.multiplier || '100'));
-                    const netCost = buyBackCost - longBuyBackCredit;
+                    const longBuyBackCredit = longClosePrice * matchedQty * parseInt(String(longPos.multiplier || '100'));
+                    const shortCostForMatched = (closePrice * matchedQty * multiplier);
+                    const netCost = shortCostForMatched - longBuyBackCredit;
                     if (netCost >= 0) {
-                      buyBackCost = netCost;
                       isSpread = true;
                       matchedLongLeg = longPos;
+                      spreadQuantity = matchedQty;
+                      singleLegRemainder = quantity - matchedQty; // unmatched short contracts
+                      // Recalculate buyBackCost for the spread portion only
+                      buyBackCost = netCost;
                       // Rename type: CSP+long put → BPS, CC+long call → BCS
                       optionType = isPut ? 'BPS' : 'BCS';
                     }
@@ -403,6 +423,12 @@ export const automationRouter = router({
                   optionType = 'IC';
                 }
               }
+
+              // After spread detection, recalculate premiumReceived for the matched quantity only.
+              // If this is a spread, premiumReceived should reflect only the spreadQuantity contracts;
+              // the remainder will be handled separately below.
+              const effectiveQty = isSpread ? spreadQuantity : quantity;
+              const effectivePremiumReceived = openPrice * effectiveQty * multiplier;
 
               // Time-decay heuristic: MUST run AFTER spread detection so spread netting can't zero it out.
               // When buyBackCost is still 0 after spread netting (both legs have close-price=0),
@@ -423,7 +449,7 @@ export const automationRouter = router({
                   const estimatedPerShare = openPrice * decayFactor;
                   // Floor at $0.01 per share minimum (options rarely trade below this)
                   const flooredPerShare = Math.max(0.01, estimatedPerShare);
-                  buyBackCost = flooredPerShare * quantity * multiplier;
+                  buyBackCost = flooredPerShare * effectiveQty * multiplier;
                   isEstimated = true;
                   console.log(`[Automation] ${underlyingSymbol} ${optionType}: buyBackCost=0 after spread netting, using time-decay estimate: $${buyBackCost.toFixed(2)} (${daysRemaining.toFixed(1)} of ${daysOriginal.toFixed(1)} DTE remaining, decay=${decayFactor.toFixed(3)})`);
                 }
@@ -431,8 +457,8 @@ export const automationRouter = router({
 
               // Realized % = (premiumReceived - buyBackCost) / premiumReceived × 100
               // Example: sold for $300, buy back for $3 → (300-3)/300 = 99%
-              const realizedPercent = ((premiumReceived - buyBackCost) / premiumReceived) * 100;
-              const estimatedProfit = premiumReceived - buyBackCost;
+              const realizedPercent = ((effectivePremiumReceived - buyBackCost) / effectivePremiumReceived) * 100;
+              const estimatedProfit = effectivePremiumReceived - buyBackCost;
 
               // Calculate DTE (days to expiration)
               const dte = expiration
@@ -443,11 +469,11 @@ export const automationRouter = router({
               const strikeMatch = optionSymbol.match(/[CP](\d+)/);
               const strike = strikeMatch ? (parseFloat(strikeMatch[1]) / 1000).toFixed(2) : null;
 
-              console.log(`[Automation] ${underlyingSymbol} ${optionType}${isSpread ? ` (spread, long=${matchedLongLeg?.symbol})` : ''}: premiumCollected=$${premiumReceived.toFixed(2)}, buyBackCost=$${buyBackCost.toFixed(2)}, realized=${realizedPercent.toFixed(1)}%`);
+              console.log(`[Automation] ${underlyingSymbol} ${optionType}${isSpread ? ` (spread x${spreadQuantity}, long=${matchedLongLeg?.symbol}${singleLegRemainder > 0 ? `, +${singleLegRemainder} standalone` : ''})` : ''}: premiumCollected=$${effectivePremiumReceived.toFixed(2)}, buyBackCost=$${buyBackCost.toFixed(2)}, realized=${realizedPercent.toFixed(1)}%`);
 
               if (realizedPercent >= settings.profitThresholdPercent) {
                 if (isSpread && matchedLongLeg) {
-                  // ── Spread close: emit a SINGLE spread order covering both legs atomically ──
+                  // ── Spread close: emit a SINGLE spread order covering the matched legs atomically ──
                   const longStrikeMatch = matchedLongLeg.symbol?.match(/[CP](\d+)/);
                   const longStrike = longStrikeMatch ? (parseFloat(longStrikeMatch[1]) / 1000).toFixed(2) : null;
                   const longClosePrice = Math.abs(parseFloat(String(matchedLongLeg['close-price'] || '0')));
@@ -461,7 +487,7 @@ export const automationRouter = router({
                     strike,
                     spreadLongStrike: longStrike,
                     expiration,
-                    quantity,
+                    quantity: spreadQuantity,             // ONLY the matched quantity
                     price: String(closePrice),
                     spreadLongPrice: String(longClosePrice),
                     profitPercent: Math.round(realizedPercent),
@@ -469,6 +495,31 @@ export const automationRouter = router({
                     status: 'pending' as const,
                     createdAt: new Date(),
                   });
+                  // ── Remainder: unmatched short contracts are standalone CCs/CSPs ──
+                  if (singleLegRemainder > 0) {
+                    const remainderType = isPut ? 'CSP' : 'CC';
+                    const remainderCost = closePrice * singleLegRemainder * multiplier;
+                    const remainderProfit = (openPrice * singleLegRemainder * multiplier) - remainderCost;
+                    console.log(`[Automation] ${underlyingSymbol}: ${singleLegRemainder} unmatched short ${remainderType} contracts → emitting separate single-leg BTC order`);
+                    pendingOrders.push({
+                      runId,
+                      userId: ctx.user.id,
+                      accountNumber: account.accountNumber,
+                      orderType: 'close_position' as const,
+                      symbol: optionSymbol,
+                      strike,
+                      expiration,
+                      quantity: singleLegRemainder,
+                      price: String(closePrice),
+                      profitPercent: Math.round(realizedPercent),
+                      estimatedProfit: remainderProfit.toFixed(2),
+                      status: 'pending' as const,
+                      createdAt: new Date(),
+                    });
+                    scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: remainderType, quantity: singleLegRemainder, premiumCollected: openPrice * singleLegRemainder * multiplier, buyBackCost: remainderCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'WOULD_CLOSE' });
+                    totalPositionsClosed++;
+                    totalProfitRealized += remainderProfit;
+                  }
                 } else {
                   // Standalone CC or CSP — single-leg close
                   pendingOrders.push({
@@ -488,19 +539,24 @@ export const automationRouter = router({
                   });
                 }
 
-                const wouldCloseEntry: typeof scanResults[number] = { account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'WOULD_CLOSE' };
+                // Use spreadQuantity for the spread entry (remainder already pushed above)
+                const wouldCloseEntry: typeof scanResults[number] = { account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity: isSpread ? spreadQuantity : quantity, premiumCollected: effectivePremiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'WOULD_CLOSE' };
                 if (isSpread && matchedLongLeg) {
                   const longStrikeMatch2 = matchedLongLeg.symbol?.match(/[CP](\d+)/);
                   wouldCloseEntry.spreadLongSymbol = matchedLongLeg.symbol;
                   wouldCloseEntry.spreadLongStrike = longStrikeMatch2 ? (parseFloat(longStrikeMatch2[1]) / 1000).toFixed(2) : undefined;
                   wouldCloseEntry.spreadLongPrice = String(Math.abs(parseFloat(String(matchedLongLeg['close-price'] || '0'))));
+                  if (singleLegRemainder > 0) {
+                    wouldCloseEntry.hasMismatch = true;
+                    wouldCloseEntry.standaloneRemainder = singleLegRemainder;
+                  }
                 }
                 scanResults.push(wouldCloseEntry);
 
                 totalPositionsClosed++;
                 totalProfitRealized += estimatedProfit;
               } else {
-                const belowThresholdEntry: typeof scanResults[number] = { account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity, premiumCollected: premiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'BELOW_THRESHOLD' };
+                const belowThresholdEntry: typeof scanResults[number] = { account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity: isSpread ? spreadQuantity : quantity, premiumCollected: effectivePremiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'BELOW_THRESHOLD' };
                 if (isSpread && matchedLongLeg) {
                   const longStrikeMatch3 = matchedLongLeg.symbol?.match(/[CP](\d+)/);
                   belowThresholdEntry.spreadLongSymbol = matchedLongLeg.symbol;

@@ -53,6 +53,9 @@ type ScanResult = {
   spreadLongSymbol?: string;   // Long leg OCC symbol
   spreadLongStrike?: string;   // Long leg strike
   spreadLongPrice?: string;    // Long leg close price
+  // Mismatch flag — set when short qty > long qty (partial spread + standalone remainder)
+  hasMismatch?: boolean;
+  standaloneRemainder?: number; // Number of unmatched short contracts routed as single-leg BTC
 };
 
 type RunSummary = {
@@ -1389,13 +1392,23 @@ export default function AutomationDashboard() {
                                 const shortLabel = parseStrike(result.optionSymbol);
                                 const longLabel = parseStrike(result.spreadLongSymbol);
                                 return (
-                                  <span
-                                    className="text-xs text-muted-foreground block cursor-help"
-                                    title={`Short: ${result.optionSymbol}\nLong:  ${result.spreadLongSymbol}`}
-                                  >
-                                    <span className="text-red-400/70">S</span> {shortLabel}
-                                    <span className="mx-1 opacity-40">/</span>
-                                    <span className="text-green-400/70">L</span> {longLabel}
+                                  <span className="block">
+                                    <span
+                                      className="text-xs text-muted-foreground block cursor-help"
+                                      title={`Short: ${result.optionSymbol}\nLong:  ${result.spreadLongSymbol}`}
+                                    >
+                                      <span className="text-red-400/70">S</span> {shortLabel}
+                                      <span className="mx-1 opacity-40">/</span>
+                                      <span className="text-green-400/70">L</span> {longLabel}
+                                    </span>
+                                    {result.hasMismatch && result.standaloneRemainder && (
+                                      <span
+                                        className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-help"
+                                        title={`Qty mismatch: ${result.standaloneRemainder} short contract${result.standaloneRemainder > 1 ? 's' : ''} have no matching long leg and will be closed as standalone CC/CSP orders.`}
+                                      >
+                                        ⚠️ +{result.standaloneRemainder} standalone
+                                      </span>
+                                    )}
                                   </span>
                                 );
                               }

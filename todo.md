@@ -6986,13 +6986,11 @@
 - [x] performance-utils.ts already correctly excludes stock tickers via parseOptionType (confirmed)
 - [x] Verify March 2026 now shows +$7,375 premium income instead of -$74k
 
-## BCS Classification Fix — ITM/OTM as Primary Factor (Mar 3, 2026)
-- [x] Update BCS/CC staleOverride threshold from 2% to 0%: any OTM position (stock below short strike) → winner
-- [x] Update BCS/CC ITM threshold from 2% to 1%: only >1% ITM → loser
-- [x] PLTR $145/$155 with stock at $145.17 (0.12% OTM) now correctly shows as winner/breakeven
-- [x] TSLA $410/$420 with stock at $403.32 (1.63% OTM) now correctly shows as winner/breakeven
-
-## Three Sequential Improvements (Mar 3, 2026)
-- [x] BPS/CSP: changed OTM threshold from 2% to 0% (any stock above short put strike = winner)
-- [x] BCS/CC: added explicit "At Risk" amber zone for 0-1% ITM positions (narrow gap between winner and loser)
-- [x] Active Positions: added color-coded "Days Until Eligible" column for CC positions (red ≤3d, amber ≤7d, yellow ≤14d, green >14d); CSP shows —
+## Automation BTC Fix (Mar 3, 2026)
+- [x] Fix spread detection to be quantity-aware (short qty > long qty → partial spread + standalone remainder)
+- [x] Emit separate single-leg BTC order for unmatched short contracts (prevents orphaned legs)
+- [x] Fix OCC put/call detection to use regex `/([CP])(\d{8})$/` instead of `.includes('P')` (fixes false positives for APLD, SPY, PLTR underlyings)
+- [x] Add `hasMismatch` and `standaloneRemainder` fields to scan result type
+- [x] Show amber "⚠️ +N standalone" badge in Automation UI when mismatch detected
+- [x] Use `effectiveQty` (spread-matched quantity) for premium/cost calculations, not full short quantity
+- [x] Write 8 unit tests for spread quantity mismatch logic (all passing)
