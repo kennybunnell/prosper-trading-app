@@ -6994,3 +6994,15 @@
 - [x] Show amber "⚠️ +N standalone" badge in Automation UI when mismatch detected
 - [x] Use `effectiveQty` (spread-matched quantity) for premium/cost calculations, not full short quantity
 - [x] Write 8 unit tests for spread quantity mismatch logic (all passing)
+
+## Two-State Automation Workflow (Mar 3, 2026)
+- [x] Scan auto-flags ≥75% positions as "Ready to Close" but starts all checkboxes UNCHECKED
+- [x] Each strategy pill shows total count + a "ready to close" badge (e.g., CC (44) with badge 8)
+- [x] Clicking a pill with a ready-to-close badge checks all flagged positions of that type
+- [x] Clicking the same pill again unchecks all of that type (toggle behavior)
+- [x] Pill badge shows selected/flagged count once selection begins (e.g., CC 5/8)
+- [x] "Review & Submit N Orders" button only counts checked positions
+- [x] Summary cards (buy-back cost, est. profit) reflect only checked positions
+- [x] Header checkbox becomes "select all flagged" shortcut
+- [x] Individual checkboxes still work for fine-tuning after pill selection
+- [x] Filter behavior of pills (show only that type) is preserved alongside selection

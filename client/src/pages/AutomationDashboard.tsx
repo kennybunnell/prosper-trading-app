@@ -699,13 +699,8 @@ export default function AutomationDashboard() {
       };
     });
 
-    // Auto-select WOULD_CLOSE positions, but NEVER DTE=0 (let them expire naturally)
-    if (lastRunResult.scanResults.length === 0 && parsed.length > 0) {
-      const keys = new Set(parsed
-        .filter(r => r.action === 'WOULD_CLOSE' && r.dte !== 0)
-        .map(r => `${r.optionSymbol}|${r.account}`));
-      setSelectedPositions(keys);
-    }
+    // DO NOT auto-select positions — user must explicitly click a strategy pill to select
+    // (two-state workflow: flagged = scan found it; selected = user chose it for submission)
     // Auto-select all CC opportunities
     if (lastRunResult.ccScanResults.length === 0 && ccParsed.length > 0) {
       const ccKeys = new Set(ccParsed.map(r => `${r.optionSymbol}|${r.account}`));
@@ -1220,46 +1215,63 @@ export default function AutomationDashboard() {
               </div>
             </div>
 
-            {/* Summary Stats */}
+            {/* Summary Stats — left 2 cards show scan totals; right 2 cards reflect selected positions only */}
             {(() => {
-              const totalBuyBack = lastRunResult.scanResults
-                .filter(r => r.action === 'WOULD_CLOSE')
-                .reduce((sum, r) => sum + r.buyBackCost, 0);
+              const allFlagged = lastRunResult.scanResults.filter(r => r.action === 'WOULD_CLOSE');
+              const selectedResults = allFlagged.filter(r => selectedPositions.has(posKey(r)));
+              const selectedBuyBack = selectedResults.reduce((sum, r) => sum + r.buyBackCost, 0);
+              const selectedProfit = selectedResults.reduce((sum, r) => sum + (r.premiumCollected - r.buyBackCost), 0);
+              const hasSelection = selectedPositions.size > 0;
               return (
                 <div className="grid grid-cols-4 gap-3 pt-2">
+                  {/* Card 1: Flagged count (scan result — always shows scan total) */}
                   <div className="text-center p-3 rounded-lg bg-green-500/10 border border-green-500/20">
                     <div className="text-2xl font-bold text-green-400">
                       {lastRunResult.summary.positionsClosedCount}
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {settings?.dryRunMode ? 'Ready to Close' : 'Orders Submitted'}
-                    </div>
-                    <div className="text-xs text-green-400 font-medium">
-                      ≥{threshold}% profit
-                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">Ready to Close</div>
+                    <div className="text-xs text-green-400 font-medium">≥{threshold}% profit</div>
                   </div>
+                  {/* Card 2: Below threshold (scan result — always shows scan total) */}
                   <div className="text-center p-3 rounded-lg bg-muted/50 border">
                     <div className="text-2xl font-bold text-muted-foreground">
                       {lastRunResult.summary.belowThreshold}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">Below Threshold</div>
-                    <div className="text-xs text-muted-foreground font-medium">
-                      &lt;{threshold}% profit
+                    <div className="text-xs text-muted-foreground font-medium">&lt;{threshold}% profit</div>
+                  </div>
+                  {/* Card 3: Buy-back cost — reflects SELECTED positions only */}
+                  <div className={`text-center p-3 rounded-lg border transition-colors ${
+                    hasSelection ? 'bg-amber-500/10 border-amber-500/20' : 'bg-muted/30 border-border/40'
+                  }`}>
+                    <div className={`text-2xl font-bold transition-colors ${
+                      hasSelection ? 'text-amber-400' : 'text-muted-foreground/50'
+                    }`}>
+                      ${selectedBuyBack.toFixed(0)}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">Buy-Back Cost</div>
+                    <div className={`text-xs font-medium ${
+                      hasSelection ? 'text-amber-400' : 'text-muted-foreground/40'
+                    }`}>
+                      {hasSelection ? `${selectedPositions.size} selected` : 'select positions above'}
                     </div>
                   </div>
-                  <div className="text-center p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <div className="text-2xl font-bold text-amber-400">
-                      ${totalBuyBack.toFixed(0)}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">Total Buy-Back Cost</div>
-                    <div className="text-xs text-amber-400 font-medium">to close all</div>
-                  </div>
-                  <div className="text-center p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                    <div className="text-2xl font-bold text-blue-400">
-                      ${parseFloat(lastRunResult.summary.totalProfitRealized).toFixed(0)}
+                  {/* Card 4: Est. profit — reflects SELECTED positions only */}
+                  <div className={`text-center p-3 rounded-lg border transition-colors ${
+                    hasSelection ? 'bg-blue-500/10 border-blue-500/20' : 'bg-muted/30 border-border/40'
+                  }`}>
+                    <div className={`text-2xl font-bold transition-colors ${
+                      hasSelection ? 'text-blue-400' : 'text-muted-foreground/50'
+                    }`}>
+                      ${selectedProfit.toFixed(0)}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
                       {settings?.dryRunMode ? 'Est. Profit' : 'Profit Realized'}
+                    </div>
+                    <div className={`text-xs font-medium ${
+                      hasSelection ? 'text-blue-400' : 'text-muted-foreground/40'
+                    }`}>
+                      {hasSelection ? 'from selected' : 'select positions above'}
                     </div>
                   </div>
                 </div>
@@ -1287,11 +1299,22 @@ export default function AutomationDashboard() {
                 )}
                 {/* Separator */}
                 <div className="w-px h-5 bg-border/60 mx-1" />
-                {/* Type filter pills */}
+                {/* Type filter pills — clicking a strategy pill ALSO toggles selection of all flagged positions of that type */}
                 {(['all', 'BPS', 'BCS', 'IC', 'CSP', 'CC'] as const).map(t => {
-                  const count = t === 'all'
-                    ? (lastRunResult?.scanResults ?? []).filter(r => !(hideExpiringToday && r.dte === 0)).length
-                    : (lastRunResult?.scanResults ?? []).filter(r => r.type === t && !(hideExpiringToday && r.dte === 0)).length;
+                  const allResults = lastRunResult?.scanResults ?? [];
+                  const visibleOfType = t === 'all'
+                    ? allResults.filter(r => !(hideExpiringToday && r.dte === 0))
+                    : allResults.filter(r => r.type === t && !(hideExpiringToday && r.dte === 0));
+                  const count = visibleOfType.length;
+
+                  // Flagged = WOULD_CLOSE and not DTE=0 (selectable)
+                  const flaggedOfType = visibleOfType.filter(r => r.action === 'WOULD_CLOSE' && r.dte !== 0);
+                  const flaggedCount = flaggedOfType.length;
+
+                  // How many of the flagged are currently selected
+                  const selectedOfType = flaggedOfType.filter(r => selectedPositions.has(posKey(r))).length;
+                  const allFlaggedSelected = flaggedCount > 0 && selectedOfType === flaggedCount;
+
                   const isActive = scanTypeFilter === t;
                   const colorClass =
                     t === 'BPS' ? (isActive ? 'bg-cyan-500/30 text-cyan-300 border-cyan-400/60' : 'text-cyan-400/70 border-cyan-400/30 hover:bg-cyan-500/10') :
@@ -1300,14 +1323,53 @@ export default function AutomationDashboard() {
                     t === 'CSP' ? (isActive ? 'bg-blue-500/30 text-blue-300 border-blue-400/60' : 'text-blue-400/70 border-blue-400/30 hover:bg-blue-500/10') :
                     t === 'CC'  ? (isActive ? 'bg-purple-500/30 text-purple-300 border-purple-400/60' : 'text-purple-400/70 border-purple-400/30 hover:bg-purple-500/10') :
                                   (isActive ? 'bg-muted text-foreground border-border' : 'text-muted-foreground border-border/50 hover:bg-muted/40');
+
+                  const handlePillClick = () => {
+                    // Always switch the type filter view
+                    setScanTypeFilter(t);
+                    // For strategy pills (not 'all'), also toggle selection of all flagged positions of that type
+                    if (t !== 'all' && flaggedCount > 0) {
+                      setSelectedPositions(prev => {
+                        const next = new Set(prev);
+                        if (allFlaggedSelected) {
+                          // Second click: deselect all of this type
+                          flaggedOfType.forEach(r => next.delete(posKey(r)));
+                        } else {
+                          // First click: select all flagged of this type
+                          flaggedOfType.forEach(r => next.add(posKey(r)));
+                        }
+                        return next;
+                      });
+                    }
+                  };
+
                   return (
                     <button
                       key={t}
-                      onClick={() => setScanTypeFilter(t)}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${colorClass}`}
+                      onClick={handlePillClick}
+                      title={t !== 'all' && flaggedCount > 0
+                        ? allFlaggedSelected
+                          ? `Click to deselect all ${flaggedCount} ${t} positions`
+                          : `Click to select all ${flaggedCount} ${t} positions ready to close`
+                        : undefined}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${colorClass}`}
                     >
                       {t === 'all' ? 'All' : t}
                       <span className="opacity-60">({count})</span>
+                      {/* Ready-to-close badge on strategy pills */}
+                      {t !== 'all' && flaggedCount > 0 && (
+                        <span
+                          className={`inline-flex items-center justify-center min-w-[1.1rem] h-4 px-1 rounded-full text-[10px] font-bold leading-none transition-colors ${
+                            allFlaggedSelected
+                              ? 'bg-emerald-500 text-white'
+                              : selectedOfType > 0
+                              ? 'bg-emerald-500/60 text-white'
+                              : 'bg-emerald-600/30 text-emerald-300'
+                          }`}
+                        >
+                          {selectedOfType > 0 ? `${selectedOfType}/${flaggedCount}` : flaggedCount}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -1336,11 +1398,11 @@ export default function AutomationDashboard() {
                       );
                       return (
                         <tr className="border-b text-muted-foreground">
-                          <th className="py-2 pr-2 w-8">
+                          <th className="py-2 pr-2 w-8" title="Select / deselect all flagged (Ready to Close) positions">
                             <Checkbox
                               checked={allSelected}
                               onCheckedChange={toggleSelectAll}
-                              aria-label="Select all closeable positions"
+                              aria-label="Select all flagged (Ready to Close) positions"
                             />
                           </th>
                           <SortTh col="symbol" label="Symbol" />
