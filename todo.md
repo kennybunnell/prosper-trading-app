@@ -6985,3 +6985,9 @@
 - [x] Exclude stock sales (called away, liquidations, harvest exits) from premium P&L in getMonthlyPremiumData
 - [x] performance-utils.ts already correctly excludes stock tickers via parseOptionType (confirmed)
 - [x] Verify March 2026 now shows +$7,375 premium income instead of -$74k
+
+## BCS Classification Fix — ITM/OTM as Primary Factor (Mar 3, 2026)
+- [x] Update BCS/CC staleOverride threshold from 2% to 0%: any OTM position (stock below short strike) → winner
+- [x] Update BCS/CC ITM threshold from 2% to 1%: only >1% ITM → loser
+- [x] PLTR $145/$155 with stock at $145.17 (0.12% OTM) now correctly shows as winner/breakeven
+- [x] TSLA $410/$420 with stock at $403.32 (1.63% OTM) now correctly shows as winner/breakeven

@@ -97,9 +97,13 @@ function scoreSpreadUrgency(
       else if (otmPct < -2) staleOverride = 'loser'; // >2% ITM → clearly losing
     } else if (spread.strategyType === 'BCS' || spread.strategyType === 'CC') {
       // Call: OTM when stock < short call strike (stock is below the level we'd be called away)
+      // For BCS/CC: ANY amount OTM (even $0.01) means the stock has NOT reached the short strike,
+      // so the position is on track to expire worthless — classify as winner, never as loser.
+      // Only classify as loser when stock is >1% ABOVE the short strike (clearly ITM).
+      // The old 2% buffer was too wide and caused near-ATM OTM positions to show as "Loss".
       const otmPct = ((shortStrikeForCheck - underlyingPrice) / shortStrikeForCheck) * 100;
-      if (otmPct > 2) staleOverride = 'winner';   // >2% OTM → clearly winning
-      else if (otmPct < -2) staleOverride = 'loser'; // >2% ITM → clearly losing
+      if (otmPct > 0) staleOverride = 'winner';    // Any OTM → stock below short strike → winning
+      else if (otmPct < -1) staleOverride = 'loser'; // >1% ITM → stock above short strike → losing
     } else if (spread.strategyType === 'IC') {
       // IC: OTM on both sides when stock is between put short and call short
       const putShort = spread.putShortStrike || 0;
