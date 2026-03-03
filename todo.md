@@ -7006,3 +7006,9 @@
 - [x] Header checkbox becomes "select all flagged" shortcut
 - [x] Individual checkboxes still work for fine-tuning after pill selection
 - [x] Filter behavior of pills (show only that type) is preserved alongside selection
+
+## Spread Classification & Strike Display Fix (Mar 3, 2026)
+- [x] Audit GOOGL 2-leg spread appearing under CC pill — determine if it is truly a CC or a spread (BCS/IC)
+- [x] Ensure spread positions (positions with a matched long leg) are classified as their spread type (BCS/BPS/IC), NOT as CC
+- [x] Fix isCall detection in handleOpenOrderPreview to use OCC regex instead of r.type === 'CC'
+- [x] Fix strike price showing $0.00 in the order preview modal — derive from optionSymbol OCC regex as fallback

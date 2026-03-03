@@ -1136,16 +1136,26 @@ export function UnifiedOrderPreviewModal({
                         </div>
                       </TableCell>
                       
-                      {/* Strike - show all 4 legs for Iron Condor */}
+                      {/* Strike - parse from optionSymbol if order.strike is 0 (BTC orders from scan) */}
                       <TableCell className="text-right">
-                        {isIronCondor ? (
-                          <div className="text-xs space-y-0.5">
-                            <div className="font-semibold text-green-600">PUT: ${order.strike.toFixed(2)}/${order.longStrike?.toFixed(2)}</div>
-                            <div className="font-semibold text-red-600">CALL: ${order.callShortStrike?.toFixed(2)}/${order.callLongStrike?.toFixed(2)}</div>
-                          </div>
-                        ) : (
-                          <>${order.strike.toFixed(2)}</>
-                        )}
+                        {(() => {
+                          // For BTC orders built from scan results, strike may be 0 if the regex failed.
+                          // Re-derive from optionSymbol (OCC format: ROOT YYMMDD C/P STRIKE8) as fallback.
+                          let displayStrike = order.strike;
+                          if ((!displayStrike || displayStrike === 0) && order.optionSymbol) {
+                            const m = order.optionSymbol.match(/[CP](\d{8})$/);
+                            if (m) displayStrike = parseInt(m[1], 10) / 1000;
+                          }
+                          if (isIronCondor) {
+                            return (
+                              <div className="text-xs space-y-0.5">
+                                <div className="font-semibold text-green-600">PUT: ${order.strike.toFixed(2)}/${order.longStrike?.toFixed(2)}</div>
+                                <div className="font-semibold text-red-600">CALL: ${order.callShortStrike?.toFixed(2)}/${order.callLongStrike?.toFixed(2)}</div>
+                              </div>
+                            );
+                          }
+                          return <>${displayStrike > 0 ? displayStrike.toFixed(2) : '—'}</>;
+                        })()}
                       </TableCell>
                       
                       {/* Expiration */}

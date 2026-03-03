@@ -280,9 +280,11 @@ export default function AutomationDashboard() {
 
   // Open the order preview modal for a single position (individual close)
   const handleOpenSingleOrderPreview = useCallback((result: ScanResult) => {
-    const isCall = result.type === 'CC';
-    const strikeMatch = result.optionSymbol.match(/(\d{8})[CP](\d{8})$/);
-    const strike = strikeMatch ? parseInt(strikeMatch[2], 10) / 1000 : 0;
+    // Derive call/put from OCC symbol (reliable) — type field may be BCS/BPS/IC for spread positions
+    const occTypeMatch = result.optionSymbol.match(/([CP])(\d{8})$/);
+    const isCall = occTypeMatch ? occTypeMatch[1] === 'C' : result.type === 'CC';
+    // OCC format: ROOT YYMMDD C/P STRIKE8 — strike is the last 8 digits
+    const strike = occTypeMatch ? parseInt(occTypeMatch[2], 10) / 1000 : 0;
     const perShareCost = result.buyBackCost / (result.quantity * 100);
     const estimatedBid = Math.max(0.01, perShareCost * 0.8);
     const estimatedAsk = Math.max(0.02, perShareCost * 1.2);
@@ -327,10 +329,11 @@ export default function AutomationDashboard() {
     // Map each selected scan result to a UnifiedOrder (BTC)
     // Embed the scan result identity fields so handleUnifiedSubmit can use orders directly
     const orders: UnifiedOrder[] = selected.map(r => {
-      const isCall = r.type === 'CC';
-      // Parse strike from option symbol e.g. AAPL250117C00150000 → 150
-      const strikeMatch = r.optionSymbol.match(/(\d{8})[CP](\d{8})$/);
-      const strike = strikeMatch ? parseInt(strikeMatch[2], 10) / 1000 : 0;
+      // Derive call/put from OCC symbol — type may be BCS/BPS/IC for spread positions
+      const occTypeMatch = r.optionSymbol.match(/([CP])(\d{8})$/);
+      const isCall = occTypeMatch ? occTypeMatch[1] === 'C' : r.type === 'CC';
+      // OCC format: ROOT YYMMDD C/P STRIKE8 — strike is the last 8 digits
+      const strike = occTypeMatch ? parseInt(occTypeMatch[2], 10) / 1000 : 0;
       const perShareCost = r.buyBackCost / (r.quantity * 100);
       // Estimate bid/ask spread: bid = 80% of cost, ask = 120% of cost (typical for near-worthless options)
       const estimatedBid = Math.max(0.01, perShareCost * 0.8);
