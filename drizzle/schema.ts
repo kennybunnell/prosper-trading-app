@@ -842,3 +842,38 @@ export const appConfig = mysqlTable('app_config', {
   updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
 });
 export type AppConfig = typeof appConfig.$inferSelect;
+
+/**
+ * WTR History — records the Weeks-to-Recover value for each position every time
+ * the Position Analyzer is run. Used to surface week-over-week WTR deltas on
+ * each position card so the user can see whether a position is recovering or
+ * deteriorating over time.
+ *
+ * One row per (userId, symbol, accountNumber, scanDate).
+ * scanDate is stored as a YYYY-MM-DD string so we can group by calendar week.
+ */
+export const wtrHistory = mysqlTable('wtr_history', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  symbol: varchar('symbol', { length: 10 }).notNull(),
+  accountNumber: varchar('account_number', { length: 64 }).notNull(),
+  /** YYYY-MM-DD date of the scan */
+  scanDate: varchar('scan_date', { length: 10 }).notNull(),
+  /** UTC ms timestamp of the scan (for precise ordering) */
+  scannedAt: bigint('scanned_at', { mode: 'number' }).notNull(),
+  /** Weeks-to-Recover value at time of scan; null means no deficit (KEEP) */
+  weeksToRecover: varchar('weeks_to_recover', { length: 20 }),
+  /** Recommendation tier at time of scan */
+  recommendation: mysqlEnum('recommendation', ['KEEP', 'HARVEST', 'MONITOR', 'LIQUIDATE']).notNull(),
+  /** Average cost basis at time of scan */
+  avgCostBasis: varchar('avg_cost_basis', { length: 20 }).notNull(),
+  /** Current price at time of scan */
+  currentPrice: varchar('current_price', { length: 20 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  userSymbolAccountIdx: index('wtr_history_user_symbol_account_idx').on(table.userId, table.symbol, table.accountNumber),
+  userScanDateIdx: index('wtr_history_user_scan_date_idx').on(table.userId, table.scanDate),
+  scannedAtIdx: index('wtr_history_scanned_at_idx').on(table.scannedAt),
+}));
+export type WtrHistory = typeof wtrHistory.$inferSelect;
+export type InsertWtrHistory = typeof wtrHistory.$inferInsert;

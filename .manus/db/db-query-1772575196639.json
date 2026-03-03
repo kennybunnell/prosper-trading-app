@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `wtr_history` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `user_id` int NOT NULL,\n  `symbol` varchar(10) NOT NULL,\n  `account_number` varchar(64) NOT NULL,\n  `scan_date` varchar(10) NOT NULL,\n  `scanned_at` bigint NOT NULL,\n  `weeks_to_recover` varchar(20),\n  `recommendation` enum('KEEP','HARVEST','MONITOR','LIQUIDATE') NOT NULL,\n  `avg_cost_basis` varchar(20) NOT NULL,\n  `current_price` varchar(20) NOT NULL,\n  `created_at` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `wtr_history_id` PRIMARY KEY(`id`),\n  INDEX `wtr_history_user_symbol_account_idx` (`user_id`, `symbol`, `account_number`),\n  INDEX `wtr_history_user_scan_date_idx` (`user_id`, `scan_date`),\n  INDEX `wtr_history_scanned_at_idx` (`scanned_at`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute CREATE TABLE IF NOT EXISTS `wtr_history` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `user_id` int NOT NULL,\n  `symbol` varchar(10) NOT NULL,\n  `account_number` varchar(64) NOT NULL,\n  `scan_date` varchar(10) NOT NULL,\n  `scanned_at` bigint NOT NULL,\n  `weeks_to_recover` varchar(20),\n  `recommendation` enum('KEEP','HARVEST','MONITOR','LIQUIDATE') NOT NULL,\n  `avg_cost_basis` varchar(20) NOT NULL,\n  `current_price` varchar(20) NOT NULL,\n  `created_at` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `wtr_history_id` PRIMARY KEY(`id`),\n  INDEX `wtr_history_user_symbol_account_idx` (`user_id`, `symbol`, `account_number`),\n  INDEX `wtr_history_user_scan_date_idx` (`user_id`, `scan_date`),\n  INDEX `wtr_history_scanned_at_idx` (`scanned_at`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 166
+}

@@ -269,7 +269,7 @@ function SellCCDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-emerald-400" />
-            Sell ATM Covered Call — {pos.symbol}
+            Sell {pos.ccDeltaTier === 'ITM' ? 'ITM' : pos.ccDeltaTier === 'D30' ? 'Δ0.30 OTM' : pos.ccDeltaTier === 'D25' ? 'Δ0.25 OTM' : pos.ccDeltaTier === 'D20' ? 'Δ0.20 OTM' : 'ATM'} Covered Call — {pos.symbol}
           </DialogTitle>
           <DialogDescription>
             Review the order details below before submitting.
@@ -289,7 +289,7 @@ function SellCCDialog({
               </div>
               <div>
                 <div className="text-muted-foreground text-xs">Strike</div>
-                <div className="font-semibold text-white">${fmt(pos.ccAtmStrike)}</div>
+                <div className="font-semibold text-white">${fmt(pos.ccAtmStrike)} <span className="text-xs text-muted-foreground">({pos.ccDeltaTier === 'ITM' ? 'ITM' : pos.ccDeltaTier === 'D30' ? '~Δ0.30' : pos.ccDeltaTier === 'D25' ? '~Δ0.25' : pos.ccDeltaTier === 'D20' ? '~Δ0.20' : 'ATM'})</span></div>
               </div>
               <div>
                 <div className="text-muted-foreground text-xs">Expiration</div>
@@ -367,6 +367,27 @@ function SellCCDialog({
   );
 }
 
+// ─── WTR Trend Badge ─────────────────────────────────────────────────────────
+function WtrTrendBadge({ current, previous }: { current: number | null; previous: number | null }) {
+  if (current === null || previous === null) return null;
+  const delta = current - previous;
+  if (Math.abs(delta) < 0.1) return null; // no meaningful change
+  const worse = delta > 0;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0 rounded border ${
+        worse
+          ? 'bg-red-950/50 border-red-700/50 text-red-300'
+          : 'bg-emerald-950/50 border-emerald-700/50 text-emerald-300'
+      }`}
+      title={`WTR ${worse ? 'increased' : 'decreased'} by ${Math.abs(delta).toFixed(1)} wks since last scan`}
+    >
+      {worse ? <TrendingDown className="h-2.5 w-2.5" /> : <TrendingUp className="h-2.5 w-2.5" />}
+      {worse ? '+' : ''}{delta.toFixed(1)} wks
+    </span>
+  );
+}
+
 // ─── Position Card ────────────────────────────────────────────────────────────
 function PositionCard({
   pos,
@@ -374,13 +395,21 @@ function PositionCard({
   isFlagged,
   onToggleFlag,
   isFlagging,
+  wtrHistory,
 }: {
   pos: AnalyzedPosition;
   onSellCC: (pos: AnalyzedPosition) => void;
   isFlagged: boolean;
   onToggleFlag: (pos: AnalyzedPosition, flag: boolean) => void;
   isFlagging: boolean;
+  wtrHistory?: Array<{ scanDate: string; weeksToRecover: number | null; recommendation: string }>;
 }) {
+  // Compute week-over-week WTR delta from the last two distinct scan dates
+  const prevWTR: number | null = (() => {
+    if (!wtrHistory || wtrHistory.length < 2) return null;
+    // history is ordered newest-first; index 0 = current scan, index 1 = previous
+    return wtrHistory[1].weeksToRecover;
+  })();
   const cfg = REC_CONFIG[pos.recommendation];
   const totalContracts = Math.floor(pos.quantity / 100);
   const availableContracts = pos.availableContracts ?? totalContracts;
@@ -405,6 +434,8 @@ function PositionCard({
               WTR: {fmtWTR(pos.weeksToRecover, pos.monthsToRecover)}
             </Badge>
           )}
+          {/* WTR trend delta — week-over-week change */}
+          <WtrTrendBadge current={pos.weeksToRecover} previous={prevWTR} />
           {/* CC-locked indicator */}
           {pos.recommendation !== 'KEEP' && availableContracts === 0 && lockedContracts > 0 && (() => {
             const calls = pos.openShortCalls ?? [];
@@ -851,6 +882,12 @@ export function PositionAnalyzerTab() {
     }
   );
 
+  const { data: trendData } = trpc.positionAnalyzer.getWtrTrend.useQuery(
+    undefined,
+    { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false }
+  );
+  const wtrTrend = trendData?.trend ?? {};
+
   const { data: digestSettings } = trpc.positionAnalyzer.getDigestSettings.useQuery();
   const updateDigest = trpc.positionAnalyzer.updateDigestSettings.useMutation({
     onSuccess: (d) => {
@@ -1114,6 +1151,7 @@ export function PositionAnalyzerTab() {
                 isFlagged={flaggedSet.has(flagKey)}
                 onToggleFlag={handleToggleFlag}
                 isFlagging={flaggingKey === flagKey}
+                wtrHistory={wtrTrend[`${pos.symbol}-${pos.accountNumber}`]}
               />
             );
           })}

@@ -581,6 +581,58 @@ export const positionAnalyzerRouter = router({
         .filter(p => p.recommendation === 'LIQUIDATE')
         .reduce((s, p) => s + p.marketValue, 0);
 
+      // ─── Save WTR history for trend tracking ────────────────────────────────────
+      const scannedAt = new Date();
+      const scanDate = scannedAt.toISOString().split('T')[0]; // YYYY-MM-DD
+      const scannedAtMs = scannedAt.getTime();
+      try {
+        const { getDb } = await import('./db');
+        const db = await getDb();
+        if (db) {
+          const { wtrHistory } = await import('../drizzle/schema');
+          const { eq, and } = await import('drizzle-orm');
+          for (const pos of analyzedPositions) {
+            // Upsert: one record per (userId, symbol, accountNumber, scanDate)
+            const existing = await db.select({ id: wtrHistory.id })
+              .from(wtrHistory)
+              .where(and(
+                eq(wtrHistory.userId, ctx.user.id),
+                eq(wtrHistory.symbol, pos.symbol),
+                eq(wtrHistory.accountNumber, pos.accountNumber),
+                eq(wtrHistory.scanDate, scanDate),
+              )).limit(1);
+            const wtrVal = pos.weeksToRecover !== null ? pos.weeksToRecover.toFixed(2) : null;
+            if (existing.length > 0) {
+              await db.update(wtrHistory)
+                .set({
+                  scannedAt: scannedAtMs,
+                  weeksToRecover: wtrVal,
+                  recommendation: pos.recommendation,
+                  avgCostBasis: pos.avgOpenPrice.toFixed(2),
+                  currentPrice: pos.currentPrice.toFixed(2),
+                })
+                .where(eq(wtrHistory.id, existing[0].id));
+            } else {
+              await db.insert(wtrHistory).values({
+                userId: ctx.user.id,
+                symbol: pos.symbol,
+                accountNumber: pos.accountNumber,
+                scanDate,
+                scannedAt: scannedAtMs,
+                weeksToRecover: wtrVal,
+                recommendation: pos.recommendation,
+                avgCostBasis: pos.avgOpenPrice.toFixed(2),
+                currentPrice: pos.currentPrice.toFixed(2),
+              });
+            }
+          }
+          console.log(`[PositionAnalyzer] Saved WTR history for ${analyzedPositions.length} positions (${scanDate})`);
+        }
+      } catch (e) {
+        console.warn('[PositionAnalyzer] WTR history save failed (non-fatal):', e);
+      }
+      // ─────────────────────────────────────────────────────────────────────────────
+
       return {
         positions: analyzedPositions,
         summary: {
@@ -594,8 +646,43 @@ export const positionAnalyzerRouter = router({
           estimatedWeeklyPremium,
           estimatedLiquidationProceeds,
         },
-        scannedAt: new Date().toISOString(),
+        scannedAt: scannedAt.toISOString(),
       } as PositionAnalyzerResult;
+    }),
+
+  /**
+   * Get WTR trend for all positions — returns the last 8 scan dates and WTR values
+   * per (symbol, accountNumber) so the UI can show week-over-week deltas.
+   */
+  getWtrTrend: protectedProcedure
+    .query(async ({ ctx }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) return { trend: {} as Record<string, Array<{ scanDate: string; weeksToRecover: number | null; recommendation: string }>> };
+      const { wtrHistory } = await import('../drizzle/schema');
+      const { eq, desc } = await import('drizzle-orm');
+
+      // Fetch last 8 scan dates for this user
+      const allRows = await db.select()
+        .from(wtrHistory)
+        .where(eq(wtrHistory.userId, ctx.user.id))
+        .orderBy(desc(wtrHistory.scannedAt))
+        .limit(8 * 60); // up to 60 positions × 8 scans
+
+      // Group by symbol+account key, keep last 8 unique scan dates per position
+      const trendMap: Record<string, Array<{ scanDate: string; weeksToRecover: number | null; recommendation: string }>> = {};
+      for (const row of allRows) {
+        const key = `${row.symbol}-${row.accountNumber}`;
+        if (!trendMap[key]) trendMap[key] = [];
+        if (trendMap[key].length < 8) {
+          trendMap[key].push({
+            scanDate: row.scanDate,
+            weeksToRecover: row.weeksToRecover !== null ? parseFloat(row.weeksToRecover) : null,
+            recommendation: row.recommendation,
+          });
+        }
+      }
+      return { trend: trendMap };
     }),
 
   /**

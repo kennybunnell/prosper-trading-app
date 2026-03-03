@@ -7062,3 +7062,14 @@
 - [x] Show delta tier in Sell CC button label (e.g. "★ Sell Δ25 CC")
 - [x] Add CC Delta Tier column to CSV export
 - [x] Add 20 unit tests for delta tier selection and WTR→delta→strike pipeline (41 total, all passing)
+
+## WTR Trend Tracker & Sell CC Wiring (Mar 3, 2026)
+- [x] Add wtr_history database table (symbol, accountNumber, scanDate, weeksToRecover, recommendation)
+- [x] Save WTR history after every Position Analyzer scan (upsert per day)
+- [x] Add getWtrTrend tRPC procedure (returns last 8 scan dates per position)
+- [x] Add WtrTrendBadge component (↑/↓ delta in weeks since last scan, red/green)
+- [x] Wire WTR trend data into each PositionCard via wtrHistory prop
+- [x] Update SellCC dialog title to show delta tier (e.g. "Sell Δ0.30 OTM Covered Call — HOOD")
+- [x] Update SellCC dialog strike row to show delta tier label (~Δ0.30)
+- [x] Confirm Sell CC button already submits OTM strike (ccAtmStrike = OTM, not ATM)
+- [x] 41 WTR scoring + delta tier unit tests all passing
