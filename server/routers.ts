@@ -509,6 +509,15 @@ export const appRouter = router({
   }),
   auth: router({
     me: publicProcedure.query(opts => {
+      // If auth failed but a cookie exists, clear it so the browser drops the stale token
+      if (!opts.ctx.user) {
+        const hasCookie = opts.ctx.req.headers.cookie?.includes(COOKIE_NAME);
+        if (hasCookie) {
+          const cookieOptions = getSessionCookieOptions(opts.ctx.req);
+          opts.ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+          console.log('[auth.me] Cleared stale session cookie');
+        }
+      }
       console.log('[auth.me] Returning user:', {
         email: opts.ctx.user?.email,
         subscriptionTier: opts.ctx.user?.subscriptionTier,

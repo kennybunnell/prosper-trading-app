@@ -42,6 +42,11 @@ export function registerOAuthRoutes(app: Express) {
       });
 
       const cookieOptions = getSessionCookieOptions(req);
+
+      // Clear any stale cookie first (handles sandbox URL changes where old JWT_SECRET is invalid)
+      res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: 0 });
+
+      // Set the fresh session cookie
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
       res.redirect(302, "/");
