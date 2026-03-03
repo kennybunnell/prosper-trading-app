@@ -583,20 +583,18 @@ export const automationRouter = router({
                     shortCalls[underlying] = (shortCalls[underlying] || 0) + Math.abs(parseFloat((opt as any).quantity));
                   }
                 }
-                // Load liquidation flags — skip any symbol the user has flagged for exit
+                // Load liquidation flags (SYMBOL-WIDE) — skip any symbol flagged for exit
+                // in ANY account. A dog is a dog — flagged in one account = blocked everywhere.
                 const { liquidationFlags: liqFlags } = await import('../drizzle/schema');
-                const { eq: eqLF, and: andLF } = await import('drizzle-orm');
+                const { eq: eqLF } = await import('drizzle-orm');
                 const { getDb: getDbLF } = await import('./db');
                 const dbLF = await getDbLF();
                 const flaggedRows = dbLF ? await dbLF.select({ symbol: liqFlags.symbol })
                   .from(liqFlags)
-                  .where(andLF(
-                    eqLF(liqFlags.userId, ctx.user.id),
-                    eqLF(liqFlags.accountNumber, account.accountNumber),
-                  )) : [];
+                  .where(eqLF(liqFlags.userId, ctx.user.id)) : [];
                 const flaggedSymbolsSet = new Set(flaggedRows.map((f: { symbol: string }) => f.symbol.toUpperCase()));
                 if (flaggedSymbolsSet.size > 0) {
-                  console.log(`[Automation CC] Skipping flagged-for-liquidation symbols: ${Array.from(flaggedSymbolsSet).join(', ')}`);
+                  console.log(`[Automation CC] Symbol-wide liquidation flags (blocks all accounts): ${Array.from(flaggedSymbolsSet).join(', ')}`);
                 }
 
                 // Build list of eligible stocks with uncovered shares

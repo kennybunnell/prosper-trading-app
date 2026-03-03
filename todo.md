@@ -7026,3 +7026,9 @@
 - [x] Fix: Added Call/Put type label to the Strike column in the order preview (green 'Put' / red 'Call' badge under the strike price)
 - [x] Fix: Added Call/Put type label to the Long leg (STC) sub-row so users can verify each leg type at a glance
 - [x] Written 7 unit tests for IC long-leg type matching logic (all passing) — verifies cross-type matches are always rejected
+
+## Symbol-Wide Liquidation Flag Enforcement (Mar 3, 2026)
+- [x] Fix CC submit guard (routers-cc.ts) — removed accountNumber filter, now queries by userId only; logs all active flags on every submit
+- [x] Fix Automation scanner (routers-automation.ts) — removed per-account filter, now loads all flags for userId; logs symbol-wide block at scan time
+- [x] CC Dashboard UI grey-out already correct — getLiquidationFlags returns all flags by userId, frontend builds Set by symbol only (no account filter)
+- [x] All three enforcement layers now block flagged symbols across all accounts — "a dog is a dog"

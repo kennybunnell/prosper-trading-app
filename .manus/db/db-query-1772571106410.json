@@ -1,0 +1,94 @@
+{
+  "query": "SELECT symbol, account_number, note, flagged_at FROM liquidation_flags ORDER BY symbol ASC LIMIT 50;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT symbol, account_number, note, flagged_at FROM liquidation_flags ORDER BY symbol ASC LIMIT 50;",
+  "rows": [
+    {
+      "symbol": "ACHR",
+      "account_number": "5WZ77313",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 19:17:28"
+    },
+    {
+      "symbol": "BMNR",
+      "account_number": "5WZ77313",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 19:27:26"
+    },
+    {
+      "symbol": "CIFR",
+      "account_number": "5WZ80418",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 19:17:22"
+    },
+    {
+      "symbol": "COIN",
+      "account_number": "5WZ80418",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 19:27:16"
+    },
+    {
+      "symbol": "COIN",
+      "account_number": "5WZ77313",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 19:16:01"
+    },
+    {
+      "symbol": "HIMS",
+      "account_number": "5WZ77313",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 19:17:17"
+    },
+    {
+      "symbol": "HIMS",
+      "account_number": "5WZ80418",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 19:17:36"
+    },
+    {
+      "symbol": "IBIT",
+      "account_number": "5WZ77313",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 18:51:06"
+    },
+    {
+      "symbol": "IREN",
+      "account_number": "5WZ77313",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 19:27:04"
+    },
+    {
+      "symbol": "LYFT",
+      "account_number": "5WZ77313",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 19:25:45"
+    },
+    {
+      "symbol": "MSTR",
+      "account_number": "5WZ77313",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 19:27:10"
+    },
+    {
+      "symbol": "ORCL",
+      "account_number": "5WZ77313",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 19:17:04"
+    },
+    {
+      "symbol": "PINS",
+      "account_number": "5WZ77313",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 19:25:56"
+    },
+    {
+      "symbol": "TEM",
+      "account_number": "5WZ77313",
+      "note": "NULL",
+      "flagged_at": "2026-03-02 19:15:53"
+    }
+  ],
+  "messages": [],
+  "stdout": "symbol\taccount_number\tnote\tflagged_at\nACHR\t5WZ77313\tNULL\t2026-03-02 19:17:28\nBMNR\t5WZ77313\tNULL\t2026-03-02 19:27:26\nCIFR\t5WZ80418\tNULL\t2026-03-02 19:17:22\nCOIN\t5WZ80418\tNULL\t2026-03-02 19:27:16\nCOIN\t5WZ77313\tNULL\t2026-03-02 19:16:01\nHIMS\t5WZ77313\tNULL\t2026-03-02 19:17:17\nHIMS\t5WZ80418\tNULL\t2026-03-02 19:17:36\nIBIT\t5WZ77313\tNULL\t2026-03-02 18:51:06\nIREN\t5WZ77313\tNULL\t2026-03-02 19:27:04\nLYFT\t5WZ77313\tNULL\t2026-03-02 19:25:45\nMSTR\t5WZ77313\tNULL\t2026-03-02 19:27:10\nORCL\t5WZ77313\tNULL\t2026-03-02 19:17:04\nPINS\t5WZ77313\tNULL\t2026-03-02 19:25:56\nTEM\t5WZ77313\tNULL\t2026-03-02 19:15:53\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}

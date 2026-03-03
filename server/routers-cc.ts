@@ -660,24 +660,25 @@ export const ccRouter = router({
           });
         }
       
-      // ─── Liquidation flag check ────────────────────────────────────────────
-      // Block new covered call STO orders for any symbol flagged for liquidation.
-      // Spreads (BCS, BPS, IC) are NOT blocked — only naked covered calls on owned shares.
+      // ─── Liquidation flag check (SYMBOL-WIDE) ─────────────────────────────
+      // Block new covered call STO orders for any symbol flagged for liquidation
+      // across ALL accounts. A dog is a dog — if flagged in any account, no new
+      // CCs are opened in any account for that symbol.
       const { liquidationFlags } = await import('../drizzle/schema');
-      const { eq: eqLiq, and: andLiq, inArray } = await import('drizzle-orm');
+      const { eq: eqLiq, inArray } = await import('drizzle-orm');
       const flaggedSymbols = await db.select({ symbol: liquidationFlags.symbol })
         .from(liquidationFlags)
-        .where(andLiq(
-          eqLiq(liquidationFlags.userId, ctx.user.id),
-          eqLiq(liquidationFlags.accountNumber, input.accountNumber),
-        ));
+        .where(eqLiq(liquidationFlags.userId, ctx.user.id));
       const flaggedSet = new Set(flaggedSymbols.map(f => f.symbol.toUpperCase()));
+      if (flaggedSet.size > 0) {
+        console.log(`[CC Submit] Symbol-wide liquidation flags active: ${Array.from(flaggedSet).join(', ')}`);
+      }
       const blockedOrders = input.orders.filter(o => flaggedSet.has(o.symbol.toUpperCase()));
       if (blockedOrders.length > 0) {
         const blockedSymbols = Array.from(new Set(blockedOrders.map(o => o.symbol.toUpperCase()))).join(', ');
         throw new TRPCError({
           code: 'FORBIDDEN',
-          message: `⛔ Blocked for Liquidation — ${blockedSymbols} ${blockedOrders.length === 1 ? 'is' : 'are'} flagged for exit. No new covered calls will be opened. Remove the flag in Position Analyzer → Position Analyzer tab to re-enable.`,
+          message: `⛔ Blocked for Liquidation — ${blockedSymbols} ${blockedOrders.length === 1 ? 'is' : 'are'} flagged for exit across all accounts. No new covered calls will be opened. Remove the flag in Position Analyzer → Position Analyzer tab to re-enable.`,
         });
       }
       // ──────────────────────────────────────────────────────────────────────────
