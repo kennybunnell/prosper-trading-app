@@ -7086,3 +7086,15 @@
 - [x] Read premium tracking code to understand how premiums are calculated/stored
 - [x] Identify root cause of the $60k drop
 - [x] Add CSV export to Roll Positions automation tab
+
+## February Premium Regression Fix (Mar 3, 2026)
+- [ ] Trace git log to find the commit that changed premium calculation logic
+- [ ] Identify the incorrect filter causing $60k drop (was $150k, now $90k)
+- [ ] Restore correct calculation logic
+- [ ] Verify February shows ~$150k again
+
+## Capital Events Section & Roll Positions Audit (Mar 3, 2026)
+- [x] Add getCapitalEvents backend procedure (stock transactions from Tastytrade)
+- [x] Build Capital Events UI section on Performance page (assignments, purchases, exits)
+- [ ] Audit Roll Positions scan logic and roll candidate generation
+- [ ] Verify Roll Positions order submission sends correct OTM strikes

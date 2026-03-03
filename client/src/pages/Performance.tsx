@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Loader2, Download } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Loader2, Download, Package } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { exportToCSV } from '@/lib/utils';
 import { useAccount } from '@/contexts/AccountContext';
@@ -20,7 +20,7 @@ import { UnifiedOrderPreviewModal, UnifiedOrder } from '@/components/UnifiedOrde
 import { LockedInIncomeCards } from '@/components/projections/LockedInIncomeCards';
 import { ThetaDecayCards } from '@/components/projections/ThetaDecayCards';
 import { InteractiveROICalculator } from '@/components/projections/InteractiveROICalculator';
-import { DollarSign, Package, TrendingUp as TrendingUpIcon, TrendingDown as TrendingDownIcon } from 'lucide-react';
+import { DollarSign, TrendingUp as TrendingUpIcon, TrendingDown as TrendingDownIcon } from 'lucide-react';
 import { ConnectionStatusIndicator } from '@/components/ConnectionStatusIndicator';
 import { SpreadAnalyticsTab } from '@/components/SpreadAnalyticsTab';
 import { TaxTab } from '@/components/TaxTab';
@@ -57,12 +57,13 @@ export default function Performance() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="spread-analytics">Spread Analytics</TabsTrigger>
           <TabsTrigger value="stock-basis">Stock Basis</TabsTrigger>
           <TabsTrigger value="projections">Projections</TabsTrigger>
           <TabsTrigger value="tax">Tax</TabsTrigger>
+          <TabsTrigger value="capital-events">Capital Events</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -88,6 +89,11 @@ export default function Performance() {
         {/* Tax Loss Harvesting Tab */}
         <TabsContent value="tax" className="space-y-6">
           <TaxTab />
+        </TabsContent>
+
+        {/* Capital Events Tab */}
+        <TabsContent value="capital-events" className="space-y-6">
+          <CapitalEventsTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -3680,6 +3686,211 @@ function ProjectionsTab() {
           <InteractiveROICalculator />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ─── Capital Events Tab ───────────────────────────────────────────────────────
+// Shows stock transactions (assignments, purchases, exits) separately from
+// options premium income so they don't pollute the premium scorecard.
+
+function CapitalEventsTab() {
+  const [selectedYear, setSelectedYear] = useState<number | undefined>(undefined);
+  const [filterType, setFilterType] = useState<'all' | 'assignment' | 'purchase' | 'sale' | 'other'>('all');
+
+  const { data, isLoading, refetch, isFetching } = trpc.dashboard.getCapitalEvents.useQuery(
+    { year: selectedYear },
+    { staleTime: 5 * 60 * 1000 }
+  );
+
+  const events = data?.events ?? [];
+
+  const filtered = filterType === 'all' ? events : events.filter(e => e.eventType === filterType);
+
+  // Compute summary stats
+  const totalCredits = events.filter(e => e.netValueEffect === 'Credit').reduce((s, e) => s + e.netValue, 0);
+  const totalDebits = events.filter(e => e.netValueEffect === 'Debit').reduce((s, e) => s + e.netValue, 0);
+  const netCapital = totalCredits - totalDebits;
+
+  const assignmentCount = events.filter(e => e.eventType === 'assignment').length;
+  const purchaseCount = events.filter(e => e.eventType === 'purchase').length;
+  const saleCount = events.filter(e => e.eventType === 'sale').length;
+
+  const currentYear = new Date().getFullYear();
+  const yearOptions = [currentYear, currentYear - 1, currentYear - 2];
+
+  function handleExportCSV() {
+    if (!filtered.length) return;
+    const rows = filtered.map(e => ({
+      Date: new Date(e.date).toLocaleDateString(),
+      Symbol: e.symbol,
+      Account: e.accountName,
+      'Event Type': e.eventType.charAt(0).toUpperCase() + e.eventType.slice(1),
+      Action: e.action,
+      Quantity: e.quantity,
+      'Price/Share': e.pricePerShare,
+      'Net Value': e.netValue,
+      Effect: e.netValueEffect,
+      Description: e.description,
+    }));
+    const headers = Object.keys(rows[0]);
+    const csv = [headers.join(','), ...rows.map(r => headers.map(h => JSON.stringify((r as any)[h] ?? '')).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `capital-events-${selectedYear ?? 'recent'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Capital events exported');
+  }
+
+  const eventTypeBadge = (type: string) => {
+    switch (type) {
+      case 'assignment': return <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">Assignment</Badge>;
+      case 'purchase':   return <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">Purchase</Badge>;
+      case 'sale':       return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Sale</Badge>;
+      default:           return <Badge variant="outline">Other</Badge>;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Capital Events</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Stock assignments, purchases, and exits — separated from options premium income
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Year filter */}
+          <select
+            value={selectedYear ?? ''}
+            onChange={e => setSelectedYear(e.target.value ? parseInt(e.target.value) : undefined)}
+            className="text-sm bg-background border border-border rounded-md px-3 py-1.5 text-foreground"
+          >
+            <option value="">Last 6 months</option>
+            {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={!filtered.length}>
+            <Download className="w-4 h-4 mr-1" />
+            Export CSV
+          </Button>
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <Card className="p-4 bg-card/50">
+          <p className="text-xs text-muted-foreground">Total Credits</p>
+          <p className="text-lg font-bold text-green-400">${totalCredits.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+          <p className="text-xs text-muted-foreground">Proceeds from sales/assignments</p>
+        </Card>
+        <Card className="p-4 bg-card/50">
+          <p className="text-xs text-muted-foreground">Total Debits</p>
+          <p className="text-lg font-bold text-red-400">${totalDebits.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+          <p className="text-xs text-muted-foreground">Cost of stock purchases</p>
+        </Card>
+        <Card className="p-4 bg-card/50">
+          <p className="text-xs text-muted-foreground">Net Capital Flow</p>
+          <p className={`text-lg font-bold ${netCapital >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {netCapital >= 0 ? '+' : ''}${netCapital.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+          </p>
+          <p className="text-xs text-muted-foreground">Credits minus debits</p>
+        </Card>
+        <Card className="p-4 bg-card/50">
+          <p className="text-xs text-muted-foreground">Assignments</p>
+          <p className="text-lg font-bold text-orange-400">{assignmentCount}</p>
+          <p className="text-xs text-muted-foreground">Options assigned</p>
+        </Card>
+        <Card className="p-4 bg-card/50">
+          <p className="text-xs text-muted-foreground">Purchases / Sales</p>
+          <p className="text-lg font-bold text-blue-400">{purchaseCount} / {saleCount}</p>
+          <p className="text-xs text-muted-foreground">Share transactions</p>
+        </Card>
+      </div>
+
+      {/* Filter buttons */}
+      <div className="flex gap-2 flex-wrap">
+        {(['all', 'assignment', 'purchase', 'sale', 'other'] as const).map(t => (
+          <Button
+            key={t}
+            size="sm"
+            variant={filterType === t ? 'default' : 'outline'}
+            onClick={() => setFilterType(t)}
+            className="capitalize"
+          >
+            {t === 'all' ? `All (${events.length})` : `${t.charAt(0).toUpperCase() + t.slice(1)} (${events.filter(e => e.eventType === t).length})`}
+          </Button>
+        ))}
+      </div>
+
+      {/* Events table */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <span className="ml-3 text-muted-foreground">Loading capital events from Tastytrade…</span>
+        </div>
+      ) : data?.error ? (
+        <Card className="p-6 border-red-500/30 bg-red-500/5">
+          <p className="text-red-400 text-sm">{data.error}</p>
+        </Card>
+      ) : filtered.length === 0 ? (
+        <Card className="p-12 text-center">
+          <Package className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground">No capital events found for this period.</p>
+          <p className="text-xs text-muted-foreground mt-1">Capital events appear when stock is bought, sold, or assigned.</p>
+        </Card>
+      ) : (
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Date</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Symbol</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Account</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Type</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Action</th>
+                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qty</th>
+                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">Price/Share</th>
+                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">Net Value</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((e, idx) => (
+                  <tr key={idx} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                      {new Date(e.date).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3 font-mono font-semibold">{e.symbol}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{e.accountName}</td>
+                    <td className="px-4 py-3">{eventTypeBadge(e.eventType)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{e.action}</td>
+                    <td className="px-4 py-3 text-right">{e.quantity}</td>
+                    <td className="px-4 py-3 text-right font-mono">
+                      ${e.pricePerShare.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className={`px-4 py-3 text-right font-mono font-semibold ${e.netValueEffect === 'Credit' ? 'text-green-400' : 'text-red-400'}`}>
+                      {e.netValueEffect === 'Credit' ? '+' : '-'}${e.netValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-xs truncate" title={e.description}>
+                      {e.description}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

@@ -445,3 +445,43 @@ describe('WTR Movers digest logic', () => {
     expect(38.0 > 40).toBe(false);
   });
 });
+
+// ─── Capital Events classification tests ─────────────────────────────────────
+describe('Capital Events classification', () => {
+  function classifyEvent(description: string, action: string): string {
+    const descLower = description.toLowerCase();
+    if (descLower.includes('assignment') || descLower.includes('assigned')) return 'assignment';
+    if (action === 'Buy' || action === 'Buy to Open') return 'purchase';
+    if (action === 'Sell' || action === 'Sell to Close') return 'sale';
+    return 'other';
+  }
+
+  it('classifies assignment transactions', () => {
+    expect(classifyEvent('Bought 100 TSLA via assignment', 'Buy')).toBe('assignment');
+    expect(classifyEvent('Assigned 100 shares of HOOD', 'Buy')).toBe('assignment');
+  });
+
+  it('classifies stock purchases', () => {
+    expect(classifyEvent('Bought 100 ADBE @ 260.59', 'Buy')).toBe('purchase');
+    expect(classifyEvent('Bought 100 CVX @ 189.43', 'Buy to Open')).toBe('purchase');
+  });
+
+  it('classifies stock sales', () => {
+    expect(classifyEvent('Sold 50 TSLA @ 410.62', 'Sell')).toBe('sale');
+    expect(classifyEvent('Sold 100 MSFT @ 399.08', 'Sell to Close')).toBe('sale');
+  });
+
+  it('classifies unknown transactions as other', () => {
+    expect(classifyEvent('Transfer', 'Transfer')).toBe('other');
+  });
+
+  it('correctly identifies option symbols vs stock symbols', () => {
+    const isOptionSymbol = (symbol: string) => /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(symbol);
+    expect(isOptionSymbol('TSLA  260321C00400000')).toBe(true);
+    expect(isOptionSymbol('HOOD  260328C00077000')).toBe(true);
+    expect(isOptionSymbol('TSLA')).toBe(false);
+    expect(isOptionSymbol('ADBE')).toBe(false);
+    expect(isOptionSymbol('CVX')).toBe(false);
+    expect(isOptionSymbol('TSM')).toBe(false);
+  });
+});

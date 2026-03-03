@@ -517,6 +517,128 @@ export const appRouter = router({
         return { monthlyData: [], error: error.message };
       }
     }),
+
+    /**
+     * Get capital events (stock transactions) across all accounts
+     * These are assignments, share purchases, liquidations, and harvest exits
+     * Separated from premium income so they don't pollute the options scorecard
+     */
+    getCapitalEvents: protectedProcedure
+      .input(z.object({
+        year: z.number().optional(),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        const { getTastytradeAPI } = await import('./tastytrade');
+        const { getApiCredentials } = await import('./db');
+
+        try {
+          const credentials = await getApiCredentials(ctx.user.id);
+          if (!credentials || !credentials.tastytradeClientSecret || !credentials.tastytradeRefreshToken) {
+            return { events: [], error: 'Tastytrade credentials not configured.' };
+          }
+
+          const { authenticateTastytrade } = await import('./tastytrade');
+          const api = await authenticateTastytrade(credentials, ctx.user.id);
+          const accounts = await api.getAccounts();
+          if (!accounts || accounts.length === 0) return { events: [], error: 'No accounts found' };
+
+          const now = new Date();
+          const selectedYear = input?.year;
+          let startDate: Date;
+          let endDate: Date;
+
+          if (selectedYear) {
+            startDate = new Date(selectedYear, 0, 1);
+            endDate = new Date(selectedYear, 11, 31);
+          } else {
+            const startMonth = now.getMonth() - 5;
+            const startYear = now.getFullYear() + Math.floor(startMonth / 12);
+            const adjustedStartMonth = ((startMonth % 12) + 12) % 12;
+            startDate = new Date(startYear, adjustedStartMonth, 1);
+            endDate = now;
+          }
+
+          const startDateStr = startDate.toISOString().split('T')[0];
+          const endDateStr = endDate.toISOString().split('T')[0];
+
+          const events: Array<{
+            date: string;
+            symbol: string;
+            description: string;
+            action: string;
+            quantity: number;
+            pricePerShare: number;
+            netValue: number;
+            netValueEffect: string;
+            accountNumber: string;
+            accountName: string;
+            eventType: 'assignment' | 'purchase' | 'sale' | 'other';
+          }> = [];
+
+          for (const account of accounts) {
+            const accountNumber = account.account['account-number'];
+            const accountName = account.account.nickname || accountNumber;
+
+            try {
+              const transactions = await api.getTransactionHistory(accountNumber, startDateStr, endDateStr);
+
+              for (const txn of transactions) {
+                if (txn['transaction-type'] !== 'Trade') continue;
+
+                const txnSymbol: string = txn['symbol'] || '';
+                const isOptionSymbol = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol);
+                if (isOptionSymbol) continue; // Skip options — those go in premium scorecard
+                if (!txnSymbol) continue;
+
+                const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
+                if (netValue === 0) continue;
+
+                const executedAt = txn['executed-at'];
+                if (!executedAt) continue;
+
+                const description: string = txn['description'] || '';
+                const action: string = txn['action'] || '';
+                const quantity = Math.abs(parseFloat(txn['quantity'] || '0'));
+                const price = quantity > 0 ? netValue / quantity : 0;
+
+                // Classify event type
+                let eventType: 'assignment' | 'purchase' | 'sale' | 'other' = 'other';
+                const descLower = description.toLowerCase();
+                if (descLower.includes('assignment') || descLower.includes('assigned')) {
+                  eventType = 'assignment';
+                } else if (action === 'Buy' || action === 'Buy to Open') {
+                  eventType = 'purchase';
+                } else if (action === 'Sell' || action === 'Sell to Close') {
+                  eventType = 'sale';
+                }
+
+                events.push({
+                  date: executedAt,
+                  symbol: txnSymbol,
+                  description,
+                  action,
+                  quantity,
+                  pricePerShare: Math.round(price * 100) / 100,
+                  netValue: Math.round(netValue * 100) / 100,
+                  netValueEffect: txn['net-value-effect'] || '',
+                  accountNumber,
+                  accountName,
+                  eventType,
+                });
+              }
+            } catch (err: any) {
+              console.error(`[CapitalEvents] Failed for account ${accountNumber}:`, err.message);
+            }
+          }
+
+          // Sort by date descending (most recent first)
+          events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          return { events };
+        } catch (error: any) {
+          console.error('[CapitalEvents] Error:', error);
+          return { events: [], error: error.message };
+        }
+      }),
   }),
   auth: router({
     me: publicProcedure.query(opts => {
