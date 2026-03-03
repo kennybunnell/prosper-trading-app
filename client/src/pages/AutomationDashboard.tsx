@@ -292,7 +292,7 @@ export default function AutomationDashboard() {
   };
 
   // Roll Positions state
-  const [rollScanResults, setRollScanResults] = useState<{ red: RollAnalysis[]; yellow: RollAnalysis[]; green: RollAnalysis[]; all: RollAnalysis[]; total: number; accountsScanned: number } | null>(null);
+  const [rollScanResults, setRollScanResults] = useState<{ red: RollAnalysis[]; yellow: RollAnalysis[]; green: RollAnalysis[]; all: RollAnalysis[]; total: number; accountsScanned: number; winnersExcluded?: number } | null>(null);
   const [isRollScanning, setIsRollScanning] = useState(false);
   const [expandedRollRow, setExpandedRollRow] = useState<string | null>(null);
   const [rollCandidatesCache, setRollCandidatesCache] = useState<Record<string, RollCandidate[]>>({});
@@ -301,7 +301,7 @@ export default function AutomationDashboard() {
   const [isSubmittingRolls, setIsSubmittingRolls] = useState(false);
   const [rollFilter, setRollFilter] = useState<'all' | 'red' | 'yellow' | 'green'>('all');
   const [rollStrategyFilter, setRollStrategyFilter] = useState<'all' | 'CSP' | 'CC' | 'BPS' | 'BCS' | 'IC'>('all');
-  const [rollPnlFilter, setRollPnlFilter] = useState<'all' | 'winner' | 'breakeven' | 'loser'>('all');
+  const [rollPnlFilter, setRollPnlFilter] = useState<'all' | 'winner' | 'breakeven' | 'loser'>('loser'); // Default to losers — winners are excluded from scan
   const [rollCreditOnlyFilter, setRollCreditOnlyFilter] = useState(false);
   const [rollSortCol, setRollSortCol] = useState<string>('unrealizedPnl');
   const [rollSortDir, setRollSortDir] = useState<'asc' | 'desc'>('asc');
@@ -1876,7 +1876,10 @@ export default function AutomationDashboard() {
                 <Card className="border-border/50">
                   <CardContent className="pt-4 pb-3">
                     <div className="text-2xl font-bold">{rollScanResults.total}</div>
-                    <div className="text-xs text-muted-foreground">Positions Found</div>
+                    <div className="text-xs text-muted-foreground">Actionable Positions</div>
+                    {rollScanResults.winnersExcluded !== undefined && rollScanResults.winnersExcluded > 0 && (
+                      <div className="text-xs text-green-400/70 mt-0.5">{rollScanResults.winnersExcluded} winners excluded ✓</div>
+                    )}
                   </CardContent>
                 </Card>
                 <Card className="border-red-500/30 bg-red-500/5">
@@ -1893,8 +1896,10 @@ export default function AutomationDashboard() {
                 </Card>
                 <Card className="border-green-500/30 bg-green-500/5">
                   <CardContent className="pt-4 pb-3">
-                    <div className="text-2xl font-bold text-green-400">{rollScanResults.green.length}</div>
-                    <div className="text-xs text-muted-foreground">🟢 Winners — on track</div>
+                    <div className="text-2xl font-bold text-green-400">
+                      {rollScanResults.winnersExcluded ?? 0}
+                    </div>
+                    <div className="text-xs text-muted-foreground">🟢 Winners — left alone</div>
                   </CardContent>
                 </Card>
               </div>

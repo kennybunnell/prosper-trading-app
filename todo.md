@@ -7105,3 +7105,9 @@
 - [ ] Add "Roll Credit" column to roll scanner output and CSV export
 - [ ] Change "Should Roll" logic: debit rolls → CLOSE ONLY, credit rolls → ROLL
 - [ ] Add credit-only filter toggle to the Roll Positions UI
+
+## Roll Scanner Winner Exclusion
+
+- [x] Exclude winners from roll scan results in backend (shouldRoll = false for winners)
+- [x] Set default P&L filter to hide winners in Roll Positions UI
+- [x] Update summary stats to show only loser/breakeven counts as actionable

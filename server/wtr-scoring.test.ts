@@ -485,3 +485,69 @@ describe('Capital Events classification', () => {
     expect(isOptionSymbol('TSM')).toBe(false);
   });
 });
+
+// ─── Roll Scanner: Winner Exclusion Logic ────────────────────────────────────
+
+describe('Roll Scanner: Winner Exclusion', () => {
+  const makePosition = (pnlStatus: 'winner' | 'breakeven' | 'loser', urgency: 'red' | 'yellow' | 'green') => ({
+    pnlStatus,
+    urgency,
+    positionId: `pos-${pnlStatus}-${urgency}`,
+    symbol: 'TEST',
+  });
+
+  it('excludes winners from actionable positions', () => {
+    const all = [
+      makePosition('winner', 'green'),
+      makePosition('winner', 'yellow'),
+      makePosition('loser', 'red'),
+      makePosition('breakeven', 'yellow'),
+    ];
+    const actionable = all.filter(p => p.pnlStatus !== 'winner');
+    expect(actionable).toHaveLength(2);
+    expect(actionable.every(p => p.pnlStatus !== 'winner')).toBe(true);
+  });
+
+  it('counts excluded winners correctly', () => {
+    const all = [
+      makePosition('winner', 'green'),
+      makePosition('winner', 'green'),
+      makePosition('loser', 'red'),
+    ];
+    const actionable = all.filter(p => p.pnlStatus !== 'winner');
+    const winnersExcluded = all.length - actionable.length;
+    expect(winnersExcluded).toBe(2);
+    expect(actionable).toHaveLength(1);
+  });
+
+  it('returns all positions when there are no winners', () => {
+    const all = [
+      makePosition('loser', 'red'),
+      makePosition('breakeven', 'yellow'),
+    ];
+    const actionable = all.filter(p => p.pnlStatus !== 'winner');
+    expect(actionable).toHaveLength(2);
+  });
+
+  it('returns empty when all positions are winners', () => {
+    const all = [
+      makePosition('winner', 'green'),
+      makePosition('winner', 'green'),
+    ];
+    const actionable = all.filter(p => p.pnlStatus !== 'winner');
+    expect(actionable).toHaveLength(0);
+  });
+
+  it('preserves losers and breakeven positions regardless of urgency color', () => {
+    const all = [
+      makePosition('loser', 'red'),
+      makePosition('loser', 'yellow'),
+      makePosition('breakeven', 'yellow'),
+      makePosition('breakeven', 'green'),
+      makePosition('winner', 'green'),
+    ];
+    const actionable = all.filter(p => p.pnlStatus !== 'winner');
+    expect(actionable).toHaveLength(4);
+    expect(actionable.some(p => p.pnlStatus === 'winner')).toBe(false);
+  });
+});

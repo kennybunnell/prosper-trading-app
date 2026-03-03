@@ -438,17 +438,23 @@ export const rollsRouter = router({
         };
       });
 
-      const red    = scoredSpreads.filter(s => s.urgency === 'red');
-      const yellow = scoredSpreads.filter(s => s.urgency === 'yellow');
-      const green  = scoredSpreads.filter(s => s.urgency === 'green');
+      // Winners don't need to be rolled — exclude them entirely from the roll scanner.
+      // A winner (green / pnlStatus === 'winner') is working as intended; leave it alone.
+      // Only losers (red) and breakeven (yellow) positions are actionable for rolling.
+      const actionable = scoredSpreads.filter(s => s.pnlStatus !== 'winner');
+
+      const red    = actionable.filter(s => s.urgency === 'red');
+      const yellow = actionable.filter(s => s.urgency === 'yellow');
+      const green  = actionable.filter(s => s.urgency === 'green'); // breakeven positions that scored green
 
       return {
         red,
         yellow,
         green,
-        all: scoredSpreads,
-        total: scoredSpreads.length,
+        all: actionable,
+        total: actionable.length,
         accountsScanned: targetAccounts.length,
+        winnersExcluded: scoredSpreads.length - actionable.length,
       };
     }),
 
