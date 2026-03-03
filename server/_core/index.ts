@@ -33,6 +33,11 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
   
+  // Trust the reverse proxy (Manus sandbox proxy) so req.protocol and
+  // x-forwarded-proto headers are respected. Required for sameSite:'none'
+  // cookies to work — browsers require secure:true when sameSite:'none'.
+  app.set('trust proxy', 1);
+  
   // Stripe webhook endpoint (MUST be before body parser middleware)
   // Stripe requires raw body for signature verification
   app.post("/api/webhooks/stripe", express.raw({ type: 'application/json' }), handleStripeWebhook);
