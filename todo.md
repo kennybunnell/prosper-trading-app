@@ -6972,3 +6972,9 @@
 - [x] Fix: Frontend captures _t from URL, stores in localStorage, sends as Authorization: Bearer header
 - [x] Fix: Server reads Authorization header as fallback when cookie is blocked/stale
 - [x] Fix: Server prefers fresh Authorization header token over potentially-stale cookie
+
+## DB-Backed Stable Signing Secret (Mar 3, 2026)
+- [x] Add app_config table to drizzle/schema.ts and push migration
+- [x] Add getOrCreateAppSecret() helper in server/db.ts
+- [x] Wire DB secret into SDK at server boot (replaces JWT_SECRET env var)
+- [x] Verify sessions survive a server restart

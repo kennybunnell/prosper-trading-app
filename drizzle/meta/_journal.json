@@ -393,6 +393,13 @@
       "when": 1772475235393,
       "tag": "0056_wealthy_nocturne",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "5",
+      "when": 1772514781316,
+      "tag": "0057_complete_lifeguard",
+      "breakpoints": true
     }
   ]
 }

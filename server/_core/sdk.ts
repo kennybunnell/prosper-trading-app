@@ -154,8 +154,10 @@ class SDKServer {
     return new Map(Object.entries(parsed));
   }
 
-  private getSessionSecret() {
-    const secret = ENV.cookieSecret;
+  private async getSessionSecret() {
+    // Use the stable DB-backed secret so sessions survive JWT_SECRET env var rotation.
+    // Falls back to ENV.cookieSecret if the DB is unavailable.
+    const secret = await db.getOrCreateAppSecret();
     return new TextEncoder().encode(secret);
   }
 
@@ -185,8 +187,7 @@ class SDKServer {
     const issuedAt = Date.now();
     const expiresInMs = options.expiresInMs ?? ONE_YEAR_MS;
     const expirationSeconds = Math.floor((issuedAt + expiresInMs) / 1000);
-    const secretKey = this.getSessionSecret();
-
+     const secretKey = await this.getSessionSecret();
     return new SignJWT({
       openId: payload.openId,
       appId: payload.appId,
@@ -206,7 +207,7 @@ class SDKServer {
     }
 
     try {
-      const secretKey = this.getSessionSecret();
+      const secretKey = await this.getSessionSecret();
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });

@@ -1,6 +1,7 @@
+import { randomBytes } from 'crypto';
 import { eq, and, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, orderHistory, InsertOrderHistory } from "../drizzle/schema";
+import { InsertUser, users, orderHistory, InsertOrderHistory, appConfig } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -16,6 +17,39 @@ export async function getDb() {
     }
   }
   return _db;
+}
+
+/**
+ * Returns the stable app-level JWT signing secret, creating and persisting it
+ * on first call. This secret survives sandbox restarts, hibernation, and
+ * JWT_SECRET environment variable rotation — making all user sessions permanent
+ * until explicitly invalidated.
+ *
+ * Falls back to ENV.cookieSecret if the database is unavailable.
+ */
+export async function getOrCreateAppSecret(): Promise<string> {
+  const APP_SECRET_KEY = 'jwt_signing_secret';
+  const db = await getDb();
+  if (!db) {
+    console.warn('[AppSecret] Database unavailable, falling back to ENV.cookieSecret');
+    return ENV.cookieSecret;
+  }
+  try {
+    // Try to read existing secret
+    const rows = await db.select().from(appConfig).where(eq(appConfig.key, APP_SECRET_KEY)).limit(1);
+    if (rows.length > 0 && rows[0].value) {
+      return rows[0].value;
+    }
+    // Generate a new 32-byte hex secret and persist it
+    const newSecret = randomBytes(32).toString('hex');
+    await db.insert(appConfig).values({ key: APP_SECRET_KEY, value: newSecret })
+      .onDuplicateKeyUpdate({ set: { key: APP_SECRET_KEY } }); // no-op on race condition
+    console.log('[AppSecret] Generated and stored new stable JWT signing secret in database');
+    return newSecret;
+  } catch (error) {
+    console.warn('[AppSecret] Failed to read/write DB secret, falling back to ENV.cookieSecret:', error);
+    return ENV.cookieSecret;
+  }
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {

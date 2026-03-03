@@ -826,3 +826,19 @@ export const liquidationFlags = mysqlTable('liquidation_flags', {
 }));
 export type LiquidationFlag = typeof liquidationFlags.$inferSelect;
 export type InsertLiquidationFlag = typeof liquidationFlags.$inferInsert;
+
+/**
+ * App-level configuration store — key/value pairs that must survive sandbox
+ * restarts and environment variable rotation.
+ *
+ * The most critical use-case is the JWT signing secret: generated once on first
+ * boot, persisted here forever, and used in place of the JWT_SECRET env var.
+ * This makes all user sessions immune to sandbox hibernation / secret rotation.
+ */
+export const appConfig = mysqlTable('app_config', {
+  key: varchar('key', { length: 128 }).primaryKey(),
+  value: text('value').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+});
+export type AppConfig = typeof appConfig.$inferSelect;

@@ -1,0 +1,15 @@
+{
+  "query": "SELECT `key`, LEFT(`value`, 16) as value_preview, `created_at` FROM `app_config`;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT `key`, LEFT(`value`, 16) as value_preview, `created_at` FROM `app_config`;",
+  "rows": [
+    {
+      "key": "jwt_signing_secret",
+      "value_preview": "3107e8029077ffca",
+      "created_at": "2026-03-03 05:14:29"
+    }
+  ],
+  "messages": [],
+  "stdout": "key\tvalue_preview\tcreated_at\njwt_signing_secret\t3107e8029077ffca\t2026-03-03 05:14:29\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}
