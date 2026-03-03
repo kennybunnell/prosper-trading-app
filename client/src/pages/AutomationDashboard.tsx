@@ -140,6 +140,8 @@ type RollAnalysis = {
   accountId?: string;
   accountNumber?: string;
   spreadDetails?: SpreadDetails;
+  isLetExpire?: boolean;
+  dogReason?: string | null;
 };
 
 type RollCandidate = {
@@ -292,7 +294,7 @@ export default function AutomationDashboard() {
   };
 
   // Roll Positions state
-  const [rollScanResults, setRollScanResults] = useState<{ red: RollAnalysis[]; yellow: RollAnalysis[]; green: RollAnalysis[]; all: RollAnalysis[]; total: number; accountsScanned: number; winnersExcluded?: number } | null>(null);
+  const [rollScanResults, setRollScanResults] = useState<{ red: RollAnalysis[]; yellow: RollAnalysis[]; green: RollAnalysis[]; all: RollAnalysis[]; letExpire?: RollAnalysis[]; letExpireCount?: number; total: number; accountsScanned: number; winnersExcluded?: number } | null>(null);
   const [isRollScanning, setIsRollScanning] = useState(false);
   const [expandedRollRow, setExpandedRollRow] = useState<string | null>(null);
   const [rollCandidatesCache, setRollCandidatesCache] = useState<Record<string, RollCandidate[]>>({});
@@ -1872,14 +1874,11 @@ export default function AutomationDashboard() {
           {rollScanResults && !isRollScanning && (
             <>
               {/* Summary stats */}
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-5 gap-3">
                 <Card className="border-border/50">
                   <CardContent className="pt-4 pb-3">
                     <div className="text-2xl font-bold">{rollScanResults.total}</div>
                     <div className="text-xs text-muted-foreground">Actionable Positions</div>
-                    {rollScanResults.winnersExcluded !== undefined && rollScanResults.winnersExcluded > 0 && (
-                      <div className="text-xs text-green-400/70 mt-0.5">{rollScanResults.winnersExcluded} winners excluded ✓</div>
-                    )}
                   </CardContent>
                 </Card>
                 <Card className="border-red-500/30 bg-red-500/5">
@@ -1892,6 +1891,12 @@ export default function AutomationDashboard() {
                   <CardContent className="pt-4 pb-3">
                     <div className="text-2xl font-bold text-yellow-400">{rollScanResults.yellow.length}</div>
                     <div className="text-xs text-muted-foreground">🟡 Breakeven — monitor</div>
+                  </CardContent>
+                </Card>
+                <Card className="border-sky-500/30 bg-sky-500/5">
+                  <CardContent className="pt-4 pb-3">
+                    <div className="text-2xl font-bold text-sky-400">{rollScanResults.letExpireCount ?? 0}</div>
+                    <div className="text-xs text-muted-foreground">💚 Let Be Called Away</div>
                   </CardContent>
                 </Card>
                 <Card className="border-green-500/30 bg-green-500/5">
@@ -2134,6 +2139,59 @@ export default function AutomationDashboard() {
                               </React.Fragment>
                             );
                           })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Let Be Called Away section */}
+              {rollScanResults.letExpire && rollScanResults.letExpire.length > 0 && (
+                <Card className="border-sky-500/30 bg-sky-500/5">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="h-2 w-2 rounded-full bg-sky-400" />
+                      <h4 className="font-semibold text-sky-300 text-sm">Let Be Called Away ({rollScanResults.letExpire.length})</h4>
+                      <span className="text-xs text-muted-foreground ml-1">— These are ITM covered calls on LIQUIDATE or deep-MONITOR underlyings. The strategy is to let them expire and have the stock called away. No action needed.</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border/30 text-left">
+                            <th className="p-2 text-xs text-muted-foreground font-medium">Symbol</th>
+                            <th className="p-2 text-xs text-muted-foreground font-medium">Strategy</th>
+                            <th className="p-2 text-xs text-muted-foreground font-medium text-right">Stock $</th>
+                            <th className="p-2 text-xs text-muted-foreground font-medium text-right">Strike</th>
+                            <th className="p-2 text-xs text-muted-foreground font-medium">Expiry</th>
+                            <th className="p-2 text-xs text-muted-foreground font-medium text-right">DTE</th>
+                            <th className="p-2 text-xs text-muted-foreground font-medium text-right">ITM Depth</th>
+                            <th className="p-2 text-xs text-muted-foreground font-medium">Dog Reason</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rollScanResults.letExpire.map(pos => (
+                            <tr key={pos.positionId} className="border-b border-border/20 hover:bg-sky-500/5">
+                              <td className="p-2 font-semibold text-xs">{pos.symbol}</td>
+                              <td className="p-2">
+                                <Badge variant="outline" className="text-xs text-purple-400 border-purple-400/40">{pos.strategy}</Badge>
+                              </td>
+                              <td className="p-2 text-right font-mono text-xs text-sky-400">
+                                {pos.metrics.currentPrice > 0 ? `$${pos.metrics.currentPrice.toFixed(2)}` : '—'}
+                              </td>
+                              <td className="p-2 text-right font-mono text-xs">
+                                ${pos.metrics.strikePrice.toFixed(0)}
+                              </td>
+                              <td className="p-2 text-xs">{pos.metrics.expiration}</td>
+                              <td className={`p-2 text-right font-mono text-xs ${
+                                pos.metrics.dte <= 7 ? 'text-red-400' : pos.metrics.dte <= 14 ? 'text-yellow-400' : 'text-muted-foreground'
+                              }`}>{pos.metrics.dte}</td>
+                              <td className="p-2 text-right font-mono text-xs text-red-400">
+                                {pos.metrics.itmDepth > 0 ? `▲${pos.metrics.itmDepth.toFixed(1)}%` : '—'}
+                              </td>
+                              <td className="p-2 text-xs text-sky-300/80">{pos.dogReason || '—'}</td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>

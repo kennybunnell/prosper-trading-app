@@ -16,6 +16,25 @@ import {
   type SpreadPosition,
   type StrategyType,
 } from "./spreadDetection";
+// Note: db, wtrHistory, and drizzle-orm are imported dynamically inside procedures to match project patterns
+
+// ─── Dog Cross-Check Helper ───────────────────────────────────────────────────
+// Returns true if an ITM CC's underlying is a LIQUIDATE or deep-MONITOR dog.
+// These positions should be let expire and called away, not rolled.
+function isDogPosition(
+  symbol: string,
+  strategy: StrategyType,
+  itmDepth: number,
+  dogMap: Map<string, { recommendation: string; wtr: number }>
+): boolean {
+  if (strategy !== 'CC') return false;
+  if (itmDepth <= 0) return false; // OTM — not a dog candidate
+  const dog = dogMap.get(symbol);
+  if (!dog) return false;
+  if (dog.recommendation === 'LIQUIDATE') return true;
+  if (dog.recommendation === 'MONITOR' && dog.wtr > 30) return true;
+  return false;
+}
 
 // ─── OCC Symbol Helper ────────────────────────────────────────────────────────
 
@@ -252,6 +271,35 @@ export const rollsRouter = router({
         if (found) targetAccounts = [found];
       }
 
+      // Build a dog map from the latest WTR history scan for cross-checking ITM CCs.
+      // If no WTR history exists yet (first scan), the map will be empty and no CCs will be tagged.
+      const dogMap = new Map<string, { recommendation: string; wtr: number }>();
+      try {
+        const { getDb } = await import('./db');
+        const { wtrHistory } = await import('../drizzle/schema');
+        const { desc: descOp } = await import('drizzle-orm');
+        const dbInst = await getDb();
+        if (!dbInst) throw new Error('DB not available');
+        const latestWtr = await dbInst
+          .select()
+          .from(wtrHistory)
+          .orderBy(descOp(wtrHistory.scanDate))
+          .limit(500);
+        // Keep only the most recent entry per symbol (first occurrence after sorting by desc date)
+        const seen = new Set<string>();
+        for (const row of latestWtr) {
+          if (!seen.has(row.symbol)) {
+            seen.add(row.symbol);
+            dogMap.set(row.symbol, {
+              recommendation: row.recommendation,
+              wtr: row.weeksToRecover ? parseFloat(row.weeksToRecover) : 0,
+            });
+          }
+        }
+      } catch (_) {
+        // WTR history table may not exist yet — proceed without dog cross-check
+      }
+
       const rawLegs: RawOptionLeg[] = [];
       const optionSymbolsToFetch = new Set<string>();
       const underlyingSymbolsToFetch = new Set<string>();
@@ -388,6 +436,14 @@ export const rollsRouter = router({
           }
         }
 
+        // Dog cross-check: if this is an ITM CC on a LIQUIDATE/deep-MONITOR underlying,
+        // tag it as LET_EXPIRE so the UI shows it in the "Let Be Called Away" section.
+        const isLetExpire = isDogPosition(spread.underlying, spread.strategyType, itmDepth, dogMap);
+        const dogEntry = dogMap.get(spread.underlying);
+        const dogReason = isLetExpire && dogEntry
+          ? `${dogEntry.recommendation} (WTR ${dogEntry.wtr.toFixed(1)} wks) — let be called away`
+          : null;
+
         return {
           positionId,
           symbol: spread.underlying,
@@ -397,7 +453,9 @@ export const rollsRouter = router({
           urgency,
           pnlStatus,
           unrealizedPnl,
-          shouldRoll: urgency === 'red' || urgency === 'yellow',
+          isLetExpire,
+          dogReason,
+          shouldRoll: !isLetExpire && (urgency === 'red' || urgency === 'yellow'),
           reasons,
           score,
           accountNumber: spread.accountNumber,
@@ -441,7 +499,12 @@ export const rollsRouter = router({
       // Winners don't need to be rolled — exclude them entirely from the roll scanner.
       // A winner (green / pnlStatus === 'winner') is working as intended; leave it alone.
       // Only losers (red) and breakeven (yellow) positions are actionable for rolling.
-      const actionable = scoredSpreads.filter(s => s.pnlStatus !== 'winner');
+      const nonWinners = scoredSpreads.filter(s => s.pnlStatus !== 'winner');
+
+      // Dog cross-check: ITM CCs on LIQUIDATE/deep-MONITOR underlyings go to letExpire bucket.
+      // These should be let expire and called away, not rolled.
+      const letExpire = nonWinners.filter(s => s.isLetExpire);
+      const actionable = nonWinners.filter(s => !s.isLetExpire);
 
       const red    = actionable.filter(s => s.urgency === 'red');
       const yellow = actionable.filter(s => s.urgency === 'yellow');
@@ -452,9 +515,11 @@ export const rollsRouter = router({
         yellow,
         green,
         all: actionable,
+        letExpire,
         total: actionable.length,
+        letExpireCount: letExpire.length,
         accountsScanned: targetAccounts.length,
-        winnersExcluded: scoredSpreads.length - actionable.length,
+        winnersExcluded: scoredSpreads.length - nonWinners.length,
       };
     }),
 
