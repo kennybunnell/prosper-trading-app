@@ -52,12 +52,11 @@ queryClient.getQueryCache().subscribe(event => {
   }
 });
 
-queryClient.getMutationCache().subscribe(event => {
-  if (event.type === "updated" && event.action.type === "error") {
-    const error = event.mutation.state.error;
-    redirectToLoginIfUnauthorized(error);
-    // Don't log mutation errors here - they're handled by component-level onError handlers
-  }
+// NOTE: We intentionally do NOT redirect to login on mutation errors.
+// Mutations that fail with 401 are handled by component-level onError handlers.
+// A global redirect here would interrupt the user mid-action and cause auth loops.
+queryClient.getMutationCache().subscribe(_event => {
+  // Mutation errors are handled at the component level.
 });
 
 const trpcClient = trpc.createClient({

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,11 +20,12 @@ const TIER_NAMES: Record<SubscriptionTier, string> = {
 
 export default function Subscription() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [selectedTier, setSelectedTier] = useState<SubscriptionTier | null>(null);
   const [includeTradierSetup, setIncludeTradierSetup] = useState(false);
   const [includeTastytradeSetup, setIncludeTastytradeSetup] = useState(false);
 
-  const subscriptionStatus = trpc.stripe.getSubscriptionStatus.useQuery();
+  const subscriptionStatus = trpc.stripe.getSubscriptionStatus.useQuery(undefined, { enabled: !!user });
   const createCheckout = trpc.stripe.createCheckoutSession.useMutation({
     onSuccess: (data) => {
       // Open Stripe checkout in new tab

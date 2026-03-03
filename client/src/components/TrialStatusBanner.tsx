@@ -17,7 +17,7 @@ import { Link } from "wouter";
  */
 export function TrialStatusBanner() {
   const { user } = useAuth();
-  const { data: subscriptionStatus } = trpc.user.getSubscriptionStatus.useQuery();
+  const { data: subscriptionStatus } = trpc.user.getSubscriptionStatus.useQuery(undefined, { enabled: !!user });
 
   // Only show for free trial users
   if (!user || !subscriptionStatus || subscriptionStatus.tier !== 'free_trial') {
