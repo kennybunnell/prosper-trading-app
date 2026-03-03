@@ -1,13 +1,13 @@
 /**
  * Position Analyzer Tab
  *
- * Scans all held stock positions and rates each one as:
- *   LIQUIDATE  — poor premium yield, deep drawdown, capital better redeployed
- *   HARVEST    — sell ITM/ATM covered call to collect premium on the way out
- *   KEEP       — core holding with strong CC yield, continue wheeling
+ * Scans all held stock positions and rates each one using Weeks-to-Recover (WTR):
+ *   KEEP       — no cost-basis deficit (position is profitable), continue wheeling
+ *   HARVEST    — WTR ≤ 16 weeks: recoverable in ≤4 months, sell calls aggressively
+ *   MONITOR    — WTR 17–52 weeks: 4–12 months to recover, watch closely
+ *   LIQUIDATE  — WTR > 52 weeks: takes over a year, exit and redeploy capital
  *
- * Each HARVEST/LIQUIDATE card has a one-click "★ Sell ATM CC" button that opens
- * a confirmation dialog (dry-run preview) before submitting the order.
+ * Includes CSV export for offline review and sanity-checking.
  */
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
@@ -25,13 +25,11 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   RefreshCw,
   TrendingDown,
   CheckCircle2,
   Loader2,
-  ArrowRight,
   DollarSign,
   BarChart3,
   Zap,
@@ -44,11 +42,13 @@ import {
   Clock,
   Layers,
   Target,
+  Eye,
+  Download,
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 
-type Recommendation = 'KEEP' | 'HARVEST' | 'LIQUIDATE';
+type Recommendation = 'KEEP' | 'HARVEST' | 'MONITOR' | 'LIQUIDATE';
 
 interface OpenShortCall {
   strike: number;
@@ -70,7 +70,8 @@ interface AnalyzedPosition {
   week52High: number;
   week52Low: number;
   drawdownFromHigh: number;
-  isCore: boolean;
+  weeksToRecover: number | null;
+  monthsToRecover: number | null;
   ccExpiration: string | null;
   ccAtmStrike: number | null;
   ccAtmPremium: number | null;
@@ -110,6 +111,14 @@ const REC_CONFIG: Record<Recommendation, {
     icon: <TrendingDown className="h-4 w-4 text-red-400" />,
     badgeClass: 'bg-red-900/60 text-red-300 border-red-700/50',
   },
+  MONITOR: {
+    label: 'Monitor',
+    color: 'text-sky-400',
+    bgColor: 'bg-sky-950/20',
+    borderColor: 'border-sky-800/40',
+    icon: <Eye className="h-4 w-4 text-sky-400" />,
+    badgeClass: 'bg-sky-900/60 text-sky-300 border-sky-700/50',
+  },
   HARVEST: {
     label: 'Harvest & Exit',
     color: 'text-amber-400',
@@ -136,6 +145,76 @@ function fmtDollar(n: number): string {
   const sign = n < 0 ? '-' : '+';
   if (abs >= 1000) return `${sign}$${(abs / 1000).toFixed(1)}k`;
   return `${sign}$${abs.toFixed(0)}`;
+}
+
+/** Format WTR for display — null means no deficit (profitable) */
+function fmtWTR(wtr: number | null, mtr: number | null): string {
+  if (wtr === null) return '—';
+  if (wtr > 999) return '>999 wks';
+  if (mtr !== null && mtr >= 1) return `${mtr.toFixed(1)} mo (${wtr.toFixed(0)} wks)`;
+  return `${wtr.toFixed(1)} wks`;
+}
+
+/** WTR badge color based on tier */
+function wtrColor(wtr: number | null): string {
+  if (wtr === null) return 'text-emerald-400';
+  if (wtr <= 16) return 'text-amber-400';
+  if (wtr <= 52) return 'text-sky-400';
+  return 'text-red-400';
+}
+
+// ─── CSV Export ───────────────────────────────────────────────────────────────
+function exportToCSV(positions: AnalyzedPosition[], scannedAt: string) {
+  const headers = [
+    'Symbol', 'Account', 'Account Type', 'Recommendation',
+    'Shares', 'Avg Cost', 'Current Price', 'Market Value ($)',
+    'Unrealized P&L ($)', 'Unrealized P&L (%)',
+    'Deficit/Share ($)', 'Wk ATM Premium ($)', 'Weeks to Recover', 'Months to Recover',
+    '52-Wk High ($)', 'Drawdown from High (%)',
+    'CC Strike ($)', 'CC Premium ($)', 'CC Weekly Yield (%)', 'CC Effective Exit ($)',
+    'CC Expiration', 'Available Contracts', 'Flagged for Exit',
+    'Recommendation Reason',
+  ];
+
+  const rows = positions.map(p => {
+    const deficit = p.avgOpenPrice - p.currentPrice;
+    return [
+      p.symbol,
+      p.accountNumber,
+      p.accountType,
+      p.recommendation,
+      p.quantity,
+      p.avgOpenPrice.toFixed(2),
+      p.currentPrice.toFixed(2),
+      p.marketValue.toFixed(2),
+      p.unrealizedPnl.toFixed(2),
+      p.unrealizedPnlPct.toFixed(2),
+      deficit > 0 ? deficit.toFixed(2) : '0.00',
+      p.ccAtmPremium !== null ? p.ccAtmPremium.toFixed(2) : '',
+      p.weeksToRecover !== null ? p.weeksToRecover.toFixed(1) : '',
+      p.monthsToRecover !== null ? p.monthsToRecover.toFixed(1) : '',
+      p.week52High.toFixed(2),
+      p.drawdownFromHigh.toFixed(1),
+      p.ccAtmStrike !== null ? p.ccAtmStrike.toFixed(2) : '',
+      p.ccAtmPremium !== null ? p.ccAtmPremium.toFixed(2) : '',
+      p.ccWeeklyYield !== null ? p.ccWeeklyYield.toFixed(2) : '',
+      p.ccEffectiveExit !== null ? p.ccEffectiveExit.toFixed(2) : '',
+      p.ccExpiration ?? '',
+      p.availableContracts ?? Math.floor(p.quantity / 100),
+      '', // flagged — filled client-side if needed
+      `"${p.recommendationReason.replace(/"/g, '""')}"`,
+    ];
+  });
+
+  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const dateStr = new Date(scannedAt).toISOString().slice(0, 10);
+  link.href = url;
+  link.download = `position-analyzer-${dateStr}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 // ─── Sell CC Confirmation Dialog ─────────────────────────────────────────────
@@ -168,7 +247,6 @@ function SellCCDialog({
 
   const contracts = Math.floor(pos.quantity / 100);
   const estimatedCredit = pos.ccAtmPremium * contracts * 100;
-  // Round to nearest $0.05 (Tastytrade requirement for equity options)
   const roundToNickel = (price: number) => Math.round(price * 20) / 20;
   const handleSubmit = () => {
     setLastResult(null);
@@ -196,7 +274,6 @@ function SellCCDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Order details */}
         <div className="space-y-3">
           <div className="rounded-lg bg-muted/20 border border-border p-3 space-y-2 text-sm">
             <div className="grid grid-cols-2 gap-2">
@@ -233,9 +310,14 @@ function SellCCDialog({
               <span className="text-muted-foreground text-xs">Effective Exit Price</span>
               <span className="text-blue-400 font-semibold">${fmt(pos.ccEffectiveExit ?? 0)} vs. ${fmt(pos.currentPrice)} today</span>
             </div>
+            {pos.weeksToRecover !== null && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground text-xs">Weeks to Recover Basis</span>
+                <span className={`font-semibold ${wtrColor(pos.weeksToRecover)}`}>{fmtWTR(pos.weeksToRecover, pos.monthsToRecover)}</span>
+              </div>
+            )}
           </div>
 
-          {/* Dry run toggle */}
           <div className="flex items-center justify-between rounded-lg bg-muted/10 border border-border px-3 py-2">
             <div>
               <Label htmlFor="sell-dry-run" className="text-sm font-medium">Dry Run Mode</Label>
@@ -253,7 +335,6 @@ function SellCCDialog({
             </Alert>
           )}
 
-          {/* Result */}
           {lastResult && (
             <div className="rounded-lg bg-emerald-950/30 border border-emerald-800/30 p-3 text-xs text-emerald-300">
               {lastResult}
@@ -304,6 +385,7 @@ function PositionCard({
   const lockedContracts = totalContracts - availableContracts;
   const contracts = availableContracts;
   const canSellCC = pos.recommendation !== 'KEEP' && pos.ccAtmStrike !== null && pos.ccAtmPremium !== null && availableContracts > 0;
+  const showFlagButton = pos.recommendation === 'HARVEST' || pos.recommendation === 'MONITOR' || pos.recommendation === 'LIQUIDATE';
 
   return (
     <div className={`rounded-lg border ${cfg.borderColor} ${cfg.bgColor} p-4 space-y-3`}>
@@ -312,15 +394,17 @@ function PositionCard({
         <div className="flex items-center gap-2 min-w-0 flex-wrap">
           {cfg.icon}
           <span className="font-bold text-base text-white">{pos.symbol}</span>
-          {pos.isCore && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-blue-600/50 text-blue-400">CORE</Badge>
-          )}
           <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 ${cfg.badgeClass}`}>
             {cfg.label}
           </Badge>
-          {/* CC-locked indicator — shown when all contracts are covered by existing short calls */}
+          {/* WTR badge — shown for non-KEEP positions */}
+          {pos.weeksToRecover !== null && (
+            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 border-white/10 bg-black/20 ${wtrColor(pos.weeksToRecover)}`}>
+              WTR: {fmtWTR(pos.weeksToRecover, pos.monthsToRecover)}
+            </Badge>
+          )}
+          {/* CC-locked indicator */}
           {pos.recommendation !== 'KEEP' && availableContracts === 0 && lockedContracts > 0 && (() => {
-            // Find the soonest expiring short call for the countdown
             const calls = pos.openShortCalls ?? [];
             const soonest = calls.length > 0
               ? calls.reduce((min, c) => c.daysToExpiry < min.daysToExpiry ? c : min, calls[0])
@@ -336,8 +420,8 @@ function PositionCard({
               </Badge>
             );
           })()}
-          {/* Liquidation flag toggle — prominent, in header */}
-          {pos.recommendation !== 'KEEP' && (
+          {/* Liquidation flag toggle */}
+          {showFlagButton && (
             <button
               onClick={() => !isFlagging && onToggleFlag(pos, !isFlagged)}
               disabled={isFlagging}
@@ -358,7 +442,6 @@ function PositionCard({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {/* One-click Sell ATM CC button */}
           {canSellCC && (
             <Button
               size="sm"
@@ -389,15 +472,24 @@ function PositionCard({
           <div className="font-medium text-white">${(pos.marketValue / 1000).toFixed(1)}k</div>
         </div>
         <div className="space-y-0.5">
-          <div className="text-muted-foreground">52-Wk High</div>
-          <div className={`font-medium ${pos.drawdownFromHigh <= -50 ? 'text-red-400' : pos.drawdownFromHigh <= -25 ? 'text-amber-400' : 'text-white'}`}>
-            ${fmt(pos.week52High)} ({fmt(pos.drawdownFromHigh, 0)}%)
-          </div>
-        </div>
-        <div className="space-y-0.5">
           <div className="text-muted-foreground">Avg Cost</div>
           <div className="font-medium text-white">${fmt(pos.avgOpenPrice)}</div>
         </div>
+        {pos.weeksToRecover !== null ? (
+          <div className="space-y-0.5">
+            <div className="text-muted-foreground">Weeks to Recover</div>
+            <div className={`font-medium ${wtrColor(pos.weeksToRecover)}`}>
+              {fmtWTR(pos.weeksToRecover, pos.monthsToRecover)}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-0.5">
+            <div className="text-muted-foreground">52-Wk High</div>
+            <div className={`font-medium ${pos.drawdownFromHigh <= -50 ? 'text-red-400' : pos.drawdownFromHigh <= -25 ? 'text-amber-400' : 'text-white'}`}>
+              ${fmt(pos.week52High)} ({fmt(pos.drawdownFromHigh, 0)}%)
+            </div>
+          </div>
+        )}
       </div>
 
       {/* CC premium row */}
@@ -473,12 +565,11 @@ function PositionCard({
         </div>
       )}
 
-      {/* Liquidate / Sell ITM CC — always visible for LIQUIDATE/HARVEST */}
-      {pos.recommendation !== 'KEEP' && (
+      {/* Liquidate / Sell ITM CC — for HARVEST and LIQUIDATE */}
+      {(pos.recommendation === 'HARVEST' || pos.recommendation === 'LIQUIDATE') && (
         <div className="space-y-2">
           {pos.ccAtmStrike && pos.ccAtmPremium ? (
             <>
-              {/* CC details summary */}
               <div className="rounded-md bg-black/30 border border-emerald-800/30 p-2.5 text-xs space-y-1.5">
                 <div className="text-muted-foreground font-medium uppercase tracking-wide text-[10px]">Harvest &amp; Exit — Sell {pos.ccIsItm ? 'ITM' : 'ATM'} Covered Call</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -506,7 +597,6 @@ function PositionCard({
                   </div>
                 )}
               </div>
-              {/* Action button */}
               <Button
                 size="sm"
                 onClick={() => onSellCC(pos)}
@@ -517,12 +607,21 @@ function PositionCard({
               </Button>
             </>
           ) : (
-            /* No CC data yet — loading or unavailable */
             <div className="rounded-md border border-white/10 bg-black/20 p-2.5 text-xs text-muted-foreground flex items-center gap-2">
               <TrendingUp className="h-3.5 w-3.5 shrink-0" />
               <span>Loading covered call data for {pos.symbol}… Refresh to retry.</span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* MONITOR — informational note, no action button */}
+      {pos.recommendation === 'MONITOR' && (
+        <div className="rounded-md border border-sky-800/30 bg-sky-950/20 p-2.5 text-xs text-sky-300 flex items-start gap-2">
+          <Eye className="h-3.5 w-3.5 mt-0.5 shrink-0 text-sky-400" />
+          <span>
+            Watching — reassess monthly. If WTR exceeds 52 weeks on next scan, this position will automatically surface as a dog for liquidation.
+          </span>
         </div>
       )}
 
@@ -562,11 +661,11 @@ function BatchSellDialog({
     onError: (err) => toast.error(`Batch failed: ${err.message}`),
   });
 
-  // Build eligible orders: FLAGGED positions with CC data and available contracts
   const eligiblePositions = positions.filter(p => {
     const key = `${p.symbol}-${p.accountNumber}`;
     return flaggedSet.has(key) &&
       p.recommendation !== 'KEEP' &&
+      p.recommendation !== 'MONITOR' &&
       p.ccAtmStrike !== null &&
       p.ccAtmPremium !== null &&
       p.ccExpiration !== null &&
@@ -578,7 +677,6 @@ function BatchSellDialog({
     return sum + (p.ccAtmPremium! * contracts * 100);
   }, 0);
 
-  // Round a price to the nearest $0.05 increment (Tastytrade requirement)
   const roundToNickel = (price: number) => Math.round(price * 20) / 20;
 
   const handleSubmit = () => {
@@ -605,7 +703,7 @@ function BatchSellDialog({
             Sell All Flagged &amp; Eligible
           </DialogTitle>
           <DialogDescription>
-            Queue ITM covered call orders for {eligiblePositions.length} flagged-for-exit position{eligiblePositions.length !== 1 ? 's' : ''} with available contracts. Only positions you’ve marked ⛔ Flagged for Exit are included.
+            Queue ITM covered call orders for {eligiblePositions.length} flagged-for-exit position{eligiblePositions.length !== 1 ? 's' : ''} with available contracts. Only HARVEST/LIQUIDATE positions you've marked ⛔ Flagged for Exit are included.
           </DialogDescription>
         </DialogHeader>
 
@@ -664,7 +762,6 @@ function BatchSellDialog({
           <Button variant="outline" onClick={() => { onClose(); setResult(null); }}>
             {result && !dryRun ? 'Close' : 'Cancel'}
           </Button>
-          {/* Hide submit button once live orders have been submitted */}
           {!(result && !dryRun) && (
             <Button
               onClick={handleSubmit}
@@ -693,9 +790,8 @@ export function PositionAnalyzerTab() {
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [sellDialog, setSellDialog] = useState<SellCCDialogState>({ open: false, position: null, dryRun: true });
   const [batchDialog, setBatchDialog] = useState<BatchSellDialogState>({ open: false, dryRun: true });
-  const [flaggingKey, setFlaggingKey] = useState<string | null>(null); // key = `${symbol}-${accountNumber}`
+  const [flaggingKey, setFlaggingKey] = useState<string | null>(null);
 
-  // Liquidation flags
   const { data: flagsData, refetch: refetchFlags } = trpc.positionAnalyzer.getLiquidationFlags.useQuery(
     undefined,
     { staleTime: 30 * 1000 }
@@ -738,7 +834,6 @@ export function PositionAnalyzerTab() {
     }
   };
 
-
   const { data, isLoading, error, refetch, isFetching } = trpc.positionAnalyzer.analyzePositions.useQuery(
     undefined,
     {
@@ -749,8 +844,8 @@ export function PositionAnalyzerTab() {
 
   const { data: digestSettings } = trpc.positionAnalyzer.getDigestSettings.useQuery();
   const updateDigest = trpc.positionAnalyzer.updateDigestSettings.useMutation({
-    onSuccess: (data) => {
-      toast.success(data.weeklyPositionDigestEnabled
+    onSuccess: (d) => {
+      toast.success(d.weeklyPositionDigestEnabled
         ? 'Weekly digest enabled — you\'ll receive a Monday morning summary'
         : 'Weekly digest disabled');
     },
@@ -758,9 +853,9 @@ export function PositionAnalyzerTab() {
 
   const positions = data?.positions ?? [];
   const summary = data?.summary;
-  // ELIGIBLE = LIQUIDATE or HARVEST with at least 1 available contract (can act right now)
   const eligibleNow = positions.filter(
-    p => p.recommendation !== 'KEEP' && ((p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100)) > 0
+    p => (p.recommendation === 'HARVEST' || p.recommendation === 'LIQUIDATE') &&
+      ((p as AnalyzedPosition).availableContracts ?? Math.floor(p.quantity / 100)) > 0
   );
   const filtered = filter === 'ALL'
     ? positions
@@ -771,6 +866,15 @@ export function PositionAnalyzerTab() {
   const handleRefresh = () => {
     refetch();
     toast.info('Refreshing position analysis…');
+  };
+
+  const handleExport = () => {
+    if (positions.length === 0) {
+      toast.error('No positions to export — run a scan first');
+      return;
+    }
+    exportToCSV(positions, data?.scannedAt ?? new Date().toISOString());
+    toast.success(`Exported ${positions.length} positions to CSV`);
   };
 
   if (isLoading) {
@@ -801,10 +905,10 @@ export function PositionAnalyzerTab() {
         <div>
           <h2 className="text-xl font-bold text-white">Position Analyzer</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Evaluates every stock position as a premium harvesting machine. Identifies dogs to exit and provides one-click covered call orders to maximize exit value.
+            Scores every stock position by <strong className="text-white">Weeks-to-Recover (WTR)</strong> — how many weeks of CC premium it takes to recover the cost-basis deficit. WTR ≤16 wks = Harvest, 17–52 wks = Monitor, &gt;52 wks = Liquidate.
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
           {/* Weekly digest toggle */}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/10">
             <Mail className="h-3.5 w-3.5 text-muted-foreground" />
@@ -816,6 +920,17 @@ export function PositionAnalyzerTab() {
               disabled={updateDigest.isPending}
             />
           </div>
+          {/* Export CSV */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            disabled={positions.length === 0}
+            title="Export all positions to CSV for offline review"
+          >
+            <Download className="h-3.5 w-3.5 mr-1.5" />
+            Export CSV
+          </Button>
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isFetching}>
             <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isFetching ? 'animate-spin' : ''}`} />
             Refresh
@@ -823,9 +938,9 @@ export function PositionAnalyzerTab() {
         </div>
       </div>
 
-      {/* Summary cards */}
+      {/* Summary cards — 5 cards now (added MONITOR) */}
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <Card className="bg-card/50 border-border/50">
             <CardContent className="p-3">
               <div className="text-xs text-muted-foreground">Total Positions</div>
@@ -844,9 +959,18 @@ export function PositionAnalyzerTab() {
               </div>
             </CardContent>
           </Card>
+          <Card className="bg-sky-950/20 border-sky-800/30">
+            <CardContent className="p-3">
+              <div className="text-xs text-sky-400">Monitor</div>
+              <div className="text-2xl font-bold text-sky-300 mt-1">{(summary as any).monitorCount ?? 0}</div>
+              <div className="text-xs text-sky-400/70 mt-1">
+                4–12 mo to recover
+              </div>
+            </CardContent>
+          </Card>
           <Card className="bg-amber-950/20 border-amber-800/30">
             <CardContent className="p-3">
-              <div className="text-xs text-amber-400">Harvest & Exit</div>
+              <div className="text-xs text-amber-400">Harvest</div>
               <div className="text-2xl font-bold text-amber-300 mt-1">{summary.harvestCount}</div>
               <div className="text-xs text-amber-400/70 mt-1">
                 ~${(summary.estimatedWeeklyPremium).toFixed(0)} premium/wk
@@ -865,11 +989,9 @@ export function PositionAnalyzerTab() {
         </div>
       )}
 
-      {/* Clearing the Dogs — progress bar (tracks flagged-for-exit positions only) */}
+      {/* Clearing the Dogs — progress bar */}
       {flaggedSet.size > 0 && (() => {
-        // Total = all positions you've explicitly flagged for exit
         const totalFlagged = flaggedSet.size;
-        // Cleared = flagged positions that have no available contracts left (CC locked or already exited)
         const clearedCount = positions.filter(p => {
           const key = `${p.symbol}-${p.accountNumber}`;
           if (!flaggedSet.has(key)) return false;
@@ -877,11 +999,10 @@ export function PositionAnalyzerTab() {
           return available === 0;
         }).length;
         const pct = totalFlagged > 0 ? Math.round((clearedCount / totalFlagged) * 100) : 0;
-        // Flagged + eligible = flagged AND has available contracts AND has CC data
         const flaggedEligible = positions.filter(p => {
           const key = `${p.symbol}-${p.accountNumber}`;
           return flaggedSet.has(key)
-            && p.recommendation !== 'KEEP'
+            && (p.recommendation === 'HARVEST' || p.recommendation === 'LIQUIDATE')
             && p.ccAtmStrike !== null
             && p.ccAtmPremium !== null
             && p.ccExpiration !== null
@@ -899,10 +1020,7 @@ export function PositionAnalyzerTab() {
               <span className="text-sm font-bold text-orange-300">{pct}%</span>
             </div>
             <div className="space-y-1.5">
-              <Progress
-                value={pct}
-                className="h-3 bg-orange-950/50"
-              />
+              <Progress value={pct} className="h-3 bg-orange-950/50" />
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>{totalFlagged} flagged for exit &middot; {clearedCount} cleared</span>
                 <span>
@@ -913,7 +1031,6 @@ export function PositionAnalyzerTab() {
                 </span>
               </div>
             </div>
-            {/* Sell All button — only flagged + eligible positions */}
             {sellableCount > 0 && (
               <Button
                 size="sm"
@@ -928,10 +1045,9 @@ export function PositionAnalyzerTab() {
         );
       })()}
 
-      {/* Filter tabs */}
+      {/* Filter tabs — includes MONITOR */}
       {positions.length > 0 && (
         <div className="flex gap-2 flex-wrap items-center">
-          {/* Eligible Now — highlighted as the primary action filter */}
           <button
             onClick={() => setFilter('ELIGIBLE')}
             style={filter === 'ELIGIBLE'
@@ -943,7 +1059,7 @@ export function PositionAnalyzerTab() {
             ⚡ Eligible Now ({eligibleNow.length})
           </button>
           <span className="text-white/20 text-xs">|</span>
-          {(['ALL', 'LIQUIDATE', 'HARVEST', 'KEEP'] as const).map(f => (
+          {(['ALL', 'LIQUIDATE', 'MONITOR', 'HARVEST', 'KEEP'] as const).map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -951,6 +1067,7 @@ export function PositionAnalyzerTab() {
                 filter === f
                   ? f === 'ALL' ? 'bg-white/10 text-white'
                     : f === 'LIQUIDATE' ? 'bg-red-900/60 text-red-300'
+                    : f === 'MONITOR' ? 'bg-sky-900/60 text-sky-300'
                     : f === 'HARVEST' ? 'bg-amber-900/60 text-amber-300'
                     : 'bg-emerald-900/60 text-emerald-300'
                   : 'text-muted-foreground hover:text-white hover:bg-white/5'
@@ -958,6 +1075,7 @@ export function PositionAnalyzerTab() {
             >
               {f === 'ALL' ? `All (${positions.length})`
                 : f === 'LIQUIDATE' ? `Liquidate (${summary?.liquidateCount ?? 0})`
+                : f === 'MONITOR' ? `Monitor (${(summary as any)?.monitorCount ?? 0})`
                 : f === 'HARVEST' ? `Harvest (${summary?.harvestCount ?? 0})`
                 : `Keep (${summary?.keepCount ?? 0})`}
             </button>
@@ -982,7 +1100,7 @@ export function PositionAnalyzerTab() {
             return (
               <PositionCard
                 key={`${pos.symbol}-${pos.accountNumber}-${i}`}
-                pos={pos}
+                pos={pos as AnalyzedPosition}
                 onSellCC={(p) => setSellDialog({ open: true, position: p, dryRun: true })}
                 isFlagged={flaggedSet.has(flagKey)}
                 onToggleFlag={handleToggleFlag}
@@ -996,23 +1114,28 @@ export function PositionAnalyzerTab() {
       {data?.scannedAt && (
         <p className="text-xs text-muted-foreground text-center">
           Last scanned: {new Date(data.scannedAt).toLocaleString()}
+          {positions.length > 0 && (
+            <button
+              onClick={handleExport}
+              className="ml-3 text-blue-400 hover:text-blue-300 underline underline-offset-2"
+            >
+              Export CSV
+            </button>
+          )}
         </p>
       )}
 
-      {/* Sell CC confirmation dialog */}
       <SellCCDialog
         state={sellDialog}
         onClose={() => setSellDialog({ open: false, position: null, dryRun: true })}
       />
 
-      {/* Batch sell dialog */}
       <BatchSellDialog
         state={batchDialog}
-        positions={positions}
+        positions={positions as AnalyzedPosition[]}
         flaggedSet={flaggedSet}
         onClose={() => setBatchDialog({ open: false, dryRun: true })}
       />
-
     </div>
   );
 }

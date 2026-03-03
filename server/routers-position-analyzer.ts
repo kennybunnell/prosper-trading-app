@@ -2,29 +2,26 @@
  * Position Analyzer Router
  *
  * Scans all held stock positions across all accounts and evaluates each one as:
- *   KEEP        — strong CC premium yield, core holding, worth keeping
- *   HARVEST     — decent premium but consider selling ITM CC to exit on the way out
- *   LIQUIDATE   — poor premium yield, deep drawdown, capital better redeployed
+ *   KEEP        — no cost-basis deficit (position is profitable), continue wheeling
+ *   HARVEST     — WTR ≤ 16 weeks (≤4 months): recoverable via CC premium, sell calls aggressively
+ *   MONITOR     — WTR 17–52 weeks (4–12 months): watch closely, reassess monthly
+ *   LIQUIDATE   — WTR > 52 weeks (>1 year): takes too long to recover, exit position
  *
- * Scoring criteria:
- *   1. Weekly CC premium yield (ATM, this Friday) — higher is better
- *   2. Drawdown from 52-week high — deeper drawdown = more pressure to liquidate
- *   3. Position size (market value) — large dead positions hurt more
- *   4. Whether the stock is a "core" name (Mag 7 / high-conviction) — gets KEEP bias
+ * Primary scoring metric: Weeks-to-Recover (WTR)
+ *   WTR = (Avg Cost Basis − Current Price) / Weekly ATM CC Premium
+ *
+ * If current price ≥ avg cost basis → no deficit → KEEP (no WTR calculation needed)
+ * MONITOR positions accumulate quietly until WTR tips above 52 weeks, at which
+ * point they automatically surface as LIQUIDATE dogs on the next scan.
+ *
+ * The old CORE_NAMES bias and 52-week drawdown scoring have been removed.
+ * Performance (ability to recover basis via CC premium) is the bottom line.
  */
 import { router, protectedProcedure } from './_core/trpc';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
-// Core high-conviction names that get a KEEP bias
-const CORE_NAMES = new Set([
-  'NVDA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'GOOG', 'META', 'TSLA',
-  'AVGO', 'PLTR', 'COIN', 'HOOD', 'SHOP', 'ADBE', 'CRM', 'QCOM',
-  'ORCL', 'AMD', 'NFLX', 'UBER', 'NBIS', 'APLD', 'SOFI', 'INTC',
-  'SPY', 'QQQ', 'TQQQ',
-]);
-
-export type PositionRecommendation = 'KEEP' | 'HARVEST' | 'LIQUIDATE';
+export type PositionRecommendation = 'KEEP' | 'HARVEST' | 'MONITOR' | 'LIQUIDATE';
 
 export interface AnalyzedPosition {
   symbol: string;
@@ -39,7 +36,10 @@ export interface AnalyzedPosition {
   week52High: number;
   week52Low: number;
   drawdownFromHigh: number;
-  isCore: boolean;
+  /** Weeks-to-Recover: (avgCostBasis - currentPrice) / weeklyATMPremium. null if no deficit. */
+  weeksToRecover: number | null;
+  /** Months-to-Recover for display: weeksToRecover / 4.33. null if no deficit. */
+  monthsToRecover: number | null;
   ccExpiration: string | null;
   ccAtmStrike: number | null;
   ccAtmPremium: number | null;
@@ -58,60 +58,88 @@ export interface PositionAnalyzerResult {
     totalPositions: number;
     keepCount: number;
     harvestCount: number;
+    monitorCount: number;
     liquidateCount: number;
     totalMarketValue: number;
     totalUnrealizedPnl: number;
-    estimatedWeeklyPremium: number; // if all HARVEST/LIQUIDATE positions sell ATM CC
+    estimatedWeeklyPremium: number; // if all HARVEST positions sell ATM CC
     estimatedLiquidationProceeds: number; // if all LIQUIDATE positions are exited
   };
   scannedAt: string;
 }
 
-function getRecommendation(
-  drawdownFromHigh: number,
-  weeklyYield: number | null,
-  isCore: boolean,
-  marketValue: number,
-): { recommendation: PositionRecommendation; reason: string } {
-  const yield_ = weeklyYield ?? 0;
+/**
+ * Compute Weeks-to-Recover (WTR) and derive the position recommendation.
+ *
+ * WTR = (avgCostBasis − currentPrice) / weeklyATMPremium
+ *
+ * Tiers:
+ *   No deficit (price ≥ basis)  → KEEP   — profitable, continue wheeling
+ *   WTR ≤ 16 weeks              → HARVEST — recoverable in ≤4 months, sell calls aggressively
+ *   WTR 17–52 weeks             → MONITOR — 4–12 months, watch closely and reassess monthly
+ *   WTR > 52 weeks              → LIQUIDATE — >1 year to recover basis, exit position
+ *   No premium available        → LIQUIDATE — cannot harvest, exit
+ */
+function getWTRRecommendation(
+  avgCostBasis: number,
+  currentPrice: number,
+  weeklyATMPremium: number | null,
+): { recommendation: PositionRecommendation; reason: string; weeksToRecover: number | null; monthsToRecover: number | null } {
+  const deficit = avgCostBasis - currentPrice;
 
-  // ── CORE / BLUE-CHIP GUARD ──────────────────────────────────────────────────
-  // Blue-chip / core holdings are NEVER liquidated — they will recover.
-  // The worst outcome for a core stock is HARVEST (sell ITM CC to improve exit price).
-  if (isCore) {
-    if (drawdownFromHigh <= -50) {
-      return { recommendation: 'HARVEST', reason: `Core holding down ${Math.abs(drawdownFromHigh).toFixed(0)}% from high — sell ITM CC to harvest premium while holding` };
-    }
-    if (yield_ >= 1.5) {
-      return { recommendation: 'KEEP', reason: `Core holding with ${yield_.toFixed(1)}%/wk CC yield — continue wheeling` };
-    }
-    // Core with low yield but not deeply underwater → KEEP (wait for IV to improve)
-    return { recommendation: 'KEEP', reason: `Core holding — maintain position, sell CC when IV improves` };
+  // No deficit — position is at or above cost basis
+  if (deficit <= 0) {
+    const gainPct = avgCostBasis > 0 ? ((currentPrice - avgCostBasis) / avgCostBasis * 100).toFixed(1) : '0.0';
+    return {
+      recommendation: 'KEEP',
+      reason: `Above cost basis by ${gainPct}% — continue wheeling`,
+      weeksToRecover: null,
+      monthsToRecover: null,
+    };
   }
 
-  // ── NON-CORE LOGIC ─────────────────────────────────────────────────────
-  // Non-core with poor yield and deep drawdown → LIQUIDATE
-  if (!isCore && drawdownFromHigh <= -40 && yield_ < 3.0) {
-    return { recommendation: 'LIQUIDATE', reason: `Down ${Math.abs(drawdownFromHigh).toFixed(0)}% from high, only ${yield_.toFixed(1)}%/wk CC yield — redeploy capital` };
+  // Has a deficit — compute WTR
+  const deficitPerShare = deficit;
+  const premium = weeklyATMPremium ?? 0;
+
+  if (premium <= 0) {
+    // No option premium available — cannot harvest, recommend exit
+    return {
+      recommendation: 'LIQUIDATE',
+      reason: `Below basis by $${deficitPerShare.toFixed(2)}/share with no available CC premium — exit position`,
+      weeksToRecover: null,
+      monthsToRecover: null,
+    };
   }
 
-  // Non-core with rich yield → HARVEST (sell CC to exit at a premium)
-  if (!isCore && yield_ >= 4.0) {
-    return { recommendation: 'HARVEST', reason: `High IV (${yield_.toFixed(1)}%/wk) — sell ATM/ITM CC to collect premium on exit` };
+  const wtr = deficitPerShare / premium;
+  const mtr = wtr / 4.33; // weeks → months
+
+  if (wtr <= 16) {
+    return {
+      recommendation: 'HARVEST',
+      reason: `WTR ${wtr.toFixed(1)} wks (${mtr.toFixed(1)} mo) — recoverable in ≤4 months, sell CC aggressively`,
+      weeksToRecover: wtr,
+      monthsToRecover: mtr,
+    };
   }
 
-  // Non-core, moderate yield, moderate drawdown → HARVEST
-  if (!isCore && drawdownFromHigh <= -30) {
-    return { recommendation: 'HARVEST', reason: `Down ${Math.abs(drawdownFromHigh).toFixed(0)}% from high — sell covered call to improve exit price` };
+  if (wtr <= 52) {
+    return {
+      recommendation: 'MONITOR',
+      reason: `WTR ${wtr.toFixed(1)} wks (${mtr.toFixed(1)} mo) — 4–12 months to recover, watch closely`,
+      weeksToRecover: wtr,
+      monthsToRecover: mtr,
+    };
   }
 
-  // Large dead position with no meaningful yield → LIQUIDATE
-  if (marketValue > 5000 && yield_ < 1.5 && drawdownFromHigh <= -20) {
-    return { recommendation: 'LIQUIDATE', reason: `Low CC yield (${yield_.toFixed(1)}%/wk) and down ${Math.abs(drawdownFromHigh).toFixed(0)}% — capital not working hard enough` };
-  }
-
-  // Default: KEEP
-  return { recommendation: 'KEEP', reason: `Adequate CC yield (${yield_.toFixed(1)}%/wk) — continue current strategy` };
+  // WTR > 52 weeks — takes over a year, recommend exit
+  return {
+    recommendation: 'LIQUIDATE',
+    reason: `WTR ${wtr.toFixed(1)} wks (${mtr.toFixed(1)} mo) — over 1 year to recover basis, exit and redeploy capital`,
+    weeksToRecover: wtr,
+    monthsToRecover: mtr,
+  };
 }
 
 function getRedeploymentSuggestion(symbol: string, marketValue: number, recommendation: PositionRecommendation): string | null {
@@ -210,7 +238,7 @@ export const positionAnalyzerRouter = router({
         return {
           positions: [],
           summary: {
-            totalPositions: 0, keepCount: 0, harvestCount: 0, liquidateCount: 0,
+            totalPositions: 0, keepCount: 0, harvestCount: 0, monitorCount: 0, liquidateCount: 0,
             totalMarketValue: 0, totalUnrealizedPnl: 0,
             estimatedWeeklyPremium: 0, estimatedLiquidationProceeds: 0,
           },
@@ -361,11 +389,15 @@ export const positionAnalyzerRouter = router({
         const drawdownFromHigh = week52High > 0 ? ((currentPrice - week52High) / week52High) * 100 : 0;
 
           const ccData = ccPremiumMap.get(pos.symbol);
-        const isCore = CORE_NAMES.has(pos.symbol);
-        // Use ATM yield for recommendation scoring
+        // WTR-based recommendation — primary metric
+        const { recommendation, reason, weeksToRecover, monthsToRecover } = getWTRRecommendation(
+          pos.avgOpenPrice,
+          currentPrice,
+          ccData?.atmPremium ?? null,
+        );
+        // ATM yield for display
         const ccWeeklyYield = ccData && currentPrice > 0 ? (ccData.atmPremium / currentPrice) * 100 : null;
-        const { recommendation, reason } = getRecommendation(drawdownFromHigh, ccWeeklyYield, isCore, marketValue);
-        // For LIQUIDATE/HARVEST: use ITM strike to maximize premium and ensure assignment
+        // For HARVEST/MONITOR/LIQUIDATE: use ITM strike to maximize premium and ensure assignment
         // For KEEP: use ATM strike to continue wheeling without forcing assignment
         const useItm = recommendation !== 'KEEP';
         const chosenStrike = ccData ? (useItm ? ccData.itmStrike : ccData.atmStrike) : null;
@@ -385,7 +417,8 @@ export const positionAnalyzerRouter = router({
           week52High,
           week52Low,
           drawdownFromHigh,
-          isCore,
+          weeksToRecover,
+          monthsToRecover,
           ccExpiration: ccData?.expiration || null,
           ccAtmStrike: chosenStrike || null,
           ccAtmPremium: chosenPremium || null,
@@ -435,23 +468,28 @@ export const positionAnalyzerRouter = router({
       }
       // ─────────────────────────────────────────────────────────────────────────────────────────
 
-      // Sort: LIQUIDATE first, then HARVEST, then KEEP; within each group by market value desc
-      const order: Record<PositionRecommendation, number> = { LIQUIDATE: 0, HARVEST: 1, KEEP: 2 };
+      // Sort: LIQUIDATE first, then MONITOR, then HARVEST, then KEEP; within each group by WTR desc (worst first)
+      const order: Record<PositionRecommendation, number> = { LIQUIDATE: 0, MONITOR: 1, HARVEST: 2, KEEP: 3 };
       analyzedPositions.sort((a, b) => {
         const orderDiff = order[a.recommendation] - order[b.recommendation];
         if (orderDiff !== 0) return orderDiff;
+        // Within same tier: sort by WTR descending (worst recovery first), then by market value
+        const aWTR = a.weeksToRecover ?? -1;
+        const bWTR = b.weeksToRecover ?? -1;
+        if (bWTR !== aWTR) return bWTR - aWTR;
         return b.marketValue - a.marketValue;
       });
 
       const keepCount = analyzedPositions.filter(p => p.recommendation === 'KEEP').length;
       const harvestCount = analyzedPositions.filter(p => p.recommendation === 'HARVEST').length;
+      const monitorCount = analyzedPositions.filter(p => p.recommendation === 'MONITOR').length;
       const liquidateCount = analyzedPositions.filter(p => p.recommendation === 'LIQUIDATE').length;
       const totalMarketValue = analyzedPositions.reduce((s, p) => s + p.marketValue, 0);
       const totalUnrealizedPnl = analyzedPositions.reduce((s, p) => s + p.unrealizedPnl, 0);
+      // Estimated weekly premium from HARVEST positions only (those actively selling calls to recover)
       const estimatedWeeklyPremium = analyzedPositions
-        .filter(p => p.recommendation !== 'KEEP' && p.ccAtmPremium)
+        .filter(p => p.recommendation === 'HARVEST' && p.ccAtmPremium)
         .reduce((s, p) => s + (p.ccAtmPremium! * Math.floor(p.quantity / 100) * 100), 0);
-      // Also remove the old getRedeploymentSuggestion reference if any
       const estimatedLiquidationProceeds = analyzedPositions
         .filter(p => p.recommendation === 'LIQUIDATE')
         .reduce((s, p) => s + p.marketValue, 0);
@@ -462,6 +500,7 @@ export const positionAnalyzerRouter = router({
           totalPositions: analyzedPositions.length,
           keepCount,
           harvestCount,
+          monitorCount,
           liquidateCount,
           totalMarketValue,
           totalUnrealizedPnl,

@@ -7032,3 +7032,21 @@
 - [x] Fix Automation scanner (routers-automation.ts) — removed per-account filter, now loads all flags for userId; logs symbol-wide block at scan time
 - [x] CC Dashboard UI grey-out already correct — getLiquidationFlags returns all flags by userId, frontend builds Set by symbol only (no account filter)
 - [x] All three enforcement layers now block flagged symbols across all accounts — "a dog is a dog"
+
+## WTR-Based Position Analyzer (Mar 3, 2026)
+- [x] Replace drawdown/CORE_NAMES scoring with Weeks-to-Recover (WTR) metric
+- [x] Add MONITOR tier (WTR 17–52 weeks) between HARVEST and LIQUIDATE
+- [x] KEEP = no deficit, HARVEST = WTR ≤16 wks, MONITOR = 17–52 wks, LIQUIDATE = >52 wks
+- [x] Add weeksToRecover and monthsToRecover fields to AnalyzedPosition interface
+- [x] Update summary to include monitorCount
+- [x] Sort positions: LIQUIDATE first, then MONITOR, then HARVEST, then KEEP; within tier by WTR descending
+- [x] Add WTR badge to each position card in the UI
+- [x] Add MONITOR filter tab to Position Analyzer UI
+- [x] Add MONITOR summary card (sky/blue color)
+- [x] Add "Watching" informational note on MONITOR cards (no action button)
+- [x] Flag button visible on HARVEST, MONITOR, and LIQUIDATE positions
+- [x] Add Export CSV button to Position Analyzer header
+- [x] Add Export CSV inline link in footer (next to last scanned timestamp)
+- [x] CSV includes: symbol, account, recommendation, WTR, MTR, deficit, premium, all metrics
+- [x] Write 21 unit tests for WTR scoring logic (all passing)
+- [x] Remove CORE_NAMES list — performance is the bottom line, not core/non-core status
