@@ -7018,3 +7018,11 @@
 - [x] Fix: posKey now uses 3-part key (optionSymbol|account|type) — BCS and CC entries with same underlying symbol are now distinct
 - [x] Updated all 8 posKey usages across handleOpenOrderPreview, toggleSelectAll, row checkboxes, selResults filter, submittedPositionKeys
 - [x] Added hard safety guard in handleOpenOrderPreview: blocks submission if any selected entry has spreadLongSymbol but type is CC/CSP
+
+## IC Long-Leg Cross-Type Mismatch Bug (Mar 3, 2026 - Critical Safety Bug) [RESOLVED]
+- [x] Root cause investigated: backend scan is actually CORRECT — AAPL IC log shows short PUT matched to long PUT, short CALL matched to long CALL
+- [x] The confusing display was because the order preview showed BOTH legs of the IC as separate rows (one call spread, one put spread) — both are valid
+- [x] The AAPL $277.50 row in the preview is the CALL side of the IC (short call at $277.50, long call at $282.50) — NOT a put
+- [x] Fix: Added Call/Put type label to the Strike column in the order preview (green 'Put' / red 'Call' badge under the strike price)
+- [x] Fix: Added Call/Put type label to the Long leg (STC) sub-row so users can verify each leg type at a glance
+- [x] Written 7 unit tests for IC long-leg type matching logic (all passing) — verifies cross-type matches are always rejected

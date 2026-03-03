@@ -1154,6 +1154,22 @@ export function UnifiedOrderPreviewModal({
                               </div>
                             );
                           }
+                          // For BTC spread orders, show the option type (Call/Put) alongside the strike
+                          // so users can immediately verify which leg type they are closing.
+                          if (isBTCSpread && order.optionSymbol) {
+                            const typeMatch = order.optionSymbol.match(/([CP])(\d{8})$/);
+                            const optType = typeMatch ? (typeMatch[1] === 'P' ? 'Put' : 'Call') : null;
+                            return (
+                              <div className="flex flex-col items-end">
+                                <span>${displayStrike > 0 ? displayStrike.toFixed(2) : '—'}</span>
+                                {optType && (
+                                  <span className={`text-[10px] font-medium ${optType === 'Put' ? 'text-green-400' : 'text-red-400'}`}>
+                                    {optType}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          }
                           return <>${displayStrike > 0 ? displayStrike.toFixed(2) : '—'}</>;
                         })()}
                       </TableCell>
@@ -1313,7 +1329,18 @@ export function UnifiedOrderPreviewModal({
                           <span className="font-medium">↳ Long leg (STC):</span>
                         </TableCell>
                         <TableCell className="text-right text-xs text-blue-300" colSpan={2}>
-                          <span className="font-mono text-[10px] break-all">{order.spreadLongSymbol}</span>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="font-mono text-[10px] break-all">{order.spreadLongSymbol}</span>
+                            {order.spreadLongSymbol && (() => {
+                              const lm = order.spreadLongSymbol.match(/([CP])(\d{8})$/);
+                              const lType = lm ? (lm[1] === 'P' ? 'Put' : 'Call') : null;
+                              return lType ? (
+                                <span className={`text-[9px] font-semibold ${lType === 'Put' ? 'text-green-400' : 'text-red-400'}`}>
+                                  {lType} leg
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right text-xs text-blue-300">
                           {order.quantity || qty}x
