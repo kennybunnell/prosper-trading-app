@@ -6978,3 +6978,10 @@
 - [x] Add getOrCreateAppSecret() helper in server/db.ts
 - [x] Wire DB secret into SDK at server boot (replaces JWT_SECRET env var)
 - [x] Verify sessions survive a server restart
+
+## Performance P&L Fix — Separate Premium from Capital Events (Mar 3, 2026)
+- [x] Detect plain stock tickers vs option symbols using OCC symbol regex
+- [x] Exclude stock purchases (assignments, reconciliations, deliberate buys) from premium P&L in getMonthlyPremiumData
+- [x] Exclude stock sales (called away, liquidations, harvest exits) from premium P&L in getMonthlyPremiumData
+- [x] performance-utils.ts already correctly excludes stock tickers via parseOptionType (confirmed)
+- [x] Verify March 2026 now shows +$7,375 premium income instead of -$74k

@@ -416,6 +416,17 @@ export const appRouter = router({
             // Only count Trade transactions (actual trades, not money movements or transfers)
             if (txnType !== 'Trade') continue;
             
+            // Skip stock (equity) transactions — these are capital events (assignments,
+            // reconciliations, liquidations, harvest exits), NOT premium income/expense.
+            // An option symbol always has a date+C/P+strike suffix after the ticker.
+            // A plain stock ticker (e.g. "ADBE", "CVX", "TSM") has no such suffix.
+            const txnSymbol: string = txn['symbol'] || '';
+            const isOptionSymbol = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol);
+            if (!isOptionSymbol) {
+              console.log(`[Dashboard] Skipping stock transaction: ${txnSymbol} (${txn['description']?.substring(0, 50)})`);
+              continue;
+            }
+            
             const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
             const netValueEffect = txn['net-value-effect'];
             const executedAt = txn['executed-at'];

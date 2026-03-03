@@ -1,0 +1,9 @@
+{
+  "query": "SELECT \n  pt.id,\n  pt.accountId,\n  pt.amount,\n  pt.type,\n  pt.strategy,\n  pt.recordedAt,\n  t.symbol,\n  t.action,\n  t.strike,\n  t.expiration,\n  t.quantity,\n  t.premium,\n  t.status\nFROM premiumTracking pt\nLEFT JOIN trades t ON pt.tradeId = t.id\nWHERE pt.recordedAt >= '2026-03-01'\nORDER BY pt.recordedAt DESC\nLIMIT 50;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT \n  pt.id,\n  pt.accountId,\n  pt.amount,\n  pt.type,\n  pt.strategy,\n  pt.recordedAt,\n  t.symbol,\n  t.action,\n  t.strike,\n  t.expiration,\n  t.quantity,\n  t.premium,\n  t.status\nFROM premiumTracking pt\nLEFT JOIN trades t ON pt.tradeId = t.id\nWHERE pt.recordedAt >= '2026-03-01'\nORDER BY pt.recordedAt DESC\nLIMIT 50;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 67
+}

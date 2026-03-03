@@ -1,0 +1,8 @@
+{
+  "query": "SELECT symbol, underlyingSymbol, action, optionType, strike, expiration, quantity, fillPrice, totalValue, status, filledAt, accountId\nFROM orderHistory\nWHERE filledAt >= '2026-03-01' OR createdAt >= '2026-03-01'\nORDER BY createdAt DESC LIMIT 50;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT symbol, underlyingSymbol, action, optionType, strike, expiration, quantity, fillPrice, totalValue, status, filledAt, accountId\nFROM orderHistory\nWHERE filledAt >= '2026-03-01' OR createdAt >= '2026-03-01'\nORDER BY createdAt DESC LIMIT 50;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'optiontype' in 'field list'"
+  ]
+}
