@@ -7012,3 +7012,9 @@
 - [x] Ensure spread positions (positions with a matched long leg) are classified as their spread type (BCS/BPS/IC), NOT as CC
 - [x] Fix isCall detection in handleOpenOrderPreview to use OCC regex instead of r.type === 'CC'
 - [x] Fix strike price showing $0.00 in the order preview modal — derive from optionSymbol OCC regex as fallback
+
+## GOOGL Spread Appearing in CC Batch (Mar 3, 2026 - Critical Safety Bug)
+- [x] Root cause: posKey used 2-part key (optionSymbol|account) — BCS spread entry and CC remainder entry shared same key, so selecting one selected both
+- [x] Fix: posKey now uses 3-part key (optionSymbol|account|type) — BCS and CC entries with same underlying symbol are now distinct
+- [x] Updated all 8 posKey usages across handleOpenOrderPreview, toggleSelectAll, row checkboxes, selResults filter, submittedPositionKeys
+- [x] Added hard safety guard in handleOpenOrderPreview: blocks submission if any selected entry has spreadLongSymbol but type is CC/CSP

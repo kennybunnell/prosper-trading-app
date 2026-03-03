@@ -318,9 +318,26 @@ export default function AutomationDashboard() {
   const handleOpenOrderPreview = useCallback(() => {
     if (!lastRunResult) return;
     const selected = lastRunResult.scanResults.filter(
-      r => selectedPositions.has(`${r.optionSymbol}|${r.account}`) && r.action === 'WOULD_CLOSE'
+      r => selectedPositions.has(posKey(r)) && r.action === 'WOULD_CLOSE'
     );
     if (selected.length === 0) return;
+
+    // ── SAFETY GUARD: block spread entries from single-leg BTC submission ──
+    // A spread entry has spreadLongSymbol set AND type is BCS/BPS/IC.
+    // If somehow a spread entry ends up in a CC/CSP batch (should not happen after posKey fix),
+    // block the entire submission and alert the user.
+    const dangerousEntries = selected.filter(
+      r => r.spreadLongSymbol && (r.type === 'CC' || r.type === 'CSP')
+    );
+    if (dangerousEntries.length > 0) {
+      toast.error(
+        `Safety block: ${dangerousEntries.map(r => r.symbol).join(', ')} ` +
+        `appear to be spread positions but are classified as ${dangerousEntries[0].type}. ` +
+        `Please re-run the scan to refresh position data before submitting.`,
+        { duration: 8000 }
+      );
+      return;
+    }
 
     // Group by account — use the first account as the modal accountId
     const firstAccount = selected[0].account;
@@ -480,7 +497,10 @@ export default function AutomationDashboard() {
   };
 
   // Stable key for a position (used instead of array index to survive sorting)
-  const posKey = (r: ScanResult) => `${r.optionSymbol}|${r.account}`;
+  // posKey must include type so that a BCS spread entry and a CC remainder entry
+  // that share the same optionSymbol (same underlying short call) get distinct keys.
+  // Without type in the key, selecting one would also select the other.
+  const posKey = (r: ScanResult) => `${r.optionSymbol}|${r.account}|${r.type}`;
 
   const handleSubmitOrders = () => {
     if (!lastRunResult) return;
@@ -535,7 +555,13 @@ export default function AutomationDashboard() {
       const response = await submitCloseOrders.mutateAsync({ orders: selected, dryRun: isDryRun });
       // Record which positions were submitted in a live run so we can clear them on modal close
       if (!isDryRun) {
-        const keys = new Set(selected.map(s => `${s.optionSymbol}|${s.accountNumber}`));
+        // Use 3-part key to match posKey format (optionSymbol|account|type)
+        // We need to look up the type from scanResults since 'selected' only has optionSymbol+accountNumber
+        const scanMap = new Map((lastRunResult?.scanResults ?? []).map(r => [`${r.optionSymbol}|${r.account}`, r]));
+        const keys = new Set(selected.map(s => {
+          const r = scanMap.get(`${s.optionSymbol}|${s.accountNumber}`);
+          return r ? posKey(r) : `${s.optionSymbol}|${s.accountNumber}|unknown`;
+        }));
         setSubmittedPositionKeys(keys);
       }
       return { results: response.results ?? [] };
@@ -620,7 +646,7 @@ export default function AutomationDashboard() {
   const selectableResults = wouldCloseResults.filter(r => r.dte !== 0);
   // Use stable posKey for selection — survives sorting
   const allSelected = selectableResults.length > 0 && selectableResults.every(r =>
-    selectedPositions.has(`${r.optionSymbol}|${r.account}`)
+    selectedPositions.has(posKey(r))
   );
 
   const toggleSelectAll = useCallback(() => {
@@ -630,7 +656,7 @@ export default function AutomationDashboard() {
     } else {
       // Never select DTE=0 positions — let them expire worthless naturally
       const keys = new Set(selectableResults
-        .map(r => `${r.optionSymbol}|${r.account}`));
+        .map(r => posKey(r)));
       setSelectedPositions(keys);
     }
   }, [lastRunResult, allSelected, selectableResults]);
@@ -1429,15 +1455,15 @@ export default function AutomationDashboard() {
                           key={idx}
                           className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${
                             result.action === 'WOULD_CLOSE'
-                              ? selectedPositions.has(`${result.optionSymbol}|${result.account}`) ? 'bg-green-500/10' : 'bg-green-500/5'
+                              ? selectedPositions.has(posKey(result)) ? 'bg-green-500/10' : 'bg-green-500/5'
                               : ''
                           }`}
                         >
                           <td className="py-2.5 pr-2">
                             {result.action === 'WOULD_CLOSE' && result.dte !== 0 ? (
                               <Checkbox
-                                checked={selectedPositions.has(`${result.optionSymbol}|${result.account}`)}
-                                onCheckedChange={() => togglePosition(`${result.optionSymbol}|${result.account}`)}
+                                checked={selectedPositions.has(posKey(result))}
+                                onCheckedChange={() => togglePosition(posKey(result))}
                                 aria-label={`Select ${result.symbol}`}
                               />
                             ) : <span />}
@@ -1616,7 +1642,7 @@ export default function AutomationDashboard() {
 
               {/* Approval Queue Submit Bar */}
               {selectedPositions.size > 0 && (() => {
-                const selResults = (lastRunResult?.scanResults ?? []).filter(r => selectedPositions.has(`${r.optionSymbol}|${r.account}`));
+                const selResults = (lastRunResult?.scanResults ?? []).filter(r => selectedPositions.has(posKey(r)));
                 const selBuyBack = selResults.reduce((sum, r) => sum + r.buyBackCost, 0);
                 const selProfit = selResults.reduce((sum, r) => sum + (r.premiumCollected - r.buyBackCost), 0);
                 return (
@@ -2391,7 +2417,7 @@ export default function AutomationDashboard() {
                 setLastRunResult(prev => {
                   if (!prev) return prev;
                   const remaining = prev.scanResults.filter(
-                    r => !submittedPositionKeys.has(`${r.optionSymbol}|${r.account}`)
+                    r => !submittedPositionKeys.has(posKey(r))
                   );
                   const removedCount = prev.scanResults.length - remaining.length;
                   if (removedCount > 0) {
