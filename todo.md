@@ -6991,3 +6991,8 @@
 - [x] Update BCS/CC ITM threshold from 2% to 1%: only >1% ITM → loser
 - [x] PLTR $145/$155 with stock at $145.17 (0.12% OTM) now correctly shows as winner/breakeven
 - [x] TSLA $410/$420 with stock at $403.32 (1.63% OTM) now correctly shows as winner/breakeven
+
+## Three Sequential Improvements (Mar 3, 2026)
+- [x] BPS/CSP: changed OTM threshold from 2% to 0% (any stock above short put strike = winner)
+- [x] BCS/CC: added explicit "At Risk" amber zone for 0-1% ITM positions (narrow gap between winner and loser)
+- [x] Active Positions: added color-coded "Days Until Eligible" column for CC positions (red ≤3d, amber ≤7d, yellow ≤14d, green >14d); CSP shows —

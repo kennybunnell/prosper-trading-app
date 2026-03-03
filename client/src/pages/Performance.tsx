@@ -1065,6 +1065,7 @@ function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosit
               <SortableHeader column="strike" label="Strike" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="exp" label="Exp" align="left" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="dte" label="DTE" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="eligible" label="Days Until Eligible" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="premium" label="Premium" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="current" label="Current" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="realized" label="Realized %" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
@@ -1116,6 +1117,20 @@ function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosit
                 </td>
                 <td className="p-3 text-sm">{pos.expiration}</td>
                 <td className="p-3 text-sm text-right">{pos.dte}</td>
+                <td className="p-3 text-sm text-right">
+                  {pos.type === 'CC' ? (
+                    <span className={`font-medium ${
+                      pos.dte <= 3 ? 'text-red-400' :
+                      pos.dte <= 7 ? 'text-amber-400' :
+                      pos.dte <= 14 ? 'text-yellow-400' :
+                      'text-green-400'
+                    }`}>
+                      {pos.dte === 0 ? 'Today' : pos.dte === 1 ? '1 day' : `${pos.dte} days`}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  )}
+                </td>
                 <td className="p-3 text-sm text-right">${pos.premium.toFixed(2)}</td>
                 <td className="p-3 text-sm text-right">${pos.current.toFixed(2)}</td>
                 <td className="p-3 text-sm text-right">
