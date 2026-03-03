@@ -7073,3 +7073,10 @@
 - [x] Update SellCC dialog strike row to show delta tier label (~Δ0.30)
 - [x] Confirm Sell CC button already submits OTM strike (ccAtmStrike = OTM, not ATM)
 - [x] 41 WTR scoring + delta tier unit tests all passing
+
+## WTR Sparkline & Digest Movers (Mar 3, 2026)
+- [x] Install recharts for sparkline rendering
+- [x] Build WtrSparkline component (8-week line chart, color-coded, 52-week threshold line)
+- [x] Add sparkline to MONITOR position cards only
+- [x] Extend Monday digest to include WTR movers section (positions worsened >2 wks)
+- [x] Add digest WTR movers to both email and in-app notification

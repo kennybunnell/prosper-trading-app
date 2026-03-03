@@ -47,6 +47,7 @@ import {
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
+import { WtrSparkline } from '@/components/WtrSparkline';
 
 type Recommendation = 'KEEP' | 'HARVEST' | 'MONITOR' | 'LIQUIDATE';
 
@@ -655,13 +656,21 @@ function PositionCard({
         </div>
       )}
 
-      {/* MONITOR — informational note, no action button */}
+      {/* MONITOR — sparkline + informational note */}
       {pos.recommendation === 'MONITOR' && (
-        <div className="rounded-md border border-sky-800/30 bg-sky-950/20 p-2.5 text-xs text-sky-300 flex items-start gap-2">
-          <Eye className="h-3.5 w-3.5 mt-0.5 shrink-0 text-sky-400" />
-          <span>
-            Watching — reassess monthly. If WTR exceeds 52 weeks on next scan, this position will automatically surface as a dog for liquidation.
-          </span>
+        <div className="space-y-2">
+          {wtrHistory && wtrHistory.length > 0 && (
+            <WtrSparkline
+              history={wtrHistory}
+              currentWtr={pos.weeksToRecover}
+            />
+          )}
+          <div className="rounded-md border border-sky-800/30 bg-sky-950/20 p-2.5 text-xs text-sky-300 flex items-start gap-2">
+            <Eye className="h-3.5 w-3.5 mt-0.5 shrink-0 text-sky-400" />
+            <span>
+              Watching — reassess monthly. If WTR exceeds 52 weeks on next scan, this position will automatically surface as a dog for liquidation.
+            </span>
+          </div>
         </div>
       )}
 

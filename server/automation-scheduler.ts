@@ -7,8 +7,8 @@
 import * as cron from 'node-cron';
 import { getAutomationSettings } from './db-automation';
 import { getDb } from './db';
-import { automationSettings } from '../drizzle/schema';
-import { eq } from 'drizzle-orm';
+import { automationSettings, wtrHistory } from '../drizzle/schema';
+import { eq, desc } from 'drizzle-orm';
 import { notifyOwner } from './_core/notification';
 
 let scheduledTask: cron.ScheduledTask | null = null;
@@ -373,9 +373,106 @@ async function runWeeklyPositionDigest() {
         const estimatedExpiringProceeds = expiringThisWeek.reduce((s, p) => s + p.marketValue, 0);
         const totalEstimatedProceeds = estimatedEligibleProceeds + estimatedExpiringProceeds;
 
+        // ─── WTR Movers: positions that worsened by >2 weeks since last scan ───
+        let wtrMoversContent = '';
+        try {
+          // Get the two most recent distinct scan dates from wtr_history
+          const recentDates = await db
+            .selectDistinct({ scanDate: wtrHistory.scanDate })
+            .from(wtrHistory)
+            .orderBy(desc(wtrHistory.scanDate))
+            .limit(2);
+
+          if (recentDates.length >= 2) {
+            const [latestDate, prevDate] = recentDates;
+
+            // Fetch WTR for both dates for all positions
+            const latestRows = await db
+              .select()
+              .from(wtrHistory)
+              .where(eq(wtrHistory.scanDate, latestDate.scanDate));
+
+            const prevRows = await db
+              .select()
+              .from(wtrHistory)
+              .where(eq(wtrHistory.scanDate, prevDate.scanDate));
+
+            // weeksToRecover is stored as varchar — parse to float for arithmetic
+            const parseWtr = (v: string | null | undefined): number | null =>
+              v !== null && v !== undefined && v !== '' ? parseFloat(v) : null;
+
+            const prevMap = new Map<string, number | null>(
+              prevRows.map(r => [`${r.symbol}-${r.accountNumber}`, parseWtr(r.weeksToRecover)])
+            );
+
+            // Find positions that worsened by >2 weeks
+            const moversWorse = latestRows
+              .filter(r => {
+                const curr = parseWtr(r.weeksToRecover);
+                const prev = prevMap.get(`${r.symbol}-${r.accountNumber}`);
+                if (curr === null || prev === null || prev === undefined) return false;
+                return (curr - prev) > 2;
+              })
+              .sort((a, b) => {
+                const ca = parseWtr(a.weeksToRecover) ?? 0;
+                const pa = prevMap.get(`${a.symbol}-${a.accountNumber}`) ?? 0;
+                const cb = parseWtr(b.weeksToRecover) ?? 0;
+                const pb = prevMap.get(`${b.symbol}-${b.accountNumber}`) ?? 0;
+                return (cb - pb) - (ca - pa); // worst delta first
+              });
+
+            // Find positions that improved by >2 weeks
+            const moversImproved = latestRows
+              .filter(r => {
+                const curr = parseWtr(r.weeksToRecover);
+                const prev = prevMap.get(`${r.symbol}-${r.accountNumber}`);
+                if (curr === null || prev === null || prev === undefined) return false;
+                return (prev - curr) > 2;
+              })
+              .sort((a, b) => {
+                const ca = parseWtr(a.weeksToRecover) ?? 0;
+                const pa = prevMap.get(`${a.symbol}-${a.accountNumber}`) ?? 0;
+                const cb = parseWtr(b.weeksToRecover) ?? 0;
+                const pb = prevMap.get(`${b.symbol}-${b.accountNumber}`) ?? 0;
+                return (pb - cb) - (pa - ca); // most improved first
+              });
+
+            if (moversWorse.length > 0 || moversImproved.length > 0) {
+              wtrMoversContent += `\n📊 **WTR MOVERS THIS WEEK (vs. ${new Date(prevDate.scanDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}):**\n`;
+
+              if (moversWorse.length > 0) {
+                wtrMoversContent += `\n⚠️ Worsening (>${2} wks worse — ${moversWorse.length} position${moversWorse.length !== 1 ? 's' : ''}):\n`;
+                for (const r of moversWorse) {
+                  const curr = parseWtr(r.weeksToRecover) ?? 0;
+                  const prev = prevMap.get(`${r.symbol}-${r.accountNumber}`) ?? 0;
+                  const delta = curr - prev;
+                  const approaching = curr > 40;
+                  wtrMoversContent += `• ${r.symbol} (${r.recommendation}): ${prev.toFixed(1)} → ${curr.toFixed(1)} wks (+${delta.toFixed(1)} wks)${approaching ? ' ⚠️ approaching 52-week threshold' : ''}\n`;
+                }
+              }
+
+              if (moversImproved.length > 0) {
+                wtrMoversContent += `\n✅ Recovering (>${2} wks better — ${moversImproved.length} position${moversImproved.length !== 1 ? 's' : ''}):\n`;
+                for (const r of moversImproved) {
+                  const curr = parseWtr(r.weeksToRecover) ?? 0;
+                  const prev = prevMap.get(`${r.symbol}-${r.accountNumber}`) ?? 0;
+                  const delta = prev - curr;
+                  wtrMoversContent += `• ${r.symbol} (${r.recommendation}): ${prev.toFixed(1)} → ${curr.toFixed(1)} wks (-${delta.toFixed(1)} wks)\n`;
+                }
+              }
+
+              wtrMoversContent += '\n';
+            }
+          }
+        } catch (wtrErr) {
+          console.warn('[Weekly Digest] Could not compute WTR movers:', wtrErr);
+        }
+
         let content = `**Weekly Dog Clearing Digest — ${dateStr}**\n\n`;
         content += `You have **${flaggedPositions.length} position(s) flagged for exit** across all accounts.\n`;
-        content += `Estimated proceeds from clearing all flagged dogs: **~$${(totalEstimatedProceeds / 1000).toFixed(1)}k**\n\n`;
+        content += `Estimated proceeds from clearing all flagged dogs: **~$${(totalEstimatedProceeds / 1000).toFixed(1)}k**\n`;
+        if (wtrMoversContent) content += wtrMoversContent;
+        content += '\n';
 
         // --- Eligible Now ---
         if (eligibleNow.length > 0) {

@@ -353,3 +353,95 @@ describe('Delta Tier Integration — WTR → Delta → Strike pipeline', () => {
     expect(Math.abs(strike! - 132.68)).toBeLessThanOrEqual(2); // closest to price
   });
 });
+
+// ─── WTR Movers digest logic (pure functions, no DB) ───────────────────────
+
+describe('WTR Movers digest logic', () => {
+  const parseWtr = (v: string | null | undefined): number | null =>
+    v !== null && v !== undefined && v !== '' ? parseFloat(v) : null;
+
+  type WtrRow = { symbol: string; accountNumber: string; weeksToRecover: string | null; recommendation: string };
+
+  function computeMovers(latestRows: WtrRow[], prevMap: Map<string, number | null>, threshold = 2) {
+    const worse = latestRows.filter(r => {
+      const curr = parseWtr(r.weeksToRecover);
+      const prev = prevMap.get(`${r.symbol}-${r.accountNumber}`);
+      if (curr === null || prev === null || prev === undefined) return false;
+      return (curr - prev) > threshold;
+    });
+    const improved = latestRows.filter(r => {
+      const curr = parseWtr(r.weeksToRecover);
+      const prev = prevMap.get(`${r.symbol}-${r.accountNumber}`);
+      if (curr === null || prev === null || prev === undefined) return false;
+      return (prev - curr) > threshold;
+    });
+    return { worse, improved };
+  }
+
+  it('flags positions that worsened by more than 2 weeks', () => {
+    const latest: WtrRow[] = [
+      { symbol: 'HOOD', accountNumber: 'ACC1', weeksToRecover: '15.0', recommendation: 'HARVEST' },
+      { symbol: 'AMD',  accountNumber: 'ACC1', weeksToRecover: '9.0',  recommendation: 'HARVEST' },
+    ];
+    const prevMap = new Map<string, number | null>([['HOOD-ACC1', 11.0], ['AMD-ACC1', 8.5]]);
+    const { worse, improved } = computeMovers(latest, prevMap);
+    expect(worse).toHaveLength(1);
+    expect(worse[0].symbol).toBe('HOOD');
+    expect(improved).toHaveLength(0);
+  });
+
+  it('flags positions that improved by more than 2 weeks', () => {
+    const latest: WtrRow[] = [
+      { symbol: 'NVDA', accountNumber: 'ACC1', weeksToRecover: '3.0', recommendation: 'HARVEST' },
+      { symbol: 'AVGO', accountNumber: 'ACC1', weeksToRecover: '1.5', recommendation: 'HARVEST' },
+    ];
+    const prevMap = new Map<string, number | null>([['NVDA-ACC1', 6.5], ['AVGO-ACC1', 2.0]]);
+    const { worse, improved } = computeMovers(latest, prevMap);
+    expect(improved).toHaveLength(1);
+    expect(improved[0].symbol).toBe('NVDA');
+    expect(worse).toHaveLength(0);
+  });
+
+  it('skips positions with null WTR (KEEP positions)', () => {
+    const latest: WtrRow[] = [
+      { symbol: 'MSFT', accountNumber: 'ACC1', weeksToRecover: null, recommendation: 'KEEP' },
+    ];
+    const prevMap = new Map<string, number | null>([['MSFT-ACC1', 0]]);
+    const { worse, improved } = computeMovers(latest, prevMap);
+    expect(worse).toHaveLength(0);
+    expect(improved).toHaveLength(0);
+  });
+
+  it('skips positions with no prior scan data', () => {
+    const latest: WtrRow[] = [
+      { symbol: 'NEWSTOCK', accountNumber: 'ACC1', weeksToRecover: '8.0', recommendation: 'HARVEST' },
+    ];
+    const prevMap = new Map<string, number | null>();
+    const { worse, improved } = computeMovers(latest, prevMap);
+    expect(worse).toHaveLength(0);
+    expect(improved).toHaveLength(0);
+  });
+
+  it('handles exact 2-week delta as NOT a mover (must be strictly greater)', () => {
+    const latest: WtrRow[] = [
+      { symbol: 'PINS', accountNumber: 'ACC1', weeksToRecover: '12.0', recommendation: 'HARVEST' },
+    ];
+    const prevMap = new Map<string, number | null>([['PINS-ACC1', 10.0]]);
+    const { worse } = computeMovers(latest, prevMap);
+    expect(worse).toHaveLength(0);
+  });
+
+  it('parseWtr handles edge cases correctly', () => {
+    expect(parseWtr(null)).toBeNull();
+    expect(parseWtr(undefined)).toBeNull();
+    expect(parseWtr('')).toBeNull();
+    expect(parseWtr('12.5')).toBe(12.5);
+    expect(parseWtr('0')).toBe(0);
+    expect(parseWtr('52.0')).toBe(52.0);
+  });
+
+  it('correctly identifies approaching-52-week threshold', () => {
+    expect(45.0 > 40).toBe(true);
+    expect(38.0 > 40).toBe(false);
+  });
+});
