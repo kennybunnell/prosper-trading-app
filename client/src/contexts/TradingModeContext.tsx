@@ -36,6 +36,8 @@ export function TradingModeProvider({ children }: { children: React.ReactNode })
   // Update mode both locally and in database
   const setMode = async (newMode: TradingMode) => {
     setModeState(newMode);
+    // Don't attempt to persist if user is not authenticated
+    if (!user) return;
     try {
       await updateModeMutation.mutateAsync({ mode: newMode });
       
