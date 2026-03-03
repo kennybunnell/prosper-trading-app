@@ -23,6 +23,13 @@ import { z } from 'zod';
 
 export type PositionRecommendation = 'KEEP' | 'HARVEST' | 'MONITOR' | 'LIQUIDATE';
 
+/**
+ * Target delta tier for covered call strike selection.
+ * Derived from WTR — deeper deficits use higher delta (more premium);
+ * nearly-recovered positions use lower delta (more assignment protection).
+ */
+export type CCDeltaTier = 'ITM' | 'ATM' | 'D30' | 'D25' | 'D20';
+
 export interface AnalyzedPosition {
   symbol: string;
   accountNumber: string;
@@ -47,6 +54,9 @@ export interface AnalyzedPosition {
   ccEffectiveExit: number | null;
   recommendation: PositionRecommendation;
   recommendationReason: string;
+  /** Delta tier used for the recommended CC strike */
+  ccDeltaTier: CCDeltaTier;
+  /** Whether the recommended strike is ITM (below current price) */
   ccIsItm: boolean;
   openShortCalls: Array<{ strike: number; expiration: string; quantity: number; daysToExpiry: number }>;
   availableContracts: number;
@@ -66,6 +76,77 @@ export interface PositionAnalyzerResult {
     estimatedLiquidationProceeds: number; // if all LIQUIDATE positions are exited
   };
   scannedAt: string;
+}
+
+/**
+ * Determine the target CC delta tier based on WTR.
+ *
+ * Tiered OTM strategy (all OTM — no ITM calls for HARVEST):
+ *   WTR > 10 weeks  (deeper deficit)  → Δ0.30 (~1.5% OTM): maximize premium, still OTM
+ *   WTR 5–10 weeks (moderate deficit) → Δ0.25 (~2.5% OTM): balanced harvest
+ *   WTR < 5 weeks  (nearly recovered) → Δ0.20 (~3.5% OTM): protect the gain
+ *   KEEP (no deficit)                 → ATM: continue wheeling
+ *   MONITOR/LIQUIDATE                 → ATM or ITM: exit-oriented
+ *
+ * For MONITOR: use ATM to collect max premium while watching
+ * For LIQUIDATE: use ITM to force assignment and exit quickly
+ */
+function getCCDeltaTier(
+  recommendation: PositionRecommendation,
+  weeksToRecover: number | null,
+): CCDeltaTier {
+  if (recommendation === 'KEEP') return 'ATM';
+  if (recommendation === 'LIQUIDATE') return 'ITM';
+  if (recommendation === 'MONITOR') return 'ATM'; // max premium while watching
+  // HARVEST — tiered OTM by WTR
+  if (weeksToRecover === null) return 'ATM';
+  if (weeksToRecover > 10) return 'D30';  // deeper deficit: Δ0.30 (~1.5% OTM)
+  if (weeksToRecover > 5) return 'D25';   // moderate: Δ0.25 (~2.5% OTM)
+  return 'D20';                            // nearly recovered: Δ0.20 (~3.5% OTM)
+}
+
+/**
+ * Given a sorted list of call strikes and a current price, find the best strike
+ * for the target delta tier.
+ *
+ * Delta approximation (weekly options, ~7 DTE):
+ *   ITM  → highest strike BELOW current price
+ *   ATM  → closest strike to current price
+ *   D30  → ~1.5% above current price
+ *   D25  → ~2.5% above current price
+ *   D20  → ~3.5% above current price
+ */
+function pickStrikeForDeltaTier(
+  sortedStrikes: number[],
+  currentPrice: number,
+  tier: CCDeltaTier,
+): number | null {
+  if (sortedStrikes.length === 0) return null;
+  if (tier === 'ITM') {
+    // Highest strike below current price
+    const candidates = sortedStrikes.filter(s => s < currentPrice);
+    return candidates.length > 0 ? candidates[candidates.length - 1] : sortedStrikes[0];
+  }
+  if (tier === 'ATM') {
+    // Closest to current price
+    return sortedStrikes.reduce((best, s) =>
+      Math.abs(s - currentPrice) < Math.abs(best - currentPrice) ? s : best
+    );
+  }
+  // OTM tiers — target a specific % above current price
+  const targetPct: Record<CCDeltaTier, number> = { ITM: 0, ATM: 0, D30: 0.015, D25: 0.025, D20: 0.035 };
+  const targetPrice = currentPrice * (1 + targetPct[tier]);
+  // Find the closest strike to the target price that is OTM (>= current price)
+  const otmStrikes = sortedStrikes.filter(s => s >= currentPrice);
+  if (otmStrikes.length === 0) {
+    // Fallback: closest overall
+    return sortedStrikes.reduce((best, s) =>
+      Math.abs(s - targetPrice) < Math.abs(best - targetPrice) ? s : best
+    );
+  }
+  return otmStrikes.reduce((best, s) =>
+    Math.abs(s - targetPrice) < Math.abs(best - targetPrice) ? s : best
+  );
 }
 
 /**
@@ -264,8 +345,15 @@ export const positionAnalyzerRouter = router({
       nearestFriday.setDate(today.getDate() + daysUntilFriday);
       const fridayStr = nearestFriday.toISOString().split('T')[0];
 
-      // Fetch ATM call option for each unique symbol (nearest Friday)
-      const ccPremiumMap = new Map<string, { atmStrike: number; atmPremium: number; itmStrike: number; itmPremium: number; expiration: string }>();
+        // Fetch call option chain for each unique symbol (nearest Friday)
+      // We store the full sorted strike list so we can pick the right OTM strike per delta tier
+      const ccChainMap = new Map<string, {
+        expiration: string;
+        sortedStrikes: number[];
+        strikeToMid: Map<number, number>;
+        atmStrike: number;
+        atmPremium: number;
+      }>();
       for (const sym of uniqueSymbols) {
         const quote = quoteMap.get(sym);
         if (!quote) continue;
@@ -278,30 +366,23 @@ export const positionAnalyzerRouter = router({
           const sortedExps = expirations.sort();
           const targetExp = sortedExps.find(e => e >= fridayStr) || sortedExps[0];
           const chain = await tradierApi.getOptionChain(sym, targetExp, false);
-          // Tradier raw API returns option_type ('call'/'put'); the wrapper preserves it
           const calls = chain.filter(o => (o as any).option_type === 'call' || o.type === 'call');
           if (calls.length === 0) continue;
-          // Sort calls by strike ascending
-          const sortedCalls = calls.slice().sort((a, b) => a.strike - b.strike);
-          // For LIQUIDATE/HARVEST: pick ITM strike 1-2 strikes below current price to maximize premium & ensure assignment
-          // For KEEP: pick ATM (closest to price)
-          // We store both options; the frontend/recommendation logic picks which to show
-          const atmCall = sortedCalls.reduce((best, c) =>
-            Math.abs(c.strike - price) < Math.abs(best.strike - price) ? c : best
+          // Build strike → mid-price map
+          const strikeToMid = new Map<number, number>();
+          for (const c of calls) {
+            const mid = (c.bid + c.ask) / 2;
+            if (mid > 0) strikeToMid.set(c.strike, mid);
+          }
+          const sortedStrikes = Array.from(strikeToMid.keys()).sort((a, b) => a - b);
+          if (sortedStrikes.length === 0) continue;
+          // ATM = closest strike to current price (used for WTR calculation and KEEP/MONITOR)
+          const atmStrike = sortedStrikes.reduce((best, s) =>
+            Math.abs(s - price) < Math.abs(best - price) ? s : best
           );
-          // ITM: find the strike 1-2 steps below ATM (highest strike still below current price)
-          const itmCandidates = sortedCalls.filter(c => c.strike < price);
-          const itmCall = itmCandidates.length > 0
-            ? itmCandidates[itmCandidates.length - 1]  // highest strike below price
-            : atmCall;
-          const atmMid = (atmCall.bid + atmCall.ask) / 2;
-          const itmMid = (itmCall.bid + itmCall.ask) / 2;
-          if (atmMid > 0 || itmMid > 0) {
-            ccPremiumMap.set(sym, {
-              atmStrike: atmCall.strike, atmPremium: atmMid,
-              itmStrike: itmCall.strike, itmPremium: itmMid > 0 ? itmMid : atmMid,
-              expiration: targetExp,
-            });
+          const atmPremium = strikeToMid.get(atmStrike) ?? 0;
+          if (atmPremium > 0) {
+            ccChainMap.set(sym, { expiration: targetExp, sortedStrikes, strikeToMid, atmStrike, atmPremium });
           }
         } catch (e) {
           // Skip if option chain unavailable (e.g., no options on this name)
@@ -388,22 +469,27 @@ export const positionAnalyzerRouter = router({
         const unrealizedPnlPct = pos.avgOpenPrice > 0 ? ((currentPrice - pos.avgOpenPrice) / pos.avgOpenPrice) * 100 : 0;
         const drawdownFromHigh = week52High > 0 ? ((currentPrice - week52High) / week52High) * 100 : 0;
 
-          const ccData = ccPremiumMap.get(pos.symbol);
-        // WTR-based recommendation — primary metric
+          const ccChain = ccChainMap.get(pos.symbol);
+        // WTR-based recommendation — primary metric (always uses ATM premium for WTR calculation)
         const { recommendation, reason, weeksToRecover, monthsToRecover } = getWTRRecommendation(
           pos.avgOpenPrice,
           currentPrice,
-          ccData?.atmPremium ?? null,
+          ccChain?.atmPremium ?? null,
         );
-        // ATM yield for display
-        const ccWeeklyYield = ccData && currentPrice > 0 ? (ccData.atmPremium / currentPrice) * 100 : null;
-        // For HARVEST/MONITOR/LIQUIDATE: use ITM strike to maximize premium and ensure assignment
-        // For KEEP: use ATM strike to continue wheeling without forcing assignment
-        const useItm = recommendation !== 'KEEP';
-        const chosenStrike = ccData ? (useItm ? ccData.itmStrike : ccData.atmStrike) : null;
-        const chosenPremium = ccData ? (useItm ? ccData.itmPremium : ccData.atmPremium) : null;
+        // Determine the target delta tier for this position based on WTR
+        const deltaTier = getCCDeltaTier(recommendation, weeksToRecover);
+        // Pick the actual strike from the live chain for this delta tier
+        const chosenStrike = ccChain
+          ? pickStrikeForDeltaTier(ccChain.sortedStrikes, currentPrice, deltaTier)
+          : null;
+        const chosenPremium = (chosenStrike && ccChain)
+          ? (ccChain.strikeToMid.get(chosenStrike) ?? null)
+          : null;
+        // ATM yield for display (always ATM, for reference)
+        const ccWeeklyYield = ccChain && currentPrice > 0 ? (ccChain.atmPremium / currentPrice) * 100 : null;
         const ccEffectiveExit = (chosenStrike && chosenPremium) ? chosenStrike + chosenPremium : null;
         const ccEffectiveYield = chosenPremium && currentPrice > 0 ? (chosenPremium / currentPrice) * 100 : null;
+        const ccIsItm = chosenStrike !== null && chosenStrike < currentPrice;
         analyzedPositions.push({
           symbol: pos.symbol,
           accountNumber: pos.accountNumber,
@@ -419,14 +505,15 @@ export const positionAnalyzerRouter = router({
           drawdownFromHigh,
           weeksToRecover,
           monthsToRecover,
-          ccExpiration: ccData?.expiration || null,
+          ccExpiration: ccChain?.expiration || null,
           ccAtmStrike: chosenStrike || null,
           ccAtmPremium: chosenPremium || null,
           ccWeeklyYield: ccEffectiveYield,
           ccEffectiveExit,
           recommendation,
           recommendationReason: reason,
-          ccIsItm: useItm,
+          ccDeltaTier: deltaTier,
+          ccIsItm,
           openShortCalls: openShortCallsMap.get(`${pos.symbol}-${pos.accountNumber}`) || [],
           availableContracts: Math.max(0, Math.floor(pos.quantity / 100) - (openShortCallsMap.get(`${pos.symbol}-${pos.accountNumber}`) || []).reduce((s, sc) => s + sc.quantity, 0)),
         });

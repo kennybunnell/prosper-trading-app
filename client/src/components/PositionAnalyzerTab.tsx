@@ -79,6 +79,7 @@ interface AnalyzedPosition {
   ccEffectiveExit: number | null;
   recommendation: Recommendation;
   recommendationReason: string;
+  ccDeltaTier?: string;
   ccIsItm: boolean;
   openShortCalls?: OpenShortCall[];
   availableContracts?: number;
@@ -171,7 +172,7 @@ function exportToCSV(positions: AnalyzedPosition[], scannedAt: string) {
     'Unrealized P&L ($)', 'Unrealized P&L (%)',
     'Deficit/Share ($)', 'Wk ATM Premium ($)', 'Weeks to Recover', 'Months to Recover',
     '52-Wk High ($)', 'Drawdown from High (%)',
-    'CC Strike ($)', 'CC Premium ($)', 'CC Weekly Yield (%)', 'CC Effective Exit ($)',
+    'CC Delta Tier', 'CC Strike ($)', 'CC Premium ($)', 'CC Weekly Yield (%)', 'CC Effective Exit ($)',
     'CC Expiration', 'Available Contracts', 'Flagged for Exit',
     'Recommendation Reason',
   ];
@@ -195,6 +196,7 @@ function exportToCSV(positions: AnalyzedPosition[], scannedAt: string) {
       p.monthsToRecover !== null ? p.monthsToRecover.toFixed(1) : '',
       p.week52High.toFixed(2),
       p.drawdownFromHigh.toFixed(1),
+      p.ccDeltaTier ?? '',
       p.ccAtmStrike !== null ? p.ccAtmStrike.toFixed(2) : '',
       p.ccAtmPremium !== null ? p.ccAtmPremium.toFixed(2) : '',
       p.ccWeeklyYield !== null ? p.ccWeeklyYield.toFixed(2) : '',
@@ -449,7 +451,7 @@ function PositionCard({
               className="h-7 px-2.5 text-xs bg-emerald-700 hover:bg-emerald-600 text-white border-0"
             >
               <TrendingUp className="h-3 w-3 mr-1" />
-              ★ Sell ATM CC
+              ★ Sell {pos.ccDeltaTier === 'ITM' ? 'ITM' : pos.ccDeltaTier === 'D30' ? 'Δ30' : pos.ccDeltaTier === 'D25' ? 'Δ25' : pos.ccDeltaTier === 'D20' ? 'Δ20' : 'ATM'} CC
             </Button>
           )}
           <div className="text-right">
@@ -497,7 +499,14 @@ function PositionCard({
         <div className="rounded-md bg-black/30 border border-white/5 p-2.5 space-y-1.5">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <BarChart3 className="h-3 w-3" />
-            <span>ATM Covered Call — {pos.ccExpiration}</span>
+            <span>
+              {pos.ccDeltaTier === 'ITM' ? 'ITM Call (Exit)'
+                : pos.ccDeltaTier === 'D30' ? 'Δ0.30 OTM Call (~1.5% OTM)'
+                : pos.ccDeltaTier === 'D25' ? 'Δ0.25 OTM Call (~2.5% OTM)'
+                : pos.ccDeltaTier === 'D20' ? 'Δ0.20 OTM Call (~3.5% OTM)'
+                : 'ATM Call'}
+              {' '}— {pos.ccExpiration}
+            </span>
           </div>
           <div className="grid grid-cols-3 gap-2 text-xs">
             <div>

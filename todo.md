@@ -7050,3 +7050,15 @@
 - [x] CSV includes: symbol, account, recommendation, WTR, MTR, deficit, premium, all metrics
 - [x] Write 21 unit tests for WTR scoring logic (all passing)
 - [x] Remove CORE_NAMES list — performance is the bottom line, not core/non-core status
+
+## Tiered OTM Delta Strike Selection (Mar 3, 2026)
+- [x] Implement getCCDeltaTier() — maps WTR to delta tier (D30/D25/D20/ATM/ITM)
+- [x] Implement pickStrikeForDeltaTier() — finds closest live chain strike to target % OTM
+- [x] HARVEST WTR>10: Δ0.30 (~1.5% OTM); WTR 5-10: Δ0.25 (~2.5% OTM); WTR<5: Δ0.20 (~3.5% OTM)
+- [x] MONITOR: ATM (max premium while watching); LIQUIDATE: ITM (force assignment/exit)
+- [x] Store full sorted strike list per symbol instead of just ATM/ITM pair
+- [x] Add ccDeltaTier field to AnalyzedPosition interface (backend + frontend)
+- [x] Show delta tier label in CC panel header (e.g. "Δ0.25 OTM Call (~2.5% OTM)")
+- [x] Show delta tier in Sell CC button label (e.g. "★ Sell Δ25 CC")
+- [x] Add CC Delta Tier column to CSV export
+- [x] Add 20 unit tests for delta tier selection and WTR→delta→strike pipeline (41 total, all passing)
