@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle,
   TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2, Square, CheckSquare, Send, ShoppingCart,
-  Power, Settings2, RefreshCw, BarChart3, GitMerge, Zap, Lock, Unlock
+  Power, Settings2, RefreshCw, BarChart3, GitMerge, Zap, Lock, Unlock, Download
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -243,6 +243,44 @@ export default function AutomationDashboard() {
       toast.error(`Friday sweep failed: ${err.message}`);
     },
   });
+  // Roll Positions CSV export
+  const handleExportRollCSV = () => {
+    if (!rollScanResults || rollScanResults.all.length === 0) return;
+    const headers = [
+      'Symbol', 'Account', 'Strategy', 'P&L Status', 'Unrealized P&L ($)',
+      'Profit Captured (%)', 'Stock Price ($)', 'Strike Price ($)', 'Expiration',
+      'DTE', 'ITM/OTM Depth (%)', 'Open Premium ($)', 'Current Value ($)',
+      'Delta', 'Urgency', 'Should Roll', 'Reasons'
+    ];
+    const rows = rollScanResults.all.map(pos => [
+      pos.symbol,
+      pos.accountNumber || pos.accountId || '',
+      pos.strategy,
+      pos.pnlStatus || '',
+      pos.unrealizedPnl !== undefined ? pos.unrealizedPnl.toFixed(2) : '',
+      pos.metrics.profitCaptured.toFixed(1),
+      pos.metrics.currentPrice.toFixed(2),
+      pos.metrics.strikePrice.toFixed(2),
+      pos.metrics.expiration,
+      pos.metrics.dte.toString(),
+      pos.metrics.itmDepth.toFixed(2),
+      pos.metrics.openPremium.toFixed(2),
+      pos.metrics.currentValue.toFixed(2),
+      pos.metrics.delta.toFixed(3),
+      pos.urgency,
+      pos.shouldRoll ? 'Yes' : 'No',
+      `"${pos.reasons.join('; ')}"`
+    ]);
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `roll-positions-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Roll Positions state
   const [rollScanResults, setRollScanResults] = useState<{ red: RollAnalysis[]; yellow: RollAnalysis[]; green: RollAnalysis[]; all: RollAnalysis[]; total: number; accountsScanned: number } | null>(null);
   const [isRollScanning, setIsRollScanning] = useState(false);
@@ -1697,6 +1735,17 @@ export default function AutomationDashboard() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {rollScanResults && rollScanResults.all.length > 0 && (
+                <Button
+                  onClick={handleExportRollCSV}
+                  variant="outline"
+                  size="sm"
+                  className="border-orange-500/40 text-orange-300 hover:bg-orange-500/10"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+              )}
               <Button
                 onClick={handleRollScan}
                 disabled={isRollScanning || killSwitchActive}

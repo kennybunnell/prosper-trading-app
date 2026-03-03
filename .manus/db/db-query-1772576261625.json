@@ -1,0 +1,9 @@
+{
+  "query": "\nSELECT \n  month, \n  accountId,\n  CAST(netPremium AS DECIMAL(12,2)) AS netPremium,\n  CAST(credits AS DECIMAL(12,2)) AS credits,\n  CAST(debits AS DECIMAL(12,2)) AS debits,\n  transactionCount,\n  isLocked,\n  lastUpdated\nFROM monthlyPremiumCache\nWHERE month >= '2025-11'\nORDER BY month, accountId;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute \nSELECT \n  month, \n  accountId,\n  CAST(netPremium AS DECIMAL(12,2)) AS netPremium,\n  CAST(credits AS DECIMAL(12,2)) AS credits,\n  CAST(debits AS DECIMAL(12,2)) AS debits,\n  transactionCount,\n  isLocked,\n  lastUpdated\nFROM monthlyPremiumCache\nWHERE month >= '2025-11'\nORDER BY month, accountId;\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 59
+}

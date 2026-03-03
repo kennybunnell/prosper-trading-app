@@ -7080,3 +7080,9 @@
 - [x] Add sparkline to MONITOR position cards only
 - [x] Extend Monday digest to include WTR movers section (positions worsened >2 wks)
 - [x] Add digest WTR movers to both email and in-app notification
+
+## February Premium Drop Investigation & Roll Positions CSV (Mar 3, 2026)
+- [x] Query DB for February premium history and identify the drop from $150k to $90k
+- [x] Read premium tracking code to understand how premiums are calculated/stored
+- [x] Identify root cause of the $60k drop
+- [x] Add CSV export to Roll Positions automation tab

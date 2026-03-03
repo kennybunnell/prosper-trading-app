@@ -1,0 +1,8 @@
+{
+  "query": "\nSELECT month, netPremium, totalCredits, totalDebits, tradeCount, updatedAt\nFROM monthlyPremiumCache\nWHERE month >= '2025-11'\nORDER BY month;\n\nSELECT \n  DATE_FORMAT(FROM_UNIXTIME(closedAt / 1000), '%Y-%m') AS month,\n  COUNT(*) AS trades,\n  SUM(CAST(premium AS DECIMAL(12,2))) AS total_premium,\n  symbol, underlyingType\nFROM premiumTracking\nWHERE closedAt IS NOT NULL AND closedAt >= UNIX_TIMESTAMP('2025-12-01') * 1000\nGROUP BY month, symbol, underlyingType\nORDER BY month, total_premium DESC\nLIMIT 50;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute \nSELECT month, netPremium, totalCredits, totalDebits, tradeCount, updatedAt\nFROM monthlyPremiumCache\nWHERE month >= '2025-11'\nORDER BY month;\n\nSELECT \n  DATE_FORMAT(FROM_UNIXTIME(closedAt / 1000), '%Y-%m') AS month,\n  COUNT(*) AS trades,\n  SUM(CAST(premium AS DECIMAL(12,2))) AS total_premium,\n  symbol, underlyingType\nFROM premiumTracking\nWHERE closedAt IS NOT NULL AND closedAt >= UNIX_TIMESTAMP('2025-12-01') * 1000\nGROUP BY month, symbol, underlyingType\nORDER BY month, total_premium DESC\nLIMIT 50;\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 2: Unknown column 'totalcredits' in 'field list'"
+  ]
+}
