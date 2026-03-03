@@ -1,5 +1,5 @@
 import { COOKIE_NAME } from "@shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
+import { addPartitionedAttribute, getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
@@ -514,8 +514,20 @@ export const appRouter = router({
         const hasCookie = opts.ctx.req.headers.cookie?.includes(COOKIE_NAME);
         if (hasCookie) {
           const cookieOptions = getSessionCookieOptions(opts.ctx.req);
-          opts.ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-          console.log('[auth.me] Cleared stale session cookie');
+          // Clear the non-Partitioned variant (old cookies set before CHIPS support)
+          opts.ctx.res.clearCookie(COOKIE_NAME, cookieOptions);
+          // Also send a second Set-Cookie that clears the Partitioned variant
+          // (CHIPS treats Partitioned and non-Partitioned as separate cookies)
+          const existingHeaders = opts.ctx.res.getHeader('Set-Cookie');
+          const clearPartitioned = `${COOKIE_NAME}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=None; Secure; Partitioned`;
+          if (Array.isArray(existingHeaders)) {
+            opts.ctx.res.setHeader('Set-Cookie', [...existingHeaders, clearPartitioned]);
+          } else if (typeof existingHeaders === 'string') {
+            opts.ctx.res.setHeader('Set-Cookie', [existingHeaders, clearPartitioned]);
+          } else {
+            opts.ctx.res.setHeader('Set-Cookie', [clearPartitioned]);
+          }
+          console.log('[auth.me] Cleared stale session cookie (both Partitioned and non-Partitioned variants)');
         }
       }
       console.log('[auth.me] Returning user:', {
@@ -527,7 +539,9 @@ export const appRouter = router({
     }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      ctx.res.clearCookie(COOKIE_NAME, cookieOptions);
+      // Also clear the Partitioned variant used in the preview panel iframe context
+      addPartitionedAttribute(ctx.res);
       return {
         success: true,
       } as const;

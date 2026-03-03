@@ -256,12 +256,37 @@ class SDKServer {
     } as GetUserInfoWithJwtResponse;
   }
 
-  async authenticateRequest(req: Request): Promise<User> {
-    // Regular authentication flow
+   async authenticateRequest(req: Request): Promise<User> {
+    // Primary: cookie-based authentication
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
-    const session = await this.verifySession(sessionCookie);
 
+    // Fallback: Authorization header token (used when cookies are blocked in iframe context)
+    // The frontend stores the token in localStorage and sends it as 'Bearer <token>'
+    let tokenFromHeader: string | undefined;
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      tokenFromHeader = authHeader.slice(7);
+    }
+
+    // Prefer the Authorization header token over the cookie when both are present.
+    // The header token comes from localStorage (set after OAuth redirect) and is always
+    // fresh. The cookie may be stale (signed with an old JWT_SECRET from a previous
+    // sandbox session). If the header token fails, fall back to the cookie.
+    let tokenToVerify: string | undefined;
+    if (tokenFromHeader) {
+      // Try header token first
+      const headerSession = await this.verifySession(tokenFromHeader);
+      if (headerSession) {
+        tokenToVerify = tokenFromHeader;
+      } else {
+        // Header token invalid, try cookie
+        tokenToVerify = sessionCookie;
+      }
+    } else {
+      tokenToVerify = sessionCookie;
+    }
+    const session = await this.verifySession(tokenToVerify);
     if (!session) {
       throw ForbiddenError("Invalid session cookie");
     }
@@ -273,7 +298,7 @@ class SDKServer {
     // If user not in DB, sync from OAuth server automatically
     if (!user) {
       try {
-        const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
+        const userInfo = await this.getUserInfoWithJwt(tokenToVerify ?? "");
         await db.upsertUser({
           openId: userInfo.openId,
           name: userInfo.name || null,

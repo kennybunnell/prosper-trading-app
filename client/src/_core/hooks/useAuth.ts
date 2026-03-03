@@ -3,6 +3,11 @@ import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo } from "react";
 
+const LS_TOKEN_KEY = 'prosper_session_token';
+function clearStoredToken() {
+  try { localStorage.removeItem(LS_TOKEN_KEY); } catch { /* ignore */ }
+}
+
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
   redirectPath?: string;
@@ -38,6 +43,8 @@ export function useAuth(options?: UseAuthOptions) {
       }
       throw error;
     } finally {
+      // Clear the localStorage token fallback used in cookie-blocked environments
+      clearStoredToken();
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();
     }

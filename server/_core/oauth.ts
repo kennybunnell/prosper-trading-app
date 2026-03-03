@@ -1,8 +1,9 @@
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import type { Express, Request, Response } from "express";
 import * as db from "../db";
-import { getSessionCookieOptions } from "./cookies";
+import { addPartitionedAttribute, getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
+import { ENV } from "./env";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -43,13 +44,35 @@ export function registerOAuthRoutes(app: Express) {
 
       const cookieOptions = getSessionCookieOptions(req);
 
+      // Debug logging to trace cookie/JWT issues
+      const secretPrefix = ENV.cookieSecret ? ENV.cookieSecret.substring(0, 8) + '...' : 'EMPTY';
+      console.log('[OAuth] JWT_SECRET prefix used for signing:', secretPrefix);
+      console.log('[OAuth] Cookie options:', JSON.stringify(cookieOptions));
+      console.log('[OAuth] req.protocol:', req.protocol, '| x-forwarded-proto:', req.headers['x-forwarded-proto']);
+
+      // Immediately verify the token we just signed to catch any secret mismatch
+      const verifyTest = await sdk.verifySession(sessionToken);
+      console.log('[OAuth] Immediate verify test:', verifyTest ? 'PASS (openId=' + verifyTest.openId + ')' : 'FAIL - SECRET MISMATCH');
+
       // Clear any stale cookie first (handles sandbox URL changes where old JWT_SECRET is invalid)
-      res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: 0 });
+      res.clearCookie(COOKIE_NAME, cookieOptions);
 
       // Set the fresh session cookie
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
-      res.redirect(302, "/");
+      // Add Partitioned attribute for CHIPS support.
+      // The Manus preview panel embeds the app in an iframe on manus.im.
+      // Chrome blocks unpartitioned third-party cookies in cross-site iframes,
+      // so without Partitioned the browser silently discards the cookie and
+      // every subsequent request arrives without a session cookie.
+      addPartitionedAttribute(res);
+
+      // Also pass the token in the URL hash as a fallback for environments where
+      // cookies are completely blocked (e.g. strict browser settings, some iframe
+      // contexts). The frontend reads the hash, stores the token in localStorage,
+      // and sends it as an Authorization header on all API requests.
+      console.log('[OAuth] Redirecting to / with new session cookie (Partitioned) + URL token fallback');
+      res.redirect(302, `/?_t=${encodeURIComponent(sessionToken)}`);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });

@@ -1,4 +1,4 @@
-import type { CookieOptions, Request } from "express";
+import type { CookieOptions, Request, Response } from "express";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
@@ -45,4 +45,27 @@ export function getSessionCookieOptions(
     sameSite: "none",
     secure: isSecureRequest(req),
   };
+}
+
+/**
+ * Append the `Partitioned` attribute to all Set-Cookie headers already queued
+ * on the response. This enables CHIPS (Cookies Having Independent Partitioned
+ * State), which Chrome requires for cookies set in a third-party iframe context
+ * (e.g. the Manus preview panel embeds the app inside manus.im).
+ *
+ * Express 4 does not support the Partitioned attribute natively, so we patch
+ * the raw header after res.cookie() has serialised it.
+ */
+export function addPartitionedAttribute(res: Response): void {
+  const existing = res.getHeader("Set-Cookie");
+  if (!existing) return;
+
+  const patch = (header: string) =>
+    header.includes("Partitioned") ? header : header + "; Partitioned";
+
+  if (Array.isArray(existing)) {
+    res.setHeader("Set-Cookie", existing.map(patch));
+  } else if (typeof existing === "string") {
+    res.setHeader("Set-Cookie", patch(existing));
+  }
 }

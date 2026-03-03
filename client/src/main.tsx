@@ -10,6 +10,49 @@ import "./index.css";
 import { TradingModeProvider } from "./contexts/TradingModeContext";
 import { Toaster } from "sonner";
 
+// ─── Token-in-URL fallback for cookie-blocked environments ───────────────────
+// When the app is embedded in the Manus preview panel (an iframe on manus.im),
+// Chrome's third-party cookie restrictions prevent the session cookie from being
+// stored. As a fallback, the OAuth callback passes the JWT in the URL query
+// param `_t`. We read it here, store it in localStorage, and strip it from the
+// URL so it doesn't appear in the address bar or browser history.
+const LS_TOKEN_KEY = 'prosper_session_token';
+
+(function captureTokenFromUrl() {
+  try {
+    const url = new URL(window.location.href);
+    const token = url.searchParams.get('_t');
+    if (token) {
+      localStorage.setItem(LS_TOKEN_KEY, token);
+      console.log('[Auth] Captured session token from URL, stored in localStorage');
+      // Remove the token from the URL without triggering a page reload
+      url.searchParams.delete('_t');
+      window.history.replaceState({}, '', url.toString());
+    }
+  } catch (e) {
+    // Ignore – not critical
+  }
+})();
+
+/** Returns the stored localStorage token, or undefined if not present. */
+function getStoredToken(): string | undefined {
+  try {
+    return localStorage.getItem(LS_TOKEN_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Clears the stored localStorage token (used on logout). */
+export function clearStoredToken(): void {
+  try {
+    localStorage.removeItem(LS_TOKEN_KEY);
+  } catch {
+    // Ignore
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown, queryKey?: readonly unknown[]) => {
@@ -26,6 +69,8 @@ const redirectToLoginIfUnauthorized = (error: unknown, queryKey?: readonly unkno
     queryKey.some(k => Array.isArray(k) && k[0] === 'auth' && k[1] === 'me');
   if (!isAuthMeQuery) return;
 
+  // Clear any stale stored token before redirecting to login
+  clearStoredToken();
   window.location.href = getLoginUrl();
 };
 
@@ -69,9 +114,20 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
+        const storedToken = getStoredToken();
+        const headers: Record<string, string> = {};
+        if (storedToken) {
+          // Send the localStorage token as Authorization header.
+          // The server accepts this as a fallback when cookies are blocked.
+          headers['Authorization'] = `Bearer ${storedToken}`;
+        }
         return globalThis.fetch(input, {
           ...(init ?? {}),
           credentials: "include",
+          headers: {
+            ...(init?.headers ?? {}),
+            ...headers,
+          },
         });
       },
     }),

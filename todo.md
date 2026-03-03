@@ -6963,3 +6963,12 @@
 - [x] Fix slider: always allow manual price override — extended range to $0.01 min, 2x ask max
 - [x] Fix slider increments: use $0.01 steps for prices under $0.50, $0.05 for larger prices
 - [x] Fix hasMarketData: always show slider when order has any price (even without live bid/ask)
+
+## Auth Fix — Preview Panel Cookie Blocking (Mar 3, 2026)
+- [x] Diagnose: Preview panel iframe blocks third-party cookies (Chrome CHIPS restriction)
+- [x] Fix: Add Partitioned cookie attribute to OAuth callback Set-Cookie header (CHIPS support)
+- [x] Fix: Clear both Partitioned and non-Partitioned cookie variants in auth.me
+- [x] Fix: OAuth callback passes JWT token in URL param ?_t= as fallback for cookie-blocked environments
+- [x] Fix: Frontend captures _t from URL, stores in localStorage, sends as Authorization: Bearer header
+- [x] Fix: Server reads Authorization header as fallback when cookie is blocked/stale
+- [x] Fix: Server prefers fresh Authorization header token over potentially-stale cookie

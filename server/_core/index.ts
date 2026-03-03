@@ -48,6 +48,21 @@ async function startServer() {
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   
+  // Cookie debug endpoint - helps diagnose auth issues in preview panel
+  app.get("/api/debug/cookies", (req, res) => {
+    const cookieHeader = req.headers.cookie || '';
+    const cookies = cookieHeader.split(';').map(c => c.trim()).filter(Boolean);
+    res.json({
+      cookieHeader: cookieHeader ? cookieHeader.substring(0, 200) : '(none)',
+      cookieCount: cookies.length,
+      cookieNames: cookies.map(c => c.split('=')[0]),
+      protocol: req.protocol,
+      forwardedProto: req.headers['x-forwarded-proto'],
+      secure: req.secure,
+      host: req.hostname,
+    });
+  });
+
   // Heartbeat endpoint to keep server awake
   app.get("/api/heartbeat", (req, res) => {
     res.json({ 
