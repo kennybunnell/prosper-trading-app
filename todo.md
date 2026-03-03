@@ -7098,3 +7098,10 @@
 - [x] Build Capital Events UI section on Performance page (assignments, purchases, exits)
 - [ ] Audit Roll Positions scan logic and roll candidate generation
 - [ ] Verify Roll Positions order submission sends correct OTM strikes
+
+## Roll Scanner Credit-Only Redesign (Mar 3, 2026)
+- [ ] Add roll credit/debit calculation to each roll candidate (new premium - cost to close)
+- [ ] Only flag rolls as actionable when they generate a net credit
+- [ ] Add "Roll Credit" column to roll scanner output and CSV export
+- [ ] Change "Should Roll" logic: debit rolls → CLOSE ONLY, credit rolls → ROLL
+- [ ] Add credit-only filter toggle to the Roll Positions UI

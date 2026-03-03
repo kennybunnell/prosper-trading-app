@@ -250,7 +250,7 @@ export default function AutomationDashboard() {
       'Symbol', 'Account', 'Strategy', 'P&L Status', 'Unrealized P&L ($)',
       'Profit Captured (%)', 'Stock Price ($)', 'Strike Price ($)', 'Expiration',
       'DTE', 'ITM/OTM Depth (%)', 'Open Premium ($)', 'Current Value ($)',
-      'Delta', 'Urgency', 'Should Roll', 'Reasons'
+      'Delta', 'Urgency', 'Should Roll', 'Roll Credit Available', 'Reasons'
     ];
     const rows = rollScanResults.all.map(pos => [
       pos.symbol,
@@ -269,6 +269,16 @@ export default function AutomationDashboard() {
       pos.metrics.delta.toFixed(3),
       pos.urgency,
       pos.shouldRoll ? 'Yes' : 'No',
+      (() => {
+        // Estimate roll credit: for ITM positions, new ATM premium minus cost-to-close
+        // currentValue = cost to close; openPremium = original premium received
+        // A credit roll is possible when the new premium > cost to close
+        // We approximate: if the position is OTM (itmDepth < 0) a credit roll is likely possible
+        // If ITM, the deeper the ITM the less likely a credit roll is available
+        if (pos.metrics.itmDepth > 5) return 'Unlikely (deep ITM)';
+        if (pos.metrics.itmDepth > 0) return 'Marginal (slightly ITM)';
+        return 'Likely (OTM)';
+      })(),
       `"${pos.reasons.join('; ')}"`
     ]);
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -292,6 +302,7 @@ export default function AutomationDashboard() {
   const [rollFilter, setRollFilter] = useState<'all' | 'red' | 'yellow' | 'green'>('all');
   const [rollStrategyFilter, setRollStrategyFilter] = useState<'all' | 'CSP' | 'CC' | 'BPS' | 'BCS' | 'IC'>('all');
   const [rollPnlFilter, setRollPnlFilter] = useState<'all' | 'winner' | 'breakeven' | 'loser'>('all');
+  const [rollCreditOnlyFilter, setRollCreditOnlyFilter] = useState(false);
   const [rollSortCol, setRollSortCol] = useState<string>('unrealizedPnl');
   const [rollSortDir, setRollSortDir] = useState<'asc' | 'desc'>('asc');
   // Scan results sort + type filter
@@ -1810,7 +1821,21 @@ export default function AutomationDashboard() {
                     <span className="opacity-60">({count})</span>
                   </button>
                 );
-              })}
+               })}
+              {/* Separator */}
+              <div className="w-px h-4 bg-border/60 mx-0.5" />
+              {/* Credit-only toggle */}
+              <button
+                onClick={() => setRollCreditOnlyFilter(v => !v)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
+                  rollCreditOnlyFilter
+                    ? 'bg-emerald-500/30 text-emerald-300 border-emerald-400/60'
+                    : 'text-muted-foreground border-border/50 hover:bg-muted/40'
+                }`}
+                title="Hide positions where a credit roll is unlikely (deep ITM > 5%)"
+              >
+                💰 Credit Rolls Only
+              </button>
             </div>
           )}
 
@@ -1932,6 +1957,8 @@ export default function AutomationDashboard() {
                             }
                             if (rollStrategyFilter !== 'all' && pos.strategy !== rollStrategyFilter) return false;
                             if (rollPnlFilter !== 'all' && (pos as any).pnlStatus !== rollPnlFilter) return false;
+                            // Credit-only filter: hide positions where a credit roll is unlikely (deep ITM)
+                            if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
                             return true;
                           }).sort((a, b) => {
                             const dir = rollSortDir === 'asc' ? 1 : -1;
