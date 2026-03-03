@@ -119,8 +119,8 @@ function DashboardLayoutContent({
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
   
-  // Fetch user's background texture preferences
-  const { data: backgroundPrefs } = trpc.settings.getBackgroundPreferences.useQuery();
+  // Fetch user's background texture preferences (only when authenticated)
+  const { data: backgroundPrefs } = trpc.settings.getBackgroundPreferences.useQuery(undefined, { enabled: !!user });
   const backgroundOpacity = backgroundPrefs?.opacity ?? 8;
   const backgroundPattern = backgroundPrefs?.pattern ?? 'diagonal';
   

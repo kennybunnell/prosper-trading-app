@@ -42,7 +42,7 @@ function Router() {
   const [showLegalModal, setShowLegalModal] = useState(false);
   const [showTrialModal, setShowTrialModal] = useState(false);
   const { data: user, refetch } = trpc.auth.me.useQuery();
-  const subscriptionStatus = trpc.stripe.getSubscriptionStatus.useQuery();
+  const subscriptionStatus = trpc.stripe.getSubscriptionStatus.useQuery(undefined, { enabled: !!user });
 
   // Portfolio Safety: fetch violation count for browser tab title badge
   const { data: violationData } = trpc.iraSafety.scanViolations.useQuery(

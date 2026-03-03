@@ -12,13 +12,19 @@ import { Toaster } from "sonner";
 
 const queryClient = new QueryClient();
 
-const redirectToLoginIfUnauthorized = (error: unknown) => {
+const redirectToLoginIfUnauthorized = (error: unknown, queryKey?: readonly unknown[]) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
 
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
-
   if (!isUnauthorized) return;
+
+  // Only redirect to login when auth.me itself fails — not when other queries
+  // get a 401 before the session cookie has been established on page load.
+  // Other queries will automatically retry once auth.me succeeds.
+  const isAuthMeQuery = Array.isArray(queryKey) &&
+    queryKey.some(k => Array.isArray(k) && k[0] === 'auth' && k[1] === 'me');
+  if (!isAuthMeQuery) return;
 
   window.location.href = getLoginUrl();
 };
@@ -26,7 +32,7 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.query.state.error;
-    redirectToLoginIfUnauthorized(error);
+    redirectToLoginIfUnauthorized(error, event.query.queryKey);
     
     // Suppress "Account not found" errors when query is disabled (expected behavior)
     const isAccountNotFoundError = error && typeof error === 'object' && 'message' in error && error.message === 'Account not found';

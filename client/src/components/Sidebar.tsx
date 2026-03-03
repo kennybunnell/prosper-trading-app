@@ -41,9 +41,9 @@ export function Sidebar({ className }: SidebarProps) {
   const { user } = useAuth();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
-  // Fetch Tastytrade accounts
-  const { data: accounts, isLoading: accountsLoading } = trpc.accounts.list.useQuery();
-  const { data: credentials } = trpc.settings.getCredentials.useQuery();
+  // Fetch Tastytrade accounts (only when authenticated)
+  const { data: accounts, isLoading: accountsLoading } = trpc.accounts.list.useQuery(undefined, { enabled: !!user });
+  const { data: credentials } = trpc.settings.getCredentials.useQuery(undefined, { enabled: !!user });
   
   // Fetch unread count for inbox badge
   const { data: unreadCount } = trpc.inbox.getUnreadCount.useQuery(undefined, {
