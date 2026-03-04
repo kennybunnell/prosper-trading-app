@@ -3,7 +3,7 @@
  * Control panel for managing automated trading workflows
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { UnifiedOrderPreviewModal, UnifiedOrder } from '@/components/UnifiedOrderPreviewModal';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -320,6 +320,9 @@ export default function AutomationDashboard() {
   const [scanSortCol, setScanSortCol] = useState<string>('realizedPercent');
   const [scanSortDir, setScanSortDir] = useState<'asc' | 'desc'>('desc');
   const [scanTypeFilter, setScanTypeFilter] = useState<string>('all');
+  // Ref to always-current visibleScanResults — used by handleOpenOrderPreview
+  // (which is declared before the useMemo that computes visibleScanResults)
+  const visibleScanResultsRef = useRef<ScanResult[]>([]);
   const handleScanSort = (col: string) => {
     if (scanSortCol === col) {
       setScanSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -377,7 +380,10 @@ export default function AutomationDashboard() {
   // Build UnifiedOrders from selected scan results and open the preview modal
   const handleOpenOrderPreview = useCallback(() => {
     if (!lastRunResult) return;
-    const selected = lastRunResult.scanResults.filter(
+    // IMPORTANT: filter from visibleScanResultsRef.current (respects active type-tab filter)
+    // so that positions from other tabs (e.g. BPS META/V when BCS tab is active)
+    // are never included even if their posKeys are still in selectedPositions.
+    const selected = visibleScanResultsRef.current.filter(
       r => selectedPositions.has(posKey(r)) && r.action === 'WOULD_CLOSE'
     );
     if (selected.length === 0) return;
@@ -705,6 +711,8 @@ export default function AutomationDashboard() {
     });
     return rows;
   }, [lastRunResult?.scanResults, hideExpiringToday, scanTypeFilter, scanSortCol, scanSortDir]);
+  // Keep ref in sync so handleOpenOrderPreview (declared before this useMemo) can access current value
+  visibleScanResultsRef.current = visibleScanResults;
   const wouldCloseResults = visibleScanResults.filter(r => r.action === 'WOULD_CLOSE');
   // DTE=0 positions are NEVER auto-selected or included in select-all (let them expire naturally)
   const selectableResults = wouldCloseResults.filter(r => r.dte !== 0);
@@ -712,6 +720,9 @@ export default function AutomationDashboard() {
   const allSelected = selectableResults.length > 0 && selectableResults.every(r =>
     selectedPositions.has(posKey(r))
   );
+  // Count only positions that are BOTH selected AND visible in the current tab
+  // This is what the "Review & Submit N Orders" button should show
+  const visibleSelectedCount = selectableResults.filter(r => selectedPositions.has(posKey(r))).length;
 
   const toggleSelectAll = useCallback(() => {
     if (!lastRunResult) return;
@@ -1311,14 +1322,14 @@ export default function AutomationDashboard() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {selectedPositions.size > 0 && (
+                {visibleSelectedCount > 0 && (
                   <Button
                     size="sm"
                     className="bg-green-600 hover:bg-green-700 text-white"
                     onClick={handleOpenOrderPreview}
                   >
                     <ShoppingCart className="h-4 w-4 mr-1" />
-                    Review &amp; Submit {selectedPositions.size} Order{selectedPositions.size !== 1 ? 's' : ''}
+                    Review &amp; Submit {visibleSelectedCount} Order{visibleSelectedCount !== 1 ? 's' : ''}
                   </Button>
                 )}
                 <Button
@@ -1333,11 +1344,11 @@ export default function AutomationDashboard() {
 
             {/* Summary Stats — left 2 cards show scan totals; right 2 cards reflect selected positions only */}
             {(() => {
-              const allFlagged = lastRunResult.scanResults.filter(r => r.action === 'WOULD_CLOSE');
-              const selectedResults = allFlagged.filter(r => selectedPositions.has(posKey(r)));
+              // Use only visible (tab-filtered) selected results for the summary cards
+              const selectedResults = selectableResults.filter(r => selectedPositions.has(posKey(r)));
               const selectedBuyBack = selectedResults.reduce((sum, r) => sum + r.buyBackCost, 0);
               const selectedProfit = selectedResults.reduce((sum, r) => sum + (r.premiumCollected - r.buyBackCost), 0);
-              const hasSelection = selectedPositions.size > 0;
+              const hasSelection = visibleSelectedCount > 0;
               return (
                 <div className="grid grid-cols-4 gap-3 pt-2">
                   {/* Card 1: Flagged count (scan result — always shows scan total) */}
@@ -1369,7 +1380,7 @@ export default function AutomationDashboard() {
                     <div className={`text-xs font-medium ${
                       hasSelection ? 'text-amber-400' : 'text-muted-foreground/40'
                     }`}>
-                      {hasSelection ? `${selectedPositions.size} selected` : 'select positions above'}
+                      {hasSelection ? `${visibleSelectedCount} selected` : 'select positions above'}
                     </div>
                   </div>
                   {/* Card 4: Est. profit — reflects SELECTED positions only */}
@@ -1436,26 +1447,19 @@ export default function AutomationDashboard() {
                   };
 
                   const handlePillClick = () => {
-                    setScanTypeFilter(t);
-                    if (t !== 'all' && flaggedCount > 0) {
-                      setSelectedPositions(prev => {
-                        const next = new Set(prev);
-                        if (allFlaggedSelected) {
-                          flaggedOfType.forEach(r => next.delete(posKey(r)));
-                        } else {
-                          flaggedOfType.forEach(r => next.add(posKey(r)));
-                        }
-                        return next;
-                      });
+                    // Only switch the tab filter — do NOT auto-select positions.
+                    // Clearing selections on tab switch prevents cross-tab bleed
+                    // (e.g. BPS META/V appearing in BCS order preview).
+                    if (t !== scanTypeFilter) {
+                      setScanTypeFilter(t);
+                      setSelectedPositions(new Set()); // clear stale cross-tab selections
                     }
                   };
 
                   // Build a composite label: strategy name + ready-to-close count if any
                   const pillLabel = t === 'all' ? 'All' : t;
                   const pillTitle = t !== 'all' && flaggedCount > 0
-                    ? allFlaggedSelected
-                      ? `Click to deselect all ${flaggedCount} ${t} positions`
-                      : `Click to select all ${flaggedCount} ${t} positions ready to close`
+                    ? `Filter to ${t} positions (${flaggedCount} ready to close). Use checkboxes to select.`
                     : undefined;
 
                   return (
@@ -1738,14 +1742,15 @@ export default function AutomationDashboard() {
               )}
 
               {/* Approval Queue Submit Bar */}
-              {selectedPositions.size > 0 && (() => {
-                const selResults = (lastRunResult?.scanResults ?? []).filter(r => selectedPositions.has(posKey(r)));
+              {visibleSelectedCount > 0 && (() => {
+                // Only count/sum positions visible in the current tab
+                const selResults = selectableResults.filter(r => selectedPositions.has(posKey(r)));
                 const selBuyBack = selResults.reduce((sum, r) => sum + r.buyBackCost, 0);
                 const selProfit = selResults.reduce((sum, r) => sum + (r.premiumCollected - r.buyBackCost), 0);
                 return (
                 <div className="mt-4 p-4 rounded-lg bg-green-500/10 border border-green-500/30 flex items-center justify-between">
                   <div>
-                    <span className="font-semibold text-green-400">{selectedPositions.size} position{selectedPositions.size !== 1 ? 's' : ''} selected</span>
+                    <span className="font-semibold text-green-400">{visibleSelectedCount} order{visibleSelectedCount !== 1 ? 's' : ''} selected</span>
                     <span className="text-sm text-muted-foreground ml-2">
                       Buy-back cost: <span className="text-amber-400 font-mono">${selBuyBack.toFixed(2)}</span>
                       {' · '}Est. profit: <span className="text-green-400 font-mono">${selProfit.toFixed(2)}</span>
@@ -1765,7 +1770,7 @@ export default function AutomationDashboard() {
                       onClick={handleOpenOrderPreview}
                     >
                       <ShoppingCart className="h-4 w-4 mr-1" />
-                      Review &amp; Submit {selectedPositions.size} Order{selectedPositions.size !== 1 ? 's' : ''}
+                      Review &amp; Submit {visibleSelectedCount} Order{visibleSelectedCount !== 1 ? 's' : ''}
                     </Button>
                   </div>
                 </div>

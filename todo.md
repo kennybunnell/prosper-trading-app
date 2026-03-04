@@ -7257,3 +7257,8 @@
 - [x] Color coding: green (profit + threshold met), amber (profit but below threshold), red (loss)
 - [x] Column is sortable (click header to sort ascending/descending by net profit)
 - [x] Added 16 unit tests covering calculation, formatting, color logic, and sorting
+
+## AutomationDashboard — Order Count & Cross-Tab Selection Bugs (Mar 4, 2026)
+- [x] Fix "Review & Submit N Orders" button counting legs instead of spread orders (2 BCS selected = 2 orders, not 4)
+- [x] Fix unselected positions from other strategy tabs (BPS META/V) appearing in batch order preview when BCS tab is active
+- [x] Ensure selectedPositions set is scoped to visible/active tab filter — cross-tab selections should not bleed into batch submit
