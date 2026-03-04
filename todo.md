@@ -7191,3 +7191,10 @@
 - [x] Show risk warning for truly Naked positions
 - [x] Add estimated WTR (Win-to-Risk) metric to each underwater position drill-down (renamed to Weeks to Recovery)
 - [x] Add estimated WTR (Weeks to Recovery) metric — based on CC premium harvesting rate
+
+## Bug Fix (Mar 4, 2026)
+- [x] Fix: Portfolio Advisor API returning HTML instead of JSON — transient DB connection reset from sandbox hibernation, resolved by server restart
+
+## Action Items - Stock Price Column (Mar 4, 2026)
+- [x] Add current stock price column between Symbol and Type in Action Items table
+- [x] Show stock price for all spread types (BPS, BCS, IC, CC, CSP) via Tradier batch quote enrichment

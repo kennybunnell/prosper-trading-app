@@ -283,6 +283,8 @@ export const automationRouter = router({
           // Mismatch flag — set when short qty > long qty (partial spread + standalone remainder)
           hasMismatch?: boolean;
           standaloneRemainder?: number; // Number of unmatched short contracts routed as single-leg BTC
+          // Underlying stock price — enriched after scan via Tradier batch quote
+          underlyingPrice?: number;
         }> = [];
         let totalPositionsClosed = 0;
         let totalCoveredCallsOpened = 0;
@@ -694,6 +696,32 @@ export const automationRouter = router({
             console.error(`[Automation] Error processing account ${account.accountNumber}:`, accountError);
             // Continue to next account
           }
+        }
+
+        // ── Enrich scan results with underlying stock prices ─────────────────
+        // Batch-fetch current prices for all unique underlying symbols via Tradier
+        try {
+          const uniqueSymbols = Array.from(new Set(scanResults.map(r => r.symbol).filter(Boolean)));
+          if (uniqueSymbols.length > 0) {
+            const { createTradierAPI } = await import('./tradier');
+            const storedKey = credentials?.tradierApiKey;
+            const tradierApiKey = (storedKey && storedKey.length > 15 ? storedKey : null) || process.env.TRADIER_API_KEY;
+            if (tradierApiKey) {
+              const tradierApi = createTradierAPI(tradierApiKey);
+              const quotes = await tradierApi.getQuotes(uniqueSymbols);
+              const priceMap = new Map<string, number>();
+              for (const q of quotes) {
+                if (q.symbol && q.last > 0) priceMap.set(q.symbol, q.last);
+              }
+              for (const result of scanResults) {
+                result.underlyingPrice = priceMap.get(result.symbol) ?? undefined;
+              }
+              console.log(`[Automation] Enriched ${priceMap.size}/${uniqueSymbols.length} symbols with stock prices`);
+            }
+          }
+        } catch (priceErr) {
+          console.warn('[Automation] Failed to enrich scan results with stock prices:', priceErr);
+          // Non-fatal — scan results still valid without prices
         }
 
         // Save pending orders to database

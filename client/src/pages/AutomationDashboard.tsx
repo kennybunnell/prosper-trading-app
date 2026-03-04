@@ -57,6 +57,8 @@ type ScanResult = {
   // Mismatch flag — set when short qty > long qty (partial spread + standalone remainder)
   hasMismatch?: boolean;
   standaloneRemainder?: number; // Number of unmatched short contracts routed as single-leg BTC
+  // Underlying stock price — enriched via Tradier batch quote
+  underlyingPrice?: number;
 };
 
 type RunSummary = {
@@ -683,6 +685,7 @@ export default function AutomationDashboard() {
       switch (scanSortCol) {
         case 'symbol':        av = a.symbol;            bv = b.symbol;            break;
         case 'type':          av = a.type;              bv = b.type;              break;
+        case 'underlyingPrice': av = a.underlyingPrice ?? 0; bv = b.underlyingPrice ?? 0; break;
         case 'account':       av = a.account;           bv = b.account;           break;
         case 'quantity':      av = a.quantity;          bv = b.quantity;          break;
         case 'expiration':    av = a.expiration ?? '';  bv = b.expiration ?? '';  break;
@@ -1474,6 +1477,7 @@ export default function AutomationDashboard() {
                             />
                           </th>
                           <SortTh col="symbol" label="Symbol" />
+                          <SortTh col="underlyingPrice" label="Price" align="right" />
                           <SortTh col="type" label="Type" />
                           <SortTh col="account" label="Account" />
                           <SortTh col="quantity" label="Qty" align="right" />
@@ -1551,6 +1555,13 @@ export default function AutomationDashboard() {
                                 </span>
                               );
                             })()}
+                          </td>
+                          <td className="py-2.5 pr-4 text-right font-mono">
+                            {result.underlyingPrice ? (
+                              <span className="text-blue-400 font-semibold">${result.underlyingPrice.toFixed(2)}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
                           </td>
                           <td className="py-2.5 pr-4">
                             <Badge
