@@ -758,16 +758,16 @@ export default function AutomationDashboard() {
   });
 
   // Update settings mutation
+  const utils = trpc.useUtils();
   const updateSettings = trpc.automation.updateSettings.useMutation({
     onSuccess: () => {
+      utils.automation.getSettings.invalidate();
       toast.success('Settings updated successfully');
     },
     onError: (error) => {
       toast.error(`Failed to update settings: ${error.message}`);
     },
   });
-
-  const utils = trpc.useUtils();
 
   // When the log is fetched after a run, populate scanResults from scanResultsJson
   useEffect(() => {

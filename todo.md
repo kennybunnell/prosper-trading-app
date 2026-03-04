@@ -7159,3 +7159,4 @@
 - [x] EarningsWarningBanner component (client/src/components/EarningsWarningBanner.tsx)
 - [x] 2x stop-loss detection in Roll Positions backend (routers-rolls.ts)
 - [x] 2x STOP badge in Roll Positions frontend (AutomationDashboard.tsx)
+- [x] Fix profit threshold percentage: make it truly editable, save to DB, and use in Close for Profit scanner
