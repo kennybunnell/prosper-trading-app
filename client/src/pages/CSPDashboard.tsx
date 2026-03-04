@@ -2352,7 +2352,20 @@ export default function CSPDashboard() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">Select</TableHead>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={filteredOpportunities.length > 0 && filteredOpportunities.every(opp => selectedOpportunities.has(`${opp.symbol}-${opp.strike}-${opp.expiration}`))}
+                      onCheckedChange={(checked) => {
+                        const next = new Set(selectedOpportunities);
+                        filteredOpportunities.forEach(opp => {
+                          const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+                          if (checked) next.add(key); else next.delete(key);
+                        });
+                        setSelectedOpportunities(next);
+                      }}
+                      aria-label="Select all visible opportunities"
+                    />
+                  </TableHead>
                   {(strategyType === 'spread' ? [
                     { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
                     { key: 'symbol', label: 'Symbol', help: null, technical: false },

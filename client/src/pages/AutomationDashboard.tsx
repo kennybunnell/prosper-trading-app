@@ -1931,7 +1931,36 @@ export default function AutomationDashboard() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-border/50 bg-muted/30 text-xs">
-                            <th className="text-left p-3 w-8"></th>
+                            <th className="text-left p-3 w-8" title="Select / deselect all visible roll positions">
+                              {(() => {
+                                const visibleIds = rollScanResults.all.filter(pos => {
+                                  if (rollFilter !== 'all') {
+                                    if (rollFilter === 'red' && pos.urgency !== 'red') return false;
+                                    if (rollFilter === 'yellow' && pos.urgency !== 'yellow') return false;
+                                    if (rollFilter === 'green' && pos.urgency !== 'green') return false;
+                                  }
+                                  if (rollStrategyFilters.size > 0 && !rollStrategyFilters.has(pos.strategy)) return false;
+                                  if (rollPnlFilters.size > 0 && !rollPnlFilters.has((pos as any).pnlStatus ?? '')) return false;
+                                  if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
+                                  return true;
+                                }).map(p => p.positionId);
+                                const allRollSelected = visibleIds.length > 0 && visibleIds.every(id => selectedRollPositions.has(id));
+                                return (
+                                  <Checkbox
+                                    checked={allRollSelected}
+                                    onCheckedChange={(checked) => {
+                                      setSelectedRollPositions(prev => {
+                                        const next = new Set(prev);
+                                        if (checked) visibleIds.forEach(id => next.add(id));
+                                        else visibleIds.forEach(id => next.delete(id));
+                                        return next;
+                                      });
+                                    }}
+                                    aria-label="Select all visible roll positions"
+                                  />
+                                );
+                              })()}
+                            </th>
                             {/* Sortable column helper */}
                             {([
                               { key: 'pnlStatus', label: 'P&L', align: 'center' },

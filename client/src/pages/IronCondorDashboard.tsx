@@ -1014,7 +1014,20 @@ export default function IronCondorDashboard() {
                   <TableHeader>
                     <TableRow>
                       {/* 1. Select */}
-                      <TableHead className="w-12">Select</TableHead>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={displayedOpportunities.length > 0 && displayedOpportunities.every((opp: any) => selectedOpportunities.has(`${opp.symbol}-${opp.expiration}`))}
+                          onCheckedChange={(checked) => {
+                            const next = new Set(selectedOpportunities);
+                            displayedOpportunities.forEach((opp: any) => {
+                              const key = `${opp.symbol}-${opp.expiration}`;
+                              if (checked) next.add(key); else next.delete(key);
+                            });
+                            setSelectedOpportunities(next);
+                          }}
+                          aria-label="Select all visible opportunities"
+                        />
+                      </TableHead>
                       
                       {/* 2. Score */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {

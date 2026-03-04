@@ -1466,7 +1466,27 @@ export default function CCDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-12">Select</TableHead>
+                        <TableHead className="w-12">
+                          <Checkbox
+                            checked={availableHoldings.length > 0 && availableHoldings
+                              .filter(h => h.maxContracts > 0 && !flaggedSymbols.has(h.symbol.toUpperCase()))
+                              .every(h => selectedStocks.includes(h.symbol))}
+                            onCheckedChange={(checked) => {
+                              const eligible = availableHoldings
+                                .filter(h => h.maxContracts > 0 && !flaggedSymbols.has(h.symbol.toUpperCase()))
+                                .map(h => h.symbol);
+                              if (checked) {
+                                const next = new Set(selectedStocks);
+                                eligible.forEach(s => next.add(s));
+                                setSelectedStocks(Array.from(next));
+                              } else {
+                                setSelectedStocks(selectedStocks.filter(s => !eligible.includes(s)));
+                              }
+                            }}
+                            aria-label="Select all eligible stocks"
+                            className="border-2 border-amber-500/50 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+                          />
+                        </TableHead>
                         <TableHead>Symbol</TableHead>
                         <TableHead className="text-right">Shares</TableHead>
                         <TableHead className="text-right">Price</TableHead>
@@ -2632,7 +2652,24 @@ export default function CCDashboard() {
                   <TableHeader>
                     <TableRow>
                       {/* 1. Select */}
-                      <TableHead className="w-12">Select</TableHead>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={sortedOpportunities.length > 0 && sortedOpportunities.every(opp => selectedOpportunities.has(getOpportunityKey(opp)))}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              const next = new Set(selectedOpportunities);
+                              sortedOpportunities.forEach(opp => next.add(getOpportunityKey(opp)));
+                              setSelectedOpportunities(next);
+                            } else {
+                              const next = new Set(selectedOpportunities);
+                              sortedOpportunities.forEach(opp => next.delete(getOpportunityKey(opp)));
+                              setSelectedOpportunities(next);
+                            }
+                          }}
+                          aria-label="Select all visible opportunities"
+                          className="border-2 border-amber-500/50 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+                        />
+                      </TableHead>
                       
                       {/* 2. Score */}
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('score')}>

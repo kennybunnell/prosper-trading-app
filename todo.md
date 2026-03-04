@@ -7148,3 +7148,4 @@
 - [x] Frontend: CLOSE badge tooltip updated to explain the capped-loss rationale for spreads vs. DTE-based close for single-legs
 - [x] ITM Playbook panel updated: for spreads, Close BTC is the primary "Recommended" action; debit roll option is hidden for spreads; 2-column layout for spreads vs. 3-column for single-legs
 - [x] ROLL badge tooltip updated to clarify it only appears for single-leg (CSP/CC) positions with a viable credit roll
+- [x] Add select-all checkbox in column header for all tables with row checkboxes (Roll Positions, CSP, CC stocks, CC opportunities, Iron Condor)
