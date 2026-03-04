@@ -410,7 +410,81 @@ function computeCapitalAtRisk(
   return { tickerExposure, totalCapitalAtRisk };
 }
 
-// ─── Helper: detect underwater positions ─────────────────────────────────────
+// ─── Types for enriched underwater positions ────────────────────────────────
+
+interface UnderwaterPositionBase {
+  ticker: string;
+  strike: number;
+  currentPrice: number;
+  percentITM: number;
+  classification: PositionClassification;
+  optionType: 'PUT' | 'CALL';
+  expiration?: string;
+  quantity: number;
+  // Drill-down details
+  premiumCollected: number;       // premium received when position was opened (per share)
+  currentOptionValue: number;     // current mark price of the option (per share)
+  optionPnL: number;              // P&L on the option leg (positive = profit)
+  breakEvenPrice: number;         // price at which position breaks even
+  // WTR: Weeks to Recovery via CC premium harvesting
+  estimatedWeeklyPremium?: number; // estimated weekly CC premium per share
+  weeksToRecovery?: number;        // estimated weeks to recover unrealized loss via CC premiums
+  wtrBasis?: string;               // explanation of WTR calculation
+}
+
+interface UnderwaterSpread extends UnderwaterPositionBase {
+  classification: 'Spread';
+  spreadWidth: number;
+  maxLoss: number;
+  longLegStrike: number;
+  longLegPremium: number;  // what was paid for the long leg
+}
+
+interface UnderwaterCoveredCall extends UnderwaterPositionBase {
+  classification: 'Covered Call';
+  coveringShares: number;
+  stockCostBasis: number;     // average open price of the stock
+  stockMarketValue: number;   // current market value of covering shares
+  stockPnL: number;           // unrealized P&L on the stock
+  combinedPnL: number;        // stock P&L + option P&L
+}
+
+interface UnderwaterCSP extends UnderwaterPositionBase {
+  classification: 'Cash-Secured Put';
+  collateralRequired: number;
+  maxLoss: number;
+}
+
+interface UnderwaterNaked extends UnderwaterPositionBase {
+  classification: 'Naked';
+  maxLoss?: number;  // undefined for naked calls (unlimited)
+}
+
+type UnderwaterPosition = UnderwaterSpread | UnderwaterCoveredCall | UnderwaterCSP | UnderwaterNaked;
+
+// ─── Helper: estimate weekly CC premium for WTR calculation ─────────────────
+
+function estimateWeeklyPremium(
+  currentOptionPrice: number,
+  daysToExpiration: number,
+): number {
+  // Annualize the current option premium and convert to weekly
+  // If option has DTE, weekly premium ≈ currentPrice / (DTE / 7)
+  if (daysToExpiration <= 0) return currentOptionPrice; // already expired, use full premium
+  const weeksToExp = daysToExpiration / 7;
+  if (weeksToExp <= 0) return currentOptionPrice;
+  return currentOptionPrice / weeksToExp;
+}
+
+function getDaysToExpiration(expiration?: string): number {
+  if (!expiration) return 30; // default assumption
+  const expDate = new Date(expiration + 'T16:00:00Z'); // market close
+  const now = new Date();
+  const diffMs = expDate.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+}
+
+// ─── Helper: detect underwater positions (enriched with drill-down + WTR) ───
 
 function detectUnderwaterPositions(
   spreads: SpreadPair[],
@@ -418,47 +492,133 @@ function detectUnderwaterPositions(
   cashSecuredPuts: CashSecuredPutPosition[],
   nakedPositions: NakedPosition[],
   quoteMap: Map<string, number>,
-): Array<{
-  ticker: string;
-  strike: number;
-  currentPrice: number;
-  percentITM: number;
-  classification: PositionClassification;
-  spreadWidth?: number;
-  maxLoss?: number;
-  optionType: 'PUT' | 'CALL';
-}> {
-  const underwater: Array<{
-    ticker: string;
-    strike: number;
-    currentPrice: number;
-    percentITM: number;
-    classification: PositionClassification;
-    spreadWidth?: number;
-    maxLoss?: number;
-    optionType: 'PUT' | 'CALL';
-  }> = [];
+  equities: ParsedPosition[],
+): UnderwaterPosition[] {
+  const underwater: UnderwaterPosition[] = [];
 
-  // Check cash-secured puts (underwater = underlying below strike)
+  // Build equity lookup: accountNumber|underlying → { costBasis, quantity, marketValue }
+  const equityLookup = new Map<string, { costBasis: number; quantity: number; currentPrice: number }>();
+  for (const eq of equities) {
+    if (eq.direction === 'long') {
+      const key = `${eq.accountNumber}|${eq.underlyingSymbol}`;
+      const existing = equityLookup.get(key);
+      const price = quoteMap.get(eq.underlyingSymbol) || eq.closePrice;
+      if (existing) {
+        // Weighted average cost basis
+        const totalQty = existing.quantity + eq.quantity;
+        const weightedCost = (existing.costBasis * existing.quantity + eq.averageOpenPrice * eq.quantity) / totalQty;
+        equityLookup.set(key, { costBasis: weightedCost, quantity: totalQty, currentPrice: price });
+      } else {
+        equityLookup.set(key, { costBasis: eq.averageOpenPrice, quantity: eq.quantity, currentPrice: price });
+      }
+    }
+  }
+
+  // Helper to build common fields for any short option position
+  function buildBase(
+    pos: ParsedPosition,
+    currentPrice: number,
+    strike: number,
+    percentITM: number,
+    classification: PositionClassification,
+    optionType: 'PUT' | 'CALL',
+  ): UnderwaterPositionBase {
+    const premiumCollected = pos.averageOpenPrice;  // premium received when sold (per share)
+    const currentOptionValue = pos.closePrice;       // current mark price (per share)
+    const optionPnL = (premiumCollected - currentOptionValue) * pos.quantity * 100; // positive = profit
+    const dte = getDaysToExpiration(pos.expiration);
+    const weeklyPremium = estimateWeeklyPremium(currentOptionValue, dte);
+
+    // Break-even for short put = strike - premium; for short call = strike + premium
+    const breakEvenPrice = optionType === 'PUT'
+      ? strike - premiumCollected
+      : strike + premiumCollected;
+
+    return {
+      ticker: pos.underlyingSymbol,
+      strike,
+      currentPrice,
+      percentITM,
+      classification,
+      optionType,
+      expiration: pos.expiration,
+      quantity: pos.quantity,
+      premiumCollected,
+      currentOptionValue,
+      optionPnL,
+      breakEvenPrice,
+      estimatedWeeklyPremium: weeklyPremium,
+    };
+  }
+
+  // Helper to compute WTR for covered call positions
+  // WTR = unrealized stock loss / estimated weekly CC premium
+  // "How many weeks of selling CCs to recover the stock's unrealized loss?"
+  function computeWTR(
+    stockCostBasis: number,
+    currentStockPrice: number,
+    weeklyPremiumPerShare: number,
+    sharesPerContract: number,
+    contracts: number,
+  ): { weeksToRecovery: number | undefined; wtrBasis: string } {
+    const unrealizedLossPerShare = stockCostBasis - currentStockPrice;
+    if (unrealizedLossPerShare <= 0) {
+      return { weeksToRecovery: 0, wtrBasis: 'Stock is at or above cost basis — no recovery needed' };
+    }
+    if (weeklyPremiumPerShare <= 0) {
+      return { weeksToRecovery: undefined, wtrBasis: 'Cannot estimate — no premium data available' };
+    }
+    // Total loss across all covering shares
+    const totalLoss = unrealizedLossPerShare * sharesPerContract * contracts;
+    // Weekly premium across all contracts
+    const totalWeeklyPremium = weeklyPremiumPerShare * sharesPerContract * contracts;
+    const weeks = totalLoss / totalWeeklyPremium;
+    return {
+      weeksToRecovery: Math.round(weeks * 10) / 10,
+      wtrBasis: `$${unrealizedLossPerShare.toFixed(2)}/share loss ÷ $${weeklyPremiumPerShare.toFixed(2)}/share/week CC premium`,
+    };
+  }
+
+  // ── Cash-Secured Puts (underwater = underlying below strike) ──
   for (const csp of cashSecuredPuts) {
     const ticker = csp.shortPut.underlyingSymbol;
     const currentPrice = quoteMap.get(ticker);
     if (!currentPrice) continue;
     const strike = csp.shortPut.strike || 0;
     if (currentPrice < strike) {
+      const base = buildBase(csp.shortPut, currentPrice, strike,
+        ((strike - currentPrice) / strike) * 100, 'Cash-Secured Put', 'PUT');
+      const collateral = strike * 100 * csp.shortPut.quantity;
+      // WTR for CSP: if assigned, how many weeks of CC premium to recover?
+      // Unrealized loss if assigned = (strike - currentPrice) per share, minus premium collected
+      const assignmentLossPerShare = (strike - currentPrice) - csp.shortPut.averageOpenPrice;
+      let wtrData: { weeksToRecovery?: number; wtrBasis: string };
+      if (assignmentLossPerShare <= 0) {
+        wtrData = { weeksToRecovery: 0, wtrBasis: 'Premium collected exceeds ITM amount — no recovery needed if assigned' };
+      } else {
+        const weeklyPremium = base.estimatedWeeklyPremium || 0;
+        if (weeklyPremium > 0) {
+          const weeks = assignmentLossPerShare / weeklyPremium;
+          wtrData = {
+            weeksToRecovery: Math.round(weeks * 10) / 10,
+            wtrBasis: `$${assignmentLossPerShare.toFixed(2)}/share net loss if assigned ÷ $${weeklyPremium.toFixed(2)}/share/week est. CC premium`,
+          };
+        } else {
+          wtrData = { weeksToRecovery: undefined, wtrBasis: 'Cannot estimate — no premium data' };
+        }
+      }
       underwater.push({
-        ticker,
-        strike,
-        currentPrice,
-        percentITM: ((strike - currentPrice) / strike) * 100,
+        ...base,
         classification: 'Cash-Secured Put',
-        maxLoss: strike * 100 * csp.shortPut.quantity,
-        optionType: 'PUT',
-      });
+        collateralRequired: collateral,
+        maxLoss: collateral,
+        weeksToRecovery: wtrData.weeksToRecovery,
+        wtrBasis: wtrData.wtrBasis,
+      } as UnderwaterCSP);
     }
   }
 
-  // Check naked puts
+  // ── Naked Puts ──
   for (const np of nakedPositions) {
     if (np.position.optionType !== 'PUT') continue;
     const ticker = np.position.underlyingSymbol;
@@ -466,18 +626,17 @@ function detectUnderwaterPositions(
     if (!currentPrice) continue;
     const strike = np.position.strike || 0;
     if (currentPrice < strike) {
+      const base = buildBase(np.position, currentPrice, strike,
+        ((strike - currentPrice) / strike) * 100, 'Naked', 'PUT');
       underwater.push({
-        ticker,
-        strike,
-        currentPrice,
-        percentITM: ((strike - currentPrice) / strike) * 100,
+        ...base,
         classification: 'Naked',
-        optionType: 'PUT',
-      });
+        maxLoss: strike * 100 * np.position.quantity,
+      } as UnderwaterNaked);
     }
   }
 
-  // Check spread short legs (put spreads where underlying < short strike)
+  // ── Put Spreads (underlying < short strike) ──
   for (const sp of spreads) {
     if (sp.shortLeg.optionType !== 'PUT') continue;
     const ticker = sp.shortLeg.underlyingSymbol;
@@ -485,38 +644,57 @@ function detectUnderwaterPositions(
     if (!currentPrice) continue;
     const shortStrike = sp.shortLeg.strike || 0;
     if (currentPrice < shortStrike) {
+      const base = buildBase(sp.shortLeg, currentPrice, shortStrike,
+        ((shortStrike - currentPrice) / shortStrike) * 100, 'Spread', 'PUT');
       underwater.push({
-        ticker,
-        strike: shortStrike,
-        currentPrice,
-        percentITM: ((shortStrike - currentPrice) / shortStrike) * 100,
+        ...base,
         classification: 'Spread',
         spreadWidth: sp.spreadWidth,
         maxLoss: sp.capitalAtRisk,
-        optionType: 'PUT',
-      });
+        longLegStrike: sp.longLeg.strike || 0,
+        longLegPremium: sp.longLeg.averageOpenPrice,
+      } as UnderwaterSpread);
     }
   }
 
-  // Check covered calls (underwater = underlying above strike, meaning shares may be called away)
+  // ── Covered Calls (underwater = underlying above strike, shares may be called away) ──
   for (const cc of coveredCalls) {
     const ticker = cc.shortCall.underlyingSymbol;
     const currentPrice = quoteMap.get(ticker);
     if (!currentPrice) continue;
     const strike = cc.shortCall.strike || 0;
     if (currentPrice > strike) {
+      const base = buildBase(cc.shortCall, currentPrice, strike,
+        ((currentPrice - strike) / strike) * 100, 'Covered Call', 'CALL');
+      // Look up covering stock details
+      const stockKey = `${cc.shortCall.accountNumber}|${ticker}`;
+      const stockInfo = equityLookup.get(stockKey);
+      const stockCostBasis = stockInfo?.costBasis || 0;
+      const coveringShares = cc.coveringShares;
+      const stockMarketValue = currentPrice * coveringShares;
+      const stockPnL = (currentPrice - stockCostBasis) * coveringShares;
+      const optionPnLTotal = base.optionPnL;
+      const combinedPnL = stockPnL + optionPnLTotal;
+
+      // WTR: weeks of CC premium to recover stock unrealized loss
+      const weeklyPremium = base.estimatedWeeklyPremium || 0;
+      const wtrData = computeWTR(stockCostBasis, currentPrice, weeklyPremium, 100, cc.shortCall.quantity);
+
       underwater.push({
-        ticker,
-        strike,
-        currentPrice,
-        percentITM: ((currentPrice - strike) / strike) * 100,
+        ...base,
         classification: 'Covered Call',
-        optionType: 'CALL',
-      });
+        coveringShares,
+        stockCostBasis,
+        stockMarketValue,
+        stockPnL,
+        combinedPnL,
+        weeksToRecovery: wtrData.weeksToRecovery,
+        wtrBasis: wtrData.wtrBasis,
+      } as UnderwaterCoveredCall);
     }
   }
 
-  // Check naked calls (underwater = underlying above strike)
+  // ── Naked Calls (underlying above strike) ──
   for (const np of nakedPositions) {
     if (np.position.optionType !== 'CALL') continue;
     const ticker = np.position.underlyingSymbol;
@@ -524,18 +702,17 @@ function detectUnderwaterPositions(
     if (!currentPrice) continue;
     const strike = np.position.strike || 0;
     if (currentPrice > strike) {
+      const base = buildBase(np.position, currentPrice, strike,
+        ((currentPrice - strike) / strike) * 100, 'Naked', 'CALL');
       underwater.push({
-        ticker,
-        strike,
-        currentPrice,
-        percentITM: ((currentPrice - strike) / strike) * 100,
+        ...base,
         classification: 'Naked',
-        optionType: 'CALL',
-      });
+        // Naked call max loss is theoretically unlimited
+      } as UnderwaterNaked);
     }
   }
 
-  // Check bear call spread short legs
+  // ── Bear Call Spreads (underlying above short strike) ──
   for (const sp of spreads) {
     if (sp.shortLeg.optionType !== 'CALL') continue;
     const ticker = sp.shortLeg.underlyingSymbol;
@@ -543,16 +720,16 @@ function detectUnderwaterPositions(
     if (!currentPrice) continue;
     const shortStrike = sp.shortLeg.strike || 0;
     if (currentPrice > shortStrike) {
+      const base = buildBase(sp.shortLeg, currentPrice, shortStrike,
+        ((currentPrice - shortStrike) / shortStrike) * 100, 'Spread', 'CALL');
       underwater.push({
-        ticker,
-        strike: shortStrike,
-        currentPrice,
-        percentITM: ((currentPrice - shortStrike) / shortStrike) * 100,
+        ...base,
         classification: 'Spread',
         spreadWidth: sp.spreadWidth,
         maxLoss: sp.capitalAtRisk,
-        optionType: 'CALL',
-      });
+        longLegStrike: sp.longLeg.strike || 0,
+        longLegPremium: sp.longLeg.averageOpenPrice,
+      } as UnderwaterSpread);
     }
   }
 
@@ -712,7 +889,7 @@ export const portfolioAdvisorRouter = router({
         .slice(0, 5);
 
       // Underwater detection
-      const underwaterList = detectUnderwaterPositions(spreads, coveredCalls, cashSecuredPuts, nakedPositions, quoteMap);
+      const underwaterList = detectUnderwaterPositions(spreads, coveredCalls, cashSecuredPuts, nakedPositions, quoteMap, equities);
 
       // Diversification score
       const tickerCount = new Set(tickerExposure.keys()).size;
@@ -798,7 +975,7 @@ export const portfolioAdvisorRouter = router({
         .sort((a, b) => b.capitalAtRisk - a.capitalAtRisk);
 
       // Underwater positions
-      const underwaterPositions = detectUnderwaterPositions(spreads, coveredCalls, cashSecuredPuts, nakedPositions, quoteMap);
+      const underwaterPositions = detectUnderwaterPositions(spreads, coveredCalls, cashSecuredPuts, nakedPositions, quoteMap, equities);
 
       // Portfolio delta
       let totalDelta = 0;

@@ -5,12 +5,12 @@
  * (Covered Call, Cash-Secured Put, Spread, Naked), accurate underwater detection
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
   ArrowLeft, AlertTriangle, TrendingUp, TrendingDown, Target, PieChart,
-  Loader2, DollarSign, Gauge, Shield, BarChart3, Layers,
+  Loader2, DollarSign, Gauge, Shield, BarChart3, Layers, ChevronDown, ChevronRight, Clock,
 } from 'lucide-react';
 import { Link } from 'wouter';
 import { trpc } from '@/lib/trpc';
@@ -60,6 +60,434 @@ function ClassificationBadge({ classification, spreadWidth, optionType }: {
         </span>
       );
   }
+}
+
+/** Format a dollar amount with sign */
+const formatPnL = (val: number) => {
+  const sign = val >= 0 ? '+' : '';
+  if (Math.abs(val) >= 1_000_000) return `${sign}$${(val / 1_000_000).toFixed(2)}M`;
+  if (Math.abs(val) >= 1_000) return `${sign}$${(val / 1_000).toFixed(1)}K`;
+  return `${sign}$${val.toFixed(0)}`;
+};
+
+/** WTR badge with color coding */
+function WTRBadge({ weeks, basis }: { weeks?: number; basis?: string }) {
+  if (weeks === undefined || weeks === null) {
+    return (
+      <span className="text-xs text-muted-foreground italic" title={basis || ''}>
+        N/A
+      </span>
+    );
+  }
+  if (weeks === 0) {
+    return (
+      <span className="text-xs text-green-500 font-medium" title={basis || ''}>
+        No recovery needed
+      </span>
+    );
+  }
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 text-xs font-medium",
+        weeks <= 4 && 'text-green-500',
+        weeks > 4 && weeks <= 12 && 'text-yellow-500',
+        weeks > 12 && weeks <= 26 && 'text-orange-500',
+        weeks > 26 && 'text-red-500',
+      )}
+      title={basis || ''}
+    >
+      <Clock className="h-3 w-3" />
+      {weeks.toFixed(1)} wks
+    </span>
+  );
+}
+
+/** Detail panel for Covered Call positions */
+function CoveredCallDetail({ pos }: { pos: any }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Covering Stock</p>
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Shares</span>
+            <span className="font-medium">{pos.coveringShares}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Cost Basis</span>
+            <span className="font-medium">${pos.stockCostBasis?.toFixed(2) || '—'}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Market Value</span>
+            <span className="font-medium">{pos.stockMarketValue ? formatCurrency(pos.stockMarketValue) : '—'}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Stock P&L</span>
+            <span className={cn("font-medium", (pos.stockPnL || 0) >= 0 ? 'text-green-500' : 'text-red-500')}>
+              {pos.stockPnL !== undefined ? formatPnL(pos.stockPnL) : '—'}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Option Leg</p>
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Contracts</span>
+            <span className="font-medium">{pos.quantity}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Premium Collected</span>
+            <span className="font-medium">${pos.premiumCollected?.toFixed(2) || '—'}/sh</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Current Value</span>
+            <span className="font-medium">${pos.currentOptionValue?.toFixed(2) || '—'}/sh</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Option P&L</span>
+            <span className={cn("font-medium", (pos.optionPnL || 0) >= 0 ? 'text-green-500' : 'text-red-500')}>
+              {pos.optionPnL !== undefined ? formatPnL(pos.optionPnL) : '—'}
+            </span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Expiration</span>
+            <span className="font-medium">{pos.expiration || '—'}</span>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Combined Position</p>
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Combined P&L</span>
+            <span className={cn("font-bold", (pos.combinedPnL || 0) >= 0 ? 'text-green-500' : 'text-red-500')}>
+              {pos.combinedPnL !== undefined ? formatPnL(pos.combinedPnL) : '—'}
+            </span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Break-Even</span>
+            <span className="font-medium">${pos.breakEvenPrice?.toFixed(2) || '—'}</span>
+          </div>
+          <div className="flex justify-between text-sm border-t border-border/20 pt-2 mt-2">
+            <span className="text-muted-foreground font-medium">WTR (CC Premium)</span>
+            <WTRBadge weeks={pos.weeksToRecovery} basis={pos.wtrBasis} />
+          </div>
+          {pos.wtrBasis && (
+            <p className="text-xs text-muted-foreground italic mt-1">{pos.wtrBasis}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Detail panel for Spread positions */
+function SpreadDetail({ pos }: { pos: any }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Short Leg</p>
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Strike</span>
+            <span className="font-medium">${pos.strike.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Premium Collected</span>
+            <span className="font-medium">${pos.premiumCollected?.toFixed(2) || '—'}/sh</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Current Value</span>
+            <span className="font-medium">${pos.currentOptionValue?.toFixed(2) || '—'}/sh</span>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Long Leg</p>
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Strike</span>
+            <span className="font-medium">${pos.longLegStrike?.toFixed(2) || '—'}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Premium Paid</span>
+            <span className="font-medium">${pos.longLegPremium?.toFixed(2) || '—'}/sh</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Spread Width</span>
+            <span className="font-medium">${pos.spreadWidth?.toFixed(2) || '—'}</span>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Position Summary</p>
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Contracts</span>
+            <span className="font-medium">{pos.quantity}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Max Loss</span>
+            <span className="font-bold text-red-500">{pos.maxLoss ? formatCurrency(pos.maxLoss) : '—'}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Option P&L</span>
+            <span className={cn("font-medium", (pos.optionPnL || 0) >= 0 ? 'text-green-500' : 'text-red-500')}>
+              {pos.optionPnL !== undefined ? formatPnL(pos.optionPnL) : '—'}
+            </span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Break-Even</span>
+            <span className="font-medium">${pos.breakEvenPrice?.toFixed(2) || '—'}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Expiration</span>
+            <span className="font-medium">{pos.expiration || '—'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Detail panel for Cash-Secured Put positions */
+function CSPDetail({ pos }: { pos: any }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Position Details</p>
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Contracts</span>
+            <span className="font-medium">{pos.quantity}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Premium Collected</span>
+            <span className="font-medium">${pos.premiumCollected?.toFixed(2) || '—'}/sh</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Current Value</span>
+            <span className="font-medium">${pos.currentOptionValue?.toFixed(2) || '—'}/sh</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Expiration</span>
+            <span className="font-medium">{pos.expiration || '—'}</span>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Risk Profile</p>
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Collateral Required</span>
+            <span className="font-medium">{pos.collateralRequired ? formatCurrency(pos.collateralRequired) : '—'}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Max Loss</span>
+            <span className="font-bold text-red-500">{pos.maxLoss ? formatCurrency(pos.maxLoss) : '—'}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Break-Even</span>
+            <span className="font-medium">${pos.breakEvenPrice?.toFixed(2) || '—'}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Option P&L</span>
+            <span className={cn("font-medium", (pos.optionPnL || 0) >= 0 ? 'text-green-500' : 'text-red-500')}>
+              {pos.optionPnL !== undefined ? formatPnL(pos.optionPnL) : '—'}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">WTR (If Assigned)</p>
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Est. Weekly CC Premium</span>
+            <span className="font-medium">${pos.estimatedWeeklyPremium?.toFixed(2) || '—'}/sh</span>
+          </div>
+          <div className="flex justify-between text-sm border-t border-border/20 pt-2 mt-2">
+            <span className="text-muted-foreground font-medium">Weeks to Recovery</span>
+            <WTRBadge weeks={pos.weeksToRecovery} basis={pos.wtrBasis} />
+          </div>
+          {pos.wtrBasis && (
+            <p className="text-xs text-muted-foreground italic mt-1">{pos.wtrBasis}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Detail panel for Naked positions */
+function NakedDetail({ pos }: { pos: any }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Position Details</p>
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Contracts</span>
+            <span className="font-medium">{pos.quantity}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Premium Collected</span>
+            <span className="font-medium">${pos.premiumCollected?.toFixed(2) || '—'}/sh</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Current Value</span>
+            <span className="font-medium">${pos.currentOptionValue?.toFixed(2) || '—'}/sh</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Break-Even</span>
+            <span className="font-medium">${pos.breakEvenPrice?.toFixed(2) || '—'}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Expiration</span>
+            <span className="font-medium">{pos.expiration || '—'}</span>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-red-500 uppercase tracking-wide">Risk Warning</p>
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Max Loss</span>
+            <span className="font-bold text-red-500">
+              {pos.maxLoss ? formatCurrency(pos.maxLoss) : 'Unlimited'}
+            </span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Option P&L</span>
+            <span className={cn("font-medium", (pos.optionPnL || 0) >= 0 ? 'text-green-500' : 'text-red-500')}>
+              {pos.optionPnL !== undefined ? formatPnL(pos.optionPnL) : '—'}
+            </span>
+          </div>
+          <p className="text-xs text-red-400 mt-2 p-2 bg-red-500/5 rounded border border-red-500/10">
+            This position has no protective leg or stock coverage. Consider adding a long option to limit risk, or closing the position.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Expandable underwater positions table */
+function UnderwaterPositionsCard({ positions }: { positions: any[] }) {
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+
+  const toggleRow = (idx: number) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  return (
+    <Card className="mt-6 backdrop-blur-sm bg-card/80">
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <TrendingDown className="h-5 w-5 text-orange-500" />
+          <CardTitle>Underwater Positions</CardTitle>
+        </div>
+        <CardDescription>
+          Short options where underlying has moved past the strike (ITM). Click any row for details.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {positions.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/30">
+                  <th className="text-left py-2 pr-2 w-8"></th>
+                  <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Ticker</th>
+                  <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Type</th>
+                  <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Side</th>
+                  <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Strike</th>
+                  <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Current</th>
+                  <th className="text-right py-2 pr-4 font-medium text-muted-foreground">% ITM</th>
+                  <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Max Loss</th>
+                  <th className="text-right py-2 font-medium text-muted-foreground">WTR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {positions.map((pos: any, idx: number) => {
+                  const isExpanded = expandedRows.has(idx);
+                  return (
+                    <React.Fragment key={`${pos.ticker}-${pos.strike}-${idx}`}>
+                      <tr
+                        className={cn(
+                          "border-b border-border/10 cursor-pointer transition-colors hover:bg-muted/30",
+                          isExpanded && 'bg-muted/20'
+                        )}
+                        onClick={() => toggleRow(idx)}
+                      >
+                        <td className="py-2 pr-2">
+                          {isExpanded
+                            ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                        </td>
+                        <td className="py-2 pr-4 font-medium">{pos.ticker}</td>
+                        <td className="py-2 pr-4">
+                          <ClassificationBadge
+                            classification={pos.classification}
+                            spreadWidth={pos.spreadWidth}
+                            optionType={pos.optionType}
+                          />
+                        </td>
+                        <td className="py-2 pr-4 text-xs text-muted-foreground">
+                          {pos.optionType === 'PUT' ? 'Short Put' : 'Short Call'}
+                        </td>
+                        <td className="py-2 pr-4 text-right">${pos.strike.toFixed(2)}</td>
+                        <td className="py-2 pr-4 text-right">${pos.currentPrice.toFixed(2)}</td>
+                        <td className="py-2 pr-4 text-right">
+                          <span className={cn(
+                            "font-bold",
+                            pos.percentITM >= 10 && 'text-red-500',
+                            pos.percentITM >= 5 && pos.percentITM < 10 && 'text-orange-500',
+                            pos.percentITM < 5 && 'text-yellow-500',
+                          )}>
+                            -{pos.percentITM.toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="py-2 pr-4 text-right">
+                          {pos.maxLoss ? formatCurrency(pos.maxLoss) : '\u2014'}
+                        </td>
+                        <td className="py-2 text-right">
+                          <WTRBadge weeks={pos.weeksToRecovery} basis={pos.wtrBasis} />
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={9} className="p-0">
+                            <div className="px-6 py-4 bg-muted/10 border-b border-border/20">
+                              {pos.classification === 'Covered Call' && <CoveredCallDetail pos={pos} />}
+                              {pos.classification === 'Spread' && <SpreadDetail pos={pos} />}
+                              {pos.classification === 'Cash-Secured Put' && <CSPDetail pos={pos} />}
+                              {pos.classification === 'Naked' && <NakedDetail pos={pos} />}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-green-500 py-4">
+            <span className="text-lg">✅</span>
+            <span className="font-medium">All short options are OTM — no underwater positions</span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function PortfolioAdvisor() {
@@ -389,72 +817,8 @@ export default function PortfolioAdvisor() {
             </Card>
           </div>
 
-          {/* Underwater Positions Card */}
-          <Card className="mt-6 backdrop-blur-sm bg-card/80">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <TrendingDown className="h-5 w-5 text-orange-500" />
-                <CardTitle>Underwater Positions</CardTitle>
-              </div>
-              <CardDescription>Short options where underlying has moved past the strike (ITM)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {data.currentPositions.underwaterPositions.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border/30">
-                        <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Ticker</th>
-                        <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Type</th>
-                        <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Side</th>
-                        <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Strike</th>
-                        <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Current</th>
-                        <th className="text-right py-2 pr-4 font-medium text-muted-foreground">% ITM</th>
-                        <th className="text-right py-2 font-medium text-muted-foreground">Max Loss</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.currentPositions.underwaterPositions.map((pos: any, idx: number) => (
-                        <tr key={`${pos.ticker}-${pos.strike}-${idx}`} className="border-b border-border/10">
-                          <td className="py-2 pr-4 font-medium">{pos.ticker}</td>
-                          <td className="py-2 pr-4">
-                            <ClassificationBadge
-                              classification={pos.classification}
-                              spreadWidth={pos.spreadWidth}
-                              optionType={pos.optionType}
-                            />
-                          </td>
-                          <td className="py-2 pr-4 text-xs text-muted-foreground">
-                            {pos.optionType === 'PUT' ? 'Short Put' : 'Short Call'}
-                          </td>
-                          <td className="py-2 pr-4 text-right">${pos.strike.toFixed(2)}</td>
-                          <td className="py-2 pr-4 text-right">${pos.currentPrice.toFixed(2)}</td>
-                          <td className="py-2 pr-4 text-right">
-                            <span className={cn(
-                              "font-bold",
-                              pos.percentITM >= 10 && 'text-red-500',
-                              pos.percentITM >= 5 && pos.percentITM < 10 && 'text-orange-500',
-                              pos.percentITM < 5 && 'text-yellow-500',
-                            )}>
-                              -{pos.percentITM.toFixed(1)}%
-                            </span>
-                          </td>
-                          <td className="py-2 text-right">
-                            {pos.maxLoss ? formatCurrency(pos.maxLoss) : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-green-500 py-4">
-                  <span className="text-lg">✅</span>
-                  <span className="font-medium">All short options are OTM — no underwater positions</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Underwater Positions Card — with expandable drill-down */}
+          <UnderwaterPositionsCard positions={data.currentPositions.underwaterPositions} />
 
           {/* Portfolio Delta Card */}
           <Card className="mt-6 backdrop-blur-sm bg-card/80">

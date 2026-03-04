@@ -7180,3 +7180,14 @@
 - [x] Fix: Updated risk score to include naked count as a factor
 - [x] Fix: Updated 49 unit tests to cover all new classification logic
 - [x] Add expiration date column to underwater positions table
+
+## Position Detail Drill-Down (Mar 4, 2026)
+- [x] Extend backend underwater positions to include covering stock details (qty, cost basis, current price, P&L)
+- [x] Extend backend to include spread leg details for spread-type underwater positions
+- [x] Build expandable row UI in underwater positions table
+- [x] Show covering stock info for Covered Calls (shares, cost basis, market value, net P&L)
+- [x] Show spread leg info for Spreads (long leg strike, premium, max loss)
+- [x] Show collateral requirement for Cash-Secured Puts
+- [x] Show risk warning for truly Naked positions
+- [x] Add estimated WTR (Win-to-Risk) metric to each underwater position drill-down (renamed to Weeks to Recovery)
+- [x] Add estimated WTR (Weeks to Recovery) metric — based on CC premium harvesting rate

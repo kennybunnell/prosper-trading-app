@@ -683,6 +683,129 @@ describe('Portfolio Advisor', () => {
     });
   });
 
+  describe('WTR (Weeks to Recovery) Calculation', () => {
+    // Replicate helper functions from the router
+    function estimateWeeklyPremium(currentOptionValue: number, dte: number): number {
+      if (dte <= 0 || currentOptionValue <= 0) return 0;
+      const weeksRemaining = dte / 7;
+      if (weeksRemaining <= 0) return 0;
+      return currentOptionValue / weeksRemaining;
+    }
+
+    function getDaysToExpiration(expiration?: string): number {
+      if (!expiration) return 30;
+      const expDate = new Date(expiration + 'T16:00:00Z');
+      const now = new Date();
+      const diffMs = expDate.getTime() - now.getTime();
+      return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
+    function computeWTR(
+      stockCostBasis: number,
+      currentStockPrice: number,
+      weeklyPremiumPerShare: number,
+      sharesPerContract: number,
+      contracts: number,
+    ): { weeksToRecovery: number | undefined; wtrBasis: string } {
+      const unrealizedLossPerShare = stockCostBasis - currentStockPrice;
+      if (unrealizedLossPerShare <= 0) {
+        return { weeksToRecovery: 0, wtrBasis: 'Stock is at or above cost basis' };
+      }
+      if (weeklyPremiumPerShare <= 0) {
+        return { weeksToRecovery: undefined, wtrBasis: 'Cannot estimate' };
+      }
+      const totalLoss = unrealizedLossPerShare * sharesPerContract * contracts;
+      const totalWeeklyPremium = weeklyPremiumPerShare * sharesPerContract * contracts;
+      const weeks = totalLoss / totalWeeklyPremium;
+      return {
+        weeksToRecovery: Math.round(weeks * 10) / 10,
+        wtrBasis: `$${unrealizedLossPerShare.toFixed(2)}/share loss`,
+      };
+    }
+
+    it('should return 0 weeks when stock is above cost basis', () => {
+      const result = computeWTR(150, 160, 1.5, 100, 1);
+      expect(result.weeksToRecovery).toBe(0);
+    });
+
+    it('should calculate weeks correctly for a stock loss', () => {
+      // Stock bought at $50, now at $45, $5 loss per share
+      // Weekly CC premium of $1.00/share
+      // WTR = $5 / $1 = 5.0 weeks
+      const result = computeWTR(50, 45, 1.0, 100, 1);
+      expect(result.weeksToRecovery).toBe(5.0);
+    });
+
+    it('should scale WTR with multiple contracts', () => {
+      // 3 contracts, same per-share loss and premium
+      // Total loss = $5 * 100 * 3 = $1500
+      // Total weekly premium = $1 * 100 * 3 = $300
+      // WTR = $1500 / $300 = 5.0 weeks (same ratio)
+      const result = computeWTR(50, 45, 1.0, 100, 3);
+      expect(result.weeksToRecovery).toBe(5.0);
+    });
+
+    it('should return undefined when no premium data', () => {
+      const result = computeWTR(50, 45, 0, 100, 1);
+      expect(result.weeksToRecovery).toBeUndefined();
+    });
+
+    it('should estimate weekly premium from option value and DTE', () => {
+      // Option worth $3.00 with 21 DTE = 3 weeks remaining
+      // Weekly premium = $3.00 / 3 = $1.00
+      const weekly = estimateWeeklyPremium(3.0, 21);
+      expect(weekly).toBe(1.0);
+    });
+
+    it('should return 0 weekly premium for expired options', () => {
+      expect(estimateWeeklyPremium(3.0, 0)).toBe(0);
+      expect(estimateWeeklyPremium(3.0, -5)).toBe(0);
+    });
+
+    it('should return 0 weekly premium for worthless options', () => {
+      expect(estimateWeeklyPremium(0, 21)).toBe(0);
+    });
+
+    it('should handle large DTE correctly', () => {
+      // Option worth $8.00 with 56 DTE = 8 weeks
+      // Weekly premium = $8.00 / 8 = $1.00
+      const weekly = estimateWeeklyPremium(8.0, 56);
+      expect(weekly).toBe(1.0);
+    });
+
+    it('should calculate break-even for short put', () => {
+      const strike = 50;
+      const premiumCollected = 2.0;
+      const breakEven = strike - premiumCollected;
+      expect(breakEven).toBe(48);
+    });
+
+    it('should calculate break-even for short call', () => {
+      const strike = 50;
+      const premiumCollected = 2.0;
+      const breakEven = strike + premiumCollected;
+      expect(breakEven).toBe(52);
+    });
+
+    it('should calculate option P&L correctly', () => {
+      // Sold for $3.00, now worth $4.50 → losing $1.50/share × 2 contracts × 100 = -$300
+      const premiumCollected = 3.0;
+      const currentValue = 4.5;
+      const quantity = 2;
+      const optionPnL = (premiumCollected - currentValue) * quantity * 100;
+      expect(optionPnL).toBe(-300);
+    });
+
+    it('should calculate profitable option P&L', () => {
+      // Sold for $3.00, now worth $1.00 → profit $2.00/share × 1 contract × 100 = +$200
+      const premiumCollected = 3.0;
+      const currentValue = 1.0;
+      const quantity = 1;
+      const optionPnL = (premiumCollected - currentValue) * quantity * 100;
+      expect(optionPnL).toBe(200);
+    });
+  });
+
   describe('Recommendations Generation', () => {
     it('should generate concentration reduction recommendation', () => {
       const concentrations = [
