@@ -969,7 +969,7 @@ export function UnifiedOrderPreviewModal({
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-6xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {operationMode === "replace" ? "Replace Orders - Review Changes" : "Order Preview - Review and Adjust"}
@@ -1080,13 +1080,13 @@ export function UnifiedOrderPreviewModal({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-20">Symbol</TableHead>
-                  <TableHead className="w-28">Strategy</TableHead>
-                  <TableHead className="text-right w-24">Strike</TableHead>
-                  <TableHead className="w-24">Expiration</TableHead>
-                  <TableHead className="text-right w-20">Qty</TableHead>
+                  <TableHead className="w-24">Strategy</TableHead>
+                  <TableHead className="text-right w-20">Strike</TableHead>
+                  <TableHead className="w-20">Expiration</TableHead>
+                  <TableHead className="text-right w-12">Qty</TableHead>
                   <TableHead className="text-right w-28">Limit Price</TableHead>
-                  <TableHead className="w-64">Price Adjustment</TableHead>
-                  <TableHead className="text-right w-28">Total</TableHead>
+                  <TableHead className="w-52">Price Adjustment</TableHead>
+                  <TableHead className="text-right w-24">Total</TableHead>
                   <TableHead className="text-right w-28">Net Profit</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1103,7 +1103,7 @@ export function UnifiedOrderPreviewModal({
                   const longLegLiveQ = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
                   const longLegLiveBid = longLegLiveQ && longLegLiveQ.bid > 0 ? longLegLiveQ.bid : undefined;
                   const longLegCredit = isSpreadBTC
-                    ? (longLegLiveBid ?? (order.spreadLongPrice !== undefined ? order.spreadLongPrice : 0))
+                    ? (longLegLiveBid ?? order.spreadLongPrice ?? order.longPremium ?? 0)
                     : 0;
                   const netPrice = isSpreadBTC ? (price - longLegCredit) : price;
                   const totalPremium = netPrice * 100 * qty;
