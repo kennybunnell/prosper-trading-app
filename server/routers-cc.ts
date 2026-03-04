@@ -931,6 +931,24 @@ export const ccRouter = router({
       }
 
       // Live mode - submit real two-leg orders with batch processing and rate limiting
+      // ── EARNINGS BLOCK PRE-FLIGHT ────────────────────────────────────────────
+      {
+        const { TradierAPI } = await import('./tradier');
+        const { checkEarningsBlock, formatEarningsBlockMessage } = await import('./earningsBlock');
+        const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+        if (tradierKey) {
+          const tradierAPI = new TradierAPI(tradierKey);
+          const symbols = Array.from(new Set(input.orders.map((o: any) => o.symbol)));
+          const earningsResult = await checkEarningsBlock(symbols, tradierAPI);
+          if (earningsResult.blocked.length > 0) {
+            throw new Error(formatEarningsBlockMessage(earningsResult));
+          }
+          if (earningsResult.warned.length > 0) {
+            console.warn('[EarningsBlock] BCS earnings warning:', earningsResult.warned);
+          }
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
       const results: Array<{ success: boolean; symbol: string; shortStrike: number; longStrike: number; quantity: number; orderId?: string; message: string }> = [];
       const BATCH_SIZE = 10; // Process 10 orders per batch
       const BATCH_DELAY_MS = 2000; // 2 second delay between batches

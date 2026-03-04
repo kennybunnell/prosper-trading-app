@@ -116,6 +116,10 @@ async function startServer() {
     }, 10000); // Wait 10 seconds after server starts
   }
   
+  // Earnings calendar pre-flight check endpoint
+  const { earningsCheckRouter } = await import('../earningsCheckRoute');
+  app.use(earningsCheckRouter);
+
   // tRPC API
   app.use(
     "/api/trpc",

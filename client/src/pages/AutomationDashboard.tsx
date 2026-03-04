@@ -143,7 +143,9 @@ type RollAnalysis = {
   spreadDetails?: SpreadDetails;
   isLetExpire?: boolean;
   dogReason?: string | null;
-  actionLabel?: 'LET_EXPIRE' | 'CLOSE' | 'ROLL' | 'MONITOR' | 'LET_CALLED';
+  actionLabel?: 'LET_EXPIRE' | 'CLOSE' | 'ROLL' | 'MONITOR' | 'LET_CALLED' | 'STOP';
+  stopLossFlag?: boolean;
+  stopLossRatio?: number;
 };
 
 type RollCandidate = {
@@ -2109,6 +2111,9 @@ export default function AutomationDashboard() {
                                       )}
                                       {(pos as any).actionLabel === 'LET_CALLED' && (
                                         <span title={(pos as any).dogReason || 'Dog position — let stock be called away'} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 text-[10px] font-bold tracking-wide">📞 LET CALLED</span>
+                                      )}
+                                      {(pos as any).actionLabel === 'STOP' && (
+                                        <span title={`2x STOP-LOSS: Cost to close is ${(pos as any).stopLossRatio || '2'}x the original credit. Close immediately to limit losses.`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600/25 text-red-400 text-[10px] font-bold tracking-wide animate-pulse">⛔ 2X STOP</span>
                                       )}
                                       {pos.hasStaleMarks && (
                                         <span title="P&L uses yesterday's close price — live marks unavailable" className="text-[9px] text-amber-400/70 font-medium">⚠ stale</span>

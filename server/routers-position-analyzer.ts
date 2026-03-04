@@ -731,6 +731,21 @@ export const positionAnalyzerRouter = router({
         };
       }
 
+      // ── EARNINGS BLOCK PRE-FLIGHT ──────────────────────────────────────────
+      {
+        const { TradierAPI } = await import('./tradier');
+        const { checkEarningsBlock, formatEarningsBlockMessage } = await import('./earningsBlock');
+        const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+        if (tradierKey) {
+          const tradierAPI = new TradierAPI(tradierKey);
+          const earningsResult = await checkEarningsBlock([input.symbol], tradierAPI);
+          if (earningsResult.blocked.length > 0) {
+            throw new TRPCError({ code: 'PRECONDITION_FAILED', message: formatEarningsBlockMessage(earningsResult) });
+          }
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       const api = await authenticateTastytrade(credentials, ctx.user.id);
       const result = await api.submitOrder({
         accountNumber: input.accountNumber,
@@ -938,6 +953,25 @@ export const positionAnalyzerRouter = router({
       }> = [];
 
       const api = input.dryRun ? null : await authenticateTastytrade(credentials, ctx.user.id);
+
+      // ── EARNINGS BLOCK PRE-FLIGHT ──────────────────────────────────────────
+      if (!input.dryRun) {
+        const { TradierAPI } = await import('./tradier');
+        const { checkEarningsBlock, formatEarningsBlockMessage } = await import('./earningsBlock');
+        const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+        if (tradierKey) {
+          const tradierAPI = new TradierAPI(tradierKey);
+          const symbols = Array.from(new Set(input.orders.map((o: any) => o.symbol)));
+          const earningsResult = await checkEarningsBlock(symbols, tradierAPI);
+          if (earningsResult.blocked.length > 0) {
+            throw new TRPCError({ code: 'PRECONDITION_FAILED', message: formatEarningsBlockMessage(earningsResult) });
+          }
+          if (earningsResult.warned.length > 0) {
+            console.warn('[EarningsBlock] batchSellCCs earnings warning:', earningsResult.warned);
+          }
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       for (const order of input.orders) {
         try {

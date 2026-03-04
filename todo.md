@@ -7149,3 +7149,13 @@
 - [x] ITM Playbook panel updated: for spreads, Close BTC is the primary "Recommended" action; debit roll option is hidden for spreads; 2-column layout for spreads vs. 3-column for single-legs
 - [x] ROLL badge tooltip updated to clarify it only appears for single-leg (CSP/CC) positions with a viable credit roll
 - [x] Add select-all checkbox in column header for all tables with row checkboxes (Roll Positions, CSP, CC stocks, CC opportunities, Iron Condor)
+- [x] Earnings block: Bear Call Spread submitBearCallSpreadOrders (routers-cc.ts)
+- [x] Earnings block: Rolls submitRollOrders (routers-rolls.ts)
+- [x] Earnings block: Position Analyzer sellCoveredCall (routers-position-analyzer.ts)
+- [x] Earnings block: Position Analyzer batchSellCCs (routers-position-analyzer.ts)
+- [x] Earnings check REST endpoint /api/earnings-check (earningsCheckRoute.ts)
+- [x] Earnings check wired into server/_core/index.ts
+- [x] useEarningsCheck frontend hook (client/src/hooks/useEarningsCheck.ts)
+- [x] EarningsWarningBanner component (client/src/components/EarningsWarningBanner.tsx)
+- [x] 2x stop-loss detection in Roll Positions backend (routers-rolls.ts)
+- [x] 2x STOP badge in Roll Positions frontend (AutomationDashboard.tsx)

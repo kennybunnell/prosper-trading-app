@@ -458,7 +458,7 @@ export const rollsRouter = router({
         //  MONITOR     — DTE > 5 AND deep ITM (>5%) on a single-leg; watch for recovery
         //  LET_CALLED  — ITM CC on a dog underlying; let stock be called away
         const isSpreadStrategy = ['BPS', 'BCS', 'IC'].includes(spread.strategyType);
-        let actionLabel: 'LET_EXPIRE' | 'CLOSE' | 'ROLL' | 'MONITOR' | 'LET_CALLED';
+        let actionLabel: 'LET_EXPIRE' | 'CLOSE' | 'ROLL' | 'MONITOR' | 'LET_CALLED' | 'STOP';
         if (isLetExpire) {
           actionLabel = 'LET_CALLED';
         } else if (spread.dte <= 5) {
@@ -528,6 +528,23 @@ export const rollsRouter = router({
           },
         };
       });
+
+      // ── 2x STOP-LOSS FLAG ──────────────────────────────────────────────────
+      // If a position's cost-to-close >= 2x the original credit received,
+      // flag it for immediate closure regardless of other conditions.
+      for (const pos of scoredSpreads) {
+        const costToClose = Math.abs(pos.metrics.currentValue ?? 0);
+        const originalCredit = Math.abs(pos.metrics.openPremium ?? 0);
+        if (originalCredit > 0 && costToClose >= 2 * originalCredit) {
+          (pos as any).stopLossFlag = true;
+          (pos as any).stopLossRatio = +(costToClose / originalCredit).toFixed(2);
+          (pos as any).actionLabel = 'STOP';
+        } else {
+          (pos as any).stopLossFlag = false;
+          (pos as any).stopLossRatio = originalCredit > 0 ? +(costToClose / originalCredit).toFixed(2) : 0;
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       // Winners don't need to be rolled — exclude them entirely from the roll scanner.
       // A winner (green / pnlStatus === 'winner') is working as intended; leave it alone.
@@ -785,6 +802,25 @@ export const rollsRouter = router({
           }
         }
       }
+
+      // ── EARNINGS BLOCK PRE-FLIGHT ──────────────────────────────────────────
+      {
+        const { TradierAPI } = await import('./tradier');
+        const { checkEarningsBlock, formatEarningsBlockMessage } = await import('./earningsBlock');
+        const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+        if (tradierKey) {
+          const tradierAPI = new TradierAPI(tradierKey);
+          const symbols = Array.from(new Set(input.orders.map((o: any) => o.symbol)));
+          const earningsResult = await checkEarningsBlock(symbols, tradierAPI);
+          if (earningsResult.blocked.length > 0) {
+            throw new Error(formatEarningsBlockMessage(earningsResult));
+          }
+          if (earningsResult.warned.length > 0) {
+            console.warn('[EarningsBlock] Roll orders earnings warning:', earningsResult.warned);
+          }
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       for (const order of input.orders) {
         try {
