@@ -7262,3 +7262,10 @@
 - [x] Fix "Review & Submit N Orders" button counting legs instead of spread orders (2 BCS selected = 2 orders, not 4)
 - [x] Fix unselected positions from other strategy tabs (BPS META/V) appearing in batch order preview when BCS tab is active
 - [x] Ensure selectedPositions set is scoped to visible/active tab filter — cross-tab selections should not bleed into batch submit
+
+## AutomationDashboard — Remove Sell Puts Step (Mar 4, 2026)
+- [x] Remove "Sell Puts" step 4 tab from the workflow step nav bar
+- [x] Remove the Sell Puts TabsContent panel entirely
+- [x] Renumber Open Spreads from step 5 → step 4
+- [x] Renumber PMCC Mgmt from step 6 → step 5
+- [x] Update subtitle description from "six-step" to "five-step" and remove "sell puts" from the list

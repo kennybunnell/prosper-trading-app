@@ -901,7 +901,7 @@ export default function AutomationDashboard() {
         <div>
           <h1 className="text-3xl font-bold">Daily Trading Automation</h1>
           <p className="text-muted-foreground mt-1">
-            Six-step automated workflow: close, roll, sell calls, sell puts, open spreads, manage PMCCs
+            Five-step automated workflow: close, roll, sell calls, open spreads, manage PMCCs
           </p>
         </div>
         <div className="flex items-center gap-3 mt-1">
@@ -1036,9 +1036,9 @@ export default function AutomationDashboard() {
         </div>
       )}
 
-      {/* Six-Step Automation Tabs */}
+      {/* Five-Step Automation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6 h-auto">
+        <TabsList className="grid w-full grid-cols-5 h-auto">
           <TabsTrigger value="step1-close" className="relative flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">1</span>
             <span className="flex items-center gap-1">
@@ -1076,16 +1076,12 @@ export default function AutomationDashboard() {
             <span className="font-bold text-sm">3</span>
             <span>Sell Calls</span>
           </TabsTrigger>
-          <TabsTrigger value="step4-csp" className="flex flex-col gap-0.5 py-2 text-xs">
+          <TabsTrigger value="step4-spreads" className="flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">4</span>
-            <span>Sell Puts</span>
-          </TabsTrigger>
-          <TabsTrigger value="step5-spreads" className="flex flex-col gap-0.5 py-2 text-xs">
-            <span className="font-bold text-sm">5</span>
             <span>Open Spreads</span>
           </TabsTrigger>
-          <TabsTrigger value="step6-pmcc" className="flex flex-col gap-0.5 py-2 text-xs">
-            <span className="font-bold text-sm">6</span>
+          <TabsTrigger value="step5-pmcc" className="flex flex-col gap-0.5 py-2 text-xs">
+            <span className="font-bold text-sm">5</span>
             <span>PMCC Mgmt</span>
           </TabsTrigger>
         </TabsList>
@@ -2591,42 +2587,9 @@ export default function AutomationDashboard() {
         </TabsContent>
 
         {/* ─────────────────────────────────────────────────────────────────
-            STEP 4: Sell Cash-Secured Puts (Coming Soon)
+            STEP 4: Open Spreads (Coming Soon)
         ───────────────────────────────────────────────────────────────── */}
-        <TabsContent value="step4-csp">
-          <Card className="border-cyan-500/30 bg-cyan-500/5">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <BarChart3 className="h-5 w-5 text-cyan-400" />
-                <div>
-                  <CardTitle>Sell Cash-Secured Puts</CardTitle>
-                  <CardDescription>Find new CSP opportunities from your watchlist based on delta, DTE, and premium targets</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-muted-foreground space-y-3">
-                <BarChart3 className="h-12 w-12 mx-auto opacity-30" />
-                <p className="font-semibold text-base">Coming Soon</p>
-                <p className="text-sm max-w-md mx-auto">
-                  CSP scanner will scan your watchlist for high-probability put-selling opportunities,
-                  filtered by earnings dates, IV rank, and buying power availability.
-                </p>
-                <div className="flex flex-wrap justify-center gap-2 pt-2">
-                  <Badge variant="outline" className="text-cyan-400 border-cyan-400/40">Earnings filter</Badge>
-                  <Badge variant="outline" className="text-cyan-400 border-cyan-400/40">IV rank filter</Badge>
-                  <Badge variant="outline" className="text-cyan-400 border-cyan-400/40">Position sizing by BP%</Badge>
-                  <Badge variant="outline" className="text-cyan-400 border-cyan-400/40">Configurable on/off</Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ─────────────────────────────────────────────────────────────────
-            STEP 5: Open Spreads (Coming Soon)
-        ───────────────────────────────────────────────────────────────── */}
-        <TabsContent value="step5-spreads">
+        <TabsContent value="step4-spreads">
           <Card className="border-violet-500/30 bg-violet-500/5">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -2657,9 +2620,9 @@ export default function AutomationDashboard() {
         </TabsContent>
 
         {/* ─────────────────────────────────────────────────────────────────
-            STEP 6: PMCC Management (Coming Soon)
+            STEP 5: PMCC Management (Coming Soon)
         ───────────────────────────────────────────────────────────────── */}
-        <TabsContent value="step6-pmcc">
+        <TabsContent value="step5-pmcc">
           <Card className="border-pink-500/30 bg-pink-500/5">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -2689,7 +2652,7 @@ export default function AutomationDashboard() {
           </Card>
         </TabsContent>
 
-      </Tabs>{/* end six-step tabs */}
+      </Tabs>{/* end five-step tabs */}
 
       {/* Unified Order Preview Modal */}
       {showOrderPreview && unifiedOrders.length > 0 && (
