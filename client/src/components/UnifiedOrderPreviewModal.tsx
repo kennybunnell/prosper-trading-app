@@ -171,9 +171,12 @@ export function UnifiedOrderPreviewModal({
   // Collect all option symbols from orders (for BTC strategy, use optionSymbol; for others use OCC symbol if available)
   const optionSymbolsForQuotes = useMemo(() => {
     if (!open || strategy !== 'btc') return [];
-    return orders
-      .map(o => o.optionSymbol)
-      .filter((s): s is string => !!s);
+    const syms: string[] = [];
+    orders.forEach(o => {
+      if (o.optionSymbol) syms.push(o.optionSymbol);       // BTC short leg
+      if (o.spreadLongSymbol) syms.push(o.spreadLongSymbol); // STC long leg (spread)
+    });
+    return Array.from(new Set(syms)); // deduplicate
   }, [open, strategy, orders]);
   const { data: liveQuotesData, isFetching: isQuotesFetching } = trpc.orders.fetchOptionQuotes.useQuery(
     { symbols: optionSymbolsForQuotes },
@@ -487,10 +490,22 @@ export function UnifiedOrderPreviewModal({
           }
           return sum;
         
-        case "btc":
-          // Buying to close - cost is the ask price
-          const price = order.ask || order.currentPrice || order.premium;
-          return sum + (price * 100 * qty);
+        case "btc": {
+          // Buying to close - cost is the ask price (or adjusted price)
+          const btcPrice = adjustedPrices.get(getOrderKey(order)) || order.ask || order.currentPrice || order.premium;
+          // For BTC spread orders: net cost = BTC price - STC long leg credit
+          // Use live bid for long leg if available (STC = selling, so you get the bid)
+          const isSpread = !!(order.spreadLongSymbol || order.longStrike);
+          let longCredit = 0;
+          if (isSpread) {
+            const longQ = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
+            const liveBid = longQ && longQ.bid > 0 ? longQ.bid : undefined;
+            longCredit = liveBid ?? (order.spreadLongPrice !== undefined ? order.spreadLongPrice : 0);
+          }
+          const netBTCCost = btcPrice - longCredit;
+          // Net cost can be negative (credit) for profitable closes — still add to sum
+          return sum + (netBTCCost * 100 * qty);
+        }
         
         default:
           return sum;
@@ -1079,7 +1094,17 @@ export function UnifiedOrderPreviewModal({
                   const qty = getQuantity(order);
                   const maxQty = getMaxQuantity(order);
                   const price = adjustedPrices.get(key) || order.premium;
-                  const totalPremium = price * 100 * qty;
+                  // For BTC spread orders: net cost = BTC price - STC long leg price
+                  // If net is negative → you receive a credit (profitable close)
+                  const isSpreadBTC = strategy === 'btc' && !!(order.spreadLongSymbol || order.longStrike);
+                  // Use live bid for long leg if available (STC = selling, so you get the bid)
+                  const longLegLiveQ = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
+                  const longLegLiveBid = longLegLiveQ && longLegLiveQ.bid > 0 ? longLegLiveQ.bid : undefined;
+                  const longLegCredit = isSpreadBTC
+                    ? (longLegLiveBid ?? (order.spreadLongPrice !== undefined ? order.spreadLongPrice : 0))
+                    : 0;
+                  const netPrice = isSpreadBTC ? (price - longLegCredit) : price;
+                  const totalPremium = netPrice * 100 * qty;
                   // Check if we have live quotes for this order
                   const liveQ = order.optionSymbol ? liveQuotes[order.optionSymbol] : undefined;
                   const hasLiveQuote = !!(liveQ && liveQ.bid > 0 && liveQ.ask > 0);
@@ -1318,8 +1343,20 @@ export function UnifiedOrderPreviewModal({
                       </TableCell>
                       
                       {/* Total */}
-                      <TableCell className="text-right font-semibold text-green-500">
-                        ${totalPremium.toFixed(2)}
+                      <TableCell className={`text-right font-semibold ${
+                        isSpreadBTC
+                          ? totalPremium <= 0 ? 'text-green-400' : 'text-red-400'  // spread BTC: negative = credit (good), positive = debit (cost)
+                          : strategy === 'btc' ? 'text-red-400' : 'text-green-500'  // single BTC: always a cost
+                      }`}>
+                        {isSpreadBTC && totalPremium <= 0
+                          ? `+$${Math.abs(totalPremium).toFixed(2)}`  // credit: show as positive with + prefix
+                          : `$${Math.abs(totalPremium).toFixed(2)}`
+                        }
+                        {isSpreadBTC && (
+                          <div className="text-[10px] font-normal text-muted-foreground">
+                            {totalPremium <= 0 ? 'net credit' : 'net debit'}
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                     {/* Long leg sub-row for BTC spread orders */}
@@ -1346,10 +1383,19 @@ export function UnifiedOrderPreviewModal({
                           {order.quantity || qty}x
                         </TableCell>
                         <TableCell className="text-right text-xs text-blue-300" colSpan={2}>
-                          {order.spreadLongPrice !== undefined
-                            ? `$${order.spreadLongPrice.toFixed(2)} limit`
-                            : <span className="text-muted-foreground">Market</span>
-                          }
+                          {longLegLiveBid !== undefined ? (
+                            <div className="flex flex-col items-end">
+                              <span className="text-green-400 font-medium">${longLegLiveBid.toFixed(2)} bid</span>
+                              <span className="text-[9px] text-green-500">● Live</span>
+                            </div>
+                          ) : order.spreadLongPrice !== undefined ? (
+                            <div className="flex flex-col items-end">
+                              <span>${order.spreadLongPrice.toFixed(2)} limit</span>
+                              <span className="text-[9px] text-muted-foreground">(est.)</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">Market</span>
+                          )}
                         </TableCell>
                         <TableCell />
                       </TableRow>
@@ -1392,8 +1438,17 @@ export function UnifiedOrderPreviewModal({
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Total Buy-Back Cost:</span>
-                    <span className="font-medium text-red-400">${calculateTotalCollateral().toFixed(2)}</span>
+                    <span className="text-muted-foreground">
+                      {calculateTotalCollateral() <= 0 ? 'Net Close Credit:' : 'Total Buy-Back Cost:'}
+                    </span>
+                    <span className={`font-medium ${
+                      calculateTotalCollateral() <= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {calculateTotalCollateral() <= 0
+                        ? `+$${Math.abs(calculateTotalCollateral()).toFixed(2)}`
+                        : `$${calculateTotalCollateral().toFixed(2)}`
+                      }
+                    </span>
                   </div>
                   {premiumCollected !== undefined && (
                     <div className="flex justify-between pt-2 border-t border-border/50">

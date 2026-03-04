@@ -7222,3 +7222,13 @@
 - [x] Fix: Replacement modal now shows "BTC Spread" badge (green) instead of "STC" (blue) for debit spreads
 - [x] Fix: Updated hint text to describe spread-width tier pricing strategy
 - [x] Added 11 unit tests for spread net bid/ask computation and direction detection
+
+## Order Preview Modal BTC Spread Net Cost Fix (Mar 4, 2026)
+- [x] Fix: "Total" column showed only BTC leg cost, not net spread cost (BTC - STC long leg)
+- [x] Fix: "Total Buy-Back Cost" in summary was summing only BTC legs, ignoring long leg credits
+- [x] Fix: Long leg price was using stale close-price; now fetches live bid via Tradier quotes API
+- [x] Fix: calculateTotalCollateral() for btc case now uses live bid for long leg credit
+- [x] Fix: Total cell now shows green "net credit" when spread close is profitable, red "net debit" when paying
+- [x] Fix: Summary label changes to "Net Close Credit:" when total is negative (profitable close)
+- [x] Fix: spreadLongSymbol now included in live quotes fetch (was only fetching BTC leg symbol)
+- [x] Long leg sub-row now shows live bid price with green "● Live" indicator when available
