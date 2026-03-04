@@ -752,6 +752,7 @@ function ActiveSpreadsTab({
         longPremium: (spread.currentValue / 2) * 0.6,
         longBid: (spread.currentValue / 2) * 0.6 * 0.95,
         longAsk: (spread.currentValue / 2) * 0.6 * 1.05,
+        perOrderPremiumCollected: (spread.premiumReceived || 0) / 2, // Half for put side of IC
       };
       
       const callSpreadOrder: UnifiedOrder = {
@@ -768,6 +769,7 @@ function ActiveSpreadsTab({
         longPremium: (spread.currentValue / 2) * 0.6,
         longBid: (spread.currentValue / 2) * 0.6 * 0.95,
         longAsk: (spread.currentValue / 2) * 0.6 * 1.05,
+        perOrderPremiumCollected: (spread.premiumReceived || 0) / 2, // Half for call side of IC
       };
       
       setUnifiedOrders([putSpreadOrder, callSpreadOrder]);
@@ -787,6 +789,7 @@ function ActiveSpreadsTab({
         longPremium: spread.currentValue * 0.6,
         longBid: spread.currentValue * 0.6 * 0.95,
         longAsk: spread.currentValue * 0.6 * 1.05,
+        perOrderPremiumCollected: spread.premiumReceived || 0,
       };
       
       setUnifiedOrders([order]);

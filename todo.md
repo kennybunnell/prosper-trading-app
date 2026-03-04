@@ -7244,3 +7244,9 @@
 - [x] Fix: isPut uses OCC regex /([CP])(\d{8})$/ to avoid false positives from PLTR, SPY, APLD underlyings
 - [x] Fix: same corrections applied to BCS (Bear Call Spread) detection
 - [x] Added 11 unit tests for BPS net credit, realizedPercent, and OCC isPut detection
+
+## Order Preview Modal — Net Profit Per Row (Mar 4, 2026)
+- [x] Add "Net Profit" column to each order row: premiumCollected - netDebit = net profit
+- [x] Show premium collected per row (what was originally received when spread was opened)
+- [x] Update summary section to clearly label: Premium Received | Buy-Back Cost | Net Profit | Realized %
+- [x] For BTC spread rows: show green net profit amount prominently

@@ -60,6 +60,7 @@ export interface UnifiedOrder {
   spreadLongPrice?: number;   // Long leg close price
   quantity?: number;          // Number of contracts
   isEstimated?: boolean;      // Whether buy-back cost is estimated
+  perOrderPremiumCollected?: number; // Premium originally collected for THIS specific position (for per-row net profit)
 }
 
 // Holding interface for stock ownership validation (CC strategy)
@@ -1086,6 +1087,7 @@ export function UnifiedOrderPreviewModal({
                   <TableHead className="text-right w-28">Limit Price</TableHead>
                   <TableHead className="w-64">Price Adjustment</TableHead>
                   <TableHead className="text-right w-28">Total</TableHead>
+                  <TableHead className="text-right w-28">Net Profit</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1358,6 +1360,26 @@ export function UnifiedOrderPreviewModal({
                           </div>
                         )}
                       </TableCell>
+
+                      {/* Net Profit — only shown for BTC strategy */}
+                      {strategy === 'btc' && order.perOrderPremiumCollected !== undefined ? (() => {
+                        const rowNetProfit = order.perOrderPremiumCollected - Math.abs(totalPremium);
+                        const isProfit = rowNetProfit >= 0;
+                        return (
+                          <TableCell className="text-right">
+                            <div className={`font-bold text-base ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                              {isProfit ? '+' : '-'}${Math.abs(rowNetProfit).toFixed(2)}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">
+                              {order.perOrderPremiumCollected > 0
+                                ? `${((rowNetProfit / order.perOrderPremiumCollected) * 100).toFixed(1)}% of $${order.perOrderPremiumCollected.toFixed(0)} rcvd`
+                                : ''}
+                            </div>
+                          </TableCell>
+                        );
+                      })() : (
+                        strategy === 'btc' ? <TableCell className="text-right text-muted-foreground text-xs">—</TableCell> : null
+                      )}
                     </TableRow>
                     {/* Long leg sub-row for BTC spread orders */}
                     {isBTCSpread && order.spreadLongSymbol && (
@@ -1398,6 +1420,7 @@ export function UnifiedOrderPreviewModal({
                           )}
                         </TableCell>
                         <TableCell />
+                        {strategy === 'btc' && <TableCell />}
                       </TableRow>
                     )}
                     </React.Fragment>

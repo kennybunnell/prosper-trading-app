@@ -381,6 +381,8 @@ export function ActivePositionsTab() {
           longPremium: longLegMid,
           longBid: longBid,
           longAsk: longAsk,
+          // Per-order premium collected (net credit received at open)
+          perOrderPremiumCollected: pos.premium,
         };
       } else {
         // Single-leg position
@@ -394,6 +396,8 @@ export function ActivePositionsTab() {
           bid: pos.currentPrice * 0.95,
           ask: pos.currentPrice * 1.05,
           currentPrice: pos.currentPrice,
+          // Per-order premium collected (premium received at open)
+          perOrderPremiumCollected: pos.premium,
         };
       }
     })
@@ -890,6 +894,7 @@ export function ActivePositionsTab() {
           allowQuantityEdit={false}
           tradingMode={tradingMode === 'live' ? 'live' : 'paper'}
           initialSkipDryRun={!dryRun}
+          premiumCollected={selectedSummary.totalPremium}
           submissionComplete={submissionComplete}
           finalOrderStatus={finalOrderStatus}
           onSubmissionStateChange={(complete, status) => {
