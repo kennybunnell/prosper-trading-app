@@ -390,30 +390,20 @@ export const performanceRouter = router({
         let processedPositions: ProcessedPosition[] = [];
         
         for (const pos of shortOptions) {
-          // Determine if CSP or CC by parsing option symbol
-          const isPut = pos.symbol.includes('P');
+          // Determine if CSP or CC using OCC regex (avoids false positives from underlying names like SPY, PLTR)
+          const occTypeMatch = pos.symbol.match(/([CP])(\d{8})$/);
+          const isPut = occTypeMatch ? occTypeMatch[1] === 'P' : pos.symbol.includes('P');
           const optionType = isPut ? 'CSP' : 'CC';
-          
-          // positionType filter removed - frontend handles strategy tab filtering
 
-          // Calculate premium received
+          // Calculate premium received (short leg only — adjusted for spreads after spread detection)
           const quantity = Math.abs(pos.quantity);
-          const premiumReceived = Math.abs(parseFloat(pos['average-open-price'])) * quantity * pos.multiplier;
-          
+          const shortOpenPrice = Math.abs(parseFloat(pos['average-open-price']));
+          let premiumReceived = shortOpenPrice * quantity * pos.multiplier;
+
           // Get current price from live quote (fallback to close-price if quote unavailable)
           const quote = quotes[pos.symbol];
           const currentPrice = quote ? quote.mark || quote.mid || quote.last : parseFloat(pos['close-price']);
           let currentCost = currentPrice * quantity * pos.multiplier;
-          
-          // Calculate premium realization %
-          const realizedPercent = premiumReceived > 0 
-            ? ((premiumReceived - currentCost) / premiumReceived) * 100 
-            : 0;
-
-          // Skip if below minimum realized percent filter
-          if (minRealizedPercent !== undefined && realizedPercent < minRealizedPercent) {
-            continue;
-          }
 
           // Parse strike from option symbol (e.g., "AAPL250117P00150000" -> 150)
           const strikeMatch = pos.symbol.match(/[CP](\d+)/);
@@ -433,59 +423,67 @@ export const performanceRouter = router({
           // Look for a long position with same underlying, expiration, and option type
           // For bull put spread: short put at higher strike + long put at lower strike
           // For bear call spread: short call at lower strike + long call at higher strike
-          for (const [key, longPos] of Array.from(longPositionMap.entries())) {
+          for (const [, longPos] of Array.from(longPositionMap.entries())) {
             if (longPos['underlying-symbol'] === pos['underlying-symbol'] &&
                 longPos['expires-at'] === pos['expires-at']) {
-              const longIsPut = longPos.symbol.includes('P');
+              const longOccMatch = longPos.symbol.match(/([CP])(\d{8})$/);
+              const longIsPut = longOccMatch ? longOccMatch[1] === 'P' : longPos.symbol.includes('P');
               if (longIsPut === isPut) {
                 // Same option type - potential spread
                 const longStrikeMatch = longPos.symbol.match(/[CP](\d+)/);
                 const longStrikeValue = longStrikeMatch ? parseFloat(longStrikeMatch[1]) / 1000 : 0;
-                
+                const longOpenPrice = Math.abs(parseFloat(longPos['average-open-price']));
+                const longOpenCost = longOpenPrice * quantity * longPos.multiplier;
+
                 if (isPut && longStrikeValue < strike) {
                   // Bull put spread: short higher strike, long lower strike
                   spreadType = 'bull_put';
                   longStrike = longStrikeValue;
                   spreadWidth = strike - longStrikeValue;
-                  
-                  // Capital at risk = spread width - net credit
-                  const longCost = Math.abs(parseFloat(longPos['average-open-price'])) * quantity * longPos.multiplier;
-                  const netCredit = premiumReceived - longCost;
-                  capitalAtRisk = (spreadWidth * 100 * quantity) - netCredit;
-                  
-                  // Recalculate current cost for spread using both legs' current prices
+
+                  // NET credit received when spread was opened = short premium - long premium paid
+                  premiumReceived = (shortOpenPrice * quantity * pos.multiplier) - longOpenCost;
+                  // Capital at risk = spread width x 100 x qty - net credit
+                  capitalAtRisk = (spreadWidth * 100 * quantity) - premiumReceived;
+
+                  // Net current cost to close = (pay to BTC short) - (receive from STC long)
                   const longQuote = quotes[longPos.symbol];
                   const longCurrentPrice = longQuote ? longQuote.mark || longQuote.mid || longQuote.last : parseFloat(longPos['close-price']);
-                  const shortCurrentCost = currentPrice * quantity * pos.multiplier;
-                  const longCurrentCost = longCurrentPrice * quantity * longPos.multiplier;
-                  // For spread: current cost = (short leg cost - long leg cost) because we pay to close short and receive to close long
-                  currentCost = shortCurrentCost - longCurrentCost;
-                  
-                  console.log(`[Performance] Detected bull put spread: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt width, $${capitalAtRisk.toFixed(2)} at risk, current spread value: $${currentCost.toFixed(2)})`);
+                  currentCost = (currentPrice * quantity * pos.multiplier) - (longCurrentPrice * quantity * longPos.multiplier);
+
+                  console.log(`[Performance] BPS: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt, netCredit=$${premiumReceived.toFixed(2)}, capitalAtRisk=$${capitalAtRisk?.toFixed(2)}, netCurrentCost=$${currentCost.toFixed(2)})`);
                 } else if (!isPut && longStrikeValue > strike) {
                   // Bear call spread: short lower strike, long higher strike
                   spreadType = 'bear_call';
                   longStrike = longStrikeValue;
                   spreadWidth = longStrikeValue - strike;
-                  
-                  // Capital at risk = spread width - net credit
-                  const longCost = Math.abs(parseFloat(longPos['average-open-price'])) * quantity * longPos.multiplier;
-                  const netCredit = premiumReceived - longCost;
-                  capitalAtRisk = (spreadWidth * 100 * quantity) - netCredit;
-                  
-                  // Recalculate current cost for spread using both legs' current prices
+
+                  // NET credit received when spread was opened
+                  premiumReceived = (shortOpenPrice * quantity * pos.multiplier) - longOpenCost;
+                  capitalAtRisk = (spreadWidth * 100 * quantity) - premiumReceived;
+
+                  // Net current cost to close
                   const longQuote = quotes[longPos.symbol];
                   const longCurrentPrice = longQuote ? longQuote.mark || longQuote.mid || longQuote.last : parseFloat(longPos['close-price']);
-                  const shortCurrentCost = currentPrice * quantity * pos.multiplier;
-                  const longCurrentCost = longCurrentPrice * quantity * longPos.multiplier;
-                  // For spread: current cost = (short leg cost - long leg cost)
-                  currentCost = shortCurrentCost - longCurrentCost;
-                  
-                  console.log(`[Performance] Detected bear call spread: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt width, $${capitalAtRisk.toFixed(2)} at risk, current spread value: $${currentCost.toFixed(2)})`);
+                  currentCost = (currentPrice * quantity * pos.multiplier) - (longCurrentPrice * quantity * longPos.multiplier);
+
+                  console.log(`[Performance] BCS: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt, netCredit=$${premiumReceived.toFixed(2)}, capitalAtRisk=$${capitalAtRisk?.toFixed(2)}, netCurrentCost=$${currentCost.toFixed(2)})`);
                 }
                 break;
               }
             }
+          }
+
+          // Calculate realizedPercent AFTER spread detection (premiumReceived and currentCost may have been updated)
+          // For BPS/BCS: premiumReceived = net credit, currentCost = net close cost
+          // Cap at 100% (long leg can exceed short leg value making currentCost negative)
+          const realizedPercent = premiumReceived > 0
+            ? Math.min(100, ((premiumReceived - Math.max(0, currentCost)) / premiumReceived) * 100)
+            : 0;
+
+          // Skip if below minimum realized percent filter
+          if (minRealizedPercent !== undefined && realizedPercent < minRealizedPercent) {
+            continue;
           }
 
           // Determine action recommendation

@@ -7232,3 +7232,15 @@
 - [x] Fix: Summary label changes to "Net Close Credit:" when total is negative (profitable close)
 - [x] Fix: spreadLongSymbol now included in live quotes fetch (was only fetching BTC leg symbol)
 - [x] Long leg sub-row now shows live bid price with green "● Live" indicator when available
+
+## BPS Close-for-Profit Candidate Pipeline Audit (Mar 4, 2026)
+- [x] Audit: traced full pipeline from scan → spread detection → profit calc → filter → display
+- [x] Bug found: routers-performance.ts calculated realizedPercent BEFORE spread detection (used short-leg-only premiumReceived)
+- [x] Bug found: premiumReceived used short open price alone (not net credit = short - long)
+- [x] Bug found: isPut detection used naive includes('P') instead of OCC regex
+- [x] Fix: premiumReceived now = (short open price - long open price) × qty × multiplier (true net credit)
+- [x] Fix: currentCost now = (short current price - long current price) × qty × multiplier (net close cost)
+- [x] Fix: realizedPercent calculated AFTER spread detection, capped at 100% for profitable closes
+- [x] Fix: isPut uses OCC regex /([CP])(\d{8})$/ to avoid false positives from PLTR, SPY, APLD underlyings
+- [x] Fix: same corrections applied to BCS (Bear Call Spread) detection
+- [x] Added 11 unit tests for BPS net credit, realizedPercent, and OCC isPut detection
