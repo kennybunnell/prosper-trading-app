@@ -18,6 +18,7 @@ import {
   Power, Settings2, RefreshCw, BarChart3, GitMerge, Zap, Lock, Unlock, Download
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { FilterPill } from '@/components/FilterPill';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1396,27 +1397,18 @@ export default function AutomationDashboard() {
                   const selectedOfType = flaggedOfType.filter(r => selectedPositions.has(posKey(r))).length;
                   const allFlaggedSelected = flaggedCount > 0 && selectedOfType === flaggedCount;
 
-                  const isActive = scanTypeFilter === t;
-                  const colorClass =
-                    t === 'BPS' ? (isActive ? 'bg-cyan-500/30 text-cyan-300 border-cyan-400/60' : 'text-cyan-400/70 border-cyan-400/30 hover:bg-cyan-500/10') :
-                    t === 'BCS' ? (isActive ? 'bg-pink-500/30 text-pink-300 border-pink-400/60' : 'text-pink-400/70 border-pink-400/30 hover:bg-pink-500/10') :
-                    t === 'IC'  ? (isActive ? 'bg-amber-500/30 text-amber-300 border-amber-400/60' : 'text-amber-400/70 border-amber-400/30 hover:bg-amber-500/10') :
-                    t === 'CSP' ? (isActive ? 'bg-blue-500/30 text-blue-300 border-blue-400/60' : 'text-blue-400/70 border-blue-400/30 hover:bg-blue-500/10') :
-                    t === 'CC'  ? (isActive ? 'bg-purple-500/30 text-purple-300 border-purple-400/60' : 'text-purple-400/70 border-purple-400/30 hover:bg-purple-500/10') :
-                                  (isActive ? 'bg-muted text-foreground border-border' : 'text-muted-foreground border-border/50 hover:bg-muted/40');
+                  const variantMap2: Record<string, any> = {
+                    BPS: 'sky', BCS: 'purple', IC: 'amber', CSP: 'sky', CC: 'purple',
+                  };
 
                   const handlePillClick = () => {
-                    // Always switch the type filter view
                     setScanTypeFilter(t);
-                    // For strategy pills (not 'all'), also toggle selection of all flagged positions of that type
                     if (t !== 'all' && flaggedCount > 0) {
                       setSelectedPositions(prev => {
                         const next = new Set(prev);
                         if (allFlaggedSelected) {
-                          // Second click: deselect all of this type
                           flaggedOfType.forEach(r => next.delete(posKey(r)));
                         } else {
-                          // First click: select all flagged of this type
                           flaggedOfType.forEach(r => next.add(posKey(r)));
                         }
                         return next;
@@ -1424,34 +1416,24 @@ export default function AutomationDashboard() {
                     }
                   };
 
+                  // Build a composite label: strategy name + ready-to-close count if any
+                  const pillLabel = t === 'all' ? 'All' : t;
+                  const pillTitle = t !== 'all' && flaggedCount > 0
+                    ? allFlaggedSelected
+                      ? `Click to deselect all ${flaggedCount} ${t} positions`
+                      : `Click to select all ${flaggedCount} ${t} positions ready to close`
+                    : undefined;
+
                   return (
-                    <button
+                    <FilterPill
                       key={t}
+                      label={pillLabel}
+                      count={count}
+                      selected={scanTypeFilter === t}
+                      variant={variantMap2[t] ?? 'default'}
+                      title={pillTitle}
                       onClick={handlePillClick}
-                      title={t !== 'all' && flaggedCount > 0
-                        ? allFlaggedSelected
-                          ? `Click to deselect all ${flaggedCount} ${t} positions`
-                          : `Click to select all ${flaggedCount} ${t} positions ready to close`
-                        : undefined}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${colorClass}`}
-                    >
-                      {t === 'all' ? 'All' : t}
-                      <span className="opacity-60">({count})</span>
-                      {/* Ready-to-close badge on strategy pills */}
-                      {t !== 'all' && flaggedCount > 0 && (
-                        <span
-                          className={`inline-flex items-center justify-center min-w-[1.1rem] h-4 px-1 rounded-full text-[10px] font-bold leading-none transition-colors ${
-                            allFlaggedSelected
-                              ? 'bg-emerald-500 text-white'
-                              : selectedOfType > 0
-                              ? 'bg-emerald-500/60 text-white'
-                              : 'bg-emerald-600/30 text-emerald-300'
-                          }`}
-                        >
-                          {selectedOfType > 0 ? `${selectedOfType}/${flaggedCount}` : flaggedCount}
-                        </span>
-                      )}
-                    </button>
+                    />
                   );
                 })}
               </div>
@@ -1775,70 +1757,54 @@ export default function AutomationDashboard() {
             </div>
           </div>
 
-          {/* Filter bar — compact single-row pill style matching Close for Profit */}
+          {/* Filter bar — FilterPill components with badge counts */}
           {rollScanResults && (
             <div className="flex flex-wrap items-center gap-1.5 mb-4">
               {/* Strategy pills */}
               {(['all', 'BPS', 'BCS', 'IC', 'CSP', 'CC'] as const).map(s => {
                 const count = s === 'all' ? rollScanResults.all.length : rollScanResults.all.filter(p => p.strategy === s).length;
                 if (s !== 'all' && count === 0) return null;
-                const isActive = rollStrategyFilter === s;
-                const colorClass =
-                  s === 'BPS' ? (isActive ? 'bg-cyan-500/30 text-cyan-300 border-cyan-400/60' : 'text-cyan-400/70 border-cyan-400/30 hover:bg-cyan-500/10') :
-                  s === 'BCS' ? (isActive ? 'bg-pink-500/30 text-pink-300 border-pink-400/60' : 'text-pink-400/70 border-pink-400/30 hover:bg-pink-500/10') :
-                  s === 'IC'  ? (isActive ? 'bg-amber-500/30 text-amber-300 border-amber-400/60' : 'text-amber-400/70 border-amber-400/30 hover:bg-amber-500/10') :
-                  s === 'CSP' ? (isActive ? 'bg-blue-500/30 text-blue-300 border-blue-400/60' : 'text-blue-400/70 border-blue-400/30 hover:bg-blue-500/10') :
-                  s === 'CC'  ? (isActive ? 'bg-purple-500/30 text-purple-300 border-purple-400/60' : 'text-purple-400/70 border-purple-400/30 hover:bg-purple-500/10') :
-                                (isActive ? 'bg-muted text-foreground border-border' : 'text-muted-foreground border-border/50 hover:bg-muted/40');
+                const variantMap: Record<string, 'default' | 'sky' | 'purple' | 'amber' | 'default'> = {
+                  BPS: 'sky', BCS: 'purple', IC: 'amber', CSP: 'sky', CC: 'purple',
+                };
                 return (
-                  <button
+                  <FilterPill
                     key={s}
+                    label={s === 'all' ? 'All' : s}
+                    count={count}
+                    selected={rollStrategyFilter === s}
+                    variant={variantMap[s] ?? 'default'}
                     onClick={() => { setRollStrategyFilter(s); setRollFilter('all'); setRollPnlFilter('all'); }}
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${colorClass}`}
-                  >
-                    {s === 'all' ? 'All' : s}
-                    <span className="opacity-60">({count})</span>
-                  </button>
+                  />
                 );
               })}
-              {/* Separator */}
               <div className="w-px h-4 bg-border/60 mx-0.5" />
               {/* P&L pills */}
               {(['all', 'winner', 'breakeven', 'loser'] as const).map(p => {
                 const count = p === 'all' ? rollScanResults.all.length : rollScanResults.all.filter(pos => pos.pnlStatus === p).length;
                 if (p !== 'all' && count === 0) return null;
-                const isActive = rollPnlFilter === p;
-                const colorClass =
-                  p === 'winner'    ? (isActive ? 'bg-green-500/30 text-green-300 border-green-400/60' : 'text-green-400/70 border-green-400/30 hover:bg-green-500/10') :
-                  p === 'loser'     ? (isActive ? 'bg-red-500/30 text-red-300 border-red-400/60' : 'text-red-400/70 border-red-400/30 hover:bg-red-500/10') :
-                  p === 'breakeven' ? (isActive ? 'bg-yellow-500/30 text-yellow-300 border-yellow-400/60' : 'text-yellow-400/70 border-yellow-400/30 hover:bg-yellow-500/10') :
-                                      (isActive ? 'bg-muted text-foreground border-border' : 'text-muted-foreground border-border/50 hover:bg-muted/40');
                 const label = p === 'all' ? 'All P&L' : p === 'winner' ? '🟢 Win' : p === 'loser' ? '🔴 Loss' : '🟡 Even';
+                const variant = p === 'winner' ? 'green' : p === 'loser' ? 'red' : p === 'breakeven' ? 'yellow' : 'default';
                 return (
-                  <button
+                  <FilterPill
                     key={p}
+                    label={label}
+                    count={count}
+                    selected={rollPnlFilter === p}
+                    variant={variant as any}
                     onClick={() => { setRollPnlFilter(p); setRollFilter('all'); }}
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${colorClass}`}
-                  >
-                    {label}
-                    <span className="opacity-60">({count})</span>
-                  </button>
+                  />
                 );
-               })}
-              {/* Separator */}
+              })}
               <div className="w-px h-4 bg-border/60 mx-0.5" />
               {/* Credit-only toggle */}
-              <button
-                onClick={() => setRollCreditOnlyFilter(v => !v)}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
-                  rollCreditOnlyFilter
-                    ? 'bg-emerald-500/30 text-emerald-300 border-emerald-400/60'
-                    : 'text-muted-foreground border-border/50 hover:bg-muted/40'
-                }`}
+              <FilterPill
+                label="💰 Credit Rolls Only"
+                selected={rollCreditOnlyFilter}
+                variant="green"
                 title="Hide positions where a credit roll is unlikely (deep ITM > 5%)"
-              >
-                💰 Credit Rolls Only
-              </button>
+                onClick={() => setRollCreditOnlyFilter(v => !v)}
+              />
             </div>
           )}
 

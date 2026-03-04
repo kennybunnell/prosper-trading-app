@@ -7118,3 +7118,12 @@
 - [x] Group rows by action label in the UI (ROLL first, then CLOSE, then LET_EXPIRE, then MONITOR)
 - [x] Remove the generic "Should Roll: Yes" column from the table
 - [x] Add action label to CSV export
+
+## Badge/Count Pill Filters Across All Automation Tabs (Mar 4, 2026)
+- [x] Build shared FilterPill component with badge count, selected state, and toggle behavior
+- [x] Apply FilterPill to Roll Positions tab (strategy pills + P&L pills)
+- [x] Apply FilterPill to Close for Profit tab
+- [x] Apply FilterPill to Sell Calls tab (Coming Soon stub — no pills yet)
+- [x] Apply FilterPill to Sell Puts tab (Coming Soon stub — no pills yet)
+- [x] Apply FilterPill to Open Spreads tab (Coming Soon stub — no pills yet)
+- [x] Apply FilterPill to PMCC Mgmt tab (Coming Soon stub — no pills yet)
