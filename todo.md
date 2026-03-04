@@ -7160,3 +7160,7 @@
 - [x] 2x stop-loss detection in Roll Positions backend (routers-rolls.ts)
 - [x] 2x STOP badge in Roll Positions frontend (AutomationDashboard.tsx)
 - [x] Fix profit threshold percentage: make it truly editable, save to DB, and use in Close for Profit scanner
+- [x] Rebuild Active Positions tab with 5 strategy-specific sub-tabs (BPS, BCS, IC, CSP, CC)
+- [x] Each tab shows only positions of that strategy type with count badges
+- [x] Spread integrity maintained — both legs shown together, close action is atomic
+- [x] Selection clears when switching tabs to prevent cross-tab orphaning

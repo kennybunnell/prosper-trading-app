@@ -394,10 +394,7 @@ export const performanceRouter = router({
           const isPut = pos.symbol.includes('P');
           const optionType = isPut ? 'CSP' : 'CC';
           
-          // Skip if filtering by position type
-          if (positionType && optionType.toLowerCase() !== positionType) {
-            continue;
-          }
+          // positionType filter removed - frontend handles strategy tab filtering
 
           // Calculate premium received
           const quantity = Math.abs(pos.quantity);

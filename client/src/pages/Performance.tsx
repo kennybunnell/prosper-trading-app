@@ -103,7 +103,7 @@ export default function Performance() {
 export function ActivePositionsTab() {
   const { mode: tradingMode } = useTradingMode();
   const { selectedAccountId } = useAccount();
-  const [positionType, setPositionType] = useState<'csp' | 'cc'>('csp');
+  const [positionType, setPositionType] = useState<'csp' | 'cc' | 'bps' | 'bcs' | 'ic'>('bps');
   const [profitFilter, setProfitFilter] = useState<number | null>(null);
   const [spreadFilter, setSpreadFilter] = useState<'all' | 'spreads' | 'single-leg'>('all');
   const [selectedPositions, setSelectedPositions] = useState<Set<number>>(new Set());
@@ -128,7 +128,7 @@ export function ActivePositionsTab() {
   const { data, isLoading, refetch, error } = trpc.performance.getActivePositions.useQuery(
     {
       accountId: selectedAccountId || '',
-      positionType,
+      // Fetch all positions - frontend filters by strategy tab
       minRealizedPercent: profitFilter || undefined,
     },
     {
@@ -195,19 +195,32 @@ export function ActivePositionsTab() {
     }
   };
 
-  // Filter positions by profit threshold
+  // Filter positions by strategy tab
   const filteredPositions = useMemo(() => {
     if (!data?.positions) return [];
     let positions = data.positions;
-    if (profitFilter) {
-      positions = positions.filter(pos => pos.realizedPercent >= profitFilter && !pos.hasWorkingOrder);
+    
+    // Filter by strategy tab
+    switch (positionType) {
+      case 'csp':
+        positions = positions.filter(pos => pos.type === 'CSP' && !pos.spreadType);
+        break;
+      case 'cc':
+        positions = positions.filter(pos => pos.type === 'CC' && !pos.spreadType);
+        break;
+      case 'bps':
+        positions = positions.filter(pos => pos.spreadType === 'bull_put');
+        break;
+      case 'bcs':
+        positions = positions.filter(pos => pos.spreadType === 'bear_call');
+        break;
+      case 'ic':
+        positions = positions.filter(pos => pos.spreadType === 'iron_condor');
+        break;
     }
     
-    // Filter by spread type
-    if (spreadFilter === 'spreads') {
-      positions = positions.filter(pos => pos.spreadType);
-    } else if (spreadFilter === 'single-leg') {
-      positions = positions.filter(pos => !pos.spreadType);
+    if (profitFilter) {
+      positions = positions.filter(pos => pos.realizedPercent >= profitFilter && !pos.hasWorkingOrder);
     }
     
     // Sort positions
@@ -276,7 +289,7 @@ export function ActivePositionsTab() {
     }
     
     return positions;
-  }, [data?.positions, profitFilter, spreadFilter, sortColumn, sortDirection]);
+  }, [data?.positions, profitFilter, positionType, sortColumn, sortDirection]);
 
   // Get selected positions data
   const selectedPositionsData = useMemo(() => {
@@ -308,6 +321,18 @@ export function ActivePositionsTab() {
     }
     setSelectedPositions(newSelected);
   };
+
+  // Count positions per strategy tab
+  const tabCounts = useMemo(() => {
+    if (!data?.positions) return { csp: 0, cc: 0, bps: 0, bcs: 0, ic: 0 };
+    return {
+      csp: data.positions.filter(p => p.type === 'CSP' && !p.spreadType).length,
+      cc: data.positions.filter(p => p.type === 'CC' && !p.spreadType).length,
+      bps: data.positions.filter(p => p.spreadType === 'bull_put').length,
+      bcs: data.positions.filter(p => p.spreadType === 'bear_call').length,
+      ic: data.positions.filter(p => p.spreadType === 'iron_condor').length,
+    };
+  }, [data?.positions]);
 
   const handleClosePositions = () => {
     if (tradingMode === 'paper') {
@@ -347,7 +372,7 @@ export function ActivePositionsTab() {
           expiration: pos.expiration,
           premium: pos.currentPrice, // Net spread price
           action: "BTC" as const,
-          optionType: (positionType === 'csp' ? 'PUT' : 'CALL') as "CALL" | "PUT",
+          optionType: (pos.type === 'CSP' ? 'PUT' : 'CALL') as "CALL" | "PUT",
           bid: shortBid,
           ask: shortAsk,
           currentPrice: pos.currentPrice,
@@ -365,7 +390,7 @@ export function ActivePositionsTab() {
           expiration: pos.expiration,
           premium: pos.currentPrice,
           action: "BTC" as const,
-          optionType: (positionType === 'csp' ? 'PUT' : 'CALL') as "CALL" | "PUT",
+          optionType: (pos.type === 'CSP' ? 'PUT' : 'CALL') as "CALL" | "PUT",
           bid: pos.currentPrice * 0.95,
           ask: pos.currentPrice * 1.05,
           currentPrice: pos.currentPrice,
@@ -695,30 +720,6 @@ export function ActivePositionsTab() {
               </Button>
             )}
             <div className="h-4 w-px bg-border" />
-            <span className="text-sm font-medium">Position Type:</span>
-            <Button
-              variant={spreadFilter === 'all' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSpreadFilter('all')}
-            >
-              All
-            </Button>
-            <Button
-              variant={spreadFilter === 'spreads' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSpreadFilter('spreads')}
-              className="bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/50"
-            >
-              Spreads Only
-            </Button>
-            <Button
-              variant={spreadFilter === 'single-leg' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSpreadFilter('single-leg')}
-            >
-              Single-Leg Only
-            </Button>
-            <div className="h-4 w-px bg-border" />
             <Button
               variant="outline"
               size="sm"
@@ -813,38 +814,55 @@ export function ActivePositionsTab() {
         </Card>
       )}
 
-      {/* Position Type Tabs */}
-      <Tabs value={positionType} onValueChange={(v) => setPositionType(v as 'csp' | 'cc')}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="csp">Active CSPs</TabsTrigger>
-          <TabsTrigger value="cc">Active CCs</TabsTrigger>
+      {/* Strategy Tabs */}
+      <Tabs value={positionType} onValueChange={(v) => {
+        setPositionType(v as 'csp' | 'cc' | 'bps' | 'bcs' | 'ic');
+        setSelectedPositions(new Set()); // Clear selection when switching tabs
+      }}>
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="bps" className="text-xs sm:text-sm">
+            <span className="hidden sm:inline">Bull Put Spreads</span>
+            <span className="sm:hidden">BPS</span>
+            {tabCounts.bps > 0 && <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">{tabCounts.bps}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="bcs" className="text-xs sm:text-sm">
+            <span className="hidden sm:inline">Bear Call Spreads</span>
+            <span className="sm:hidden">BCS</span>
+            {tabCounts.bcs > 0 && <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">{tabCounts.bcs}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="ic" className="text-xs sm:text-sm">
+            <span className="hidden sm:inline">Iron Condors</span>
+            <span className="sm:hidden">IC</span>
+            {tabCounts.ic > 0 && <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">{tabCounts.ic}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="csp" className="text-xs sm:text-sm">
+            <span className="hidden sm:inline">Cash Secured Puts</span>
+            <span className="sm:hidden">CSP</span>
+            {tabCounts.csp > 0 && <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">{tabCounts.csp}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="cc" className="text-xs sm:text-sm">
+            <span className="hidden sm:inline">Covered Calls</span>
+            <span className="sm:hidden">CC</span>
+            {tabCounts.cc > 0 && <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">{tabCounts.cc}</Badge>}
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="csp" className="mt-6">
-          <PositionsTable 
-            positions={filteredPositions} 
-            isLoading={isLoading}
-            selectedPositions={selectedPositions}
-            onTogglePosition={handleTogglePosition}
-            onSelectAll={handleSelectAll}
-            sortColumn={sortColumn}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-          />
-        </TabsContent>
-
-        <TabsContent value="cc" className="mt-6">
-          <PositionsTable 
-            positions={filteredPositions} 
-            isLoading={isLoading}
-            selectedPositions={selectedPositions}
-            onTogglePosition={handleTogglePosition}
-            onSelectAll={handleSelectAll}
-            sortColumn={sortColumn}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-          />
-        </TabsContent>
+        {/* All tabs share the same PositionsTable — data is filtered by positionType */}
+        {(['bps', 'bcs', 'ic', 'csp', 'cc'] as const).map(tab => (
+          <TabsContent key={tab} value={tab} className="mt-6">
+            <PositionsTable 
+              positions={filteredPositions} 
+              isLoading={isLoading}
+              selectedPositions={selectedPositions}
+              onTogglePosition={handleTogglePosition}
+              onSelectAll={handleSelectAll}
+              sortColumn={sortColumn}
+              sortDirection={sortDirection}
+              onSort={handleSort}
+              strategyTab={tab}
+            />
+          </TabsContent>
+        ))}
       </Tabs>
 
       {/* Unified Order Preview Modal for BTC */}
@@ -996,6 +1014,7 @@ interface PositionsTableProps {
   sortColumn: string | null;
   sortDirection: 'asc' | 'desc';
   onSort: (column: string) => void;
+  strategyTab?: 'csp' | 'cc' | 'bps' | 'bcs' | 'ic';
 }
 
 interface SortableHeaderProps {
@@ -1025,7 +1044,7 @@ function SortableHeader({ column, label, align, sortColumn, sortDirection, onSor
   );
 }
 
-function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosition, onSelectAll, sortColumn, sortDirection, onSort }: PositionsTableProps) {
+function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosition, onSelectAll, sortColumn, sortDirection, onSort, strategyTab }: PositionsTableProps) {
   if (isLoading) {
     return (
       <Card className="p-6">
