@@ -802,6 +802,34 @@ export const automationRouter = router({
         message: string;
       }> = [];
 
+      // ── Earnings Block Pre-flight ──────────────────────────────────────────────
+      // Close orders are BTC (buying back), not new entries — but we still block
+      // if earnings are within 7 days, because closing into earnings can result in
+      // poor fills and the position may recover after the event.
+      // NOTE: This is a soft-block for closes; the user can override by using dry-run.
+      if (!input.dryRun) {
+        try {
+          const { TradierAPI } = await import('./tradier');
+          const { checkEarningsBlock, formatEarningsBlockMessage } = await import('./earningsBlock');
+          const { getApiCredentials: getCredsForEarnings } = await import('./db');
+          const creds = await getCredsForEarnings(ctx.user.id);
+          const tradierKey = creds?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+          if (tradierKey) {
+            const tradierAPI = new TradierAPI(tradierKey);
+            const symbols = Array.from(new Set(input.orders.map(o => o.symbol)));
+            const earningsResult = await checkEarningsBlock(symbols, tradierAPI);
+            if (earningsResult.blocked.length > 0) {
+              throw new TRPCError({
+                code: 'PRECONDITION_FAILED',
+                message: formatEarningsBlockMessage(earningsResult),
+              });
+            }
+          }
+        } catch (err: any) {
+          if (err?.code === 'PRECONDITION_FAILED') throw err;
+          console.warn('[EarningsBlock] Automation earnings check failed (non-blocking):', err.message);
+        }
+      }
       // ── Spread integrity pre-flight guard ─────────────────────────────────────
       // Detect any order whose symbol indicates it was scanned as a spread (BPS/BCS/IC)
       // but is missing its long leg. This would result in a naked short — hard reject.

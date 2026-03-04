@@ -461,6 +461,28 @@ export const pmccRouter = router({
         }
       };
 
+      // ── EARNINGS BLOCK PRE-FLIGHT ──────────────────────────────────────────
+      {
+        const { TradierAPI } = await import('./tradier');
+        const { checkEarningsBlock, formatEarningsBlockMessage } = await import('./earningsBlock');
+        const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+        if (tradierKey) {
+          const tradierAPI = new TradierAPI(tradierKey);
+          const symbols = Array.from(new Set(input.leaps.map(l => l.symbol)));
+          const earningsResult = await checkEarningsBlock(symbols, tradierAPI);
+          if (earningsResult.blocked.length > 0) {
+            throw new TRPCError({
+              code: 'PRECONDITION_FAILED',
+              message: formatEarningsBlockMessage(earningsResult),
+            });
+          }
+          if (earningsResult.warned.length > 0) {
+            console.warn('[EarningsBlock] PMCC earnings warning:', earningsResult.warned);
+          }
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       // Submit orders (or dry run)
       const results = [];
       for (const leap of input.leaps) {

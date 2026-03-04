@@ -1640,7 +1640,26 @@ Summary: [One sentence overall assessment]`;
         }
 
         const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
+        const api = await authenticateTastytrade(credentials, ctx.user.id);
+
+        // ── EARNINGS BLOCK PRE-FLIGHT ────────────────────────────────────────
+        {
+          const { TradierAPI } = await import('./tradier');
+          const { checkEarningsBlock, formatEarningsBlockMessage } = await import('./earningsBlock');
+          const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+          if (tradierKey) {
+            const tradierAPI = new TradierAPI(tradierKey);
+            const symbols = Array.from(new Set(input.orders.map((o: any) => o.symbol)));
+            const earningsResult = await checkEarningsBlock(symbols, tradierAPI);
+            if (earningsResult.blocked.length > 0) {
+              throw new Error(formatEarningsBlockMessage(earningsResult));
+            }
+            if (earningsResult.warned.length > 0) {
+              console.warn('[EarningsBlock] Earnings warning for submitted symbols:', earningsResult.warned);
+            }
+          }
+        }
+        // ────────────────────────────────────────────────────────────────────
 
         const results: Array<{ symbol: string; success: boolean; orderId?: string; error?: string }> = [];
         const BATCH_SIZE = 10; // Process 10 orders per batch

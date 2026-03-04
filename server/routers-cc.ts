@@ -783,6 +783,24 @@ export const ccRouter = router({
       }
 
       // Live mode - submit real orders (api and credentials already initialized above)
+      // ── EARNINGS BLOCK PRE-FLIGHT ────────────────────────────────────────────
+      {
+        const { TradierAPI } = await import('./tradier');
+        const { checkEarningsBlock, formatEarningsBlockMessage } = await import('./earningsBlock');
+        const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+        if (tradierKey) {
+          const tradierAPI = new TradierAPI(tradierKey);
+          const symbols = Array.from(new Set(filteredOrders.map((o: any) => o.symbol)));
+          const earningsResult = await checkEarningsBlock(symbols, tradierAPI);
+          if (earningsResult.blocked.length > 0) {
+            throw new Error(formatEarningsBlockMessage(earningsResult));
+          }
+          if (earningsResult.warned.length > 0) {
+            console.warn('[EarningsBlock] CC earnings warning:', earningsResult.warned);
+          }
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
       const results = [];
 
       for (const order of filteredOrders) {

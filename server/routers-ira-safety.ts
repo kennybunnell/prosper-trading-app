@@ -513,6 +513,24 @@ export const iraSafetyRouter = router({
         };
       }
 
+      // ── EARNINGS BLOCK PRE-FLIGHT ──────────────────────────────────────────
+      try {
+        const { TradierAPI } = await import('./tradier');
+        const { checkEarningsBlock, formatEarningsBlockMessage } = await import('./earningsBlock');
+        const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+        if (tradierKey) {
+          const tradierAPI = new TradierAPI(tradierKey);
+          const earningsResult = await checkEarningsBlock([input.symbol], tradierAPI);
+          if (earningsResult.blocked.length > 0) {
+            throw new Error(formatEarningsBlockMessage(earningsResult));
+          }
+        }
+      } catch (earningsErr: any) {
+        if (earningsErr.message?.includes('EARNINGS BLOCK')) throw earningsErr;
+        console.warn('[EarningsBlock] IRA Safety earnings check failed (non-blocking):', earningsErr.message);
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       try {
         const result = await api.submitOrder({
           accountNumber: input.accountNumber,
