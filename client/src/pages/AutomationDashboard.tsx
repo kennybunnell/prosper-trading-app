@@ -694,6 +694,7 @@ export default function AutomationDashboard() {
         case 'dte':           av = a.dte ?? 9999;       bv = b.dte ?? 9999;       break;
         case 'premium':       av = a.premiumCollected;  bv = b.premiumCollected;  break;
         case 'buyBack':       av = a.buyBackCost;       bv = b.buyBackCost;       break;
+        case 'netProfit':     av = a.premiumCollected - a.buyBackCost; bv = b.premiumCollected - b.buyBackCost; break;
         case 'realizedPercent': av = a.realizedPercent; bv = b.realizedPercent;   break;
         default:              av = a.realizedPercent;   bv = b.realizedPercent;
       }
@@ -1510,6 +1511,7 @@ export default function AutomationDashboard() {
                           <SortTh col="dte" label="DTE" align="right" />
                           <SortTh col="premium" label="Premium Collected" align="right" />
                           <SortTh col="buyBack" label="Buy-Back Cost" align="right" />
+                          <SortTh col="netProfit" label="Net Profit" align="right" />
                           <SortTh col="realizedPercent" label="Realized %" align="right" />
                           <th className="text-center py-2 font-medium">Action</th>
                         </tr>
@@ -1648,6 +1650,26 @@ export default function AutomationDashboard() {
                                 ${result.buyBackCost.toFixed(2)}
                               </span>
                             )}
+                          </td>
+                          <td className="py-2.5 pr-4 text-right font-mono">
+                            {(() => {
+                              const netProfit = result.premiumCollected - result.buyBackCost;
+                              const isProfit = netProfit >= 0;
+                              return (
+                                <span
+                                  className={`font-bold ${
+                                    isProfit
+                                      ? result.realizedPercent >= threshold
+                                        ? 'text-green-400'
+                                        : 'text-amber-400'
+                                      : 'text-red-400'
+                                  }`}
+                                  title={`Net profit if closed now: $${netProfit.toFixed(2)}`}
+                                >
+                                  {isProfit ? '+' : ''}{netProfit < 0 ? '-' : ''}${Math.abs(netProfit).toFixed(2)}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="py-2.5 pr-4 text-right">
                             <span

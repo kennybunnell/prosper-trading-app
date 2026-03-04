@@ -7250,3 +7250,10 @@
 - [x] Show premium collected per row (what was originally received when spread was opened)
 - [x] Update summary section to clearly label: Premium Received | Buy-Back Cost | Net Profit | Realized %
 - [x] For BTC spread rows: show green net profit amount prominently
+
+## AutomationDashboard — Net Profit Column in Scan Results Table (Mar 4, 2026)
+- [x] Add "Net Profit" column between "Buy-Back Cost" and "Realized %" in scan results table
+- [x] Calculate as premiumCollected - buyBackCost for each row
+- [x] Color coding: green (profit + threshold met), amber (profit but below threshold), red (loss)
+- [x] Column is sortable (click header to sort ascending/descending by net profit)
+- [x] Added 16 unit tests covering calculation, formatting, color logic, and sorting
