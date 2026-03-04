@@ -7164,3 +7164,7 @@
 - [x] Each tab shows only positions of that strategy type with count badges
 - [x] Spread integrity maintained — both legs shown together, close action is atomic
 - [x] Selection clears when switching tabs to prevent cross-tab orphaning
+- [x] Fix #1: Underwater positions detection (fetch live quotes, parse OCC symbols for put/call)
+- [x] Fix #2: Add buying power (total + per account) to dashboard and summary cards
+- [x] Fix #3: Spread-aware capital-at-risk calculation (detect spread pairs, use spread width)
+- [x] Fix #4: Recalibrate risk score thresholds (lower concentration thresholds, capital utilization factor)

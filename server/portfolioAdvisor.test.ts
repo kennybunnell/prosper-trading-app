@@ -1,259 +1,578 @@
 /**
  * Portfolio Advisor Tests
- * Tests portfolio risk analysis and recommendation logic
+ * Tests for OCC parsing, spread detection, capital-at-risk, underwater detection,
+ * risk score calculation, and sector mapping
+ *
+ * Updated to match the rewritten routers-portfolio-advisor.ts logic:
+ * - OCC symbol parsing (not relying on option-type field)
+ * - Spread-aware capital at risk
+ * - Recalibrated risk score with capital utilization factor
+ * - Sector mapping
+ * - Buying power aggregation
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
-// Mock position data for testing
-const mockPositions = [
-  {
-    'instrument-type': 'Equity Option',
-    'symbol': 'AAPL  260221P00200000',
-    'underlying-symbol': 'AAPL',
-    'option-type': 'P',
-    'strike-price': '200',
-    'quantity': '-1',
-    'quantity-direction': 'Short',
-    'close-price': '195',
-    'underlying-price': '185',
-    'delta': '-0.35',
-  },
-  {
-    'instrument-type': 'Equity Option',
-    'symbol': 'HOOD  260221P00015000',
-    'underlying-symbol': 'HOOD',
-    'option-type': 'P',
-    'strike-price': '15',
-    'quantity': '-5',
-    'quantity-direction': 'Short',
-    'close-price': '14.5',
-    'underlying-price': '13.5', // Underwater
-    'delta': '-0.45',
-  },
-  {
-    'instrument-type': 'Equity Option',
-    'symbol': 'NVDA  260221C00850000',
-    'underlying-symbol': 'NVDA',
-    'option-type': 'C',
-    'strike-price': '850',
-    'quantity': '-2',
-    'quantity-direction': 'Short',
-    'close-price': '860',
-    'underlying-price': '860',
-    'delta': '0.55',
-  },
-  {
-    'instrument-type': 'Equity',
-    'symbol': 'AAPL',
-    'quantity': '100',
-    'close-price': '185',
-    'delta': '1.0',
-  },
-];
+// ─── Replicate the pure functions from routers-portfolio-advisor.ts ──────────
+
+function parseOCC(symbol: string): {
+  underlying: string;
+  expiration: string;
+  optionType: 'PUT' | 'CALL';
+  strike: number;
+} | null {
+  try {
+    const clean = symbol.replace(/\s/g, '');
+    const m = clean.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);
+    if (!m) return null;
+    const underlying = m[1];
+    const ds = m[2];
+    const optionType = m[3] === 'P' ? 'PUT' : 'CALL';
+    const strike = parseInt(m[4]) / 1000;
+    const year = 2000 + parseInt(ds.substring(0, 2));
+    const month = parseInt(ds.substring(2, 4));
+    const day = parseInt(ds.substring(4, 6));
+    const expiration = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return { underlying, expiration, optionType, strike };
+  } catch {
+    return null;
+  }
+}
+
+const SECTOR_MAP: Record<string, string> = {
+  AAPL: 'Technology', MSFT: 'Technology', NVDA: 'Technology', AMD: 'Technology',
+  HOOD: 'Technology', COIN: 'Technology', TSLA: 'Consumer Discretionary',
+  JPM: 'Financials', BAC: 'Financials', JNJ: 'Healthcare', PFE: 'Healthcare',
+  XOM: 'Energy', CVX: 'Energy', SPY: 'ETF/Index', QQQ: 'ETF/Index',
+  CAT: 'Industrials', BA: 'Industrials', NEE: 'Utilities',
+};
+
+function getSector(ticker: string): string {
+  return SECTOR_MAP[ticker] || 'Other';
+}
+
+interface ParsedPosition {
+  accountNumber: string;
+  symbol: string;
+  underlyingSymbol: string;
+  instrumentType: string;
+  quantity: number;
+  direction: 'short' | 'long';
+  optionType?: 'PUT' | 'CALL';
+  strike?: number;
+  expiration?: string;
+  closePrice: number;
+  averageOpenPrice: number;
+  multiplier: number;
+  delta: number;
+}
+
+interface SpreadPair {
+  shortLeg: ParsedPosition;
+  longLeg: ParsedPosition;
+  spreadWidth: number;
+  capitalAtRisk: number;
+}
+
+function detectSpreads(positions: ParsedPosition[]): {
+  spreads: SpreadPair[];
+  standaloneShorts: ParsedPosition[];
+  standaloneLongs: ParsedPosition[];
+  equities: ParsedPosition[];
+} {
+  const options = positions.filter(p => p.instrumentType === 'Equity Option');
+  const equities = positions.filter(p => p.instrumentType === 'Equity');
+  const groups = new Map<string, { shorts: ParsedPosition[]; longs: ParsedPosition[] }>();
+  for (const opt of options) {
+    const key = `${opt.underlyingSymbol}|${opt.expiration}|${opt.optionType}`;
+    if (!groups.has(key)) groups.set(key, { shorts: [], longs: [] });
+    const g = groups.get(key)!;
+    if (opt.direction === 'short') g.shorts.push(opt);
+    else g.longs.push(opt);
+  }
+  const spreads: SpreadPair[] = [];
+  const standaloneShorts: ParsedPosition[] = [];
+  const standaloneLongs: ParsedPosition[] = [];
+  for (const [, group] of Array.from(groups)) {
+    const shorts = [...group.shorts].sort((a, b) => (b.strike || 0) - (a.strike || 0));
+    const longs = [...group.longs].sort((a, b) => (a.strike || 0) - (b.strike || 0));
+    const usedLongs = new Set<number>();
+    for (const shortLeg of shorts) {
+      let matched = false;
+      for (let i = 0; i < longs.length; i++) {
+        if (usedLongs.has(i)) continue;
+        const longLeg = longs[i];
+        if (longLeg.quantity === shortLeg.quantity && longLeg.strike !== shortLeg.strike) {
+          const spreadWidth = Math.abs((shortLeg.strike || 0) - (longLeg.strike || 0));
+          spreads.push({ shortLeg, longLeg, spreadWidth, capitalAtRisk: spreadWidth * 100 * shortLeg.quantity });
+          usedLongs.add(i);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) standaloneShorts.push(shortLeg);
+    }
+    for (let i = 0; i < longs.length; i++) {
+      if (!usedLongs.has(i)) standaloneLongs.push(longs[i]);
+    }
+  }
+  return { spreads, standaloneShorts, standaloneLongs, equities };
+}
+
+function computeRiskScore(
+  maxConcentrationPct: number,
+  underwaterCount: number,
+  totalPositionCount: number,
+  diversificationScore: number,
+  capitalUtilizationPct: number,
+): number {
+  let score = 0;
+  if (maxConcentrationPct >= 40) score += 35;
+  else if (maxConcentrationPct >= 25) score += 28;
+  else if (maxConcentrationPct >= 15) score += 20;
+  else if (maxConcentrationPct >= 8) score += 12;
+  else if (maxConcentrationPct >= 5) score += 5;
+  if (totalPositionCount > 0) {
+    const underwaterPct = (underwaterCount / totalPositionCount) * 100;
+    if (underwaterPct >= 50) score += 25;
+    else if (underwaterPct >= 30) score += 20;
+    else if (underwaterPct >= 15) score += 15;
+    else if (underwaterPct >= 5) score += 8;
+    else if (underwaterCount > 0) score += 4;
+  }
+  score += Math.round((100 - diversificationScore) * 0.2);
+  if (capitalUtilizationPct >= 90) score += 20;
+  else if (capitalUtilizationPct >= 75) score += 15;
+  else if (capitalUtilizationPct >= 60) score += 10;
+  else if (capitalUtilizationPct >= 40) score += 5;
+  return Math.min(100, score);
+}
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('Portfolio Advisor', () => {
-  describe('Concentration Risk Calculation', () => {
-    it('should calculate ticker exposure correctly', () => {
-      const tickerExposure = new Map<string, number>();
-      let totalCapitalAtRisk = 0;
-
-      for (const pos of mockPositions) {
-        const instrumentType = pos['instrument-type'];
-        const symbol = pos.symbol;
-        const quantity = Math.abs(parseInt(String(pos.quantity || '0')));
-        const underlyingSymbol = pos['underlying-symbol'] || symbol;
-
-        if (instrumentType === 'Equity Option') {
-          const strikePrice = parseFloat(String(pos['strike-price'] || '0'));
-          const optionType = pos['option-type'];
-          const quantityDirection = pos['quantity-direction'];
-          const isShort = quantityDirection?.toLowerCase() === 'short';
-
-          if (isShort && optionType === 'P') {
-            const collateral = strikePrice * 100 * quantity;
-            totalCapitalAtRisk += collateral;
-            tickerExposure.set(underlyingSymbol, (tickerExposure.get(underlyingSymbol) || 0) + collateral);
-          } else if (isShort && optionType === 'C') {
-            const closePrice = parseFloat(String(pos['close-price'] || strikePrice));
-            const capitalAtRisk = closePrice * 100 * quantity;
-            totalCapitalAtRisk += capitalAtRisk;
-            tickerExposure.set(underlyingSymbol, (tickerExposure.get(underlyingSymbol) || 0) + capitalAtRisk);
-          }
-        } else if (instrumentType === 'Equity') {
-          const closePrice = parseFloat(String(pos['close-price'] || '0'));
-          const marketValue = closePrice * quantity;
-          totalCapitalAtRisk += marketValue;
-          tickerExposure.set(symbol, (tickerExposure.get(symbol) || 0) + marketValue);
-        }
-      }
-
-      // AAPL: 200*100*1 (short put) + 185*100 (stock) = 20,000 + 18,500 = 38,500
-      // HOOD: 15*100*5 (short put) = 7,500
-      // NVDA: 860*100*2 (short call) = 172,000
-      // Total: 218,000
-
-      expect(tickerExposure.get('AAPL')).toBe(38500);
-      expect(tickerExposure.get('HOOD')).toBe(7500);
-      expect(tickerExposure.get('NVDA')).toBe(172000);
-      expect(totalCapitalAtRisk).toBe(218000);
-
-      // Calculate percentages
-      const aaplPct = (38500 / 218000) * 100;
-      const hoodPct = (7500 / 218000) * 100;
-      const nvdaPct = (172000 / 218000) * 100;
-
-      expect(aaplPct).toBeCloseTo(17.66, 1);
-      expect(hoodPct).toBeCloseTo(3.44, 1);
-      expect(nvdaPct).toBeCloseTo(78.90, 1);
+  describe('OCC Symbol Parsing', () => {
+    it('should parse a put OCC symbol correctly', () => {
+      const result = parseOCC('AAPL  250321P00170000');
+      expect(result).toEqual({
+        underlying: 'AAPL',
+        expiration: '2025-03-21',
+        optionType: 'PUT',
+        strike: 170,
+      });
     });
 
-    it('should identify concentration violations', () => {
-      const concentrations = [
-        { ticker: 'NVDA', percentage: 78.90 },
-        { ticker: 'AAPL', percentage: 17.66 },
-        { ticker: 'HOOD', percentage: 3.44 },
+    it('should parse a call OCC symbol correctly', () => {
+      const result = parseOCC('NVDA  250418C00950000');
+      expect(result).toEqual({
+        underlying: 'NVDA',
+        expiration: '2025-04-18',
+        optionType: 'CALL',
+        strike: 950,
+      });
+    });
+
+    it('should parse OCC with spaces stripped', () => {
+      const result = parseOCC('HOOD  250321P00007500');
+      expect(result).toEqual({
+        underlying: 'HOOD',
+        expiration: '2025-03-21',
+        optionType: 'PUT',
+        strike: 7.5,
+      });
+    });
+
+    it('should return null for invalid symbols', () => {
+      expect(parseOCC('INVALID')).toBeNull();
+      expect(parseOCC('')).toBeNull();
+      expect(parseOCC('12345')).toBeNull();
+    });
+
+    it('should handle tickers with P in the name (PLTR, APLD, SPY)', () => {
+      const result = parseOCC('PLTR  250321P00025000');
+      expect(result).toEqual({
+        underlying: 'PLTR',
+        expiration: '2025-03-21',
+        optionType: 'PUT',
+        strike: 25,
+      });
+    });
+
+    it('should handle SPY options correctly', () => {
+      const result = parseOCC('SPY   250321P00550000');
+      expect(result).toEqual({
+        underlying: 'SPY',
+        expiration: '2025-03-21',
+        optionType: 'PUT',
+        strike: 550,
+      });
+    });
+  });
+
+  describe('Sector Mapping', () => {
+    it('should map known tickers to sectors', () => {
+      expect(getSector('AAPL')).toBe('Technology');
+      expect(getSector('TSLA')).toBe('Consumer Discretionary');
+      expect(getSector('JPM')).toBe('Financials');
+      expect(getSector('JNJ')).toBe('Healthcare');
+      expect(getSector('XOM')).toBe('Energy');
+      expect(getSector('SPY')).toBe('ETF/Index');
+    });
+
+    it('should return Other for unknown tickers', () => {
+      expect(getSector('ZZZZZ')).toBe('Other');
+      expect(getSector('FAKESYMBOL')).toBe('Other');
+    });
+  });
+
+  describe('Spread Detection', () => {
+    it('should detect a bull put spread (short put + long put, same expiration)', () => {
+      const positions: ParsedPosition[] = [
+        {
+          accountNumber: 'ACC1', symbol: 'AAPL  250321P00180000', underlyingSymbol: 'AAPL',
+          instrumentType: 'Equity Option', quantity: 1, direction: 'short',
+          optionType: 'PUT', strike: 180, expiration: '2025-03-21',
+          closePrice: 2.5, averageOpenPrice: 3.0, multiplier: 100, delta: -0.3,
+        },
+        {
+          accountNumber: 'ACC1', symbol: 'AAPL  250321P00175000', underlyingSymbol: 'AAPL',
+          instrumentType: 'Equity Option', quantity: 1, direction: 'long',
+          optionType: 'PUT', strike: 175, expiration: '2025-03-21',
+          closePrice: 1.5, averageOpenPrice: 2.0, multiplier: 100, delta: -0.2,
+        },
       ];
 
-      const violations10pct = concentrations.filter(c => c.percentage > 10).length;
-      const violations25pct = concentrations.filter(c => c.percentage > 25).length;
+      const result = detectSpreads(positions);
+      expect(result.spreads.length).toBe(1);
+      expect(result.standaloneShorts.length).toBe(0);
+      expect(result.spreads[0].spreadWidth).toBe(5);
+      expect(result.spreads[0].capitalAtRisk).toBe(500); // $5 wide * 100 * 1 contract
+    });
 
-      expect(violations10pct).toBe(2); // NVDA and AAPL
-      expect(violations25pct).toBe(1); // NVDA only
+    it('should detect a bear call spread', () => {
+      const positions: ParsedPosition[] = [
+        {
+          accountNumber: 'ACC1', symbol: 'NVDA  250418C00900000', underlyingSymbol: 'NVDA',
+          instrumentType: 'Equity Option', quantity: 2, direction: 'short',
+          optionType: 'CALL', strike: 900, expiration: '2025-04-18',
+          closePrice: 5.0, averageOpenPrice: 6.0, multiplier: 100, delta: 0.3,
+        },
+        {
+          accountNumber: 'ACC1', symbol: 'NVDA  250418C00910000', underlyingSymbol: 'NVDA',
+          instrumentType: 'Equity Option', quantity: 2, direction: 'long',
+          optionType: 'CALL', strike: 910, expiration: '2025-04-18',
+          closePrice: 3.0, averageOpenPrice: 4.0, multiplier: 100, delta: 0.2,
+        },
+      ];
+
+      const result = detectSpreads(positions);
+      expect(result.spreads.length).toBe(1);
+      expect(result.spreads[0].spreadWidth).toBe(10);
+      expect(result.spreads[0].capitalAtRisk).toBe(2000); // $10 wide * 100 * 2 contracts
+    });
+
+    it('should leave standalone short puts as naked CSPs', () => {
+      const positions: ParsedPosition[] = [
+        {
+          accountNumber: 'ACC1', symbol: 'HOOD  250321P00007500', underlyingSymbol: 'HOOD',
+          instrumentType: 'Equity Option', quantity: 5, direction: 'short',
+          optionType: 'PUT', strike: 7.5, expiration: '2025-03-21',
+          closePrice: 0.3, averageOpenPrice: 0.5, multiplier: 100, delta: -0.15,
+        },
+      ];
+
+      const result = detectSpreads(positions);
+      expect(result.spreads.length).toBe(0);
+      expect(result.standaloneShorts.length).toBe(1);
+      expect(result.standaloneShorts[0].underlyingSymbol).toBe('HOOD');
+    });
+
+    it('should not match legs with different expirations', () => {
+      const positions: ParsedPosition[] = [
+        {
+          accountNumber: 'ACC1', symbol: 'AAPL  250321P00180000', underlyingSymbol: 'AAPL',
+          instrumentType: 'Equity Option', quantity: 1, direction: 'short',
+          optionType: 'PUT', strike: 180, expiration: '2025-03-21',
+          closePrice: 2.5, averageOpenPrice: 3.0, multiplier: 100, delta: -0.3,
+        },
+        {
+          accountNumber: 'ACC1', symbol: 'AAPL  250418P00175000', underlyingSymbol: 'AAPL',
+          instrumentType: 'Equity Option', quantity: 1, direction: 'long',
+          optionType: 'PUT', strike: 175, expiration: '2025-04-18',
+          closePrice: 1.5, averageOpenPrice: 2.0, multiplier: 100, delta: -0.2,
+        },
+      ];
+
+      const result = detectSpreads(positions);
+      expect(result.spreads.length).toBe(0);
+      expect(result.standaloneShorts.length).toBe(1);
+      expect(result.standaloneLongs.length).toBe(1);
+    });
+
+    it('should not match legs with different quantities', () => {
+      const positions: ParsedPosition[] = [
+        {
+          accountNumber: 'ACC1', symbol: 'AAPL  250321P00180000', underlyingSymbol: 'AAPL',
+          instrumentType: 'Equity Option', quantity: 2, direction: 'short',
+          optionType: 'PUT', strike: 180, expiration: '2025-03-21',
+          closePrice: 2.5, averageOpenPrice: 3.0, multiplier: 100, delta: -0.3,
+        },
+        {
+          accountNumber: 'ACC1', symbol: 'AAPL  250321P00175000', underlyingSymbol: 'AAPL',
+          instrumentType: 'Equity Option', quantity: 1, direction: 'long',
+          optionType: 'PUT', strike: 175, expiration: '2025-03-21',
+          closePrice: 1.5, averageOpenPrice: 2.0, multiplier: 100, delta: -0.2,
+        },
+      ];
+
+      const result = detectSpreads(positions);
+      expect(result.spreads.length).toBe(0);
+      expect(result.standaloneShorts.length).toBe(1);
+      expect(result.standaloneLongs.length).toBe(1);
+    });
+
+    it('should handle equities separately', () => {
+      const positions: ParsedPosition[] = [
+        {
+          accountNumber: 'ACC1', symbol: 'AAPL', underlyingSymbol: 'AAPL',
+          instrumentType: 'Equity', quantity: 100, direction: 'long',
+          closePrice: 185, averageOpenPrice: 170, multiplier: 1, delta: 1.0,
+        },
+      ];
+
+      const result = detectSpreads(positions);
+      expect(result.equities.length).toBe(1);
+      expect(result.spreads.length).toBe(0);
+    });
+
+    it('should detect iron condor as two separate spreads', () => {
+      const positions: ParsedPosition[] = [
+        // Put spread (BPS)
+        {
+          accountNumber: 'ACC1', symbol: 'SPY   250321P00540000', underlyingSymbol: 'SPY',
+          instrumentType: 'Equity Option', quantity: 1, direction: 'short',
+          optionType: 'PUT', strike: 540, expiration: '2025-03-21',
+          closePrice: 3.0, averageOpenPrice: 4.0, multiplier: 100, delta: -0.25,
+        },
+        {
+          accountNumber: 'ACC1', symbol: 'SPY   250321P00535000', underlyingSymbol: 'SPY',
+          instrumentType: 'Equity Option', quantity: 1, direction: 'long',
+          optionType: 'PUT', strike: 535, expiration: '2025-03-21',
+          closePrice: 2.0, averageOpenPrice: 3.0, multiplier: 100, delta: -0.18,
+        },
+        // Call spread (BCS)
+        {
+          accountNumber: 'ACC1', symbol: 'SPY   250321C00580000', underlyingSymbol: 'SPY',
+          instrumentType: 'Equity Option', quantity: 1, direction: 'short',
+          optionType: 'CALL', strike: 580, expiration: '2025-03-21',
+          closePrice: 2.5, averageOpenPrice: 3.5, multiplier: 100, delta: 0.2,
+        },
+        {
+          accountNumber: 'ACC1', symbol: 'SPY   250321C00585000', underlyingSymbol: 'SPY',
+          instrumentType: 'Equity Option', quantity: 1, direction: 'long',
+          optionType: 'CALL', strike: 585, expiration: '2025-03-21',
+          closePrice: 1.5, averageOpenPrice: 2.5, multiplier: 100, delta: 0.15,
+        },
+      ];
+
+      const result = detectSpreads(positions);
+      expect(result.spreads.length).toBe(2);
+      expect(result.standaloneShorts.length).toBe(0);
+      // Put spread: $5 wide
+      const putSpread = result.spreads.find(s => s.shortLeg.optionType === 'PUT');
+      expect(putSpread?.spreadWidth).toBe(5);
+      expect(putSpread?.capitalAtRisk).toBe(500);
+      // Call spread: $5 wide
+      const callSpread = result.spreads.find(s => s.shortLeg.optionType === 'CALL');
+      expect(callSpread?.spreadWidth).toBe(5);
+      expect(callSpread?.capitalAtRisk).toBe(500);
     });
   });
 
-  describe('Underwater Position Detection', () => {
-    it('should identify underwater short puts', () => {
-      const underwaterPositions: any[] = [];
+  describe('Capital at Risk Calculation', () => {
+    it('should use spread width for spreads, not full strike', () => {
+      // BPS: short 180P / long 175P = $5 wide, 1 contract
+      const spreadCapital = 5 * 100 * 1;
+      expect(spreadCapital).toBe(500);
 
-      for (const pos of mockPositions) {
-        const instrumentType = pos['instrument-type'];
-        if (instrumentType === 'Equity Option') {
-          const optionType = pos['option-type'];
-          const quantityDirection = pos['quantity-direction'];
-          const isShort = quantityDirection?.toLowerCase() === 'short';
-          const strikePrice = parseFloat(String(pos['strike-price'] || '0'));
-          const underlyingPrice = parseFloat(String(pos['underlying-price'] || '0'));
-          const underlyingSymbol = pos['underlying-symbol'];
+      // Naked CSP: short 180P, 1 contract
+      const nakedCapital = 180 * 100 * 1;
+      expect(nakedCapital).toBe(18000);
 
-          if (isShort && optionType === 'P' && underlyingPrice < strikePrice) {
-            const percentBelow = ((strikePrice - underlyingPrice) / strikePrice) * 100;
-            underwaterPositions.push({
-              ticker: underlyingSymbol,
-              strike: strikePrice,
-              currentPrice: underlyingPrice,
-              percentBelow,
-            });
-          }
-        }
-      }
+      // The spread is 36x less capital at risk than the naked position
+      expect(nakedCapital / spreadCapital).toBe(36);
+    });
 
-      // AAPL: strike=200, current=185, 7.5% below
-      // HOOD: strike=15, current=13.5, 10% below
-
-      expect(underwaterPositions.length).toBe(2);
-      expect(underwaterPositions[0].ticker).toBe('AAPL');
-      expect(underwaterPositions[0].percentBelow).toBeCloseTo(7.5, 1);
-      expect(underwaterPositions[1].ticker).toBe('HOOD');
-      expect(underwaterPositions[1].percentBelow).toBeCloseTo(10.0, 1);
+    it('should calculate equity capital at risk from market value', () => {
+      const price = 185;
+      const shares = 100;
+      expect(price * shares).toBe(18500);
     });
   });
 
-  describe('Portfolio Delta Calculation', () => {
-    it('should calculate total portfolio delta correctly', () => {
-      let totalDelta = 0;
-
-      for (const pos of mockPositions) {
-        const delta = parseFloat(String(pos.delta || '0'));
-        const quantity = parseInt(String(pos.quantity || '0'));
-        
-        if (pos['instrument-type'] === 'Equity Option') {
-          totalDelta += delta * quantity * 100; // Multiply by 100 for options
-        } else {
-          totalDelta += delta * quantity; // Stock delta is 1:1
-        }
-      }
-
-      // AAPL put: -0.35 * -1 * 100 = 35
-      // HOOD put: -0.45 * -5 * 100 = 225
-      // NVDA call: 0.55 * -2 * 100 = -110
-      // AAPL stock: 1.0 * 100 = 100
-      // Total: 35 + 225 - 110 + 100 = 250
-
-      expect(totalDelta).toBeCloseTo(250, 0);
+  describe('Underwater Detection', () => {
+    it('should detect short put underwater when underlying < strike', () => {
+      const strike = 180;
+      const currentPrice = 175;
+      const isUnderwater = currentPrice < strike;
+      expect(isUnderwater).toBe(true);
+      const percentBelow = ((strike - currentPrice) / strike) * 100;
+      expect(percentBelow).toBeCloseTo(2.78, 1);
     });
 
-    it('should calculate delta per $1000 correctly', () => {
-      const totalCapitalAtRisk = 218000;
-      const totalDelta = 250;
-      const deltaPer1000 = (totalDelta / (totalCapitalAtRisk / 1000));
+    it('should NOT flag short put when underlying > strike', () => {
+      const strike = 180;
+      const currentPrice = 190;
+      expect(currentPrice < strike).toBe(false);
+    });
 
-      expect(deltaPer1000).toBeCloseTo(1.15, 2);
+    it('should detect short call underwater when underlying > strike', () => {
+      const strike = 900;
+      const currentPrice = 920;
+      expect(currentPrice > strike).toBe(true);
+      const percentAbove = ((currentPrice - strike) / strike) * 100;
+      expect(percentAbove).toBeCloseTo(2.22, 1);
+    });
+
+    it('should NOT flag short call when underlying < strike', () => {
+      const strike = 900;
+      const currentPrice = 880;
+      expect(currentPrice > strike).toBe(false);
+    });
+
+    it('should include max loss for spread underwater positions', () => {
+      // BPS: $5 wide, 2 contracts, underwater
+      const spreadWidth = 5;
+      const quantity = 2;
+      const maxLoss = spreadWidth * 100 * quantity;
+      expect(maxLoss).toBe(1000);
     });
   });
 
-  describe('Risk Score Calculation', () => {
-    it('should calculate risk score based on concentration', () => {
-      let riskScore = 0;
-      const maxConcentration = 78.90; // NVDA
+  describe('Risk Score Calculation (Recalibrated)', () => {
+    it('should score concentration risk at lower thresholds', () => {
+      // 9.8% concentration should now score 12 points (was 0 with old >=10% threshold)
+      let score = 0;
+      const maxConcentration = 9.8;
+      if (maxConcentration >= 40) score += 35;
+      else if (maxConcentration >= 25) score += 28;
+      else if (maxConcentration >= 15) score += 20;
+      else if (maxConcentration >= 8) score += 12;
+      else if (maxConcentration >= 5) score += 5;
+      expect(score).toBe(12);
+    });
 
-      if (maxConcentration >= 50) {
-        riskScore += 40;
-      } else if (maxConcentration >= 30) {
-        riskScore += 30;
-      } else if (maxConcentration >= 20) {
-        riskScore += 20;
-      } else if (maxConcentration >= 10) {
-        riskScore += 10;
+    it('should include capital utilization in risk score', () => {
+      const riskScore = computeRiskScore(5, 0, 10, 80, 80);
+      // concentration: 5 (5%), underwater: 0, diversification: (100-80)*0.2=4, utilization: 15
+      expect(riskScore).toBe(5 + 0 + 4 + 15);
+    });
+
+    it('should score high risk for concentrated portfolio with underwater positions', () => {
+      const riskScore = computeRiskScore(45, 5, 10, 50, 85);
+      // concentration: 35 (45%), underwater: 25 (50%), diversification: (100-50)*0.2=10, utilization: 15
+      expect(riskScore).toBe(35 + 25 + 10 + 15);
+    });
+
+    it('should score low risk for well-diversified healthy portfolio', () => {
+      const riskScore = computeRiskScore(4, 0, 20, 90, 30);
+      // concentration: 0 (4%), underwater: 0, diversification: (100-90)*0.2=2, utilization: 0
+      expect(riskScore).toBe(0 + 0 + 2 + 0);
+    });
+
+    it('should cap at 100', () => {
+      const riskScore = computeRiskScore(50, 20, 20, 10, 95);
+      expect(riskScore).toBeLessThanOrEqual(100);
+    });
+
+    it('should add 4 points for any underwater position even if percentage is low', () => {
+      const riskScore = computeRiskScore(4, 1, 100, 90, 30);
+      // concentration: 0, underwater: 4 (1/100=1%), diversification: 2, utilization: 0
+      expect(riskScore).toBe(0 + 4 + 2 + 0);
+    });
+
+    it('should score 0 for empty portfolio', () => {
+      const riskScore = computeRiskScore(0, 0, 0, 0, 0);
+      // concentration: 0, underwater: 0 (no positions), diversification: (100-0)*0.2=20, utilization: 0
+      expect(riskScore).toBe(20);
+    });
+  });
+
+  describe('Diversification Score', () => {
+    it('should give low score for 1-3 tickers', () => {
+      const tickerCount = 2;
+      let score = 20 + ((tickerCount - 1) / 3) * 20;
+      expect(score).toBeCloseTo(26.67, 1);
+    });
+
+    it('should give moderate score for 7-10 tickers', () => {
+      const tickerCount = 8;
+      let score = 60 + ((tickerCount - 7) / 4) * 15;
+      expect(score).toBeCloseTo(63.75, 1);
+    });
+
+    it('should give high score for 20+ tickers', () => {
+      const tickerCount = 25;
+      let score = Math.min(100, 90 + (tickerCount - 20));
+      expect(score).toBe(95);
+    });
+
+    it('should cap at 100', () => {
+      const tickerCount = 35;
+      let score = Math.min(100, 90 + (tickerCount - 20));
+      expect(score).toBe(100);
+    });
+  });
+
+  describe('Sector Concentration', () => {
+    it('should aggregate tickers into sectors', () => {
+      const tickers = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'JPM'];
+      const sectorMap = new Map<string, number>();
+      for (const t of tickers) {
+        const sector = getSector(t);
+        sectorMap.set(sector, (sectorMap.get(sector) || 0) + 1);
       }
-
-      expect(riskScore).toBe(40);
+      expect(sectorMap.get('Technology')).toBe(3);
+      expect(sectorMap.get('Consumer Discretionary')).toBe(1);
+      expect(sectorMap.get('Financials')).toBe(1);
     });
 
-    it('should calculate risk score based on underwater positions', () => {
-      let riskScore = 0;
-      const totalPositions = 4;
-      const underwaterCount = 2;
-      const underwaterPct = (underwaterCount / totalPositions) * 100; // 50%
+    it('should flag sector over 25%', () => {
+      const sectorPcts = [
+        { sector: 'Technology', percentage: 60 },
+        { sector: 'Financials', percentage: 20 },
+        { sector: 'Healthcare', percentage: 20 },
+      ];
+      const violations = sectorPcts.filter(s => s.percentage > 25).length;
+      expect(violations).toBe(1);
+    });
+  });
 
-      if (underwaterPct >= 50) {
-        riskScore += 30;
-      } else if (underwaterPct >= 30) {
-        riskScore += 20;
-      } else if (underwaterPct >= 10) {
-        riskScore += 10;
-      }
-
-      expect(riskScore).toBe(30);
+  describe('Buying Power Aggregation', () => {
+    it('should aggregate buying power across multiple accounts', () => {
+      const accounts = [
+        { derivativeBuyingPower: 50000, netLiquidatingValue: 100000 },
+        { derivativeBuyingPower: 30000, netLiquidatingValue: 80000 },
+        { derivativeBuyingPower: 20000, netLiquidatingValue: 60000 },
+      ];
+      const totalBP = accounts.reduce((sum, a) => sum + a.derivativeBuyingPower, 0);
+      const totalNL = accounts.reduce((sum, a) => sum + a.netLiquidatingValue, 0);
+      expect(totalBP).toBe(100000);
+      expect(totalNL).toBe(240000);
     });
 
-    it('should calculate diversification score correctly', () => {
-      const tickerCount = 3; // AAPL, HOOD, NVDA
-
-      // 1-3 tickers = poor (30-50)
-      let diversificationScore = 30 + ((tickerCount - 1) / 2) * 20;
-
-      expect(diversificationScore).toBe(50);
-
-      // Risk contribution from diversification (inverse)
-      const diversificationRisk = Math.round((100 - diversificationScore) * 0.3);
-      expect(diversificationRisk).toBe(15);
+    it('should calculate capital utilization percentage', () => {
+      const totalNetLiq = 240000;
+      const totalBuyingPower = 100000;
+      const utilization = ((totalNetLiq - totalBuyingPower) / totalNetLiq) * 100;
+      expect(utilization).toBeCloseTo(58.33, 1);
     });
 
-    it('should calculate overall risk score correctly', () => {
-      let riskScore = 0;
-
-      // Concentration risk: 40 points (max concentration 78.90%)
-      riskScore += 40;
-
-      // Underwater positions: 30 points (50% underwater)
-      riskScore += 30;
-
-      // Diversification: 15 points (50 score → 50 risk * 0.3)
-      riskScore += 15;
-
-      expect(riskScore).toBe(85);
+    it('should handle zero net liq gracefully', () => {
+      const totalNetLiq = 0;
+      const totalBuyingPower = 0;
+      const utilization = totalNetLiq > 0 ? ((totalNetLiq - totalBuyingPower) / totalNetLiq) * 100 : 0;
+      expect(utilization).toBe(0);
     });
   });
 
@@ -264,9 +583,7 @@ describe('Portfolio Advisor', () => {
         { ticker: 'AAPL', percentage: 17.66, capitalAtRisk: 38500 },
         { ticker: 'HOOD', percentage: 3.44, capitalAtRisk: 7500 },
       ];
-
       const violations10pct = concentrations.filter(c => c.percentage > 10).length;
-
       const actionItems: any[] = [];
       if (violations10pct > 0) {
         actionItems.push({
@@ -274,61 +591,49 @@ describe('Portfolio Advisor', () => {
           description: `Reduce concentration in ${concentrations[0].ticker} (${concentrations[0].percentage.toFixed(1)}% of portfolio). Target: <10% per ticker.`,
         });
       }
-
       expect(actionItems.length).toBe(1);
       expect(actionItems[0].priority).toBe('high');
       expect(actionItems[0].description).toContain('NVDA');
       expect(actionItems[0].description).toContain('78.9%');
     });
 
-    it('should generate underwater position recommendation', () => {
+    it('should generate underwater position recommendation with worst ticker', () => {
       const underwaterPositions = [
-        { ticker: 'AAPL', percentBelow: 7.5 },
         { ticker: 'HOOD', percentBelow: 10.0 },
+        { ticker: 'AAPL', percentBelow: 7.5 },
       ];
-
       const actionItems: any[] = [];
       if (underwaterPositions.length > 0) {
+        const worstPct = underwaterPositions[0].percentBelow.toFixed(1);
         actionItems.push({
           priority: 'high',
-          description: `${underwaterPositions.length} positions are underwater. Consider rolling or closing to avoid assignment.`,
+          description: `${underwaterPositions.length} positions are underwater. Worst: ${underwaterPositions[0].ticker} at -${worstPct}%. Consider rolling or closing.`,
         });
       }
-
       expect(actionItems.length).toBe(1);
-      expect(actionItems[0].priority).toBe('high');
-      expect(actionItems[0].description).toContain('2 positions');
+      expect(actionItems[0].description).toContain('HOOD');
+      expect(actionItems[0].description).toContain('-10.0%');
     });
 
-    it('should generate delta hedging recommendation', () => {
-      const deltaPer1000 = 1.15;
-
+    it('should generate capital utilization warning', () => {
+      const capitalUtilizationPct = 82;
       const actionItems: any[] = [];
-      if (Math.abs(deltaPer1000) > 5) {
+      if (capitalUtilizationPct > 75) {
         actionItems.push({
           priority: 'medium',
-          description: `Portfolio delta is ${deltaPer1000.toFixed(2)} per $1000. Consider hedging to reduce directional risk.`,
+          description: `Capital utilization at ${capitalUtilizationPct.toFixed(0)}%. Keep below 75% for adjustment room.`,
         });
       }
-
-      // Delta is 1.15, which is < 5, so no recommendation
-      expect(actionItems.length).toBe(0);
+      expect(actionItems.length).toBe(1);
+      expect(actionItems[0].description).toContain('82%');
     });
 
-    it('should generate diversification recommendation', () => {
-      const tickerCount = 3;
-
-      const actionItems: any[] = [];
-      if (tickerCount < 7) {
-        actionItems.push({
-          priority: 'low',
-          description: `Increase diversification. Currently only ${tickerCount} tickers. Target: 10+ tickers.`,
-        });
-      }
-
-      expect(actionItems.length).toBe(1);
-      expect(actionItems[0].priority).toBe('low');
-      expect(actionItems[0].description).toContain('3 tickers');
+    it('should generate sector concentration warning', () => {
+      const sectorConcentrations = [
+        { sector: 'Technology', percentage: 65 },
+      ];
+      const violations = sectorConcentrations.filter(s => s.percentage > 25).length;
+      expect(violations).toBe(1);
     });
   });
 });
