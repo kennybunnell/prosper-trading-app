@@ -444,6 +444,29 @@ export const rollsRouter = router({
           ? `${dogEntry.recommendation} (WTR ${dogEntry.wtr.toFixed(1)} wks) — let be called away`
           : null;
 
+        // ── Action Label ──────────────────────────────────────────────────────
+        // Give every position a single, unambiguous action so the UI never shows
+        // a wall of red with no clear next step.
+        //
+        //  LET_EXPIRE  — OTM with ≤5 DTE; just let time decay finish it
+        //  CLOSE       — ITM with ≤5 DTE; no time to roll, take the loss and close
+        //  ROLL        — DTE > 5 AND roll credit is Likely/Marginal; roll for a credit
+        //  MONITOR     — DTE > 5 AND deep ITM (>5%); too deep to roll for credit, watch
+        //  LET_CALLED  — ITM CC on a dog underlying; let stock be called away
+        let actionLabel: 'LET_EXPIRE' | 'CLOSE' | 'ROLL' | 'MONITOR' | 'LET_CALLED';
+        if (isLetExpire) {
+          actionLabel = 'LET_CALLED';
+        } else if (spread.dte <= 5) {
+          // Near expiry — no time to roll
+          actionLabel = itmDepth > 0 ? 'CLOSE' : 'LET_EXPIRE';
+        } else if (itmDepth > 5) {
+          // Deep ITM with time remaining — too expensive to roll for credit
+          actionLabel = 'MONITOR';
+        } else {
+          // Has time and is not deeply ITM — roll is viable
+          actionLabel = 'ROLL';
+        }
+
         return {
           positionId,
           symbol: spread.underlying,
@@ -455,6 +478,7 @@ export const rollsRouter = router({
           unrealizedPnl,
           isLetExpire,
           dogReason,
+          actionLabel,
           shouldRoll: !isLetExpire && (urgency === 'red' || urgency === 'yellow'),
           reasons,
           score,

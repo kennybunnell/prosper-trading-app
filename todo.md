@@ -7111,3 +7111,10 @@
 - [x] Exclude winners from roll scan results in backend (shouldRoll = false for winners)
 - [x] Set default P&L filter to hide winners in Roll Positions UI
 - [x] Update summary stats to show only loser/breakeven counts as actionable
+
+## Roll Scanner Action Label Redesign (Mar 4, 2026)
+- [x] Add actionLabel field to roll scan backend: LET_EXPIRE / CLOSE / ROLL / MONITOR
+- [x] Show colored action badge on every row (green=LET_EXPIRE, orange=ROLL, red=CLOSE, amber=MONITOR)
+- [x] Group rows by action label in the UI (ROLL first, then CLOSE, then LET_EXPIRE, then MONITOR)
+- [x] Remove the generic "Should Roll: Yes" column from the table
+- [x] Add action label to CSV export

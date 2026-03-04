@@ -142,6 +142,7 @@ type RollAnalysis = {
   spreadDetails?: SpreadDetails;
   isLetExpire?: boolean;
   dogReason?: string | null;
+  actionLabel?: 'LET_EXPIRE' | 'CLOSE' | 'ROLL' | 'MONITOR' | 'LET_CALLED';
 };
 
 type RollCandidate = {
@@ -252,7 +253,7 @@ export default function AutomationDashboard() {
       'Symbol', 'Account', 'Strategy', 'P&L Status', 'Unrealized P&L ($)',
       'Profit Captured (%)', 'Stock Price ($)', 'Strike Price ($)', 'Expiration',
       'DTE', 'ITM/OTM Depth (%)', 'Open Premium ($)', 'Current Value ($)',
-      'Delta', 'Urgency', 'Should Roll', 'Roll Credit Available', 'Reasons'
+      'Delta', 'Urgency', 'Action', 'Roll Credit Available', 'Reasons'
     ];
     const rows = rollScanResults.all.map(pos => [
       pos.symbol,
@@ -270,7 +271,7 @@ export default function AutomationDashboard() {
       pos.metrics.currentValue.toFixed(2),
       pos.metrics.delta.toFixed(3),
       pos.urgency,
-      pos.shouldRoll ? 'Yes' : 'No',
+      (pos as any).actionLabel || (pos.shouldRoll ? 'ROLL' : 'HOLD'),
       (() => {
         // Estimate roll credit: for ITM positions, new ATM premium minus cost-to-close
         // currentValue = cost to close; openPremium = original premium received
@@ -2029,15 +2030,32 @@ export default function AutomationDashboard() {
                                       disabled={!selectedCandidate}
                                     />
                                   </td>
-                                  {/* P&L Status badge */}
+                                  {/* P&L Status + Action Label badges */}
                                   <td className="p-3 text-center">
-                                    <div className="flex flex-col items-center gap-0.5">
+                                    <div className="flex flex-col items-center gap-1">
+                                      {/* P&L status */}
                                       {(pos as any).pnlStatus === 'winner' ? (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 text-xs font-semibold">🟢 Win</span>
                                       ) : (pos as any).pnlStatus === 'loser' ? (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 text-xs font-semibold">🔴 Loss</span>
                                       ) : (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 text-xs font-semibold">🟡 Even</span>
+                                      )}
+                                      {/* Action label — the key "what to do" badge */}
+                                      {(pos as any).actionLabel === 'ROLL' && (
+                                        <span title="DTE > 5 and roll credit is viable" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 text-[10px] font-bold tracking-wide">↩ ROLL</span>
+                                      )}
+                                      {(pos as any).actionLabel === 'CLOSE' && (
+                                        <span title="ITM with ≤5 DTE — close now, no time to roll" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600/25 text-red-300 text-[10px] font-bold tracking-wide">✕ CLOSE</span>
+                                      )}
+                                      {(pos as any).actionLabel === 'LET_EXPIRE' && (
+                                        <span title="OTM with ≤5 DTE — let time decay finish it" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 text-[10px] font-bold tracking-wide">✓ LET EXPIRE</span>
+                                      )}
+                                      {(pos as any).actionLabel === 'MONITOR' && (
+                                        <span title="Deep ITM with time remaining — too expensive to roll for credit" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-[10px] font-bold tracking-wide">👁 MONITOR</span>
+                                      )}
+                                      {(pos as any).actionLabel === 'LET_CALLED' && (
+                                        <span title={(pos as any).dogReason || 'Dog position — let stock be called away'} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 text-[10px] font-bold tracking-wide">📞 LET CALLED</span>
                                       )}
                                       {pos.hasStaleMarks && (
                                         <span title="P&L uses yesterday's close price — live marks unavailable" className="text-[9px] text-amber-400/70 font-medium">⚠ stale</span>
