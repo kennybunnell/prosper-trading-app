@@ -7202,3 +7202,10 @@
 ## Profit Threshold UI Improvement (Mar 4, 2026)
 - [x] Make Profit Threshold field directly editable (type a value)
 - [x] Replace Add/Reduce buttons with compact +/- buttons in increments of 5
+
+## BTC Order Pricing Bug Fix (Mar 4, 2026)
+- [x] Fix: BTC orders using ask price instead of smart fill price — all 20 orders failed to fill
+- [x] Implement spread-width tier pricing for BTC orders (tight ≤$0.05: mid, medium ≤$0.15: mid+$0.01, wide ≤$0.30: 75% from bid, very wide >$0.30: 85% from bid)
+- [x] Add live Tradier bid/ask fetch before order submission (replaces stale close-price + ceil formula)
+- [x] Fix tick rounding: $0.05 increments below $1, $0.01 above $1 (was incorrectly using $0.05 below $3)
+- [x] Add 9 new unit tests for BTC spread-width tier pricing logic

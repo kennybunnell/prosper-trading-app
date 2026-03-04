@@ -880,6 +880,64 @@ export const automationRouter = router({
         });
       }
 
+      // ── Live bid/ask enrichment ────────────────────────────────────────────────
+      // Fetch live quotes from Tradier for all option symbols so we can use
+      // spread-width tier pricing instead of stale close-price + ceil formula.
+      const liveQuoteMap = new Map<string, { bid: number; ask: number; mid: number }>();
+      try {
+        const { TradierAPI: TradierAPIForQuotes } = await import('./tradier');
+        const tradierKeyForQuotes = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+        if (tradierKeyForQuotes) {
+          const tradierForQuotes = new TradierAPIForQuotes(tradierKeyForQuotes);
+          const allOptionSymbols = Array.from(new Set([
+            ...input.orders.map(o => o.optionSymbol),
+            ...input.orders.filter(o => o.spreadLongSymbol).map(o => o.spreadLongSymbol!),
+          ]));
+          const quotes = await tradierForQuotes.getQuotes(allOptionSymbols);
+          for (const q of quotes) {
+            if (q.bid > 0 && q.ask > 0) {
+              liveQuoteMap.set(q.symbol, { bid: q.bid, ask: q.ask, mid: (q.bid + q.ask) / 2 });
+            }
+          }
+          console.log(`[submitCloseOrders] Fetched live quotes for ${liveQuoteMap.size}/${allOptionSymbols.length} option symbols`);
+        }
+      } catch (quoteErr: any) {
+        console.warn('[submitCloseOrders] Live quote fetch failed, falling back to close-price:', quoteErr.message);
+      }
+
+      /**
+       * Calculate smart BTC limit price using spread-width tiers.
+       * For cheap options with wide spreads, paying full ask is wasteful.
+       * This mirrors the sell-side logic but inverted for buy orders.
+       */
+      function calcBtcLimitPrice(optionSymbol: string, fallbackCostPerShare: number): number {
+        const q = liveQuoteMap.get(optionSymbol);
+        if (!q || q.bid <= 0 || q.ask <= 0) {
+          // No live quote — fall back to close-price + $0.01 ceiling
+          return Math.max(0.01, Math.ceil((fallbackCostPerShare + 0.01) * 100) / 100);
+        }
+        const { bid, ask } = q;
+        const spread = ask - bid;
+        let price: number;
+        if (spread <= 0.05) {
+          price = q.mid;                  // Tight: mid
+        } else if (spread <= 0.15) {
+          price = q.mid + 0.01;           // Medium: mid + $0.01
+        } else if (spread <= 0.30) {
+          price = bid + (spread * 0.75);  // Wide: 75% from bid
+        } else {
+          price = bid + (spread * 0.85);  // Very wide: 85% from bid
+        }
+        // Round to Tastytrade tick size: $0.05 increments below $1, $0.01 above $1
+        if (price < 1) {
+          price = Math.round(price * 20) / 20;
+        } else {
+          price = Math.round(price * 100) / 100;
+        }
+        // Clamp to [bid, ask]
+        return Math.max(bid, Math.min(ask, Math.max(0.01, price)));
+      }
+
       for (const order of input.orders) {
         try {
           const isSpreadOrder = !!order.spreadLongSymbol;
@@ -889,10 +947,19 @@ export const automationRouter = router({
           const longLegCreditPerShare = isSpreadOrder
             ? Math.abs(parseFloat(order.spreadLongPrice || '0'))
             : 0;
-          // Net debit per share (what we pay to close the spread)
-          const netDebitPerShare = shortLegCostPerShare - longLegCreditPerShare;
-          // Use a limit price slightly above current net cost (add $0.01 buffer), minimum $0.01
-          const limitPrice = Math.max(0.01, Math.ceil((netDebitPerShare + 0.01) * 100) / 100);
+
+          let limitPrice: number;
+          if (isSpreadOrder) {
+            // Spread: use live short leg price minus live long leg credit
+            const shortLegLivePrice = calcBtcLimitPrice(order.optionSymbol, shortLegCostPerShare);
+            const longLegLiveQ = order.spreadLongSymbol ? liveQuoteMap.get(order.spreadLongSymbol) : null;
+            const longLegLiveCredit = longLegLiveQ ? longLegLiveQ.bid : longLegCreditPerShare;
+            const netDebit = Math.max(0.01, shortLegLivePrice - longLegLiveCredit);
+            // Round net debit to $0.01
+            limitPrice = Math.round(netDebit * 100) / 100;
+          } else {
+            limitPrice = calcBtcLimitPrice(order.optionSymbol, shortLegCostPerShare);
+          }
 
           // Dry run: skip actual order submission
           if (input.dryRun) {
@@ -900,7 +967,7 @@ export const automationRouter = router({
               console.log('[Automation submitCloseOrders] DRY RUN — would submit SPREAD BTC order:', {
                 symbol: order.symbol, shortLeg: order.optionSymbol, longLeg: order.spreadLongSymbol,
                 accountNumber: order.accountNumber, quantity: order.quantity,
-                shortLegCostPerShare, longLegCreditPerShare, netDebitPerShare, limitPrice,
+                shortLegCostPerShare, longLegCreditPerShare, limitPrice,
               });
               results.push({
                 symbol: order.symbol,
@@ -951,7 +1018,6 @@ export const automationRouter = router({
             spreadLongSymbol: order.spreadLongSymbol,
             accountNumber: order.accountNumber,
             quantity: order.quantity,
-            netDebitPerShare,
             limitPrice,
             isEstimated: order.isEstimated,
             legs: legs.length,

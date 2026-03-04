@@ -56,42 +56,57 @@ export function calculateSmartFillPrice(
   let strategy = '';
 
   // BUY-SIDE PRICING (Buy to Close, Buy to Open)
-  // Goal: Use ask price for guaranteed fills
+  // Goal: Find the best price that will actually fill — NOT always ask price.
+  // For cheap options with wide spreads, paying full ask is wasteful.
+  // Use spread-width tiers to find a realistic fill price.
   if (isBuySide) {
-    // For buy orders, use ask price directly for immediate fills
-    suggestedPrice = ask;
-    strategy = `Buy-side: Using ask price`;
-
-    // Time-based adjustments - add premium above ask for stuck orders
-    if (minutesWorking >= 60) {
-      suggestedPrice = ask + 0.02;
-      strategy = `Buy-side: Ask + $0.02 (working >1hr)`;
-    } else if (minutesWorking >= 30) {
-      suggestedPrice = ask + 0.01;
-      strategy = `Buy-side: Ask + $0.01 (working >30min)`;
+    if (spread <= 0.05) {
+      // Tight spread: mid is fine, market maker will fill
+      suggestedPrice = mid;
+      strategy = 'Buy-side: Tight spread (≤$0.05): Mid';
+    } else if (spread <= 0.15) {
+      // Medium spread: mid + $0.01 to attract a fill
+      suggestedPrice = mid + 0.01;
+      strategy = 'Buy-side: Medium spread (≤$0.15): Mid + $0.01';
+    } else if (spread <= 0.30) {
+      // Wide spread: 75% of the way from bid to ask
+      suggestedPrice = bid + (spread * 0.75);
+      strategy = 'Buy-side: Wide spread (≤$0.30): 75% from bid';
+    } else {
+      // Very wide spread (illiquid options): 85% from bid — near ask but not full ask
+      suggestedPrice = bid + (spread * 0.85);
+      strategy = 'Buy-side: Very wide spread: 85% from bid';
     }
 
-    // Aggressive mode: go above ask for faster fills
+    // Time-based escalation — move closer to ask if stuck
+    if (minutesWorking >= 60) {
+      suggestedPrice = Math.min(ask, suggestedPrice + 0.02);
+      strategy += ' | Working >1hr: +$0.02';
+    } else if (minutesWorking >= 30) {
+      suggestedPrice = Math.min(ask, suggestedPrice + 0.01);
+      strategy += ' | Working >30min: +$0.01';
+    }
+
+    // Aggressive mode: escalate toward ask faster
     if (aggressiveFillMode) {
       if (minutesWorking >= 120) {
-        // Orders working >2 hours: go well above ask
-        suggestedPrice = ask + 0.15;
-        strategy = `Buy-side: Ask + $0.15 🚀 (>2hrs, aggressive)`;
+        // Orders working >2 hours: use ask price
+        suggestedPrice = ask;
+        strategy += ' | 🚀 Aggressive: Using ask (>2hrs)';
       } else if (minutesWorking >= 60) {
-        suggestedPrice = ask + 0.10;
-        strategy = `Buy-side: Ask + $0.10 🚀 (>1hr, aggressive)`;
+        suggestedPrice = Math.min(ask, suggestedPrice + 0.03);
+        strategy += ' | 🚀 Aggressive: +$0.03';
       } else if (minutesWorking >= 30) {
-        suggestedPrice = ask + 0.07;
-        strategy = `Buy-side: Ask + $0.07 🚀 (>30min, aggressive)`;
+        suggestedPrice = Math.min(ask, suggestedPrice + 0.02);
+        strategy += ' | 🚀 Aggressive: +$0.02';
       } else {
-        // Immediately aggressive: start at Ask + $0.05 for faster fills
-        suggestedPrice = ask + 0.05;
-        strategy = `Buy-side: Ask + $0.05 🚀 (aggressive)`;
+        suggestedPrice = Math.min(ask, suggestedPrice + 0.01);
+        strategy += ' | 🚀 Aggressive: +$0.01';
       }
     }
 
-    // Ensure we don't go below ask (we're buying, need to pay ask or more)
-    suggestedPrice = Math.max(ask, suggestedPrice);
+    // Cap at ask — never pay more than ask on a buy order
+    suggestedPrice = Math.min(ask, suggestedPrice);
   }
   // SELL-SIDE PRICING (Sell to Open, Sell to Close)
   // Goal: Receive closer to bid while still getting fills

@@ -142,3 +142,102 @@ describe('Order Preview Dialog Default Pricing', () => {
     });
   });
 });
+
+describe('BTC Smart Fill Pricing (Spread-Width Tiers)', () => {
+  /**
+   * Mirrors the calcBtcLimitPrice logic from routers-automation.ts
+   * and the calculateSmartFillPrice buy-side logic from working-orders-utils.ts
+   */
+  function calcBtcPrice(bid: number, ask: number): number {
+    const spread = ask - bid;
+    const mid = (bid + ask) / 2;
+    let price: number;
+    if (spread <= 0.05) {
+      price = mid;
+    } else if (spread <= 0.15) {
+      price = mid + 0.01;
+    } else if (spread <= 0.30) {
+      price = bid + (spread * 0.75);
+    } else {
+      price = bid + (spread * 0.85);
+    }
+    // Round to $0.05 tick below $1, $0.01 above $1
+    if (price < 1) {
+      price = Math.round(price * 20) / 20;
+    } else {
+      price = Math.round(price * 100) / 100;
+    }
+    return Math.max(bid, Math.min(ask, Math.max(0.01, price)));
+  }
+
+  it('tight spread (≤$0.05): should use mid price', () => {
+    // HIMS: bid $0.09, ask $0.10 → spread $0.01 → mid $0.095
+    const price = calcBtcPrice(0.09, 0.10);
+    expect(price).toBe(0.10); // mid $0.095 rounds to $0.10 (nearest $0.05)
+  });
+
+  it('medium spread (≤$0.15): should use mid + $0.01', () => {
+    // HIMS: bid $0.13, ask $0.17 → spread $0.04 → mid $0.15 + $0.01 = $0.16
+    const price = calcBtcPrice(0.13, 0.17);
+    expect(price).toBe(0.15); // mid $0.15 + $0.01 = $0.16, rounds to $0.15 (nearest $0.05)
+  });
+
+  it('wide spread (≤$0.30): should use 75% from bid', () => {
+    // bid $0.07, ask $0.25 → spread $0.18 → 75% = $0.07 + $0.135 = $0.205
+    const price = calcBtcPrice(0.07, 0.25);
+    expect(price).toBe(0.20); // rounds to nearest $0.05
+  });
+
+  it('very wide spread (>$0.30): should use 85% from bid — not full ask', () => {
+    // IREN: bid $0.31, ask $0.39 → spread $0.08 → wait, that's medium
+    // HOOD: bid $0.71, ask $0.75 → spread $0.04 → tight
+    // INTC: bid $0.24, ask $0.28 → spread $0.04 → tight
+    // HOOD Call $84: bid $1.28, ask $1.35 → spread $0.07 → medium
+    // Let's use a genuinely wide spread: bid $0.07, ask $0.45 → spread $0.38
+    const price = calcBtcPrice(0.07, 0.45);
+    // 85% from bid: $0.07 + ($0.38 * 0.85) = $0.07 + $0.323 = $0.393 → rounds to $0.40
+    expect(price).toBe(0.40);
+    expect(price).toBeLessThan(0.45); // Must be less than ask
+    expect(price).toBeGreaterThan(0.07); // Must be greater than bid
+  });
+
+  it('should never exceed ask price', () => {
+    const price = calcBtcPrice(0.07, 0.39);
+    expect(price).toBeLessThanOrEqual(0.39);
+  });
+
+  it('should never go below bid price', () => {
+    const price = calcBtcPrice(0.31, 0.39);
+    expect(price).toBeGreaterThanOrEqual(0.31);
+  });
+
+  it('should handle the IREN case: bid $0.31, ask $0.39 (spread $0.08 — medium)', () => {
+    // spread $0.08 → medium tier → mid + $0.01 = $0.35 + $0.01 = $0.36 → rounds to $0.35
+    const price = calcBtcPrice(0.31, 0.39);
+    expect(price).toBe(0.35);
+    expect(price).toBeLessThan(0.39); // NOT at ask price
+  });
+
+  it('should handle the HOOD Call $84 case: bid $1.28, ask $1.35 (spread $0.07 — medium)', () => {
+    // spread $0.07 → medium tier → mid $1.315 + $0.01 = $1.325 → rounds to $1.33 (nearest $0.01, above $1)
+    const price = calcBtcPrice(1.28, 1.35);
+    expect(price).toBe(1.33);
+    expect(price).toBeLessThan(1.35); // NOT at ask price
+  });
+
+  it('should produce prices that are better than ask for all screenshot examples', () => {
+    const examples = [
+      { bid: 0.31, ask: 0.39, label: 'IREN Call $47.5' },
+      { bid: 0.09, ask: 0.10, label: 'HIMS Call $18' },
+      { bid: 0.13, ask: 0.17, label: 'HIMS Call $17.5' },
+      { bid: 1.28, ask: 1.35, label: 'HOOD Call $84' },
+      { bid: 0.32, ask: 0.34, label: 'INTC Call $48' },
+      { bid: 0.51, ask: 0.53, label: 'HOOD Call $87' },
+    ];
+    for (const ex of examples) {
+      const price = calcBtcPrice(ex.bid, ex.ask);
+      expect(price).toBeLessThanOrEqual(ex.ask);
+      expect(price).toBeGreaterThanOrEqual(ex.bid);
+    }
+  });
+});
