@@ -39,6 +39,7 @@ export interface ProcessedWorkingOrder {
   replacementCount: number;
   needsReview: boolean; // 5+ replacements
   rawOrder: any; // Full original order from Tastytrade API (includes legs)
+  priceEffect: string; // 'Debit' or 'Credit' from Tastytrade API
   // Spread-specific fields
   isSpread?: boolean;
   longStrike?: number;
@@ -267,11 +268,16 @@ export const workingOrdersRouter = router({
           };
         }
 
-        // Extract option symbols for quote fetching
-        const optionSymbols = allOrders
-          .filter(order => order.legs && order.legs.length > 0)
-          .map(order => order.legs[0].symbol)
-          .filter(Boolean);
+        // Extract option symbols for quote fetching — collect ALL legs for spread orders
+        const optionSymbols: string[] = [];
+        for (const order of allOrders) {
+          if (!order.legs || order.legs.length === 0) continue;
+          for (const leg of order.legs) {
+            if (leg.symbol && !optionSymbols.includes(leg.symbol)) {
+              optionSymbols.push(leg.symbol);
+            }
+          }
+        }
 
         console.log(`[WorkingOrders] Fetching quotes for ${optionSymbols.length} symbols`);
 
@@ -307,26 +313,18 @@ export const workingOrdersRouter = router({
           const expiration = `${month}/${day}/${year}`;
 
           const currentPrice = parseFloat(order.price || '0');
-          const bid = quote.bid || 0;
-          const ask = quote.ask || 0;
-          const mid = (bid + ask) / 2;
-          const spread = ask - bid;
-          
-          if (bid === 0 && ask === 0) {
-            console.log(`[WorkingOrders] WARNING: No market data for ${symbol}. Quote:`, JSON.stringify(quote));
-          }
+          const priceEffect = order['price-effect'] || order.priceEffect || '';
 
           // Calculate time working
           const minutesWorking = calculateMinutesWorking(order['received-at'] || order.receivedAt);
           totalMinutesWorking += minutesWorking;
 
-          // Detect if this is a spread order (2 legs)
+          // ── Step 1: Detect if this is a spread order (2 legs) ──────────────────
           let isSpread = false;
           let longStrike: number | undefined;
           let spreadType: 'bull_put' | 'bear_call' | undefined;
           
           if (order.legs.length === 2) {
-            const leg1 = order.legs[0];
             const leg2 = order.legs[1];
             
             // Parse second leg
@@ -342,7 +340,6 @@ export const workingOrdersRouter = router({
                 // Determine spread type based on strike relationship (handle legs in any order)
                 if (optionType === 'PUT') {
                   // Bull Put Spread: Short higher strike, long lower strike
-                  // Find which strike is higher and which is lower
                   const higherStrike = Math.max(strike, leg2Strike);
                   const lowerStrike = Math.min(strike, leg2Strike);
                   strike = higherStrike; // Display the short leg strike (higher)
@@ -350,7 +347,6 @@ export const workingOrdersRouter = router({
                   spreadType = 'bull_put';
                 } else if (optionType === 'CALL') {
                   // Bear Call Spread: Short lower strike, long higher strike
-                  // Find which strike is higher and which is lower
                   const higherStrike = Math.max(strike, leg2Strike);
                   const lowerStrike = Math.min(strike, leg2Strike);
                   strike = lowerStrike; // Display the short leg strike (lower)
@@ -361,13 +357,76 @@ export const workingOrdersRouter = router({
             }
           }
 
+          // ── Step 2: Compute bid/ask ────────────────────────────────────────────
+          // For spread orders: compute NET bid/ask from both legs
+          //   netBid = BTC leg bid - STC leg ask  (worst-case receive if selling spread)
+          //   netAsk = BTC leg ask - STC leg bid  (worst-case pay if buying spread)
+          // For single-leg orders: use the single leg quote directly
+          let bid: number;
+          let ask: number;
+          let mid: number;
+          let spread: number;
+
+          if (isSpread && order.legs.length === 2) {
+            // Identify BTC leg (short put, higher strike) and STC leg (long put, lower strike)
+            const btcLeg = order.legs.find((l: any) => l.action === 'Buy to Close');
+            const stcLeg = order.legs.find((l: any) => l.action === 'Sell to Close');
+
+            if (btcLeg && stcLeg) {
+              const btcQuote = quotes[btcLeg.symbol] || {};
+              const stcQuote = quotes[stcLeg.symbol] || {};
+
+              const btcBid = btcQuote.bid || 0;
+              const btcAsk = btcQuote.ask || 0;
+              const stcBid = stcQuote.bid || 0;
+              const stcAsk = stcQuote.ask || 0;
+
+              const netBid = Math.max(0, btcBid - stcAsk);
+              const netAsk = Math.max(0, btcAsk - stcBid);
+
+              bid = netBid;
+              ask = netAsk;
+              mid = (bid + ask) / 2;
+              spread = ask - bid;
+
+              console.log(`[WorkingOrders] Spread ${underlyingSymbol}: BTC(${btcLeg.symbol}) bid=${btcBid} ask=${btcAsk}, STC(${stcLeg.symbol}) bid=${stcBid} ask=${stcAsk} → netBid=${bid.toFixed(2)} netAsk=${ask.toFixed(2)}`);
+            } else {
+              // Fallback: use first-leg quote
+              bid = quote.bid || 0;
+              ask = quote.ask || 0;
+              mid = (bid + ask) / 2;
+              spread = ask - bid;
+            }
+          } else {
+            bid = quote.bid || 0;
+            ask = quote.ask || 0;
+            mid = (bid + ask) / 2;
+            spread = ask - bid;
+          }
+          
+          if (bid === 0 && ask === 0) {
+            console.log(`[WorkingOrders] WARNING: No market data for ${symbol}. Quote:`, JSON.stringify(quote));
+          }
+
+          // Determine effective order action for pricing direction
+          // For spread orders: use price-effect (Debit = buying = BTC direction)
+          // For single-leg orders: use leg.action directly
+          let effectiveAction: string;
+          if (isSpread) {
+            // Debit spread = paying to close = Buy-side pricing
+            // Credit spread = receiving to close = Sell-side pricing
+            effectiveAction = priceEffect === 'Debit' ? 'Buy to Close' : 'Sell to Close';
+          } else {
+            effectiveAction = leg.action;
+          }
+
           // Calculate smart fill price with order action awareness
           const priceSuggestion = calculateSmartFillPrice(
             { bid, ask, mid },
             currentPrice,
             minutesWorking,
             aggressiveFillMode,
-            leg.action // Pass order action (e.g., 'Buy to Close', 'Sell to Open')
+            effectiveAction // Use effective action (not raw leg action for spreads)
           );
 
           // Track replacement count (would need to be stored in DB for persistence)
@@ -399,6 +458,7 @@ export const workingOrdersRouter = router({
             replacementCount,
             needsReview,
             rawOrder: order, // Store full original order from Tastytrade API
+            priceEffect, // 'Debit' or 'Credit' from Tastytrade API
             // Spread fields
             isSpread,
             longStrike,

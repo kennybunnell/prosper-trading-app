@@ -7209,3 +7209,16 @@
 - [x] Add live Tradier bid/ask fetch before order submission (replaces stale close-price + ceil formula)
 - [x] Fix tick rounding: $0.05 increments below $1, $0.01 above $1 (was incorrectly using $0.05 below $3)
 - [x] Add 9 new unit tests for BTC spread-width tier pricing logic
+
+## Working Orders BTC Spread Pricing Bugs (Mar 4, 2026)
+- [x] Fix: Working orders replacement using sell-side pricing for BTC spread orders
+- [x] Fix: Price effect direction inverted for BTC spread orders (showing Credit when should be Debit)
+- [x] Fix: Strategy label shows "Sell-side" for buy-to-close orders
+- [x] Investigate: V PUT $320 showing $-1.01 price effect (Credit) for a BTC order
+- [x] Root cause: Tastytrade returns legs in order [STC long put, BTC short put]; code was using legs[0].action="Sell to Close" for pricing direction
+- [x] Fix: Collect quotes for ALL legs (not just legs[0])
+- [x] Fix: Compute NET spread bid/ask: netBid = BTC bid - STC ask, netAsk = BTC ask - STC bid
+- [x] Fix: Use price-effect ("Debit"/"Credit") for direction, not leg action
+- [x] Fix: Replacement modal now shows "BTC Spread" badge (green) instead of "STC" (blue) for debit spreads
+- [x] Fix: Updated hint text to describe spread-width tier pricing strategy
+- [x] Added 11 unit tests for spread net bid/ask computation and direction detection

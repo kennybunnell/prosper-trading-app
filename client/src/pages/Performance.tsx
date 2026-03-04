@@ -2327,8 +2327,15 @@ export function WorkingOrdersTab() {
                     ? Array.from(selectedOrders).map(idx => orders[idx])
                     : orders.filter(o => o.needsReplacement)
                   ).map((order, idx) => {
-                    const isBuyOrder = order.action.toLowerCase().includes('buy');
+                    // For spread orders: use price-effect from API for direction
+                    // For single-leg orders: use leg action
+                    const isSpreadOrder = order.isSpread;
+                    const isBuyOrder = isSpreadOrder
+                      ? (order as any).priceEffect === 'Debit'  // Debit spread = paying to close = buy-side
+                      : order.action.toLowerCase().includes('buy');
                     const priceEffect = isBuyOrder ? 'Debit' : 'Credit';
+                    // For spreads: suggestedPrice is already the NET spread price
+                    // cost = net price × contracts × 100 (same formula, correct semantics)
                     const cost = order.suggestedPrice * order.quantity * 100;
                     
                     return (
@@ -2343,7 +2350,9 @@ export function WorkingOrdersTab() {
                               ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
                               : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                           }`}>
-                            {order.action.replace('Buy to Close', 'BTC').replace('Sell to Open', 'STO').replace('Sell to Close', 'STC').replace('Buy to Open', 'BTO')}
+                            {isSpreadOrder
+                              ? (isBuyOrder ? 'BTC Spread' : 'STC Spread')
+                              : order.action.replace('Buy to Close', 'BTC').replace('Sell to Open', 'STO').replace('Sell to Close', 'STC').replace('Buy to Open', 'BTO')}
                           </span>
                         </td>
                         <td className="p-2 text-right text-muted-foreground">${order.currentPrice.toFixed(2)}</td>
@@ -2396,7 +2405,7 @@ export function WorkingOrdersTab() {
                 </span>
               </div>
               <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">
-                💡 <strong>Price Strategy:</strong> BTC orders use ASK price for immediate fills. Debit = you pay money.
+                💡 <strong>Price Strategy:</strong> Uses spread-width tier pricing (tight=mid, medium=mid+$0.01, wide=75% from bid, very wide=85% from bid). Spread orders show NET cost. Debit = you pay money.
               </div>
             </div>
           </div>
