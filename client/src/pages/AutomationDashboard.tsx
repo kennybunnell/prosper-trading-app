@@ -2049,13 +2049,28 @@ export default function AutomationDashboard() {
                                       )}
                                       {/* Action label — the key "what to do" badge */}
                                       {(pos as any).actionLabel === 'ROLL' && !debitOnlyPositions.has(pos.positionId) && (
-                                        <span title="DTE > 5 and a credit roll candidate exists" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 text-[10px] font-bold tracking-wide cursor-pointer hover:bg-orange-500/30" onClick={e => { e.stopPropagation(); setExpandedRollRow(isExpanded ? null : pos.positionId); }}>↩ ROLL</span>
+                                        <span
+                                          title="Credit roll viable — click to expand and select a roll candidate"
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 text-[10px] font-bold tracking-wide cursor-pointer hover:bg-orange-500/30"
+                                          onClick={e => { e.stopPropagation(); setExpandedRollRow(isExpanded ? null : pos.positionId); }}
+                                        >↩ ROLL</span>
                                       )}
                                       {(pos as any).actionLabel === 'ROLL' && debitOnlyPositions.has(pos.positionId) && (
-                                        <span title="All roll candidates are debits — click to expand and review options" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 text-[10px] font-bold tracking-wide cursor-pointer hover:bg-red-500/30" onClick={e => { e.stopPropagation(); setExpandedRollRow(isExpanded ? null : pos.positionId); }}>⚠ DEBIT ONLY</span>
+                                        <span
+                                          title="No credit roll found — all candidates are debits. Click to review options."
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 text-[10px] font-bold tracking-wide cursor-pointer hover:bg-red-500/30"
+                                          onClick={e => { e.stopPropagation(); setExpandedRollRow(isExpanded ? null : pos.positionId); }}
+                                        >⚠ DEBIT ONLY</span>
                                       )}
                                       {(pos as any).actionLabel === 'CLOSE' && (
-                                        <span title="ITM with ≤5 DTE — close now, no time to roll" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600/25 text-red-300 text-[10px] font-bold tracking-wide">✕ CLOSE</span>
+                                        <span
+                                          title={
+                                            ['BPS','BCS','IC'].includes(pos.strategy)
+                                              ? `${pos.strategy} spread is ITM — loss is capped. Rolling at a debit adds cost with no upside. Close and redeploy capital.`
+                                              : 'ITM with ≤5 DTE — close now, no time to roll'
+                                          }
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600/25 text-red-300 text-[10px] font-bold tracking-wide"
+                                        >✕ CLOSE</span>
                                       )}
                                       {(pos as any).actionLabel === 'LET_EXPIRE' && (
                                         <span title="OTM with ≤5 DTE — let time decay finish it" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 text-[10px] font-bold tracking-wide">✓ LET EXPIRE</span>
@@ -2855,20 +2870,51 @@ function RollCandidateExpander({
         <div className="mb-3 p-3 rounded-lg border border-red-500/30 bg-red-500/5">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-red-400 font-bold text-xs">⚠ No Credit Roll Available</span>
-            <span className="text-xs text-muted-foreground">— all roll candidates require paying a debit. Here are your three options:</span>
+            <span className="text-xs text-muted-foreground">— all roll candidates require paying a debit.</span>
+            {isSpread && (
+              <span className="text-xs text-red-300/80 font-medium">
+                This is a {pos.strategy} spread — your loss is already capped. Rolling at a debit only adds more cost.
+              </span>
+            )}
           </div>
-          <div className="grid grid-cols-3 gap-2 text-xs">
-            <div className="p-2 rounded border border-amber-500/30 bg-amber-500/5">
-              <div className="font-semibold text-amber-300 mb-1">1. Let It Expire / Be Assigned</div>
-              <div className="text-muted-foreground">If DTE is low and assignment is acceptable, let the position expire. For CSPs: take assignment and sell CCs. For CCs: let stock be called away at the strike.</div>
+          <div className={`grid gap-2 text-xs ${isSpread ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            {/* PRIMARY recommendation for spreads: Close */}
+            <div className={`p-2 rounded border ${
+              isSpread
+                ? 'border-red-500/50 bg-red-500/10 ring-1 ring-red-500/30'
+                : 'border-amber-500/30 bg-amber-500/5'
+            }`}>
+              {isSpread && <div className="text-[9px] text-red-400 font-bold uppercase tracking-wider mb-1">Recommended</div>}
+              <div className={`font-semibold mb-1 ${isSpread ? 'text-red-300' : 'text-amber-300'}`}>
+                {isSpread ? '1. Close (BTC) — Take the Capped Loss' : '1. Let It Expire / Be Assigned'}
+              </div>
+              <div className="text-muted-foreground">
+                {isSpread
+                  ? `Your ${pos.strategy} spread has a defined max loss. Rolling at a debit adds cost with no upside — you are paying to stay in a losing trade. Close it, accept the capped loss, and redeploy the capital in a better setup.`
+                  : 'If DTE is low and assignment is acceptable, let the position expire. For CSPs: take assignment and sell CCs. For CCs: let stock be called away at the strike.'}
+              </div>
             </div>
-            <div className="p-2 rounded border border-orange-500/30 bg-orange-500/5">
-              <div className="font-semibold text-orange-300 mb-1">2. Roll at Small Debit (Buy Time)</div>
-              <div className="text-muted-foreground">Pay a small debit to roll further out in time and/or further OTM. This buys more time for the stock to recover. Only worthwhile if the debit is small relative to potential recovery.</div>
-            </div>
-            <div className="p-2 rounded border border-red-500/30 bg-red-500/5">
-              <div className="font-semibold text-red-300 mb-1">3. Close (BTC) — Cut Losses</div>
-              <div className="text-muted-foreground">Buy back the position and accept the loss. Best when the underlying has broken down technically and recovery is unlikely. Frees up capital for better trades.</div>
+            {/* Secondary option: only show debit roll for single-leg, not spreads */}
+            {!isSpread && (
+              <div className="p-2 rounded border border-orange-500/30 bg-orange-500/5">
+                <div className="font-semibold text-orange-300 mb-1">2. Roll at Small Debit (Buy Time)</div>
+                <div className="text-muted-foreground">Pay a small debit to roll further out in time and/or further OTM. Buys more time for the stock to recover. Only worthwhile on a single-leg (CSP/CC) if the debit is small and you have strong conviction on recovery.</div>
+              </div>
+            )}
+            {/* Always show: Close / cut losses */}
+            <div className={`p-2 rounded border ${
+              isSpread
+                ? 'border-muted/30 bg-muted/10'
+                : 'border-red-500/30 bg-red-500/5'
+            }`}>
+              <div className={`font-semibold mb-1 ${isSpread ? 'text-muted-foreground' : 'text-red-300'}`}>
+                {isSpread ? '2. Let Expire / Be Assigned (if near DTE)' : '3. Close (BTC) — Cut Losses'}
+              </div>
+              <div className="text-muted-foreground">
+                {isSpread
+                  ? 'If DTE is very low, you can also let the spread expire at max loss rather than paying commissions to close it. Check your broker\'s assignment/exercise policy.'
+                  : 'Buy back the position and accept the loss. Best when the underlying has broken down technically and recovery is unlikely. Frees up capital for better trades.'}
+              </div>
             </div>
           </div>
         </div>

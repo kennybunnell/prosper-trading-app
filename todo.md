@@ -7142,3 +7142,9 @@
 - [x] Add DEBIT ONLY badge (⚠ red) when all roll candidates are debits — replaces ↩ ROLL badge
 - [x] Wire debitOnlyPositions state via onCandidatesLoaded callback in RollCandidateExpander
 - [x] Add ITM Playbook guidance panel in expanded row when no credit roll is available (3-column: Let Expire / Roll at Debit / Close BTC)
+
+## Spread ROLL Label Suppression (Mar 2026)
+- [x] Backend: ITM spreads (BPS/BCS/IC) now get actionLabel = 'CLOSE' instead of 'ROLL' — rolling at a debit is never beneficial on a capped-loss spread
+- [x] Frontend: CLOSE badge tooltip updated to explain the capped-loss rationale for spreads vs. DTE-based close for single-legs
+- [x] ITM Playbook panel updated: for spreads, Close BTC is the primary "Recommended" action; debit roll option is hidden for spreads; 2-column layout for spreads vs. 3-column for single-legs
+- [x] ROLL badge tooltip updated to clarify it only appears for single-leg (CSP/CC) positions with a viable credit roll

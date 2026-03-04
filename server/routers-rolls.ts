@@ -449,21 +449,30 @@ export const rollsRouter = router({
         // a wall of red with no clear next step.
         //
         //  LET_EXPIRE  — OTM with ≤5 DTE; just let time decay finish it
-        //  CLOSE       — ITM with ≤5 DTE; no time to roll, take the loss and close
-        //  ROLL        — DTE > 5 AND roll credit is Likely/Marginal; roll for a credit
-        //  MONITOR     — DTE > 5 AND deep ITM (>5%); too deep to roll for credit, watch
+        //  CLOSE       — (a) any ITM position with ≤5 DTE, OR
+        //               (b) ITM spread (BPS/BCS/IC) with time remaining.
+        //               Spreads have a CAPPED loss by design — rolling at a debit only
+        //               adds cost with no upside. The correct move is always to close
+        //               the spread and redeploy the freed capital.
+        //  ROLL        — Single-leg (CSP/CC) with DTE > 5 and not deeply ITM; credit roll viable
+        //  MONITOR     — DTE > 5 AND deep ITM (>5%) on a single-leg; watch for recovery
         //  LET_CALLED  — ITM CC on a dog underlying; let stock be called away
+        const isSpreadStrategy = ['BPS', 'BCS', 'IC'].includes(spread.strategyType);
         let actionLabel: 'LET_EXPIRE' | 'CLOSE' | 'ROLL' | 'MONITOR' | 'LET_CALLED';
         if (isLetExpire) {
           actionLabel = 'LET_CALLED';
         } else if (spread.dte <= 5) {
           // Near expiry — no time to roll
           actionLabel = itmDepth > 0 ? 'CLOSE' : 'LET_EXPIRE';
+        } else if (isSpreadStrategy && itmDepth > 0) {
+          // Spread is ITM with time remaining — rolling at a debit is never beneficial
+          // on a capped-loss structure. Close and redeploy capital.
+          actionLabel = 'CLOSE';
         } else if (itmDepth > 5) {
-          // Deep ITM with time remaining — too expensive to roll for credit
+          // Deep ITM single-leg with time remaining — too expensive to roll for credit
           actionLabel = 'MONITOR';
         } else {
-          // Has time and is not deeply ITM — roll is viable
+          // Single-leg (CSP/CC) with time and not deeply ITM — credit roll is viable
           actionLabel = 'ROLL';
         }
 
