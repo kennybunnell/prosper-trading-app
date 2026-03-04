@@ -7198,3 +7198,7 @@
 ## Action Items - Stock Price Column (Mar 4, 2026)
 - [x] Add current stock price column between Symbol and Type in Action Items table
 - [x] Show stock price for all spread types (BPS, BCS, IC, CC, CSP) via Tradier batch quote enrichment
+
+## Profit Threshold UI Improvement (Mar 4, 2026)
+- [x] Make Profit Threshold field directly editable (type a value)
+- [x] Replace Add/Reduce buttons with compact +/- buttons in increments of 5

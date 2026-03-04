@@ -1184,14 +1184,37 @@ export default function AutomationDashboard() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="profit-threshold">Profit Threshold (%)</Label>
-                <Input
-                  id="profit-threshold"
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={settings?.profitThresholdPercent}
-                  onChange={(e) => handleNumberChange('profitThresholdPercent', parseInt(e.target.value))}
-                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="h-9 w-9 rounded-md border border-border bg-background hover:bg-accent text-foreground font-bold text-lg flex items-center justify-center transition-colors"
+                    onClick={() => handleNumberChange('profitThresholdPercent', Math.max(5, (settings?.profitThresholdPercent ?? 75) - 5))}
+                  >
+                    −
+                  </button>
+                  <Input
+                    id="profit-threshold"
+                    type="number"
+                    min="5"
+                    max="100"
+                    step="5"
+                    className="text-center w-20"
+                    value={settings?.profitThresholdPercent}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      if (!isNaN(val) && val >= 1 && val <= 100) {
+                        handleNumberChange('profitThresholdPercent', val);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="h-9 w-9 rounded-md border border-border bg-background hover:bg-accent text-foreground font-bold text-lg flex items-center justify-center transition-colors"
+                    onClick={() => handleNumberChange('profitThresholdPercent', Math.min(100, (settings?.profitThresholdPercent ?? 75) + 5))}
+                  >
+                    +
+                  </button>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Close positions when profit reaches this percentage
                 </p>
