@@ -365,6 +365,20 @@ export function ActivePositionsTab() {
         const longLegMid = pos.currentPrice * 0.6; // Long leg is ~60% of spread cost
         const longBid = longLegMid * 0.95;
         const longAsk = longLegMid * 1.05;
+
+        // Construct long leg OCC symbol from short leg symbol + longStrike
+        // OCC format: TICKER(6) + YYMMDD + C/P + STRIKE(8, padded, x1000)
+        let spreadLongSymbol: string | undefined;
+        if (pos.optionSymbol && pos.longStrike) {
+          const occMatch = pos.optionSymbol.match(/^([A-Z\s]+)(\d{6})([CP])(\d+)$/);
+          if (occMatch) {
+            const ticker = occMatch[1]; // Already padded to 6 chars
+            const dateStr = occMatch[2];
+            const optType = occMatch[3];
+            const longStrikeStr = (pos.longStrike * 1000).toString().padStart(8, '0');
+            spreadLongSymbol = `${ticker}${dateStr}${optType}${longStrikeStr}`;
+          }
+        }
         
         return {
           symbol: pos.symbol,
@@ -376,6 +390,9 @@ export function ActivePositionsTab() {
           bid: shortBid,
           ask: shortAsk,
           currentPrice: pos.currentPrice,
+          // OCC symbols for live quote fetching
+          optionSymbol: pos.optionSymbol,
+          spreadLongSymbol,
           // Long leg data for spreads
           longStrike: pos.longStrike,
           longPremium: longLegMid,

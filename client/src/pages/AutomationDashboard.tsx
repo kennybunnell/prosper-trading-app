@@ -432,6 +432,8 @@ export default function AutomationDashboard() {
         spreadLongPrice: r.spreadLongPrice ? parseFloat(r.spreadLongPrice) : undefined,
         quantity: r.quantity,
         isEstimated: r.isEstimated,
+        // Per-order premium collected so Net Profit column can show realized profit
+        perOrderPremiumCollected: r.premiumCollected,
       };
     });
     // Sum up total premium collected across all selected positions
