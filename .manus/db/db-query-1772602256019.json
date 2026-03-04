@@ -1,0 +1,30 @@
+{
+  "query": "SELECT id, name, openId FROM users LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT id, name, openId FROM users LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Kenny Bunnell",
+      "openId": "ZQVvgbZC9oACntCotpJZaN"
+    },
+    {
+      "id": "3420094",
+      "name": "kenny",
+      "openId": "kfa2xdC6qGSTqGqLdaVpFk"
+    },
+    {
+      "id": "9780091",
+      "name": "tracyabunnell",
+      "openId": "Zy7GUgQwpXBc86sPCrqj6z"
+    },
+    {
+      "id": "12150001",
+      "name": "Cory Bench",
+      "openId": "FVyz9gfdm3GuyT6KmX5Ztm"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\topenId\n1\tKenny Bunnell\tZQVvgbZC9oACntCotpJZaN\n3420094\tkenny\tkfa2xdC6qGSTqGqLdaVpFk\n9780091\ttracyabunnell\tZy7GUgQwpXBc86sPCrqj6z\n12150001\tCory Bench\tFVyz9gfdm3GuyT6KmX5Ztm\n",
+  "stderr": "",
+  "execution_time_ms": 117
+}

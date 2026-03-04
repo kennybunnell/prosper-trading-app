@@ -7168,3 +7168,15 @@
 - [x] Fix #2: Add buying power (total + per account) to dashboard and summary cards
 - [x] Fix #3: Spread-aware capital-at-risk calculation (detect spread pairs, use spread width)
 - [x] Fix #4: Recalibrate risk score thresholds (lower concentration thresholds, capital utilization factor)
+
+## Portfolio Advisor - Naked Position Investigation (Mar 4, 2026)
+- [x] Investigate whether 'Naked' underwater positions are truly naked or a spread-matching bug (FINDING: 105/107 'naked' positions were actually covered calls — short calls backed by stock holdings)
+- [x] Cross-reference automation dashboard spread detection logic with portfolio advisor logic
+- [x] Add debug logging to dump raw position data for naked-flagged tickers (confirmed: 130 shorts vs 41 longs in Main Cash, most shorts are covered calls)
+- [x] Fix: Added covered call detection — short calls matched against stock holdings per-account
+- [x] Fix: Added cash-secured put classification — short puts without long leg
+- [x] Fix: Added naked position detection — only truly uncovered positions
+- [x] Fix: Updated frontend with 4-tier classification badges (Spread, Covered Call, CSP, Naked)
+- [x] Fix: Updated risk score to include naked count as a factor
+- [x] Fix: Updated 49 unit tests to cover all new classification logic
+- [x] Add expiration date column to underwater positions table

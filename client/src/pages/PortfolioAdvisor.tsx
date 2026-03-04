@@ -1,7 +1,8 @@
 /**
  * Portfolio Advisor Page
  * Comprehensive portfolio risk analysis and recommendations
- * Now includes: buying power, sector concentration, spread summary, accurate underwater detection
+ * Now includes: buying power, sector concentration, position classification
+ * (Covered Call, Cash-Secured Put, Spread, Naked), accurate underwater detection
  */
 
 import React from 'react';
@@ -20,6 +21,46 @@ const formatCurrency = (val: number) => {
   if (Math.abs(val) >= 1_000) return `$${(val / 1_000).toFixed(1)}K`;
   return `$${val.toFixed(0)}`;
 };
+
+/** Color-coded badge for position classification */
+function ClassificationBadge({ classification, spreadWidth, optionType }: {
+  classification: string;
+  spreadWidth?: number;
+  optionType?: string;
+}) {
+  switch (classification) {
+    case 'Spread':
+      return (
+        <span className="px-2 py-0.5 rounded text-xs bg-blue-500/10 text-blue-500 border border-blue-500/20">
+          Spread {spreadWidth ? `($${spreadWidth} wide)` : ''}
+        </span>
+      );
+    case 'Covered Call':
+      return (
+        <span className="px-2 py-0.5 rounded text-xs bg-green-500/10 text-green-500 border border-green-500/20">
+          Covered Call
+        </span>
+      );
+    case 'Cash-Secured Put':
+      return (
+        <span className="px-2 py-0.5 rounded text-xs bg-cyan-500/10 text-cyan-500 border border-cyan-500/20">
+          Cash-Secured Put
+        </span>
+      );
+    case 'Naked':
+      return (
+        <span className="px-2 py-0.5 rounded text-xs bg-red-500/10 text-red-500 border border-red-500/20">
+          Naked {optionType || ''}
+        </span>
+      );
+    default:
+      return (
+        <span className="px-2 py-0.5 rounded text-xs bg-gray-500/10 text-gray-500 border border-gray-500/20">
+          {classification}
+        </span>
+      );
+  }
+}
 
 export default function PortfolioAdvisor() {
   const { data, isLoading, error } = trpc.portfolioAdvisor.getDetailedAnalysis.useQuery();
@@ -52,170 +93,196 @@ export default function PortfolioAdvisor() {
             </Button>
             <h1 className="text-3xl font-bold">Portfolio Advisor</h1>
           </div>
-          <Card className="p-6 bg-card/70 backdrop-blur-sm border-border/30">
-            <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <div className="text-center space-y-2">
-                <p className="text-lg">Portfolio analysis unavailable</p>
-                <p className="text-sm">Configure your Tastytrade credentials in Settings</p>
+          <Card className="border-destructive">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                <span>Failed to load portfolio analysis. Please check your Tastytrade credentials in Settings.</span>
               </div>
-            </div>
+            </CardContent>
           </Card>
         </div>
       </div>
     );
   }
 
-  const getRiskColor = (score: number) => {
-    if (score >= 80) return 'text-red-500';
-    if (score >= 60) return 'text-orange-500';
-    if (score >= 40) return 'text-yellow-500';
-    return 'text-green-500';
-  };
+  const pcs = data.currentPositions.positionClassificationSummary;
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Header */}
+      <div className="container mx-auto px-4 py-8">
         <div className="flex items-center gap-4 mb-8">
           <Button variant="outline" size="icon" asChild>
             <Link href="/"><ArrowLeft className="h-4 w-4" /></Link>
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold">Portfolio Advisor</h1>
-            <p className="text-muted-foreground">Comprehensive risk analysis across all accounts</p>
-          </div>
-          <div className="ml-auto">
-            <div className={cn(
-              "px-4 py-2 rounded-lg font-bold text-lg border",
-              data.riskScore >= 80 && 'bg-red-500/10 border-red-500/50 text-red-500',
-              data.riskScore >= 60 && data.riskScore < 80 && 'bg-orange-500/10 border-orange-500/50 text-orange-500',
-              data.riskScore >= 40 && data.riskScore < 60 && 'bg-yellow-500/10 border-yellow-500/50 text-yellow-500',
-              data.riskScore < 40 && 'bg-green-500/10 border-green-500/50 text-green-500',
-            )}>
-              Risk: {data.riskScore}/100
-            </div>
-          </div>
+          <h1 className="text-3xl font-bold">Portfolio Advisor</h1>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════
-            Section 1: Buying Power & Account Balances
-            ═══════════════════════════════════════════════════════════════════ */}
-        <div className="mb-8">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-emerald-500" />
-            Buying Power & Account Balances
-          </h2>
-
-          {/* Summary row */}
-          <div className="grid gap-4 md:grid-cols-3 mb-4">
-            <Card className="backdrop-blur-sm bg-card/80">
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground mb-1">Total Buying Power</p>
-                <p className="text-3xl font-bold text-emerald-500">
-                  {formatCurrency(data.buyingPower.totalBuyingPower)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="backdrop-blur-sm bg-card/80">
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground mb-1">Total Net Liquidating Value</p>
-                <p className="text-3xl font-bold">
-                  {formatCurrency(data.buyingPower.totalNetLiq)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="backdrop-blur-sm bg-card/80">
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground mb-1">Capital Utilization</p>
-                <p className={cn("text-3xl font-bold", getRiskColor(data.buyingPower.capitalUtilizationPct))}>
-                  {data.buyingPower.capitalUtilizationPct}%
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">Target: below 75%</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Per-account breakdown */}
-          {data.buyingPower.accountBalances.length > 0 && (
-            <Card className="backdrop-blur-sm bg-card/80">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Per-Account Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border/30">
-                        <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Account</th>
-                        <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Type</th>
-                        <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Buying Power</th>
-                        <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Net Liq</th>
-                        <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Cash Available</th>
-                        <th className="text-right py-2 font-medium text-muted-foreground">Maint. Req.</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.buyingPower.accountBalances.map((acct: any) => (
-                        <tr key={acct.accountNumber} className="border-b border-border/10">
-                          <td className="py-2 pr-4 font-medium">{acct.nickname}</td>
-                          <td className="py-2 pr-4 text-muted-foreground">{acct.accountType}</td>
-                          <td className="py-2 pr-4 text-right text-emerald-500 font-medium">
-                            {formatCurrency(acct.derivativeBuyingPower)}
-                          </td>
-                          <td className="py-2 pr-4 text-right">{formatCurrency(acct.netLiquidatingValue)}</td>
-                          <td className="py-2 pr-4 text-right">{formatCurrency(acct.cashAvailable)}</td>
-                          <td className="py-2 text-right">{formatCurrency(acct.maintenanceRequirement)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* ═══════════════════════════════════════════════════════════════════
-            Section 2: Current Positions Risk Analysis
+            Section 1: Risk Overview + Buying Power
             ═══════════════════════════════════════════════════════════════════ */}
         <div className="mb-8">
           <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
             <Shield className="h-5 w-5 text-blue-500" />
-            Current Positions Risk Analysis
+            Risk Overview
           </h2>
 
-          {/* Summary stats row */}
-          <div className="grid gap-4 md:grid-cols-4 mb-4">
+          {/* Top row: Risk Score + Buying Power */}
+          <div className="grid gap-4 md:grid-cols-3 mb-4">
+            {/* Risk Score */}
+            <Card className="backdrop-blur-sm bg-card/80">
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground mb-1">Risk Score</p>
+                <p className={cn(
+                  "text-4xl font-bold",
+                  data.riskScore >= 70 && 'text-red-500',
+                  data.riskScore >= 40 && data.riskScore < 70 && 'text-orange-500',
+                  data.riskScore < 40 && 'text-green-500'
+                )}>
+                  {data.riskScore}
+                  <span className="text-lg text-muted-foreground">/100</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {data.riskScore >= 70 ? 'High risk — take action' :
+                   data.riskScore >= 40 ? 'Moderate risk — monitor closely' :
+                   'Low risk — well managed'}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Total Buying Power */}
+            <Card className="backdrop-blur-sm bg-card/80">
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground mb-1">
+                  <DollarSign className="h-3.5 w-3.5 inline mr-1" />
+                  Total Buying Power
+                </p>
+                <p className="text-3xl font-bold text-green-500">
+                  {formatCurrency(data.buyingPower.totalBuyingPower)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Net Liq: {formatCurrency(data.buyingPower.totalNetLiq)}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Capital Utilization */}
+            <Card className="backdrop-blur-sm bg-card/80">
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground mb-1">
+                  <Gauge className="h-3.5 w-3.5 inline mr-1" />
+                  Capital Utilization
+                </p>
+                <p className={cn(
+                  "text-3xl font-bold",
+                  data.buyingPower.capitalUtilizationPct >= 75 && 'text-red-500',
+                  data.buyingPower.capitalUtilizationPct >= 50 && data.buyingPower.capitalUtilizationPct < 75 && 'text-orange-500',
+                  data.buyingPower.capitalUtilizationPct < 50 && 'text-green-500'
+                )}>
+                  {data.buyingPower.capitalUtilizationPct}%
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Target: &lt;75%</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Per-account buying power */}
+          {data.buyingPower.accountBalances.length > 1 && (
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
+              {data.buyingPower.accountBalances.map((acct: any) => (
+                <Card key={acct.accountNumber} className="backdrop-blur-sm bg-card/60">
+                  <CardContent className="pt-4 pb-3">
+                    <p className="text-xs text-muted-foreground truncate">{acct.nickname}</p>
+                    <p className="text-lg font-bold">{formatCurrency(acct.derivativeBuyingPower)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Net Liq: {formatCurrency(acct.netLiquidatingValue)}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            Section 2: Position Classification Summary
+            ═══════════════════════════════════════════════════════════════════ */}
+        <div className="mb-8">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <Target className="h-5 w-5 text-blue-500" />
+            Position Analysis
+          </h2>
+
+          {/* Position classification summary cards */}
+          <div className="grid gap-4 md:grid-cols-5 mb-4">
             <Card className="backdrop-blur-sm bg-card/80">
               <CardContent className="pt-6">
                 <p className="text-sm text-muted-foreground mb-1">Total Capital at Risk</p>
                 <p className="text-2xl font-bold">{formatCurrency(data.currentPositions.totalCapitalAtRisk)}</p>
               </CardContent>
             </Card>
-            <Card className="backdrop-blur-sm bg-card/80">
+            <Card className="backdrop-blur-sm bg-card/80 border-blue-500/20">
               <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground mb-1">Spread Positions</p>
-                <p className="text-2xl font-bold">{data.currentPositions.spreadSummary.totalSpreads}</p>
+                <p className="text-sm text-blue-400 mb-1">Spreads</p>
+                <p className="text-2xl font-bold">{pcs.totalSpreads}</p>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(data.currentPositions.spreadSummary.spreadCapitalAtRisk)} at risk
+                  {formatCurrency(pcs.spreadCapitalAtRisk)} at risk
                 </p>
               </CardContent>
             </Card>
-            <Card className="backdrop-blur-sm bg-card/80">
+            <Card className="backdrop-blur-sm bg-card/80 border-green-500/20">
               <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground mb-1">Standalone Shorts</p>
-                <p className="text-2xl font-bold">{data.currentPositions.spreadSummary.totalStandaloneShorts}</p>
+                <p className="text-sm text-green-400 mb-1">Covered Calls</p>
+                <p className="text-2xl font-bold">{pcs.totalCoveredCalls}</p>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(data.currentPositions.spreadSummary.standaloneCapitalAtRisk)} at risk
+                  {pcs.coveredCallCount} contracts
                 </p>
               </CardContent>
             </Card>
+            <Card className="backdrop-blur-sm bg-card/80 border-cyan-500/20">
+              <CardContent className="pt-6">
+                <p className="text-sm text-cyan-400 mb-1">Cash-Secured Puts</p>
+                <p className="text-2xl font-bold">{pcs.totalCashSecuredPuts}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatCurrency(pcs.cashSecuredPutCapitalAtRisk)} collateral
+                </p>
+              </CardContent>
+            </Card>
+            <Card className={cn(
+              "backdrop-blur-sm bg-card/80",
+              pcs.totalNaked > 0 ? "border-red-500/30" : "border-green-500/20"
+            )}>
+              <CardContent className="pt-6">
+                <p className={cn("text-sm mb-1", pcs.totalNaked > 0 ? "text-red-400" : "text-green-400")}>
+                  Naked
+                </p>
+                <p className={cn("text-2xl font-bold", pcs.totalNaked > 0 && "text-red-500")}>
+                  {pcs.totalNaked}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {pcs.totalNaked > 0 ? formatCurrency(pcs.nakedCapitalAtRisk) + ' at risk' : 'None — well managed'}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Tickers + Sectors row */}
+          <div className="grid gap-4 md:grid-cols-2 mb-4">
             <Card className="backdrop-blur-sm bg-card/80">
               <CardContent className="pt-6">
                 <p className="text-sm text-muted-foreground mb-1">Unique Tickers</p>
                 <p className="text-2xl font-bold">{data.currentPositions.tickerCount}</p>
                 <p className="text-xs text-muted-foreground">
-                  {data.currentPositions.sectorCount} sectors
+                  Diversification: {data.currentPositions.diversificationScore}/100
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="backdrop-blur-sm bg-card/80">
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground mb-1">Sectors</p>
+                <p className="text-2xl font-bold">{data.currentPositions.sectorCount}</p>
+                <p className="text-xs text-muted-foreground">
+                  Target: 5+ sectors for diversification
                 </p>
               </CardContent>
             </Card>
@@ -242,10 +309,9 @@ export default function PortfolioAdvisor() {
                         </div>
                         <span className={cn(
                           "font-bold",
-                          item.percentage >= 30 && 'text-red-500',
-                          item.percentage >= 20 && item.percentage < 30 && 'text-orange-500',
-                          item.percentage >= 10 && item.percentage < 20 && 'text-yellow-500',
-                          item.percentage < 10 && 'text-green-500'
+                          item.percentage >= 10 && 'text-red-500',
+                          item.percentage >= 5 && item.percentage < 10 && 'text-orange-500',
+                          item.percentage < 5 && 'text-green-500'
                         )}>
                           {item.percentage.toFixed(1)}%
                         </span>
@@ -257,12 +323,11 @@ export default function PortfolioAdvisor() {
                         <div
                           className={cn(
                             "h-1.5 rounded-full transition-all",
-                            item.percentage >= 30 && 'bg-red-500',
-                            item.percentage >= 20 && item.percentage < 30 && 'bg-orange-500',
-                            item.percentage >= 10 && item.percentage < 20 && 'bg-yellow-500',
-                            item.percentage < 10 && 'bg-green-500'
+                            item.percentage >= 10 && 'bg-red-500',
+                            item.percentage >= 5 && item.percentage < 10 && 'bg-orange-500',
+                            item.percentage < 5 && 'bg-green-500'
                           )}
-                          style={{ width: `${Math.min(100, item.percentage * 2)}%` }}
+                          style={{ width: `${Math.min(100, item.percentage * 5)}%` }}
                         />
                       </div>
                     </div>
@@ -341,6 +406,7 @@ export default function PortfolioAdvisor() {
                       <tr className="border-b border-border/30">
                         <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Ticker</th>
                         <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Type</th>
+                        <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Side</th>
                         <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Strike</th>
                         <th className="text-right py-2 pr-4 font-medium text-muted-foreground">Current</th>
                         <th className="text-right py-2 pr-4 font-medium text-muted-foreground">% ITM</th>
@@ -352,26 +418,25 @@ export default function PortfolioAdvisor() {
                         <tr key={`${pos.ticker}-${pos.strike}-${idx}`} className="border-b border-border/10">
                           <td className="py-2 pr-4 font-medium">{pos.ticker}</td>
                           <td className="py-2 pr-4">
-                            {pos.isSpread ? (
-                              <span className="px-2 py-0.5 rounded text-xs bg-blue-500/10 text-blue-500 border border-blue-500/20">
-                                Spread (${pos.spreadWidth} wide)
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded text-xs bg-orange-500/10 text-orange-500 border border-orange-500/20">
-                                Naked
-                              </span>
-                            )}
+                            <ClassificationBadge
+                              classification={pos.classification}
+                              spreadWidth={pos.spreadWidth}
+                              optionType={pos.optionType}
+                            />
+                          </td>
+                          <td className="py-2 pr-4 text-xs text-muted-foreground">
+                            {pos.optionType === 'PUT' ? 'Short Put' : 'Short Call'}
                           </td>
                           <td className="py-2 pr-4 text-right">${pos.strike.toFixed(2)}</td>
                           <td className="py-2 pr-4 text-right">${pos.currentPrice.toFixed(2)}</td>
                           <td className="py-2 pr-4 text-right">
                             <span className={cn(
                               "font-bold",
-                              pos.percentBelow >= 10 && 'text-red-500',
-                              pos.percentBelow >= 5 && pos.percentBelow < 10 && 'text-orange-500',
-                              pos.percentBelow < 5 && 'text-yellow-500',
+                              pos.percentITM >= 10 && 'text-red-500',
+                              pos.percentITM >= 5 && pos.percentITM < 10 && 'text-orange-500',
+                              pos.percentITM < 5 && 'text-yellow-500',
                             )}>
-                              -{pos.percentBelow.toFixed(1)}%
+                              -{pos.percentITM.toFixed(1)}%
                             </span>
                           </td>
                           <td className="py-2 text-right">
