@@ -7127,3 +7127,18 @@
 - [x] Apply FilterPill to Sell Puts tab (Coming Soon stub — no pills yet)
 - [x] Apply FilterPill to Open Spreads tab (Coming Soon stub — no pills yet)
 - [x] Apply FilterPill to PMCC Mgmt tab (Coming Soon stub — no pills yet)
+
+## Roll Positions UX Fixes (Mar 4, 2026 - Session 2)
+- [ ] Fix FilterPill toggle/multi-select in Roll Positions to match Close for Profit behavior
+- [ ] Fix ROLL action label: only show ROLL badge when at least one roll candidate has netCredit > 0
+- [ ] Add DEBIT_ONLY action label (purple/gray) for positions where rolls exist but all are debits
+- [ ] Add ITM playbook guidance in expanded row: no credit roll available options
+- [ ] Update CSV export with corrected action labels
+
+## Roll Positions UX Fixes (Mar 2026)
+- [x] Convert strategy pills to multi-select Set-based toggle (click to add/remove, click again to deselect)
+- [x] Convert P&L pills to multi-select Set-based toggle (same pattern)
+- [x] Add "✕ clear" and "Reset all filters" buttons for filter cleanup
+- [x] Add DEBIT ONLY badge (⚠ red) when all roll candidates are debits — replaces ↩ ROLL badge
+- [x] Wire debitOnlyPositions state via onCandidatesLoaded callback in RollCandidateExpander
+- [x] Add ITM Playbook guidance panel in expanded row when no credit roll is available (3-column: Let Expire / Roll at Debit / Close BTC)

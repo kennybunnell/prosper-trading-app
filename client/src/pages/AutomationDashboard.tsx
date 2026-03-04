@@ -304,9 +304,12 @@ export default function AutomationDashboard() {
   const [rollCandidateSelections, setRollCandidateSelections] = useState<Record<string, RollCandidate | null>>({});
   const [isSubmittingRolls, setIsSubmittingRolls] = useState(false);
   const [rollFilter, setRollFilter] = useState<'all' | 'red' | 'yellow' | 'green'>('all');
-  const [rollStrategyFilter, setRollStrategyFilter] = useState<'all' | 'CSP' | 'CC' | 'BPS' | 'BCS' | 'IC'>('all');
-  const [rollPnlFilter, setRollPnlFilter] = useState<'all' | 'winner' | 'breakeven' | 'loser'>('loser'); // Default to losers — winners are excluded from scan
+  // Multi-select Sets — empty Set means "show all" (same as Close for Profit pill behaviour)
+  const [rollStrategyFilters, setRollStrategyFilters] = useState<Set<string>>(new Set());
+  const [rollPnlFilters, setRollPnlFilters] = useState<Set<string>>(new Set());
   const [rollCreditOnlyFilter, setRollCreditOnlyFilter] = useState(false);
+  // Track positions where ALL roll candidates are debits (populated by RollCandidateExpander)
+  const [debitOnlyPositions, setDebitOnlyPositions] = useState<Set<string>>(new Set());
   const [rollSortCol, setRollSortCol] = useState<string>('unrealizedPnl');
   const [rollSortDir, setRollSortDir] = useState<'asc' | 'desc'>('asc');
   // Scan results sort + type filter
@@ -1760,42 +1763,72 @@ export default function AutomationDashboard() {
           {/* Filter bar — FilterPill components with badge counts */}
           {rollScanResults && (
             <div className="flex flex-wrap items-center gap-1.5 mb-4">
-              {/* Strategy pills */}
-              {(['all', 'BPS', 'BCS', 'IC', 'CSP', 'CC'] as const).map(s => {
-                const count = s === 'all' ? rollScanResults.all.length : rollScanResults.all.filter(p => p.strategy === s).length;
-                if (s !== 'all' && count === 0) return null;
-                const variantMap: Record<string, 'default' | 'sky' | 'purple' | 'amber' | 'default'> = {
+              {/* Strategy pills — multi-select toggle (click to add/remove, click again to deselect) */}
+              {(['BPS', 'BCS', 'IC', 'CSP', 'CC'] as const).map(s => {
+                const count = rollScanResults.all.filter(p => p.strategy === s).length;
+                if (count === 0) return null;
+                const variantMap: Record<string, 'default' | 'sky' | 'purple' | 'amber'> = {
                   BPS: 'sky', BCS: 'purple', IC: 'amber', CSP: 'sky', CC: 'purple',
                 };
+                const isActive = rollStrategyFilters.has(s);
                 return (
                   <FilterPill
                     key={s}
-                    label={s === 'all' ? 'All' : s}
+                    label={s}
                     count={count}
-                    selected={rollStrategyFilter === s}
+                    selected={isActive}
                     variant={variantMap[s] ?? 'default'}
-                    onClick={() => { setRollStrategyFilter(s); setRollFilter('all'); setRollPnlFilter('all'); }}
+                    title={isActive ? `Click to remove ${s} filter` : `Click to filter by ${s}`}
+                    onClick={() => {
+                      setRollStrategyFilters(prev => {
+                        const next = new Set(prev);
+                        if (next.has(s)) next.delete(s); else next.add(s);
+                        return next;
+                      });
+                    }}
                   />
                 );
               })}
+              {rollStrategyFilters.size > 0 && (
+                <button
+                  className="text-[10px] text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded border border-border/40 hover:border-border transition-colors"
+                  onClick={() => setRollStrategyFilters(new Set())}
+                  title="Clear strategy filter"
+                >✕ clear</button>
+              )}
               <div className="w-px h-4 bg-border/60 mx-0.5" />
-              {/* P&L pills */}
-              {(['all', 'winner', 'breakeven', 'loser'] as const).map(p => {
-                const count = p === 'all' ? rollScanResults.all.length : rollScanResults.all.filter(pos => pos.pnlStatus === p).length;
-                if (p !== 'all' && count === 0) return null;
-                const label = p === 'all' ? 'All P&L' : p === 'winner' ? '🟢 Win' : p === 'loser' ? '🔴 Loss' : '🟡 Even';
-                const variant = p === 'winner' ? 'green' : p === 'loser' ? 'red' : p === 'breakeven' ? 'yellow' : 'default';
+              {/* P&L pills — multi-select toggle */}
+              {(['winner', 'breakeven', 'loser'] as const).map(p => {
+                const count = rollScanResults.all.filter(pos => pos.pnlStatus === p).length;
+                if (count === 0) return null;
+                const label = p === 'winner' ? '🟢 Win' : p === 'loser' ? '🔴 Loss' : '🟡 Even';
+                const variant = p === 'winner' ? 'green' : p === 'loser' ? 'red' : 'yellow';
+                const isActive = rollPnlFilters.has(p);
                 return (
                   <FilterPill
                     key={p}
                     label={label}
                     count={count}
-                    selected={rollPnlFilter === p}
+                    selected={isActive}
                     variant={variant as any}
-                    onClick={() => { setRollPnlFilter(p); setRollFilter('all'); }}
+                    title={isActive ? `Click to remove ${p} filter` : `Click to filter by ${p}`}
+                    onClick={() => {
+                      setRollPnlFilters(prev => {
+                        const next = new Set(prev);
+                        if (next.has(p)) next.delete(p); else next.add(p);
+                        return next;
+                      });
+                    }}
                   />
                 );
               })}
+              {rollPnlFilters.size > 0 && (
+                <button
+                  className="text-[10px] text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded border border-border/40 hover:border-border transition-colors"
+                  onClick={() => setRollPnlFilters(new Set())}
+                  title="Clear P&L filter"
+                >✕ clear</button>
+              )}
               <div className="w-px h-4 bg-border/60 mx-0.5" />
               {/* Credit-only toggle */}
               <FilterPill
@@ -1805,6 +1838,13 @@ export default function AutomationDashboard() {
                 title="Hide positions where a credit roll is unlikely (deep ITM > 5%)"
                 onClick={() => setRollCreditOnlyFilter(v => !v)}
               />
+              {(rollStrategyFilters.size > 0 || rollPnlFilters.size > 0 || rollCreditOnlyFilter) && (
+                <button
+                  className="text-[10px] text-orange-400/70 hover:text-orange-400 px-2 py-0.5 rounded border border-orange-500/20 hover:border-orange-500/40 transition-colors ml-1"
+                  onClick={() => { setRollStrategyFilters(new Set()); setRollPnlFilters(new Set()); setRollCreditOnlyFilter(false); }}
+                  title="Reset all filters"
+                >Reset all filters</button>
+              )}
             </div>
           )}
 
@@ -1932,8 +1972,8 @@ export default function AutomationDashboard() {
                               if (rollFilter === 'yellow' && pos.urgency !== 'yellow') return false;
                               if (rollFilter === 'green' && pos.urgency !== 'green') return false;
                             }
-                            if (rollStrategyFilter !== 'all' && pos.strategy !== rollStrategyFilter) return false;
-                            if (rollPnlFilter !== 'all' && (pos as any).pnlStatus !== rollPnlFilter) return false;
+                            if (rollStrategyFilters.size > 0 && !rollStrategyFilters.has(pos.strategy)) return false;
+                            if (rollPnlFilters.size > 0 && !rollPnlFilters.has((pos as any).pnlStatus ?? '')) return false;
                             // Credit-only filter: hide positions where a credit roll is unlikely (deep ITM)
                             if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
                             return true;
@@ -2008,8 +2048,11 @@ export default function AutomationDashboard() {
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 text-xs font-semibold">🟡 Even</span>
                                       )}
                                       {/* Action label — the key "what to do" badge */}
-                                      {(pos as any).actionLabel === 'ROLL' && (
-                                        <span title="DTE > 5 and roll credit is viable" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 text-[10px] font-bold tracking-wide">↩ ROLL</span>
+                                      {(pos as any).actionLabel === 'ROLL' && !debitOnlyPositions.has(pos.positionId) && (
+                                        <span title="DTE > 5 and a credit roll candidate exists" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 text-[10px] font-bold tracking-wide cursor-pointer hover:bg-orange-500/30" onClick={e => { e.stopPropagation(); setExpandedRollRow(isExpanded ? null : pos.positionId); }}>↩ ROLL</span>
+                                      )}
+                                      {(pos as any).actionLabel === 'ROLL' && debitOnlyPositions.has(pos.positionId) && (
+                                        <span title="All roll candidates are debits — click to expand and review options" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 text-[10px] font-bold tracking-wide cursor-pointer hover:bg-red-500/30" onClick={e => { e.stopPropagation(); setExpandedRollRow(isExpanded ? null : pos.positionId); }}>⚠ DEBIT ONLY</span>
                                       )}
                                       {(pos as any).actionLabel === 'CLOSE' && (
                                         <span title="ITM with ≤5 DTE — close now, no time to roll" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600/25 text-red-300 text-[10px] font-bold tracking-wide">✕ CLOSE</span>
@@ -2106,6 +2149,14 @@ export default function AutomationDashboard() {
                                         selectedCandidate={selectedCandidate}
                                         onCandidatesLoaded={(candidates) => {
                                           setRollCandidatesCache(prev => ({ ...prev, [pos.positionId]: candidates }));
+                                          // Determine if ALL roll candidates are debits and update badge
+                                          const rollCandidates = candidates.filter(c => c.action === 'roll');
+                                          const hasAnyCredit = rollCandidates.some(c => (c.netCredit ?? 0) >= 0);
+                                          if (rollCandidates.length > 0 && !hasAnyCredit) {
+                                            setDebitOnlyPositions(prev => { const next = new Set(prev); next.add(pos.positionId); return next; });
+                                          } else {
+                                            setDebitOnlyPositions(prev => { const next = new Set(prev); next.delete(pos.positionId); return next; });
+                                          }
                                         }}
                                         onSelectCandidate={(candidate) => {
                                           setRollCandidateSelections(prev => ({ ...prev, [pos.positionId]: candidate }));
@@ -2793,8 +2844,35 @@ function RollCandidateExpander({
 
   const isSpread = ['BPS', 'BCS', 'IC'].includes(pos.strategy);
 
+  // Determine if ALL roll candidates are debits
+  const rollCandidatesOnly = candidates.filter(c => c.action === 'roll');
+  const allDebits = rollCandidatesOnly.length > 0 && rollCandidatesOnly.every(c => (c.netCredit ?? 0) < 0);
+
   return (
     <div className="space-y-2">
+      {/* ITM Playbook guidance — shown when no credit roll is available */}
+      {allDebits && (
+        <div className="mb-3 p-3 rounded-lg border border-red-500/30 bg-red-500/5">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-red-400 font-bold text-xs">⚠ No Credit Roll Available</span>
+            <span className="text-xs text-muted-foreground">— all roll candidates require paying a debit. Here are your three options:</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="p-2 rounded border border-amber-500/30 bg-amber-500/5">
+              <div className="font-semibold text-amber-300 mb-1">1. Let It Expire / Be Assigned</div>
+              <div className="text-muted-foreground">If DTE is low and assignment is acceptable, let the position expire. For CSPs: take assignment and sell CCs. For CCs: let stock be called away at the strike.</div>
+            </div>
+            <div className="p-2 rounded border border-orange-500/30 bg-orange-500/5">
+              <div className="font-semibold text-orange-300 mb-1">2. Roll at Small Debit (Buy Time)</div>
+              <div className="text-muted-foreground">Pay a small debit to roll further out in time and/or further OTM. This buys more time for the stock to recover. Only worthwhile if the debit is small relative to potential recovery.</div>
+            </div>
+            <div className="p-2 rounded border border-red-500/30 bg-red-500/5">
+              <div className="font-semibold text-red-300 mb-1">3. Close (BTC) — Cut Losses</div>
+              <div className="text-muted-foreground">Buy back the position and accept the loss. Best when the underlying has broken down technically and recovery is unlikely. Frees up capital for better trades.</div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
         <span className="font-medium text-foreground">{pos.symbol} Roll Options</span>
         {underlyingPrice && <span>Underlying: <span className="font-mono text-blue-400">${underlyingPrice.toFixed(2)}</span></span>}
