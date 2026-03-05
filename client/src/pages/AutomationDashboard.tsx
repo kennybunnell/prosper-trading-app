@@ -2398,15 +2398,15 @@ export default function AutomationDashboard() {
             <Button
               onClick={handleRunCCScan}
               disabled={isRunning || killSwitchActive}
-              variant="outline"
-              className="gap-2 border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+              size="sm"
+              className="gap-2 bg-amber-600 hover:bg-amber-700 text-white shadow-[0_0_12px_rgba(217,119,6,0.5)] hover:shadow-[0_0_18px_rgba(217,119,6,0.7)] transition-shadow"
             >
               {isRunning && activeScanStep === 'cc' ? (
-                <><RefreshCw className="h-4 w-4 animate-spin" /> Scanning Accounts...</>
+                <><Loader2 className="h-4 w-4 animate-spin" /> Scanning Accounts...</>
               ) : isRunning ? (
-                <><RefreshCw className="h-4 w-4 animate-spin" /> Scan Running...</>
+                <><Loader2 className="h-4 w-4 animate-spin" /> Scan Running...</>
               ) : (
-                <><RefreshCw className="h-4 w-4" /> Scan Covered Calls</>
+                <><Zap className="h-4 w-4" /> Scan Covered Calls</>
               )}
             </Button>
           </div>

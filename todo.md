@@ -7269,3 +7269,6 @@
 - [x] Renumber Open Spreads from step 5 → step 4
 - [x] Renumber PMCC Mgmt from step 6 → step 5
 - [x] Update subtitle description from "six-step" to "five-step" and remove "sell puts" from the list
+
+## AutomationDashboard — CC Step 3 UI Polish (Mar 4, 2026)
+- [x] Convert "Scan Covered Calls" text link to bronze-glow button matching "Run All Steps" style
