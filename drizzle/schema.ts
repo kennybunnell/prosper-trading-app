@@ -693,6 +693,8 @@ export const automationSettings = mysqlTable("automationSettings", {
   notificationEmail: varchar("notificationEmail", { length: 320 }),
   // Weekly Monday morning position digest
   weeklyPositionDigestEnabled: boolean("weeklyPositionDigestEnabled").default(false).notNull(),
+  // AI Tier 1 scoring for CC scan results
+  aiScoringEnabled: boolean("aiScoringEnabled").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

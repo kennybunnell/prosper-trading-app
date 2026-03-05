@@ -91,6 +91,10 @@ type CCScanResult = {
   weeklyReturn: number;
   currentPrice: number;
   action: 'WOULD_SELL_CC';
+  // AI Tier 1 scoring fields (optional — only populated when AI scoring is enabled)
+  aiScore?: number;           // 0-100 confidence score
+  aiRationale?: string;       // One-sentence explanation
+  aiRecommendedDte?: number | null; // null = current DTE is fine; integer = try this DTE instead
 };
 
 // Roll Positions types
@@ -177,6 +181,7 @@ export default function AutomationDashboard() {
   const [activeScanStep, setActiveScanStep] = useState<'all' | 'btc' | 'cc' | null>(null); // Track which scan is running
   const [lastRunResult, setLastRunResult] = useState<RunResult | null>(null);
   const [selectedCCPositions, setSelectedCCPositions] = useState<Set<string>>(new Set());
+  const [isAiScoring, setIsAiScoring] = useState(false);
   const [showScanResults, setShowScanResults] = useState(true);
   const [lastRunId, setLastRunId] = useState<string | null>(null);
   const [selectedPositions, setSelectedPositions] = useState<Set<string>>(new Set());
@@ -789,6 +794,52 @@ export default function AutomationDashboard() {
     },
   });
 
+  // AI scoring mutation
+  const scoreCCOpportunities = trpc.automation.scoreCCOpportunities.useMutation({
+    onError: (err) => {
+      setIsAiScoring(false);
+      toast.error(`AI scoring failed: ${err.message}`);
+    },
+  });
+
+  // Helper: run AI scoring on a list of CC results and merge scores back
+  const runAiScoring = useCallback(async (ccResults: CCScanResult[]) => {
+    if (!settings?.aiScoringEnabled || ccResults.length === 0) return;
+    setIsAiScoring(true);
+    try {
+      const opportunities = ccResults.map(r => ({
+        symbol: r.symbol,
+        currentPrice: r.currentPrice,
+        strike: r.strike,
+        dte: r.dte,
+        delta: r.delta,
+        mid: r.mid,
+        bid: r.bid,
+        ask: r.ask,
+        weeklyReturn: r.weeklyReturn,
+        quantity: r.quantity,
+        account: r.account,
+        optionSymbol: r.optionSymbol,
+      }));
+      const result = await scoreCCOpportunities.mutateAsync({ opportunities });
+      // Merge scores back by index
+      setLastRunResult(prev => {
+        if (!prev) return prev;
+        const scored = prev.ccScanResults.map((r, i) => {
+          const s = result.scores.find(x => x.id === i);
+          if (!s) return r;
+          return { ...r, aiScore: s.score, aiRationale: s.rationale, aiRecommendedDte: s.recommendedDte };
+        });
+        // Auto-select clean rows (no DTE recommendation) and deselect amber rows
+        const cleanKeys = new Set(scored.filter(r => !r.aiRecommendedDte).map(r => `${r.optionSymbol}|${r.account}`));
+        setSelectedCCPositions(cleanKeys);
+        return { ...prev, ccScanResults: scored };
+      });
+    } finally {
+      setIsAiScoring(false);
+    }
+  }, [settings?.aiScoringEnabled, scoreCCOpportunities]);
+
   // When the log is fetched after a run, populate scanResults from scanResultsJson
   useEffect(() => {
     if (!latestLog || !lastRunResult) return;
@@ -806,12 +857,17 @@ export default function AutomationDashboard() {
       };
     });
 
-    // DO NOT auto-select positions — user must explicitly click a strategy pill to select
-    // (two-state workflow: flagged = scan found it; selected = user chose it for submission)
-    // Auto-select all CC opportunities
+    // After CC results are populated: if AI scoring is enabled, score them;
+    // otherwise fall back to selecting all rows.
     if (lastRunResult.ccScanResults.length === 0 && ccParsed.length > 0) {
-      const ccKeys = new Set(ccParsed.map(r => `${r.optionSymbol}|${r.account}`));
-      setSelectedCCPositions(ccKeys);
+      if (settings?.aiScoringEnabled) {
+        // runAiScoring will set selectedCCPositions after scoring
+        runAiScoring(ccParsed);
+      } else {
+        // No AI: select all rows by default
+        const ccKeys = new Set(ccParsed.map(r => `${r.optionSymbol}|${r.account}`));
+        setSelectedCCPositions(ccKeys);
+      }
     }
   }, [latestLog]);
 
@@ -2453,127 +2509,266 @@ export default function AutomationDashboard() {
                   <Input id="delta-max-tab" type="text" value={settings?.ccDeltaMax} onChange={(e) => updateSettings.mutate({ ccDeltaMax: e.target.value })} />
                 </div>
               </div>
+              {/* AI Scoring toggle */}
+              <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium">AI Confidence Scoring</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    After each scan, scores each opportunity 0-100 on premium quality, strike placement, liquidity, and DTE fit.
+                    Rows with a better DTE recommendation are flagged amber and deselected for Tranche 2.
+                    {!settings?.aiScoringEnabled && <span className="text-green-500 ml-1">Zero cost when off.</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 ml-4 shrink-0">
+                  <Label htmlFor="ai-scoring-tab" className="text-sm">
+                    {settings?.aiScoringEnabled ? 'On' : 'Off'}
+                  </Label>
+                  <Switch
+                    id="ai-scoring-tab"
+                    checked={settings?.aiScoringEnabled ?? false}
+                    onCheckedChange={(checked) => handleToggle('aiScoringEnabled', checked)}
+                  />
+                </div>
+              </div>
             </CardContent>
           </Card>
           {/* CC Scan Results */}
-          {lastRunResult && lastRunResult.ccScanResults && lastRunResult.ccScanResults.length > 0 && (
-            <Card className="border-blue-500/30 bg-blue-500/5">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <TrendingUp className="h-5 w-5 text-blue-400" />
-                    <div>
-                      <CardTitle className="text-lg">Covered Calls to Open</CardTitle>
-                      <CardDescription>
-                        {lastRunResult.ccScanResults.length} opportunit{lastRunResult.ccScanResults.length !== 1 ? 'ies' : 'y'} found across your equity holdings
-                      </CardDescription>
+          {lastRunResult && lastRunResult.ccScanResults && lastRunResult.ccScanResults.length > 0 && (() => {
+            const hasAiScores = lastRunResult.ccScanResults.some(r => r.aiScore !== undefined);
+            const amberCount = lastRunResult.ccScanResults.filter(r => r.aiRecommendedDte).length;
+            const cleanCount = lastRunResult.ccScanResults.filter(r => !r.aiRecommendedDte).length;
+            const handleSelectAllClean = () => {
+              const cleanKeys = new Set(lastRunResult.ccScanResults.filter(r => !r.aiRecommendedDte).map(r => `${r.optionSymbol}|${r.account}`));
+              setSelectedCCPositions(cleanKeys);
+            };
+            const handleOpenCCPreview = () => {
+              const selected = lastRunResult.ccScanResults.filter(r => selectedCCPositions.has(`${r.optionSymbol}|${r.account}`));
+              const orders: UnifiedOrder[] = selected.map(r => ({
+                symbol: r.symbol,
+                strike: r.strike,
+                expiration: r.expiration,
+                premium: r.mid,
+                action: 'STO',
+                optionType: 'CALL',
+                bid: r.bid,
+                ask: r.ask,
+                quantity: r.quantity,
+                accountNumber: r.account,
+              }));
+              setUnifiedOrders(orders);
+              setPreviewAccountId(selected[0]?.account ?? '');
+              setPreviewPremiumCollected(0);
+              setPreviewStrategy('cc');
+              setOrderSubmissionComplete(false);
+              setOrderFinalStatus(null);
+              setShowOrderPreview(true);
+            };
+            return (
+              <Card className="border-blue-500/30 bg-blue-500/5">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <TrendingUp className="h-5 w-5 text-blue-400" />
+                      <div>
+                        <CardTitle className="text-lg">Covered Calls to Open</CardTitle>
+                        <CardDescription>
+                          {lastRunResult.ccScanResults.length} opportunit{lastRunResult.ccScanResults.length !== 1 ? 'ies' : 'y'} found across your equity holdings
+                          {hasAiScores && amberCount > 0 && (
+                            <span className="ml-2 text-amber-400">· {amberCount} flagged for Tranche 2</span>
+                          )}
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* AI scoring spinner */}
+                      {isAiScoring && (
+                        <span className="flex items-center gap-1.5 text-xs text-blue-400">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          AI scoring…
+                        </span>
+                      )}
+                      {/* Select All Clean button — only shown when AI scores exist and there are amber rows */}
+                      {hasAiScores && amberCount > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs border-blue-500/40 text-blue-400 hover:bg-blue-500/10"
+                          onClick={handleSelectAllClean}
+                          title={`Select only the ${cleanCount} clean row${cleanCount !== 1 ? 's' : ''} (no DTE recommendation)`}
+                        >
+                          ✓ Select Clean ({cleanCount})
+                        </Button>
+                      )}
+                      {selectedCCPositions.size > 0 && (
+                        <Button
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          onClick={handleOpenCCPreview}
+                        >
+                          <ShoppingCart className="h-4 w-4 mr-1" />
+                          Review &amp; Submit {selectedCCPositions.size} CC Order{selectedCCPositions.size !== 1 ? 's' : ''}
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  {selectedCCPositions.size > 0 && (
-                    <Button
-                      size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() => {
-                        const selected = lastRunResult.ccScanResults.filter(r => selectedCCPositions.has(`${r.optionSymbol}|${r.account}`));
-                        const orders: UnifiedOrder[] = selected.map(r => ({
-                          symbol: r.symbol,
-                          strike: r.strike,
-                          expiration: r.expiration,
-                          premium: r.mid,
-                          action: 'STO',
-                          optionType: 'CALL',
-                          bid: r.bid,
-                          ask: r.ask,
-                          quantity: r.quantity,
-                          accountNumber: r.account,
-                        }));
-                        setUnifiedOrders(orders);
-                        setPreviewAccountId(selected[0]?.account ?? '');
-                        setPreviewPremiumCollected(0);
-                        setPreviewStrategy('cc');
-                        setOrderSubmissionComplete(false);
-                        setOrderFinalStatus(null);
-                        setShowOrderPreview(true);
-                      }}
-                    >
-                      <ShoppingCart className="h-4 w-4 mr-1" />
-                      Review &amp; Submit {selectedCCPositions.size} CC Order{selectedCCPositions.size !== 1 ? 's' : ''}
-                    </Button>
+                  {/* CC Summary Stats */}
+                  <div className="grid grid-cols-3 gap-3 pt-2">
+                    <div className="text-center p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                      <div className="text-2xl font-bold text-blue-400">{lastRunResult.ccScanResults.length}</div>
+                      <div className="text-xs text-muted-foreground mt-1">CC Opportunities</div>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                      <div className="text-2xl font-bold text-green-400">${lastRunResult.ccScanResults.reduce((s, r) => s + r.totalPremium, 0).toFixed(0)}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Total Premium</div>
+                      <div className="text-xs text-green-400 font-medium">if all submitted</div>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                      <div className="text-2xl font-bold text-purple-400">
+                        {lastRunResult.ccScanResults.length > 0 ? (lastRunResult.ccScanResults.reduce((s, r) => s + r.weeklyReturn, 0) / lastRunResult.ccScanResults.length).toFixed(2) : '0.00'}%
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">Avg Weekly Return</div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-muted-foreground">
+                          <th className="py-2 pr-2 w-8">
+                            <Checkbox
+                              checked={selectedCCPositions.size === lastRunResult.ccScanResults.length}
+                              onCheckedChange={(checked) => {
+                                if (checked) setSelectedCCPositions(new Set(lastRunResult.ccScanResults.map(r => `${r.optionSymbol}|${r.account}`)));
+                                else setSelectedCCPositions(new Set());
+                              }}
+                              aria-label="Select all CC opportunities"
+                            />
+                          </th>
+                          <th className="text-left py-2 pr-3">Symbol</th>
+                          <th className="text-left py-2 pr-3">Account</th>
+                          <th className="text-right py-2 pr-3">Qty</th>
+                          <th className="text-left py-2 pr-3">Strike</th>
+                          <th className="text-left py-2 pr-3">Expiration</th>
+                          <th className="text-right py-2 pr-3">DTE</th>
+                          <th className="text-right py-2 pr-3">Delta</th>
+                          <th className="text-right py-2 pr-3">Mid</th>
+                          <th className="text-right py-2 pr-3">Total Premium</th>
+                          <th className="text-right py-2 pr-3">Weekly Ret%</th>
+                          {hasAiScores && <th className="text-right py-2">AI Score</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lastRunResult.ccScanResults.map((r, idx) => {
+                          const key = `${r.optionSymbol}|${r.account}`;
+                          const isSelected = selectedCCPositions.has(key);
+                          const isAmber = !!r.aiRecommendedDte;
+                          const scoreColor = r.aiScore !== undefined
+                            ? r.aiScore >= 85 ? 'text-green-400'
+                            : r.aiScore >= 65 ? 'text-blue-400'
+                            : r.aiScore >= 45 ? 'text-amber-400'
+                            : 'text-red-400'
+                            : '';
+                          return (
+                            <tr
+                              key={idx}
+                              className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${
+                                isAmber ? 'bg-amber-500/5 border-amber-500/20' : isSelected ? 'bg-blue-500/5' : ''
+                              }`}
+                            >
+                              <td className="py-2 pr-2">
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => setSelectedCCPositions(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(key)) next.delete(key); else next.add(key);
+                                    return next;
+                                  })}
+                                />
+                              </td>
+                              <td className="py-2 pr-3 font-semibold">
+                                {r.symbol}
+                                {isAmber && !isSelected && (
+                                  <div className="text-[9px] font-medium text-amber-400 mt-0.5">Pending Rescan</div>
+                                )}
+                              </td>
+                              <td className="py-2 pr-3 text-xs text-muted-foreground">{r.account}</td>
+                              <td className="py-2 pr-3 text-right">{r.quantity}</td>
+                              <td className="py-2 pr-3 font-mono">${r.strike}</td>
+                              <td className="py-2 pr-3 font-mono text-xs">{new Date(r.expiration).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</td>
+                              <td className="py-2 pr-3 text-right font-mono text-xs">
+                                {r.dte}
+                                {isAmber && (
+                                  <div
+                                    className="inline-flex items-center ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-help"
+                                    title={`AI recommends ${r.aiRecommendedDte}-DTE for better premium`}
+                                  >
+                                    → {r.aiRecommendedDte}d
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-2 pr-3 text-right font-mono text-xs">{r.delta.toFixed(2)}</td>
+                              <td className="py-2 pr-3 text-right font-mono text-green-400">${r.mid.toFixed(2)}</td>
+                              <td className="py-2 pr-3 text-right font-mono text-green-400">${r.totalPremium.toFixed(0)}</td>
+                              <td className="py-2 pr-3 text-right font-mono text-purple-400">{r.weeklyReturn.toFixed(2)}%</td>
+                              {hasAiScores && (
+                                <td className="py-2 text-right">
+                                  {r.aiScore !== undefined ? (
+                                    <div className="flex flex-col items-end gap-0.5">
+                                      <span className={`font-mono font-bold text-sm ${scoreColor}`}>{r.aiScore}</span>
+                                      {r.aiRationale && (
+                                        <span
+                                          className="text-[9px] text-muted-foreground max-w-[160px] text-right leading-tight cursor-help"
+                                          title={r.aiRationale}
+                                        >
+                                          {r.aiRationale.length > 55 ? r.aiRationale.slice(0, 52) + '…' : r.aiRationale}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">—</span>
+                                  )}
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {/* Two-tranche legend when AI scores are present */}
+                  {hasAiScores && amberCount > 0 && (
+                    <div className="mt-3 pt-3 border-t border-border/50 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-sm bg-blue-500/20 border border-blue-500/40 inline-block" />
+                        <strong className="text-foreground">Tranche 1</strong> — {cleanCount} clean row{cleanCount !== 1 ? 's' : ''} selected, ready to submit
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-sm bg-amber-500/20 border border-amber-500/40 inline-block" />
+                        <strong className="text-amber-400">Tranche 2</strong> — {amberCount} row{amberCount !== 1 ? 's' : ''} pending DTE adjustment &amp; rescan
+                      </span>
+                    </div>
                   )}
-                </div>
-                {/* CC Summary Stats */}
-                <div className="grid grid-cols-3 gap-3 pt-2">
-                  <div className="text-center p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                    <div className="text-2xl font-bold text-blue-400">{lastRunResult.ccScanResults.length}</div>
-                    <div className="text-xs text-muted-foreground mt-1">CC Opportunities</div>
-                  </div>
-                  <div className="text-center p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                    <div className="text-2xl font-bold text-green-400">${lastRunResult.ccScanResults.reduce((s, r) => s + r.totalPremium, 0).toFixed(0)}</div>
-                    <div className="text-xs text-muted-foreground mt-1">Total Premium</div>
-                    <div className="text-xs text-green-400 font-medium">if all submitted</div>
-                  </div>
-                  <div className="text-center p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                    <div className="text-2xl font-bold text-purple-400">
-                      {lastRunResult.ccScanResults.length > 0 ? (lastRunResult.ccScanResults.reduce((s, r) => s + r.weeklyReturn, 0) / lastRunResult.ccScanResults.length).toFixed(2) : '0.00'}%
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">Avg Weekly Return</div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-muted-foreground">
-                        <th className="py-2 pr-2 w-8">
-                          <Checkbox
-                            checked={selectedCCPositions.size === lastRunResult.ccScanResults.length}
-                            onCheckedChange={(checked) => {
-                              if (checked) setSelectedCCPositions(new Set(lastRunResult.ccScanResults.map(r => `${r.optionSymbol}|${r.account}`)));
-                              else setSelectedCCPositions(new Set());
-                            }}
-                            aria-label="Select all CC opportunities"
-                          />
-                        </th>
-                        <th className="text-left py-2 pr-3">Symbol</th>
-                        <th className="text-left py-2 pr-3">Account</th>
-                        <th className="text-right py-2 pr-3">Qty</th>
-                        <th className="text-left py-2 pr-3">Strike</th>
-                        <th className="text-left py-2 pr-3">Expiration</th>
-                        <th className="text-right py-2 pr-3">DTE</th>
-                        <th className="text-right py-2 pr-3">Delta</th>
-                        <th className="text-right py-2 pr-3">Mid</th>
-                        <th className="text-right py-2 pr-3">Total Premium</th>
-                        <th className="text-right py-2">Weekly Ret%</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lastRunResult.ccScanResults.map((r, idx) => {
-                        const key = `${r.optionSymbol}|${r.account}`;
-                        const isSelected = selectedCCPositions.has(key);
-                        return (
-                          <tr key={idx} className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${isSelected ? 'bg-blue-500/5' : ''}`}>
-                            <td className="py-2 pr-2">
-                              <Checkbox checked={isSelected} onCheckedChange={() => setSelectedCCPositions(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; })} />
-                            </td>
-                            <td className="py-2 pr-3 font-semibold">{r.symbol}</td>
-                            <td className="py-2 pr-3 text-xs text-muted-foreground">{r.account}</td>
-                            <td className="py-2 pr-3 text-right">{r.quantity}</td>
-                            <td className="py-2 pr-3 font-mono">${r.strike}</td>
-                            <td className="py-2 pr-3 font-mono text-xs">{new Date(r.expiration).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</td>
-                            <td className="py-2 pr-3 text-right font-mono text-xs">{r.dte}</td>
-                            <td className="py-2 pr-3 text-right font-mono text-xs">{r.delta.toFixed(2)}</td>
-                            <td className="py-2 pr-3 text-right font-mono text-green-400">${r.mid.toFixed(2)}</td>
-                            <td className="py-2 pr-3 text-right font-mono text-green-400">${r.totalPremium.toFixed(0)}</td>
-                            <td className="py-2 text-right font-mono text-purple-400">{r.weeklyReturn.toFixed(2)}%</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            );
+          })()}
+          {/* Re-score button: shown when AI scoring is enabled but results have no scores yet */}
+          {lastRunResult && lastRunResult.ccScanResults && lastRunResult.ccScanResults.length > 0
+            && settings?.aiScoringEnabled
+            && !lastRunResult.ccScanResults.some(r => r.aiScore !== undefined)
+            && !isAiScoring && (
+            <div className="flex justify-center">
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs border-blue-500/40 text-blue-400 hover:bg-blue-500/10"
+                onClick={() => runAiScoring(lastRunResult.ccScanResults)}
+              >
+                <Zap className="h-3.5 w-3.5 mr-1" />
+                Score with AI
+              </Button>
+            </div>
           )}
           {lastRunResult && (!lastRunResult.ccScanResults || lastRunResult.ccScanResults.length === 0) && (
             <div className="text-center py-10 text-muted-foreground">

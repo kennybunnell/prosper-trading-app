@@ -1,0 +1,1 @@
+ALTER TABLE `automationSettings` ADD `aiScoringEnabled` boolean DEFAULT false NOT NULL;

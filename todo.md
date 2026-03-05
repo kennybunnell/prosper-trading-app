@@ -7285,3 +7285,18 @@
 - [x] Investigate duplicate rows in CC order preview (AVGO × 2, NVDA × 2 visible) — confirmed intentional multi-account rows
 - [x] Fix CC scanner deduplication — fixed getOrderKey to include accountNumber so multi-account orders don't collide
 - [x] Align summary card "Total Premium if all submitted" calculation with order preview total — fixed qty initialization to use order.quantity instead of defaulting to 1
+
+## AI Tier 1 CC Confidence Scoring (Mar 5, 2026)
+- [x] Design AI scoring prompt with input signals and output schema
+- [x] Add aiScoringEnabled toggle to automationSettings schema and DB
+- [x] Create server-side tRPC procedure: automation.scoreCCOpportunities
+- [x] Add AI Score column and Rationale tooltip to CC scan results table
+- [x] Add "AI Scoring" toggle to CC Settings panel
+- [x] Add amber DTE badge (→ Nd) for rows with AI DTE recommendations
+- [x] Add "Pending Rescan" label for deselected amber rows
+- [x] Add "Select Clean (N)" button to select only Tranche 1 rows
+- [x] Add Tranche 1 / Tranche 2 legend below the CC results table
+- [x] Auto-select clean rows and deselect amber rows after AI scoring
+- [x] Add "Score with AI" manual re-score button when scores are missing
+- [x] Wire AI scoring call after CC scan completes (via useEffect on latestLog)
+- [x] Write unit tests for scoring logic (18 tests all pass)

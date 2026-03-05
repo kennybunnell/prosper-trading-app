@@ -50,11 +50,123 @@ export const automationRouter = router({
         ccDeltaMax: z.string().optional(),
         emailNotificationsEnabled: z.boolean().optional(),
         notificationEmail: z.string().email().optional(),
+        aiScoringEnabled: z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       await updateAutomationSettings(ctx.user.id, input);
       return { success: true };
+    }),
+
+  /**
+   * AI Tier 1 scoring for CC scan results.
+   * Accepts a batch of CC opportunities and returns a score (0-100),
+   * one-sentence rationale, and optional recommendedDte for each.
+   */
+  scoreCCOpportunities: protectedProcedure
+    .input(
+      z.object({
+        opportunities: z.array(
+          z.object({
+            symbol: z.string(),
+            currentPrice: z.number(),
+            strike: z.number(),
+            dte: z.number(),
+            delta: z.number(),
+            mid: z.number(),
+            bid: z.number(),
+            ask: z.number(),
+            weeklyReturn: z.number(),
+            quantity: z.number(),
+            account: z.string(),
+            optionSymbol: z.string(),
+          })
+        ),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('./_core/llm');
+
+      const opps = input.opportunities;
+      if (opps.length === 0) return { scores: [] };
+
+      // Build a compact JSON representation for the LLM
+      const oppList = opps.map((o, i) => ({
+        id: i,
+        symbol: o.symbol,
+        currentPrice: o.currentPrice,
+        strike: o.strike,
+        otmPct: ((o.strike - o.currentPrice) / o.currentPrice * 100).toFixed(1),
+        dte: o.dte,
+        delta: o.delta.toFixed(3),
+        mid: o.mid,
+        bid: o.bid,
+        ask: o.ask,
+        bidAskSpreadPct: o.mid > 0 ? ((o.ask - o.bid) / o.mid * 100).toFixed(1) : '0',
+        weeklyReturnPct: o.weeklyReturn.toFixed(2),
+        quantity: o.quantity,
+      }));
+
+      const systemPrompt = `You are an expert options trading analyst specializing in covered call strategies.
+You evaluate covered call opportunities using four criteria:
+1. PREMIUM QUALITY: Is the weekly yield attractive? (>1%/week = excellent, 0.5-1% = good, <0.3% = weak)
+2. STRIKE PLACEMENT: Is the strike placed to capture premium without excessive assignment risk? (delta 0.20-0.30 = ideal, >0.35 = risky, <0.15 = too far OTM)
+3. LIQUIDITY: Is the bid/ask spread tight enough for a good fill? (spread <10% of mid = good, 10-20% = marginal, >20% = poor)
+4. DTE FIT: Does the DTE align with a 7-14 day theta decay sweet spot? (7-10 = ideal, 11-14 = good, outside range = note it)
+
+For each opportunity, output a JSON object with:
+- id: the input id number
+- score: integer 0-100 (85-100=strong, 65-84=good, 45-64=marginal, 0-44=weak)
+- rationale: one concise sentence (max 120 chars) explaining the primary strength or concern
+- recommendedDte: null if current DTE is fine, or an integer (14 or 21) if extending DTE would meaningfully improve premium quality
+
+Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "delta 0.27"). Do not be generic.`;
+
+      const userPrompt = `Score these ${opps.length} covered call opportunities:\n${JSON.stringify(oppList, null, 2)}`;
+
+      const response = await invokeLLM({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'cc_scores',
+            strict: true,
+            schema: {
+              type: 'object',
+              properties: {
+                scores: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'integer' },
+                      score: { type: 'integer' },
+                      rationale: { type: 'string' },
+                      recommendedDte: { type: ['integer', 'null'] },
+                    },
+                    required: ['id', 'score', 'rationale', 'recommendedDte'],
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ['scores'],
+              additionalProperties: false,
+            },
+          },
+        },
+      });
+
+      const rawContent = response?.choices?.[0]?.message?.content;
+      if (!rawContent) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'AI scoring returned no content' });
+      const content = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent);
+
+      const parsed = JSON.parse(content) as { scores: Array<{ id: number; score: number; rationale: string; recommendedDte: number | null }> };
+
+      // Map back by id so order doesn't matter
+      return { scores: parsed.scores };
     }),
 
   /**
