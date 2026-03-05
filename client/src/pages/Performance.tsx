@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Loader2, Download, Package } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Loader2, Download, Package, ChevronRight, ChevronDown } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { exportToCSV } from '@/lib/utils';
 import { useAccount } from '@/contexts/AccountContext';
@@ -1237,6 +1237,15 @@ export function WorkingOrdersTab() {
   const [actionResults, setActionResults] = useState<any>(null);
   const [showFillRateAnalytics, setShowFillRateAnalytics] = useState(false);
   const [groupBySymbol, setGroupBySymbol] = useState(true);
+  const [expandedOrders, setExpandedOrders] = useState<Set<number>>(new Set());
+
+  const toggleExpand = (idx: number) => {
+    setExpandedOrders(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
   
   // UnifiedOrderPreviewModal state
   const [unifiedModalOpen, setUnifiedModalOpen] = useState(false);
@@ -2062,101 +2071,261 @@ export function WorkingOrdersTab() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order, idx) => (
-                  <tr key={idx} className="border-t border-border hover:bg-muted/30">
-                    <td className="p-3">
-                      <Checkbox
-                        checked={selectedOrders.has(idx)}
-                        onCheckedChange={() => toggleSelection(idx)}
-                        aria-label={`Select ${order.symbol}`}
-                        className="border-2 border-white/50 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                      />
-                    </td>
-                    <td className="p-3 text-sm">{order.accountNumber}</td>
-                    <td className="p-3 text-sm font-medium">
-                      <div>{order.underlyingSymbol}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {order.optionType} ${order.strike}
-                      </div>
-                    </td>
-                    <td className="p-3 text-sm">
-                      {(order as any).isSpread && (order as any).spreadType ? (
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          (order as any).spreadType === 'bull_put' 
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                            : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                        }`} title={(order as any).spreadType === 'bull_put' ? 'Bull Put Spread' : 'Bear Call Spread'}>
-                          {(order as any).spreadType === 'bull_put' ? 'BPS' : 'BCS'}
-                        </span>
-                      ) : (
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          order.action.toLowerCase().includes('buy') 
-                            ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                            : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                        }`} title={order.action}>
-                          {order.action.replace('Buy to Close', 'BTC').replace('Sell to Open', 'STO').replace('Sell to Close', 'STC').replace('Buy to Open', 'BTO')}
-                        </span>
+                {orders.map((order, idx) => {
+                  const isSpread = (order as any).isSpread;
+                  const spreadType: string | undefined = (order as any).spreadType;
+                  const spreadLegs: any[] | undefined = (order as any).spreadLegs;
+                  const isExpanded = expandedOrders.has(idx);
+                  const TOTAL_COLS = 16; // total number of <th> columns
+
+                  // ── helpers ──────────────────────────────────────────────────
+                  const spreadLabel = spreadType === 'bull_put' ? 'BPS'
+                    : spreadType === 'bear_call' ? 'BCS'
+                    : spreadType === 'iron_condor' ? 'IC'
+                    : null;
+
+                  const spreadBadgeClass = spreadType === 'bull_put'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : spreadType === 'bear_call'
+                    ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                    : 'bg-purple-500/20 text-purple-400 border border-purple-500/30';
+
+                  const spreadTitle = spreadType === 'bull_put' ? 'Bull Put Spread — click to see legs'
+                    : spreadType === 'bear_call' ? 'Bear Call Spread — click to see legs'
+                    : spreadType === 'iron_condor' ? 'Iron Condor — click to see all 4 legs'
+                    : '';
+
+                  const actionAbbr = (a: string) =>
+                    a.replace('Buy to Close', 'BTC')
+                     .replace('Sell to Close', 'STC')
+                     .replace('Buy to Open', 'BTO')
+                     .replace('Sell to Open', 'STO');
+
+                  return (
+                    <React.Fragment key={idx}>
+                      {/* ── Main order row ──────────────────────────────────── */}
+                      <tr key={`order-${idx}`} className={`border-t border-border hover:bg-muted/30 ${
+                        isExpanded ? 'bg-muted/20' : ''
+                      }`}>
+                        <td className="p-3">
+                          <Checkbox
+                            checked={selectedOrders.has(idx)}
+                            onCheckedChange={() => toggleSelection(idx)}
+                            aria-label={`Select ${order.symbol}`}
+                            className="border-2 border-white/50 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                          />
+                        </td>
+                        <td className="p-3 text-sm">{order.accountNumber}</td>
+                        <td className="p-3 text-sm font-medium">
+                          <div className="flex items-center gap-1">
+                            {isSpread && (
+                              <button
+                                onClick={() => toggleExpand(idx)}
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                                title={isExpanded ? 'Collapse legs' : 'Expand legs'}
+                              >
+                                {isExpanded
+                                  ? <ChevronDown className="h-3.5 w-3.5" />
+                                  : <ChevronRight className="h-3.5 w-3.5" />}
+                              </button>
+                            )}
+                            <div>
+                              <div>{order.underlyingSymbol}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {order.optionType} ${order.strike.toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3 text-sm">
+                          {isSpread && spreadLabel ? (
+                            <button
+                              onClick={() => toggleExpand(idx)}
+                              className={`px-2 py-1 rounded text-xs font-medium cursor-pointer ${spreadBadgeClass}`}
+                              title={spreadTitle}
+                            >
+                              {spreadLabel} {isExpanded ? '▲' : '▼'}
+                            </button>
+                          ) : (
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              order.action.toLowerCase().includes('buy')
+                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                            }`} title={order.action}>
+                              {actionAbbr(order.action)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-sm text-right">
+                          {isSpread && (order as any).longStrike ? (
+                            <span className={spreadType === 'bull_put' ? 'text-emerald-400' :
+                              spreadType === 'bear_call' ? 'text-orange-400' : 'text-purple-400'}>
+                              ${order.strike.toFixed(2)}{spreadType !== 'iron_condor' && ` / $${(order as any).longStrike.toFixed(2)}`}
+                            </span>
+                          ) : (
+                            `$${order.strike.toFixed(2)}`
+                          )}
+                        </td>
+                        <td className="p-3 text-sm">{order.expiration}</td>
+                        <td className="p-3 text-sm text-right">{order.quantity}</td>
+                        <td className="p-3 text-sm">
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            order.timeInForce === 'GTC' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {order.timeInForce}
+                          </span>
+                        </td>
+                        <td className="p-3 text-sm text-right">${order.currentPrice.toFixed(2)}</td>
+                        <td className="p-3 text-sm text-right text-muted-foreground">
+                          {isSpread ? <span className="text-xs italic">net</span> : null}
+                          ${order.bid.toFixed(2)}
+                        </td>
+                        <td className="p-3 text-sm text-right text-muted-foreground">
+                          {isSpread ? <span className="text-xs italic">net</span> : null}
+                          ${order.ask.toFixed(2)}
+                        </td>
+                        <td className="p-3 text-sm text-right">${order.mid.toFixed(2)}</td>
+                        <td className="p-3 text-sm text-right">
+                          <span className={`${
+                            order.spread > 0.30 ? 'text-red-400' :
+                            order.spread > 0.15 ? 'text-yellow-400' :
+                            'text-green-400'
+                          }`}>
+                            ${order.spread.toFixed(2)}
+                          </span>
+                        </td>
+                        <td className="p-3 text-sm text-right">
+                          <span className={`font-medium ${
+                            order.needsReplacement ? 'text-yellow-400' : 'text-green-400'
+                          }`}>
+                            ${order.suggestedPrice.toFixed(2)}
+                          </span>
+                        </td>
+                        <td className="p-3 text-sm text-muted-foreground" title={order.strategy}>
+                          <div className="max-w-[200px] truncate">
+                            {order.strategy.length > 25 ? order.strategy.substring(0, 25) + '...' : order.strategy}
+                          </div>
+                        </td>
+                        <td className="p-3 text-sm text-right">
+                          <span className={`${
+                            order.minutesWorking > 120 ? 'text-red-400' :
+                            order.minutesWorking > 60 ? 'text-yellow-400' :
+                            'text-green-400'
+                          }`}>
+                            {order.timeWorkingDisplay}
+                          </span>
+                          {order.needsReview && (
+                            <span className="ml-2 text-xs text-red-400" title="5+ replacements">⚠️</span>
+                          )}
+                        </td>
+                      </tr>
+
+                      {/* ── Expanded legs panel ─────────────────────────────── */}
+                      {isSpread && isExpanded && (
+                        <tr key={`legs-${idx}`} className="border-t-0">
+                          <td colSpan={TOTAL_COLS} className="px-4 pb-4 pt-0 bg-muted/10">
+                            <div className="ml-8 border border-border/50 rounded-lg overflow-hidden">
+                              {/* Header */}
+                              <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wide ${
+                                spreadType === 'bull_put' ? 'bg-emerald-500/10 text-emerald-400' :
+                                spreadType === 'bear_call' ? 'bg-orange-500/10 text-orange-400' :
+                                'bg-purple-500/10 text-purple-400'
+                              }`}>
+                                {spreadType === 'bull_put' && '🟢 Bull Put Spread — Close Order Legs (BTC Spread)'}
+                                {spreadType === 'bear_call' && '🟠 Bear Call Spread — Close Order Legs (BTC Spread)'}
+                                {spreadType === 'iron_condor' && '🟣 Iron Condor — Close Order Legs (all 4 legs)'}
+                              </div>
+
+                              {/* Leg table */}
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b border-border/50 bg-muted/30">
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Leg</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Action</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Type</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Strike</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Bid</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Ask</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Mid</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Educational Note</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(spreadLegs || []).map((leg: any, legIdx: number) => {
+                                    const isBtc = leg.action?.includes('Buy to Close');
+                                    const isStc = leg.action?.includes('Sell to Close');
+                                    return (
+                                      <tr key={legIdx} className="border-t border-border/30 hover:bg-muted/20">
+                                        <td className="px-4 py-2 text-xs text-muted-foreground">
+                                          Leg {legIdx + 1}
+                                        </td>
+                                        <td className="px-4 py-2">
+                                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                            isBtc
+                                              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                              : isStc
+                                              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                              : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                          }`}>
+                                            {actionAbbr(leg.action)}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-2 text-xs">
+                                          <span className={`${
+                                            leg.optionType === 'PUT' ? 'text-red-300' : 'text-blue-300'
+                                          }`}>
+                                            {leg.optionType}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-2 text-right font-medium">
+                                          ${leg.strike.toFixed(2)}
+                                        </td>
+                                        <td className="px-4 py-2 text-right text-muted-foreground">
+                                          ${leg.bid.toFixed(2)}
+                                        </td>
+                                        <td className="px-4 py-2 text-right text-muted-foreground">
+                                          ${leg.ask.toFixed(2)}
+                                        </td>
+                                        <td className="px-4 py-2 text-right">
+                                          ${leg.mid.toFixed(2)}
+                                        </td>
+                                        <td className="px-4 py-2 text-xs text-muted-foreground italic">
+                                          {isBtc && leg.optionType === 'PUT' && 'Buying back the short put (costs debit)'}
+                                          {isBtc && leg.optionType === 'CALL' && 'Buying back the short call (costs debit)'}
+                                          {isStc && leg.optionType === 'PUT' && 'Selling the long put hedge (receives credit)'}
+                                          {isStc && leg.optionType === 'CALL' && 'Selling the long call hedge (receives credit)'}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+
+                              {/* Profit context footer */}
+                              <div className="px-4 py-3 bg-muted/20 border-t border-border/50">
+                                <div className="flex flex-wrap items-center gap-4 text-xs">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-muted-foreground">Net close cost (mid):</span>
+                                    <span className="font-semibold text-yellow-400">${order.mid.toFixed(2)} × {order.quantity} × 100 = ${(order.mid * order.quantity * 100).toFixed(2)}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-muted-foreground">Suggested fill:</span>
+                                    <span className={`font-semibold ${
+                                      order.needsReplacement ? 'text-yellow-400' : 'text-green-400'
+                                    }`}>${order.suggestedPrice.toFixed(2)} / spread</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 text-muted-foreground/70 italic">
+                                    <span>💡 Profit = original premium collected − close cost</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td className="p-3 text-sm text-right">
-                      {(order as any).isSpread && (order as any).longStrike ? (
-                        <span className={`${
-                          (order as any).spreadType === 'bull_put' ? 'text-emerald-400' : 'text-orange-400'
-                        }`}>
-                          ${order.strike.toFixed(2)} / ${(order as any).longStrike.toFixed(2)}
-                        </span>
-                      ) : (
-                        `$${order.strike.toFixed(2)}`
-                      )}
-                    </td>
-                    <td className="p-3 text-sm">{order.expiration}</td>
-                    <td className="p-3 text-sm text-right">{order.quantity}</td>
-                    <td className="p-3 text-sm">
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        order.timeInForce === 'GTC' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400'
-                      }`}>
-                        {order.timeInForce}
-                      </span>
-                    </td>
-                    <td className="p-3 text-sm text-right">${order.currentPrice.toFixed(2)}</td>
-                    <td className="p-3 text-sm text-right">${order.bid.toFixed(2)}</td>
-                    <td className="p-3 text-sm text-right">${order.ask.toFixed(2)}</td>
-                    <td className="p-3 text-sm text-right">${order.mid.toFixed(2)}</td>
-                    <td className="p-3 text-sm text-right">
-                      <span className={`${
-                        order.spread > 0.30 ? 'text-red-400' :
-                        order.spread > 0.15 ? 'text-yellow-400' :
-                        'text-green-400'
-                      }`}>
-                        ${order.spread.toFixed(2)}
-                      </span>
-                    </td>
-                    <td className="p-3 text-sm text-right">
-                      <span className={`font-medium ${
-                        order.needsReplacement ? 'text-yellow-400' : 'text-green-400'
-                      }`}>
-                        ${order.suggestedPrice.toFixed(2)}
-                      </span>
-                    </td>
-                    <td className="p-3 text-sm text-muted-foreground" title={order.strategy}>
-                      <div className="max-w-[200px] truncate">
-                        {order.strategy.length > 25 ? order.strategy.substring(0, 25) + '...' : order.strategy}
-                      </div>
-                    </td>
-                    <td className="p-3 text-sm text-right">
-                      <span className={`${
-                        order.minutesWorking > 120 ? 'text-red-400' :
-                        order.minutesWorking > 60 ? 'text-yellow-400' :
-                        'text-green-400'
-                      }`}>
-                        {order.timeWorkingDisplay}
-                      </span>
-                      {order.needsReview && (
-                        <span className="ml-2 text-xs text-red-400" title="5+ replacements">⚠️</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

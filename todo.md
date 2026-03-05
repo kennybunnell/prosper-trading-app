@@ -7337,3 +7337,10 @@
 - [x] Move IRA Safety Monitor into Portfolio Command Center
 - [x] Add view-mode toggle: Delta Heat Map / Theta Heat Map
 - [x] Add Greeks summary table below heat map grid with per-ticker breakdown and totals row
+
+## Working Orders — Spread Legs Visibility (Mar 5, 2026)
+- [x] Show both legs of BTC spread orders in Working Orders panel (BTC short leg + STC long leg)
+- [x] Show profit context on spread close orders: original premium collected, net profit if filled, realized %
+- [x] Add educational label explaining what BTC Spread means for students
+- [x] Extend multi-leg visibility to BCS (Bear Call Spread) close orders
+- [x] Extend multi-leg visibility to IC (Iron Condor) close orders (4 legs: BTC short call + STC long call + BTC short put + STC long put)

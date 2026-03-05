@@ -43,7 +43,17 @@ export interface ProcessedWorkingOrder {
   // Spread-specific fields
   isSpread?: boolean;
   longStrike?: number;
-  spreadType?: 'bull_put' | 'bear_call';
+  spreadType?: 'bull_put' | 'bear_call' | 'iron_condor';
+  // Per-leg detail for multi-leg expansion in the UI
+  spreadLegs?: Array<{
+    symbol: string;
+    action: string;       // 'Buy to Close' | 'Sell to Close' | 'Buy to Open' | 'Sell to Open'
+    strike: number;
+    optionType: 'PUT' | 'CALL';
+    bid: number;
+    ask: number;
+    mid: number;
+  }>;
 }
 
 export const workingOrdersRouter = router({
@@ -319,42 +329,87 @@ export const workingOrdersRouter = router({
           const minutesWorking = calculateMinutesWorking(order['received-at'] || order.receivedAt);
           totalMinutesWorking += minutesWorking;
 
-          // ── Step 1: Detect if this is a spread order (2 legs) ──────────────────
+          // ── Step 1: Detect if this is a spread order (2 or 4 legs) ─────────────
           let isSpread = false;
           let longStrike: number | undefined;
-          let spreadType: 'bull_put' | 'bear_call' | undefined;
-          
+          let spreadType: 'bull_put' | 'bear_call' | 'iron_condor' | undefined;
+          let spreadLegs: ProcessedWorkingOrder['spreadLegs'] = undefined;
+
+          // Helper: parse a leg symbol into components
+          const parseLeg = (legSymbol: string) => {
+            const m = legSymbol.match(/^([A-Z]+)\s+(\d{6})([CP])(\d+)$/);
+            if (!m) return null;
+            return {
+              symbol: legSymbol,
+              optionType: (m[3] === 'C' ? 'CALL' : 'PUT') as 'CALL' | 'PUT',
+              strike: parseInt(m[4]) / 1000,
+            };
+          };
+
           if (order.legs.length === 2) {
             const leg2 = order.legs[1];
-            
-            // Parse second leg
             const leg2Match = leg2.symbol.match(/^([A-Z]+)\s+(\d{6})([CP])(\d+)$/);
             if (leg2Match) {
               const leg2OptionType = leg2Match[3];
               const leg2Strike = parseInt(leg2Match[4]) / 1000;
-              
-              // Check if both legs are same type (both puts or both calls)
+              // Both legs same option type → vertical spread
               if (leg2OptionType === symbolMatch[3]) {
                 isSpread = true;
-                
-                // Determine spread type based on strike relationship (handle legs in any order)
                 if (optionType === 'PUT') {
-                  // Bull Put Spread: Short higher strike, long lower strike
                   const higherStrike = Math.max(strike, leg2Strike);
                   const lowerStrike = Math.min(strike, leg2Strike);
-                  strike = higherStrike; // Display the short leg strike (higher)
-                  longStrike = lowerStrike; // Long leg is always the lower strike
+                  strike = higherStrike;
+                  longStrike = lowerStrike;
                   spreadType = 'bull_put';
                 } else if (optionType === 'CALL') {
-                  // Bear Call Spread: Short lower strike, long higher strike
                   const higherStrike = Math.max(strike, leg2Strike);
                   const lowerStrike = Math.min(strike, leg2Strike);
-                  strike = lowerStrike; // Display the short leg strike (lower)
-                  longStrike = higherStrike; // Long leg is always the higher strike
+                  strike = lowerStrike;
+                  longStrike = higherStrike;
                   spreadType = 'bear_call';
                 }
               }
             }
+          } else if (order.legs.length === 4) {
+            // Iron Condor: 2 puts + 2 calls
+            const parsed = order.legs.map((l: any) => ({
+              ...parseLeg(l.symbol),
+              action: l.action,
+              rawSymbol: l.symbol,
+            })).filter((l: any) => l.optionType);
+
+            const puts = parsed.filter((l: any) => l.optionType === 'PUT');
+            const calls = parsed.filter((l: any) => l.optionType === 'CALL');
+
+            if (puts.length === 2 && calls.length === 2) {
+              isSpread = true;
+              spreadType = 'iron_condor';
+              // For IC display: show short put strike as primary
+              const shortPut = puts.find((l: any) => l.action?.includes('Sell')) || puts[0];
+              const shortCall = calls.find((l: any) => l.action?.includes('Sell')) || calls[0];
+              strike = shortPut?.strike ?? strike;
+              longStrike = shortCall?.strike;
+            }
+          }
+
+          // Build per-leg detail array for all spread types
+          if (isSpread) {
+            spreadLegs = order.legs.map((l: any) => {
+              const parsed = parseLeg(l.symbol);
+              if (!parsed) return null;
+              const legQuote = quotes[l.symbol] || {};
+              const legBid = legQuote.bid || 0;
+              const legAsk = legQuote.ask || 0;
+              return {
+                symbol: l.symbol,
+                action: l.action as string,
+                strike: parsed.strike,
+                optionType: parsed.optionType,
+                bid: legBid,
+                ask: legAsk,
+                mid: (legBid + legAsk) / 2,
+              };
+            }).filter(Boolean) as ProcessedWorkingOrder['spreadLegs'];
           }
 
           // ── Step 2: Compute bid/ask ────────────────────────────────────────────
@@ -367,29 +422,28 @@ export const workingOrdersRouter = router({
           let mid: number;
           let spread: number;
 
-          if (isSpread && order.legs.length === 2) {
-            // Identify BTC leg (short put, higher strike) and STC leg (long put, lower strike)
-            const btcLeg = order.legs.find((l: any) => l.action === 'Buy to Close');
-            const stcLeg = order.legs.find((l: any) => l.action === 'Sell to Close');
+          if (isSpread && (order.legs.length === 2 || order.legs.length === 4)) {
+            // For each leg: BTC legs cost money (debit), STC legs receive money (credit)
+            // Net debit to close = sum of BTC ask prices - sum of STC bid prices
+            const btcLegs = order.legs.filter((l: any) => l.action === 'Buy to Close');
+            const stcLegs = order.legs.filter((l: any) => l.action === 'Sell to Close');
 
-            if (btcLeg && stcLeg) {
-              const btcQuote = quotes[btcLeg.symbol] || {};
-              const stcQuote = quotes[stcLeg.symbol] || {};
+            if (btcLegs.length > 0 || stcLegs.length > 0) {
+              const sumBtcBid = btcLegs.reduce((s: number, l: any) => s + (quotes[l.symbol]?.bid || 0), 0);
+              const sumBtcAsk = btcLegs.reduce((s: number, l: any) => s + (quotes[l.symbol]?.ask || 0), 0);
+              const sumStcBid = stcLegs.reduce((s: number, l: any) => s + (quotes[l.symbol]?.bid || 0), 0);
+              const sumStcAsk = stcLegs.reduce((s: number, l: any) => s + (quotes[l.symbol]?.ask || 0), 0);
 
-              const btcBid = btcQuote.bid || 0;
-              const btcAsk = btcQuote.ask || 0;
-              const stcBid = stcQuote.bid || 0;
-              const stcAsk = stcQuote.ask || 0;
-
-              const netBid = Math.max(0, btcBid - stcAsk);
-              const netAsk = Math.max(0, btcAsk - stcBid);
+              // Net cost to close (debit): worst-case pay BTC at ask, receive STC at bid
+              const netBid = Math.max(0, sumBtcBid - sumStcAsk);
+              const netAsk = Math.max(0, sumBtcAsk - sumStcBid);
 
               bid = netBid;
               ask = netAsk;
               mid = (bid + ask) / 2;
               spread = ask - bid;
 
-              console.log(`[WorkingOrders] Spread ${underlyingSymbol}: BTC(${btcLeg.symbol}) bid=${btcBid} ask=${btcAsk}, STC(${stcLeg.symbol}) bid=${stcBid} ask=${stcAsk} → netBid=${bid.toFixed(2)} netAsk=${ask.toFixed(2)}`);
+              console.log(`[WorkingOrders] Spread ${underlyingSymbol} (${spreadType}): sumBtcAsk=${sumBtcAsk.toFixed(2)} sumStcBid=${sumStcBid.toFixed(2)} → netBid=${bid.toFixed(2)} netAsk=${ask.toFixed(2)}`);
             } else {
               // Fallback: use first-leg quote
               bid = quote.bid || 0;
@@ -463,6 +517,7 @@ export const workingOrdersRouter = router({
             isSpread,
             longStrike,
             spreadType,
+            spreadLegs,
           });
         }
 
