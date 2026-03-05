@@ -996,7 +996,7 @@ export default function AutomationDashboard() {
         <div>
           <h1 className="text-3xl font-bold">Daily Trading Automation</h1>
           <p className="text-muted-foreground mt-1">
-            Five-step automated workflow: close, roll, sell calls, open spreads, manage PMCCs
+            Four-step automated workflow: close for profit, roll positions, sell calls, manage PMCCs
           </p>
         </div>
         <div className="flex items-center gap-3 mt-1">
@@ -1131,9 +1131,9 @@ export default function AutomationDashboard() {
         </div>
       )}
 
-      {/* Five-Step Automation Tabs */}
+      {/* Four-Step Automation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-4 h-auto">
           <TabsTrigger value="step1-close" className="relative flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">1</span>
             <span className="flex items-center gap-1">
