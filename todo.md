@@ -7316,3 +7316,23 @@
 - [x] Rename "Strategy Advisor" → "Spread Advisor" in sidebar nav (Sidebar.tsx)
 - [x] Rename "Strategy Advisor" → "Spread Advisor" in page title (StrategyAdvisorPage)
 - [x] Rename "Strategy Advisor" → "Spread Advisor" in component CardTitles and descriptions (StrategyAdvisor.tsx)
+
+## Navigation Restructure & Portfolio Command Center (Mar 5, 2026)
+
+### Phase 0 — Nav Restructure
+- [x] Update Sidebar.tsx: Portfolio Command Center at top, Income Strategies collapsible group, Daily Automation top-level
+- [x] Create /portfolio route and PortfolioCommandCenter.tsx shell page
+- [x] Update App.tsx with new routes
+- [x] Retire Action Items page from sidebar nav (removed from primary nav)
+- [x] Update AutomationDashboard subtitle
+
+### Phase 1 — Portfolio Command Center Build
+- [ ] Build Greeks aggregation tRPC procedure (automation.getPortfolioGreeks)
+- [ ] Aggregate per-ticker: net delta, theta, vega, premium at risk, DTE
+- [ ] Compute portfolio-level totals: total delta, total theta, total vega, largest concentration
+- [ ] Build HeatMapGrid component: color by delta or theta, size by premium at risk
+- [ ] Build portfolio stat bar (total delta, theta, vega, concentration warning)
+- [ ] Move Active Positions panel into Portfolio Command Center
+- [ ] Move Working Orders panel into Portfolio Command Center
+- [ ] Move IRA Safety Monitor into Portfolio Command Center
+- [ ] Add view-mode toggle: Delta Heat Map / Theta Heat Map

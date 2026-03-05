@@ -16,6 +16,7 @@ import Performance from "./pages/Performance";
 import StrategyAdvisorPage from "./pages/StrategyAdvisorPage";
 import PortfolioAdvisor from "./pages/PortfolioAdvisor";
 import AutomationDashboard from "./pages/AutomationDashboard";
+import PortfolioCommandCenter from "./pages/PortfolioCommandCenter";
 
 import ActionItems from "./pages/ActionItems";
 import PendingApproval from "./pages/PendingApproval";
@@ -145,8 +146,9 @@ function Router() {
         <div className="flex-1 overflow-auto relative">
           <TrialStatusBanner />
           <PaperTradingBanner />
-          <SupportWidget />
-        <Switch>          <Route path={"/"} component={Home} />
+          <SupportWidget />        <Switch>
+          <Route path={"/"} component={Home} />
+          <Route path={"/portfolio"} component={PortfolioCommandCenter} />
           <Route path={"/settings"} component={Settings} />
           <Route path={"/subscription"} component={Subscription} />
           <Route path="/inbox" component={Inbox} />
