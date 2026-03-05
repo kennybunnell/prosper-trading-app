@@ -98,6 +98,73 @@ describe('CC Order Preview — Strategy Routing', () => {
   });
 });
 
+describe('Order Quantity Initialization', () => {
+  // Simulates the initialization logic from UnifiedOrderPreviewModal
+  function initOrderQuantities(
+    orders: Array<{ symbol: string; strike: number; expiration: string; accountNumber?: string; quantity?: number }>,
+    defaultQuantities?: Map<string, number>
+  ): Map<string, number> {
+    const getOrderKey = (o: typeof orders[0]) => {
+      const acct = o.accountNumber ? `-${o.accountNumber}` : '';
+      return `${o.symbol}-${o.strike}-${o.expiration}${acct}`;
+    };
+    const map = new Map<string, number>();
+    orders.forEach(order => {
+      const key = getOrderKey(order);
+      const defaultQty = defaultQuantities?.get(key) ?? order.quantity ?? 1;
+      map.set(key, defaultQty);
+    });
+    return map;
+  }
+
+  it('uses order.quantity when defaultQuantities not provided', () => {
+    const orders = [{ symbol: 'AVGO', strike: 340, expiration: '2026-03-12', accountNumber: 'ACC1', quantity: 5 }];
+    const map = initOrderQuantities(orders);
+    expect(map.get('AVGO-340-2026-03-12-ACC1')).toBe(5);
+  });
+
+  it('falls back to 1 when neither defaultQuantities nor order.quantity provided', () => {
+    const orders = [{ symbol: 'NVDA', strike: 190, expiration: '2026-03-12' }];
+    const map = initOrderQuantities(orders);
+    expect(map.get('NVDA-190-2026-03-12')).toBe(1);
+  });
+
+  it('multi-account same symbol gets separate keys and quantities', () => {
+    const orders = [
+      { symbol: 'AVGO', strike: 340, expiration: '2026-03-12', accountNumber: 'ACC1', quantity: 5 },
+      { symbol: 'AVGO', strike: 340, expiration: '2026-03-12', accountNumber: 'ACC2', quantity: 2 },
+    ];
+    const map = initOrderQuantities(orders);
+    expect(map.get('AVGO-340-2026-03-12-ACC1')).toBe(5);
+    expect(map.get('AVGO-340-2026-03-12-ACC2')).toBe(2);
+    expect(map.size).toBe(2);
+  });
+
+  it('defaultQuantities overrides order.quantity when provided', () => {
+    const orders = [{ symbol: 'AMD', strike: 212.5, expiration: '2026-03-12', accountNumber: 'ACC1', quantity: 3 }];
+    const defaults = new Map([['AMD-212.5-2026-03-12-ACC1', 2]]);
+    const map = initOrderQuantities(orders, defaults);
+    expect(map.get('AMD-212.5-2026-03-12-ACC1')).toBe(2);
+  });
+
+  it('total premium calculation uses correct quantities', () => {
+    // AVGO: 5 contracts × $6.50 × 100 = $3,250
+    // NVDA: 3 contracts × $1.95 × 100 = $585
+    const orders = [
+      { symbol: 'AVGO', strike: 340, expiration: '2026-03-12', accountNumber: 'ACC1', quantity: 5, premium: 6.50 },
+      { symbol: 'NVDA', strike: 190, expiration: '2026-03-12', accountNumber: 'ACC1', quantity: 3, premium: 1.95 },
+    ];
+    const map = initOrderQuantities(orders);
+    const total = orders.reduce((sum, o) => {
+      const acct = o.accountNumber ? `-${o.accountNumber}` : '';
+      const key = `${o.symbol}-${o.strike}-${o.expiration}${acct}`;
+      const qty = map.get(key) ?? 1;
+      return sum + (o.premium * 100 * qty);
+    }, 0);
+    expect(total).toBeCloseTo(3250 + 585, 0);
+  });
+});
+
 describe('CC Ownership Validation Guard', () => {
   // Simulates the validateOrders logic for the CC ownership check
   function validateCCOwnership(

@@ -7280,3 +7280,8 @@
 
 ## AutomationDashboard — CC Validation False Errors (Mar 5, 2026)
 - [x] Fix false "No shares owned. Cannot sell covered calls." errors in CC order preview — scan already verified ownership, validation should not re-check when orders come from the CC scanner
+
+## AutomationDashboard — CC Summary vs Preview Discrepancy (Mar 5, 2026)
+- [x] Investigate duplicate rows in CC order preview (AVGO × 2, NVDA × 2 visible) — confirmed intentional multi-account rows
+- [x] Fix CC scanner deduplication — fixed getOrderKey to include accountNumber so multi-account orders don't collide
+- [x] Align summary card "Total Premium if all submitted" calculation with order preview total — fixed qty initialization to use order.quantity instead of defaulting to 1

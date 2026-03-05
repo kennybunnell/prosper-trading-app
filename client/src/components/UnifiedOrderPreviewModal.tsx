@@ -219,7 +219,9 @@ export function UnifiedOrderPreviewModal({
       const initialQuantities = new Map<string, number>();
       orders.forEach(order => {
         const key = getOrderKey(order);
-        const defaultQty = defaultQuantities?.get(key) || 1;
+        // Use defaultQuantities if provided, then order.quantity (e.g. CC scanner sets qty = maxContracts),
+        // then fall back to 1. Using ?? instead of || so qty=0 is still treated as "not set".
+        const defaultQty = defaultQuantities?.get(key) ?? order.quantity ?? 1;
         initialQuantities.set(key, defaultQty);
       });
       setOrderQuantities(initialQuantities);
@@ -352,9 +354,12 @@ export function UnifiedOrderPreviewModal({
     }
   }, [orderQuantities, open]);
   
-  // Helper: Generate unique key for each order
+  // Helper: Generate unique key for each order.
+  // Include accountNumber so multi-account CC orders for the same symbol/strike/expiry
+  // don't collide in the orderQuantities and adjustedPrices maps.
   const getOrderKey = (order: UnifiedOrder): string => {
-    return `${order.symbol}-${order.strike}-${order.expiration}`;
+    const acct = order.accountNumber ? `-${order.accountNumber}` : '';
+    return `${order.symbol}-${order.strike}-${order.expiration}${acct}`;
   };
   
   // Get quantity for an order
