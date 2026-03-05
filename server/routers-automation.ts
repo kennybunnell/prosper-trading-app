@@ -295,6 +295,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
       z.object({
         triggerType: z.enum(['manual', 'scheduled']).default('manual'),
         scanSteps: z.array(z.enum(['btc', 'cc', 'all'])).optional(), // if omitted, runs all enabled steps
+        ccSymbolFilter: z.array(z.string()).optional(), // when set, only scan these symbols for CC (Tranche 2 rescan)
+        ccDteOverride: z.object({ min: z.number(), max: z.number() }).optional(), // override DTE range for CC scan
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -712,6 +714,9 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 }
 
                 // Build list of eligible stocks with uncovered shares
+                const ccSymbolFilterSet = input.ccSymbolFilter && input.ccSymbolFilter.length > 0
+                  ? new Set(input.ccSymbolFilter.map((s: string) => s.toUpperCase()))
+                  : null;
                 const eligibleStocks = stockPositions
                   .map((p: any) => ({
                     symbol: p.symbol,
@@ -722,7 +727,12 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                   .map((s: any) => ({ ...s, maxContracts: Math.floor((s.quantity - s.existingContracts * 100) / 100) }))
                   .filter((s: any) => s.maxContracts > 0 && s.currentPrice > 0)
                   // ⛔ Skip symbols flagged for liquidation — no new CCs on exit positions
-                  .filter((s: any) => !flaggedSymbolsSet.has(s.symbol.toUpperCase()));
+                  .filter((s: any) => !flaggedSymbolsSet.has(s.symbol.toUpperCase()))
+                  // 🔍 Tranche 2 rescan: only scan the specified symbols when ccSymbolFilter is set
+                  .filter((s: any) => !ccSymbolFilterSet || ccSymbolFilterSet.has(s.symbol.toUpperCase()));
+                if (ccSymbolFilterSet) {
+                  console.log(`[Automation CC] Tranche 2 rescan — filtering to symbols: ${Array.from(ccSymbolFilterSet).join(', ')}`);
+                }
                 if (eligibleStocks.length === 0) {
                   console.log(`[Automation CC] No eligible stocks for CCs in account ${account.accountNumber}`);
                 } else {
@@ -736,13 +746,19 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                     const tradierApi = createTradierAPI(tradierApiKey);
                     const minDelta = parseFloat(settings.ccDeltaMin);
                     const maxDelta = parseFloat(settings.ccDeltaMax);
+                    // Use DTE override if provided (Tranche 2 rescan with AI-recommended DTE)
+                    const effectiveDteMin = input.ccDteOverride?.min ?? settings.ccDteMin;
+                    const effectiveDteMax = input.ccDteOverride?.max ?? settings.ccDteMax;
+                    if (input.ccDteOverride) {
+                      console.log(`[Automation CC] DTE override: ${effectiveDteMin}-${effectiveDteMax} days (Tranche 2 rescan)`);
+                    }
                     const today = new Date();
                     for (const stock of eligibleStocks) {
                       try {
                         const expirations = await tradierApi.getExpirations(stock.symbol);
                         const validExpirations = expirations.filter((exp: string) => {
                           const dte = Math.ceil((new Date(exp).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                          return dte >= settings.ccDteMin && dte <= settings.ccDteMax;
+                          return dte >= effectiveDteMin && dte <= effectiveDteMax;
                         });
                         if (validExpirations.length === 0) continue;
                         let bestOpp: any = null;

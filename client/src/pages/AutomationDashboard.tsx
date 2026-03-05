@@ -346,6 +346,10 @@ export default function AutomationDashboard() {
   const [orderFinalStatus, setOrderFinalStatus] = useState<string | null>(null);
   // Track which positions were submitted in the last live run so we can remove them on modal close
   const [submittedPositionKeys, setSubmittedPositionKeys] = useState<Set<string>>(new Set());
+  // Track which CC STO positions were submitted (key: `${optionSymbol}|${account}`)
+  const [submittedCCKeys, setSubmittedCCKeys] = useState<Set<string>>(new Set());
+  // Amber rows that remain after Tranche 1 submission (waiting for Tranche 2 rescan)
+  const [tranche2Pending, setTranche2Pending] = useState<CCScanResult[]>([]);
 
   // Open the order preview modal for a single position (individual close)
   const handleOpenSingleOrderPreview = useCallback((result: ScanResult) => {
@@ -631,14 +635,19 @@ export default function AutomationDashboard() {
       const response = await submitCloseOrders.mutateAsync({ orders: selected, dryRun: isDryRun });
       // Record which positions were submitted in a live run so we can clear them on modal close
       if (!isDryRun) {
-        // Use 3-part key to match posKey format (optionSymbol|account|type)
-        // We need to look up the type from scanResults since 'selected' only has optionSymbol+accountNumber
-        const scanMap = new Map((lastRunResult?.scanResults ?? []).map(r => [`${r.optionSymbol}|${r.account}`, r]));
-        const keys = new Set(selected.map(s => {
-          const r = scanMap.get(`${s.optionSymbol}|${s.accountNumber}`);
-          return r ? posKey(r) : `${s.optionSymbol}|${s.accountNumber}|unknown`;
-        }));
-        setSubmittedPositionKeys(keys);
+        if (previewStrategy === 'cc') {
+          // CC STO: track by `${optionSymbol}|${account}` key
+          const ccKeys = new Set(selected.map(s => `${s.optionSymbol}|${s.accountNumber}`));
+          setSubmittedCCKeys(ccKeys);
+        } else {
+          // BTC close: use 3-part key to match posKey format (optionSymbol|account|type)
+          const scanMap = new Map((lastRunResult?.scanResults ?? []).map(r => [`${r.optionSymbol}|${r.account}`, r]));
+          const keys = new Set(selected.map(s => {
+            const r = scanMap.get(`${s.optionSymbol}|${s.accountNumber}`);
+            return r ? posKey(r) : `${s.optionSymbol}|${s.accountNumber}|unknown`;
+          }));
+          setSubmittedPositionKeys(keys);
+        }
       }
       return { results: response.results ?? [] };
     } catch (err: any) {
@@ -933,6 +942,33 @@ export default function AutomationDashboard() {
     // Preserve existing BTC scan results, only clear CC results
     setLastRunResult(prev => prev ? { ...prev, ccScanResults: [] } : null);
     runAutomation.mutate({ triggerType: 'manual', scanSteps: ['cc'] });
+  };
+
+  const handleRescanTranche2 = () => {
+    if (tranche2Pending.length === 0) return;
+    // Collect unique symbols from amber rows
+    const symbols = Array.from(new Set(tranche2Pending.map(r => r.symbol)));
+    // Derive DTE override: use the most common recommendedDte (or 14 as fallback)
+    const dteCounts = tranche2Pending.reduce<Record<number, number>>((acc, r) => {
+      const d = r.aiRecommendedDte ?? 14;
+      acc[d] = (acc[d] ?? 0) + 1;
+      return acc;
+    }, {});
+    const targetDte = parseInt(Object.entries(dteCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '14', 10);
+    const dteMin = Math.max(targetDte - 3, 1);
+    const dteMax = targetDte + 7;
+    setIsRunning(true);
+    setActiveScanStep('cc');
+    // Preserve existing BTC scan results, only clear CC results
+    setLastRunResult(prev => prev ? { ...prev, ccScanResults: [] } : null);
+    setTranche2Pending([]); // Clear pending state — new results will replace
+    toast.info(`Rescanning ${symbols.length} Tranche 2 symbol${symbols.length !== 1 ? 's' : ''} with DTE ${dteMin}–${dteMax}…`);
+    runAutomation.mutate({
+      triggerType: 'manual',
+      scanSteps: ['cc'],
+      ccSymbolFilter: symbols,
+      ccDteOverride: { min: dteMin, max: dteMax },
+    });
   };
 
   const handleToggle = (key: string, value: boolean) => {
@@ -2587,6 +2623,23 @@ export default function AutomationDashboard() {
                           AI scoring…
                         </span>
                       )}
+                      {/* Tranche 2 rescan button — shown when amber rows are pending after Tranche 1 submission */}
+                      {tranche2Pending.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs border-amber-500/60 text-amber-400 hover:bg-amber-500/10 font-medium"
+                          onClick={handleRescanTranche2}
+                          disabled={isRunning}
+                          title={`Rescan ${Array.from(new Set(tranche2Pending.map(r => r.symbol))).join(', ')} with AI-recommended DTE`}
+                        >
+                          {isRunning && activeScanStep === 'cc' ? (
+                            <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />Rescanning…</>
+                          ) : (
+                            <><RefreshCw className="h-3.5 w-3.5 mr-1" />Rescan Tranche 2 ({tranche2Pending.length})</>
+                          )}
+                        </Button>
+                      )}
                       {/* Select All Clean button — only shown when AI scores exist and there are amber rows */}
                       {hasAiScores && amberCount > 0 && (
                         <Button
@@ -2861,8 +2914,35 @@ export default function AutomationDashboard() {
           onOpenChange={(open) => {
             setShowOrderPreview(open);
             if (!open) {
-              if (orderSubmissionComplete && submittedPositionKeys.size > 0) {
-                // Remove submitted positions from the scan results so they don't reappear
+              if (orderSubmissionComplete && submittedCCKeys.size > 0) {
+                // CC STO submitted — remove submitted rows, isolate amber (Tranche 2) rows
+                setLastRunResult(prev => {
+                  if (!prev) return prev;
+                  const remaining = prev.ccScanResults.filter(
+                    r => !submittedCCKeys.has(`${r.optionSymbol}|${r.account}`)
+                  );
+                  const submittedCount = prev.ccScanResults.length - remaining.length;
+                  const amberRemaining = remaining.filter(r => r.aiRecommendedDte);
+                  if (amberRemaining.length > 0) {
+                    setTranche2Pending(amberRemaining);
+                    toast.success(
+                      `Tranche 1 submitted (${submittedCount} order${submittedCount !== 1 ? 's' : ''}). ${amberRemaining.length} Tranche 2 row${amberRemaining.length !== 1 ? 's' : ''} remaining — rescan when ready.`,
+                      { duration: 6000 }
+                    );
+                  } else if (submittedCount > 0) {
+                    toast.success(`${submittedCount} CC order${submittedCount !== 1 ? 's' : ''} submitted successfully.`);
+                  }
+                  return { ...prev, ccScanResults: remaining };
+                });
+                // Deselect submitted CC positions
+                setSelectedCCPositions(prev => {
+                  const next = new Set(prev);
+                  submittedCCKeys.forEach(k => next.delete(k));
+                  return next;
+                });
+                setSubmittedCCKeys(new Set());
+              } else if (orderSubmissionComplete && submittedPositionKeys.size > 0) {
+                // BTC close submitted — remove submitted positions from scan results
                 setLastRunResult(prev => {
                   if (!prev) return prev;
                   const remaining = prev.scanResults.filter(

@@ -7300,3 +7300,12 @@
 - [x] Add "Score with AI" manual re-score button when scores are missing
 - [x] Wire AI scoring call after CC scan completes (via useEffect on latestLog)
 - [x] Write unit tests for scoring logic (18 tests all pass)
+
+## Tranche 2 Rescan Workflow (Mar 5, 2026)
+- [x] Track submitted CC symbols in state (submittedCCKeys Set) after order modal closes
+- [x] Auto-filter CC results table to show only amber rows after Tranche 1 submission
+- [x] Show toast: "Tranche 1 submitted — X Tranche 2 rows remaining, rescan when ready"
+- [x] Add "Rescan Tranche 2" button scoped to amber symbols + AI-recommended DTE ranges
+- [x] Wire Rescan Tranche 2 into server-side CC scan with symbol filter + DTE override
+- [x] After Tranche 2 rescan, AI-scores the new results and auto-selects clean rows (via existing runAiScoring flow)
+- [x] Amber rows persist in tranche2Pending state until rescan is triggered
