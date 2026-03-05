@@ -2645,17 +2645,17 @@ export default function AutomationDashboard() {
                               aria-label="Select all CC opportunities"
                             />
                           </th>
-                          <th className="text-left py-2 pr-3">Symbol</th>
-                          <th className="text-left py-2 pr-3">Account</th>
-                          <th className="text-right py-2 pr-3">Qty</th>
-                          <th className="text-left py-2 pr-3">Strike</th>
-                          <th className="text-left py-2 pr-3">Expiration</th>
-                          <th className="text-right py-2 pr-3">DTE</th>
-                          <th className="text-right py-2 pr-3">Delta</th>
-                          <th className="text-right py-2 pr-3">Mid</th>
-                          <th className="text-right py-2 pr-3">Total Premium</th>
-                          <th className="text-right py-2 pr-3">Weekly Ret%</th>
-                          {hasAiScores && <th className="text-right py-2">AI Score</th>}
+                          <th className="text-left py-2 pr-2">Symbol</th>
+                          <th className="text-left py-2 pr-2">Account</th>
+                          <th className="text-right py-2 pr-2">Qty</th>
+                          <th className="text-left py-2 pr-2">Strike</th>
+                          <th className="text-left py-2 pr-2">Expiration</th>
+                          <th className="text-right py-2 pr-2">DTE</th>
+                          <th className="text-right py-2 pr-2">Delta</th>
+                          <th className="text-right py-2 pr-2">Mid</th>
+                          <th className="text-right py-2 pr-2">Total</th>
+                          <th className="text-right py-2 pr-2">Wkly%</th>
+                          {hasAiScores && <th className="text-left py-2 pl-3" style={{minWidth:'220px'}}>AI Score &amp; Rationale</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -2686,17 +2686,17 @@ export default function AutomationDashboard() {
                                   })}
                                 />
                               </td>
-                              <td className="py-2 pr-3 font-semibold">
+                              <td className="py-2 pr-2 font-semibold">
                                 {r.symbol}
                                 {isAmber && !isSelected && (
                                   <div className="text-[9px] font-medium text-amber-400 mt-0.5">Pending Rescan</div>
                                 )}
                               </td>
-                              <td className="py-2 pr-3 text-xs text-muted-foreground">{r.account}</td>
-                              <td className="py-2 pr-3 text-right">{r.quantity}</td>
-                              <td className="py-2 pr-3 font-mono">${r.strike}</td>
-                              <td className="py-2 pr-3 font-mono text-xs">{new Date(r.expiration).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</td>
-                              <td className="py-2 pr-3 text-right font-mono text-xs">
+                              <td className="py-2 pr-2 text-xs text-muted-foreground">{r.account}</td>
+                              <td className="py-2 pr-2 text-right">{r.quantity}</td>
+                              <td className="py-2 pr-2 font-mono">${r.strike}</td>
+                              <td className="py-2 pr-2 font-mono text-xs">{new Date(r.expiration).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</td>
+                              <td className="py-2 pr-2 text-right font-mono text-xs">
                                 {r.dte}
                                 {isAmber && (
                                   <div
@@ -2707,21 +2707,22 @@ export default function AutomationDashboard() {
                                   </div>
                                 )}
                               </td>
-                              <td className="py-2 pr-3 text-right font-mono text-xs">{r.delta.toFixed(2)}</td>
-                              <td className="py-2 pr-3 text-right font-mono text-green-400">${r.mid.toFixed(2)}</td>
-                              <td className="py-2 pr-3 text-right font-mono text-green-400">${r.totalPremium.toFixed(0)}</td>
-                              <td className="py-2 pr-3 text-right font-mono text-purple-400">{r.weeklyReturn.toFixed(2)}%</td>
+                              <td className="py-2 pr-2 text-right font-mono text-xs">{r.delta.toFixed(2)}</td>
+                              <td className="py-2 pr-2 text-right font-mono text-green-400">${r.mid.toFixed(2)}</td>
+                              <td className="py-2 pr-2 text-right font-mono text-green-400">${r.totalPremium.toFixed(0)}</td>
+                              <td className="py-2 pr-2 text-right font-mono text-purple-400">{r.weeklyReturn.toFixed(2)}%</td>
                               {hasAiScores && (
-                                <td className="py-2 text-right">
+                                <td className="py-2 pl-3" style={{minWidth:'220px'}}>
                                   {r.aiScore !== undefined ? (
-                                    <div className="flex flex-col items-end gap-0.5">
-                                      <span className={`font-mono font-bold text-sm ${scoreColor}`}>{r.aiScore}</span>
+                                    <div className="flex items-start gap-2">
+                                      <span className={`font-mono font-bold text-base shrink-0 w-7 text-right ${scoreColor}`}>{r.aiScore}</span>
                                       {r.aiRationale && (
                                         <span
-                                          className="text-[9px] text-muted-foreground max-w-[160px] text-right leading-tight cursor-help"
+                                          className="text-[10px] text-muted-foreground leading-snug cursor-help line-clamp-2"
                                           title={r.aiRationale}
+                                          style={{maxWidth:'170px'}}
                                         >
-                                          {r.aiRationale.length > 55 ? r.aiRationale.slice(0, 52) + '…' : r.aiRationale}
+                                          {r.aiRationale}
                                         </span>
                                       )}
                                     </div>
