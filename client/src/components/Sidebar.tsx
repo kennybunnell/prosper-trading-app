@@ -106,7 +106,7 @@ export function Sidebar({ className }: SidebarProps) {
       icon: BarChart3,
     },
     {
-      name: 'Strategy Advisor',
+      name: 'Spread Advisor',
       path: '/strategy-advisor',
       icon: Sparkles,
     },

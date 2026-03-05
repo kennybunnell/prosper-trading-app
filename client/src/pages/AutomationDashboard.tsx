@@ -1171,12 +1171,8 @@ export default function AutomationDashboard() {
             <span className="font-bold text-sm">3</span>
             <span>Sell Calls</span>
           </TabsTrigger>
-          <TabsTrigger value="step4-spreads" className="flex flex-col gap-0.5 py-2 text-xs">
+          <TabsTrigger value="step4-pmcc" className="flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">4</span>
-            <span>Open Spreads</span>
-          </TabsTrigger>
-          <TabsTrigger value="step5-pmcc" className="flex flex-col gap-0.5 py-2 text-xs">
-            <span className="font-bold text-sm">5</span>
             <span>PMCC Mgmt</span>
           </TabsTrigger>
         </TabsList>
@@ -2840,42 +2836,9 @@ export default function AutomationDashboard() {
         </TabsContent>
 
         {/* ─────────────────────────────────────────────────────────────────
-            STEP 4: Open Spreads (Coming Soon)
+            STEP 4: PMCC Management (Coming Soon)
         ───────────────────────────────────────────────────────────────── */}
-        <TabsContent value="step4-spreads">
-          <Card className="border-violet-500/30 bg-violet-500/5">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <RefreshCw className="h-5 w-5 text-violet-400" />
-                <div>
-                  <CardTitle>Open Spreads</CardTitle>
-                  <CardDescription>Scan for bear call spreads, bull put spreads, and iron condors when BP is constrained</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-muted-foreground space-y-3">
-                <RefreshCw className="h-12 w-12 mx-auto opacity-30" />
-                <p className="font-semibold text-base">Coming Soon</p>
-                <p className="text-sm max-w-md mx-auto">
-                  Spread scanner identifies capital-efficient multi-leg strategies when outright CSPs/CCs
-                  would exceed buying power limits. Supports 2-leg and 4-leg structures.
-                </p>
-                <div className="flex flex-wrap justify-center gap-2 pt-2">
-                  <Badge variant="outline" className="text-violet-400 border-violet-400/40">Bear Call Spread</Badge>
-                  <Badge variant="outline" className="text-violet-400 border-violet-400/40">Bull Put Spread</Badge>
-                  <Badge variant="outline" className="text-violet-400 border-violet-400/40">Iron Condor</Badge>
-                  <Badge variant="outline" className="text-violet-400 border-violet-400/40">Configurable on/off</Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ─────────────────────────────────────────────────────────────────
-            STEP 5: PMCC Management (Coming Soon)
-        ───────────────────────────────────────────────────────────────── */}
-        <TabsContent value="step5-pmcc">
+        <TabsContent value="step4-pmcc">
           <Card className="border-pink-500/30 bg-pink-500/5">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -2905,7 +2868,7 @@ export default function AutomationDashboard() {
           </Card>
         </TabsContent>
 
-      </Tabs>{/* end five-step tabs */}
+      </Tabs>{/* end four-step tabs */}
 
       {/* Unified Order Preview Modal */}
       {showOrderPreview && unifiedOrders.length > 0 && (

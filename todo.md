@@ -7309,3 +7309,10 @@
 - [x] Wire Rescan Tranche 2 into server-side CC scan with symbol filter + DTE override
 - [x] After Tranche 2 rescan, AI-scores the new results and auto-selects clean rows (via existing runAiScoring flow)
 - [x] Amber rows persist in tranche2Pending state until rescan is triggered
+
+## Automation Tab Cleanup & Rename (Mar 4, 2026)
+- [x] Remove Step 4 "Open Spreads" tab from AutomationDashboard
+- [x] Renumber PMCC tab from Step 5 to Step 4 in tab labels and content headers
+- [x] Rename "Strategy Advisor" → "Spread Advisor" in sidebar nav (Sidebar.tsx)
+- [x] Rename "Strategy Advisor" → "Spread Advisor" in page title (StrategyAdvisorPage)
+- [x] Rename "Strategy Advisor" → "Spread Advisor" in component CardTitles and descriptions (StrategyAdvisor.tsx)

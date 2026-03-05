@@ -241,7 +241,7 @@ export function StrategyAdvisor() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Strategy Advisor</CardTitle>
+          <CardTitle>Spread Advisor</CardTitle>
           <CardDescription>Analyzing your watchlist tickers...</CardDescription>
         </CardHeader>
         <CardContent>
@@ -257,7 +257,7 @@ export function StrategyAdvisor() {
     return (
       <Card className="border-destructive/50">
         <CardHeader>
-          <CardTitle>Strategy Advisor</CardTitle>
+          <CardTitle>Spread Advisor</CardTitle>
           <CardDescription className="text-destructive">
             {data?.error || 'Failed to load market analysis'}
           </CardDescription>
@@ -893,7 +893,7 @@ export function StrategyAdvisor() {
           <CardHeader>
             <CardTitle>Auto-Refresh Settings</CardTitle>
             <CardDescription>
-              Configure automatic updates for Strategy Advisor recommendations
+              Configure automatic updates for Spread Advisor recommendations
             </CardDescription>
           </CardHeader>
           <CardContent>
