@@ -98,6 +98,63 @@ describe('CC Order Preview — Strategy Routing', () => {
   });
 });
 
+describe('CC Ownership Validation Guard', () => {
+  // Simulates the validateOrders logic for the CC ownership check
+  function validateCCOwnership(
+    orders: Array<{ symbol: string; quantity: number }>,
+    holdings: Array<{ symbol: string; quantity: number; maxContracts: number }> | undefined
+  ): Array<{ symbol: string; message: string }> {
+    const errors: Array<{ symbol: string; message: string }> = [];
+    // Guard: only validate when holdings is explicitly provided and non-empty
+    if (holdings && holdings.length > 0) {
+      orders.forEach(order => {
+        const holding = holdings.find(h => h.symbol === order.symbol);
+        if (!holding) {
+          errors.push({ symbol: order.symbol, message: 'No shares owned. Cannot sell covered calls.' });
+        } else if (order.quantity > holding.maxContracts) {
+          errors.push({ symbol: order.symbol, message: `Not enough shares.` });
+        }
+      });
+    }
+    return errors;
+  }
+
+  it('produces NO errors when holdings is undefined (scanner-sourced orders)', () => {
+    const orders = [{ symbol: 'AMD', quantity: 1 }, { symbol: 'INTC', quantity: 1 }];
+    const errors = validateCCOwnership(orders, undefined);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('produces NO errors when holdings is empty array', () => {
+    const orders = [{ symbol: 'AMD', quantity: 1 }];
+    const errors = validateCCOwnership(orders, []);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('produces errors when holdings provided but symbol not found', () => {
+    const orders = [{ symbol: 'AMD', quantity: 1 }];
+    const holdings = [{ symbol: 'INTC', quantity: 100, maxContracts: 1 }];
+    const errors = validateCCOwnership(orders, holdings);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('No shares owned');
+  });
+
+  it('produces errors when quantity exceeds maxContracts', () => {
+    const orders = [{ symbol: 'AMD', quantity: 3 }];
+    const holdings = [{ symbol: 'AMD', quantity: 100, maxContracts: 1 }];
+    const errors = validateCCOwnership(orders, holdings);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('Not enough shares');
+  });
+
+  it('produces NO errors when holdings provided and ownership confirmed', () => {
+    const orders = [{ symbol: 'AMD', quantity: 1 }];
+    const holdings = [{ symbol: 'AMD', quantity: 100, maxContracts: 1 }];
+    const errors = validateCCOwnership(orders, holdings);
+    expect(errors).toHaveLength(0);
+  });
+});
+
 describe('CC Order Preview — BTC Strategy Isolation', () => {
   it('BTC close orders still use btc_roll branch after previewStrategy fix', () => {
     // Simulates the new previewStrategy state being set to 'btc' for close orders

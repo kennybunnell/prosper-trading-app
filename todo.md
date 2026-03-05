@@ -7277,3 +7277,6 @@
 - [x] Fix order preview summary: STO orders should show premium as "Total Premium Received", not as "Buy-Back Cost"
 - [x] Fix Estimated Profit for STO orders (should equal total premium collected, not negative)
 - [x] Fix "Total Premium Received: $0.00" — STO order totals should accumulate as premium received
+
+## AutomationDashboard — CC Validation False Errors (Mar 5, 2026)
+- [x] Fix false "No shares owned. Cannot sell covered calls." errors in CC order preview — scan already verified ownership, validation should not re-check when orders come from the CC scanner

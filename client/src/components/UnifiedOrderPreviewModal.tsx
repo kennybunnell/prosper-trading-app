@@ -539,8 +539,10 @@ export function UnifiedOrderPreviewModal({
     }
     
     // Strategy-specific validation
-    if (strategy === "cc") {
-      // Validate stock ownership
+    if (strategy === "cc" && holdings && holdings.length > 0) {
+      // Validate stock ownership only when holdings data is explicitly provided.
+      // When orders come from the CC scanner, holdings is not passed because the
+      // scanner already verified ownership — skip the check in that case.
       orders.forEach(order => {
         const holding = holdings.find(h => h.symbol === order.symbol);
         const qty = getQuantity(order);
