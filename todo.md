@@ -7344,3 +7344,8 @@
 - [x] Add educational label explaining what BTC Spread means for students
 - [x] Extend multi-leg visibility to BCS (Bear Call Spread) close orders
 - [x] Extend multi-leg visibility to IC (Iron Condor) close orders (4 legs: BTC short call + STC long call + BTC short put + STC long put)
+
+## Working Orders — Educational Enhancements (Mar 5, 2026)
+- [x] Enhancement 1: Per-leg P&L tooltip — hover over leg row shows theoretical cost/credit contribution
+- [x] Enhancement 2: IC collapsed row label — show "Put Spread: 550/545 | Call Spread: 570/575" in collapsed view
+- [x] Enhancement 3: Color-code leg action badges — BTC legs amber/red, STC legs green

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Loader2, Download, Package, ChevronRight, ChevronDown } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { exportToCSV } from '@/lib/utils';
@@ -2101,6 +2102,17 @@ export function WorkingOrdersTab() {
                      .replace('Buy to Open', 'BTO')
                      .replace('Sell to Open', 'STO');
 
+                  // ── Enhancement 2: IC strike label helper ────────────────
+                  const icStrikeLabel = (() => {
+                    if (spreadType !== 'iron_condor' || !spreadLegs || spreadLegs.length < 4) return null;
+                    const puts = spreadLegs.filter((l: any) => l.optionType === 'PUT').map((l: any) => l.strike).sort((a: number, b: number) => b - a);
+                    const calls = spreadLegs.filter((l: any) => l.optionType === 'CALL').map((l: any) => l.strike).sort((a: number, b: number) => a - b);
+                    if (puts.length >= 2 && calls.length >= 2) {
+                      return `P: $${puts[0].toFixed(0)}/$${puts[1].toFixed(0)} | C: $${calls[0].toFixed(0)}/$${calls[1].toFixed(0)}`;
+                    }
+                    return null;
+                  })();
+
                   return (
                     <React.Fragment key={idx}>
                       {/* ── Main order row ──────────────────────────────────── */}
@@ -2158,10 +2170,16 @@ export function WorkingOrdersTab() {
                         </td>
                         <td className="p-3 text-sm text-right">
                           {isSpread && (order as any).longStrike ? (
-                            <span className={spreadType === 'bull_put' ? 'text-emerald-400' :
-                              spreadType === 'bear_call' ? 'text-orange-400' : 'text-purple-400'}>
-                              ${order.strike.toFixed(2)}{spreadType !== 'iron_condor' && ` / $${(order as any).longStrike.toFixed(2)}`}
-                            </span>
+                            <div>
+                              <span className={spreadType === 'bull_put' ? 'text-emerald-400' :
+                                spreadType === 'bear_call' ? 'text-orange-400' : 'text-purple-400'}>
+                                ${order.strike.toFixed(2)}{spreadType !== 'iron_condor' && ` / $${(order as any).longStrike.toFixed(2)}`}
+                              </span>
+                              {/* Enhancement 2: IC put/call spread label */}
+                              {icStrikeLabel && (
+                                <div className="text-xs text-purple-300/80 mt-0.5 whitespace-nowrap">{icStrikeLabel}</div>
+                              )}
+                            </div>
                           ) : (
                             `$${order.strike.toFixed(2)}`
                           )}
@@ -2254,48 +2272,89 @@ export function WorkingOrdersTab() {
                                   {(spreadLegs || []).map((leg: any, legIdx: number) => {
                                     const isBtc = leg.action?.includes('Buy to Close');
                                     const isStc = leg.action?.includes('Sell to Close');
+                                    // Enhancement 3: color-coded action badges
+                                    // BTC = amber (costs money to close), STC = green (receives credit)
+                                    const actionBadgeClass = isBtc
+                                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                                      : isStc
+                                      ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                      : 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
+
+                                    // Enhancement 1: per-leg P&L tooltip content
+                                    const legMid = leg.mid ?? 0;
+                                    const legContrib = isBtc ? -(legMid * order.quantity * 100) : isStc ? (legMid * order.quantity * 100) : 0;
+                                    const legContribLabel = isBtc
+                                      ? `Debit: −$${(legMid * order.quantity * 100).toFixed(2)} (${order.quantity} × 100 × $${legMid.toFixed(2)})`
+                                      : isStc
+                                      ? `Credit: +$${(legMid * order.quantity * 100).toFixed(2)} (${order.quantity} × 100 × $${legMid.toFixed(2)})`
+                                      : 'No P&L contribution';
+                                    const eduNote = isBtc && leg.optionType === 'PUT' ? 'Buying back the short put (costs debit)'
+                                      : isBtc && leg.optionType === 'CALL' ? 'Buying back the short call (costs debit)'
+                                      : isStc && leg.optionType === 'PUT' ? 'Selling the long put hedge (receives credit)'
+                                      : isStc && leg.optionType === 'CALL' ? 'Selling the long call hedge (receives credit)'
+                                      : '';
+
                                     return (
-                                      <tr key={legIdx} className="border-t border-border/30 hover:bg-muted/20">
-                                        <td className="px-4 py-2 text-xs text-muted-foreground">
-                                          Leg {legIdx + 1}
-                                        </td>
-                                        <td className="px-4 py-2">
-                                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                            isBtc
-                                              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                                              : isStc
-                                              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                              : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                                          }`}>
-                                            {actionAbbr(leg.action)}
-                                          </span>
-                                        </td>
-                                        <td className="px-4 py-2 text-xs">
-                                          <span className={`${
-                                            leg.optionType === 'PUT' ? 'text-red-300' : 'text-blue-300'
-                                          }`}>
-                                            {leg.optionType}
-                                          </span>
-                                        </td>
-                                        <td className="px-4 py-2 text-right font-medium">
-                                          ${leg.strike.toFixed(2)}
-                                        </td>
-                                        <td className="px-4 py-2 text-right text-muted-foreground">
-                                          ${leg.bid.toFixed(2)}
-                                        </td>
-                                        <td className="px-4 py-2 text-right text-muted-foreground">
-                                          ${leg.ask.toFixed(2)}
-                                        </td>
-                                        <td className="px-4 py-2 text-right">
-                                          ${leg.mid.toFixed(2)}
-                                        </td>
-                                        <td className="px-4 py-2 text-xs text-muted-foreground italic">
-                                          {isBtc && leg.optionType === 'PUT' && 'Buying back the short put (costs debit)'}
-                                          {isBtc && leg.optionType === 'CALL' && 'Buying back the short call (costs debit)'}
-                                          {isStc && leg.optionType === 'PUT' && 'Selling the long put hedge (receives credit)'}
-                                          {isStc && leg.optionType === 'CALL' && 'Selling the long call hedge (receives credit)'}
-                                        </td>
-                                      </tr>
+                                      <TooltipProvider key={legIdx} delayDuration={200}>
+                                        <UITooltip>
+                                          <TooltipTrigger asChild>
+                                            <tr className="border-t border-border/30 hover:bg-muted/20 cursor-help">
+                                              <td className="px-4 py-2 text-xs text-muted-foreground">
+                                                Leg {legIdx + 1}
+                                              </td>
+                                              {/* Enhancement 3: color-coded action badge */}
+                                              <td className="px-4 py-2">
+                                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${actionBadgeClass}`}>
+                                                  {actionAbbr(leg.action)}
+                                                </span>
+                                              </td>
+                                              <td className="px-4 py-2 text-xs">
+                                                <span className={`${
+                                                  leg.optionType === 'PUT' ? 'text-red-300' : 'text-blue-300'
+                                                }`}>
+                                                  {leg.optionType}
+                                                </span>
+                                              </td>
+                                              <td className="px-4 py-2 text-right font-medium">
+                                                ${leg.strike.toFixed(2)}
+                                              </td>
+                                              <td className="px-4 py-2 text-right text-muted-foreground">
+                                                ${leg.bid.toFixed(2)}
+                                              </td>
+                                              <td className="px-4 py-2 text-right text-muted-foreground">
+                                                ${leg.ask.toFixed(2)}
+                                              </td>
+                                              <td className="px-4 py-2 text-right">
+                                                <span className={isBtc ? 'text-amber-400' : isStc ? 'text-green-400' : ''}>
+                                                  ${legMid.toFixed(2)}
+                                                </span>
+                                              </td>
+                                              <td className="px-4 py-2 text-xs text-muted-foreground italic">
+                                                {eduNote}
+                                              </td>
+                                            </tr>
+                                          </TooltipTrigger>
+                                          {/* Enhancement 1: P&L breakdown tooltip */}
+                                          <TooltipContent side="right" className="max-w-xs p-3 space-y-1.5">
+                                            <p className="font-semibold text-sm">
+                                              {isBtc ? '🔴 BTC — Buy to Close' : isStc ? '🟢 STC — Sell to Close' : 'Leg'}
+                                            </p>
+                                            <p className={`text-sm font-medium ${isBtc ? 'text-amber-400' : 'text-green-400'}`}>
+                                              {legContribLabel}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                              {isBtc
+                                                ? 'This leg costs you money — you are buying back the short option you originally sold.'
+                                                : isStc
+                                                ? 'This leg earns you money — you are selling the long hedge you originally bought.'
+                                                : ''}
+                                            </p>
+                                            <div className="border-t border-border/50 pt-1.5 text-xs text-muted-foreground/70">
+                                              Net contribution to spread: <span className={`font-medium ${legContrib >= 0 ? 'text-green-400' : 'text-amber-400'}`}>{legContrib >= 0 ? '+' : ''}${legContrib.toFixed(2)}</span>
+                                            </div>
+                                          </TooltipContent>
+                                        </UITooltip>
+                                      </TooltipProvider>
                                     );
                                   })}
                                 </tbody>
