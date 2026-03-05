@@ -7272,3 +7272,8 @@
 
 ## AutomationDashboard — CC Step 3 UI Polish (Mar 4, 2026)
 - [x] Convert "Scan Covered Calls" text link to bronze-glow button matching "Run All Steps" style
+
+## AutomationDashboard — CC Order Preview Summary Bug (Mar 5, 2026)
+- [x] Fix order preview summary: STO orders should show premium as "Total Premium Received", not as "Buy-Back Cost"
+- [x] Fix Estimated Profit for STO orders (should equal total premium collected, not negative)
+- [x] Fix "Total Premium Received: $0.00" — STO order totals should accumulate as premium received

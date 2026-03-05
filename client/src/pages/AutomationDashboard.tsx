@@ -336,6 +336,7 @@ export default function AutomationDashboard() {
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
   const [previewAccountId, setPreviewAccountId] = useState<string>('');
   const [previewPremiumCollected, setPreviewPremiumCollected] = useState<number>(0);
+  const [previewStrategy, setPreviewStrategy] = useState<'btc' | 'cc'>('btc');
   const [orderSubmissionComplete, setOrderSubmissionComplete] = useState(false);
   const [orderFinalStatus, setOrderFinalStatus] = useState<string | null>(null);
   // Track which positions were submitted in the last live run so we can remove them on modal close
@@ -372,6 +373,7 @@ export default function AutomationDashboard() {
     setPreviewAccountId(result.account);
     setUnifiedOrders([order]);
     setPreviewPremiumCollected(result.premiumCollected);
+    setPreviewStrategy('btc');
     setOrderSubmissionComplete(false);
     setOrderFinalStatus(null);
     setShowOrderPreview(true);
@@ -446,6 +448,7 @@ export default function AutomationDashboard() {
     const totalPremiumCollected = selected.reduce((sum, r) => sum + r.premiumCollected, 0);
     setPreviewPremiumCollected(totalPremiumCollected);
     setUnifiedOrders(orders);
+    setPreviewStrategy('btc');
     setOrderSubmissionComplete(false);
     setOrderFinalStatus(null);
     setShowOrderPreview(true);
@@ -2487,6 +2490,7 @@ export default function AutomationDashboard() {
                         setUnifiedOrders(orders);
                         setPreviewAccountId(selected[0]?.account ?? '');
                         setPreviewPremiumCollected(0);
+                        setPreviewStrategy('cc');
                         setOrderSubmissionComplete(false);
                         setOrderFinalStatus(null);
                         setShowOrderPreview(true);
@@ -2695,7 +2699,7 @@ export default function AutomationDashboard() {
             }
           }}
           orders={unifiedOrders}
-          strategy="btc"
+          strategy={previewStrategy}
           accountId={previewAccountId}
           availableBuyingPower={0}
           premiumCollected={previewPremiumCollected}
