@@ -7327,12 +7327,13 @@
 - [x] Update AutomationDashboard subtitle
 
 ### Phase 1 — Portfolio Command Center Build
-- [ ] Build Greeks aggregation tRPC procedure (automation.getPortfolioGreeks)
-- [ ] Aggregate per-ticker: net delta, theta, vega, premium at risk, DTE
-- [ ] Compute portfolio-level totals: total delta, total theta, total vega, largest concentration
-- [ ] Build HeatMapGrid component: color by delta or theta, size by premium at risk
-- [ ] Build portfolio stat bar (total delta, theta, vega, concentration warning)
-- [ ] Move Active Positions panel into Portfolio Command Center
-- [ ] Move Working Orders panel into Portfolio Command Center
-- [ ] Move IRA Safety Monitor into Portfolio Command Center
-- [ ] Add view-mode toggle: Delta Heat Map / Theta Heat Map
+- [x] Build Greeks aggregation tRPC procedure (automation.getPortfolioGreeks)
+- [x] Aggregate per-ticker: net delta, theta, vega, premium at risk, DTE
+- [x] Compute portfolio-level totals: total delta, total theta, total vega, largest concentration
+- [x] Build HeatMapGrid component: color by delta or theta, size by premium at risk
+- [x] Build portfolio stat bar (total delta, theta, vega, concentration warning)
+- [x] Move Active Positions panel into Portfolio Command Center
+- [x] Move Working Orders panel into Portfolio Command Center
+- [x] Move IRA Safety Monitor into Portfolio Command Center
+- [x] Add view-mode toggle: Delta Heat Map / Theta Heat Map
+- [x] Add Greeks summary table below heat map grid with per-ticker breakdown and totals row

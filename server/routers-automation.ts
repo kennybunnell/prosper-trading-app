@@ -1199,4 +1199,158 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         totalOrders: results.length,
       };
     }),
+
+  // ─── Portfolio Heat Map: aggregate Greeks across all open option positions ───
+  getPortfolioGreeks: protectedProcedure.query(async ({ ctx }) => {
+    const { authenticateTastytrade } = await import('./tastytrade');
+    const { createTradierAPI } = await import('./tradier');
+    const { getApiCredentials } = await import('./db');
+
+    const credentials = await getApiCredentials(ctx.user.id);
+    if (!credentials?.tastytradeRefreshToken && !credentials?.tastytradePassword) {
+      return { tickers: [], portfolio: { netDelta: 0, dailyTheta: 0, netVega: 0, netGamma: 0, totalPremiumAtRisk: 0, maxConcentration: 0, positionCount: 0 } };
+    }
+
+    const tradierApiKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+    const tradierApi = tradierApiKey ? createTradierAPI(tradierApiKey) : null;
+
+    const tt = await authenticateTastytrade(credentials, ctx.user.id);
+    if (!tt) {
+      return { tickers: [], portfolio: { netDelta: 0, dailyTheta: 0, netVega: 0, netGamma: 0, totalPremiumAtRisk: 0, maxConcentration: 0, positionCount: 0 } };
+    }
+
+    // Get all account numbers
+    const accounts = await tt.getAccounts();
+    const accountNumbers: string[] = accounts.map((acc: any) =>
+      acc.account?.['account-number'] || acc['account-number'] || acc.accountNumber
+    ).filter(Boolean);
+
+    // Collect all short option positions across all accounts
+    type TickerGreeks = {
+      symbol: string;
+      netDelta: number;
+      dailyTheta: number;
+      netVega: number;
+      netGamma: number;
+      premiumAtRisk: number;
+      contracts: number;
+      strategies: string[];
+      avgDte: number;
+      avgIv: number;
+    };
+    const tickerMap = new Map<string, TickerGreeks>();
+
+    for (const accountNumber of accountNumbers) {
+      let positions: any[] = [];
+      try {
+        positions = await tt.getPositions(accountNumber);
+      } catch {
+        continue;
+      }
+
+      // Group positions by underlying+expiration to batch chain lookups
+      const chainKeys = new Map<string, { symbol: string; expiration: string; positions: any[] }>();
+      for (const pos of positions) {
+        if (pos['instrument-type'] !== 'Equity Option') continue;
+        const underlying = pos['underlying-symbol'] || '';
+        const expiration = pos['expires-at'] ? pos['expires-at'].split('T')[0] : null;
+        if (!underlying || !expiration) continue;
+        const key = `${underlying}|${expiration}`;
+        if (!chainKeys.has(key)) chainKeys.set(key, { symbol: underlying, expiration, positions: [] });
+        chainKeys.get(key)!.positions.push(pos);
+      }
+
+      // Fetch option chains for each unique underlying+expiration and look up Greeks
+      for (const [, { symbol, expiration, positions: chainPositions }] of Array.from(chainKeys.entries())) {
+        let chainContracts: any[] = [];
+        if (tradierApi) {
+          try {
+            chainContracts = await tradierApi.getOptionChain(symbol, expiration, true);
+          } catch {
+            // If chain fetch fails, continue without Greeks for this expiration
+          }
+        }
+        const contractMap = new Map<string, any>();
+        for (const c of chainContracts) contractMap.set(c.symbol, c);
+
+        for (const pos of chainPositions) {
+          const qty = parseInt(String(pos.quantity || '0'));
+          const direction = pos['quantity-direction']?.toLowerCase();
+          const isShort = direction === 'short' || qty < 0;
+          const multiplier = parseInt(String(pos.multiplier || '100'));
+          const absQty = Math.abs(qty);
+          const sign = isShort ? -1 : 1; // short positions have negative delta contribution
+
+          // Determine strategy type
+          const occMatch = pos.symbol?.match(/([CP])(\d{8})$/);
+          const isPut = occMatch ? occMatch[1] === 'P' : false;
+          const strategy = isShort ? (isPut ? 'CSP' : 'CC') : (isPut ? 'Long Put' : 'Long Call');
+
+          // Premium at risk = open price × qty × multiplier
+          const openPrice = Math.abs(parseFloat(String(pos['average-open-price'] || '0')));
+          const premiumAtRisk = openPrice * absQty * multiplier;
+
+          // DTE
+          const expiresAt = pos['expires-at'];
+          const dte = expiresAt ? Math.max(0, Math.round((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
+
+          // Look up Greeks from chain
+          const contract = contractMap.get(pos.symbol);
+          const greeks = contract?.greeks;
+          const rawDelta = greeks?.delta ?? 0;
+          const rawTheta = greeks?.theta ?? 0;
+          const rawVega = greeks?.vega ?? 0;
+          const rawGamma = greeks?.gamma ?? 0;
+          const midIv = greeks?.mid_iv ?? 0;
+
+          // Scale by quantity and multiplier; short positions flip delta sign
+          const scaledDelta = rawDelta * sign * absQty * multiplier;
+          const scaledTheta = rawTheta * sign * absQty * multiplier; // theta is positive for short options
+          const scaledVega = rawVega * sign * absQty * multiplier;
+          const scaledGamma = rawGamma * sign * absQty * multiplier;
+
+          const entry = tickerMap.get(symbol) || {
+            symbol,
+            netDelta: 0,
+            dailyTheta: 0,
+            netVega: 0,
+            netGamma: 0,
+            premiumAtRisk: 0,
+            contracts: 0,
+            strategies: [],
+            avgDte: 0,
+            avgIv: 0,
+          };
+          entry.netDelta += scaledDelta;
+          entry.dailyTheta += scaledTheta;
+          entry.netVega += scaledVega;
+          entry.netGamma += scaledGamma;
+          entry.premiumAtRisk += premiumAtRisk;
+          entry.contracts += absQty;
+          if (!entry.strategies.includes(strategy)) entry.strategies.push(strategy);
+          // Running weighted average for DTE and IV
+          const prevContracts = entry.contracts - absQty;
+          entry.avgDte = prevContracts > 0 ? (entry.avgDte * prevContracts + dte * absQty) / entry.contracts : dte;
+          entry.avgIv = prevContracts > 0 && midIv > 0 ? (entry.avgIv * prevContracts + midIv * absQty) / entry.contracts : (midIv > 0 ? midIv : entry.avgIv);
+          tickerMap.set(symbol, entry);
+        }
+      }
+    }
+
+    const tickers = Array.from(tickerMap.values()).sort((a, b) => b.premiumAtRisk - a.premiumAtRisk);
+    const totalPremium = tickers.reduce((s, t) => s + t.premiumAtRisk, 0);
+    const maxConcentration = totalPremium > 0 ? Math.max(...tickers.map(t => t.premiumAtRisk / totalPremium * 100)) : 0;
+
+    const portfolio = {
+      netDelta: tickers.reduce((s, t) => s + t.netDelta, 0),
+      dailyTheta: tickers.reduce((s, t) => s + t.dailyTheta, 0),
+      netVega: tickers.reduce((s, t) => s + t.netVega, 0),
+      netGamma: tickers.reduce((s, t) => s + t.netGamma, 0),
+      totalPremiumAtRisk: totalPremium,
+      maxConcentration: Math.round(maxConcentration * 10) / 10,
+      positionCount: tickers.reduce((s, t) => s + t.contracts, 0),
+    };
+
+    return { tickers, portfolio };
+  }),
 });
