@@ -96,7 +96,9 @@ function useProgressiveHeatMap(batchSize = 5) {
         ? Math.max(0, Math.round((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0;
 
-      const g = greeksMap[symbol] ?? { delta: 0, theta: 0, vega: 0, gamma: 0, mid_iv: 0 };
+      // Tastytrade uses space-padded OCC ("AAPL  210416C00125000"), Tradier uses compact ("AAPL210416C00125000")
+      const normalizedSymbol = (symbol || '').replace(/\s+/g, '');
+      const g = greeksMap[normalizedSymbol] ?? { delta: 0, theta: 0, vega: 0, gamma: 0, mid_iv: 0 };
       const scaledDelta = g.delta * sign * absQty * multiplier;
       const scaledTheta = g.theta * sign * absQty * multiplier;
       const scaledVega = g.vega * sign * absQty * multiplier;
@@ -253,40 +255,62 @@ function HeatMapCell({
 }) {
   const value = viewMode === 'delta' ? ticker.netDelta : ticker.dailyTheta;
   const intensity = maxValue > 0 ? Math.min(Math.abs(value) / maxValue, 1) : 0;
-  const greeksReady = ticker.greeksLoaded !== false; // show colors once loaded
+  const greeksReady = ticker.greeksLoaded !== false;
 
-  // Color logic:
-  // Delta view: green = long bias (positive), red = short bias (negative), slate = neutral
-  // Theta view: green = positive theta income (short options), blue = negative theta (long options)
+  // ── Background color: delta/theta bias + intensity ──────────────────────────
   let bgColor: string;
   let textColor: string;
   if (!greeksReady) {
-    // Still loading Greeks for this ticker — show a neutral shimmer
     bgColor = 'rgba(100, 116, 139, 0.12)';
     textColor = 'text-muted-foreground';
   } else if (viewMode === 'delta') {
     if (value > 0.5) {
-      bgColor = `rgba(34, 197, 94, ${0.15 + intensity * 0.55})`;
+      // Long delta bias → green (positive directional risk)
+      bgColor = `rgba(34, 197, 94, ${0.12 + intensity * 0.60})`;
       textColor = 'text-green-300';
     } else if (value < -0.5) {
-      bgColor = `rgba(239, 68, 68, ${0.15 + intensity * 0.55})`;
+      // Short delta bias → red (negative directional risk)
+      bgColor = `rgba(239, 68, 68, ${0.12 + intensity * 0.60})`;
       textColor = 'text-red-300';
     } else {
-      bgColor = 'rgba(100, 116, 139, 0.18)';
+      // Neutral → slate (well-balanced position)
+      bgColor = 'rgba(100, 116, 139, 0.20)';
       textColor = 'text-slate-300';
     }
   } else {
-    // Theta view
+    // Theta view: green = collecting premium, blue = paying premium
     if (value > 0) {
-      bgColor = `rgba(34, 197, 94, ${0.15 + intensity * 0.55})`;
+      bgColor = `rgba(34, 197, 94, ${0.12 + intensity * 0.60})`;
       textColor = 'text-green-300';
     } else {
-      bgColor = `rgba(59, 130, 246, ${0.15 + intensity * 0.45})`;
+      bgColor = `rgba(59, 130, 246, ${0.12 + intensity * 0.50})`;
       textColor = 'text-blue-300';
     }
   }
 
-  // Cell size based on premium at risk (relative)
+  // ── DTE urgency border: red flash ≤7d, amber ≤14d, none otherwise ───────────
+  let borderStyle: React.CSSProperties = { border: '1px solid rgba(255,255,255,0.05)' };
+  if (greeksReady && ticker.avgDte > 0) {
+    if (ticker.avgDte <= 7) {
+      borderStyle = { border: '2px solid rgba(239, 68, 68, 0.80)', boxShadow: '0 0 6px rgba(239,68,68,0.35)' };
+    } else if (ticker.avgDte <= 14) {
+      borderStyle = { border: '2px solid rgba(251, 191, 36, 0.70)', boxShadow: '0 0 4px rgba(251,191,36,0.25)' };
+    }
+  }
+
+  // ── IV rank badge: high IV = sell opportunity, low IV = caution ──────────────
+  // avgIv is decimal (e.g. 0.35 = 35% IV). Rough IV rank buckets:
+  // >0.50 = very high (sell premium aggressively) → amber badge
+  // 0.30-0.50 = elevated (good selling environment) → green badge
+  // <0.30 = low (caution, premium is thin) → no badge
+  const ivPct = ticker.avgIv * 100;
+  let ivBadge: { label: string; color: string } | null = null;
+  if (greeksReady && ticker.avgIv > 0) {
+    if (ivPct >= 50) ivBadge = { label: `IV ${ivPct.toFixed(0)}%`, color: 'bg-amber-500/80 text-amber-100' };
+    else if (ivPct >= 30) ivBadge = { label: `IV ${ivPct.toFixed(0)}%`, color: 'bg-emerald-600/70 text-emerald-100' };
+    else ivBadge = { label: `IV ${ivPct.toFixed(0)}%`, color: 'bg-slate-600/60 text-slate-300' };
+  }
+
   const premiumLabel = ticker.premiumAtRisk >= 1000
     ? `$${(ticker.premiumAtRisk / 1000).toFixed(1)}k`
     : `$${ticker.premiumAtRisk.toFixed(0)}`;
@@ -295,22 +319,35 @@ function HeatMapCell({
     ? (value >= 0 ? '+' : '') + value.toFixed(1)
     : (value >= 0 ? '+$' : '-$') + Math.abs(value).toFixed(2);
 
+  // ── Tooltip: full Greek breakdown + risk narrative ───────────────────────────
+  const deltaStory = !greeksReady ? '—' :
+    Math.abs(ticker.netDelta) < 0.5 ? 'Neutral ✓' :
+    ticker.netDelta > 0 ? `Long bias (+${ticker.netDelta.toFixed(1)}Δ)` :
+    `Short bias (${ticker.netDelta.toFixed(1)}Δ)`;
+
+  const dteStory = ticker.avgDte <= 7 ? `⚠ ${ticker.avgDte}d — expiry imminent` :
+    ticker.avgDte <= 14 ? `${ticker.avgDte}d — theta sweet spot` :
+    `${ticker.avgDte}d — time to manage`;
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <div
             className={cn(
-              'rounded-lg p-3 cursor-default transition-all duration-300 hover:scale-105 hover:z-10 relative border border-white/5',
+              'rounded-lg p-3 cursor-default transition-all duration-300 hover:scale-105 hover:z-10 relative',
               !greeksReady && 'animate-pulse'
             )}
-            style={{ backgroundColor: bgColor, minHeight: '80px' }}
+            style={{ backgroundColor: bgColor, minHeight: '80px', ...borderStyle }}
           >
             <div className="flex flex-col h-full justify-between">
+              {/* Header row: symbol + contract count */}
               <div className="flex items-start justify-between">
                 <span className="text-xs font-bold text-foreground/90 leading-tight">{ticker.symbol}</span>
                 <span className="text-[9px] text-muted-foreground/70 leading-tight">{ticker.contracts}c</span>
               </div>
+
+              {/* Main value */}
               <div>
                 {!greeksReady ? (
                   <div className="flex items-center gap-1 mt-2">
@@ -322,12 +359,32 @@ function HeatMapCell({
                 )}
                 <div className="text-[9px] text-muted-foreground/60 mt-0.5">{premiumLabel} at risk</div>
               </div>
+
+              {/* IV badge (bottom-right corner) */}
+              {ivBadge && (
+                <div className="absolute bottom-1.5 right-1.5">
+                  <span className={cn('text-[8px] font-semibold px-1 py-0.5 rounded', ivBadge.color)}>
+                    {ivBadge.label}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-[220px] text-xs space-y-1.5 p-3">
+        <TooltipContent side="top" className="max-w-[240px] text-xs space-y-2 p-3">
           <div className="font-bold text-sm">{ticker.symbol}</div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+
+          {/* Risk narrative */}
+          <div className="text-[11px] text-muted-foreground space-y-0.5">
+            <div>📐 {deltaStory}</div>
+            <div>⏱ {dteStory}</div>
+            {greeksReady && ticker.dailyTheta > 0 && (
+              <div>💰 Earning +${ticker.dailyTheta.toFixed(2)}/day in theta</div>
+            )}
+          </div>
+
+          {/* Full Greeks grid */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] pt-1 border-t border-border/40">
             <span className="text-muted-foreground">Net Delta</span>
             <span className={ticker.netDelta >= 0 ? 'text-green-400' : 'text-red-400'}>
               {ticker.netDelta >= 0 ? '+' : ''}{ticker.netDelta.toFixed(2)}
@@ -341,11 +398,15 @@ function HeatMapCell({
             <span className="text-muted-foreground">Premium at Risk</span>
             <span>${ticker.premiumAtRisk.toFixed(0)}</span>
             <span className="text-muted-foreground">Avg DTE</span>
-            <span>{ticker.avgDte.toFixed(0)}d</span>
+            <span className={ticker.avgDte <= 7 ? 'text-red-400 font-semibold' : ticker.avgDte <= 14 ? 'text-amber-400' : ''}>
+              {ticker.avgDte.toFixed(0)}d
+            </span>
             <span className="text-muted-foreground">Avg IV</span>
-            <span>{(ticker.avgIv * 100).toFixed(1)}%</span>
+            <span className={ivPct >= 50 ? 'text-amber-400' : ivPct >= 30 ? 'text-emerald-400' : 'text-slate-400'}>
+              {ivPct.toFixed(1)}%
+            </span>
           </div>
-          <div className="pt-1 border-t border-border/40">
+          <div className="pt-1 border-t border-border/40 text-[10px]">
             <span className="text-muted-foreground">Strategies: </span>
             <span>{ticker.strategies.join(', ')}</span>
           </div>
@@ -706,9 +767,23 @@ export default function PortfolioCommandCenter() {
                     </div>
                   </>
                 )}
-                <span className="text-[10px] text-muted-foreground/60 ml-auto">
-                  Color intensity = magnitude · Hover for full Greeks
-                </span>
+                <div className="ml-auto flex items-center gap-3">
+                  {/* DTE urgency border legend */}
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <div className="w-2.5 h-2.5 rounded-sm border-2 border-red-500/80" style={{ boxShadow: '0 0 4px rgba(239,68,68,0.4)' }} />
+                    ≤7d expiry
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <div className="w-2.5 h-2.5 rounded-sm border-2 border-amber-400/70" />
+                    ≤14d sweet spot
+                  </div>
+                  {/* IV badge legend */}
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <span className="text-[8px] font-semibold px-1 py-0.5 rounded bg-amber-500/80 text-amber-100">IV 55%</span>
+                    High IV (sell)
+                  </div>
+                  <span className="text-[10px] text-muted-foreground/50">· Hover tiles for full Greeks</span>
+                </div>
               </div>
             </CardHeader>
             <CardContent>

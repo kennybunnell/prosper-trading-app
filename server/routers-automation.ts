@@ -1290,6 +1290,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         const contractMap = new Map<string, any>();
         for (const c of contracts) contractMap.set(c.symbol, c);
         chainContractMaps.set(key, contractMap);
+
       }
 
       for (const [, { symbol, expiration, positions: chainPositions }] of chainEntries) {
@@ -1317,7 +1318,11 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           const dte = expiresAt ? Math.max(0, Math.round((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
 
           // Look up Greeks from chain
-          const contract = contractMap.get(pos.symbol);
+          // Tastytrade uses space-padded OCC format (e.g. "AAPL  210416C00125000")
+          // Tradier uses compact OCC format (e.g. "AAPL210416C00125000")
+          // Normalize by stripping all spaces before lookup
+          const normalizedSymbol = (pos.symbol || '').replace(/\s+/g, '');
+          const contract = contractMap.get(normalizedSymbol);
           const greeks = contract?.greeks;
           const rawDelta = greeks?.delta ?? 0;
           const rawTheta = greeks?.theta ?? 0;

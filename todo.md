@@ -7359,3 +7359,8 @@
 - [x] Add Retry button that re-fetches only failed/missing tiles
 - [x] Add "Last refreshed" timestamp in heat map header
 - [x] Add configurable batch size setting (default 5, options: 3, 5, 10)
+
+## Heat Map Bug Fix & Redesign (Mar 2026)
+- [x] Fix +0.0 delta bug: trace Tradier Greeks field name mismatch in getPortfolioGreeks/getGreeksBatch
+- [x] Redesign heat map color logic: delta bias + theta intensity + DTE urgency border + IV rank badge
+- [x] Add multi-dimensional risk/reward story to heat map tiles
