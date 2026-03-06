@@ -25,8 +25,10 @@ import {
   Brain,
   X,
   Sparkles,
+  ChevronRight,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { useLocation } from 'wouter';
 import { cn } from '@/lib/utils';
 
 // --- Types ---
@@ -235,6 +237,7 @@ function useProgressiveHeatMap(batchSize = 5) {
   return {
     tickers,
     portfolio,
+    positions: positionsRef.current,
     phase,
     batchesDone,
     totalBatches,
@@ -666,160 +669,230 @@ function PortfolioStatBar({
 // --- Ticker Analysis Panel (AI slide-over) ---
 function TickerAnalysisPanel({
   ticker,
+  positions,
   onClose,
 }: {
   ticker: TickerData | null;
+  positions: PositionSummary[];
   onClose: () => void;
 }) {
+  const navigate = useLocation()[1];
   const analyzeMutation = trpc.automation.analyzeTicker.useMutation();
-  const [analysis, setAnalysis] = useState<string | null>(null);
+  type AnalysisResult = {
+    strategyType: string;
+    strikeDisplay: string;
+    contracts: number;
+    premiumCollected: number;
+    avgDte: number;
+    netDelta: number;
+    dailyTheta: number;
+    avgIv: number;
+    premiumAtRisk: number;
+    verdict: string;
+    recommendation: string;
+    urgency: string;
+    profitPct: number;
+    actionLabel: string;
+    actionRoute: string;
+  };
+  const [result, setResult] = useState<AnalysisResult | null>(null);
 
-  // Trigger analysis when ticker changes
-  useEffect(() => {
-    if (!ticker) return;
-    setAnalysis(null);
+  const runAnalysis = useCallback((t: TickerData, pos: PositionSummary[]) => {
+    setResult(null);
     analyzeMutation.mutate(
       {
-        symbol: ticker.symbol,
-        netDelta: ticker.netDelta,
-        dailyTheta: ticker.dailyTheta,
-        netVega: ticker.netVega,
-        netGamma: ticker.netGamma,
-        premiumAtRisk: ticker.premiumAtRisk,
-        contracts: ticker.contracts,
-        strategies: ticker.strategies,
-        avgDte: ticker.avgDte,
-        avgIv: ticker.avgIv,
+        symbol: t.symbol,
+        netDelta: t.netDelta,
+        dailyTheta: t.dailyTheta,
+        netVega: t.netVega,
+        netGamma: t.netGamma,
+        premiumAtRisk: t.premiumAtRisk,
+        contracts: t.contracts,
+        strategies: t.strategies,
+        avgDte: t.avgDte,
+        avgIv: t.avgIv,
+        positions: pos,
       },
-      { onSuccess: (data) => setAnalysis(typeof data.analysis === 'string' ? data.analysis : String(data.analysis)) }
+      { onSuccess: (data) => setResult(data as AnalysisResult) }
     );
+  }, [analyzeMutation]);
+
+  useEffect(() => {
+    if (!ticker) return;
+    runAnalysis(ticker, positions);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticker?.symbol]);
 
-  const ivPct = ticker ? (ticker.avgIv * 100).toFixed(1) : '0';
-  const deltaColor = !ticker ? '' : ticker.netDelta > 0 ? 'text-green-400' : ticker.netDelta < 0 ? 'text-red-400' : 'text-muted-foreground';
+  // Verdict color + label
+  const verdictStyle = !result ? {} : (
+    result.verdict === 'HOLD' ? { bg: 'bg-emerald-500/15 border-emerald-500/30', text: 'text-emerald-400' } :
+    result.verdict === 'CLOSE FOR PROFIT' ? { bg: 'bg-green-500/15 border-green-500/30', text: 'text-green-400' } :
+    result.verdict === 'ROLL' ? { bg: 'bg-blue-500/15 border-blue-500/30', text: 'text-blue-400' } :
+    result.verdict === 'DEFEND' ? { bg: 'bg-amber-500/15 border-amber-500/30', text: 'text-amber-400' } :
+    { bg: 'bg-red-500/15 border-red-500/30', text: 'text-red-400' }
+  );
+
+  const urgencyDot = !result ? '' : result.urgency === 'high' ? 'bg-red-500' : result.urgency === 'medium' ? 'bg-amber-500' : 'bg-emerald-500';
 
   return (
     <Sheet open={!!ticker} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <SheetContent side="right" className="w-full sm:max-w-[520px] overflow-y-auto bg-background border-border/60">
+      <SheetContent side="right" className="w-full sm:max-w-[480px] overflow-y-auto bg-[#0d0d0d] border-border/60 p-0">
         {ticker && (
-          <>
-            <SheetHeader className="pb-4 border-b border-border/40">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                  <Brain className="w-5 h-5 text-amber-400" />
-                </div>
-                <div>
-                  <SheetTitle className="text-lg font-bold">{ticker.symbol} — AI Risk Analysis</SheetTitle>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {ticker.contracts}c · {ticker.strategies.join(', ')} · {ticker.avgDte.toFixed(0)}d DTE
-                  </p>
-                </div>
-              </div>
-            </SheetHeader>
+          <div className="flex flex-col h-full">
 
-            {/* Quick stats */}
-            <div className="grid grid-cols-3 gap-3 py-4 border-b border-border/40">
-              <div className="text-center">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Net Delta</p>
-                <p className={cn('text-lg font-bold', deltaColor)}>
-                  {ticker.netDelta >= 0 ? '+' : ''}{ticker.netDelta.toFixed(1)}
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Daily Theta</p>
-                <p className="text-lg font-bold text-green-400">
-                  +${ticker.dailyTheta.toFixed(2)}
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Avg IV</p>
-                <p className={cn('text-lg font-bold', parseFloat(ivPct) >= 50 ? 'text-amber-400' : parseFloat(ivPct) >= 30 ? 'text-emerald-400' : 'text-slate-400')}>
-                  {ivPct}%
-                </p>
-              </div>
+            {/* Header */}
+            <div className="px-5 pt-5 pb-4 border-b border-border/40">
+              <SheetHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                      <Brain className="w-4.5 h-4.5 text-amber-400" />
+                    </div>
+                    <div>
+                      <SheetTitle className="text-base font-bold leading-tight">{ticker.symbol}</SheetTitle>
+                      <p className="text-[11px] text-muted-foreground">
+                        {result?.strategyType ?? ticker.strategies.join(' / ')}
+                      </p>
+                    </div>
+                  </div>
+                  {result && urgencyDot && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <span className={cn('w-2 h-2 rounded-full', urgencyDot)} />
+                      {result.urgency} urgency
+                    </div>
+                  )}
+                </div>
+              </SheetHeader>
             </div>
 
-            {/* AI Analysis */}
-            <div className="py-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span className="text-sm font-semibold">AI Analysis</span>
-                {analyzeMutation.isPending && (
-                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Analyzing…
-                  </span>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+              {/* === POSITION IDENTITY CARD === */}
+              <div className="rounded-xl border border-border/50 bg-card/40 overflow-hidden">
+                <div className="px-4 py-2.5 bg-accent/20 border-b border-border/40">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Position Details</span>
+                </div>
+                <div className="px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Strategy</p>
+                    <p className="font-semibold text-foreground text-xs">{result?.strategyType ?? ticker.strategies.join(', ')}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Contracts</p>
+                    <p className="font-semibold text-foreground">{ticker.contracts}</p>
+                  </div>
+                  {result?.strikeDisplay && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Strikes</p>
+                      <p className="font-semibold text-foreground text-xs font-mono">{result.strikeDisplay}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Days to Expiry</p>
+                    <p className={cn('font-bold', ticker.avgDte <= 7 ? 'text-red-400' : ticker.avgDte <= 14 ? 'text-amber-400' : 'text-foreground')}>
+                      {ticker.avgDte.toFixed(0)}d
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Avg IV</p>
+                    <p className={cn('font-bold', (ticker.avgIv * 100) >= 50 ? 'text-amber-400' : (ticker.avgIv * 100) >= 30 ? 'text-emerald-400' : 'text-foreground')}>
+                      {(ticker.avgIv * 100).toFixed(1)}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Premium Collected</p>
+                    <p className="font-bold text-emerald-400">
+                      ${result ? result.premiumCollected.toFixed(0) : ticker.premiumAtRisk.toFixed(0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Daily Theta</p>
+                    <p className="font-bold text-emerald-400">+${ticker.dailyTheta.toFixed(2)}/day</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Net Delta</p>
+                    <p className={cn('font-bold', ticker.netDelta > 5 ? 'text-green-400' : ticker.netDelta < -5 ? 'text-red-400' : 'text-muted-foreground')}>
+                      {ticker.netDelta >= 0 ? '+' : ''}{ticker.netDelta.toFixed(1)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Premium at Risk</p>
+                    <p className="font-semibold text-foreground">${ticker.premiumAtRisk.toFixed(0)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* === AI VERDICT + RECOMMENDATION === */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">AI Recommendation</span>
+                  {analyzeMutation.isPending && (
+                    <Loader2 className="w-3 h-3 animate-spin text-amber-400 ml-auto" />
+                  )}
+                </div>
+
+                {analyzeMutation.isPending && !result && (
+                  <div className="space-y-2">
+                    {[90, 70, 85].map((w, i) => (
+                      <div key={i} className="h-3 bg-accent/30 rounded animate-pulse" style={{ width: `${w}%` }} />
+                    ))}
+                  </div>
+                )}
+
+                {analyzeMutation.isError && (
+                  <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-xs text-red-400">
+                    Failed to generate analysis. Please try again.
+                  </div>
+                )}
+
+                {result && (
+                  <>
+                    {/* Verdict badge */}
+                    <div className={cn('rounded-lg border px-4 py-3 flex items-center gap-3', verdictStyle.bg)}>
+                      <span className={cn('text-base font-black tracking-wide', verdictStyle.text)}>
+                        {result.verdict}
+                      </span>
+                      {result.profitPct > 0 && (
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          ~{result.profitPct}% of max profit realized
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Brief recommendation */}
+                    <p className="text-sm text-foreground/85 leading-relaxed">
+                      {result.recommendation}
+                    </p>
+                  </>
                 )}
               </div>
-
-              {analyzeMutation.isPending && !analysis && (
-                <div className="space-y-2">
-                  {[80, 60, 90, 50, 70].map((w, i) => (
-                    <div key={i} className="h-3 bg-accent/30 rounded animate-pulse" style={{ width: `${w}%` }} />
-                  ))}
-                </div>
-              )}
-
-              {analyzeMutation.isError && (
-                <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-xs text-red-400">
-                  Failed to generate analysis. Please try again.
-                </div>
-              )}
-
-              {analysis && (
-                <div className="prose prose-sm prose-invert max-w-none text-sm leading-relaxed">
-                  {analysis.split('\n').map((line, i) => {
-                    if (line.startsWith('## ')) {
-                      return <h3 key={i} className="text-sm font-bold text-amber-300 mt-4 mb-1 first:mt-0">{line.replace('## ', '')}</h3>;
-                    }
-                    if (line.startsWith('- **')) {
-                      const match = line.match(/^- \*\*(.+?):\*\*\s*(.*)/);
-                      if (match) return (
-                        <div key={i} className="ml-2 mb-1">
-                          <span className="font-semibold text-foreground/90">{match[1]}:</span>
-                          <span className="text-muted-foreground ml-1">{match[2]}</span>
-                        </div>
-                      );
-                    }
-                    if (line.startsWith('- ')) {
-                      return <div key={i} className="ml-2 mb-1 text-muted-foreground flex gap-2"><span className="text-amber-400/60 shrink-0">•</span><span>{line.slice(2)}</span></div>;
-                    }
-                    if (line.trim() === '') return <div key={i} className="h-1" />;
-                    return <p key={i} className="text-muted-foreground mb-1">{line}</p>;
-                  })}
-                </div>
-              )}
             </div>
 
-            {/* Re-analyze button */}
-            <div className="pt-4 border-t border-border/40">
+            {/* === ACTION FOOTER === */}
+            <div className="px-5 py-4 border-t border-border/40 space-y-2">
+              {result && (
+                <Button
+                  className="w-full gap-2 font-semibold"
+                  onClick={() => { onClose(); navigate(result.actionRoute); }}
+                >
+                  {result.actionLabel}
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              )}
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="w-full gap-2 text-xs"
-                onClick={() => {
-                  setAnalysis(null);
-                  analyzeMutation.mutate({
-                    symbol: ticker.symbol,
-                    netDelta: ticker.netDelta,
-                    dailyTheta: ticker.dailyTheta,
-                    netVega: ticker.netVega,
-                    netGamma: ticker.netGamma,
-                    premiumAtRisk: ticker.premiumAtRisk,
-                    contracts: ticker.contracts,
-                    strategies: ticker.strategies,
-                    avgDte: ticker.avgDte,
-                    avgIv: ticker.avgIv,
-                  }, { onSuccess: (data) => setAnalysis(typeof data.analysis === 'string' ? data.analysis : String(data.analysis)) });
-                }}
+                className="w-full gap-1.5 text-xs text-muted-foreground"
+                onClick={() => ticker && runAnalysis(ticker, positions)}
                 disabled={analyzeMutation.isPending}
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <Sparkles className="w-3 h-3" />
                 {analyzeMutation.isPending ? 'Analyzing…' : 'Re-analyze'}
               </Button>
             </div>
-          </>
+
+          </div>
         )}
       </SheetContent>
     </Sheet>
@@ -834,6 +907,7 @@ export default function PortfolioCommandCenter() {
   const {
     tickers,
     portfolio,
+    positions,
     phase,
     batchesDone,
     totalBatches,
@@ -1084,6 +1158,7 @@ export default function PortfolioCommandCenter() {
       {/* AI Ticker Analysis Slide-over */}
       <TickerAnalysisPanel
         ticker={selectedTicker}
+        positions={selectedTicker ? positions.filter(p => p.underlying === selectedTicker.symbol) : []}
         onClose={() => setSelectedTicker(null)}
       />
     </div>

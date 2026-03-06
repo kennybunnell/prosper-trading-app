@@ -7376,3 +7376,9 @@
 - [ ] Add sort order explanation label to heat map header
 - [ ] Add backend LLM procedure: analyzeTicker — takes ticker Greeks + position data, returns AI risk analysis
 - [ ] Add click-to-analyze panel: clicking any tile opens a slide-over with streaming LLM recommendations
+
+## AI Panel Redesign (Mar 06, 2026)
+- [x] Redesign TickerAnalysisPanel: Position Identity Card at top (strategy type, strikes, DTE, premium, cost-to-close, P&L)
+- [ ] Brief AI recommendation (2-3 sentences max, verdict first: Hold/Roll/Close/Defend)
+- [ ] Action button routes to correct strategy page (Working Orders, Spreads, Covered Calls, CSP)
+- [ ] Update backend analyzeTicker to return structured JSON (positionType, strikes, recommendation, action, actionRoute)

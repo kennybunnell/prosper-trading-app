@@ -1524,58 +1524,162 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
       strategies: z.array(z.string()),
       avgDte: z.number(),
       avgIv: z.number(),
+      // Individual positions for this ticker
+      positions: z.array(z.object({
+        symbol: z.string(),           // OCC symbol
+        underlying: z.string(),
+        expiration: z.string(),
+        quantity: z.number(),
+        direction: z.string(),
+        multiplier: z.number(),
+        openPrice: z.number(),        // premium collected per share
+        expiresAt: z.string(),
+        accountNumber: z.string(),
+      })).optional(),
     }))
     .mutation(async ({ input }) => {
       const { invokeLLM } = await import('./_core/llm');
 
+      // --- Build Position Identity from raw positions ---
+      type LegInfo = {
+        occSymbol: string;
+        strike: number;
+        optionType: 'CALL' | 'PUT';
+        expiration: string;
+        dte: number;
+        quantity: number;
+        direction: string;
+        premiumCollected: number;  // total $ collected for this leg
+      };
+
+      const legs: LegInfo[] = [];
+      for (const pos of (input.positions ?? [])) {
+        const occMatch = pos.symbol?.replace(/\s+/g, '').match(/[A-Z]+([0-9]{6})([CP])([0-9]{8})$/);
+        const strike = occMatch ? parseInt(occMatch[3], 10) / 1000 : 0;
+        const optionType: 'CALL' | 'PUT' = occMatch ? (occMatch[2] === 'C' ? 'CALL' : 'PUT') : 'PUT';
+        const dte = pos.expiresAt
+          ? Math.max(0, Math.round((new Date(pos.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+          : 0;
+        const absQty = Math.abs(pos.quantity);
+        const premiumCollected = pos.openPrice * absQty * pos.multiplier;
+        legs.push({ occSymbol: pos.symbol, strike, optionType, expiration: pos.expiration, dte, quantity: pos.quantity, direction: pos.direction, premiumCollected });
+      }
+
+      // Determine strategy type from legs
+      const shortPuts = legs.filter(l => l.optionType === 'PUT' && (l.direction?.toLowerCase() === 'short' || l.quantity < 0));
+      const longPuts = legs.filter(l => l.optionType === 'PUT' && (l.direction?.toLowerCase() === 'long' || l.quantity > 0));
+      const shortCalls = legs.filter(l => l.optionType === 'CALL' && (l.direction?.toLowerCase() === 'short' || l.quantity < 0));
+      const longCalls = legs.filter(l => l.optionType === 'CALL' && (l.direction?.toLowerCase() === 'long' || l.quantity > 0));
+
+      let strategyType = input.strategies[0] ?? 'Options Position';
+      let strikeDisplay = '';
+      let actionRoute = '/performance';  // default
+
+      if (shortPuts.length > 0 && longPuts.length > 0 && shortCalls.length === 0) {
+        strategyType = 'Bull Put Spread (BPS)';
+        const sp = shortPuts[0]; const lp = longPuts[0];
+        strikeDisplay = `Short $${sp.strike} Put / Long $${lp.strike} Put`;
+        actionRoute = '/income/spreads';
+      } else if (shortCalls.length > 0 && longCalls.length > 0 && shortPuts.length === 0) {
+        strategyType = 'Bear Call Spread (BCS)';
+        const sc = shortCalls[0]; const lc = longCalls[0];
+        strikeDisplay = `Short $${sc.strike} Call / Long $${lc.strike} Call`;
+        actionRoute = '/income/spreads';
+      } else if (shortPuts.length > 0 && longPuts.length > 0 && shortCalls.length > 0 && longCalls.length > 0) {
+        strategyType = 'Iron Condor (IC)';
+        const sp = shortPuts[0]; const lp = longPuts[0]; const sc = shortCalls[0]; const lc = longCalls[0];
+        strikeDisplay = `P: $${lp.strike}/$${sp.strike} | C: $${sc.strike}/$${lc.strike}`;
+        actionRoute = '/income/spreads';
+      } else if (shortPuts.length > 0 && shortCalls.length === 0) {
+        strategyType = 'Cash-Secured Put (CSP)';
+        strikeDisplay = `$${shortPuts[0].strike} Put`;
+        actionRoute = '/income/csp';
+      } else if (shortCalls.length > 0 && shortPuts.length === 0) {
+        strategyType = 'Covered Call (CC)';
+        strikeDisplay = `$${shortCalls[0].strike} Call`;
+        actionRoute = '/income/covered-calls';
+      } else if (legs.length > 0) {
+        strikeDisplay = legs.map(l => `$${l.strike} ${l.optionType}`).join(' / ');
+      }
+
+      const totalPremiumCollected = legs.reduce((sum, l) => sum + l.premiumCollected, 0);
+      const avgDte = input.avgDte;
       const ivPct = (input.avgIv * 100).toFixed(1);
       const deltaDir = input.netDelta > 0 ? 'long (bullish)' : input.netDelta < 0 ? 'short (bearish)' : 'neutral';
-      const thetaSign = input.dailyTheta >= 0 ? 'collecting' : 'paying';
 
-      const prompt = `You are a professional options trading coach helping a retail trader understand their position risk.
+      // Build concise prompt for brief recommendation
+      const prompt = `You are a professional options trading coach. A retail trader needs a BRIEF, DIRECT assessment of this position.
 
-Analyze this options position and provide actionable guidance:
-
-Ticker: ${input.symbol}
-Strategies: ${input.strategies.join(', ')}
+Position: ${strategyType} on ${input.symbol}
+Strikes: ${strikeDisplay || 'N/A'}
 Contracts: ${input.contracts}
-Premium at Risk: $${input.premiumAtRisk.toFixed(0)}
-Net Delta: ${input.netDelta.toFixed(2)} (${deltaDir} bias)
-Daily Theta: ${input.dailyTheta >= 0 ? '+' : ''}$${input.dailyTheta.toFixed(2)}/day (${thetaSign} time decay)
-Net Vega: ${input.netVega.toFixed(2)} (IV sensitivity)
-Avg Days to Expiration: ${input.avgDte.toFixed(0)} days
+Premium Collected: $${totalPremiumCollected.toFixed(0)}
+Avg DTE: ${avgDte.toFixed(0)} days
+Net Delta: ${input.netDelta.toFixed(1)} (${deltaDir})
+Daily Theta: ${input.dailyTheta >= 0 ? '+' : ''}$${input.dailyTheta.toFixed(2)}/day
 Implied Volatility: ${ivPct}%
 
-Provide a structured analysis with these exact sections:
-
-## Current Risk Posture
-Explain in 2-3 plain-English sentences what this position is doing and what the trader is exposed to.
-
-## Scenario Analysis
-Briefly describe what happens in 3 scenarios over the next 7-14 days:
-- **If ${input.symbol} rallies 5-10%:** ...
-- **If ${input.symbol} drops 5-10%:** ...
-- **If ${input.symbol} stays flat:** ...
-
-## Key Risk Flags
-List 2-3 specific risks the trader should watch for (DTE urgency, IV crush, delta exposure, etc.).
-
-## Recommended Actions
-Give 2-3 specific, actionable recommendations (e.g., "Roll to next expiration if delta exceeds X", "Close at 50% profit", "Add a hedge if stock breaks above Y"). Be specific with numbers where possible.
-
-## Bottom Line
-One sentence summary: should the trader HOLD, MANAGE NOW, or CLOSE this position?
-
-Keep the tone educational but direct. Use dollar amounts and percentages where helpful. Avoid generic advice — make it specific to this position's numbers.`;
+Respond in JSON with this EXACT structure:
+{
+  "verdict": "HOLD" | "CLOSE FOR PROFIT" | "ROLL" | "DEFEND" | "CLOSE TO LIMIT LOSS",
+  "recommendation": "2-3 sentences max. Start with the verdict. Be specific with numbers. Tell them exactly what to do and why.",
+  "urgency": "low" | "medium" | "high",
+  "profitPct": estimated percentage of max profit already realized (0-100, integer),
+  "actionLabel": "short action button label, e.g. 'Close Position' or 'Roll to Next Month'"
+}`;
 
       const response = await invokeLLM({
         messages: [
-          { role: 'system', content: 'You are an expert options trading coach. Provide clear, specific, actionable analysis for retail traders. Always use the actual numbers from the position in your analysis.' },
+          { role: 'system', content: 'You are an expert options trading coach. Return ONLY valid JSON matching the exact schema requested. No markdown, no extra text.' },
           { role: 'user', content: prompt },
         ],
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'ticker_analysis',
+            strict: true,
+            schema: {
+              type: 'object',
+              properties: {
+                verdict: { type: 'string', enum: ['HOLD', 'CLOSE FOR PROFIT', 'ROLL', 'DEFEND', 'CLOSE TO LIMIT LOSS'] },
+                recommendation: { type: 'string' },
+                urgency: { type: 'string', enum: ['low', 'medium', 'high'] },
+                profitPct: { type: 'integer' },
+                actionLabel: { type: 'string' },
+              },
+              required: ['verdict', 'recommendation', 'urgency', 'profitPct', 'actionLabel'],
+              additionalProperties: false,
+            },
+          },
+        },
       });
 
-      const content = response?.choices?.[0]?.message?.content ?? 'Unable to generate analysis at this time.';
-      return { analysis: content, symbol: input.symbol };
+      let aiResult = { verdict: 'HOLD', recommendation: 'Unable to generate analysis.', urgency: 'low', profitPct: 0, actionLabel: 'View Position' };
+      try {
+        const raw = response?.choices?.[0]?.message?.content;
+        if (typeof raw === 'string') aiResult = JSON.parse(raw);
+      } catch { /* use default */ }
+
+      return {
+        symbol: input.symbol,
+        strategyType,
+        strikeDisplay,
+        contracts: input.contracts,
+        premiumCollected: totalPremiumCollected,
+        avgDte,
+        netDelta: input.netDelta,
+        dailyTheta: input.dailyTheta,
+        avgIv: input.avgIv,
+        premiumAtRisk: input.premiumAtRisk,
+        // AI fields
+        verdict: aiResult.verdict,
+        recommendation: aiResult.recommendation,
+        urgency: aiResult.urgency,
+        profitPct: aiResult.profitPct,
+        actionLabel: aiResult.actionLabel,
+        actionRoute,
+        // Legacy field for backward compat
+        analysis: aiResult.recommendation,
+      };
     }),
 });
