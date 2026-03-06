@@ -7382,3 +7382,15 @@
 - [ ] Brief AI recommendation (2-3 sentences max, verdict first: Hold/Roll/Close/Defend)
 - [ ] Action button routes to correct strategy page (Working Orders, Spreads, Covered Calls, CSP)
 - [ ] Update backend analyzeTicker to return structured JSON (positionType, strikes, recommendation, action, actionRoute)
+
+## Position Identity Card Fixes (Mar 6 2026)
+- [ ] Fix OCC strike parser: correctly extract short and long strikes for multi-leg positions
+- [ ] Add live current stock price to Position Identity Card via Tradier quote API
+- [ ] Show strikes in relation to current price (e.g. "ITM" / "OTM" indicator)
+
+## AI Analysis Panel Fixes (Mar 6, 2026)
+- [x] Fix OCC strike parser bug — use quantity sign (not direction field) to classify short/long legs; Tastytrade can return direction='Short' for both legs of a spread, but quantity is always negative for short and positive for long
+- [x] Fix action button routing — BPS/BCS/IC now route to /iron-condor, CSP to /csp, CC to /cc (previously used non-existent /income/spreads, /income/csp, /income/covered-calls paths)
+- [x] Add live stock price to Position Identity Card — fetches current underlying price from Tradier getQuote and displays it alongside strikes with amber color
+- [x] Pass stock price to AI prompt so recommendations can reference ITM/OTM proximity
+- [x] Added 16 unit tests for strategy classification, OCC parsing, and route mapping (all passing)

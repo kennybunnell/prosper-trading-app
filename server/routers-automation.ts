@@ -1537,8 +1537,22 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         accountNumber: z.string(),
       })).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const { invokeLLM } = await import('./_core/llm');
+      const { getApiCredentials } = await import('./db');
+      const { createTradierAPI } = await import('./tradier');
+
+      // --- Fetch current stock price from Tradier ---
+      let underlyingPrice: number | null = null;
+      try {
+        const credentials = await getApiCredentials(ctx.user.id);
+        const tradierApiKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+        if (tradierApiKey) {
+          const tradierApi = createTradierAPI(tradierApiKey);
+          const quote = await tradierApi.getQuote(input.symbol);
+          underlyingPrice = quote?.last ?? null;
+        }
+      } catch { /* non-fatal — proceed without price */ }
 
       // --- Build Position Identity from raw positions ---
       type LegInfo = {
@@ -1565,11 +1579,14 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         legs.push({ occSymbol: pos.symbol, strike, optionType, expiration: pos.expiration, dte, quantity: pos.quantity, direction: pos.direction, premiumCollected });
       }
 
-      // Determine strategy type from legs
-      const shortPuts = legs.filter(l => l.optionType === 'PUT' && (l.direction?.toLowerCase() === 'short' || l.quantity < 0));
-      const longPuts = legs.filter(l => l.optionType === 'PUT' && (l.direction?.toLowerCase() === 'long' || l.quantity > 0));
-      const shortCalls = legs.filter(l => l.optionType === 'CALL' && (l.direction?.toLowerCase() === 'short' || l.quantity < 0));
-      const longCalls = legs.filter(l => l.optionType === 'CALL' && (l.direction?.toLowerCase() === 'long' || l.quantity > 0));
+      // Determine strategy type from legs.
+      // IMPORTANT: Use quantity sign as primary discriminator (negative = short/sold, positive = long/bought).
+      // The Tastytrade `quantity-direction` field is unreliable for spread legs — both legs can show 'Short'.
+      // Quantity sign is always correct: short leg has qty < 0, long hedge leg has qty > 0.
+      const shortPuts = legs.filter(l => l.optionType === 'PUT' && l.quantity < 0);
+      const longPuts = legs.filter(l => l.optionType === 'PUT' && l.quantity > 0);
+      const shortCalls = legs.filter(l => l.optionType === 'CALL' && l.quantity < 0);
+      const longCalls = legs.filter(l => l.optionType === 'CALL' && l.quantity > 0);
 
       let strategyType = input.strategies[0] ?? 'Options Position';
       let strikeDisplay = '';
@@ -1577,27 +1594,34 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
 
       if (shortPuts.length > 0 && longPuts.length > 0 && shortCalls.length === 0) {
         strategyType = 'Bull Put Spread (BPS)';
-        const sp = shortPuts[0]; const lp = longPuts[0];
+        // Short put has higher strike (closer to money), long put has lower strike (protection)
+        const sp = shortPuts.reduce((a, b) => a.strike > b.strike ? a : b);
+        const lp = longPuts.reduce((a, b) => a.strike < b.strike ? a : b);
         strikeDisplay = `Short $${sp.strike} Put / Long $${lp.strike} Put`;
-        actionRoute = '/income/spreads';
+        actionRoute = '/iron-condor';
       } else if (shortCalls.length > 0 && longCalls.length > 0 && shortPuts.length === 0) {
         strategyType = 'Bear Call Spread (BCS)';
-        const sc = shortCalls[0]; const lc = longCalls[0];
+        // Short call has lower strike (closer to money), long call has higher strike (protection)
+        const sc = shortCalls.reduce((a, b) => a.strike < b.strike ? a : b);
+        const lc = longCalls.reduce((a, b) => a.strike > b.strike ? a : b);
         strikeDisplay = `Short $${sc.strike} Call / Long $${lc.strike} Call`;
-        actionRoute = '/income/spreads';
+        actionRoute = '/iron-condor';
       } else if (shortPuts.length > 0 && longPuts.length > 0 && shortCalls.length > 0 && longCalls.length > 0) {
         strategyType = 'Iron Condor (IC)';
-        const sp = shortPuts[0]; const lp = longPuts[0]; const sc = shortCalls[0]; const lc = longCalls[0];
+        const sp = shortPuts.reduce((a, b) => a.strike > b.strike ? a : b);
+        const lp = longPuts.reduce((a, b) => a.strike < b.strike ? a : b);
+        const sc = shortCalls.reduce((a, b) => a.strike < b.strike ? a : b);
+        const lc = longCalls.reduce((a, b) => a.strike > b.strike ? a : b);
         strikeDisplay = `P: $${lp.strike}/$${sp.strike} | C: $${sc.strike}/$${lc.strike}`;
-        actionRoute = '/income/spreads';
+        actionRoute = '/iron-condor';
       } else if (shortPuts.length > 0 && shortCalls.length === 0) {
         strategyType = 'Cash-Secured Put (CSP)';
         strikeDisplay = `$${shortPuts[0].strike} Put`;
-        actionRoute = '/income/csp';
+        actionRoute = '/csp';
       } else if (shortCalls.length > 0 && shortPuts.length === 0) {
         strategyType = 'Covered Call (CC)';
         strikeDisplay = `$${shortCalls[0].strike} Call`;
-        actionRoute = '/income/covered-calls';
+        actionRoute = '/cc';
       } else if (legs.length > 0) {
         strikeDisplay = legs.map(l => `$${l.strike} ${l.optionType}`).join(' / ');
       }
@@ -1608,10 +1632,13 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
       const deltaDir = input.netDelta > 0 ? 'long (bullish)' : input.netDelta < 0 ? 'short (bearish)' : 'neutral';
 
       // Build concise prompt for brief recommendation
+      const stockPriceLine = underlyingPrice != null
+        ? `\nCurrent Stock Price: $${underlyingPrice.toFixed(2)}`
+        : '';
       const prompt = `You are a professional options trading coach. A retail trader needs a BRIEF, DIRECT assessment of this position.
 
 Position: ${strategyType} on ${input.symbol}
-Strikes: ${strikeDisplay || 'N/A'}
+Strikes: ${strikeDisplay || 'N/A'}${stockPriceLine}
 Contracts: ${input.contracts}
 Premium Collected: $${totalPremiumCollected.toFixed(0)}
 Avg DTE: ${avgDte.toFixed(0)} days
@@ -1671,6 +1698,7 @@ Respond in JSON with this EXACT structure:
         dailyTheta: input.dailyTheta,
         avgIv: input.avgIv,
         premiumAtRisk: input.premiumAtRisk,
+        underlyingPrice,  // current stock price from Tradier (null if unavailable)
         // AI fields
         verdict: aiResult.verdict,
         recommendation: aiResult.recommendation,

@@ -688,6 +688,7 @@ function TickerAnalysisPanel({
     dailyTheta: number;
     avgIv: number;
     premiumAtRisk: number;
+    underlyingPrice: number | null;
     verdict: string;
     recommendation: string;
     urgency: string;
@@ -784,7 +785,21 @@ function TickerAnalysisPanel({
                   {result?.strikeDisplay && (
                     <div className="col-span-2">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Strikes</p>
-                      <p className="font-semibold text-foreground text-xs font-mono">{result.strikeDisplay}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-foreground text-xs font-mono">{result.strikeDisplay}</p>
+                        {result.underlyingPrice != null && (
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            @ <span className="text-amber-400 font-semibold">${result.underlyingPrice.toFixed(2)}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {/* Stock price row — shown even when no strikeDisplay */}
+                  {!result?.strikeDisplay && result?.underlyingPrice != null && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Current Price</p>
+                      <p className="font-bold text-amber-400">${result.underlyingPrice.toFixed(2)}</p>
                     </div>
                   )}
                   <div>
