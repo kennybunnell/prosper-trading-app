@@ -699,9 +699,78 @@ function TickerAnalysisPanel({
     howToExecute: string[];
   };
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [showRollCandidates, setShowRollCandidates] = useState(false);
+
+  type RollCandidate = {
+    expiration: string;
+    dte: number;
+    newShortStrike: number;
+    newLongStrike: number;
+    newShortDelta: number;
+    newShortBid: number;
+    newLongAsk: number;
+    newSpreadCredit: number;
+    netRollCredit: number;
+    spreadWidth: number;
+    isBest: boolean;
+    reason: string;
+  };
+  const [rollCandidates, setRollCandidates] = useState<RollCandidate[]>([]);
+  const rollMutation = trpc.automation.getRollCandidates.useMutation();
+
+  // Parse OCC symbol to extract strike, expiration, option type
+  const parseOCC = (sym: string) => {
+    const clean = sym.replace(/\s+/g, '');
+    const m = clean.match(/[A-Z]+([0-9]{6})([CP])([0-9]{8})$/);
+    if (!m) return null;
+    const strike = parseInt(m[3], 10) / 1000;
+    const rawDate = m[1]; // YYMMDD
+    const exp = `20${rawDate.slice(0,2)}-${rawDate.slice(2,4)}-${rawDate.slice(4,6)}`;
+    return { strike, exp, type: m[2] as 'C' | 'P' };
+  };
+
+  // Derive roll candidate inputs from positions for a given result
+  const buildRollInput = useCallback((res: AnalysisResult, pos: PositionSummary[], sym: string) => {
+    const isBCS = res.strategyType.includes('BCS') || res.strategyType.includes('Bear Call');
+    const isCC  = res.strategyType.includes('CC')  || res.strategyType.includes('Covered Call');
+    const optType = (isBCS || isCC) ? 'C' : 'P';
+
+    const relevant = pos.filter(p => p.underlying === sym);
+    const parsed = relevant
+      .map(p => ({ ...p, occ: parseOCC(p.symbol) }))
+      .filter(p => p.occ && p.occ.type === optType);
+
+    if (parsed.length === 0) return null;
+
+    const shortLegs = parsed.filter(p => p.quantity < 0);
+    const longLegs  = parsed.filter(p => p.quantity > 0);
+    if (shortLegs.length === 0) return null;
+
+    const shortLeg = shortLegs[0];
+    const longLeg  = longLegs[0];
+    const currentShortStrike = shortLeg.occ!.strike;
+    const currentLongStrike  = longLeg?.occ?.strike;
+    const currentExpiration  = shortLeg.occ!.exp;
+    const spreadWidth = currentLongStrike !== undefined
+      ? Math.abs(currentLongStrike - currentShortStrike)
+      : undefined;
+
+    return { symbol: sym, strategyType: res.strategyType, currentShortStrike, currentLongStrike, currentExpiration, spreadWidth };
+  }, []);
+
+  const fetchRollCandidates = useCallback((res: AnalysisResult, pos: PositionSummary[], sym: string) => {
+    const rollInput = buildRollInput(res, pos, sym);
+    if (!rollInput) return;
+    setRollCandidates([]);
+    rollMutation.mutate(rollInput, {
+      onSuccess: (data) => setRollCandidates((data as { candidates: RollCandidate[] }).candidates ?? []),
+    });
+  }, [buildRollInput, rollMutation]);
 
   const runAnalysis = useCallback((t: TickerData, pos: PositionSummary[]) => {
     setResult(null);
+    setRollCandidates([]);
+    setShowRollCandidates(false);
     analyzeMutation.mutate(
       {
         symbol: t.symbol,
@@ -716,9 +785,16 @@ function TickerAnalysisPanel({
         avgIv: t.avgIv,
         positions: pos,
       },
-      { onSuccess: (data) => setResult(data as AnalysisResult) }
+      { onSuccess: (data) => {
+        const res = data as AnalysisResult;
+        setResult(res);
+        // Auto-fetch roll candidates when verdict suggests rolling
+        if (res.verdict === 'ROLL' || res.verdict === 'DEFEND') {
+          fetchRollCandidates(res, pos, t.symbol);
+        }
+      }}
     );
-  }, [analyzeMutation]);
+  }, [analyzeMutation, fetchRollCandidates]);
 
   useEffect(() => {
     if (!ticker) return;
@@ -884,6 +960,89 @@ function TickerAnalysisPanel({
                   </>
                 )}
               </div>
+
+              {/* === ROLL CANDIDATES === */}
+              {result && (result.verdict === 'ROLL' || result.verdict === 'DEFEND') && (
+                <div className="rounded-xl border border-border/50 bg-card/40 overflow-hidden">
+                  <button
+                    className="w-full px-4 py-2.5 bg-blue-500/10 border-b border-border/40 flex items-center justify-between hover:bg-blue-500/15 transition-colors"
+                    onClick={() => {
+                      setShowRollCandidates(v => !v);
+                      if (!showRollCandidates && rollCandidates.length === 0 && !rollMutation.isPending && ticker) {
+                        fetchRollCandidates(result, positions, ticker.symbol);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-3.5 h-3.5 text-blue-400" />
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-400">Live Roll Candidates</span>
+                      {rollCandidates.length > 0 && (
+                        <span className="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded-full">{rollCandidates.length}</span>
+                      )}
+                    </div>
+                    <ChevronRight className={cn('w-3.5 h-3.5 text-muted-foreground transition-transform', showRollCandidates && 'rotate-90')} />
+                  </button>
+
+                  {showRollCandidates && (
+                    <div className="px-3 py-3">
+                      {rollMutation.isPending && (
+                        <div className="flex items-center gap-2 py-4 justify-center">
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                          <span className="text-xs text-muted-foreground">Scanning live option chains…</span>
+                        </div>
+                      )}
+                      {!rollMutation.isPending && rollCandidates.length === 0 && (
+                        <p className="text-xs text-muted-foreground text-center py-3">No net-credit roll candidates found in the 21–60 DTE window.</p>
+                      )}
+                      {rollCandidates.length > 0 && (
+                        <div className="space-y-2">
+                          {rollCandidates.map((c, i) => (
+                            <div
+                              key={i}
+                              className={cn(
+                                'rounded-lg border p-3 relative',
+                                c.isBest
+                                  ? 'border-emerald-500/40 bg-emerald-500/8'
+                                  : c.netRollCredit > 0
+                                  ? 'border-blue-500/25 bg-blue-500/5'
+                                  : 'border-border/30 bg-card/30'
+                              )}
+                            >
+                              {c.isBest && (
+                                <span className="absolute top-2 right-2 text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider">BEST</span>
+                              )}
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                <div>
+                                  <span className="text-muted-foreground">Expiry</span>
+                                  <span className="ml-1.5 font-medium">{c.expiration} ({c.dte}d)</span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">New Strikes</span>
+                                  <span className="ml-1.5 font-medium">
+                                    ${c.newShortStrike}{c.newLongStrike !== c.newShortStrike ? ` / $${c.newLongStrike}` : ''}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">New Δ</span>
+                                  <span className="ml-1.5 font-medium">{c.newShortDelta.toFixed(2)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">Net Credit</span>
+                                  <span className={cn('ml-1.5 font-bold', c.netRollCredit > 0 ? 'text-emerald-400' : 'text-red-400')}>
+                                    {c.netRollCredit > 0 ? '+' : ''}{(c.netRollCredit * 100).toFixed(0)}¢
+                                  </span>
+                                </div>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground mt-1.5">{c.reason}</p>
+                            </div>
+                          ))}
+                          <p className="text-[10px] text-muted-foreground text-center pt-1">Net credit = new spread premium − cost to close current position</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* === HOW TO EXECUTE === */}
               {result && result.howToExecute && result.howToExecute.length > 0 && (

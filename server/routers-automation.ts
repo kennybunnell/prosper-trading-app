@@ -1631,11 +1631,69 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
       const ivPct = (input.avgIv * 100).toFixed(1);
       const deltaDir = input.netDelta > 0 ? 'long (bullish)' : input.netDelta < 0 ? 'short (bearish)' : 'neutral';
 
+      // Build spread-specific rolling context
+      const isBCS = strategyType.includes('BCS') || strategyType.includes('Bear Call');
+      const isBPS = strategyType.includes('BPS') || strategyType.includes('Bull Put');
+      const isIC  = strategyType.includes('IC')  || strategyType.includes('Iron Condor');
+      const isCC  = strategyType.includes('CC')  || strategyType.includes('Covered Call');
+      const isCSP = strategyType.includes('CSP') || strategyType.includes('Cash-Secured');
+
+      let rollMechanicsContext = '';
+      if (isBCS) {
+        rollMechanicsContext = `
+ROLL MECHANICS FOR BCS (Bear Call Spread):
+- Direction: Roll UP and OUT (higher strikes, later expiration)
+- You must roll BOTH legs simultaneously as a spread order
+- Step 1: Buy to Close (BTC) the current short call at the current short strike
+- Step 2: Sell to Open (STO) a new short call at a HIGHER strike (further OTM)
+- Step 3: Buy to Open (BTO) a new long call at the same width above the new short strike
+- Step 4: Sell to Close (STC) the current long call
+- CRITICAL: The entire 4-leg order must result in a NET CREDIT (you receive money, not pay)
+- If you cannot get a net credit, consider widening the spread or going further out in time
+- Target new short delta ≤ 0.30 for manageable risk`;
+      } else if (isBPS) {
+        rollMechanicsContext = `
+ROLL MECHANICS FOR BPS (Bull Put Spread):
+- Direction: Roll DOWN and OUT (lower strikes, later expiration)
+- You must roll BOTH legs simultaneously as a spread order
+- Step 1: Buy to Close (BTC) the current short put at the current short strike
+- Step 2: Sell to Open (STO) a new short put at a LOWER strike (further OTM)
+- Step 3: Buy to Open (BTO) a new long put at the same width below the new short strike
+- Step 4: Sell to Close (STC) the current long put
+- CRITICAL: The entire 4-leg order must result in a NET CREDIT
+- Target new short delta ≤ 0.30`;
+      } else if (isIC) {
+        rollMechanicsContext = `
+ROLL MECHANICS FOR IC (Iron Condor):
+- Only roll the TESTED side (the side being challenged by the stock price)
+- If calls are tested: roll the call spread UP and OUT (higher strikes, later expiry)
+- If puts are tested: roll the put spread DOWN and OUT (lower strikes, later expiry)
+- Roll both legs of the tested spread simultaneously
+- CRITICAL: The roll must result in a NET CREDIT on the tested side
+- The untested side stays in place unless it also needs adjustment`;
+      } else if (isCC) {
+        rollMechanicsContext = `
+ROLL MECHANICS FOR CC (Covered Call):
+- Direction: Roll UP and OUT (higher strike, later expiration)
+- Buy to Close (BTC) the current short call, then Sell to Open (STO) a new call at a higher strike
+- This is a 2-leg order: BTC current + STO new
+- CRITICAL: Must collect a NET CREDIT for the roll
+- Target new strike above current stock price, delta ≤ 0.30`;
+      } else if (isCSP) {
+        rollMechanicsContext = `
+ROLL MECHANICS FOR CSP (Cash-Secured Put):
+- Direction: Roll DOWN and OUT (lower strike, later expiration)
+- Buy to Close (BTC) the current short put, then Sell to Open (STO) a new put at a lower strike
+- This is a 2-leg order: BTC current + STO new
+- CRITICAL: Must collect a NET CREDIT for the roll
+- Target new strike below current stock price, delta ≤ 0.30`;
+      }
+
       // Build concise prompt for brief recommendation
       const stockPriceLine = underlyingPrice != null
         ? `\nCurrent Stock Price: $${underlyingPrice.toFixed(2)}`
         : '';
-      const prompt = `You are a professional options trading coach teaching retail traders. Give a BRIEF, DIRECT assessment AND step-by-step execution instructions.
+      const prompt = `You are a professional options trading coach teaching retail traders. Give a BRIEF, DIRECT assessment AND step-by-step execution instructions.${rollMechanicsContext}
 
 Position: ${strategyType} on ${input.symbol}
 Strikes: ${strikeDisplay || 'N/A'}${stockPriceLine}
@@ -1660,7 +1718,7 @@ Respond in JSON with this EXACT structure:
   ]
 }
 
-For howToExecute, write 3-5 numbered steps that teach the student EXACTLY how to carry out the verdict in their broker. Be specific: mention order types (BTC, STO, debit/credit), target prices relative to the current data, strike selection criteria, and what to watch for. Use plain language a beginner can follow. Each step should be one sentence.`;
+For howToExecute, write 3-5 numbered steps that teach the student EXACTLY how to carry out the verdict in their broker (tastytrade). Be specific: mention order types (BTC, STO, debit/credit), target prices relative to the current data, strike selection criteria, and what to watch for. For spreads, always mention rolling BOTH legs together as a spread order. Use plain language a beginner can follow. Each step should be one sentence.`;
 
       const response = await invokeLLM({
         messages: [
@@ -1721,5 +1779,173 @@ For howToExecute, write 3-5 numbered steps that teach the student EXACTLY how to
         // Legacy field for backward compat
         analysis: aiResult.recommendation,
       };
+    }),
+
+  // ─── Get Live Roll Candidates ────────────────────────────────────────────────
+  getRollCandidates: protectedProcedure
+    .input(z.object({
+      symbol: z.string(),
+      strategyType: z.string(),
+      currentShortStrike: z.number(),
+      currentLongStrike: z.number().optional(),
+      currentExpiration: z.string(),
+      spreadWidth: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const { createTradierAPI } = await import('./tradier');
+
+      const credentials = await getApiCredentials(ctx.user.id);
+      const tradierApiKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+      if (!tradierApiKey) return { candidates: [] };
+
+      const tradierApi = createTradierAPI(tradierApiKey);
+
+      // Determine strategy direction
+      const isBCS = input.strategyType.includes('BCS') || input.strategyType.includes('Bear Call');
+      const isBPS = input.strategyType.includes('BPS') || input.strategyType.includes('Bull Put');
+      const isIC  = input.strategyType.includes('IC')  || input.strategyType.includes('Iron Condor');
+      const isCC  = input.strategyType.includes('CC')  || input.strategyType.includes('Covered Call');
+      const isCSP = input.strategyType.includes('CSP') || input.strategyType.includes('Cash-Secured');
+      const rollUp = isBCS || isCC || isIC;  // IC: assume call side tested by default
+      const optionType: 'call' | 'put' = (isBCS || isCC) ? 'call' : 'put';
+      const isSpread = isBCS || isBPS || isIC;
+      const spreadWidth = input.spreadWidth ?? 5;
+
+      // Get expirations in 21-60 DTE window
+      const now = Date.now();
+      let expirations: string[] = [];
+      try {
+        const allExps = await tradierApi.getExpirations(input.symbol);
+        expirations = allExps.filter(exp => {
+          const dte = Math.round((new Date(exp).getTime() - now) / (1000 * 60 * 60 * 24));
+          return dte >= 21 && dte <= 60;
+        });
+      } catch { return { candidates: [] }; }
+
+      if (expirations.length === 0) return { candidates: [] };
+
+      // Estimate close debit for current position (mid price of current short)
+      let closeDebit = 0;
+      try {
+        const currentChain = await tradierApi.getOptionChain(input.symbol, input.currentExpiration, false);
+        const currentShort = currentChain.find(o =>
+          o.type === optionType && Math.abs(o.strike - input.currentShortStrike) < 0.01
+        );
+        if (currentShort) {
+          const shortMid = (currentShort.bid + currentShort.ask) / 2;
+          if (isSpread && input.currentLongStrike !== undefined) {
+            const currentLong = currentChain.find(o =>
+              o.type === optionType && Math.abs(o.strike - input.currentLongStrike!) < 0.01
+            );
+            const longMid = currentLong ? (currentLong.bid + currentLong.ask) / 2 : 0;
+            // Debit to close spread = buy short back - sell long
+            closeDebit = shortMid - longMid;
+          } else {
+            closeDebit = shortMid;
+          }
+        }
+      } catch { /* use 0 as fallback */ }
+
+      type RollCandidate = {
+        expiration: string;
+        dte: number;
+        newShortStrike: number;
+        newLongStrike: number;
+        newShortDelta: number;
+        newShortBid: number;
+        newLongAsk: number;
+        newSpreadCredit: number;
+        netRollCredit: number;
+        spreadWidth: number;
+        isBest: boolean;
+        reason: string;
+      };
+
+      const candidates: RollCandidate[] = [];
+
+      for (const exp of expirations.slice(0, 4)) {  // max 4 expirations to limit API calls
+        const dte = Math.round((new Date(exp).getTime() - now) / (1000 * 60 * 60 * 24));
+        try {
+          const chain = await tradierApi.getOptionChain(input.symbol, exp, true);
+          const filtered = chain.filter(o =>
+            o.type === optionType && o.bid > 0 && o.ask > 0
+          );
+
+          // Find short leg candidates (above current short for BCS/CC, below for BPS/CSP)
+          const shortCandidates = filtered.filter(o =>
+            rollUp ? o.strike > input.currentShortStrike : o.strike < input.currentShortStrike
+          );
+
+          for (const shortLeg of shortCandidates) {
+            const shortDelta = Math.abs(shortLeg.greeks?.delta ?? 0);
+            if (shortDelta > 0.35) continue;  // skip high-delta strikes
+
+            let newSpreadCredit: number;
+            let newLongStrike: number;
+            let newLongAsk = 0;
+
+            if (isSpread) {
+              // Find matching long leg at same width
+              const longStrike = rollUp
+                ? shortLeg.strike + spreadWidth
+                : shortLeg.strike - spreadWidth;
+              newLongStrike = longStrike;
+              const longLeg = filtered.find(o => Math.abs(o.strike - longStrike) < 0.01);
+              if (!longLeg) continue;
+              newLongAsk = longLeg.ask;
+              newSpreadCredit = shortLeg.bid - longLeg.ask;
+            } else {
+              // Single-leg: just the short premium
+              newLongStrike = shortLeg.strike;
+              newSpreadCredit = shortLeg.bid;
+            }
+
+            if (newSpreadCredit <= 0) continue;
+
+            const netRollCredit = newSpreadCredit - closeDebit;
+
+            // Build reason string
+            let reason = '';
+            if (netRollCredit > 0) {
+              reason = `Collect $${(netRollCredit * 100).toFixed(0)}¢ net credit. Delta ${shortDelta.toFixed(2)} — manageable risk.`;
+            } else {
+              reason = `Small debit of $${(Math.abs(netRollCredit) * 100).toFixed(0)}¢ to roll. Consider going further OTM for a credit.`;
+            }
+
+            candidates.push({
+              expiration: exp,
+              dte,
+              newShortStrike: shortLeg.strike,
+              newLongStrike,
+              newShortDelta: shortDelta,
+              newShortBid: shortLeg.bid,
+              newLongAsk,
+              newSpreadCredit,
+              netRollCredit,
+              spreadWidth,
+              isBest: false,
+              reason,
+            });
+          }
+        } catch { continue; }
+      }
+
+      // Sort: net credit first, then by net credit desc, then by delta asc
+      candidates.sort((a, b) => {
+        const aCredit = a.netRollCredit > 0 ? 1 : 0;
+        const bCredit = b.netRollCredit > 0 ? 1 : 0;
+        if (aCredit !== bCredit) return bCredit - aCredit;
+        if (Math.abs(a.netRollCredit - b.netRollCredit) > 0.01) return b.netRollCredit - a.netRollCredit;
+        return a.newShortDelta - b.newShortDelta;
+      });
+
+      // Mark best candidate (highest net credit with delta ≤ 0.30 in 21-45 DTE)
+      const bestIdx = candidates.findIndex(c => c.netRollCredit > 0 && c.newShortDelta <= 0.30 && c.dte >= 21 && c.dte <= 45);
+      if (bestIdx >= 0) candidates[bestIdx].isBest = true;
+      else if (candidates.length > 0) candidates[0].isBest = true;
+
+      // Return top 6 candidates
+      return { candidates: candidates.slice(0, 6) };
     }),
 });
