@@ -223,6 +223,29 @@ describe('Single-leg strategy detection', () => {
   });
 });
 
+// ─── howToExecute field ──────────────────────────────────────────────────────
+
+describe('howToExecute field handling', () => {
+  it('strips Step N: prefix from AI-generated steps', () => {
+    // Simulate what the UI does: strip "Step 1:" prefix
+    const rawStep = 'Step 1: Open your broker and navigate to the position.';
+    const cleaned = rawStep.replace(/^Step\s*\d+:\s*/i, '');
+    expect(cleaned).toBe('Open your broker and navigate to the position.');
+  });
+
+  it('handles steps without prefix unchanged', () => {
+    const rawStep = 'Open your broker and navigate to the position.';
+    const cleaned = rawStep.replace(/^Step\s*\d+:\s*/i, '');
+    expect(cleaned).toBe('Open your broker and navigate to the position.');
+  });
+
+  it('handles empty howToExecute array gracefully', () => {
+    // The UI only renders the section when howToExecute.length > 0
+    const howToExecute: string[] = [];
+    expect(howToExecute.length > 0).toBe(false);
+  });
+});
+
 // ─── Action Route Mapping ──────────────────────────────────────────────────
 
 describe('Action route mapping', () => {

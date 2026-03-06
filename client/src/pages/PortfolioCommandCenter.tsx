@@ -26,6 +26,7 @@ import {
   X,
   Sparkles,
   ChevronRight,
+  GraduationCap,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useLocation } from 'wouter';
@@ -695,6 +696,7 @@ function TickerAnalysisPanel({
     profitPct: number;
     actionLabel: string;
     actionRoute: string;
+    howToExecute: string[];
   };
   const [result, setResult] = useState<AnalysisResult | null>(null);
 
@@ -882,6 +884,29 @@ function TickerAnalysisPanel({
                   </>
                 )}
               </div>
+
+              {/* === HOW TO EXECUTE === */}
+              {result && result.howToExecute && result.howToExecute.length > 0 && (
+                <div className="rounded-xl border border-border/50 bg-card/40 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-accent/20 border-b border-border/40 flex items-center gap-2">
+                    <GraduationCap className="w-3.5 h-3.5 text-blue-400" />
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">How to Execute</span>
+                  </div>
+                  <div className="px-4 py-3 space-y-3">
+                    {result.howToExecute.map((step, i) => (
+                      <div key={i} className="flex gap-3">
+                        <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center mt-0.5">
+                          <span className="text-[10px] font-bold text-blue-400">{i + 1}</span>
+                        </div>
+                        <p className="text-xs text-foreground/80 leading-relaxed">
+                          {/* Strip leading "Step N:" prefix if the AI included it */}
+                          {step.replace(/^Step\s*\d+:\s*/i, '')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* === ACTION FOOTER === */}

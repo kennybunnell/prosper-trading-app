@@ -7394,3 +7394,7 @@
 - [x] Add live stock price to Position Identity Card — fetches current underlying price from Tradier getQuote and displays it alongside strikes with amber color
 - [x] Pass stock price to AI prompt so recommendations can reference ITM/OTM proximity
 - [x] Added 16 unit tests for strategy classification, OCC parsing, and route mapping (all passing)
+
+## AI Panel: How to Execute Section (Mar 6, 2026)
+- [x] Extend analyzeTicker AI JSON schema to include a howToExecute array (3-5 numbered steps specific to the verdict)
+- [x] Update TickerAnalysisPanel UI to render the numbered steps in a styled educational section below the recommendation

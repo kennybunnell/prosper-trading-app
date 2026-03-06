@@ -1635,7 +1635,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
       const stockPriceLine = underlyingPrice != null
         ? `\nCurrent Stock Price: $${underlyingPrice.toFixed(2)}`
         : '';
-      const prompt = `You are a professional options trading coach. A retail trader needs a BRIEF, DIRECT assessment of this position.
+      const prompt = `You are a professional options trading coach teaching retail traders. Give a BRIEF, DIRECT assessment AND step-by-step execution instructions.
 
 Position: ${strategyType} on ${input.symbol}
 Strikes: ${strikeDisplay || 'N/A'}${stockPriceLine}
@@ -1652,8 +1652,15 @@ Respond in JSON with this EXACT structure:
   "recommendation": "2-3 sentences max. Start with the verdict. Be specific with numbers. Tell them exactly what to do and why.",
   "urgency": "low" | "medium" | "high",
   "profitPct": estimated percentage of max profit already realized (0-100, integer),
-  "actionLabel": "short action button label, e.g. 'Close Position' or 'Roll to Next Month'"
-}`;
+  "actionLabel": "short action button label, e.g. 'Close Position' or 'Roll to Next Month'",
+  "howToExecute": [
+    "Step 1: ...",
+    "Step 2: ...",
+    "Step 3: ..."
+  ]
+}
+
+For howToExecute, write 3-5 numbered steps that teach the student EXACTLY how to carry out the verdict in their broker. Be specific: mention order types (BTC, STO, debit/credit), target prices relative to the current data, strike selection criteria, and what to watch for. Use plain language a beginner can follow. Each step should be one sentence.`;
 
       const response = await invokeLLM({
         messages: [
@@ -1673,15 +1680,19 @@ Respond in JSON with this EXACT structure:
                 urgency: { type: 'string', enum: ['low', 'medium', 'high'] },
                 profitPct: { type: 'integer' },
                 actionLabel: { type: 'string' },
+                howToExecute: {
+                  type: 'array',
+                  items: { type: 'string' },
+                },
               },
-              required: ['verdict', 'recommendation', 'urgency', 'profitPct', 'actionLabel'],
+              required: ['verdict', 'recommendation', 'urgency', 'profitPct', 'actionLabel', 'howToExecute'],
               additionalProperties: false,
             },
           },
         },
       });
 
-      let aiResult = { verdict: 'HOLD', recommendation: 'Unable to generate analysis.', urgency: 'low', profitPct: 0, actionLabel: 'View Position' };
+      let aiResult: { verdict: string; recommendation: string; urgency: string; profitPct: number; actionLabel: string; howToExecute: string[] } = { verdict: 'HOLD', recommendation: 'Unable to generate analysis.', urgency: 'low', profitPct: 0, actionLabel: 'View Position', howToExecute: [] };
       try {
         const raw = response?.choices?.[0]?.message?.content;
         if (typeof raw === 'string') aiResult = JSON.parse(raw);
@@ -1705,6 +1716,7 @@ Respond in JSON with this EXACT structure:
         urgency: aiResult.urgency,
         profitPct: aiResult.profitPct,
         actionLabel: aiResult.actionLabel,
+        howToExecute: aiResult.howToExecute ?? [],
         actionRoute,
         // Legacy field for backward compat
         analysis: aiResult.recommendation,
