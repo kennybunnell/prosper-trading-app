@@ -22,10 +22,14 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  Brain,
+  X,
+  Sparkles,
 } from 'lucide-react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// --- Types ---
 type ViewMode = 'delta' | 'theta';
 
 type TickerData = {
@@ -56,7 +60,7 @@ type PositionSummary = {
 
 type LoadPhase = 'idle' | 'positions' | 'greeks' | 'done' | 'error';
 
-// ─── Progressive Heat Map Hook ────────────────────────────────────────────────
+// --- Progressive Heat Map Hook ---
 // Two-stage loading: (1) fetch positions fast, (2) fetch Greeks in batches of N
 function useProgressiveHeatMap(batchSize = 5) {
   const [tickers, setTickers] = useState<TickerData[]>([]);
@@ -243,21 +247,29 @@ function useProgressiveHeatMap(batchSize = 5) {
   };
 }
 
-// ─── Heat Map Cell ────────────────────────────────────────────────────────────
+/// --- Heat Map Cell ---
 function HeatMapCell({
   ticker,
   viewMode,
   maxValue,
+  maxPremium,
+  onAnalyze,
 }: {
   ticker: TickerData;
   viewMode: ViewMode;
   maxValue: number;
+  maxPremium: number;
+  onAnalyze: (ticker: TickerData) => void;
 }) {
+  // Proportional sizing: tiles span 1-3 grid cells based on premium at risk
+  const premiumRatio = maxPremium > 0 ? ticker.premiumAtRisk / maxPremium : 0;
+  const span = premiumRatio >= 0.7 ? 3 : premiumRatio >= 0.4 ? 2 : premiumRatio >= 0.15 ? 2 : 1;
+  const minH = span >= 3 ? '120px' : span >= 2 ? '100px' : '80px';
   const value = viewMode === 'delta' ? ticker.netDelta : ticker.dailyTheta;
   const intensity = maxValue > 0 ? Math.min(Math.abs(value) / maxValue, 1) : 0;
   const greeksReady = ticker.greeksLoaded !== false;
 
-  // ── Background color: delta/theta bias + intensity ──────────────────────────
+  // --- Background color: delta/theta bias + intensity ---
   let bgColor: string;
   let textColor: string;
   if (!greeksReady) {
@@ -288,7 +300,7 @@ function HeatMapCell({
     }
   }
 
-  // ── DTE urgency border: red flash ≤7d, amber ≤14d, none otherwise ───────────
+  // --- DTE urgency border: red flash ≤7d, amber ≤14d, none otherwise ---
   let borderStyle: React.CSSProperties = { border: '1px solid rgba(255,255,255,0.05)' };
   if (greeksReady && ticker.avgDte > 0) {
     if (ticker.avgDte <= 7) {
@@ -298,7 +310,7 @@ function HeatMapCell({
     }
   }
 
-  // ── IV rank badge: high IV = sell opportunity, low IV = caution ──────────────
+  // --- IV rank badge: high IV = sell opportunity, low IV = caution ---
   // avgIv is decimal (e.g. 0.35 = 35% IV). Rough IV rank buckets:
   // >0.50 = very high (sell premium aggressively) → amber badge
   // 0.30-0.50 = elevated (good selling environment) → green badge
@@ -319,7 +331,7 @@ function HeatMapCell({
     ? (value >= 0 ? '+' : '') + value.toFixed(1)
     : (value >= 0 ? '+$' : '-$') + Math.abs(value).toFixed(2);
 
-  // ── Tooltip: full Greek breakdown + risk narrative ───────────────────────────
+  // --- Tooltip: full Greek breakdown + risk narrative ---
   const deltaStory = !greeksReady ? '—' :
     Math.abs(ticker.netDelta) < 0.5 ? 'Neutral ✓' :
     ticker.netDelta > 0 ? `Long bias (+${ticker.netDelta.toFixed(1)}Δ)` :
@@ -335,10 +347,11 @@ function HeatMapCell({
         <TooltipTrigger asChild>
           <div
             className={cn(
-              'rounded-lg p-3 cursor-default transition-all duration-300 hover:scale-105 hover:z-10 relative',
+              'rounded-lg p-3 cursor-pointer transition-all duration-300 hover:scale-105 hover:z-10 relative group',
               !greeksReady && 'animate-pulse'
             )}
             style={{ backgroundColor: bgColor, minHeight: '80px', ...borderStyle }}
+            onClick={() => onAnalyze(ticker)}
           >
             <div className="flex flex-col h-full justify-between">
               {/* Header row: symbol + contract count */}
@@ -416,7 +429,7 @@ function HeatMapCell({
   );
 }
 
-// ─── Heat Map Grid ────────────────────────────────────────────────────────────
+// --- Heat Map Grid ---
 function HeatMapGrid({
   tickers,
   phase,
@@ -428,6 +441,7 @@ function HeatMapGrid({
   failedBatches,
   viewMode,
   onRefresh,
+  onAnalyze,
 }: {
   tickers: TickerData[];
   phase: LoadPhase;
@@ -438,12 +452,18 @@ function HeatMapGrid({
   lastRefreshed: Date | null;
   failedBatches: number;
   viewMode: ViewMode;
+  onAnalyze: (ticker: TickerData) => void;
   onRefresh: () => void;
 }) {
   const maxValue = useMemo(() => {
     if (!tickers.length) return 1;
     return Math.max(...tickers.map(t => Math.abs(viewMode === 'delta' ? t.netDelta : t.dailyTheta)));
   }, [tickers, viewMode]);
+
+  const maxPremium = useMemo(() => {
+    if (!tickers.length) return 1;
+    return Math.max(...tickers.map(t => t.premiumAtRisk));
+  }, [tickers]);
 
   const progressPct = totalBatches > 0 ? Math.round((batchesDone / totalBatches) * 100) : 0;
 
@@ -544,17 +564,27 @@ function HeatMapGrid({
         </div>
       )}
 
-      {/* Tile grid */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-2">
+      {/* Tile grid — auto-fill columns, tiles span proportionally by premium at risk */}
+      <div
+        className="grid gap-2"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))' }}
+      >
         {tickers.map(ticker => (
-          <HeatMapCell key={ticker.symbol} ticker={ticker} viewMode={viewMode} maxValue={maxValue} />
+          <HeatMapCell
+            key={ticker.symbol}
+            ticker={ticker}
+            viewMode={viewMode}
+            maxValue={maxValue}
+            maxPremium={maxPremium}
+            onAnalyze={onAnalyze}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-// ─── Portfolio Stat Bar ───────────────────────────────────────────────────────
+// --- Portfolio Stat Bar ---
 function PortfolioStatBar({
   portfolio,
   isLoading,
@@ -633,10 +663,174 @@ function PortfolioStatBar({
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// --- Ticker Analysis Panel (AI slide-over) ---
+function TickerAnalysisPanel({
+  ticker,
+  onClose,
+}: {
+  ticker: TickerData | null;
+  onClose: () => void;
+}) {
+  const analyzeMutation = trpc.automation.analyzeTicker.useMutation();
+  const [analysis, setAnalysis] = useState<string | null>(null);
+
+  // Trigger analysis when ticker changes
+  useEffect(() => {
+    if (!ticker) return;
+    setAnalysis(null);
+    analyzeMutation.mutate(
+      {
+        symbol: ticker.symbol,
+        netDelta: ticker.netDelta,
+        dailyTheta: ticker.dailyTheta,
+        netVega: ticker.netVega,
+        netGamma: ticker.netGamma,
+        premiumAtRisk: ticker.premiumAtRisk,
+        contracts: ticker.contracts,
+        strategies: ticker.strategies,
+        avgDte: ticker.avgDte,
+        avgIv: ticker.avgIv,
+      },
+      { onSuccess: (data) => setAnalysis(typeof data.analysis === 'string' ? data.analysis : String(data.analysis)) }
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticker?.symbol]);
+
+  const ivPct = ticker ? (ticker.avgIv * 100).toFixed(1) : '0';
+  const deltaColor = !ticker ? '' : ticker.netDelta > 0 ? 'text-green-400' : ticker.netDelta < 0 ? 'text-red-400' : 'text-muted-foreground';
+
+  return (
+    <Sheet open={!!ticker} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent side="right" className="w-full sm:max-w-[520px] overflow-y-auto bg-background border-border/60">
+        {ticker && (
+          <>
+            <SheetHeader className="pb-4 border-b border-border/40">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                  <Brain className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <SheetTitle className="text-lg font-bold">{ticker.symbol} — AI Risk Analysis</SheetTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {ticker.contracts}c · {ticker.strategies.join(', ')} · {ticker.avgDte.toFixed(0)}d DTE
+                  </p>
+                </div>
+              </div>
+            </SheetHeader>
+
+            {/* Quick stats */}
+            <div className="grid grid-cols-3 gap-3 py-4 border-b border-border/40">
+              <div className="text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Net Delta</p>
+                <p className={cn('text-lg font-bold', deltaColor)}>
+                  {ticker.netDelta >= 0 ? '+' : ''}{ticker.netDelta.toFixed(1)}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Daily Theta</p>
+                <p className="text-lg font-bold text-green-400">
+                  +${ticker.dailyTheta.toFixed(2)}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Avg IV</p>
+                <p className={cn('text-lg font-bold', parseFloat(ivPct) >= 50 ? 'text-amber-400' : parseFloat(ivPct) >= 30 ? 'text-emerald-400' : 'text-slate-400')}>
+                  {ivPct}%
+                </p>
+              </div>
+            </div>
+
+            {/* AI Analysis */}
+            <div className="py-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span className="text-sm font-semibold">AI Analysis</span>
+                {analyzeMutation.isPending && (
+                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Analyzing…
+                  </span>
+                )}
+              </div>
+
+              {analyzeMutation.isPending && !analysis && (
+                <div className="space-y-2">
+                  {[80, 60, 90, 50, 70].map((w, i) => (
+                    <div key={i} className="h-3 bg-accent/30 rounded animate-pulse" style={{ width: `${w}%` }} />
+                  ))}
+                </div>
+              )}
+
+              {analyzeMutation.isError && (
+                <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-xs text-red-400">
+                  Failed to generate analysis. Please try again.
+                </div>
+              )}
+
+              {analysis && (
+                <div className="prose prose-sm prose-invert max-w-none text-sm leading-relaxed">
+                  {analysis.split('\n').map((line, i) => {
+                    if (line.startsWith('## ')) {
+                      return <h3 key={i} className="text-sm font-bold text-amber-300 mt-4 mb-1 first:mt-0">{line.replace('## ', '')}</h3>;
+                    }
+                    if (line.startsWith('- **')) {
+                      const match = line.match(/^- \*\*(.+?):\*\*\s*(.*)/);
+                      if (match) return (
+                        <div key={i} className="ml-2 mb-1">
+                          <span className="font-semibold text-foreground/90">{match[1]}:</span>
+                          <span className="text-muted-foreground ml-1">{match[2]}</span>
+                        </div>
+                      );
+                    }
+                    if (line.startsWith('- ')) {
+                      return <div key={i} className="ml-2 mb-1 text-muted-foreground flex gap-2"><span className="text-amber-400/60 shrink-0">•</span><span>{line.slice(2)}</span></div>;
+                    }
+                    if (line.trim() === '') return <div key={i} className="h-1" />;
+                    return <p key={i} className="text-muted-foreground mb-1">{line}</p>;
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Re-analyze button */}
+            <div className="pt-4 border-t border-border/40">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-2 text-xs"
+                onClick={() => {
+                  setAnalysis(null);
+                  analyzeMutation.mutate({
+                    symbol: ticker.symbol,
+                    netDelta: ticker.netDelta,
+                    dailyTheta: ticker.dailyTheta,
+                    netVega: ticker.netVega,
+                    netGamma: ticker.netGamma,
+                    premiumAtRisk: ticker.premiumAtRisk,
+                    contracts: ticker.contracts,
+                    strategies: ticker.strategies,
+                    avgDte: ticker.avgDte,
+                    avgIv: ticker.avgIv,
+                  }, { onSuccess: (data) => setAnalysis(typeof data.analysis === 'string' ? data.analysis : String(data.analysis)) });
+                }}
+                disabled={analyzeMutation.isPending}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                {analyzeMutation.isPending ? 'Analyzing…' : 'Re-analyze'}
+              </Button>
+            </div>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// --- Main Page ---
 export default function PortfolioCommandCenter() {
   const [activeTab, setActiveTab] = useState('heatmap');
   const [viewMode, setViewMode] = useState<ViewMode>('delta');
+  const [selectedTicker, setSelectedTicker] = useState<TickerData | null>(null);
   const {
     tickers,
     portfolio,
@@ -798,6 +992,7 @@ export default function PortfolioCommandCenter() {
                 failedBatches={failedBatches}
                 viewMode={viewMode}
                 onRefresh={refresh}
+                onAnalyze={setSelectedTicker}
               />
             </CardContent>
           </Card>
@@ -885,6 +1080,12 @@ export default function PortfolioCommandCenter() {
           <IraSafetyTab />
         </TabsContent>
       </Tabs>
+
+      {/* AI Ticker Analysis Slide-over */}
+      <TickerAnalysisPanel
+        ticker={selectedTicker}
+        onClose={() => setSelectedTicker(null)}
+      />
     </div>
   );
 }

@@ -7364,3 +7364,15 @@
 - [x] Fix +0.0 delta bug: trace Tradier Greeks field name mismatch in getPortfolioGreeks/getGreeksBatch
 - [x] Redesign heat map color logic: delta bias + theta intensity + DTE urgency border + IV rank badge
 - [x] Add multi-dimensional risk/reward story to heat map tiles
+
+## Heat Map Tile Sizing & AI Analysis (Mar 6 2026)
+- [x] Make heat map tiles proportionally sized by premium at risk (larger tile = more capital exposed)
+- [ ] Add sort order explanation label to heat map header
+- [ ] Add backend LLM procedure: analyzeTicker — takes ticker Greeks + position data, returns AI risk analysis
+- [ ] Add click-to-analyze panel: clicking any tile opens a slide-over with streaming LLM recommendations
+
+## Heat Map Tile Sizing & AI Analysis (Mar 6 2026)
+- [x] Make heat map tiles proportionally sized by premium at risk (larger tile = more capital exposed)
+- [ ] Add sort order explanation label to heat map header
+- [ ] Add backend LLM procedure: analyzeTicker — takes ticker Greeks + position data, returns AI risk analysis
+- [ ] Add click-to-analyze panel: clicking any tile opens a slide-over with streaming LLM recommendations

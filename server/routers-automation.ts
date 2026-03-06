@@ -1507,4 +1507,75 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
 
       return { greeks };
     }),
+
+  /**
+   * AI-powered ticker analysis: given a ticker's Greeks and position data,
+   * return a structured risk analysis with plain-English recommendations.
+   */
+  analyzeTicker: protectedProcedure
+    .input(z.object({
+      symbol: z.string(),
+      netDelta: z.number(),
+      dailyTheta: z.number(),
+      netVega: z.number(),
+      netGamma: z.number(),
+      premiumAtRisk: z.number(),
+      contracts: z.number(),
+      strategies: z.array(z.string()),
+      avgDte: z.number(),
+      avgIv: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('./_core/llm');
+
+      const ivPct = (input.avgIv * 100).toFixed(1);
+      const deltaDir = input.netDelta > 0 ? 'long (bullish)' : input.netDelta < 0 ? 'short (bearish)' : 'neutral';
+      const thetaSign = input.dailyTheta >= 0 ? 'collecting' : 'paying';
+
+      const prompt = `You are a professional options trading coach helping a retail trader understand their position risk.
+
+Analyze this options position and provide actionable guidance:
+
+Ticker: ${input.symbol}
+Strategies: ${input.strategies.join(', ')}
+Contracts: ${input.contracts}
+Premium at Risk: $${input.premiumAtRisk.toFixed(0)}
+Net Delta: ${input.netDelta.toFixed(2)} (${deltaDir} bias)
+Daily Theta: ${input.dailyTheta >= 0 ? '+' : ''}$${input.dailyTheta.toFixed(2)}/day (${thetaSign} time decay)
+Net Vega: ${input.netVega.toFixed(2)} (IV sensitivity)
+Avg Days to Expiration: ${input.avgDte.toFixed(0)} days
+Implied Volatility: ${ivPct}%
+
+Provide a structured analysis with these exact sections:
+
+## Current Risk Posture
+Explain in 2-3 plain-English sentences what this position is doing and what the trader is exposed to.
+
+## Scenario Analysis
+Briefly describe what happens in 3 scenarios over the next 7-14 days:
+- **If ${input.symbol} rallies 5-10%:** ...
+- **If ${input.symbol} drops 5-10%:** ...
+- **If ${input.symbol} stays flat:** ...
+
+## Key Risk Flags
+List 2-3 specific risks the trader should watch for (DTE urgency, IV crush, delta exposure, etc.).
+
+## Recommended Actions
+Give 2-3 specific, actionable recommendations (e.g., "Roll to next expiration if delta exceeds X", "Close at 50% profit", "Add a hedge if stock breaks above Y"). Be specific with numbers where possible.
+
+## Bottom Line
+One sentence summary: should the trader HOLD, MANAGE NOW, or CLOSE this position?
+
+Keep the tone educational but direct. Use dollar amounts and percentages where helpful. Avoid generic advice — make it specific to this position's numbers.`;
+
+      const response = await invokeLLM({
+        messages: [
+          { role: 'system', content: 'You are an expert options trading coach. Provide clear, specific, actionable analysis for retail traders. Always use the actual numbers from the position in your analysis.' },
+          { role: 'user', content: prompt },
+        ],
+      });
+
+      const content = response?.choices?.[0]?.message?.content ?? 'Unable to generate analysis at this time.';
+      return { analysis: content, symbol: input.symbol };
+    }),
 });
