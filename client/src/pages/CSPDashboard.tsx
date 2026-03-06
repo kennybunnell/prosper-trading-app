@@ -378,6 +378,23 @@ export default function CSPDashboard() {
     },
   });
 
+  // Check for symbol query param (from Assignment Scenario "Sell CSP" button)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const prefilledSymbol = params.get('symbol');
+    if (prefilledSymbol) {
+      const sym = prefilledSymbol.toUpperCase().trim();
+      // Pre-select this symbol in the watchlist after a short delay (let watchlist load first)
+      setTimeout(() => {
+        selectAll.mutate({ symbols: [sym] });
+        toast.success(`Pre-filled ${sym} from Assignment Scenario. Click "Fetch Opportunities" to find CSP entries.`, {
+          duration: 5000,
+        });
+      }, 800);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Check for Strategy Advisor pre-selected tickers and pre-select them (no auto-fetch)
   useEffect(() => {
     const selectedTickers = localStorage.getItem('strategyAdvisorSelectedTickers');

@@ -7406,3 +7406,9 @@
 - [x] Compare effective sale price vs. current stock price with above/below market indicator
 - [x] Explain what happens next: shares called away, cash received, re-enter with CSP
 - [x] 14 unit tests for assignment scenario calculator (all passing)
+
+## Three AI Panel Enhancements (Mar 6, 2026)
+- [x] Sell CSP After Assignment button: navigate to /csp with symbol pre-filled
+- [x] Auto-expand DTE window: if 21-60 DTE returns no candidates, retry with 60-90 DTE and show note
+- [x] Assignment probability gauge: show short call delta as % probability with color-coded gauge
+- [x] 20 unit tests for all three features (all passing)

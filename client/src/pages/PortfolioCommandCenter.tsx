@@ -27,6 +27,8 @@ import {
   Sparkles,
   ChevronRight,
   GraduationCap,
+  Target,
+  Gauge,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useLocation } from 'wouter';
@@ -690,6 +692,7 @@ function TickerAnalysisPanel({
     avgIv: number;
     premiumAtRisk: number;
     underlyingPrice: number | null;
+    shortDelta: number | null;
     verdict: string;
     recommendation: string;
     urgency: string;
@@ -716,6 +719,7 @@ function TickerAnalysisPanel({
     reason: string;
   };
   const [rollCandidates, setRollCandidates] = useState<RollCandidate[]>([]);
+  const [dteWindowUsed, setDteWindowUsed] = useState<'21-60' | '60-90'>('21-60');
   const rollMutation = trpc.automation.getRollCandidates.useMutation();
 
   // Parse OCC symbol to extract strike, expiration, option type
@@ -762,8 +766,13 @@ function TickerAnalysisPanel({
     const rollInput = buildRollInput(res, pos, sym);
     if (!rollInput) return;
     setRollCandidates([]);
+    setDteWindowUsed('21-60');
     rollMutation.mutate(rollInput, {
-      onSuccess: (data) => setRollCandidates((data as { candidates: RollCandidate[] }).candidates ?? []),
+      onSuccess: (data) => {
+        const d = data as { candidates: RollCandidate[]; dteWindowUsed?: '21-60' | '60-90' };
+        setRollCandidates(d.candidates ?? []);
+        setDteWindowUsed(d.dteWindowUsed ?? '21-60');
+      },
     });
   }, [buildRollInput, rollMutation]);
 
@@ -915,6 +924,47 @@ function TickerAnalysisPanel({
                 </div>
               </div>
 
+              {/* === ASSIGNMENT PROBABILITY GAUGE === */}
+              {result?.shortDelta != null && result.shortDelta > 0 && (
+                <div className="rounded-xl border border-border/50 bg-card/40 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <Gauge className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Assignment Probability</span>
+                    </div>
+                    <span className={cn(
+                      'text-sm font-black',
+                      result.shortDelta >= 0.70 ? 'text-red-400' :
+                      result.shortDelta >= 0.50 ? 'text-orange-400' :
+                      result.shortDelta >= 0.30 ? 'text-amber-400' : 'text-emerald-400'
+                    )}>
+                      ~{(result.shortDelta * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="h-2 rounded-full bg-accent/30 overflow-hidden">
+                    <div
+                      className={cn(
+                        'h-full rounded-full transition-all duration-700',
+                        result.shortDelta >= 0.70 ? 'bg-red-500' :
+                        result.shortDelta >= 0.50 ? 'bg-orange-500' :
+                        result.shortDelta >= 0.30 ? 'bg-amber-500' : 'bg-emerald-500'
+                      )}
+                      style={{ width: `${Math.min(100, result.shortDelta * 100).toFixed(0)}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1.5">
+                    {result.shortDelta >= 0.70
+                      ? 'Deep ITM — assignment is very likely at expiration. Consider defending now.'
+                      : result.shortDelta >= 0.50
+                      ? 'ITM — more likely than not to be assigned. Monitor closely.'
+                      : result.shortDelta >= 0.30
+                      ? 'Near the money — elevated risk. Keep an eye on this position.'
+                      : 'OTM — manageable risk. Position is working in your favor.'}
+                  </p>
+                </div>
+              )}
+
               {/* === AI VERDICT + RECOMMENDATION === */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
@@ -978,6 +1028,9 @@ function TickerAnalysisPanel({
                       <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-400">Live Roll Candidates</span>
                       {rollCandidates.length > 0 && (
                         <span className="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded-full">{rollCandidates.length}</span>
+                      )}
+                      {!rollMutation.isPending && rollCandidates.length > 0 && dteWindowUsed === '60-90' && (
+                        <span className="text-[9px] bg-amber-500/15 text-amber-400 border border-amber-500/25 px-1.5 py-0.5 rounded-full">60–90 DTE</span>
                       )}
                     </div>
                     <ChevronRight className={cn('w-3.5 h-3.5 text-muted-foreground transition-transform', showRollCandidates && 'rotate-90')} />
@@ -1076,9 +1129,20 @@ function TickerAnalysisPanel({
                                   <div className="space-y-1">
                                     <p className="text-[11px] text-foreground/80">1. Your {totalShares.toLocaleString()} shares are called away at ${shortStrike}/share.</p>
                                     <p className="text-[11px] text-foreground/80">2. ${cashOnAssignment?.toLocaleString()} cash is deposited into your account.</p>
-                                    <p className="text-[11px] text-foreground/80">3. You keep the ${ premiumCollected.toLocaleString(undefined, { maximumFractionDigits: 0 })} premium already collected — that's yours regardless.</p>
+                                    <p className="text-[11px] text-foreground/80">3. You keep the ${ premiumCollected.toLocaleString(undefined, { maximumFractionDigits: 0 })} premium already collected — that’s yours regardless.</p>
                                     <p className="text-[11px] text-foreground/80">4. After assignment, you can sell a new Cash-Secured Put (CSP) on {ticker?.symbol} to re-enter the wheel at a lower strike.</p>
                                   </div>
+                                  {/* Sell CSP After Assignment quick-start button */}
+                                  <button
+                                    onClick={() => {
+                                      onClose();
+                                      navigate(`/csp?symbol=${encodeURIComponent(ticker?.symbol ?? '')}`);
+                                    }}
+                                    className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold py-2 hover:bg-emerald-500/25 transition-colors"
+                                  >
+                                    <Target className="w-3.5 h-3.5" />
+                                    Sell CSP on {ticker?.symbol} to Re-Enter the Wheel
+                                  </button>
                                 </div>
                               </div>
                             )}

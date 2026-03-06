@@ -1756,6 +1756,13 @@ For howToExecute, write 3-5 numbered steps that teach the student EXACTLY how to
         if (typeof raw === 'string') aiResult = JSON.parse(raw);
       } catch { /* use default */ }
 
+      // Compute approximate short delta per contract (absolute value, 0-1 scale)
+      // netDelta is the aggregate delta across all contracts; divide by (contracts * 100) to get per-share delta
+      const sharesPerContract = 100;
+      const shortDeltaApprox = input.contracts > 0
+        ? Math.min(1, Math.abs(input.netDelta) / (input.contracts * sharesPerContract))
+        : null;
+
       return {
         symbol: input.symbol,
         strategyType,
@@ -1768,6 +1775,7 @@ For howToExecute, write 3-5 numbered steps that teach the student EXACTLY how to
         avgIv: input.avgIv,
         premiumAtRisk: input.premiumAtRisk,
         underlyingPrice,  // current stock price from Tradier (null if unavailable)
+        shortDelta: shortDeltaApprox,  // approximate per-contract short delta (0-1)
         // AI fields
         verdict: aiResult.verdict,
         recommendation: aiResult.recommendation,
@@ -1812,18 +1820,28 @@ For howToExecute, write 3-5 numbered steps that teach the student EXACTLY how to
       const isSpread = isBCS || isBPS || isIC;
       const spreadWidth = input.spreadWidth ?? 5;
 
-      // Get expirations in 21-60 DTE window
+      // Get expirations — try 21-60 DTE first, fall back to 60-90 DTE if empty
       const now = Date.now();
       let expirations: string[] = [];
+      let dteWindowUsed: '21-60' | '60-90' = '21-60';
+      let allExps: string[] = [];
       try {
-        const allExps = await tradierApi.getExpirations(input.symbol);
+        allExps = await tradierApi.getExpirations(input.symbol);
         expirations = allExps.filter(exp => {
           const dte = Math.round((new Date(exp).getTime() - now) / (1000 * 60 * 60 * 24));
           return dte >= 21 && dte <= 60;
         });
-      } catch { return { candidates: [] }; }
+        // Fallback: if no expirations in 21-60 window, try 60-90 DTE
+        if (expirations.length === 0) {
+          expirations = allExps.filter(exp => {
+            const dte = Math.round((new Date(exp).getTime() - now) / (1000 * 60 * 60 * 24));
+            return dte > 60 && dte <= 90;
+          });
+          if (expirations.length > 0) dteWindowUsed = '60-90';
+        }
+      } catch { return { candidates: [], dteWindowUsed: '21-60' as const }; }
 
-      if (expirations.length === 0) return { candidates: [] };
+      if (expirations.length === 0) return { candidates: [], dteWindowUsed: '21-60' as const };
 
       // Estimate close debit for current position (mid price of current short)
       let closeDebit = 0;
@@ -1945,7 +1963,7 @@ For howToExecute, write 3-5 numbered steps that teach the student EXACTLY how to
       if (bestIdx >= 0) candidates[bestIdx].isBest = true;
       else if (candidates.length > 0) candidates[0].isBest = true;
 
-      // Return top 6 candidates
-      return { candidates: candidates.slice(0, 6) };
+      // Return top 6 candidates with DTE window info
+      return { candidates: candidates.slice(0, 6), dteWindowUsed };
     }),
 });
