@@ -1260,18 +1260,40 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         chainKeys.get(key)!.positions.push(pos);
       }
 
-      // Fetch option chains for each unique underlying+expiration and look up Greeks
-      for (const [, { symbol, expiration, positions: chainPositions }] of Array.from(chainKeys.entries())) {
-        let chainContracts: any[] = [];
-        if (tradierApi) {
+      // Fetch option chains for ALL unique underlying+expiration CONCURRENTLY to avoid sequential timeout
+      const chainEntries = Array.from(chainKeys.entries());
+      const chainResults = await Promise.allSettled(
+        chainEntries.map(async ([, { symbol, expiration }]) => {
+          if (!tradierApi) return { symbol, expiration, contracts: [] };
           try {
-            chainContracts = await tradierApi.getOptionChain(symbol, expiration, true);
+            // Per-chain timeout: 15s so one slow symbol doesn't block the rest
+            const timeoutPromise = new Promise<any[]>((_, reject) =>
+              setTimeout(() => reject(new Error('chain timeout')), 15000)
+            );
+            const contracts = await Promise.race([
+              tradierApi.getOptionChain(symbol, expiration, true),
+              timeoutPromise,
+            ]);
+            return { symbol, expiration, contracts: contracts || [] };
           } catch {
-            // If chain fetch fails, continue without Greeks for this expiration
+            return { symbol, expiration, contracts: [] };
           }
-        }
+        })
+      );
+
+      // Build a map from chainKey → contractMap for quick lookup below
+      const chainContractMaps = new Map<string, Map<string, any>>();
+      for (let i = 0; i < chainEntries.length; i++) {
+        const [key] = chainEntries[i];
+        const result = chainResults[i];
+        const contracts = result.status === 'fulfilled' ? result.value.contracts : [];
         const contractMap = new Map<string, any>();
-        for (const c of chainContracts) contractMap.set(c.symbol, c);
+        for (const c of contracts) contractMap.set(c.symbol, c);
+        chainContractMaps.set(key, contractMap);
+      }
+
+      for (const [, { symbol, expiration, positions: chainPositions }] of chainEntries) {
+        const contractMap = chainContractMaps.get(`${symbol}|${expiration}`) ?? new Map<string, any>();
 
         for (const pos of chainPositions) {
           const qty = parseInt(String(pos.quantity || '0'));

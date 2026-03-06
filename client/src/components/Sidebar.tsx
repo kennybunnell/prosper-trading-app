@@ -92,6 +92,12 @@ export function Sidebar({ className }: SidebarProps) {
   // Primary nav items (top-level, always visible)
   const primaryNavItems = [
     {
+      name: 'Dashboard',
+      path: '/',
+      icon: LayoutDashboard,
+      description: 'Overview & analytics',
+    },
+    {
       name: 'Portfolio',
       path: '/portfolio',
       icon: Grid3X3,
@@ -125,7 +131,8 @@ export function Sidebar({ className }: SidebarProps) {
 
   const renderNavLink = (item: { name: string; path: string; icon: any; badge?: number; badgeCritical?: boolean; description?: string }, indent = false) => {
     const Icon = item.icon;
-    const isActive = location === item.path;
+    // For root path, only match exactly; for others, use exact match too
+    const isActive = item.path === '/' ? location === '/' : location === item.path;
     return (
       <Link
         key={item.path}
