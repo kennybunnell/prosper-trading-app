@@ -7398,3 +7398,11 @@
 ## AI Panel: How to Execute Section (Mar 6, 2026)
 - [x] Extend analyzeTicker AI JSON schema to include a howToExecute array (3-5 numbered steps specific to the verdict)
 - [x] Update TickerAnalysisPanel UI to render the numbered steps in a styled educational section below the recommendation
+
+## Assignment Scenario Calculator (Mar 6, 2026)
+- [x] When roll candidates section is empty, show Assignment Scenario breakdown instead of dead-end message
+- [x] Calculate cash received on assignment: contracts × 100 × strike
+- [x] Calculate effective sale price: strike + (premiumCollected / totalShares)
+- [x] Compare effective sale price vs. current stock price with above/below market indicator
+- [x] Explain what happens next: shares called away, cash received, re-enter with CSP
+- [x] 14 unit tests for assignment scenario calculator (all passing)

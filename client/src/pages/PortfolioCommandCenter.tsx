@@ -991,9 +991,100 @@ function TickerAnalysisPanel({
                           <span className="text-xs text-muted-foreground">Scanning live option chains…</span>
                         </div>
                       )}
-                      {!rollMutation.isPending && rollCandidates.length === 0 && (
-                        <p className="text-xs text-muted-foreground text-center py-3">No net-credit roll candidates found in the 21–60 DTE window.</p>
-                      )}
+                      {!rollMutation.isPending && rollCandidates.length === 0 && (() => {
+                        // --- Assignment Scenario Calculator ---
+                        // Parse the short strike from strikeDisplay (e.g. "$185 CALL" or "$185 CALL / $190 CALL")
+                        const strikeMatch = result?.strikeDisplay?.match(/\$(\d+(?:\.\d+)?)/);
+                        const shortStrike = strikeMatch ? parseFloat(strikeMatch[1]) : null;
+                        const contracts = result?.contracts ?? 0;
+                        const sharesPerContract = 100;
+                        const totalShares = contracts * sharesPerContract;
+                        const cashOnAssignment = shortStrike != null ? shortStrike * totalShares : null;
+                        const premiumCollected = result?.premiumCollected ?? 0;
+                        const effectiveSalePrice = shortStrike != null && totalShares > 0
+                          ? shortStrike + (premiumCollected / totalShares)
+                          : null;
+                        const currentPrice = result?.underlyingPrice ?? null;
+                        const aboveMarket = effectiveSalePrice != null && currentPrice != null
+                          ? effectiveSalePrice > currentPrice
+                          : null;
+
+                        return (
+                          <div className="space-y-3 py-1">
+                            {/* Header */}
+                            <div className="flex items-center gap-2 px-1">
+                              <div className="w-2 h-2 rounded-full bg-amber-400" />
+                              <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-400">No Roll Available — Assignment Scenario</span>
+                            </div>
+
+                            {/* Explanation */}
+                            <p className="text-xs text-muted-foreground leading-relaxed px-1">
+                              No net-credit roll was found in the 21–60 DTE window. The market is pricing this position too deep ITM to roll for a credit.
+                              Here is what happens if you let the position get assigned:
+                            </p>
+
+                            {/* Calculation Cards */}
+                            {shortStrike != null && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="rounded-lg border border-border/40 bg-card/50 p-2.5">
+                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Cash Received</p>
+                                  <p className="text-sm font-bold text-foreground">
+                                    {cashOnAssignment != null ? `$${cashOnAssignment.toLocaleString()}` : '—'}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                                    {contracts} contracts × {sharesPerContract} shares × ${shortStrike}
+                                  </p>
+                                </div>
+
+                                <div className="rounded-lg border border-border/40 bg-card/50 p-2.5">
+                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Effective Sale Price</p>
+                                  <p className={cn('text-sm font-bold', aboveMarket === true ? 'text-emerald-400' : aboveMarket === false ? 'text-red-400' : 'text-foreground')}>
+                                    {effectiveSalePrice != null ? `$${effectiveSalePrice.toFixed(2)}` : '—'}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                                    Strike + premium ÷ shares
+                                  </p>
+                                </div>
+
+                                {currentPrice != null && effectiveSalePrice != null && (
+                                  <div className="col-span-2 rounded-lg border border-border/40 bg-card/50 p-2.5">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">vs. Current Market Price</p>
+                                    <div className="flex items-center gap-2">
+                                      <span className={cn('text-xs font-semibold', aboveMarket ? 'text-emerald-400' : 'text-red-400')}>
+                                        {aboveMarket ? '▲ Above market' : '▼ Below market'}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground">
+                                        Effective ${effectiveSalePrice.toFixed(2)} vs. current ${currentPrice.toFixed(2)}
+                                        {' '}({aboveMarket ? '+' : ''}{((effectiveSalePrice - currentPrice) / currentPrice * 100).toFixed(1)}%)
+                                      </span>
+                                    </div>
+                                    {aboveMarket && (
+                                      <p className="text-[10px] text-emerald-400/80 mt-1">
+                                        Your premium collected lifts your effective exit above today's price — you're selling at a premium to the market.
+                                      </p>
+                                    )}
+                                    {!aboveMarket && (
+                                      <p className="text-[10px] text-amber-400/80 mt-1">
+                                        The stock has moved significantly above your strike. Assignment still returns cash, but at a below-market effective price.
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+
+                                <div className="col-span-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5">
+                                  <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider mb-1.5">What Happens Next</p>
+                                  <div className="space-y-1">
+                                    <p className="text-[11px] text-foreground/80">1. Your {totalShares.toLocaleString()} shares are called away at ${shortStrike}/share.</p>
+                                    <p className="text-[11px] text-foreground/80">2. ${cashOnAssignment?.toLocaleString()} cash is deposited into your account.</p>
+                                    <p className="text-[11px] text-foreground/80">3. You keep the ${ premiumCollected.toLocaleString(undefined, { maximumFractionDigits: 0 })} premium already collected — that's yours regardless.</p>
+                                    <p className="text-[11px] text-foreground/80">4. After assignment, you can sell a new Cash-Secured Put (CSP) on {ticker?.symbol} to re-enter the wheel at a lower strike.</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {rollCandidates.length > 0 && (
                         <div className="space-y-2">
                           {rollCandidates.map((c, i) => (
