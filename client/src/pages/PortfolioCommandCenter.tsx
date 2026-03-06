@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +18,10 @@ import {
   RefreshCw,
   BarChart2,
   Zap,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -35,7 +39,207 @@ type TickerData = {
   strategies: string[];
   avgDte: number;
   avgIv: number;
+  greeksLoaded?: boolean;  // true once Greeks have been fetched for this ticker
 };
+
+type PositionSummary = {
+  symbol: string;
+  underlying: string;
+  expiration: string;
+  quantity: number;
+  direction: string;
+  multiplier: number;
+  openPrice: number;
+  expiresAt: string;
+  accountNumber: string;
+};
+
+type LoadPhase = 'idle' | 'positions' | 'greeks' | 'done' | 'error';
+
+// ─── Progressive Heat Map Hook ────────────────────────────────────────────────
+// Two-stage loading: (1) fetch positions fast, (2) fetch Greeks in batches of N
+function useProgressiveHeatMap(batchSize = 5) {
+  const [tickers, setTickers] = useState<TickerData[]>([]);
+  const [phase, setPhase] = useState<LoadPhase>('idle');
+  const [batchesDone, setBatchesDone] = useState(0);
+  const [totalBatches, setTotalBatches] = useState(0);
+  const [greeksLoaded, setGreeksLoaded] = useState(0);
+  const [totalChainKeys, setTotalChainKeys] = useState(0);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [failedBatches, setFailedBatches] = useState(0);
+  const runningRef = useRef(false);
+  const positionsRef = useRef<PositionSummary[]>([]);
+  const chainKeysRef = useRef<{ symbol: string; expiration: string }[]>([]);
+
+  const utils = trpc.useUtils();
+
+  // Build ticker map from positions + greeks
+  const buildTickers = useCallback((
+    positions: PositionSummary[],
+    greeksMap: Record<string, { delta: number; theta: number; vega: number; gamma: number; mid_iv: number }>,
+    loadedSymbols: Set<string>
+  ) => {
+    const tickerMap = new Map<string, TickerData>();
+
+    for (const pos of positions) {
+      const { underlying, symbol, quantity, direction, multiplier, openPrice, expiresAt } = pos;
+      const absQty = Math.abs(quantity);
+      const isShort = direction?.toLowerCase() === 'short' || quantity < 0;
+      const sign = isShort ? -1 : 1;
+
+      const occMatch = symbol?.match(/([CP])(\d{8})$/);
+      const isPut = occMatch ? occMatch[1] === 'P' : false;
+      const strategy = isShort ? (isPut ? 'CSP' : 'CC') : (isPut ? 'Long Put' : 'Long Call');
+
+      const premiumAtRisk = openPrice * absQty * multiplier;
+      const dte = expiresAt
+        ? Math.max(0, Math.round((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+        : 0;
+
+      const g = greeksMap[symbol] ?? { delta: 0, theta: 0, vega: 0, gamma: 0, mid_iv: 0 };
+      const scaledDelta = g.delta * sign * absQty * multiplier;
+      const scaledTheta = g.theta * sign * absQty * multiplier;
+      const scaledVega = g.vega * sign * absQty * multiplier;
+      const scaledGamma = g.gamma * sign * absQty * multiplier;
+
+      const existing = tickerMap.get(underlying);
+      if (!existing) {
+        tickerMap.set(underlying, {
+          symbol: underlying,
+          netDelta: scaledDelta,
+          dailyTheta: scaledTheta,
+          netVega: scaledVega,
+          netGamma: scaledGamma,
+          premiumAtRisk,
+          contracts: absQty,
+          strategies: [strategy],
+          avgDte: dte,
+          avgIv: g.mid_iv > 0 ? g.mid_iv : 0,
+          greeksLoaded: loadedSymbols.has(underlying),
+        });
+      } else {
+        const prevContracts = existing.contracts;
+        existing.netDelta += scaledDelta;
+        existing.dailyTheta += scaledTheta;
+        existing.netVega += scaledVega;
+        existing.netGamma += scaledGamma;
+        existing.premiumAtRisk += premiumAtRisk;
+        existing.contracts += absQty;
+        if (!existing.strategies.includes(strategy)) existing.strategies.push(strategy);
+        existing.avgDte = prevContracts > 0
+          ? (existing.avgDte * prevContracts + dte * absQty) / existing.contracts
+          : dte;
+        if (g.mid_iv > 0) {
+          existing.avgIv = prevContracts > 0 && existing.avgIv > 0
+            ? (existing.avgIv * prevContracts + g.mid_iv * absQty) / existing.contracts
+            : g.mid_iv;
+        }
+        existing.greeksLoaded = existing.greeksLoaded || loadedSymbols.has(underlying);
+      }
+    }
+
+    return Array.from(tickerMap.values()).sort((a, b) => b.premiumAtRisk - a.premiumAtRisk);
+  }, []);
+
+  const startLoad = useCallback(async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    setPhase('positions');
+    setTickers([]);
+    setBatchesDone(0);
+    setTotalBatches(0);
+    setGreeksLoaded(0);
+    setTotalChainKeys(0);
+    setFailedBatches(0);
+
+    try {
+      // Stage 1: fetch positions (fast)
+      const posData = await utils.automation.getPortfolioPositions.fetch();
+      positionsRef.current = posData.positions as PositionSummary[];
+      chainKeysRef.current = posData.chainKeys;
+
+      if (!posData.positions.length) {
+        setPhase('done');
+        runningRef.current = false;
+        return;
+      }
+
+      // Show tiles immediately with zero Greeks (premium at risk is already available)
+      const greeksMap: Record<string, { delta: number; theta: number; vega: number; gamma: number; mid_iv: number }> = {};
+      const loadedSymbols = new Set<string>();
+      setTickers(buildTickers(posData.positions as PositionSummary[], greeksMap, loadedSymbols));
+      setTotalChainKeys(posData.chainKeys.length);
+      setPhase('greeks');
+
+      // Stage 2: fetch Greeks in batches
+      const batches: { symbol: string; expiration: string }[][] = [];
+      for (let i = 0; i < posData.chainKeys.length; i += batchSize) {
+        batches.push(posData.chainKeys.slice(i, i + batchSize));
+      }
+      setTotalBatches(batches.length);
+
+      let failed = 0;
+      for (let bi = 0; bi < batches.length; bi++) {
+        try {
+          const result = await utils.automation.getGreeksBatch.fetch({ batch: batches[bi] });
+          Object.assign(greeksMap, result.greeks);
+          // Mark which underlying symbols now have Greeks
+          for (const ck of batches[bi]) loadedSymbols.add(ck.symbol);
+          setGreeksLoaded(prev => prev + batches[bi].length);
+        } catch {
+          failed++;
+          setFailedBatches(f => f + 1);
+        }
+        setBatchesDone(bi + 1);
+        // Update tiles after each batch so they populate progressively
+        setTickers(buildTickers(posData.positions as PositionSummary[], { ...greeksMap }, new Set(loadedSymbols)));
+      }
+
+      setLastRefreshed(new Date());
+      setPhase('done');
+    } catch {
+      setPhase('error');
+    } finally {
+      runningRef.current = false;
+    }
+  }, [batchSize, buildTickers, utils]);
+
+  // Auto-start on mount
+  useEffect(() => {
+    startLoad();
+  }, [startLoad]);
+
+  const portfolio = useMemo(() => {
+    if (!tickers.length) return null;
+    const totalPremium = tickers.reduce((s, t) => s + t.premiumAtRisk, 0);
+    const maxConcentration = totalPremium > 0
+      ? Math.max(...tickers.map(t => t.premiumAtRisk / totalPremium * 100))
+      : 0;
+    return {
+      netDelta: tickers.reduce((s, t) => s + t.netDelta, 0),
+      dailyTheta: tickers.reduce((s, t) => s + t.dailyTheta, 0),
+      netVega: tickers.reduce((s, t) => s + t.netVega, 0),
+      netGamma: tickers.reduce((s, t) => s + t.netGamma, 0),
+      totalPremiumAtRisk: totalPremium,
+      maxConcentration: Math.round(maxConcentration * 10) / 10,
+      positionCount: tickers.reduce((s, t) => s + t.contracts, 0),
+    };
+  }, [tickers]);
+
+  return {
+    tickers,
+    portfolio,
+    phase,
+    batchesDone,
+    totalBatches,
+    greeksLoaded,
+    totalChainKeys,
+    lastRefreshed,
+    failedBatches,
+    isLoading: phase === 'positions' || phase === 'greeks',
+    refresh: startLoad,
+  };
+}
 
 // ─── Heat Map Cell ────────────────────────────────────────────────────────────
 function HeatMapCell({
@@ -49,13 +253,18 @@ function HeatMapCell({
 }) {
   const value = viewMode === 'delta' ? ticker.netDelta : ticker.dailyTheta;
   const intensity = maxValue > 0 ? Math.min(Math.abs(value) / maxValue, 1) : 0;
+  const greeksReady = ticker.greeksLoaded !== false; // show colors once loaded
 
   // Color logic:
   // Delta view: green = long bias (positive), red = short bias (negative), slate = neutral
   // Theta view: green = positive theta income (short options), blue = negative theta (long options)
   let bgColor: string;
   let textColor: string;
-  if (viewMode === 'delta') {
+  if (!greeksReady) {
+    // Still loading Greeks for this ticker — show a neutral shimmer
+    bgColor = 'rgba(100, 116, 139, 0.12)';
+    textColor = 'text-muted-foreground';
+  } else if (viewMode === 'delta') {
     if (value > 0.5) {
       bgColor = `rgba(34, 197, 94, ${0.15 + intensity * 0.55})`;
       textColor = 'text-green-300';
@@ -91,7 +300,10 @@ function HeatMapCell({
       <Tooltip>
         <TooltipTrigger asChild>
           <div
-            className="rounded-lg p-3 cursor-default transition-all duration-200 hover:scale-105 hover:z-10 relative border border-white/5"
+            className={cn(
+              'rounded-lg p-3 cursor-default transition-all duration-300 hover:scale-105 hover:z-10 relative border border-white/5',
+              !greeksReady && 'animate-pulse'
+            )}
             style={{ backgroundColor: bgColor, minHeight: '80px' }}
           >
             <div className="flex flex-col h-full justify-between">
@@ -100,7 +312,14 @@ function HeatMapCell({
                 <span className="text-[9px] text-muted-foreground/70 leading-tight">{ticker.contracts}c</span>
               </div>
               <div>
-                <div className={cn('text-sm font-bold', textColor)}>{displayValue}</div>
+                {!greeksReady ? (
+                  <div className="flex items-center gap-1 mt-2">
+                    <Loader2 className="w-3 h-3 text-muted-foreground/50 animate-spin" />
+                    <span className="text-[9px] text-muted-foreground/50">loading…</span>
+                  </div>
+                ) : (
+                  <div className={cn('text-sm font-bold transition-colors duration-500', textColor)}>{displayValue}</div>
+                )}
                 <div className="text-[9px] text-muted-foreground/60 mt-0.5">{premiumLabel} at risk</div>
               </div>
             </div>
@@ -139,12 +358,24 @@ function HeatMapCell({
 // ─── Heat Map Grid ────────────────────────────────────────────────────────────
 function HeatMapGrid({
   tickers,
-  isLoading,
+  phase,
+  batchesDone,
+  totalBatches,
+  greeksLoaded,
+  totalChainKeys,
+  lastRefreshed,
+  failedBatches,
   viewMode,
   onRefresh,
 }: {
   tickers: TickerData[];
-  isLoading: boolean;
+  phase: LoadPhase;
+  batchesDone: number;
+  totalBatches: number;
+  greeksLoaded: number;
+  totalChainKeys: number;
+  lastRefreshed: Date | null;
+  failedBatches: number;
   viewMode: ViewMode;
   onRefresh: () => void;
 }) {
@@ -153,17 +384,44 @@ function HeatMapGrid({
     return Math.max(...tickers.map(t => Math.abs(viewMode === 'delta' ? t.netDelta : t.dailyTheta)));
   }, [tickers, viewMode]);
 
-  if (isLoading) {
+  const progressPct = totalBatches > 0 ? Math.round((batchesDone / totalBatches) * 100) : 0;
+
+  // Progress bar (shown during greeks phase and briefly after done)
+  const showProgress = phase === 'positions' || phase === 'greeks';
+
+  if (phase === 'positions') {
     return (
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 p-4">
-        {Array.from({ length: 16 }).map((_, i) => (
-          <div key={i} className="rounded-lg bg-accent/20 animate-pulse" style={{ minHeight: '80px' }} />
-        ))}
+      <div className="space-y-4 p-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+          <span>Fetching positions from Tastytrade…</span>
+        </div>
+        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="rounded-lg bg-accent/20 animate-pulse" style={{ minHeight: '80px' }} />
+          ))}
+        </div>
       </div>
     );
   }
 
-  if (!tickers.length) {
+  if (phase === 'error') {
+    return (
+      <div className="rounded-xl border border-dashed border-red-500/30 bg-red-500/5 p-10 text-center space-y-3">
+        <XCircle className="w-12 h-12 text-red-400/50 mx-auto" />
+        <div>
+          <p className="text-sm font-medium text-foreground">Failed to load portfolio data</p>
+          <p className="text-xs text-muted-foreground mt-1">Check your Tastytrade credentials in Settings.</p>
+        </div>
+        <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={onRefresh}>
+          <RefreshCw className="w-3.5 h-3.5" />
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (!tickers.length && phase === 'done') {
     return (
       <div className="rounded-xl border border-dashed border-border/60 bg-background/30 p-10 text-center space-y-3">
         <Grid3X3 className="w-12 h-12 text-muted-foreground/30 mx-auto" />
@@ -182,10 +440,55 @@ function HeatMapGrid({
   }
 
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-2">
-      {tickers.map(ticker => (
-        <HeatMapCell key={ticker.symbol} ticker={ticker} viewMode={viewMode} maxValue={maxValue} />
-      ))}
+    <div className="space-y-3">
+      {/* Progress bar — visible while loading Greeks */}
+      {showProgress && totalBatches > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <Loader2 className="w-3 h-3 animate-spin text-amber-400" />
+              Loading Greeks… {greeksLoaded}/{totalChainKeys} expirations
+              {failedBatches > 0 && (
+                <span className="text-amber-400/80 ml-1">({failedBatches} batch{failedBatches > 1 ? 'es' : ''} timed out)</span>
+              )}
+            </span>
+            <span className="text-amber-400 font-medium">{progressPct}%</span>
+          </div>
+          <div className="w-full h-1.5 bg-accent/30 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-muted-foreground/60">
+            Tiles populate as each batch of {Math.ceil(totalChainKeys / totalBatches)} expirations completes — colors will appear progressively
+          </p>
+        </div>
+      )}
+
+      {/* Done status */}
+      {phase === 'done' && lastRefreshed && (
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground/60">
+          <span className="flex items-center gap-1.5">
+            <CheckCircle2 className="w-3 h-3 text-green-500/70" />
+            Greeks loaded for {tickers.filter(t => t.greeksLoaded).length}/{tickers.length} tickers
+            {failedBatches > 0 && (
+              <span className="text-amber-400/80 ml-1">· {failedBatches} batch{failedBatches > 1 ? 'es' : ''} timed out</span>
+            )}
+          </span>
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {lastRefreshed.toLocaleTimeString()}
+          </span>
+        </div>
+      )}
+
+      {/* Tile grid */}
+      <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-2">
+        {tickers.map(ticker => (
+          <HeatMapCell key={ticker.symbol} ticker={ticker} viewMode={viewMode} maxValue={maxValue} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -273,14 +576,19 @@ function PortfolioStatBar({
 export default function PortfolioCommandCenter() {
   const [activeTab, setActiveTab] = useState('heatmap');
   const [viewMode, setViewMode] = useState<ViewMode>('delta');
-
-  const { data, isLoading, refetch } = trpc.automation.getPortfolioGreeks.useQuery(undefined, {
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    refetchOnWindowFocus: false,
-  });
-
-  const tickers = (data?.tickers ?? []) as TickerData[];
-  const portfolio = data?.portfolio;
+  const {
+    tickers,
+    portfolio,
+    phase,
+    batchesDone,
+    totalBatches,
+    greeksLoaded,
+    totalChainKeys,
+    lastRefreshed,
+    failedBatches,
+    isLoading,
+    refresh,
+  } = useProgressiveHeatMap(5);
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
@@ -303,7 +611,7 @@ export default function PortfolioCommandCenter() {
           variant="outline"
           size="sm"
           className="gap-1.5 h-8 text-xs"
-          onClick={() => refetch()}
+          onClick={() => refresh()}
           disabled={isLoading}
         >
           <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
@@ -312,7 +620,7 @@ export default function PortfolioCommandCenter() {
       </div>
 
       {/* Portfolio Stat Bar */}
-      <PortfolioStatBar portfolio={portfolio} isLoading={isLoading} />
+      <PortfolioStatBar portfolio={portfolio ?? undefined} isLoading={isLoading} />
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -406,9 +714,15 @@ export default function PortfolioCommandCenter() {
             <CardContent>
               <HeatMapGrid
                 tickers={tickers}
-                isLoading={isLoading}
+                phase={phase}
+                batchesDone={batchesDone}
+                totalBatches={totalBatches}
+                greeksLoaded={greeksLoaded}
+                totalChainKeys={totalChainKeys}
+                lastRefreshed={lastRefreshed}
+                failedBatches={failedBatches}
                 viewMode={viewMode}
-                onRefresh={() => refetch()}
+                onRefresh={refresh}
               />
             </CardContent>
           </Card>

@@ -1375,4 +1375,131 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
 
     return { tickers, portfolio };
   }),
+
+  // ─── Stage 1: Get all positions (fast, no Greeks) ────────────────────────────
+  // Returns position metadata grouped by symbol+expiration for the frontend
+  // to use as input for batched Greeks fetching.
+  getPortfolioPositions: protectedProcedure.query(async ({ ctx }) => {
+    const { authenticateTastytrade } = await import('./tastytrade');
+    const { getApiCredentials } = await import('./db');
+
+    const credentials = await getApiCredentials(ctx.user.id);
+    if (!credentials?.tastytradeRefreshToken && !credentials?.tastytradePassword) {
+      return { chainKeys: [], positions: [] };
+    }
+
+    const tt = await authenticateTastytrade(credentials, ctx.user.id);
+    if (!tt) return { chainKeys: [], positions: [] };
+
+    const accounts = await tt.getAccounts();
+    const accountNumbers: string[] = accounts.map((acc: any) =>
+      acc.account?.['account-number'] || acc['account-number'] || acc.accountNumber
+    ).filter(Boolean);
+
+    type PositionSummary = {
+      symbol: string;          // OCC symbol e.g. "SPY   260117P00580000"
+      underlying: string;      // e.g. "SPY"
+      expiration: string;      // e.g. "2026-01-17"
+      quantity: number;
+      direction: string;
+      multiplier: number;
+      openPrice: number;
+      expiresAt: string;
+      accountNumber: string;
+    };
+
+    const allPositions: PositionSummary[] = [];
+    const chainKeySet = new Map<string, { symbol: string; expiration: string }>();
+
+    for (const accountNumber of accountNumbers) {
+      let positions: any[] = [];
+      try {
+        positions = await tt.getPositions(accountNumber);
+      } catch { continue; }
+
+      for (const pos of positions) {
+        if (pos['instrument-type'] !== 'Equity Option') continue;
+        const underlying = pos['underlying-symbol'] || '';
+        const expiration = pos['expires-at'] ? pos['expires-at'].split('T')[0] : null;
+        if (!underlying || !expiration) continue;
+
+        const key = `${underlying}|${expiration}`;
+        if (!chainKeySet.has(key)) chainKeySet.set(key, { symbol: underlying, expiration });
+
+        allPositions.push({
+          symbol: pos.symbol || '',
+          underlying,
+          expiration,
+          quantity: parseInt(String(pos.quantity || '0')),
+          direction: pos['quantity-direction'] || '',
+          multiplier: parseInt(String(pos.multiplier || '100')),
+          openPrice: Math.abs(parseFloat(String(pos['average-open-price'] || '0'))),
+          expiresAt: pos['expires-at'] || '',
+          accountNumber,
+        });
+      }
+    }
+
+    return {
+      chainKeys: Array.from(chainKeySet.values()),
+      positions: allPositions,
+    };
+  }),
+
+  // ─── Stage 2: Fetch Greeks for a specific batch of symbol+expiration pairs ───
+  // Called repeatedly by the frontend in waves (e.g. 5 at a time).
+  // Returns Greeks keyed by OCC symbol for each contract in the batch.
+  getGreeksBatch: protectedProcedure
+    .input(z.object({
+      batch: z.array(z.object({ symbol: z.string(), expiration: z.string() })),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const { createTradierAPI } = await import('./tradier');
+
+      const credentials = await getApiCredentials(ctx.user.id);
+      const tradierApiKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+      if (!tradierApiKey) return { greeks: {} };
+
+      const tradierApi = createTradierAPI(tradierApiKey);
+
+      // Fetch all chains in this batch concurrently
+      const results = await Promise.allSettled(
+        input.batch.map(async ({ symbol, expiration }) => {
+          try {
+            const timeoutPromise = new Promise<any[]>((_, reject) =>
+              setTimeout(() => reject(new Error('timeout')), 12000)
+            );
+            const contracts = await Promise.race([
+              tradierApi.getOptionChain(symbol, expiration, true),
+              timeoutPromise,
+            ]);
+            return { symbol, expiration, contracts: contracts || [] };
+          } catch {
+            return { symbol, expiration, contracts: [] };
+          }
+        })
+      );
+
+      // Build a flat map: OCC symbol → greeks object
+      const greeks: Record<string, {
+        delta: number; theta: number; vega: number; gamma: number; mid_iv: number;
+      }> = {};
+
+      for (const result of results) {
+        if (result.status !== 'fulfilled') continue;
+        for (const contract of result.value.contracts) {
+          if (!contract.symbol || !contract.greeks) continue;
+          greeks[contract.symbol] = {
+            delta: contract.greeks.delta ?? 0,
+            theta: contract.greeks.theta ?? 0,
+            vega: contract.greeks.vega ?? 0,
+            gamma: contract.greeks.gamma ?? 0,
+            mid_iv: contract.greeks.mid_iv ?? 0,
+          };
+        }
+      }
+
+      return { greeks };
+    }),
 });

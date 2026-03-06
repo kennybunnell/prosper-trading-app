@@ -7349,3 +7349,13 @@
 - [x] Enhancement 1: Per-leg P&L tooltip — hover over leg row shows theoretical cost/credit contribution
 - [x] Enhancement 2: IC collapsed row label — show "Put Spread: 550/545 | Call Spread: 570/575" in collapsed view
 - [x] Enhancement 3: Color-code leg action badges — BTC legs amber/red, STC legs green
+
+## Heat Map Progressive Loading (Mar 2026)
+- [x] Add new tRPC procedure: getPortfolioGreeksBatch — fetches positions first, then Greeks in configurable batches (default 5 per batch)
+- [x] Add progress tracking: returns partial results per batch so UI can update progressively
+- [x] Update HeatMapGrid to use progressive loading: tiles populate as each batch completes
+- [x] Add live progress bar showing "Loading Greeks: 15/47 tickers" with batch status
+- [x] Add per-tile loading skeleton while Greeks are pending
+- [x] Add Retry button that re-fetches only failed/missing tiles
+- [x] Add "Last refreshed" timestamp in heat map header
+- [x] Add configurable batch size setting (default 5, options: 3, 5, 10)
