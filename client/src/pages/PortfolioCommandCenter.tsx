@@ -528,17 +528,23 @@ function HeatMapGrid({
     return Math.max(...tickers.map(t => t.premiumAtRisk));
   }, [tickers]);
 
-  // Filter tickers by selected strategy type
+  // Exact-match helper: split strategy string by '/' and check if any segment equals the filter
+  const strategyMatches = useCallback((strategyStr: string, filter: string): boolean => {
+    const segments = strategyStr.toUpperCase().split('/').map(s => s.trim());
+    return segments.some(seg => seg === filter.toUpperCase());
+  }, []);
+
+  // Filter tickers by selected strategy type (exact segment match)
   const filteredTickers = useMemo(() => {
     if (strategyFilter === 'All') return tickers;
     return tickers.filter(t => {
       const allStrats = [
         ...(t.strategies ?? []),
         ...Object.values(t.expirationStrategies ?? {}),
-      ].map(s => s.toUpperCase());
-      return allStrats.some(s => s.includes(strategyFilter));
+      ];
+      return allStrats.some(s => strategyMatches(s, strategyFilter));
     });
-  }, [tickers, strategyFilter]);
+  }, [tickers, strategyFilter, strategyMatches]);
 
   const progressPct = totalBatches > 0 ? Math.round((batchesDone / totalBatches) * 100) : 0;
 
@@ -629,7 +635,14 @@ function HeatMapGrid({
             <CheckCircle2 className="w-3 h-3 text-green-500/70" />
             Greeks loaded for {tickers.filter(t => t.greeksLoaded).length}/{tickers.length} tickers
             {failedBatches > 0 && (
-              <span className="text-amber-400/80 ml-1">· {failedBatches} batch{failedBatches > 1 ? 'es' : ''} timed out</span>
+              <span className="text-amber-400/80 ml-1">· {failedBatches} batch{failedBatches > 1 ? 'es' : ''} timed out —
+                <button
+                  onClick={onRefresh}
+                  className="ml-1 text-amber-400 hover:text-amber-300 underline underline-offset-2 font-medium"
+                >
+                  retry
+                </button>
+              </span>
             )}
           </span>
           <span className="flex items-center gap-1">
@@ -647,8 +660,8 @@ function HeatMapGrid({
               const allStrats = [
                 ...(t.strategies ?? []),
                 ...Object.values(t.expirationStrategies ?? {}),
-              ].map(s => s.toUpperCase());
-              return allStrats.some(s => s.includes(f));
+              ];
+              return allStrats.some(s => strategyMatches(s, f));
             }).length;
             if (f !== 'All' && count === 0) return null;
             return (
@@ -1480,6 +1493,18 @@ export default function PortfolioCommandCenter() {
                   )}
                 </CardTitle>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5 border-border/50 text-muted-foreground hover:text-foreground hover:border-amber-500/40"
+                    onClick={() => refresh()}
+                    disabled={isLoading}
+                    title="Refresh Greeks for all tickers"
+                  >
+                    <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin text-amber-400')} />
+                    {isLoading ? 'Loading…' : 'Refresh Greeks'}
+                  </Button>
+                  <div className="w-px h-4 bg-border/50" />
                   <Button
                     variant={viewMode === 'delta' ? 'default' : 'outline'}
                     size="sm"

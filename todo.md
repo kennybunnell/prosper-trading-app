@@ -7417,3 +7417,7 @@
 - [ ] Multi-expiration tile labels: expose expirationStrategies[] from backend, show "Apr: BPS / May: BCS" on tile
 - [ ] IC tested-side detection: compare stock price to short strikes, only show roll candidates for challenged side
 - [ ] Strategy filter bar: IC | BPS | BCS | CC | CSP | PMCC | All filter above heatmap grid
+
+## Heatmap Filter Bar & Greeks Refresh (Mar 7, 2026)
+- [x] Fix strategy filter bar: use exact-match logic so IC/BPS/BCS appear as separate filters (not hidden inside CC/CSP matches)
+- [x] Add Greeks refresh button to the left of Delta/Theta view toggles that re-triggers Greeks loading for all tickers
