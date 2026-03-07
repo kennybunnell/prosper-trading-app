@@ -84,22 +84,60 @@ function useProgressiveHeatMap(batchSize = 5) {
   const utils = trpc.useUtils();
 
   // Build ticker map from positions + greeks
+  // Detect composite strategy for a group of positions sharing the same underlying+expiration
+  const detectGroupStrategy = useCallback((groupPositions: PositionSummary[]): string => {
+    const legs = groupPositions.map(pos => {
+      const isShort = pos.direction?.toLowerCase() === 'short' || pos.quantity < 0;
+      const occMatch = pos.symbol?.match(/([CP])(\d{8})$/);
+      const isPut = occMatch ? occMatch[1] === 'P' : false;
+      return { isShort, isPut };
+    });
+    const shortPuts  = legs.filter(l => l.isShort && l.isPut).length;
+    const longPuts   = legs.filter(l => !l.isShort && l.isPut).length;
+    const shortCalls = legs.filter(l => l.isShort && !l.isPut).length;
+    const longCalls  = legs.filter(l => !l.isShort && !l.isPut).length;
+
+    if (shortPuts > 0 && longPuts > 0 && shortCalls > 0 && longCalls > 0) return 'IC';
+    if (shortPuts > 0 && longPuts > 0 && shortCalls === 0) return 'BPS';
+    if (shortCalls > 0 && longCalls > 0 && shortPuts === 0) return 'BCS';
+    if (shortCalls > 0 && longCalls > 0 && shortPuts > 0 && longPuts === 0) return 'PMCC';
+    if (shortCalls > 0 && shortPuts === 0 && longCalls === 0) return 'CC';
+    if (shortPuts > 0 && shortCalls === 0 && longPuts === 0) return 'CSP';
+    if (longCalls > 0 && shortCalls === 0 && shortPuts === 0) return 'Long Call';
+    if (longPuts > 0 && shortPuts === 0 && shortCalls === 0) return 'Long Put';
+    return 'Mixed';
+  }, []);
+
   const buildTickers = useCallback((
     positions: PositionSummary[],
     greeksMap: Record<string, { delta: number; theta: number; vega: number; gamma: number; mid_iv: number }>,
     loadedSymbols: Set<string>
   ) => {
+    // Step 1: Group positions by underlying+expiration to detect composite strategies
+    const groupMap = new Map<string, PositionSummary[]>();
+    for (const pos of positions) {
+      const key = `${pos.underlying}|${pos.expiration}`;
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key)!.push(pos);
+    }
+
+    // Step 2: Detect strategy per group
+    const groupStrategyMap = new Map<string, string>();
+    Array.from(groupMap.entries()).forEach(([key, groupPositions]) => {
+      groupStrategyMap.set(key, detectGroupStrategy(groupPositions));
+    });
+
+    // Step 3: Build ticker map using composite strategies
     const tickerMap = new Map<string, TickerData>();
 
     for (const pos of positions) {
-      const { underlying, symbol, quantity, direction, multiplier, openPrice, expiresAt } = pos;
+      const { underlying, symbol, quantity, direction, multiplier, openPrice, expiresAt, expiration } = pos;
       const absQty = Math.abs(quantity);
       const isShort = direction?.toLowerCase() === 'short' || quantity < 0;
       const sign = isShort ? -1 : 1;
 
-      const occMatch = symbol?.match(/([CP])(\d{8})$/);
-      const isPut = occMatch ? occMatch[1] === 'P' : false;
-      const strategy = isShort ? (isPut ? 'CSP' : 'CC') : (isPut ? 'Long Put' : 'Long Call');
+      const groupKey = `${underlying}|${expiration}`;
+      const strategy = groupStrategyMap.get(groupKey) ?? (isShort ? 'CC' : 'Long Call');
 
       const premiumAtRisk = openPrice * absQty * multiplier;
       const dte = expiresAt
@@ -125,6 +163,7 @@ function useProgressiveHeatMap(batchSize = 5) {
           premiumAtRisk,
           contracts: absQty,
           strategies: [strategy],
+          expirationStrategies: { [expiration]: strategy },
           avgDte: dte,
           avgIv: g.mid_iv > 0 ? g.mid_iv : 0,
           greeksLoaded: loadedSymbols.has(underlying),
@@ -138,6 +177,8 @@ function useProgressiveHeatMap(batchSize = 5) {
         existing.premiumAtRisk += premiumAtRisk;
         existing.contracts += absQty;
         if (!existing.strategies.includes(strategy)) existing.strategies.push(strategy);
+        if (!existing.expirationStrategies) existing.expirationStrategies = {};
+        existing.expirationStrategies[expiration] = strategy;
         existing.avgDte = prevContracts > 0
           ? (existing.avgDte * prevContracts + dte * absQty) / existing.contracts
           : dte;
@@ -151,7 +192,7 @@ function useProgressiveHeatMap(batchSize = 5) {
     }
 
     return Array.from(tickerMap.values()).sort((a, b) => b.premiumAtRisk - a.premiumAtRisk);
-  }, []);
+  }, [detectGroupStrategy]);
 
   const startLoad = useCallback(async () => {
     if (runningRef.current) return;

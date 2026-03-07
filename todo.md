@@ -7421,3 +7421,6 @@
 ## Heatmap Filter Bar & Greeks Refresh (Mar 7, 2026)
 - [x] Fix strategy filter bar: use exact-match logic so IC/BPS/BCS appear as separate filters (not hidden inside CC/CSP matches)
 - [x] Add Greeks refresh button to the left of Delta/Theta view toggles that re-triggers Greeks loading for all tickers
+## Strategy Filter Spread Detection Fix (Mar 7, 2026)
+- [x] Re-implement spread detection in buildTickers: group positions by underlying+expiration, detect IC/BPS/BCS/PMCC composite strategies, replace per-leg classification so filter pills show correct counts
+- [x] Add 19 unit tests for detectGroupStrategy and exact-match filter logic (all passing)
