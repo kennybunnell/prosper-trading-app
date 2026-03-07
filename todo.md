@@ -7435,3 +7435,40 @@
 - [x] Add configurable profit target to order preview modal (default 75%, alt 50%)
 - [x] Write 18 unit tests for Phase 1 changes (all passing)
 - [ ] Suppress assignment scenario for SPXW in Portfolio Command Center; show cash settlement panel instead (Phase 2)
+
+## SPX/SPXW Phase 2 (Mar 7, 2026)
+- [ ] Add SPXW-aware composite scoring to IC scanner (recalibrated IV rank, DTE, credit/width weights for index)
+- [ ] Show SPXW score breakdown column in Iron Condor opportunities table
+- [ ] Build GTC close order automation: after confirmed fill, auto-submit GTC limit at profit target price
+- [ ] Add GTC order tracking table (db schema + router + UI panel)
+- [ ] Write unit tests for Phase 2 changes
+
+## SPX/SPXW Phase 2 (Mar 7, 2026)
+- [x] Create ic-scoring.ts with SPXW-aware composite scoring (index path vs equity path)
+- [x] Index path: IV rank scored against index-specific thresholds (15-45 typical range)
+- [x] Index path: RSI/BB replaced by profit zone width and delta neutrality
+- [x] Index path: DTE weight increased to 20 (weekly timing critical for SPXW)
+- [x] Replace inline scoring block in routers.ts with scoreIronCondors() call
+- [x] Add scoreBreakdown tooltip to score badge in Iron Condor table (IDX badge for index)
+- [x] Create gtcOrders database table (pending/submitted/filled/cancelled/failed)
+- [x] Create gtc-orders.ts server module (createGtcRecord, submitGtcCloseOrder, cancelGtcOrder, pollGtcOrderStatus)
+- [x] Add gtc router to appRouter (list, submit, cancel, poll procedures)
+- [x] Create GtcOrders.tsx page with active orders panel and history table
+- [x] Add GTC Orders route (/gtc-orders) to App.tsx
+- [x] Add GTC Orders link to Sidebar secondary nav (Timer icon)
+- [x] Write 29 unit tests for Phase 2 (all passing)
+
+## SPX/SPXW Phase 2 (Mar 7, 2026)
+- [x] Create ic-scoring.ts with SPXW-aware composite scoring (index path vs equity path)
+- [x] Index path: IV rank scored against index-specific thresholds (15-45 typical range)
+- [x] Index path: RSI/BB replaced by profit zone width and delta neutrality
+- [x] Index path: DTE weight increased to 20 (weekly timing critical for SPXW)
+- [x] Replace inline scoring block in routers.ts with scoreIronCondors() call
+- [x] Add scoreBreakdown tooltip to score badge in Iron Condor table (IDX badge for index)
+- [x] Create gtcOrders database table (pending/submitted/filled/cancelled/failed)
+- [x] Create gtc-orders.ts server module (createGtcRecord, submitGtcCloseOrder, cancelGtcOrder, pollGtcOrderStatus)
+- [x] Add gtc router to appRouter (list, submit, cancel, poll procedures)
+- [x] Create GtcOrders.tsx page with active orders panel and history table
+- [x] Add GTC Orders route (/gtc-orders) to App.tsx
+- [x] Add GTC Orders link to Sidebar secondary nav (Timer icon)
+- [x] Write 29 unit tests for Phase 2 (all passing)

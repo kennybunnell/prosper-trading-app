@@ -2384,64 +2384,15 @@ Summary: [One sentence overall assessment]`;
 
         console.log(`[Iron Condor] Formed ${ironCondors.length} Iron Condor opportunities`);
 
-        // Score Iron Condors using enhanced scoring algorithm with technical indicators
-        // Formula: (ROC × 20) + (Risk/Reward × 15) + (POP × 20) + (IV Rank × 10) + (DTE × 15) + (RSI × 10) + (BB × 10)
-        // Adjusted normalization for realistic Iron Condor metrics
-        const scoredIronCondors = ironCondors.map(ic => {
-          // ROC score (normalize against 10% ROC as max, not 100%)
-          // Typical Iron Condor ROC: 2-5%, excellent: 8-10%
-          const rocScore = Math.min((ic.roc / 10) * 20, 20);
-          
-          // Risk/Reward score (normalize against 5% ratio as max, not 50%)
-          // Typical Iron Condor R/R: 1-2%, excellent: 3-5%
-          const riskReward = (ic.totalNetCredit * 100) / ic.totalCollateral;
-          const riskRewardScore = Math.min((riskReward / 5) * 15, 15);
-          
-          // POP (Probability of Profit) score - estimate based on profit zone width
-          // Wider profit zone = higher POP (normalized to 0-20, increased weight)
-          const profitZonePct = (ic.profitZone / ic.currentPrice) * 100;
-          const popScore = Math.min(profitZonePct / 20 * 20, 20);
-          
-          // IV Rank score (reduced weight from 15% to 10%)
-          const ivRankScore = ic.ivRank !== null ? (ic.ivRank / 100) * 10 : 5;
-          
-          // DTE score (prefer 30-45 DTE, increased weight to 15%)
-          const dteScore = ic.dte >= 30 && ic.dte <= 45 ? 15 : Math.max(0, 15 - Math.abs(ic.dte - 37.5) / 3);
-          
-          // RSI score (prefer neutral 40-60 range for Iron Condors, normalized to 0-10)
-          let rsiScore = 5; // Default if RSI not available
-          if (ic.rsi !== null) {
-            if (ic.rsi >= 40 && ic.rsi <= 60) {
-              rsiScore = 10; // Perfect neutral range
-            } else if (ic.rsi >= 35 && ic.rsi <= 65) {
-              rsiScore = 7; // Acceptable range
-            } else if (ic.rsi >= 30 && ic.rsi <= 70) {
-              rsiScore = 4; // Marginal
-            } else {
-              rsiScore = 2; // Too extreme (oversold or overbought)
-            }
-          }
-          
-          // Bollinger Band %B score (prefer middle range 0.3-0.7, increased weight to 10)
-          let bbScore = 5; // Default if BB not available
-          if (ic.bbPctB !== null) {
-            if (ic.bbPctB >= 0.3 && ic.bbPctB <= 0.7) {
-              bbScore = 10; // Perfect middle range
-            } else if (ic.bbPctB >= 0.2 && ic.bbPctB <= 0.8) {
-              bbScore = 6; // Acceptable
-            } else {
-              bbScore = 2; // Too extreme (near bands)
-            }
-          }
-          
-          // Total score (max 100)
-          const score = rocScore + riskRewardScore + popScore + ivRankScore + dteScore + rsiScore + bbScore;
-          
-          return {
-            ...ic,
-            score: Math.round(score * 10) / 10, // Round to 1 decimal
-          };
-        });
+        // Score Iron Condors using SPXW-aware scoring (index path vs equity path)
+        const { scoreIronCondors } = await import('./ic-scoring');
+        const scoredIronCondors = scoreIronCondors(ironCondors.map(ic => ({
+          ...ic,
+          spreadWidth: Math.max(
+            Math.abs((ic.putShortStrike || 0) - (ic.putLongStrike || 0)),
+            Math.abs((ic.callShortStrike || 0) - (ic.callLongStrike || 0))
+          ),
+        })));
 
         // Sort by score descending
         scoredIronCondors.sort((a, b) => b.score - a.score);
@@ -3188,6 +3139,183 @@ Summary: [One sentence overall assessment]`;
           underwaterPositions,
           numUnderwater: underwaterPositions.length,
         };
+      }),
+  }),
+
+  // ─── GTC Close Order Automation ─────────────────────────────────────────────
+  gtc: router({
+    /**
+     * List all GTC orders for the current user (last 50)
+     */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const { getGtcOrdersForUser } = await import('./gtc-orders');
+      return getGtcOrdersForUser(ctx.user.id);
+    }),
+
+    /**
+     * Submit a GTC close order immediately after a confirmed STO fill.
+     * Called from the order confirmation modal after a live fill is detected.
+     */
+    submit: protectedProcedure
+      .input(z.object({
+        accountId: z.string(),
+        sourceOrderId: z.string(),
+        sourceStrategy: z.string(),
+        symbol: z.string(),
+        expiration: z.string(),
+        premiumCollected: z.number(),
+        totalPremiumCollected: z.number(),
+        profitTargetPct: z.union([z.literal(50), z.literal(75)]),
+        legs: z.array(z.object({
+          symbol: z.string(),
+          action: z.enum(['Buy to Close', 'Sell to Close']),
+          quantity: z.number(),
+          instrumentType: z.enum(['Equity Option', 'Index Option']),
+        })),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { createGtcRecord, updateGtcRecord, submitGtcCloseOrder } = await import('./gtc-orders');
+        const { getTastytradeAPI } = await import('./tastytrade');
+        const { getApiCredentials, loadAccessToken } = await import('./db');
+
+        // Load credentials
+        const credentials = await getApiCredentials(ctx.user.id);
+        const tokenData = await loadAccessToken(ctx.user.id);
+        if (!tokenData?.accessToken) {
+          throw new Error('No Tastytrade session. Please log in to Tastytrade first.');
+        }
+
+        // Calculate target close price
+        const targetClosePrice = input.premiumCollected * (1 - input.profitTargetPct / 100);
+
+        // Create DB record first (status = pending)
+        const record = await createGtcRecord({
+          userId: ctx.user.id,
+          accountId: input.accountId,
+          sourceOrderId: input.sourceOrderId,
+          sourceStrategy: input.sourceStrategy,
+          symbol: input.symbol,
+          expiration: input.expiration,
+          premiumCollected: input.premiumCollected,
+          totalPremiumCollected: input.totalPremiumCollected,
+          profitTargetPct: input.profitTargetPct,
+        });
+
+        // Submit to Tastytrade
+        try {
+          const { orderId, status } = await submitGtcCloseOrder(
+            tokenData.accessToken,
+            input.accountId,
+            input.legs,
+            targetClosePrice,
+            true
+          );
+
+          // Update DB record with GTC order ID
+          const database = await import('./db').then(m => m.getDb());
+          if (database) {
+            const { gtcOrders } = await import('../drizzle/schema');
+            const { eq } = await import('drizzle-orm');
+            await database.update(gtcOrders)
+              .set({ gtcOrderId: orderId, status: 'submitted', submittedAt: new Date() })
+              .where(eq(gtcOrders.id, record.insertId));
+          }
+
+          return {
+            success: true,
+            gtcOrderId: orderId,
+            targetClosePrice: targetClosePrice.toFixed(2),
+            profitTargetPct: input.profitTargetPct,
+            message: `GTC close order submitted at $${targetClosePrice.toFixed(2)} (${input.profitTargetPct}% profit target)`,
+          };
+        } catch (error: any) {
+          // Mark as failed in DB
+          const database = await import('./db').then(m => m.getDb());
+          if (database) {
+            const { gtcOrders } = await import('../drizzle/schema');
+            const { eq } = await import('drizzle-orm');
+            await database.update(gtcOrders)
+              .set({ status: 'failed', errorMessage: error.message })
+              .where(eq(gtcOrders.id, record.insertId));
+          }
+          throw new Error(`GTC order failed: ${error.message}`);
+        }
+      }),
+
+    /**
+     * Cancel an active GTC order on Tastytrade and mark it cancelled in DB.
+     */
+    cancel: protectedProcedure
+      .input(z.object({
+        gtcDbId: z.number(),
+        accountId: z.string(),
+        gtcOrderId: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { cancelGtcOrder } = await import('./gtc-orders');
+        const { loadAccessToken } = await import('./db');
+
+        const tokenData = await loadAccessToken(ctx.user.id);
+        if (!tokenData?.accessToken) {
+          throw new Error('No Tastytrade session.');
+        }
+
+        await cancelGtcOrder(tokenData.accessToken, input.accountId, input.gtcOrderId);
+
+        // Update DB
+        const database = await import('./db').then(m => m.getDb());
+        if (database) {
+          const { gtcOrders } = await import('../drizzle/schema');
+          const { eq, and } = await import('drizzle-orm');
+          await database.update(gtcOrders)
+            .set({ status: 'cancelled', cancelledAt: new Date() })
+            .where(and(eq(gtcOrders.id, input.gtcDbId), eq(gtcOrders.userId, ctx.user.id)));
+        }
+
+        return { success: true };
+      }),
+
+    /**
+     * Poll the status of a GTC order and sync it to the DB.
+     */
+    poll: protectedProcedure
+      .input(z.object({
+        gtcDbId: z.number(),
+        accountId: z.string(),
+        gtcOrderId: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { pollGtcOrderStatus } = await import('./gtc-orders');
+        const { loadAccessToken } = await import('./db');
+
+        const tokenData = await loadAccessToken(ctx.user.id);
+        if (!tokenData?.accessToken) throw new Error('No Tastytrade session.');
+
+        const { status, filledAt } = await pollGtcOrderStatus(
+          tokenData.accessToken,
+          input.accountId,
+          input.gtcOrderId
+        );
+
+        // Map Tastytrade status to our enum
+        const dbStatus =
+          status === 'Filled' ? 'filled' :
+          status === 'Cancelled' ? 'cancelled' :
+          status === 'Rejected' ? 'failed' : 'submitted';
+
+        const database = await import('./db').then(m => m.getDb());
+        if (database) {
+          const { gtcOrders } = await import('../drizzle/schema');
+          const { eq, and } = await import('drizzle-orm');
+          await database.update(gtcOrders)
+            .set({
+              status: dbStatus,
+              ...(dbStatus === 'filled' ? { filledAt: filledAt ? new Date(filledAt) : new Date() } : {}),
+            })
+            .where(and(eq(gtcOrders.id, input.gtcDbId), eq(gtcOrders.userId, ctx.user.id)));
+        }
+
+        return { status: dbStatus, tastyStatus: status };
       }),
   }),
 });

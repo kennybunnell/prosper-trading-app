@@ -879,3 +879,53 @@ export const wtrHistory = mysqlTable('wtr_history', {
 }));
 export type WtrHistory = typeof wtrHistory.$inferSelect;
 export type InsertWtrHistory = typeof wtrHistory.$inferInsert;
+
+/**
+ * GTC Close Orders
+ * Tracks automatically-submitted GTC (Good Till Cancelled) close orders
+ * that are placed immediately after a fill at the user's profit target.
+ *
+ * One row per STO fill that triggers a GTC close order.
+ * Status lifecycle: pending → submitted → filled | cancelled | failed
+ */
+export const gtcOrders = mysqlTable('gtcOrders', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  accountId: varchar('accountId', { length: 64 }).notNull(),
+
+  // Source STO order that triggered this GTC
+  sourceOrderId: varchar('sourceOrderId', { length: 64 }).notNull(),
+  sourceStrategy: varchar('sourceStrategy', { length: 30 }).notNull(), // 'iron_condor' | 'bps' | 'bcs' | 'csp' | 'cc'
+
+  // Underlying and legs
+  symbol: varchar('symbol', { length: 10 }).notNull(),
+  expiration: varchar('expiration', { length: 20 }).notNull(),
+
+  // Premium collected at fill (per share, pre-multiplied by 100 for total)
+  premiumCollected: varchar('premiumCollected', { length: 20 }).notNull(), // e.g. "3.50"
+  totalPremiumCollected: varchar('totalPremiumCollected', { length: 20 }).notNull(), // e.g. "350.00"
+
+  // Profit target
+  profitTargetPct: int('profitTargetPct').notNull().default(75), // 50 or 75
+  targetClosePrice: varchar('targetClosePrice', { length: 20 }).notNull(), // GTC limit price (per share)
+
+  // GTC order details (populated after submission)
+  gtcOrderId: varchar('gtcOrderId', { length: 64 }), // Tastytrade order ID
+  submittedAt: timestamp('submittedAt'),
+  filledAt: timestamp('filledAt'),
+  cancelledAt: timestamp('cancelledAt'),
+
+  // Status
+  status: mysqlEnum('status', ['pending', 'submitted', 'filled', 'cancelled', 'failed']).default('pending').notNull(),
+  errorMessage: text('errorMessage'), // If status = failed
+
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userIdIdx: index('gtcOrders_userId_idx').on(table.userId),
+  sourceOrderIdx: index('gtcOrders_sourceOrder_idx').on(table.sourceOrderId),
+  statusIdx: index('gtcOrders_status_idx').on(table.status),
+}));
+
+export type GtcOrder = typeof gtcOrders.$inferSelect;
+export type InsertGtcOrder = typeof gtcOrders.$inferInsert;

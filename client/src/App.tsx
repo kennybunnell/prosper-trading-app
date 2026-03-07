@@ -12,6 +12,7 @@ import CSPDashboard from "./pages/CSPDashboard";
 import CCDashboard from "./pages/CCDashboard";
 import PMCCDashboard from "./pages/PMCCDashboard";
 import IronCondorDashboard from "./pages/IronCondorDashboard";
+import GtcOrders from "./pages/GtcOrders";
 import Performance from "./pages/Performance";
 import StrategyAdvisorPage from "./pages/StrategyAdvisorPage";
 import PortfolioAdvisor from "./pages/PortfolioAdvisor";
@@ -159,6 +160,7 @@ function Router() {
           <Route path={"/csp"} component={CSPDashboard} />
           <Route path={"/cc"} component={CCDashboard} />
           <Route path={"/iron-condor"} component={IronCondorDashboard} />
+          <Route path={"/gtc-orders"} component={GtcOrders} />
           <Route path={"/pmcc"} component={PMCCDashboard} />
           <Route path={"/performance"} component={Performance} />
 

@@ -414,6 +414,13 @@
       "when": 1772686874072,
       "tag": "0059_narrow_raza",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "5",
+      "when": 1772913234426,
+      "tag": "0060_rich_captain_cross",
+      "breakpoints": true
     }
   ]
 }

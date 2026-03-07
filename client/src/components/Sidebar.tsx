@@ -22,6 +22,7 @@ import {
   LayoutDashboard,
   Activity,
   Grid3X3,
+  Timer,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -124,6 +125,7 @@ export function Sidebar({ className }: SidebarProps) {
   // Secondary nav items
   const secondaryNavItems = [
     { name: 'Spread Advisor', path: '/strategy-advisor', icon: Sparkles },
+    { name: 'GTC Orders', path: '/gtc-orders', icon: Timer },
     { name: 'Performance', path: '/performance', icon: BarChart3 },
   ];
 

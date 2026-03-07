@@ -1187,15 +1187,53 @@ export default function IronCondorDashboard() {
                               />
                             </TableCell>
                             
-                            {/* 2. Score */}
+                            {/* 2. Score + breakdown tooltip */}
                             <TableCell>
-                              <Badge className={`${
-                                (opp.score || 0) >= 70 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
-                                (opp.score || 0) >= 55 ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
-                                'bg-red-500/20 text-red-500 border-red-500/50'
-                              }`}>
-                                {(opp.score || 0).toFixed(1)}
-                              </Badge>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge className={`cursor-help ${
+                                    (opp.score || 0) >= 70 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
+                                    (opp.score || 0) >= 55 ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
+                                    'bg-red-500/20 text-red-500 border-red-500/50'
+                                  }`}>
+                                    {(opp.score || 0).toFixed(1)}
+                                    {(opp as any).scoreBreakdown?.isIndex && (
+                                      <span className="ml-1 text-[9px] text-amber-400">IDX</span>
+                                    )}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="p-3 max-w-xs">
+                                  {(opp as any).scoreBreakdown ? (
+                                    <div className="space-y-1 text-xs">
+                                      <p className="font-semibold text-sm mb-2">
+                                        {(opp as any).scoreBreakdown.isIndex ? '📊 Index (SPXW) Score' : '📈 Equity Score'} — {(opp.score || 0).toFixed(1)}/100
+                                      </p>
+                                      {(opp as any).scoreBreakdown.isIndex ? (
+                                        <>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">ROC</span><span className="font-mono">{(opp as any).scoreBreakdown.roc}/20</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Credit/Width</span><span className="font-mono">{(opp as any).scoreBreakdown.creditWidth}/15</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Profit Zone</span><span className="font-mono">{(opp as any).scoreBreakdown.profitZone}/20</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">IV Rank (idx)</span><span className="font-mono">{(opp as any).scoreBreakdown.ivRank}/15</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">DTE</span><span className="font-mono">{(opp as any).scoreBreakdown.dte}/20</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Delta Neutral</span><span className="font-mono">{(opp as any).scoreBreakdown.deltaNeutrality}/10</span></div>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">ROC</span><span className="font-mono">{(opp as any).scoreBreakdown.roc}/20</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Risk/Reward</span><span className="font-mono">{(opp as any).scoreBreakdown.riskReward}/15</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">POP</span><span className="font-mono">{(opp as any).scoreBreakdown.pop}/20</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">IV Rank</span><span className="font-mono">{(opp as any).scoreBreakdown.ivRank}/10</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">DTE</span><span className="font-mono">{(opp as any).scoreBreakdown.dte}/15</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">RSI</span><span className="font-mono">{(opp as any).scoreBreakdown.rsi}/10</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">BB %B</span><span className="font-mono">{(opp as any).scoreBreakdown.bb}/10</span></div>
+                                        </>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">Score breakdown not available</p>
+                                  )}
+                                </TooltipContent>
+                              </Tooltip>
                             </TableCell>
                             
                             {/* 3. Symbol */}
