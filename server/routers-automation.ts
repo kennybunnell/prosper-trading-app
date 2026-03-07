@@ -1296,6 +1296,37 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
       for (const [, { symbol, expiration, positions: chainPositions }] of chainEntries) {
         const contractMap = chainContractMaps.get(`${symbol}|${expiration}`) ?? new Map<string, any>();
 
+        // ── Spread detection: classify the whole expiration group before processing individual legs ──
+        const groupLegs = chainPositions.map((pos: any) => {
+          const qty = parseInt(String(pos.quantity || '0'));
+          const direction = pos['quantity-direction']?.toLowerCase();
+          const isShort = direction === 'short' || qty < 0;
+          const occMatch = pos.symbol?.match(/([CP])(\d{8})$/);
+          const isPut = occMatch ? occMatch[1] === 'P' : false;
+          return { isShort, isPut };
+        });
+        const grpShortPuts  = groupLegs.filter((l: any) => l.isShort && l.isPut);
+        const grpLongPuts   = groupLegs.filter((l: any) => !l.isShort && l.isPut);
+        const grpShortCalls = groupLegs.filter((l: any) => l.isShort && !l.isPut);
+        const grpLongCalls  = groupLegs.filter((l: any) => !l.isShort && !l.isPut);
+
+        let groupStrategy: string;
+        if (grpShortPuts.length > 0 && grpLongPuts.length > 0 && grpShortCalls.length > 0 && grpLongCalls.length > 0) {
+          groupStrategy = 'IC';
+        } else if (grpShortPuts.length > 0 && grpLongPuts.length > 0 && grpShortCalls.length === 0) {
+          groupStrategy = 'BPS';
+        } else if (grpShortCalls.length > 0 && grpLongCalls.length > 0 && grpShortPuts.length === 0) {
+          groupStrategy = 'BCS';
+        } else if (grpShortCalls.length > 0 && grpLongCalls.length > 0 && grpShortPuts.length > 0 && grpLongPuts.length === 0) {
+          groupStrategy = 'PMCC';
+        } else if (grpShortCalls.length > 0 && grpShortPuts.length === 0 && grpLongCalls.length === 0) {
+          groupStrategy = 'CC';
+        } else if (grpShortPuts.length > 0 && grpShortCalls.length === 0 && grpLongPuts.length === 0) {
+          groupStrategy = 'CSP';
+        } else {
+          groupStrategy = '';
+        }
+
         for (const pos of chainPositions) {
           const qty = parseInt(String(pos.quantity || '0'));
           const direction = pos['quantity-direction']?.toLowerCase();
@@ -1304,10 +1335,10 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           const absQty = Math.abs(qty);
           const sign = isShort ? -1 : 1; // short positions have negative delta contribution
 
-          // Determine strategy type
+          // Use group-level composite strategy; fall back to per-leg label for mixed positions
           const occMatch = pos.symbol?.match(/([CP])(\d{8})$/);
           const isPut = occMatch ? occMatch[1] === 'P' : false;
-          const strategy = isShort ? (isPut ? 'CSP' : 'CC') : (isPut ? 'Long Put' : 'Long Call');
+          const strategy = groupStrategy || (isShort ? (isPut ? 'CSP' : 'CC') : (isPut ? 'Long Put' : 'Long Call'));
 
           // Premium at risk = open price × qty × multiplier
           const openPrice = Math.abs(parseFloat(String(pos['average-open-price'] || '0')));

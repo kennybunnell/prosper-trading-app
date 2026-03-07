@@ -333,6 +333,27 @@ function HeatMapCell({
     ? `$${(ticker.premiumAtRisk / 1000).toFixed(1)}k`
     : `$${ticker.premiumAtRisk.toFixed(0)}`;
 
+  // Collapse raw leg labels into composite strategy abbreviation for display
+  const collapseStrategies = (strategies: string[]): string => {
+    const s = strategies.map(x => x.toUpperCase());
+    const hasShortPut  = s.some(x => x === 'CSP' || x === 'SHORT PUT' || x === 'BPS');
+    const hasLongPut   = s.some(x => x === 'LONG PUT' || x === 'BPS');
+    const hasShortCall = s.some(x => x === 'CC' || x === 'SHORT CALL' || x === 'BCS');
+    const hasLongCall  = s.some(x => x === 'LONG CALL' || x === 'BCS' || x === 'PMCC');
+    if (s.includes('IC'))   return 'IC';
+    if (s.includes('BPS'))  return 'BPS';
+    if (s.includes('BCS'))  return 'BCS';
+    if (s.includes('PMCC')) return 'PMCC';
+    if (hasShortPut && hasLongPut && hasShortCall && hasLongCall) return 'IC';
+    if (hasShortPut && hasLongPut && !hasShortCall)  return 'BPS';
+    if (hasShortCall && hasLongCall && !hasShortPut) return 'BCS';
+    if (hasShortCall && hasLongCall && hasShortPut)  return 'PMCC';
+    if (s.includes('CC') && !hasShortPut)  return 'CC';
+    if (s.includes('CSP') && !hasShortCall) return 'CSP';
+    return strategies.join('/');
+  };
+  const strategyBadge = collapseStrategies(ticker.strategies);
+
   const displayValue = viewMode === 'delta'
     ? (value >= 0 ? '+' : '') + value.toFixed(1)
     : (value >= 0 ? '+$' : '-$') + Math.abs(value).toFixed(2);
@@ -362,7 +383,10 @@ function HeatMapCell({
             <div className="flex flex-col h-full justify-between">
               {/* Header row: symbol + contract count */}
               <div className="flex items-start justify-between">
-                <span className="text-xs font-bold text-foreground/90 leading-tight">{ticker.symbol}</span>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-foreground/90 leading-tight">{ticker.symbol}</span>
+                  <span className="text-[8px] font-semibold text-muted-foreground/70 leading-tight tracking-wide uppercase mt-0.5">{strategyBadge}</span>
+                </div>
                 <span className="text-[9px] text-muted-foreground/70 leading-tight">{ticker.contracts}c</span>
               </div>
 
@@ -426,8 +450,11 @@ function HeatMapCell({
             </span>
           </div>
           <div className="pt-1 border-t border-border/40 text-[10px]">
-            <span className="text-muted-foreground">Strategies: </span>
-            <span>{ticker.strategies.join(', ')}</span>
+            <span className="text-muted-foreground">Strategy: </span>
+            <span className="font-semibold text-amber-300">{strategyBadge}</span>
+            {ticker.strategies.length > 1 && (
+              <span className="text-muted-foreground/60 ml-1">({ticker.strategies.join(', ')})</span>
+            )}
           </div>
         </TooltipContent>
       </Tooltip>
