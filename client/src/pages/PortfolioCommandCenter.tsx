@@ -29,6 +29,9 @@ import {
   GraduationCap,
   Target,
   Gauge,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useLocation } from 'wouter';
@@ -1452,6 +1455,23 @@ export default function PortfolioCommandCenter() {
   const [activeTab, setActiveTab] = useState('heatmap');
   const [viewMode, setViewMode] = useState<ViewMode>('delta');
   const [selectedTicker, setSelectedTicker] = useState<TickerData | null>(null);
+
+  // Greeks table sort state
+  type GreeksSortCol = 'symbol' | 'contracts' | 'netDelta' | 'dailyTheta' | 'netVega' | 'premiumAtRisk' | 'avgDte' | 'avgIv' | 'strategies';
+  const [greeksSortCol, setGreeksSortCol] = useState<GreeksSortCol>('premiumAtRisk');
+  const [greeksSortDir, setGreeksSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const handleGreeksSort = useCallback((col: GreeksSortCol) => {
+    setGreeksSortCol(prev => {
+      if (prev === col) {
+        setGreeksSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        return col;
+      }
+      // Default direction per column
+      setGreeksSortDir(['symbol', 'strategies'].includes(col) ? 'asc' : 'desc');
+      return col;
+    });
+  }, []);
   const {
     tickers,
     portfolio,
@@ -1466,6 +1486,27 @@ export default function PortfolioCommandCenter() {
     isLoading,
     refresh,
   } = useProgressiveHeatMap(5);
+
+  // Sorted rows for the Greeks table (never mutates the original tickers array)
+  const sortedTickers = useMemo(() => {
+    const rows = [...tickers];
+    rows.sort((a, b) => {
+      let cmp = 0;
+      switch (greeksSortCol) {
+        case 'symbol':         cmp = a.symbol.localeCompare(b.symbol); break;
+        case 'contracts':      cmp = a.contracts - b.contracts; break;
+        case 'netDelta':       cmp = a.netDelta - b.netDelta; break;
+        case 'dailyTheta':     cmp = a.dailyTheta - b.dailyTheta; break;
+        case 'netVega':        cmp = a.netVega - b.netVega; break;
+        case 'premiumAtRisk':  cmp = a.premiumAtRisk - b.premiumAtRisk; break;
+        case 'avgDte':         cmp = a.avgDte - b.avgDte; break;
+        case 'avgIv':          cmp = a.avgIv - b.avgIv; break;
+        case 'strategies':     cmp = a.strategies.join(',').localeCompare(b.strategies.join(',')); break;
+      }
+      return greeksSortDir === 'asc' ? cmp : -cmp;
+    });
+    return rows;
+  }, [tickers, greeksSortCol, greeksSortDir]);
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
@@ -1642,19 +1683,42 @@ export default function PortfolioCommandCenter() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-border/40">
-                        <th className="text-left px-4 py-2 text-muted-foreground font-medium">Symbol</th>
-                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Contracts</th>
-                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Net Δ</th>
-                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Daily Θ</th>
-                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Net V</th>
-                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Premium</th>
-                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Avg DTE</th>
-                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Avg IV</th>
-                        <th className="text-left px-3 py-2 text-muted-foreground font-medium">Strategies</th>
+                        {([
+                          { col: 'symbol',        label: 'Symbol',    align: 'left'  },
+                          { col: 'contracts',     label: 'Contracts', align: 'right' },
+                          { col: 'netDelta',      label: 'Net Δ',     align: 'right' },
+                          { col: 'dailyTheta',    label: 'Daily Θ',   align: 'right' },
+                          { col: 'netVega',       label: 'Net V',     align: 'right' },
+                          { col: 'premiumAtRisk', label: 'Premium',   align: 'right' },
+                          { col: 'avgDte',        label: 'Avg DTE',   align: 'right' },
+                          { col: 'avgIv',         label: 'Avg IV',    align: 'right' },
+                          { col: 'strategies',    label: 'Strategies',align: 'left'  },
+                        ] as { col: GreeksSortCol; label: string; align: 'left' | 'right' }[]).map(({ col, label, align }) => (
+                          <th
+                            key={col}
+                            onClick={() => handleGreeksSort(col)}
+                            className={cn(
+                              'px-3 py-2 font-medium cursor-pointer select-none whitespace-nowrap',
+                              align === 'left' ? 'text-left px-4' : 'text-right',
+                              greeksSortCol === col
+                                ? 'text-amber-400'
+                                : 'text-muted-foreground hover:text-foreground',
+                            )}
+                          >
+                            <span className="inline-flex items-center gap-0.5">
+                              {label}
+                              {greeksSortCol === col
+                                ? (greeksSortDir === 'asc'
+                                    ? <ChevronUp className="w-3 h-3" />
+                                    : <ChevronDown className="w-3 h-3" />)
+                                : <ChevronsUpDown className="w-3 h-3 opacity-30" />}
+                            </span>
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {tickers.map((t, i) => (
+                      {sortedTickers.map((t, i) => (
                         <tr key={t.symbol} className={cn('border-b border-border/20 hover:bg-accent/10', i % 2 === 0 ? '' : 'bg-accent/5')}>
                           <td className="px-4 py-2 font-bold text-foreground">{t.symbol}</td>
                           <td className="px-3 py-2 text-right text-muted-foreground">{t.contracts}</td>
