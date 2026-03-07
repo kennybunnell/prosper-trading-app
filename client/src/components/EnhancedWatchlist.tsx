@@ -351,6 +351,28 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
           </Button>
         </div>
 
+        {/* SPXW Quick-Add Banner */}
+        {!watchlist.some((w: WatchlistItem) => w.symbol === 'SPXW') && (
+          <div className="flex items-center gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-2.5">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-400">SPX Index Options Available</p>
+              <p className="text-xs text-muted-foreground">
+                SPXW (weekly PM-settled) — cash settlement, Section 1256 tax treatment, no assignment risk.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10 shrink-0"
+              onClick={() => addToWatchlist.mutate({ symbol: 'SPXW', company: 'S&P 500 Index (Weekly)', type: 'Index', sector: 'Index' })}
+              disabled={addToWatchlist.isPending}
+            >
+              <Plus className="w-3.5 h-3.5 mr-1" />
+              Add SPXW
+            </Button>
+          </div>
+        )}
+
         {/* CSV Import Button */}
         <div className="flex gap-2">
           <input

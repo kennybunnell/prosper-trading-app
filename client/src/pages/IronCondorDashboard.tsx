@@ -1199,7 +1199,16 @@ export default function IronCondorDashboard() {
                             </TableCell>
                             
                             {/* 3. Symbol */}
-                            <TableCell className="font-medium">{opp.symbol}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-1.5">
+                                {opp.symbol}
+                                {(opp.symbol === 'SPXW' || opp.symbol === 'SPX') && (
+                                  <Badge className="text-[10px] px-1 py-0 bg-amber-500/20 text-amber-400 border-amber-500/40">
+                                    PM
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
                             
                             {/* 4. Current */}
                             <TableCell>${(opp.currentPrice || 0).toFixed(2)}</TableCell>
@@ -1229,7 +1238,14 @@ export default function IronCondorDashboard() {
                             </TableCell>
                             
                             {/* 9. Collateral */}
-                            <TableCell>${(opp.totalCollateral || 0).toFixed(2)}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span>${(opp.totalCollateral || 0).toFixed(2)}</span>
+                                {(opp.symbol === 'SPXW' || opp.symbol === 'SPX') && (
+                                  <span className="text-[10px] text-amber-400/80">100× notional</span>
+                                )}
+                              </div>
+                            </TableCell>
                             
                             {/* 10. ROC % */}
                             <TableCell>

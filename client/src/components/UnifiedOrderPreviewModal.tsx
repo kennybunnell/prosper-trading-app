@@ -164,6 +164,8 @@ export function UnifiedOrderPreviewModal({
   const [pollCount, setPollCount] = useState(0); // Increments to trigger re-poll
   const [showMarketClosedWarning, setShowMarketClosedWarning] = useState(false);
   const [marketStatus, setMarketStatus] = useState<{ isOpen: boolean; description: string } | null>(null);
+  // Profit target for STO strategies (75% = user's preferred default, 50% = tastytrade standard)
+  const [profitTargetPct, setProfitTargetPct] = useState<50 | 75>(75);
   // Safeguard pre-flight check state
   const [safeguardWarnings, setSafeguardWarnings] = useState<Array<{ title: string; description: string; requiredAction: string; severity: string }>>([]);
   const [showSafeguardWarning, setShowSafeguardWarning] = useState(false);
@@ -1529,6 +1531,48 @@ export function UnifiedOrderPreviewModal({
                       </span>
                     </div>
                   )}
+                  {/* Profit Target Selector */}
+                  <div className="col-span-2 pt-3 border-t border-border/50 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-muted-foreground">Profit Target</span>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => setProfitTargetPct(50)}
+                          className={`px-3 py-1 text-xs rounded-md border transition-colors ${
+                            profitTargetPct === 50
+                              ? 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+                              : 'border-border/50 text-muted-foreground hover:border-border'
+                          }`}
+                        >
+                          50%
+                        </button>
+                        <button
+                          onClick={() => setProfitTargetPct(75)}
+                          className={`px-3 py-1 text-xs rounded-md border transition-colors ${
+                            profitTargetPct === 75
+                              ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
+                              : 'border-border/50 text-muted-foreground hover:border-border'
+                          }`}
+                        >
+                          75% ★
+                        </button>
+                      </div>
+                    </div>
+                    {calculateTotalPremium() > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Close when premium decays to:</span>
+                        <span className="font-mono font-semibold text-amber-400">
+                          ${(calculateTotalPremium() * (1 - profitTargetPct / 100)).toFixed(2)}
+                          <span className="text-muted-foreground font-normal ml-1">
+                            ({profitTargetPct}% of ${calculateTotalPremium().toFixed(2)} captured)
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-[10px] text-muted-foreground">
+                      GTC close order at this price will be placed automatically after fill (Phase 3).
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

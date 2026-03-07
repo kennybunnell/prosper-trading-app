@@ -1600,19 +1600,20 @@ Summary: [One sentence overall assessment]`;
             });
             
             // Build legs to see what would be submitted
+            const dryRunInstrumentType = (order.symbol === 'SPXW' || order.symbol === 'SPX') ? 'Index Option' : 'Equity Option';
             const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
               ? [
-                  { symbol: order.putShortLeg.optionSymbol, action: order.putShortLeg.action },
-                  { symbol: order.putLongLeg.optionSymbol, action: order.putLongLeg.action },
-                  { symbol: order.callShortLeg.optionSymbol, action: order.callShortLeg.action },
-                  { symbol: order.callLongLeg.optionSymbol, action: order.callLongLeg.action },
+                  { symbol: order.putShortLeg.optionSymbol, action: order.putShortLeg.action, instrumentType: dryRunInstrumentType },
+                  { symbol: order.putLongLeg.optionSymbol, action: order.putLongLeg.action, instrumentType: dryRunInstrumentType },
+                  { symbol: order.callShortLeg.optionSymbol, action: order.callShortLeg.action, instrumentType: dryRunInstrumentType },
+                  { symbol: order.callLongLeg.optionSymbol, action: order.callLongLeg.action, instrumentType: dryRunInstrumentType },
                 ]
               : order.isSpread && order.shortLeg && order.longLeg
               ? [
-                  { symbol: order.shortLeg.optionSymbol, action: order.shortLeg.action },
-                  { symbol: order.longLeg.optionSymbol, action: order.longLeg.action },
+                  { symbol: order.shortLeg.optionSymbol, action: order.shortLeg.action, instrumentType: dryRunInstrumentType },
+                  { symbol: order.longLeg.optionSymbol, action: order.longLeg.action, instrumentType: dryRunInstrumentType },
                 ]
-              : [{ symbol: order.optionSymbol, action: 'Sell to Open' }];
+              : [{ symbol: order.optionSymbol, action: 'Sell to Open', instrumentType: dryRunInstrumentType }];
             
             console.log('[DRY RUN Debug] Would submit legs:', legs);
             
@@ -1770,32 +1771,35 @@ Summary: [One sentence overall assessment]`;
               }
               
               // Build legs based on order type
+              // SPXW and SPX are index options — Tastytrade requires 'Index Option' as the instrument type
+              const isIndexOption = order.symbol === 'SPXW' || order.symbol === 'SPX';
+              const legInstrumentType = isIndexOption ? 'Index Option' as const : 'Equity Option' as const;
               const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
               ? [
                     // Iron Condor: Leg 1 - Sell Put (short put)
                     {
-                      instrumentType: 'Equity Option' as const,
+                      instrumentType: legInstrumentType,
                       symbol: order.putShortLeg.optionSymbol,
                       quantity: '1',
                       action: order.putShortLeg.action,
                     },
                     // Iron Condor: Leg 2 - Buy Put (long put)
                     {
-                      instrumentType: 'Equity Option' as const,
+                      instrumentType: legInstrumentType,
                       symbol: order.putLongLeg.optionSymbol,
                       quantity: '1',
                       action: order.putLongLeg.action,
                     },
                     // Iron Condor: Leg 3 - Sell Call (short call)
                     {
-                      instrumentType: 'Equity Option' as const,
+                      instrumentType: legInstrumentType,
                       symbol: order.callShortLeg.optionSymbol,
                       quantity: '1',
                       action: order.callShortLeg.action,
                     },
                     // Iron Condor: Leg 4 - Buy Call (long call)
                     {
-                      instrumentType: 'Equity Option' as const,
+                      instrumentType: legInstrumentType,
                       symbol: order.callLongLeg.optionSymbol,
                       quantity: '1',
                       action: order.callLongLeg.action,
@@ -1803,16 +1807,16 @@ Summary: [One sentence overall assessment]`;
                   ]
               : order.isSpread && order.shortLeg && order.longLeg
               ? [
-                    // Bull Put Spread: Leg 1 - Sell to Open (short put)
+                    // Bull Put Spread / Bear Call Spread: Leg 1 - Sell to Open
                     {
-                      instrumentType: 'Equity Option' as const,
+                      instrumentType: legInstrumentType,
                       symbol: order.shortLeg.optionSymbol,
                       quantity: '1',
                       action: order.shortLeg.action,
                     },
-                    // Bull Put Spread: Leg 2 - Buy to Open (long put)
+                    // Bull Put Spread / Bear Call Spread: Leg 2 - Buy to Open
                     {
-                      instrumentType: 'Equity Option' as const,
+                      instrumentType: legInstrumentType,
                       symbol: order.longLeg.optionSymbol,
                       quantity: '1',
                       action: order.longLeg.action,
@@ -1821,7 +1825,7 @@ Summary: [One sentence overall assessment]`;
                 : [
                     // Regular CSP: Single leg
                     {
-                      instrumentType: 'Equity Option' as const,
+                      instrumentType: legInstrumentType,
                       symbol: order.optionSymbol!,
                       quantity: '1',
                       action: 'Sell to Open' as const,

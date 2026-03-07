@@ -7426,3 +7426,12 @@
 - [x] Add 19 unit tests for detectGroupStrategy and exact-match filter logic (all passing)
 ## Sortable Greeks Table (Mar 7, 2026)
 - [x] Add sortable column headers to the Greeks by ticker table (click header to toggle asc/desc, chevron indicator)
+
+## SPX/SPXW Phase 1 Integration (Mar 7, 2026)
+- [x] Add SPXW as special index entry in watchlist with quick-add banner (EnhancedWatchlist)
+- [x] Fix instrument-type flag: send "Index Option" for SPXW/SPX legs (not "Equity Option")
+- [x] Show PM-Settled (SPXW) badge in Iron Condor opportunities table symbol cell
+- [x] Show 100x notional warning in collateral cell for SPXW/SPX rows
+- [x] Add configurable profit target to order preview modal (default 75%, alt 50%)
+- [x] Write 18 unit tests for Phase 1 changes (all passing)
+- [ ] Suppress assignment scenario for SPXW in Portfolio Command Center; show cash settlement panel instead (Phase 2)
