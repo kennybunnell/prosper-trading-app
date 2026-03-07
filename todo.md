@@ -7507,3 +7507,9 @@
 - [x] Fix: IV rank formula replaced with median-IV-to-typical-range mapping (old formula produced near-zero for indexes)
 - [x] Fix: Strike building for indexes tries IC → BPS → BCS regardless of page-level strategy
 - [x] Confirmed equity/index logic is cleanly separated at every decision point (8 gating points audited)
+## Multi-Section Ticker Display (Mar 7, 2026)
+- [x] Each ticker appears in every strategy section it qualifies for (BPS, BCS, IC) — not just the top-scoring one
+- [x] Within each section, tickers sorted by that strategy's specific score (not overall score)
+- [x] Score badge on each card shows the section-specific score (e.g., MRUT shows 83 under BPS, 73 under BCS, 75 under IC)
+- [x] "Trade This" button routes to the correct dashboard for that section (BCS → /cc, BPS/IC → /iron-condor)
+- [x] Checkbox lock logic updated: lock is based on the section the checkbox is in, not the ticker's primary badge

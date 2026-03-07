@@ -142,40 +142,28 @@ export function StrategyAdvisor() {
     const ticker = data?.rankedTickers?.find((t: any) => t.symbol === symbol);
     if (!ticker) return;
     
-    const tickerPrimaryStrategy = ticker.strategyBadges?.[0]?.strategy || null;
-    
     setSelectedTickers(prev => {
       const newSet = new Set(prev);
-      
-      if (newSet.has(symbol)) {
-        // Deselecting - remove from set
+
+      if (newSet.has(symbol) && tickerSections.get(symbol) === section) {
+        // Deselecting this specific section's checkbox
         newSet.delete(symbol);
-        
-        // Remove from section tracking
         setTickerSections(prev => {
           const newMap = new Map(prev);
           newMap.delete(symbol);
           return newMap;
         });
-        
-        // If no more tickers selected, unlock strategy
-        if (newSet.size === 0) {
-          setLockedStrategy(null);
-        }
-      } else {
-        // Selecting - check if compatible with locked strategy
-        if (lockedStrategy && tickerPrimaryStrategy !== lockedStrategy) {
+        if (newSet.size === 0) setLockedStrategy(null);
+      } else if (!newSet.has(symbol)) {
+        // Selecting — lock is based on the SECTION the checkbox is in, not the ticker's primary badge
+        if (lockedStrategy && section !== lockedStrategy) {
           toast.error(
-            `⚠️ You can only select tickers for one strategy at a time. Currently locked to ${lockedStrategy}. Clear your selection to switch strategies.`,
+            `⚠️ Locked to ${lockedStrategy} strategy. Clear your selection to switch to ${section}.`,
             { duration: 4000 }
           );
-          return prev; // Don't add to selection
+          return prev;
         }
-        
-        // Add to set and lock strategy if this is the first selection
         newSet.add(symbol);
-        
-        // Track which section this ticker was selected from
         if (section) {
           setTickerSections(prev => {
             const newMap = new Map(prev);
@@ -183,11 +171,9 @@ export function StrategyAdvisor() {
             return newMap;
           });
         }
-        if (newSet.size === 1) {
-          setLockedStrategy(tickerPrimaryStrategy);
-        }
+        if (newSet.size === 1) setLockedStrategy(section || null);
       }
-      
+
       return newSet;
     });
   };
@@ -721,31 +707,37 @@ export function StrategyAdvisor() {
                   return t.isIndex ? 40 : 60;
                 };
 
-                // Separate tickers into strategy groups
-                const bpsTickers = rankedTickers.filter((t: any) => 
-                  t.strategyBadges?.some((b: any) => b.strategy === 'BPS' && b.score >= badgeCutoff(t))
-                ).sort((a: any, b: any) => b.score - a.score);
-                
-                const bcsTickers = rankedTickers.filter((t: any) => 
-                  t.strategyBadges?.some((b: any) => b.strategy === 'BCS' && b.score >= badgeCutoff(t)) &&
-                  !t.strategyBadges?.some((b: any) => b.strategy === 'BPS' && b.score >= badgeCutoff(t))
-                ).sort((a: any, b: any) => b.score - a.score);
-                
-                const icTickers = rankedTickers.filter((t: any) => 
-                  t.strategyBadges?.some((b: any) => b.strategy === 'IC' && b.score >= badgeCutoff(t)) &&
-                  !t.strategyBadges?.some((b: any) => b.strategy === 'BPS' && b.score >= badgeCutoff(t)) &&
-                  !t.strategyBadges?.some((b: any) => b.strategy === 'BCS' && b.score >= badgeCutoff(t))
-                ).sort((a: any, b: any) => b.score - a.score);
-                
-                const notRecommended = rankedTickers.filter((t: any) => 
-                  !t.strategyBadges || t.strategyBadges.length === 0 || 
+                // Each ticker appears in EVERY section whose badge score meets the cutoff.
+                // Within each section, sort by that strategy's specific score (not overall score).
+                // This mirrors how a trader thinks: "show me all tickers good for IC, sorted by IC score."
+                const getBadgeScore = (t: any, strategy: 'BPS' | 'BCS' | 'IC') =>
+                  t.strategyBadges?.find((b: any) => b.strategy === strategy)?.score ?? 0;
+
+                const bpsTickers = rankedTickers
+                  .filter((t: any) => t.strategyBadges?.some((b: any) => b.strategy === 'BPS' && b.score >= badgeCutoff(t)))
+                  .sort((a: any, b: any) => getBadgeScore(b, 'BPS') - getBadgeScore(a, 'BPS'));
+
+                const bcsTickers = rankedTickers
+                  .filter((t: any) => t.strategyBadges?.some((b: any) => b.strategy === 'BCS' && b.score >= badgeCutoff(t)))
+                  .sort((a: any, b: any) => getBadgeScore(b, 'BCS') - getBadgeScore(a, 'BCS'));
+
+                const icTickers = rankedTickers
+                  .filter((t: any) => t.strategyBadges?.some((b: any) => b.strategy === 'IC' && b.score >= badgeCutoff(t)))
+                  .sort((a: any, b: any) => getBadgeScore(b, 'IC') - getBadgeScore(a, 'IC'));
+
+                const notRecommended = rankedTickers.filter((t: any) =>
+                  !t.strategyBadges || t.strategyBadges.length === 0 ||
                   !t.strategyBadges.some((b: any) => b.score >= badgeCutoff(t))
                 ).sort((a: any, b: any) => b.score - a.score);
 
                 const renderTickerCard = (ticker: any, index: number, section: 'BPS' | 'BCS' | 'IC') => {
-                  // Check if this ticker's strategy is compatible with locked strategy
-                  const tickerPrimaryStrategy = ticker.strategyBadges?.[0]?.strategy || null;
-                  const isDisabled = lockedStrategy && tickerPrimaryStrategy && tickerPrimaryStrategy !== lockedStrategy;
+                  // A ticker can appear in multiple sections. Disable the checkbox only if the
+                  // user has already locked to a DIFFERENT section (strategy).
+                  const isDisabled = !!lockedStrategy && lockedStrategy !== section;
+                  // Show the score for THIS section's strategy (not the overall score)
+                  const sectionScore = getBadgeScore(ticker, section);
+                  // Route for the Trade This button in this section
+                  const sectionRoute = section === 'BCS' ? '/cc' : '/iron-condor';
                   
                   return (
                 <div
@@ -775,8 +767,8 @@ export function StrategyAdvisor() {
                           #{index + 1}
                         </span>
                         <h3 className="text-xl font-bold">{ticker.symbol}</h3>
-                        <Badge className={getScoreBadgeColor(ticker.score)}>
-                          {ticker.score}/100
+                        <Badge className={getScoreBadgeColor(sectionScore || ticker.score)} title={`${section} score: ${sectionScore}/100`}>
+                          {sectionScore || ticker.score}/100
                         </Badge>
                         <Badge variant="outline" className="text-xs">
                           {ticker.momentum}
@@ -893,10 +885,10 @@ export function StrategyAdvisor() {
                     {/* Trade Button - Only show when no tickers are selected */}
                     {selectedTickers.size === 0 && (
                       <Button
-                        onClick={handleTradeClick}
+                        onClick={() => setLocation(sectionRoute)}
                         className="flex-shrink-0"
-                        variant={ticker.score >= 70 ? 'default' : 'outline'}
-                        disabled={ticker.score < 40}
+                        variant={sectionScore >= 70 ? 'default' : 'outline'}
+                        disabled={sectionScore < 40}
                       >
                         Trade This
                         <ArrowRight className="h-4 w-4 ml-2" />
