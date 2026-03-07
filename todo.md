@@ -7475,3 +7475,9 @@
 
 ## GTC Auto-Refresh Toggle (Mar 7, 2026)
 - [x] Add auto-refresh toggle to GTC Orders page (60s interval, polls active orders, live status badge updates)
+
+## GTC P&L Tracker (Mar 7, 2026)
+- [x] Add realizedPnl and closeCost columns to gtcOrders table
+- [x] Compute net P&L on fill in the poll procedure (totalPremiumCollected - closeCost * 100)
+- [x] Add P&L column to History table in GTC Orders page
+- [x] Add monthly income summary card at top of GTC Orders page

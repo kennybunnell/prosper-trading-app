@@ -65,7 +65,19 @@ export async function createGtcRecord(req: Omit<GtcOrderRequest, 'tastytradeToke
 
 export async function updateGtcRecord(
   id: number,
-  updates: Partial<{ gtcOrderId: string; status: 'pending' | 'submitted' | 'filled' | 'cancelled' | 'failed'; errorMessage: string; submittedAt: Date; filledAt: Date; cancelledAt: Date }>
+  updates: Partial<{
+    gtcOrderId: string;
+    status: 'pending' | 'submitted' | 'filled' | 'cancelled' | 'failed';
+    errorMessage: string;
+    submittedAt: Date;
+    filledAt: Date;
+    cancelledAt: Date;
+    // P&L fields (populated on fill)
+    closeCost: string;
+    totalCloseCost: string;
+    realizedPnl: string;
+    realizedPnlPct: string;
+  }>
 ) {
   const database = await getDb();
   if (!database) throw new Error('Database unavailable');
@@ -179,7 +191,7 @@ export async function pollGtcOrderStatus(
   token: string,
   accountNumber: string,
   tastyOrderId: string
-): Promise<{ status: string; filledAt?: string }> {
+): Promise<{ status: string; filledAt?: string; fillPrice?: number }> {
   const baseUrl = process.env.TASTYTRADE_API_URL || 'https://api.tastytrade.com';
   const response = await fetch(`${baseUrl}/accounts/${accountNumber}/orders/${tastyOrderId}`, {
     headers: { 'Authorization': token },
@@ -189,8 +201,14 @@ export async function pollGtcOrderStatus(
   }
   const data = await response.json();
   const order = data?.data?.order;
+  // Extract fill price from the first leg's average open price (if filled)
+  const legs = order?.legs || [];
+  const fillPrice: number | undefined = legs.length > 0
+    ? parseFloat(legs[0]?.['fills']?.[0]?.['fill-price'] || '0') || undefined
+    : undefined;
   return {
     status: order?.status || 'Unknown',
     filledAt: order?.['updated-at'],
+    fillPrice, // per-share fill price of the close order
   };
 }

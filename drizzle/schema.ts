@@ -915,6 +915,12 @@ export const gtcOrders = mysqlTable('gtcOrders', {
   filledAt: timestamp('filledAt'),
   cancelledAt: timestamp('cancelledAt'),
 
+  // P&L (populated when status = filled)
+  closeCost: varchar('closeCost', { length: 20 }),       // BTC fill price per share, e.g. "0.875"
+  totalCloseCost: varchar('totalCloseCost', { length: 20 }), // closeCost * 100 * contracts, e.g. "87.50"
+  realizedPnl: varchar('realizedPnl', { length: 20 }),   // totalPremiumCollected - totalCloseCost, e.g. "262.50"
+  realizedPnlPct: varchar('realizedPnlPct', { length: 10 }), // realizedPnl / totalPremiumCollected * 100, e.g. "75.00"
+
   // Status
   status: mysqlEnum('status', ['pending', 'submitted', 'filled', 'cancelled', 'failed']).default('pending').notNull(),
   errorMessage: text('errorMessage'), // If status = failed

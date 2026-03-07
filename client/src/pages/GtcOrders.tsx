@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -20,10 +20,20 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { RefreshCw, XCircle, CheckCircle2, Clock, AlertTriangle, Info, Zap } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  RefreshCw, XCircle, CheckCircle2, Clock, AlertTriangle, Info,
+  Zap, TrendingUp, DollarSign, BarChart3, Target,
+} from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 
-const POLL_INTERVAL_MS = 60_000; // 60 seconds
+const POLL_INTERVAL_MS = 60_000;
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   pending: {
@@ -53,6 +63,18 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   },
 };
 
+// ── Month helpers ─────────────────────────────────────────────────────────────
+function getMonthKey(d: Date | string | null): string {
+  if (!d) return '';
+  const dt = new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+}
+function formatMonthLabel(key: string): string {
+  if (!key) return '';
+  const [y, m] = key.split('-');
+  return new Date(Number(y), Number(m) - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+}
+
 export default function GtcOrders() {
   const { toast } = useToast();
   const utils = trpc.useUtils();
@@ -64,6 +86,9 @@ export default function GtcOrders() {
   const [isPollingAll, setIsPollingAll] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Month filter ──────────────────────────────────────────────────────────
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
 
   const { data: orders = [], isLoading, refetch } = trpc.gtc.list.useQuery(undefined, {
     refetchOnWindowFocus: false,
@@ -81,10 +106,7 @@ export default function GtcOrders() {
 
   const pollMutation = trpc.gtc.poll.useMutation({
     onSuccess: (data) => {
-      toast({
-        title: 'Status refreshed',
-        description: `Tastytrade status: ${data.tastyStatus}`,
-      });
+      toast({ title: 'Status refreshed', description: `Tastytrade status: ${data.tastyStatus}` });
       utils.gtc.list.invalidate();
     },
     onError: (err) => {
@@ -92,10 +114,80 @@ export default function GtcOrders() {
     },
   });
 
-  const activeOrders = orders.filter(o => o.status === 'submitted' || o.status === 'pending');
-  const historicalOrders = orders.filter(o => o.status === 'filled' || o.status === 'cancelled' || o.status === 'failed');
+  // ── Derived data ──────────────────────────────────────────────────────────
+  const activeOrders = useMemo(
+    () => orders.filter(o => o.status === 'submitted' || o.status === 'pending'),
+    [orders]
+  );
 
-  // ── Bulk poll all active orders ───────────────────────────────────────────
+  const filledOrders = useMemo(
+    () => orders.filter(o => o.status === 'filled'),
+    [orders]
+  );
+
+  // Available months from filled orders (descending)
+  const availableMonths = useMemo(() => {
+    const keys = new Set<string>();
+    filledOrders.forEach(o => {
+      const k = getMonthKey(o.filledAt);
+      if (k) keys.add(k);
+    });
+    return Array.from(keys).sort().reverse();
+  }, [filledOrders]);
+
+  // Set default month to current month on first load
+  useEffect(() => {
+    if (selectedMonth === 'all' && availableMonths.length > 0) {
+      const currentKey = getMonthKey(new Date());
+      if (availableMonths.includes(currentKey)) {
+        setSelectedMonth(currentKey);
+      }
+    }
+  }, [availableMonths, selectedMonth]);
+
+  // Monthly P&L summary (all months)
+  const monthlyStats = useMemo(() => {
+    const map = new Map<string, { premium: number; pnl: number; count: number; winCount: number }>();
+    filledOrders.forEach(o => {
+      const k = getMonthKey(o.filledAt);
+      if (!k) return;
+      const existing = map.get(k) || { premium: 0, pnl: 0, count: 0, winCount: 0 };
+      const pnl = parseFloat(o.realizedPnl || '0');
+      existing.premium += parseFloat(o.totalPremiumCollected || '0');
+      existing.pnl += pnl;
+      existing.count += 1;
+      if (pnl > 0) existing.winCount += 1;
+      map.set(k, existing);
+    });
+    return map;
+  }, [filledOrders]);
+
+  // Stats for the selected month (or all time) — unified shape: { totalPremium, totalPnl, count, winCount }
+  const displayStats = useMemo(() => {
+    if (selectedMonth === 'all') {
+      let totalPremium = 0, totalPnl = 0, count = 0, winCount = 0;
+      monthlyStats.forEach(v => {
+        totalPremium += v.premium;
+        totalPnl += v.pnl;
+        count += v.count;
+        winCount += v.winCount;
+      });
+      return { totalPremium, totalPnl, count, winCount };
+    }
+    const m = monthlyStats.get(selectedMonth);
+    return m
+      ? { totalPremium: m.premium, totalPnl: m.pnl, count: m.count, winCount: m.winCount }
+      : { totalPremium: 0, totalPnl: 0, count: 0, winCount: 0 };
+  }, [selectedMonth, monthlyStats]);
+
+  // Filtered historical orders
+  const historicalOrders = useMemo(() => {
+    const base = orders.filter(o => o.status === 'filled' || o.status === 'cancelled' || o.status === 'failed');
+    if (selectedMonth === 'all') return base;
+    return base.filter(o => getMonthKey(o.filledAt || o.cancelledAt || o.createdAt) === selectedMonth);
+  }, [orders, selectedMonth]);
+
+  // ── Bulk poll ─────────────────────────────────────────────────────────────
   const pollAllActive = useCallback(async () => {
     const pollable = activeOrders.filter(o => o.gtcOrderId && o.status === 'submitted');
     if (pollable.length === 0) {
@@ -113,9 +205,7 @@ export default function GtcOrders() {
           gtcOrderId: order.gtcOrderId!,
         });
         if (result.tastyStatus === 'Filled') filledCount++;
-      } catch {
-        // individual poll errors are already toasted by the mutation
-      }
+      } catch { /* individual errors already toasted */ }
     }
     setIsPollingAll(false);
     setLastRefreshed(new Date());
@@ -128,51 +218,28 @@ export default function GtcOrders() {
   }, [activeOrders, pollMutation, refetch, toast]);
 
   // ── Countdown + auto-refresh interval ────────────────────────────────────
-  const resetCountdown = useCallback(() => {
-    setSecondsUntilRefresh(POLL_INTERVAL_MS / 1000);
-  }, []);
+  const resetCountdown = useCallback(() => setSecondsUntilRefresh(POLL_INTERVAL_MS / 1000), []);
 
   useEffect(() => {
-    // Clear any existing timers
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (countdownRef.current) clearInterval(countdownRef.current);
-
-    if (!autoRefresh) {
-      setSecondsUntilRefresh(POLL_INTERVAL_MS / 1000);
-      return;
-    }
-
-    // Countdown ticker (every second)
+    if (!autoRefresh) { setSecondsUntilRefresh(POLL_INTERVAL_MS / 1000); return; }
     countdownRef.current = setInterval(() => {
-      setSecondsUntilRefresh(prev => {
-        if (prev <= 1) return POLL_INTERVAL_MS / 1000;
-        return prev - 1;
-      });
+      setSecondsUntilRefresh(prev => prev <= 1 ? POLL_INTERVAL_MS / 1000 : prev - 1);
     }, 1000);
-
-    // Main poll interval (every 60s)
-    intervalRef.current = setInterval(() => {
-      pollAllActive();
-      resetCountdown();
-    }, POLL_INTERVAL_MS);
-
+    intervalRef.current = setInterval(() => { pollAllActive(); resetCountdown(); }, POLL_INTERVAL_MS);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
   }, [autoRefresh, pollAllActive, resetCountdown]);
 
-  // Manual refresh: poll all + reset countdown
   const handleManualRefresh = async () => {
     await pollAllActive();
     resetCountdown();
-    // Restart the interval from now
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (autoRefresh) {
-      intervalRef.current = setInterval(() => {
-        pollAllActive();
-        resetCountdown();
-      }, POLL_INTERVAL_MS);
+      intervalRef.current = setInterval(() => { pollAllActive(); resetCountdown(); }, POLL_INTERVAL_MS);
     }
   };
 
@@ -181,88 +248,81 @@ export default function GtcOrders() {
     return new Date(d).toLocaleString();
   }
 
-  function renderOrderRow(order: typeof orders[0]) {
+  function fmtUsd(v: string | null | undefined) {
+    if (!v) return '—';
+    const n = parseFloat(v);
+    return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  function renderOrderRow(order: typeof orders[0], showPnl = false) {
     const cfg = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
     const isActive = order.status === 'submitted' || order.status === 'pending';
+    const pnl = parseFloat(order.realizedPnl || '0');
+    const pnlPct = parseFloat(order.realizedPnlPct || '0');
 
     return (
       <TableRow key={order.id} className="hover:bg-zinc-800/40">
-        {/* Status */}
         <TableCell>
           <Badge className={`flex items-center gap-1 w-fit ${cfg.color}`}>
-            {cfg.icon}
-            {cfg.label}
+            {cfg.icon}{cfg.label}
           </Badge>
         </TableCell>
-
-        {/* Symbol + Strategy */}
         <TableCell>
           <div className="font-medium text-white">{order.symbol}</div>
           <div className="text-xs text-muted-foreground capitalize">{order.sourceStrategy.replace(/_/g, ' ')}</div>
         </TableCell>
-
-        {/* Expiration */}
         <TableCell className="font-mono text-sm">{order.expiration}</TableCell>
-
-        {/* Premium collected */}
         <TableCell className="font-mono text-sm">
-          <div className="text-green-400">${order.premiumCollected}</div>
-          <div className="text-xs text-muted-foreground">total: ${order.totalPremiumCollected}</div>
+          <div className="text-green-400">{fmtUsd(order.premiumCollected)}</div>
+          <div className="text-xs text-muted-foreground">total: {fmtUsd(order.totalPremiumCollected)}</div>
         </TableCell>
-
-        {/* Profit target */}
         <TableCell>
-          <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40">
-            {order.profitTargetPct}%
-          </Badge>
+          <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40">{order.profitTargetPct}%</Badge>
         </TableCell>
+        <TableCell className="font-mono text-sm text-amber-300">{fmtUsd(order.targetClosePrice)}</TableCell>
 
-        {/* GTC close price */}
-        <TableCell className="font-mono text-sm text-amber-300">
-          ${order.targetClosePrice}
-        </TableCell>
+        {/* P&L column — only in History table */}
+        {showPnl && (
+          <TableCell className="font-mono text-sm">
+            {order.status === 'filled' && order.realizedPnl ? (
+              <div>
+                <div className={pnl >= 0 ? 'text-green-400 font-semibold' : 'text-red-400 font-semibold'}>
+                  {pnl >= 0 ? '+' : ''}{fmtUsd(order.realizedPnl)}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {pnlPct.toFixed(1)}% of premium
+                  {order.closeCost && (
+                    <span className="ml-1">(closed @ {fmtUsd(order.closeCost)})</span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <span className="text-muted-foreground text-xs">—</span>
+            )}
+          </TableCell>
+        )}
 
-        {/* GTC Order ID */}
         <TableCell className="font-mono text-xs text-muted-foreground">
           {order.gtcOrderId ? (
             <Tooltip>
-              <TooltipTrigger>
-                <span className="truncate max-w-[80px] block">{order.gtcOrderId}</span>
-              </TooltipTrigger>
+              <TooltipTrigger><span className="truncate max-w-[80px] block">{order.gtcOrderId}</span></TooltipTrigger>
               <TooltipContent>{order.gtcOrderId}</TooltipContent>
             </Tooltip>
           ) : '—'}
         </TableCell>
-
-        {/* Submitted at */}
+        <TableCell className="text-xs text-muted-foreground">{formatDate(order.submittedAt)}</TableCell>
         <TableCell className="text-xs text-muted-foreground">
-          {formatDate(order.submittedAt)}
+          {order.filledAt ? formatDate(order.filledAt) : order.cancelledAt ? formatDate(order.cancelledAt) : '—'}
         </TableCell>
-
-        {/* Filled / Cancelled at */}
-        <TableCell className="text-xs text-muted-foreground">
-          {order.filledAt ? formatDate(order.filledAt) :
-           order.cancelledAt ? formatDate(order.cancelledAt) : '—'}
-        </TableCell>
-
-        {/* Actions */}
         <TableCell>
           <div className="flex items-center gap-1">
             {isActive && order.gtcOrderId && (
               <>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2 text-xs"
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
                       disabled={pollMutation.isPending}
-                      onClick={() => pollMutation.mutate({
-                        gtcDbId: order.id,
-                        accountId: order.accountId,
-                        gtcOrderId: order.gtcOrderId!,
-                      })}
-                    >
+                      onClick={() => pollMutation.mutate({ gtcDbId: order.id, accountId: order.accountId, gtcOrderId: order.gtcOrderId! })}>
                       <RefreshCw className="w-3 h-3" />
                     </Button>
                   </TooltipTrigger>
@@ -270,21 +330,14 @@ export default function GtcOrders() {
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="outline"
+                    <Button size="sm" variant="outline"
                       className="h-7 px-2 text-xs border-red-500/40 text-red-400 hover:bg-red-500/10"
                       disabled={cancelMutation.isPending}
                       onClick={() => {
                         if (confirm(`Cancel GTC close order for ${order.symbol}? The position will remain open.`)) {
-                          cancelMutation.mutate({
-                            gtcDbId: order.id,
-                            accountId: order.accountId,
-                            gtcOrderId: order.gtcOrderId!,
-                          });
+                          cancelMutation.mutate({ gtcDbId: order.id, accountId: order.accountId, gtcOrderId: order.gtcOrderId! });
                         }
-                      }}
-                    >
+                      }}>
                       <XCircle className="w-3 h-3" />
                     </Button>
                   </TooltipTrigger>
@@ -294,9 +347,7 @@ export default function GtcOrders() {
             )}
             {order.status === 'failed' && order.errorMessage && (
               <Tooltip>
-                <TooltipTrigger>
-                  <AlertTriangle className="w-4 h-4 text-red-400" />
-                </TooltipTrigger>
+                <TooltipTrigger><AlertTriangle className="w-4 h-4 text-red-400" /></TooltipTrigger>
                 <TooltipContent className="max-w-xs">{order.errorMessage}</TooltipContent>
               </Tooltip>
             )}
@@ -306,11 +357,15 @@ export default function GtcOrders() {
     );
   }
 
+  const winRate = displayStats.count > 0 ? (displayStats.winCount / displayStats.count) * 100 : 0;
+  const avgPnl = displayStats.count > 0 ? displayStats.totalPnl / displayStats.count : 0;
+
   return (
     <DashboardLayout>
       <TooltipProvider>
         <div className="space-y-6 p-6">
-          {/* Header */}
+
+          {/* ── Header ── */}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
               <h1 className="text-2xl font-bold text-white">GTC Close Orders</h1>
@@ -318,70 +373,169 @@ export default function GtcOrders() {
                 Automated Good-Till-Cancelled close orders placed at your profit target after each STO fill.
               </p>
             </div>
-
-            {/* Controls row */}
             <div className="flex items-center gap-4">
-              {/* Auto-refresh toggle */}
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700">
                 <Zap className={`w-4 h-4 ${autoRefresh ? 'text-amber-400' : 'text-zinc-500'}`} />
-                <Label htmlFor="auto-refresh" className="text-sm text-zinc-300 cursor-pointer select-none">
-                  Auto-refresh
-                </Label>
-                <Switch
-                  id="auto-refresh"
-                  checked={autoRefresh}
-                  onCheckedChange={(checked) => {
-                    setAutoRefresh(checked);
-                    if (checked) resetCountdown();
-                  }}
-                />
-                {autoRefresh && (
-                  <span className="text-xs text-muted-foreground font-mono w-12 text-right">
-                    {secondsUntilRefresh}s
-                  </span>
-                )}
+                <Label htmlFor="auto-refresh" className="text-sm text-zinc-300 cursor-pointer select-none">Auto-refresh</Label>
+                <Switch id="auto-refresh" checked={autoRefresh} onCheckedChange={(c) => { setAutoRefresh(c); if (c) resetCountdown(); }} />
+                {autoRefresh && <span className="text-xs text-muted-foreground font-mono w-12 text-right">{secondsUntilRefresh}s</span>}
               </div>
-
-              {/* Manual refresh */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleManualRefresh}
-                disabled={isLoading || isPollingAll}
-                className="gap-2"
-              >
+              <Button variant="outline" size="sm" onClick={handleManualRefresh} disabled={isLoading || isPollingAll} className="gap-2">
                 <RefreshCw className={`w-4 h-4 ${(isLoading || isPollingAll) ? 'animate-spin' : ''}`} />
                 Poll Now
               </Button>
             </div>
           </div>
 
-          {/* Last refreshed + status strip */}
           {lastRefreshed && (
             <div className="text-xs text-muted-foreground flex items-center gap-2">
               <CheckCircle2 className="w-3 h-3 text-green-500" />
               Last polled: {lastRefreshed.toLocaleTimeString()}
-              {autoRefresh && (
-                <span className="ml-2 text-zinc-500">
-                  · Next poll in {secondsUntilRefresh}s
-                </span>
-              )}
+              {autoRefresh && <span className="ml-2 text-zinc-500">· Next poll in {secondsUntilRefresh}s</span>}
             </div>
           )}
 
-          {/* Info banner */}
+          {/* ── Monthly Income Summary Card ── */}
+          <Card className="bg-zinc-900/60 border-zinc-700">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <CardTitle className="text-base text-white flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-green-400" />
+                  Income Harvest Summary
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground">Period:</Label>
+                  <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                    <SelectTrigger className="h-8 w-44 text-xs bg-zinc-800 border-zinc-600">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Time</SelectItem>
+                      {availableMonths.map(k => (
+                        <SelectItem key={k} value={k}>{formatMonthLabel(k)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <CardDescription>
+                {selectedMonth === 'all' ? 'Cumulative P&L across all closed GTC orders.' : `P&L for ${formatMonthLabel(selectedMonth)}.`}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {filledOrders.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground text-sm">
+                  No filled GTC orders yet. P&L will appear here as positions close at their profit target.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Net P&L */}
+                  <div className="rounded-lg bg-zinc-800/60 border border-zinc-700 p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <DollarSign className="w-4 h-4 text-green-400" />
+                      <span className="text-xs text-muted-foreground">Net P&L</span>
+                    </div>
+                    <div className={`text-2xl font-bold ${displayStats.totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {displayStats.totalPnl >= 0 ? '+' : ''}
+                      ${displayStats.totalPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      from ${displayStats.totalPremium.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} collected
+                    </div>
+                  </div>
+
+                  {/* Trades closed */}
+                  <div className="rounded-lg bg-zinc-800/60 border border-zinc-700 p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <BarChart3 className="w-4 h-4 text-blue-400" />
+                      <span className="text-xs text-muted-foreground">Trades Closed</span>
+                    </div>
+                    <div className="text-2xl font-bold text-white">{displayStats.count}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {displayStats.winCount} winners
+                    </div>
+                  </div>
+
+                  {/* Win rate */}
+                  <div className="rounded-lg bg-zinc-800/60 border border-zinc-700 p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Target className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs text-muted-foreground">Win Rate</span>
+                    </div>
+                    <div className={`text-2xl font-bold ${winRate >= 70 ? 'text-green-400' : winRate >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                      {winRate.toFixed(1)}%
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">target ≥ 70%</div>
+                  </div>
+
+                  {/* Avg P&L per trade */}
+                  <div className="rounded-lg bg-zinc-800/60 border border-zinc-700 p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <TrendingUp className="w-4 h-4 text-purple-400" />
+                      <span className="text-xs text-muted-foreground">Avg P&L / Trade</span>
+                    </div>
+                    <div className={`text-2xl font-bold ${avgPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {avgPnl >= 0 ? '+' : ''}
+                      ${avgPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">per closed position</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Monthly breakdown mini-table (only in all-time view) */}
+              {selectedMonth === 'all' && availableMonths.length > 1 && (
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-zinc-700 text-muted-foreground">
+                        <th className="text-left py-1.5 pr-4">Month</th>
+                        <th className="text-right py-1.5 pr-4">Trades</th>
+                        <th className="text-right py-1.5 pr-4">Premium</th>
+                        <th className="text-right py-1.5 pr-4">Net P&L</th>
+                        <th className="text-right py-1.5">Win %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {availableMonths.map(k => {
+                        const s = monthlyStats.get(k)!;
+                        const wr = s.count > 0 ? (s.winCount / s.count) * 100 : 0;
+                        return (
+                          <tr key={k} className="border-b border-zinc-800 hover:bg-zinc-800/30 cursor-pointer"
+                            onClick={() => setSelectedMonth(k)}>
+                            <td className="py-1.5 pr-4 text-zinc-300">{formatMonthLabel(k)}</td>
+                            <td className="text-right py-1.5 pr-4 text-zinc-400">{s.count}</td>
+                            <td className="text-right py-1.5 pr-4 text-green-400">
+                              ${s.premium.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className={`text-right py-1.5 pr-4 font-semibold ${s.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {s.pnl >= 0 ? '+' : ''}${s.pnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className={`text-right py-1.5 ${wr >= 70 ? 'text-green-400' : wr >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                              {wr.toFixed(0)}%
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── Info banner ── */}
           <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-300">
             <Info className="w-4 h-4 mt-0.5 shrink-0" />
             <div>
-              <strong>How GTC automation works:</strong> After you confirm a live STO fill in the order modal,
-              Prosper automatically submits a BTC limit order at your profit target price (75% by default) with
-              time-in-force = GTC. The position closes itself when the market reaches your target — no manual
-              monitoring required. With auto-refresh on, Prosper polls Tastytrade every 60 seconds and alerts
-              you immediately when a GTC order fills.
+              <strong>How GTC automation works:</strong> After you confirm a live STO fill, Prosper automatically
+              submits a BTC limit order at your profit target (75% by default) with time-in-force = GTC.
+              When the order fills, net P&L is recorded and added to the income harvest summary above.
+              With auto-refresh on, Prosper polls every 60 seconds and alerts you immediately on fill.
             </div>
           </div>
 
-          {/* Active GTC Orders */}
+          {/* ── Active GTC Orders ── */}
           <Card className="bg-zinc-900/60 border-zinc-700">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -390,18 +544,13 @@ export default function GtcOrders() {
                     <RefreshCw className={`w-4 h-4 text-blue-400 ${isPollingAll ? 'animate-spin' : ''}`} />
                     Active GTC Orders
                     {activeOrders.length > 0 && (
-                      <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/40 ml-1">
-                        {activeOrders.length}
-                      </Badge>
+                      <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/40 ml-1">{activeOrders.length}</Badge>
                     )}
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    {autoRefresh
-                      ? `Auto-polling every 60 seconds. Next poll in ${secondsUntilRefresh}s.`
-                      : 'Auto-refresh is off. Click "Poll Now" to check for fills.'}
+                    {autoRefresh ? `Auto-polling every 60 seconds. Next poll in ${secondsUntilRefresh}s.` : 'Auto-refresh is off. Click "Poll Now" to check for fills.'}
                   </CardDescription>
                 </div>
-                {/* Animated pulse indicator when auto-refresh is on and there are active orders */}
                 {autoRefresh && activeOrders.length > 0 && (
                   <div className="flex items-center gap-1.5 text-xs text-blue-400">
                     <span className="relative flex h-2 w-2">
@@ -435,28 +584,31 @@ export default function GtcOrders() {
                         <TableHead className="text-xs">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
-                      {activeOrders.map(renderOrderRow)}
-                    </TableBody>
+                    <TableBody>{activeOrders.map(o => renderOrderRow(o, false))}</TableBody>
                   </Table>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Historical GTC Orders */}
+          {/* ── History ── */}
           <Card className="bg-zinc-900/60 border-zinc-700">
             <CardHeader className="pb-3">
               <CardTitle className="text-base text-white flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-green-400" />
                 History
+                {selectedMonth !== 'all' && (
+                  <Badge className="bg-zinc-700 text-zinc-300 border-zinc-600 ml-1 text-xs">
+                    {formatMonthLabel(selectedMonth)}
+                  </Badge>
+                )}
               </CardTitle>
-              <CardDescription>Filled, cancelled, and failed GTC orders.</CardDescription>
+              <CardDescription>Filled, cancelled, and failed GTC orders. P&L is recorded for all fills.</CardDescription>
             </CardHeader>
             <CardContent>
               {historicalOrders.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">
-                  No historical GTC orders yet.
+                  No historical GTC orders for this period.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -469,20 +621,20 @@ export default function GtcOrders() {
                         <TableHead className="text-xs">Premium</TableHead>
                         <TableHead className="text-xs">Target</TableHead>
                         <TableHead className="text-xs">Close At</TableHead>
+                        <TableHead className="text-xs text-green-400">Net P&L</TableHead>
                         <TableHead className="text-xs">Order ID</TableHead>
                         <TableHead className="text-xs">Submitted</TableHead>
                         <TableHead className="text-xs">Closed</TableHead>
                         <TableHead className="text-xs">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
-                      {historicalOrders.map(renderOrderRow)}
-                    </TableBody>
+                    <TableBody>{historicalOrders.map(o => renderOrderRow(o, true))}</TableBody>
                   </Table>
                 </div>
               )}
             </CardContent>
           </Card>
+
         </div>
       </TooltipProvider>
     </DashboardLayout>

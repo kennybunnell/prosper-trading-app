@@ -3302,7 +3302,7 @@ Summary: [One sentence overall assessment]`;
         const tokenData = await loadAccessToken(ctx.user.id);
         if (!tokenData?.accessToken) throw new Error('No Tastytrade session.');
 
-        const { status, filledAt } = await pollGtcOrderStatus(
+        const { status, filledAt, fillPrice } = await pollGtcOrderStatus(
           tokenData.accessToken,
           input.accountId,
           input.gtcOrderId
@@ -3318,10 +3318,44 @@ Summary: [One sentence overall assessment]`;
         if (database) {
           const { gtcOrders } = await import('../drizzle/schema');
           const { eq, and } = await import('drizzle-orm');
+
+          // Build P&L fields when the order fills
+          let pnlFields: Record<string, string> = {};
+          if (dbStatus === 'filled') {
+            // Fetch the original record to get totalPremiumCollected
+            const [record] = await database
+              .select()
+              .from(gtcOrders)
+              .where(and(eq(gtcOrders.id, input.gtcDbId), eq(gtcOrders.userId, ctx.user.id)))
+              .limit(1);
+
+            if (record) {
+              // Use the actual fill price if available, otherwise fall back to targetClosePrice
+              const closePerShare = fillPrice ?? parseFloat(record.targetClosePrice);
+              const totalPremium = parseFloat(record.totalPremiumCollected);
+              // Determine contract count from totalPremiumCollected / (premiumCollected * 100)
+              const premiumPerShare = parseFloat(record.premiumCollected);
+              const contracts = premiumPerShare > 0
+                ? Math.round(totalPremium / (premiumPerShare * 100))
+                : 1;
+              const totalClose = closePerShare * 100 * contracts;
+              const pnl = totalPremium - totalClose;
+              const pnlPct = totalPremium > 0 ? (pnl / totalPremium) * 100 : 0;
+
+              pnlFields = {
+                closeCost: closePerShare.toFixed(4),
+                totalCloseCost: totalClose.toFixed(2),
+                realizedPnl: pnl.toFixed(2),
+                realizedPnlPct: pnlPct.toFixed(2),
+              };
+            }
+          }
+
           await database.update(gtcOrders)
             .set({
               status: dbStatus,
               ...(dbStatus === 'filled' ? { filledAt: filledAt ? new Date(filledAt) : new Date() } : {}),
+              ...pnlFields,
             })
             .where(and(eq(gtcOrders.id, input.gtcDbId), eq(gtcOrders.userId, ctx.user.id)));
         }

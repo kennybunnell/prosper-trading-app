@@ -421,6 +421,13 @@
       "when": 1772913234426,
       "tag": "0060_rich_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "5",
+      "when": 1772915691315,
+      "tag": "0061_high_nemesis",
+      "breakpoints": true
     }
   ]
 }
