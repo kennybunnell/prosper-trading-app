@@ -1,0 +1,1 @@
+ALTER TABLE `watchlists` ADD `isIndex` boolean DEFAULT false NOT NULL;

@@ -64,6 +64,7 @@ export const watchlists = mysqlTable("watchlists", {
   rank: int("rank"),
   portfolioSize: mysqlEnum("portfolioSize", ["small", "medium", "large"]), // Portfolio size category
   price: varchar("price", { length: 20 }), // Current stock price
+  isIndex: boolean("isIndex").notNull().default(false), // true = index/ETF (SPXW, NDX, RUT, etc.), false = equity
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
   userIdIdx: index("watchlists_userId_idx").on(table.userId),

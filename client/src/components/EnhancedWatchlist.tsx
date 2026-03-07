@@ -36,6 +36,103 @@ type EnhancedWatchlistProps = {
   onFullCollapse?: () => void;
 };
 
+const INDEX_SYMBOLS_SET = new Set(['SPX','SPXW','SPXPM','XSP','NANOS','NDX','XND','RUT','MRUT','DJX','VIX','VIXW','SPY','QQQ','IWM','DIA','OEX','XEO','QQQM','TQQQ','SQQQ','UPRO','SPXU','SSO','SDS','TNA','TZA','EFA','EEM','VEA','VWO','XLK','XLF','XLE','XLV','XLI','XLP','XLU','XLB','XLRE','XLC','XLY','TLT','TBT','IEF','HYG','LQD','VXX','VIXY','UVXY','SVXY']);
+
+function WatchlistPills({
+  watchlist,
+  watchlistError,
+  loadingWatchlist,
+  selectionMap,
+  onToggle,
+  onRemove,
+  onRetry,
+}: {
+  watchlist: WatchlistItem[];
+  watchlistError: any;
+  loadingWatchlist: boolean;
+  selectionMap: Map<string, boolean>;
+  onToggle: (symbol: string) => void;
+  onRemove: (symbol: string) => void;
+  onRetry: () => void;
+}) {
+  if (watchlistError) {
+    return (
+      <div className="flex flex-col gap-2 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+        <p className="text-sm text-destructive font-medium">⚠️ Database Connection Timeout</p>
+        <p className="text-xs text-muted-foreground">
+          The database is taking too long to respond. This is a known infrastructure issue.
+          Your data is safe. Try refreshing the page or wait a moment.
+        </p>
+        <Button variant="outline" size="sm" onClick={onRetry} className="w-fit">Retry</Button>
+      </div>
+    );
+  }
+  if (loadingWatchlist) {
+    return (
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Loading watchlist... (this may take 10-30 seconds)
+      </div>
+    );
+  }
+  if (watchlist.length === 0) {
+    return <p className="text-sm text-muted-foreground">No symbols in watchlist. Add some above or import a CSV.</p>;
+  }
+
+  const indexItems = watchlist.filter((item) => (item as any).isIndex === true || (item as any).isIndex === 1 || INDEX_SYMBOLS_SET.has(item.symbol));
+  const equityItems = watchlist.filter((item) => !indexItems.includes(item));
+
+  const renderPill = (item: WatchlistItem) => {
+    const isSelected = selectionMap.get(item.symbol) === true;
+    return (
+      <Badge
+        key={item.id}
+        variant="secondary"
+        className={cn(
+          "px-3 py-1 flex items-center gap-2 cursor-pointer transition-all",
+          isSelected && "ring-2 ring-primary bg-primary/10 border-primary"
+        )}
+        onClick={() => onToggle(item.symbol)}
+      >
+        <div className={cn(
+          "w-3 h-3 rounded-sm border flex items-center justify-center",
+          isSelected ? "bg-primary border-primary" : "border-muted-foreground"
+        )}>
+          {isSelected && (
+            <svg className="w-2 h-2 text-primary-foreground" fill="currentColor" viewBox="0 0 12 12">
+              <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" fill="none" />
+            </svg>
+          )}
+        </div>
+        {item.symbol}
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(item.symbol); }}
+          className="hover:text-destructive"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </Badge>
+    );
+  };
+
+  return (
+    <div className="space-y-3 w-full">
+      {indexItems.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-amber-500 uppercase tracking-wider mb-2">Indexes ({indexItems.length})</p>
+          <div className="flex flex-wrap gap-2">{indexItems.map(renderPill)}</div>
+        </div>
+      )}
+      {equityItems.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-2">Equities ({equityItems.length})</p>
+          <div className="flex flex-wrap gap-2">{equityItems.map(renderPill)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = false, onToggleCollapse, onFullCollapse }: EnhancedWatchlistProps) {
   const [newSymbol, setNewSymbol] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
@@ -462,69 +559,15 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
 
         {/* Compact View (Badges) */}
         {!isExpanded && (
-          <div className="flex flex-wrap gap-2">
-            {watchlistError ? (
-              <div className="flex flex-col gap-2 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                <p className="text-sm text-destructive font-medium">⚠️ Database Connection Timeout</p>
-                <p className="text-xs text-muted-foreground">
-                  The database is taking too long to respond. This is a known infrastructure issue.
-                  Your data is safe. Try refreshing the page or wait a moment.
-                </p>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => utils.watchlist.get.invalidate()}
-                  className="w-fit"
-                >
-                  Retry
-                </Button>
-              </div>
-            ) : loadingWatchlist ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Loading watchlist... (this may take 10-30 seconds)
-              </div>
-            ) : watchlist.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No symbols in watchlist. Add some above or import a CSV.</p>
-            ) : (
-              watchlist.map((item: WatchlistItem) => {
-                const isSelected = selectionMap.get(item.symbol) === true;
-                return (
-                  <Badge 
-                    key={item.id} 
-                    variant="secondary" 
-                    className={cn(
-                      "px-3 py-1 flex items-center gap-2 cursor-pointer transition-all relative",
-                      isSelected && "ring-2 ring-primary bg-primary/10 border-primary"
-                    )}
-                    onClick={() => toggleSelection.mutate({ symbol: item.symbol })}
-                  >
-                    {/* Checkbox indicator */}
-                    <div className={cn(
-                      "w-3 h-3 rounded-sm border flex items-center justify-center",
-                      isSelected ? "bg-primary border-primary" : "border-muted-foreground"
-                    )}>
-                      {isSelected && (
-                        <svg className="w-2 h-2 text-primary-foreground" fill="currentColor" viewBox="0 0 12 12">
-                          <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" fill="none" />
-                        </svg>
-                      )}
-                    </div>
-                    {item.symbol}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeFromWatchlist.mutate({ symbol: item.symbol });
-                      }}
-                      className="hover:text-destructive"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                );
-              })
-            )}
-          </div>
+          <WatchlistPills
+            watchlist={watchlist}
+            watchlistError={watchlistError}
+            loadingWatchlist={loadingWatchlist}
+            selectionMap={selectionMap}
+            onToggle={(symbol) => toggleSelection.mutate({ symbol })}
+            onRemove={(symbol) => removeFromWatchlist.mutate({ symbol })}
+            onRetry={() => utils.watchlist.get.invalidate()}
+          />
         )}
 
         {/* Expanded View (Table) */}

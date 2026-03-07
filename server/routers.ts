@@ -1083,10 +1083,23 @@ export const appRouter = router({
         reason: z.string().optional(),
         rank: z.number().optional(),
         portfolioSize: z.enum(['small', 'medium', 'large']).optional(),
+        isIndex: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { addToWatchlistWithMetadata } = await import('./db');
         await addToWatchlistWithMetadata(ctx.user.id, input);
+        return { success: true };
+      }),
+    setIndex: protectedProcedure
+      .input(z.object({ symbol: z.string().min(1).max(10), isIndex: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await (await import('./db')).getDb();
+        if (!db) return { success: false };
+        const { watchlists } = await import('../drizzle/schema');
+        const { eq, and } = await import('drizzle-orm');
+        await db.update(watchlists)
+          .set({ isIndex: input.isIndex })
+          .where(and(eq(watchlists.userId, ctx.user.id), eq(watchlists.symbol, input.symbol)));
         return { success: true };
       }),
     importCSV: protectedProcedure

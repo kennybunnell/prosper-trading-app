@@ -195,11 +195,15 @@ export async function addToWatchlistWithMetadata(
     sector?: string;
     reason?: string;
     rank?: number;
+    isIndex?: boolean;
   }
 ) {
   const db = await getDb();
   if (!db) return;
   const { watchlists } = await import('../drizzle/schema');
+  const { isIndexSymbol } = await import('../shared/index-symbols');
+  // Auto-detect index symbols if not explicitly provided
+  const resolvedIsIndex = data.isIndex !== undefined ? data.isIndex : isIndexSymbol(data.symbol);
   await db.insert(watchlists).values({
     userId,
     symbol: data.symbol,
@@ -209,6 +213,7 @@ export async function addToWatchlistWithMetadata(
     sector: data.sector,
     reason: data.reason,
     rank: data.rank,
+    isIndex: resolvedIsIndex,
   });
 }
 

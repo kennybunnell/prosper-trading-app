@@ -6,6 +6,7 @@
 
 import { protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
+import { z } from "zod";
 
 interface StrategyFit {
   strategy: 'BPS' | 'BCS' | 'IC';
@@ -47,7 +48,13 @@ export const strategyAdvisorRouter = router({
    * Get enhanced market analysis with ranked watchlist recommendations
    * Analyzes each ticker individually and scores them for the recommended strategy
    */
-  getRecommendation: protectedProcedure.query(async ({ ctx }) => {
+  getRecommendation: protectedProcedure
+    .input(z.object({
+      /** 'equity' = equities only, 'index' = indexes only, 'all' = everything (legacy) */
+      scanType: z.enum(['equity', 'index', 'all']).default('all'),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+    const scanType = input?.scanType ?? 'all';
     const { getTastytradeAPI } = await import('./tastytrade');
     const { getApiCredentials } = await import('./db');
 
@@ -68,16 +75,32 @@ export const strategyAdvisorRouter = router({
       const api = await authenticateTastytrade(credentials, ctx.user.id);
 
       // Fetch user's watchlist
-      const { getWatchlistSelections } = await import('./db');
-      const watchlistSelections = await getWatchlistSelections(ctx.user.id);
-      const watchlistSymbols = watchlistSelections.map(sel => sel.symbol);
+      const { getWatchlist } = await import('./db');
+      const { isIndexSymbol } = await import('../shared/index-symbols');
+      const fullWatchlist = await getWatchlist(ctx.user.id);
+
+      // Filter by scanType: use the DB isIndex flag, falling back to symbol detection
+      const filteredWatchlist = fullWatchlist.filter((w: any) => {
+        const isIdx = w.isIndex === true || w.isIndex === 1 || isIndexSymbol(w.symbol);
+        if (scanType === 'index') return isIdx;
+        if (scanType === 'equity') return !isIdx;
+        return true; // 'all'
+      });
+
+      const watchlistSymbols = filteredWatchlist.map((w: any) => w.symbol);
 
       if (watchlistSymbols.length === 0) {
+        const emptyMsg = scanType === 'index'
+          ? 'No index symbols in watchlist. Add SPXW, NDX, RUT, or other indexes first.'
+          : scanType === 'equity'
+          ? 'No equity symbols in watchlist. Add individual stocks first.'
+          : 'No tickers in watchlist. Please add tickers in Settings.';
         return {
-          error: 'No tickers in watchlist. Please add tickers in Settings.',
+          error: emptyMsg,
           marketData: null,
           recommendation: null,
           rankedTickers: [],
+          scanType,
         };
       }
 
@@ -496,6 +519,7 @@ export const strategyAdvisorRouter = router({
         marketData,
         recommendation,
         rankedTickers,
+        scanType,
         timestamp: new Date().toISOString(),
       };
     } catch (error: any) {

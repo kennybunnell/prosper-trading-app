@@ -48,11 +48,36 @@ export function StrategyAdvisor() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
   
-  const { data, isLoading, error, refetch } = trpc.strategyAdvisor.getRecommendation.useQuery(undefined, {
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchOnWindowFocus: false,
-    refetchInterval: autoRefresh ? refreshInterval * 60 * 1000 : false,
-  });
+  // scanType: null = idle (no scan yet), 'equity' | 'index' = active scan
+  const [scanType, setScanType] = useState<'equity' | 'index' | null>(null);
+  const [scanEnabled, setScanEnabled] = useState(false);
+
+  const { data, isLoading, error, refetch } = trpc.strategyAdvisor.getRecommendation.useQuery(
+    scanType ? { scanType } : undefined,
+    {
+      enabled: scanEnabled && scanType !== null,
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      refetchInterval: autoRefresh && scanEnabled ? refreshInterval * 60 * 1000 : false,
+    }
+  );
+
+  const handleScanEquities = async () => {
+    setScanType('equity');
+    setScanEnabled(true);
+    // If scanType was already equity, force a refetch
+    if (scanType === 'equity') {
+      await refetch();
+    }
+  };
+
+  const handleScanIndexes = async () => {
+    setScanType('index');
+    setScanEnabled(true);
+    if (scanType === 'index') {
+      await refetch();
+    }
+  };
   
   // Mutation to clear all watchlist selections
   const clearAllMutation = trpc.watchlist.clearAll.useMutation({
@@ -237,6 +262,54 @@ export function StrategyAdvisor() {
     return day >= 1 && day <= 5 && hour >= 9 && hour <= 17;
   };
 
+  // Idle state: no scan has been triggered yet
+  if (!scanEnabled || scanType === null) {
+    return (
+      <div className="space-y-6">
+        <EnhancedWatchlist
+          isCollapsed={watchlistCollapsed}
+          onToggleCollapse={() => setWatchlistCollapsed(!watchlistCollapsed)}
+          onWatchlistChange={() => utils.strategyAdvisor.getRecommendation.invalidate()}
+        />
+        <Card className="border-primary/50 bg-primary/5">
+          <CardContent className="pt-8 pb-8">
+            <div className="text-center space-y-4">
+              <div className="flex items-center justify-center gap-3 mb-2">
+                <Target className="h-8 w-8 text-primary" />
+                <h2 className="text-2xl font-bold">Spread Advisor</h2>
+              </div>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                Choose a scan type to get AI-powered spread recommendations.
+                Indexes (SPXW, NDX, RUT) and equities use separate scoring models.
+              </p>
+              <div className="flex items-center justify-center gap-4 pt-2">
+                <Button
+                  onClick={handleScanIndexes}
+                  size="lg"
+                  variant="outline"
+                  className="min-w-[180px] border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+                >
+                  <span className="mr-2">📊</span>Scan Indexes
+                </Button>
+                <Button
+                  onClick={handleScanEquities}
+                  size="lg"
+                  className="min-w-[180px]"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />Scan Equities
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground pt-2">
+                Indexes: SPXW, NDX, RUT, SPY, QQQ, IWM and other broad-market instruments
+                &nbsp;•&nbsp; Equities: Individual stocks in your watchlist
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <Card>
@@ -408,42 +481,49 @@ export function StrategyAdvisor() {
         </Card>
       )}
 
-      {/* Analyze Button - Prominent */}
+      {/* Scan Controls - Two separate scan buttons */}
       <Card className="border-primary/50 bg-primary/5">
         <CardContent className="pt-6">
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-1">
-                <h3 className="font-semibold text-lg">Ready to Analyze</h3>
-                {selectedTickers.size > 0 && (
-                  <Badge variant="secondary" className="bg-blue-500/20 text-blue-700 border-blue-500/50">
-                    {selectedTickers.size} selected
+                <h3 className="font-semibold text-lg">Scan Watchlist</h3>
+                {scanType && (
+                  <Badge variant="secondary" className={scanType === 'index' ? 'bg-amber-500/20 text-amber-700 border-amber-500/50' : 'bg-blue-500/20 text-blue-700 border-blue-500/50'}>
+                    {scanType === 'index' ? 'Index Scan' : 'Equity Scan'}
                   </Badge>
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
                 {rankedTickers.length > 0 && lastUpdated
-                  ? `Last analyzed: ${lastUpdated}`
-                  : 'Click to analyze all tickers in your watchlist'}
+                  ? `Last scanned: ${lastUpdated}`
+                  : 'Choose a scan type below — indexes and equities use different scoring models'}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <Button
-                onClick={handleAnalyzeClick}
+                onClick={handleScanIndexes}
                 size="lg"
                 disabled={isLoading}
-                className="min-w-[180px]"
+                variant="outline"
+                className="min-w-[160px] border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
               >
-                {isLoading ? (
-                  <>
-                    <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
-                    Analyzing...
-                  </>
+                {isLoading && scanType === 'index' ? (
+                  <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Scanning...</>
                 ) : (
-                  <>
-                    <RefreshCw className="h-5 w-5 mr-2" />
-                    Analyze Watchlist
-                  </>
+                  <><span className="mr-2">📊</span>Scan Indexes</>
+                )}
+              </Button>
+              <Button
+                onClick={handleScanEquities}
+                size="lg"
+                disabled={isLoading}
+                className="min-w-[160px]"
+              >
+                {isLoading && scanType === 'equity' ? (
+                  <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Scanning...</>
+                ) : (
+                  <><RefreshCw className="h-4 w-4 mr-2" />Scan Equities</>
                 )}
               </Button>
               
