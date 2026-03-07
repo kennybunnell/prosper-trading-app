@@ -34,6 +34,9 @@ type EnhancedWatchlistProps = {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   onFullCollapse?: () => void;
+  /** When provided, the Equity/Index toggle is controlled by the parent */
+  contextMode?: 'equity' | 'index';
+  onContextModeChange?: (mode: 'equity' | 'index') => void;
 };
 
 const INDEX_SYMBOLS_SET = new Set(['SPX','SPXW','SPXPM','XSP','NANOS','NDX','XND','RUT','MRUT','DJX','VIX','VIXW','SPY','QQQ','IWM','DIA','OEX','XEO','QQQM','TQQQ','SQQQ','UPRO','SPXU','SSO','SDS','TNA','TZA','EFA','EEM','VEA','VWO','XLK','XLF','XLE','XLV','XLI','XLP','XLU','XLB','XLRE','XLC','XLY','TLT','TBT','IEF','HYG','LQD','VXX','VIXY','UVXY','SVXY']);
@@ -133,10 +136,19 @@ function WatchlistPills({
   );
 }
 
-export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = false, onToggleCollapse, onFullCollapse }: EnhancedWatchlistProps) {
+export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = false, onToggleCollapse, onFullCollapse, contextMode, onContextModeChange }: EnhancedWatchlistProps) {
   const [newSymbol, setNewSymbol] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
-  const [addAsIndex, setAddAsIndex] = useState(false);
+  // If contextMode is provided by parent, use it; otherwise use local state
+  const [localAddAsIndex, setLocalAddAsIndex] = useState(false);
+  const addAsIndex = contextMode !== undefined ? contextMode === 'index' : localAddAsIndex;
+  const setAddAsIndex = (val: boolean) => {
+    if (onContextModeChange) {
+      onContextModeChange(val ? 'index' : 'equity');
+    } else {
+      setLocalAddAsIndex(val);
+    }
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
 

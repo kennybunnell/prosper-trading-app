@@ -272,6 +272,8 @@ export function StrategyAdvisor() {
           isCollapsed={watchlistCollapsed}
           onToggleCollapse={() => setWatchlistCollapsed(!watchlistCollapsed)}
           onWatchlistChange={() => utils.strategyAdvisor.getRecommendation.invalidate()}
+          contextMode={pendingScanType}
+          onContextModeChange={setPendingScanType}
         />
         <Card className="border-primary/50 bg-primary/5">
           <CardContent className="pt-8 pb-8">
@@ -281,39 +283,14 @@ export function StrategyAdvisor() {
                 <h2 className="text-2xl font-bold">Spread Advisor</h2>
               </div>
               <p className="text-muted-foreground max-w-md mx-auto">
-                Choose a scan type to get AI-powered spread recommendations.
+                Use the <strong>{pendingScanType === 'index' ? 'Indexes' : 'Equities'}</strong> toggle in the Watchlist above to switch context, then scan.
                 Indexes (SPXW, NDX, RUT) and equities use separate scoring models.
               </p>
-              {/* Segmented scan type selector */}
               <div className="flex flex-col items-center gap-4 pt-2">
-                <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setPendingScanType('equity')}
-                    className={`rounded-md px-6 py-2 text-sm font-medium transition-all ${
-                      pendingScanType === 'equity'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    Equities
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPendingScanType('index')}
-                    className={`rounded-md px-6 py-2 text-sm font-medium transition-all ${
-                      pendingScanType === 'index'
-                        ? 'bg-amber-500 text-black shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    Indexes
-                  </button>
-                </div>
                 <p className="text-xs text-muted-foreground">
                   {pendingScanType === 'equity'
-                    ? 'Individual stocks in your watchlist — equity scoring model'
-                    : 'SPXW, NDX, RUT, SPY, QQQ, IWM and other broad-market instruments — index scoring model'}
+                    ? 'Equity mode — individual stocks · equity scoring model'
+                    : 'Index mode — SPXW, NDX, RUT and other broad-market instruments · index scoring model'}
                 </p>
                 <Button
                   onClick={pendingScanType === 'index' ? handleScanIndexes : handleScanEquities}
@@ -448,6 +425,8 @@ export function StrategyAdvisor() {
         onWatchlistChange={() => {
           utils.strategyAdvisor.getRecommendation.invalidate();
         }}
+        contextMode={pendingScanType}
+        onContextModeChange={setPendingScanType}
       />
 
       {/* Selection Panel - Shows selected tickers as chips */}
@@ -522,35 +501,11 @@ export function StrategyAdvisor() {
               <p className="text-sm text-muted-foreground">
                 {rankedTickers.length > 0 && lastUpdated
                   ? `Last scanned: ${lastUpdated}`
-                  : 'Choose a scan type below — indexes and equities use different scoring models'}
+                  : `${pendingScanType === 'index' ? 'Index' : 'Equity'} mode active — switch the toggle in the Watchlist above to change context`}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {/* Segmented selector + single Scan button in results header */}
-              <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
-                <button
-                  type="button"
-                  onClick={() => { setPendingScanType('equity'); }}
-                  className={`rounded-md px-4 py-1.5 text-xs font-medium transition-all ${
-                    (scanType === 'equity' || (!scanType && pendingScanType === 'equity'))
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Equities
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setPendingScanType('index'); }}
-                  className={`rounded-md px-4 py-1.5 text-xs font-medium transition-all ${
-                    (scanType === 'index' || (!scanType && pendingScanType === 'index'))
-                      ? 'bg-amber-500 text-black shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Indexes
-                </button>
-              </div>
+              {/* Single Scan button — context is set by the Watchlist header toggle */}
               <Button
                 onClick={pendingScanType === 'index' ? handleScanIndexes : handleScanEquities}
                 size="lg"

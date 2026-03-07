@@ -7481,3 +7481,12 @@
 - [x] Compute net P&L on fill in the poll procedure (totalPremiumCollected - closeCost * 100)
 - [x] Add P&L column to History table in GTC Orders page
 - [x] Add monthly income summary card at top of GTC Orders page
+## Equity/Index Toggle Consolidation (Mar 7, 2026)
+- [x] Add contextMode + onContextModeChange props to EnhancedWatchlist (controlled mode)
+- [x] Lift pendingScanType to page level in StrategyAdvisor as single source of truth
+- [x] Wire both EnhancedWatchlist instances (idle + results state) to receive contextMode prop
+- [x] Remove duplicate Equity/Index segmented toggle from Scan Watchlist card
+- [x] Simplify Scan button label to reflect active context (Scan Equities / Scan Indexes)
+- [x] Update idle-state card to reference watchlist toggle instead of showing its own toggle
+- [x] Update Scan Watchlist description to reference watchlist toggle for context changes
+- [x] Write 11 unit tests for controlled-mode toggle logic (all passing)
