@@ -175,6 +175,11 @@ export default function IronCondorDashboard() {
     return filtered;
   }, [watchlist, selectedPortfolioSizes, selections]);
 
+  // Detect if SPXW is in the watchlist (drives the conditional SPXW Score column)
+  const spxwInWatchlist = useMemo(() =>
+    watchlist.some((w: any) => w.symbol === 'SPXW' || w.symbol === 'SPX'),
+  [watchlist]);
+
   // Fetch Iron Condor opportunities
   const { data: opportunities = [], isLoading: loadingOpportunities, refetch: refetchOpportunities } = trpc.ironCondor.opportunities.useQuery(
     { 
@@ -451,6 +456,12 @@ export default function IronCondorDashboard() {
         if (sortConfig.key === 'putShortStrike' || sortConfig.key === 'callShortStrike') {
           aValue = Number(aValue) || 0;
           bValue = Number(bValue) || 0;
+        }
+
+        // Handle spxwScore: for index rows use opp.score; for equity rows use scoreBreakdown.indexEquivalent
+        if (sortConfig.key === 'spxwScore') {
+          aValue = (a.symbol === 'SPXW' || a.symbol === 'SPX') ? (a.score || 0) : (a.scoreBreakdown?.indexEquivalent ?? -Infinity);
+          bValue = (b.symbol === 'SPXW' || b.symbol === 'SPX') ? (b.score || 0) : (b.scoreBreakdown?.indexEquivalent ?? -Infinity);
         }
         
         if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -1038,6 +1049,28 @@ export default function IronCondorDashboard() {
                         Score {sortConfig?.key === 'score' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
                       
+                      {/* 2b. SPXW Score column — only visible when SPXW is in watchlist */}
+                      {spxwInWatchlist && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                          setSortConfig(prev => prev?.key === 'spxwScore' && prev.direction === 'desc'
+                            ? { key: 'spxwScore', direction: 'asc' }
+                            : { key: 'spxwScore', direction: 'desc' });
+                        }}>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="flex items-center gap-1 text-amber-400 cursor-help">
+                                  SPXW Score {sortConfig?.key === 'spxwScore' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                Index-calibrated score using profit zone width, delta neutrality, and index IV rank thresholds (15–45 range). Replaces RSI/BB components used for equity scoring.
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableHead>
+                      )}
+
                       {/* 3. Symbol */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'symbol' && prev.direction === 'asc' 
@@ -1168,7 +1201,7 @@ export default function IronCondorDashboard() {
                   <TableBody>
                     {displayedOpportunities.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={16} className="text-center text-muted-foreground">
+                        <TableCell colSpan={spxwInWatchlist ? 17 : 16} className="text-center text-muted-foreground">
                           No opportunities found
                         </TableCell>
                       </TableRow>
@@ -1236,6 +1269,42 @@ export default function IronCondorDashboard() {
                               </Tooltip>
                             </TableCell>
                             
+                            {/* 2b. SPXW Score cell — conditional */}
+                            {spxwInWatchlist && (() => {
+                              const isIndex = opp.symbol === 'SPXW' || opp.symbol === 'SPX';
+                              const spxwScore = isIndex
+                                ? (opp.score || 0)  // already index-scored
+                                : (opp as any).scoreBreakdown?.indexEquivalent ?? null;  // equity row: show index-equivalent if available
+                              return (
+                                <TableCell>
+                                  {isIndex ? (
+                                    <Badge className={`${
+                                      (opp.score || 0) >= 70 ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' :
+                                      (opp.score || 0) >= 55 ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
+                                      'bg-red-500/20 text-red-500 border-red-500/50'
+                                    }`}>
+                                      {(opp.score || 0).toFixed(1)}
+                                    </Badge>
+                                  ) : spxwScore != null ? (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="text-xs text-muted-foreground cursor-help">
+                                            {spxwScore.toFixed(1)}
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="right" className="text-xs">
+                                          This equity IC would score {spxwScore.toFixed(1)} on the index scale. Compare to SPXW to see which offers better risk-adjusted value.
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                  )}
+                                </TableCell>
+                              );
+                            })()}
+
                             {/* 3. Symbol */}
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-1.5">

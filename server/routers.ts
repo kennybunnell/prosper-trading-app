@@ -1858,10 +1858,21 @@ Summary: [One sentence overall assessment]`;
               // LIVE MODE ONLY - no dry run parameter
               const result = await api.submitOrder(orderRequest);
 
+              // Build GTC legs (mirror of STO legs: Sell→Buy to Close, Buy→Sell to Close)
+              const gtcLegs = legs.map(leg => ({
+                symbol: leg.symbol,
+                action: (leg.action === 'Sell to Open' ? 'Buy to Close' : 'Sell to Close') as 'Buy to Close' | 'Sell to Close',
+                quantity: Number(leg.quantity),
+                instrumentType: leg.instrumentType as 'Equity Option' | 'Index Option',
+              }));
+
               return {
                 symbol: order.symbol,
                 success: true,
                 orderId: result.id,
+                expiration: order.expiration,
+                premium: freshNetCredit,
+                legs: gtcLegs,
               };
             } catch (error: any) {
               // Log full error details for debugging

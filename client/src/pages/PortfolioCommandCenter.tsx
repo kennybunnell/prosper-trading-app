@@ -1111,8 +1111,60 @@ function TickerAnalysisPanel({
                 </div>
               </div>
 
-              {/* === ASSIGNMENT PROBABILITY GAUGE === */}
-              {result?.shortDelta != null && result.shortDelta > 0 && (
+              {/* === CASH SETTLEMENT PANEL (SPXW/SPX only) === */}
+              {(ticker.symbol === 'SPXW' || ticker.symbol === 'SPX') && result?.shortDelta != null && result.shortDelta > 0 && (() => {
+                const strikeMatch = result?.strikeDisplay?.match(/\$(\d+(?:\.\d+)?)/g);
+                const strikes = strikeMatch ? strikeMatch.map(s => parseFloat(s.replace('$', ''))) : [];
+                const shortStrike = strikes[0] ?? null;
+                const longStrike = strikes[1] ?? null;
+                const spreadWidth = shortStrike != null && longStrike != null ? Math.abs(shortStrike - longStrike) : null;
+                const contracts = result?.contracts ?? ticker.contracts ?? 0;
+                const maxLoss = spreadWidth != null ? spreadWidth * 100 * contracts : null;
+                const maxProfit = result?.premiumCollected ?? ticker.premiumAtRisk;
+                const riskReward = maxLoss != null && maxProfit > 0 ? (maxProfit / maxLoss) : null;
+                return (
+                  <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 space-y-2">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-400">Cash Settlement — No Assignment Risk</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      SPXW settles in cash at expiration (PM-settled). No shares are ever assigned. The only outcome is a cash debit or credit based on the index level vs. your strikes.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-lg border border-border/40 bg-card/50 p-2.5">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Max Profit</p>
+                        <p className="text-sm font-bold text-emerald-400">${maxProfit.toFixed(0)}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Premium collected</p>
+                      </div>
+                      <div className="rounded-lg border border-border/40 bg-card/50 p-2.5">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Max Loss</p>
+                        <p className="text-sm font-bold text-red-400">{maxLoss != null ? `$${maxLoss.toLocaleString()}` : '—'}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{spreadWidth != null ? `${spreadWidth}pt × 100 × ${contracts}` : 'Spread width × 100'}</p>
+                      </div>
+                      {riskReward != null && (
+                        <div className="col-span-2 rounded-lg border border-border/40 bg-card/50 p-2.5">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Risk / Reward</p>
+                          <p className="text-xs font-semibold text-foreground">
+                            Collect ${maxProfit.toFixed(0)} to risk ${maxLoss?.toLocaleString()} — {(riskReward * 100).toFixed(1)}% ROC
+                          </p>
+                        </div>
+                      )}
+                      <div className="col-span-2 rounded-lg border border-blue-500/20 bg-blue-500/5 p-2.5">
+                        <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-1">At Expiration</p>
+                        <div className="space-y-1">
+                          <p className="text-[11px] text-foreground/80">• If SPX closes between your strikes → keep full premium (max profit).</p>
+                          <p className="text-[11px] text-foreground/80">• If SPX breaches a short strike → cash settlement debit, capped at spread width × 100.</p>
+                          <p className="text-[11px] text-foreground/80">• No shares, no assignment, no early exercise risk.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* === ASSIGNMENT PROBABILITY GAUGE (equity positions only) === */}
+              {ticker.symbol !== 'SPXW' && ticker.symbol !== 'SPX' && result?.shortDelta != null && result.shortDelta > 0 && (
                 <div className="rounded-xl border border-border/50 bg-card/40 p-3">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5">
@@ -1241,8 +1293,8 @@ function TickerAnalysisPanel({
                           <span className="text-xs text-muted-foreground">Scanning live option chains…</span>
                         </div>
                       )}
-                      {!rollMutation.isPending && rollCandidates.length === 0 && (() => {
-                        // --- Assignment Scenario Calculator ---
+                      {!rollMutation.isPending && rollCandidates.length === 0 && ticker?.symbol !== 'SPXW' && ticker?.symbol !== 'SPX' && (() => {
+                        // --- Assignment Scenario Calculator (equity only — SPXW/SPX use cash settlement panel above) ---
                         // Parse the short strike from strikeDisplay (e.g. "$185 CALL" or "$185 CALL / $190 CALL")
                         const strikeMatch = result?.strikeDisplay?.match(/\$(\d+(?:\.\d+)?)/);
                         const shortStrike = strikeMatch ? parseFloat(strikeMatch[1]) : null;

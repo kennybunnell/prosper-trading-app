@@ -166,6 +166,10 @@ export function UnifiedOrderPreviewModal({
   const [marketStatus, setMarketStatus] = useState<{ isOpen: boolean; description: string } | null>(null);
   // Profit target for STO strategies (75% = user's preferred default, 50% = tastytrade standard)
   const [profitTargetPct, setProfitTargetPct] = useState<50 | 75>(75);
+  // GTC auto-submit state
+  const [gtcSubmitStatus, setGtcSubmitStatus] = useState<'idle' | 'submitting' | 'success' | 'failed'>('idle');
+  const [gtcSubmitMessage, setGtcSubmitMessage] = useState<string>('');
+  const gtcSubmitMutation = trpc.gtc.submit.useMutation();
   // Safeguard pre-flight check state
   const [safeguardWarnings, setSafeguardWarnings] = useState<Array<{ title: string; description: string; requiredAction: string; severity: string }>>([]);
   const [showSafeguardWarning, setShowSafeguardWarning] = useState(false);
@@ -812,6 +816,45 @@ export function UnifiedOrderPreviewModal({
         const workingCount = finalStatuses.filter(s => s.status === 'Working').length;
         const successCount = filledCount + workingCount;
         
+        // Auto-submit GTC close orders for confirmed fills on STO strategies
+        const isStoStrategy = strategy !== 'btc' && strategy !== 'roll' && strategy !== 'replace';
+        if (filledCount > 0 && isStoStrategy) {
+          // Fire GTC submissions in background — one per filled order that has legs data
+          const filledResults = result.results.filter((r: any) => r.success && r.orderId && r.legs?.length > 0);
+          for (const r of filledResults) {
+            setGtcSubmitStatus('submitting');
+            gtcSubmitMutation.mutate({
+              accountId,
+              sourceOrderId: String(r.orderId),
+              sourceStrategy: strategy,
+              symbol: r.symbol || orders[0]?.symbol || '',
+              expiration: r.expiration || orders[0]?.expiration || '',
+              premiumCollected: r.premium ?? (adjustedPrices.get(getOrderKey(orders[0])) || orders[0]?.premium || 0),
+              totalPremiumCollected: calculateTotalPremium(),
+              profitTargetPct,
+              legs: r.legs,
+            }, {
+              onSuccess: (data) => {
+                setGtcSubmitStatus('success');
+                setGtcSubmitMessage(`GTC close order placed at $${data.targetClosePrice} (${data.profitTargetPct}% target)`);
+                toast({
+                  title: '✅ GTC Close Order Placed',
+                  description: `Auto-close set at $${data.targetClosePrice} — ${data.profitTargetPct}% profit target`,
+                });
+              },
+              onError: (err) => {
+                setGtcSubmitStatus('failed');
+                setGtcSubmitMessage(`GTC failed: ${err.message}`);
+                toast({
+                  title: 'GTC Order Failed',
+                  description: err.message,
+                  variant: 'destructive',
+                });
+              },
+            });
+          }
+        }
+
         if (successCount > 0) {
           // Play cha-ching sound
           const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3');
@@ -1570,7 +1613,7 @@ export function UnifiedOrderPreviewModal({
                       </div>
                     )}
                     <p className="text-[10px] text-muted-foreground">
-                      GTC close order at this price will be placed automatically after fill (Phase 3).
+                      GTC close order at this price will be placed automatically after a confirmed fill.
                     </p>
                   </div>
                 </div>
@@ -1578,6 +1621,22 @@ export function UnifiedOrderPreviewModal({
             </div>
           )}
           
+          {/* GTC Auto-Submit Status Banner */}
+          {gtcSubmitStatus !== 'idle' && (
+            <div className={`p-3 rounded-lg border text-sm flex items-center gap-2 ${
+              gtcSubmitStatus === 'submitting' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
+              gtcSubmitStatus === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' :
+              'bg-red-500/10 border-red-500/30 text-red-400'
+            }`}>
+              {gtcSubmitStatus === 'submitting' && <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />}
+              {gtcSubmitStatus === 'success' && <CheckCircle2 className="h-4 w-4 flex-shrink-0" />}
+              {gtcSubmitStatus === 'failed' && <AlertCircle className="h-4 w-4 flex-shrink-0" />}
+              <span>
+                {gtcSubmitStatus === 'submitting' ? 'Placing GTC close order...' : gtcSubmitMessage}
+              </span>
+            </div>
+          )}
+
           {/* Order Status Display (after live submission) */}
           {orderStatuses.length > 0 && (
             <div className="p-4 bg-muted/30 rounded-lg border space-y-3">
