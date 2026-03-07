@@ -51,6 +51,8 @@ export function StrategyAdvisor() {
   // scanType: null = idle (no scan yet), 'equity' | 'index' = active scan
   const [scanType, setScanType] = useState<'equity' | 'index' | null>(null);
   const [scanEnabled, setScanEnabled] = useState(false);
+  // pendingScanType: the selection in the segmented control before the user clicks Scan
+  const [pendingScanType, setPendingScanType] = useState<'equity' | 'index'>('equity');
 
   const { data, isLoading, error, refetch } = trpc.strategyAdvisor.getRecommendation.useQuery(
     scanType ? { scanType } : undefined,
@@ -282,27 +284,50 @@ export function StrategyAdvisor() {
                 Choose a scan type to get AI-powered spread recommendations.
                 Indexes (SPXW, NDX, RUT) and equities use separate scoring models.
               </p>
-              <div className="flex items-center justify-center gap-4 pt-2">
+              {/* Segmented scan type selector */}
+              <div className="flex flex-col items-center gap-4 pt-2">
+                <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setPendingScanType('equity')}
+                    className={`rounded-md px-6 py-2 text-sm font-medium transition-all ${
+                      pendingScanType === 'equity'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Equities
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingScanType('index')}
+                    className={`rounded-md px-6 py-2 text-sm font-medium transition-all ${
+                      pendingScanType === 'index'
+                        ? 'bg-amber-500 text-black shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Indexes
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {pendingScanType === 'equity'
+                    ? 'Individual stocks in your watchlist — equity scoring model'
+                    : 'SPXW, NDX, RUT, SPY, QQQ, IWM and other broad-market instruments — index scoring model'}
+                </p>
                 <Button
-                  onClick={handleScanIndexes}
+                  onClick={pendingScanType === 'index' ? handleScanIndexes : handleScanEquities}
                   size="lg"
-                  variant="outline"
-                  className="min-w-[180px] border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+                  className={`min-w-[200px] ${
+                    pendingScanType === 'index'
+                      ? 'bg-amber-500 hover:bg-amber-600 text-black'
+                      : ''
+                  }`}
                 >
-                  <span className="mr-2">📊</span>Scan Indexes
-                </Button>
-                <Button
-                  onClick={handleScanEquities}
-                  size="lg"
-                  className="min-w-[180px]"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />Scan Equities
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Scan {pendingScanType === 'index' ? 'Indexes' : 'Equities'}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground pt-2">
-                Indexes: SPXW, NDX, RUT, SPY, QQQ, IWM and other broad-market instruments
-                &nbsp;•&nbsp; Equities: Individual stocks in your watchlist
-              </p>
             </div>
           </CardContent>
         </Card>
@@ -501,29 +526,43 @@ export function StrategyAdvisor() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {/* Segmented selector + single Scan button in results header */}
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
+                <button
+                  type="button"
+                  onClick={() => { setPendingScanType('equity'); }}
+                  className={`rounded-md px-4 py-1.5 text-xs font-medium transition-all ${
+                    (scanType === 'equity' || (!scanType && pendingScanType === 'equity'))
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Equities
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setPendingScanType('index'); }}
+                  className={`rounded-md px-4 py-1.5 text-xs font-medium transition-all ${
+                    (scanType === 'index' || (!scanType && pendingScanType === 'index'))
+                      ? 'bg-amber-500 text-black shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Indexes
+                </button>
+              </div>
               <Button
-                onClick={handleScanIndexes}
+                onClick={pendingScanType === 'index' ? handleScanIndexes : handleScanEquities}
                 size="lg"
                 disabled={isLoading}
-                variant="outline"
-                className="min-w-[160px] border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+                className={`min-w-[140px] ${
+                  pendingScanType === 'index' ? 'bg-amber-500 hover:bg-amber-600 text-black' : ''
+                }`}
               >
-                {isLoading && scanType === 'index' ? (
+                {isLoading ? (
                   <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Scanning...</>
                 ) : (
-                  <><span className="mr-2">📊</span>Scan Indexes</>
-                )}
-              </Button>
-              <Button
-                onClick={handleScanEquities}
-                size="lg"
-                disabled={isLoading}
-                className="min-w-[160px]"
-              >
-                {isLoading && scanType === 'equity' ? (
-                  <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Scanning...</>
-                ) : (
-                  <><RefreshCw className="h-4 w-4 mr-2" />Scan Equities</>
+                  <><RefreshCw className="h-4 w-4 mr-2" />Scan {pendingScanType === 'index' ? 'Indexes' : 'Equities'}</>
                 )}
               </Button>
               

@@ -136,6 +136,7 @@ function WatchlistPills({
 export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = false, onToggleCollapse, onFullCollapse }: EnhancedWatchlistProps) {
   const [newSymbol, setNewSymbol] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
+  const [addAsIndex, setAddAsIndex] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
 
@@ -266,13 +267,20 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
       return;
     }
 
-    // Add each symbol
+    // Add each symbol — pass isIndex flag so server auto-classifies
+    const isIndexOverride = addAsIndex || symbols.some(s => INDEX_SYMBOLS_SET.has(s));
     Promise.all(
-      symbols.map(symbol => 
-        addToWatchlist.mutateAsync({ symbol })
-      )
+      symbols.map(symbol => {
+        const symbolIsIndex = addAsIndex || INDEX_SYMBOLS_SET.has(symbol);
+        return addToWatchlist.mutateAsync({
+          symbol,
+          ...(symbolIsIndex ? { isIndex: true, type: 'Index', sector: 'Index' } : {}),
+        });
+      })
     ).then(() => {
-      toast.success(`Added ${symbols.length} symbol(s) to watchlist`);
+      toast.success(`Added ${symbols.length} symbol(s) to watchlist${isIndexOverride ? ' (Index)' : ''}`);
+      setNewSymbol('');
+      setAddAsIndex(false);
     }).catch((error) => {
       toast.error(`Failed to add symbols: ${error.message}`);
     });
@@ -432,20 +440,60 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Quick Add Input */}
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <Input
-              placeholder="Enter symbols (comma-separated, e.g., AAPL, MSFT, TSLA)"
-              value={newSymbol}
-              onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddSymbols()}
-            />
+        {/* Quick Add Input with Equity/Index toggle */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <Input
+                placeholder="Enter symbols (comma-separated, e.g., AAPL, MSFT, TSLA)"
+                value={newSymbol}
+                onChange={(e) => {
+                  const val = e.target.value.toUpperCase();
+                  setNewSymbol(val);
+                  // Auto-detect index symbols as user types
+                  const syms = val.split(',').map(s => s.trim()).filter(Boolean);
+                  if (syms.length > 0 && syms.every(s => INDEX_SYMBOLS_SET.has(s))) {
+                    setAddAsIndex(true);
+                  }
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddSymbols()}
+              />
+            </div>
+            <Button onClick={handleAddSymbols} disabled={addToWatchlist.isPending}>
+              {addToWatchlist.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Add
+            </Button>
           </div>
-          <Button onClick={handleAddSymbols} disabled={addToWatchlist.isPending}>
-            {addToWatchlist.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            Add
-          </Button>
+          {/* Equity / Index type selector */}
+          <div className="flex items-center gap-1 rounded-md border border-border bg-muted/30 p-0.5 w-fit">
+            <button
+              type="button"
+              onClick={() => setAddAsIndex(false)}
+              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                !addAsIndex
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Equity
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddAsIndex(true)}
+              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                addAsIndex
+                  ? 'bg-amber-500 text-black shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Index
+            </button>
+          </div>
+          {addAsIndex && (
+            <p className="text-xs text-amber-400">
+              Adding as Index — Section 1256 tax treatment, cash settlement, no assignment risk.
+            </p>
+          )}
         </div>
 
         {/* SPXW Quick-Add Banner */}
