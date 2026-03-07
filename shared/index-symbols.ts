@@ -11,7 +11,7 @@
 const SP500 = ['SPX', 'SPXW', 'SPXPM', 'XSP', 'NANOS', 'SPY', 'SPXL', 'SPXS', 'SSO', 'SDS', 'UPRO', 'SPXU'];
 
 /** Nasdaq family */
-const NASDAQ = ['NDX', 'XND', 'QQQ', 'TQQQ', 'SQQQ', 'QLD', 'QID', 'QQQM'];
+const NASDAQ = ['NDX', 'NDXP', 'XND', 'QQQ', 'TQQQ', 'SQQQ', 'QLD', 'QID', 'QQQM'];
 
 /** Russell 2000 family */
 const RUSSELL = ['RUT', 'MRUT', 'IWM', 'TNA', 'TZA', 'UWM', 'TWM'];
@@ -63,6 +63,7 @@ export const INDEX_METADATA: Record<string, { name: string; description: string;
   SPX:   { name: 'S&P 500 Index',            description: 'AM-settled monthly options on the S&P 500', category: 'S&P 500' },
   XSP:   { name: 'Mini-SPX Index',           description: '1/10th size of SPX, cash-settled',          category: 'S&P 500' },
   NDX:   { name: 'Nasdaq-100 Index',         description: 'Cash-settled Nasdaq-100 options',            category: 'Nasdaq' },
+  NDXP:  { name: 'Nasdaq-100 Index (PM Weekly)', description: 'PM-settled weekly options on the Nasdaq-100', category: 'Nasdaq' },
   XND:   { name: 'Mini-NDX Index',           description: '1/10th size of NDX, cash-settled',          category: 'Nasdaq' },
   RUT:   { name: 'Russell 2000 Index',       description: 'Cash-settled small-cap index options',       category: 'Russell' },
   MRUT:  { name: 'Mini-Russell 2000',        description: '1/10th size of RUT, cash-settled',          category: 'Russell' },

@@ -7490,3 +7490,12 @@
 - [x] Update idle-state card to reference watchlist toggle instead of showing its own toggle
 - [x] Update Scan Watchlist description to reference watchlist toggle for context changes
 - [x] Write 11 unit tests for controlled-mode toggle logic (all passing)
+## Index Scan Fixes (Mar 7, 2026)
+- [x] Relax index scoring thresholds so SPXW and NDXP always return results (not just MRUT)
+- [x] Add NDXP to shared/index-symbols.ts (was missing from Nasdaq family list)
+- [x] Lower IV score thresholds for index tickers (15+ IV rank now earns fair score vs equity's 25+ threshold)
+- [x] Lower strategy badge cutoff for index tickers to 40 (vs equity's 60) — always show IC as fallback
+- [x] Return isIndex flag on each TickerAnalysis object so frontend can apply correct badge cutoff
+- [x] Fix frontend section grouping to use badgeCutoff(t) — 40 for indexes, 60 for equities
+- [x] Fix Analyze Selected routing: default is now /iron-condor (never /csp) — actual route still driven by section counts
+- [x] Routing for index mode: BPS → /iron-condor, BCS → /cc, IC → /iron-condor (all valid spread dashboards)

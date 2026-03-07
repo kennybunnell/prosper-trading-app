@@ -217,21 +217,32 @@ export function StrategyAdvisor() {
     
     console.log('[Strategy Advisor] sectionCounts:', sectionCounts);
     
-    // Determine which dashboard to navigate to based on section counts
+    // Determine which dashboard to navigate to based on section counts.
+    // IMPORTANT: CSP (/csp) is NEVER a valid destination from Spread Advisor —
+    // the advisor only surfaces BPS, BCS, and IC strategies.
+    // For index mode (SPXW, NDX, RUT), default to Iron Condor if no section is detected.
     const maxCount = Math.max(sectionCounts.BPS, sectionCounts.BCS, sectionCounts.IC);
-    
-    let targetDashboard = '/csp';
-    let strategyName = 'Bull Put Spreads';
-    
-    // Route to the section with the highest count
-    if (sectionCounts.IC === maxCount && maxCount > 0) {
-      targetDashboard = '/iron-condor';
-      strategyName = 'Iron Condors';
-    } else if (sectionCounts.BCS === maxCount && maxCount > 0) {
-      targetDashboard = '/cc';
-      strategyName = 'Bear Call Spreads';
+    const isIndexMode = pendingScanType === 'index';
+
+    // Default: IC for indexes, Iron Condor dashboard also handles BPS/BCS for equities
+    // CSP (/csp) is intentionally excluded — Spread Advisor only surfaces spread strategies
+    let targetDashboard = '/iron-condor';
+    let strategyName = isIndexMode ? 'Iron Condors' : 'Bull Put Spreads';
+
+    // Route to the section with the highest count (only among BPS/BCS/IC)
+    if (maxCount > 0) {
+      if (sectionCounts.IC === maxCount) {
+        targetDashboard = '/iron-condor';
+        strategyName = 'Iron Condors';
+      } else if (sectionCounts.BCS === maxCount) {
+        targetDashboard = '/cc';
+        strategyName = 'Bear Call Spreads';
+      } else {
+        // BPS is the highest — route to spreads/condors page, not CSP
+        targetDashboard = '/iron-condor'; // BPS is handled in the Iron Condor / Spreads dashboard
+        strategyName = 'Bull Put Spreads';
+      }
     }
-    // Default to BPS if BPS has max count or all counts are equal
     
     console.log('[Strategy Advisor] targetDashboard:', targetDashboard, 'strategyName:', strategyName);
     
@@ -702,25 +713,33 @@ export function StrategyAdvisor() {
             <div className="space-y-6">
               {/* Group tickers by strategy */}
               {(() => {
+                // Index tickers have a lower badge cutoff (40) vs equities (60).
+                // Use the isIndex flag from the watchlist data if available, otherwise
+                // fall back to checking if the ticker has any badge at all.
+                const badgeCutoff = (t: any) => {
+                  // If the server returned isIndex on the ticker, use it; otherwise 60
+                  return t.isIndex ? 40 : 60;
+                };
+
                 // Separate tickers into strategy groups
                 const bpsTickers = rankedTickers.filter((t: any) => 
-                  t.strategyBadges?.some((b: any) => b.strategy === 'BPS' && b.score >= 60)
+                  t.strategyBadges?.some((b: any) => b.strategy === 'BPS' && b.score >= badgeCutoff(t))
                 ).sort((a: any, b: any) => b.score - a.score);
                 
                 const bcsTickers = rankedTickers.filter((t: any) => 
-                  t.strategyBadges?.some((b: any) => b.strategy === 'BCS' && b.score >= 60) &&
-                  !t.strategyBadges?.some((b: any) => b.strategy === 'BPS' && b.score >= 60)
+                  t.strategyBadges?.some((b: any) => b.strategy === 'BCS' && b.score >= badgeCutoff(t)) &&
+                  !t.strategyBadges?.some((b: any) => b.strategy === 'BPS' && b.score >= badgeCutoff(t))
                 ).sort((a: any, b: any) => b.score - a.score);
                 
                 const icTickers = rankedTickers.filter((t: any) => 
-                  t.strategyBadges?.some((b: any) => b.strategy === 'IC' && b.score >= 60) &&
-                  !t.strategyBadges?.some((b: any) => b.strategy === 'BPS' && b.score >= 60) &&
-                  !t.strategyBadges?.some((b: any) => b.strategy === 'BCS' && b.score >= 60)
+                  t.strategyBadges?.some((b: any) => b.strategy === 'IC' && b.score >= badgeCutoff(t)) &&
+                  !t.strategyBadges?.some((b: any) => b.strategy === 'BPS' && b.score >= badgeCutoff(t)) &&
+                  !t.strategyBadges?.some((b: any) => b.strategy === 'BCS' && b.score >= badgeCutoff(t))
                 ).sort((a: any, b: any) => b.score - a.score);
                 
                 const notRecommended = rankedTickers.filter((t: any) => 
                   !t.strategyBadges || t.strategyBadges.length === 0 || 
-                  !t.strategyBadges.some((b: any) => b.score >= 60)
+                  !t.strategyBadges.some((b: any) => b.score >= badgeCutoff(t))
                 ).sort((a: any, b: any) => b.score - a.score);
 
                 const renderTickerCard = (ticker: any, index: number, section: 'BPS' | 'BCS' | 'IC') => {

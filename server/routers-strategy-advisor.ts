@@ -16,6 +16,7 @@ interface StrategyFit {
 
 interface TickerAnalysis {
   symbol: string;
+  isIndex: boolean; // true for SPXW, NDX, RUT, MRUT, NDXP etc.
   score: number; // Score for the recommended strategy
   currentPrice: number;
   change24h: number;
@@ -353,6 +354,10 @@ export const strategyAdvisorRouter = router({
           // Get historical performance for this ticker
           const historical = historicalBySymbol[symbol];
 
+          // Is this symbol an index? (affects scoring thresholds)
+          const { isIndexSymbol: isIdxSym } = await import('../shared/index-symbols');
+          const isIndexTicker = isIdxSym(symbol);
+
           // Helper function to calculate fit score for ANY strategy
           const calculateStrategyFit = (strategy: 'BPS' | 'BCS' | 'IC') => {
             const fitScore = {
@@ -363,28 +368,42 @@ export const strategyAdvisorRouter = router({
             };
 
             // Momentum score (30 points)
+            // For indexes (SPXW, NDX, RUT) neutral/sideways is the ideal IC entry condition;
+            // even trending markets are acceptable because the index mean-reverts faster.
             if (strategy === 'BPS') {
               if (momentum === 'Strong Uptrend' || momentum === 'Moderate Uptrend') fitScore.momentum = 30;
-              else if (momentum === 'Sideways') fitScore.momentum = 20;
-              else fitScore.momentum = 5;
+              else if (momentum === 'Sideways') fitScore.momentum = isIndexTicker ? 28 : 20;
+              else fitScore.momentum = isIndexTicker ? 18 : 5; // indexes: downtrend still ok for BPS
             } else if (strategy === 'BCS') {
               if (momentum === 'Strong Downtrend' || momentum === 'Moderate Downtrend') fitScore.momentum = 30;
-              else if (momentum === 'Sideways') fitScore.momentum = 20;
-              else fitScore.momentum = 5;
+              else if (momentum === 'Sideways') fitScore.momentum = isIndexTicker ? 28 : 20;
+              else fitScore.momentum = isIndexTicker ? 18 : 5;
             } else { // IC
               if (momentum === 'Sideways') fitScore.momentum = 30;
-              else if (momentum === 'Moderate Uptrend' || momentum === 'Moderate Downtrend') fitScore.momentum = 20;
-              else fitScore.momentum = 10;
+              else if (momentum === 'Moderate Uptrend' || momentum === 'Moderate Downtrend') fitScore.momentum = isIndexTicker ? 28 : 20;
+              else fitScore.momentum = isIndexTicker ? 20 : 10; // indexes: strong trends still tradeable with IC
             }
 
             // IV score (25 points)
+            // Index IV rank is structurally lower (15–35 typical) vs equities (30–80).
+            // Recalibrate thresholds so SPXW at 15–25 IV rank still earns a fair score.
             if (ivRank !== null) {
-              if (ivRank >= 60) fitScore.iv = 25;
-              else if (ivRank >= 40) fitScore.iv = 20;
-              else if (ivRank >= 25) fitScore.iv = 15;
-              else fitScore.iv = 5;
+              if (isIndexTicker) {
+                // Index-calibrated IV thresholds
+                if (ivRank >= 35) fitScore.iv = 25;       // Elevated index IV — excellent
+                else if (ivRank >= 25) fitScore.iv = 22;  // Good
+                else if (ivRank >= 15) fitScore.iv = 18;  // Fair — still tradeable for SPXW
+                else if (ivRank >= 8) fitScore.iv = 12;   // Low but acceptable
+                else fitScore.iv = 6;                     // Very low
+              } else {
+                // Original equity thresholds
+                if (ivRank >= 60) fitScore.iv = 25;
+                else if (ivRank >= 40) fitScore.iv = 20;
+                else if (ivRank >= 25) fitScore.iv = 15;
+                else fitScore.iv = 5;
+              }
             } else {
-              fitScore.iv = 10; // Neutral if no IV data
+              fitScore.iv = isIndexTicker ? 15 : 10; // Indexes get a higher neutral default
             }
 
             // Historical performance score (30 points)
@@ -432,15 +451,23 @@ export const strategyAdvisorRouter = router({
                              recommendedStrategy === 'BCS' ? bcsFit.totalScore : 
                              icFit.totalScore;
 
-          // Generate strategy badges (show strategies with score >= 60)
+          // Generate strategy badges
+          // Index symbols (SPXW, NDX, RUT): lower cutoff (40) because they always have
+          // liquid options and are the primary instruments for spread strategies.
+          // Equity symbols: keep the original 60 cutoff.
+          const badgeCutoff = isIndexTicker ? 40 : 60;
           const strategyBadges: StrategyFit[] = [];
-          if (bpsFit.totalScore >= 60) {
+          if (bpsFit.totalScore >= badgeCutoff) {
             strategyBadges.push({ strategy: 'BPS', score: bpsFit.totalScore, label: 'Bull Put Spread' });
           }
-          if (bcsFit.totalScore >= 60) {
+          if (bcsFit.totalScore >= badgeCutoff) {
             strategyBadges.push({ strategy: 'BCS', score: bcsFit.totalScore, label: 'Bear Call Spread' });
           }
-          if (icFit.totalScore >= 60) {
+          if (icFit.totalScore >= badgeCutoff) {
+            strategyBadges.push({ strategy: 'IC', score: icFit.totalScore, label: 'Iron Condor' });
+          }
+          // For index tickers: always ensure at least IC is shown (indexes are always IC-eligible)
+          if (isIndexTicker && strategyBadges.length === 0) {
             strategyBadges.push({ strategy: 'IC', score: icFit.totalScore, label: 'Iron Condor' });
           }
 
@@ -460,6 +487,7 @@ export const strategyAdvisorRouter = router({
 
           return {
             symbol,
+            isIndex: isIndexTicker,
             score: totalScore,
             currentPrice,
             change24h,
