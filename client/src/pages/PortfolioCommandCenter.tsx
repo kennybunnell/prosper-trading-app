@@ -46,6 +46,7 @@ type TickerData = {
   premiumAtRisk: number;
   contracts: number;
   strategies: string[];
+  expirationStrategies?: Record<string, string>; // expiration -> strategy label
   avgDte: number;
   avgIv: number;
   greeksLoaded?: boolean;  // true once Greeks have been fetched for this ticker
@@ -354,6 +355,24 @@ function HeatMapCell({
   };
   const strategyBadge = collapseStrategies(ticker.strategies);
 
+  // Build multi-expiration label: "Apr: BPS / May: BCS" when multiple expirations exist
+  const expirationStrategyLine = (() => {
+    const expMap = ticker.expirationStrategies;
+    if (!expMap) return null;
+    const entries = Object.entries(expMap);
+    if (entries.length <= 1) return null; // single expiration — strategyBadge is sufficient
+    return entries
+      .sort(([a], [b]) => a.localeCompare(b)) // sort by date string
+      .map(([exp, strat]) => {
+        // Format expiration as "Apr 25" from "2025-04-17"
+        const d = new Date(exp);
+        const mon = d.toLocaleString('en-US', { month: 'short' });
+        const yr = String(d.getFullYear()).slice(2);
+        return `${mon}'${yr}: ${strat}`;
+      })
+      .join(' / ');
+  })();
+
   const displayValue = viewMode === 'delta'
     ? (value >= 0 ? '+' : '') + value.toFixed(1)
     : (value >= 0 ? '+$' : '-$') + Math.abs(value).toFixed(2);
@@ -385,7 +404,13 @@ function HeatMapCell({
               <div className="flex items-start justify-between">
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-foreground/90 leading-tight">{ticker.symbol}</span>
-                  <span className="text-[8px] font-semibold text-muted-foreground/70 leading-tight tracking-wide uppercase mt-0.5">{strategyBadge}</span>
+                  {expirationStrategyLine ? (
+                    <span className="text-[7px] text-amber-400/80 leading-tight mt-0.5 max-w-[80px] truncate" title={expirationStrategyLine}>
+                      {expirationStrategyLine}
+                    </span>
+                  ) : (
+                    <span className="text-[8px] font-semibold text-muted-foreground/70 leading-tight tracking-wide uppercase mt-0.5">{strategyBadge}</span>
+                  )}
                 </div>
                 <span className="text-[9px] text-muted-foreground/70 leading-tight">{ticker.contracts}c</span>
               </div>
@@ -463,6 +488,9 @@ function HeatMapCell({
 }
 
 // --- Heat Map Grid ---
+const STRATEGY_FILTERS = ['All', 'IC', 'BPS', 'BCS', 'CC', 'CSP', 'PMCC'] as const;
+type StrategyFilter = typeof STRATEGY_FILTERS[number];
+
 function HeatMapGrid({
   tickers,
   phase,
@@ -488,6 +516,8 @@ function HeatMapGrid({
   onAnalyze: (ticker: TickerData) => void;
   onRefresh: () => void;
 }) {
+  const [strategyFilter, setStrategyFilter] = useState<StrategyFilter>('All');
+
   const maxValue = useMemo(() => {
     if (!tickers.length) return 1;
     return Math.max(...tickers.map(t => Math.abs(viewMode === 'delta' ? t.netDelta : t.dailyTheta)));
@@ -497,6 +527,18 @@ function HeatMapGrid({
     if (!tickers.length) return 1;
     return Math.max(...tickers.map(t => t.premiumAtRisk));
   }, [tickers]);
+
+  // Filter tickers by selected strategy type
+  const filteredTickers = useMemo(() => {
+    if (strategyFilter === 'All') return tickers;
+    return tickers.filter(t => {
+      const allStrats = [
+        ...(t.strategies ?? []),
+        ...Object.values(t.expirationStrategies ?? {}),
+      ].map(s => s.toUpperCase());
+      return allStrats.some(s => s.includes(strategyFilter));
+    });
+  }, [tickers, strategyFilter]);
 
   const progressPct = totalBatches > 0 ? Math.round((batchesDone / totalBatches) * 100) : 0;
 
@@ -597,12 +639,47 @@ function HeatMapGrid({
         </div>
       )}
 
+      {/* Strategy filter bar */}
+      {tickers.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {STRATEGY_FILTERS.map(f => {
+            const count = f === 'All' ? tickers.length : tickers.filter(t => {
+              const allStrats = [
+                ...(t.strategies ?? []),
+                ...Object.values(t.expirationStrategies ?? {}),
+              ].map(s => s.toUpperCase());
+              return allStrats.some(s => s.includes(f));
+            }).length;
+            if (f !== 'All' && count === 0) return null;
+            return (
+              <button
+                key={f}
+                onClick={() => setStrategyFilter(f)}
+                className={cn(
+                  'text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all',
+                  strategyFilter === f
+                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                    : 'bg-transparent border-border/40 text-muted-foreground hover:border-amber-500/30 hover:text-amber-400/80'
+                )}
+              >
+                {f}{f !== 'All' && ` (${count})`}
+              </button>
+            );
+          })}
+          {strategyFilter !== 'All' && (
+            <span className="text-[10px] text-muted-foreground/60 ml-1">
+              Showing {filteredTickers.length} of {tickers.length} tickers
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Tile grid — auto-fill columns, tiles span proportionally by premium at risk */}
       <div
         className="grid gap-2"
         style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))' }}
       >
-        {tickers.map(ticker => (
+        {filteredTickers.map(ticker => (
           <HeatMapCell
             key={ticker.symbol}
             ticker={ticker}
@@ -747,6 +824,7 @@ function TickerAnalysisPanel({
   };
   const [rollCandidates, setRollCandidates] = useState<RollCandidate[]>([]);
   const [dteWindowUsed, setDteWindowUsed] = useState<'21-60' | '60-90'>('21-60');
+  const [icTestedSide, setIcTestedSide] = useState<'call' | 'put' | null>(null);
   const rollMutation = trpc.automation.getRollCandidates.useMutation();
 
   // Parse OCC symbol to extract strike, expiration, option type
@@ -764,12 +842,14 @@ function TickerAnalysisPanel({
   const buildRollInput = useCallback((res: AnalysisResult, pos: PositionSummary[], sym: string) => {
     const isBCS = res.strategyType.includes('BCS') || res.strategyType.includes('Bear Call');
     const isCC  = res.strategyType.includes('CC')  || res.strategyType.includes('Covered Call');
-    const optType = (isBCS || isCC) ? 'C' : 'P';
+    const isIC  = res.strategyType.includes('IC')  || res.strategyType.includes('Iron Condor');
+    const optType = (isBCS || isCC) ? 'C' : isIC ? undefined : 'P'; // IC: look at both sides
 
     const relevant = pos.filter(p => p.underlying === sym);
-    const parsed = relevant
-      .map(p => ({ ...p, occ: parseOCC(p.symbol) }))
-      .filter(p => p.occ && p.occ.type === optType);
+    const allParsed = relevant.map(p => ({ ...p, occ: parseOCC(p.symbol) })).filter(p => p.occ);
+    const parsed = optType
+      ? allParsed.filter(p => p.occ!.type === optType)
+      : allParsed; // IC: include all legs
 
     if (parsed.length === 0) return null;
 
@@ -777,6 +857,18 @@ function TickerAnalysisPanel({
     const longLegs  = parsed.filter(p => p.quantity > 0);
     if (shortLegs.length === 0) return null;
 
+    // For IC: extract both short call and short put strikes for tested-side detection
+    let icShortCallStrike: number | undefined;
+    let icShortPutStrike: number | undefined;
+    if (isIC) {
+      const shortCallLeg = allParsed.find(p => p.quantity < 0 && p.occ?.type === 'C');
+      const shortPutLeg  = allParsed.find(p => p.quantity < 0 && p.occ?.type === 'P');
+      icShortCallStrike = shortCallLeg?.occ?.strike;
+      icShortPutStrike  = shortPutLeg?.occ?.strike;
+    }
+
+    // For IC, use the tested-side short leg as the primary short leg
+    // We'll let the backend determine the tested side from the underlying price
     const shortLeg = shortLegs[0];
     const longLeg  = longLegs[0];
     const currentShortStrike = shortLeg.occ!.strike;
@@ -786,7 +878,17 @@ function TickerAnalysisPanel({
       ? Math.abs(currentLongStrike - currentShortStrike)
       : undefined;
 
-    return { symbol: sym, strategyType: res.strategyType, currentShortStrike, currentLongStrike, currentExpiration, spreadWidth };
+    return {
+      symbol: sym,
+      strategyType: res.strategyType,
+      currentShortStrike,
+      currentLongStrike,
+      currentExpiration,
+      spreadWidth,
+      icShortCallStrike,
+      icShortPutStrike,
+      underlyingPrice: res.underlyingPrice ?? undefined,
+    };
   }, []);
 
   const fetchRollCandidates = useCallback((res: AnalysisResult, pos: PositionSummary[], sym: string) => {
@@ -796,9 +898,10 @@ function TickerAnalysisPanel({
     setDteWindowUsed('21-60');
     rollMutation.mutate(rollInput, {
       onSuccess: (data) => {
-        const d = data as { candidates: RollCandidate[]; dteWindowUsed?: '21-60' | '60-90' };
+        const d = data as { candidates: RollCandidate[]; dteWindowUsed?: '21-60' | '60-90'; icTestedSide?: 'call' | 'put' };
         setRollCandidates(d.candidates ?? []);
         setDteWindowUsed(d.dteWindowUsed ?? '21-60');
+        setIcTestedSide(d.icTestedSide ?? null);
       },
     });
   }, [buildRollInput, rollMutation]);
@@ -1050,7 +1153,7 @@ function TickerAnalysisPanel({
                       }
                     }}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <TrendingUp className="w-3.5 h-3.5 text-blue-400" />
                       <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-400">Live Roll Candidates</span>
                       {rollCandidates.length > 0 && (
@@ -1058,6 +1161,16 @@ function TickerAnalysisPanel({
                       )}
                       {!rollMutation.isPending && rollCandidates.length > 0 && dteWindowUsed === '60-90' && (
                         <span className="text-[9px] bg-amber-500/15 text-amber-400 border border-amber-500/25 px-1.5 py-0.5 rounded-full">60–90 DTE</span>
+                      )}
+                      {icTestedSide && (
+                        <span className={cn(
+                          'text-[9px] px-1.5 py-0.5 rounded-full border font-semibold',
+                          icTestedSide === 'call'
+                            ? 'bg-red-500/15 text-red-400 border-red-500/25'
+                            : 'bg-orange-500/15 text-orange-400 border-orange-500/25'
+                        )}>
+                          {icTestedSide === 'call' ? '▲ Call side tested' : '▼ Put side tested'}
+                        </span>
                       )}
                     </div>
                     <ChevronRight className={cn('w-3.5 h-3.5 text-muted-foreground transition-transform', showRollCandidates && 'rotate-90')} />

@@ -7412,3 +7412,8 @@
 - [x] Auto-expand DTE window: if 21-60 DTE returns no candidates, retry with 60-90 DTE and show note
 - [x] Assignment probability gauge: show short call delta as % probability with color-coded gauge
 - [x] 20 unit tests for all three features (all passing)
+
+## Three Heatmap/AI Panel Enhancements (Mar 6, 2026 - Batch 2)
+- [ ] Multi-expiration tile labels: expose expirationStrategies[] from backend, show "Apr: BPS / May: BCS" on tile
+- [ ] IC tested-side detection: compare stock price to short strikes, only show roll candidates for challenged side
+- [ ] Strategy filter bar: IC | BPS | BCS | CC | CSP | PMCC | All filter above heatmap grid

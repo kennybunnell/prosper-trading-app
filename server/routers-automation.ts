@@ -1235,6 +1235,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
       premiumAtRisk: number;
       contracts: number;
       strategies: string[];
+      expirationStrategies: Record<string, string>;
       avgDte: number;
       avgIv: number;
     };
@@ -1376,6 +1377,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             premiumAtRisk: 0,
             contracts: 0,
             strategies: [],
+            expirationStrategies: {} as Record<string, string>, // expiration -> strategy label
             avgDte: 0,
             avgIv: 0,
           };
@@ -1386,6 +1388,10 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           entry.premiumAtRisk += premiumAtRisk;
           entry.contracts += absQty;
           if (!entry.strategies.includes(strategy)) entry.strategies.push(strategy);
+          // Track per-expiration strategy for multi-expiration display
+          if (expiration && strategy) {
+            entry.expirationStrategies[expiration] = strategy;
+          }
           // Running weighted average for DTE and IV
           const prevContracts = entry.contracts - absQty;
           entry.avgDte = prevContracts > 0 ? (entry.avgDte * prevContracts + dte * absQty) / entry.contracts : dte;
@@ -1829,6 +1835,10 @@ For howToExecute, write 3-5 numbered steps that teach the student EXACTLY how to
       currentLongStrike: z.number().optional(),
       currentExpiration: z.string(),
       spreadWidth: z.number().optional(),
+      // IC-specific: pass both short strikes and underlying price for tested-side detection
+      icShortCallStrike: z.number().optional(),
+      icShortPutStrike: z.number().optional(),
+      underlyingPrice: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { getApiCredentials } = await import('./db');
@@ -1846,8 +1856,19 @@ For howToExecute, write 3-5 numbered steps that teach the student EXACTLY how to
       const isIC  = input.strategyType.includes('IC')  || input.strategyType.includes('Iron Condor');
       const isCC  = input.strategyType.includes('CC')  || input.strategyType.includes('Covered Call');
       const isCSP = input.strategyType.includes('CSP') || input.strategyType.includes('Cash-Secured');
-      const rollUp = isBCS || isCC || isIC;  // IC: assume call side tested by default
-      const optionType: 'call' | 'put' = (isBCS || isCC) ? 'call' : 'put';
+
+      // IC tested-side detection: determine which side (calls or puts) is being challenged
+      // by comparing the current stock price to the short strikes on each side.
+      // The tested side is the one where the stock is closer to (or past) the short strike.
+      let icTestedSide: 'call' | 'put' = 'call'; // default to call side
+      if (isIC && input.underlyingPrice != null && input.icShortCallStrike != null && input.icShortPutStrike != null) {
+        const distToCall = Math.abs(input.underlyingPrice - input.icShortCallStrike);
+        const distToPut  = Math.abs(input.underlyingPrice - input.icShortPutStrike);
+        icTestedSide = distToCall <= distToPut ? 'call' : 'put';
+      }
+
+      const rollUp = isBCS || isCC || (isIC && icTestedSide === 'call');
+      const optionType: 'call' | 'put' = (isBCS || isCC || (isIC && icTestedSide === 'call')) ? 'call' : 'put';
       const isSpread = isBCS || isBPS || isIC;
       const spreadWidth = input.spreadWidth ?? 5;
 
@@ -1995,6 +2016,6 @@ For howToExecute, write 3-5 numbered steps that teach the student EXACTLY how to
       else if (candidates.length > 0) candidates[0].isBest = true;
 
       // Return top 6 candidates with DTE window info
-      return { candidates: candidates.slice(0, 6), dteWindowUsed };
+      return { candidates: candidates.slice(0, 6), dteWindowUsed, icTestedSide: isIC ? icTestedSide : undefined };
     }),
 });
