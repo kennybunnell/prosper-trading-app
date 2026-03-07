@@ -7499,3 +7499,11 @@
 - [x] Fix frontend section grouping to use badgeCutoff(t) — 40 for indexes, 60 for equities
 - [x] Fix Analyze Selected routing: default is now /iron-condor (never /csp) — actual route still driven by section counts
 - [x] Routing for index mode: BPS → /iron-condor, BCS → /cc, IC → /iron-condor (all valid spread dashboards)
+## Index Scan Deep Diagnostic (Mar 7, 2026)
+- [x] Add server-side logging to trace SPXW/NDXP: option chain fetch result, IV rank computed, score breakdown, badge assignment
+- [x] Root cause found: /market-data/by-type used equity param for all tickers — index symbols return null → dropped before scoring
+- [x] Fix: index symbols now try /market-data/by-type?index= first, then equity fallback
+- [x] Fix: DTE window widened to 7-45 for indexes (was 7-21 — too narrow for weekly SPXW)
+- [x] Fix: IV rank formula replaced with median-IV-to-typical-range mapping (old formula produced near-zero for indexes)
+- [x] Fix: Strike building for indexes tries IC → BPS → BCS regardless of page-level strategy
+- [x] Confirmed equity/index logic is cleanly separated at every decision point (8 gating points audited)

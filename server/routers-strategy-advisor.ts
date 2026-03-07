@@ -213,22 +213,68 @@ export const strategyAdvisorRouter = router({
       console.log(`[Strategy Advisor] Market: ${marketCondition}, Recommended: ${recommendedStrategy}`);
 
       // Analyze each watchlist ticker individually
+      // Pre-load index symbol checker once outside the loop
+      const { isIndexSymbol: checkIsIndex } = await import('../shared/index-symbols');
+
       const tickerAnalysisPromises = watchlistSymbols.map(async (symbol): Promise<TickerAnalysis | null> => {
+        const isIdxSymbol = checkIsIndex(symbol);
         try {
-          // Fetch ticker market data
-          const response = await (api as any).client.get('/market-data/by-type', {
-            params: { equity: symbol },
-          });
+          // ─── Market data fetch ────────────────────────────────────────────────────
+          // Index symbols (SPXW, NDXP, RUT, etc.) are NOT equities on Tastytrade's API.
+          // They must be fetched via the index-specific endpoint, not the equity endpoint.
+          // Using the equity endpoint for index symbols returns no data → null → ticker dropped.
+          let item: any = null;
+          try {
+            if (isIdxSymbol) {
+              // Try index endpoint first
+              const idxResponse = await (api as any).client.get('/market-data/by-type', {
+                params: { index: symbol },
+              });
+              item = idxResponse.data.data?.items?.[0];
+              console.log(`[Strategy Advisor] ${symbol} index endpoint → item:`, item ? 'found' : 'null');
 
-          const item = response.data.data?.items?.[0];
-          if (!item) return null;
+              // Fallback: some index options (SPXW, NDXP) are listed as equity options
+              if (!item) {
+                const eqResponse = await (api as any).client.get('/market-data/by-type', {
+                  params: { equity: symbol },
+                });
+                item = eqResponse.data.data?.items?.[0];
+                console.log(`[Strategy Advisor] ${symbol} equity fallback → item:`, item ? 'found' : 'null');
+              }
+            } else {
+              const eqResponse = await (api as any).client.get('/market-data/by-type', {
+                params: { equity: symbol },
+              });
+              item = eqResponse.data.data?.items?.[0];
+            }
+          } catch (fetchErr: any) {
+            console.warn(`[Strategy Advisor] Market data fetch failed for ${symbol}:`, fetchErr.message);
+          }
 
-          const currentPrice = parseFloat(item.last || '0');
-          const prevClose = parseFloat(item['prev-close'] || '0');
-          const yearHigh = parseFloat(item['year-high-price'] || '0');
-          const yearLow = parseFloat(item['year-low-price'] || '0');
-          const change24h = prevClose > 0 ? ((currentPrice - prevClose) / prevClose) * 100 : 0;
-          const yearPosition = yearHigh > yearLow ? ((currentPrice - yearLow) / (yearHigh - yearLow)) * 100 : 50;
+          // If we still have no price data, synthesize a minimal record so the ticker
+          // still appears in the results (indexes always have liquid options regardless).
+          // We'll use 0 for price-based fields and rely on IV/option data for scoring.
+          let currentPrice = 0;
+          let prevClose = 0;
+          let yearHigh = 0;
+          let yearLow = 0;
+          let change24h = 0;
+          let yearPosition = 50; // default to midpoint
+
+          if (item) {
+            currentPrice = parseFloat(item.last || item.close || '0');
+            prevClose = parseFloat(item['prev-close'] || item.close || '0');
+            yearHigh = parseFloat(item['year-high-price'] || '0');
+            yearLow = parseFloat(item['year-low-price'] || '0');
+            change24h = prevClose > 0 ? ((currentPrice - prevClose) / prevClose) * 100 : 0;
+            yearPosition = yearHigh > yearLow ? ((currentPrice - yearLow) / (yearHigh - yearLow)) * 100 : 50;
+          } else if (!isIdxSymbol) {
+            // For equities with no data, skip entirely
+            console.warn(`[Strategy Advisor] No market data for equity ${symbol}, skipping`);
+            return null;
+          } else {
+            console.warn(`[Strategy Advisor] No market data for index ${symbol}, proceeding with option-chain-only scoring`);
+          }
 
           // Fetch option chain to get IV data using Tradier API
           let ivRank: number | null = null;
@@ -244,101 +290,105 @@ export const strategyAdvisorRouter = router({
             }
             const tradierApi = createTradierAPI(credentials.tradierApiKey, false); // Use production API
 
-            // Get nearest expiration (7-14 DTE ideal)
+            // Get nearest expiration
+            // Equities: 7–21 DTE (weekly/bi-weekly)
+            // Indexes (SPXW, NDXP): 7–45 DTE — wider window because weekly expirations
+            //   may not always fall in the 7–21 range depending on the day of the week.
             const expirations = await tradierApi.getExpirations(symbol);
             const today = new Date();
-            const targetDate = new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000); // 10 days out
-            
+            const minDte = 7;
+            const maxDte = isIdxSymbol ? 45 : 21;
+            const idealDte = isIdxSymbol ? 14 : 10;
+
+            console.log(`[Strategy Advisor] ${symbol} expirations available:`, expirations?.slice(0, 5));
+
             const nearestExp = expirations
-              .map((exp: string) => ({ date: exp, dte: Math.abs(new Date(exp).getTime() - today.getTime()) / (1000 * 60 * 60 * 24) }))
-              .filter((exp: any) => exp.dte >= 7 && exp.dte <= 21)
-              .sort((a: any, b: any) => Math.abs(a.dte - 10) - Math.abs(b.dte - 10))[0];
+              .map((exp: string) => ({ date: exp, dte: (new Date(exp).getTime() - today.getTime()) / (1000 * 60 * 60 * 24) }))
+              .filter((exp: any) => exp.dte >= minDte && exp.dte <= maxDte)
+              .sort((a: any, b: any) => Math.abs(a.dte - idealDte) - Math.abs(b.dte - idealDte))[0];
+
+            console.log(`[Strategy Advisor] ${symbol} selected expiration:`, nearestExp);
 
             if (nearestExp) {
               const chain = await tradierApi.getOptionChain(symbol, nearestExp.date, true);
-              
-              // Calculate IV Rank from all options
+              console.log(`[Strategy Advisor] ${symbol} chain length:`, chain?.length ?? 0);
+
+              // ─── IV Rank calculation ───────────────────────────────────────────────
+              // The old formula computed (avgIV - minIV) / (maxIV - minIV) across all
+              // strikes in ONE expiry. For indexes this produces near-zero because all
+              // strikes in one expiry have very similar IV. Instead we use the ATM IV
+              // as a proxy for the current IV level and compare it to well-known
+              // typical ranges per instrument type.
               const allIVs = chain
                 .filter((opt: any) => opt.greeks?.mid_iv && opt.greeks.mid_iv > 0)
-                .map((opt: any) => opt.greeks!.mid_iv!);
+                .map((opt: any) => opt.greeks!.mid_iv! as number);
 
-              if (allIVs.length >= 10) {
-                const minIV = Math.min(...allIVs);
-                const maxIV = Math.max(...allIVs);
-                const avgIV = allIVs.reduce((sum: number, iv: number) => sum + iv, 0) / allIVs.length;
-                
-                if (maxIV > minIV) {
-                  ivRank = Math.round(((avgIV - minIV) / (maxIV - minIV)) * 100);
+              if (allIVs.length > 0) {
+                // Use the median IV across the chain as the representative current IV.
+                const sorted = [...allIVs].sort((a, b) => a - b);
+                const medianIV = sorted[Math.floor(sorted.length / 2)];
+                const annualizedIV = medianIV * 100; // mid_iv is in decimal (0.15 = 15%)
+
+                if (isIdxSymbol) {
+                  // SPXW / NDXP / MRUT typical IV range: 10%–40% annualized
+                  // Map: <10% → 0, 10% → 10, 20% → 40, 30% → 70, 40%+ → 100
+                  ivRank = Math.min(100, Math.round(Math.max(0, (annualizedIV - 10) / 30) * 100));
+                } else {
+                  // Equities typical IV range: 15%–80% annualized
+                  ivRank = Math.min(100, Math.round(Math.max(0, (annualizedIV - 15) / 65) * 100));
                 }
+                console.log(`[Strategy Advisor] ${symbol} medianIV=${annualizedIV.toFixed(1)}% → ivRank=${ivRank}`);
               }
 
-              // Generate strike recommendations based on strategy
+              // ─── Strike recommendations ────────────────────────────────────────────
+              // For index tickers, always try all three strategies regardless of the
+              // page-level recommendedStrategy. For equities, use the page-level strategy.
               const puts = chain.filter((opt: any) => opt.optionType === 'put');
               const calls = chain.filter((opt: any) => opt.optionType === 'call');
+              const strikesToBuild = isIdxSymbol
+                ? (['IC', 'BPS', 'BCS'] as const)
+                : ([recommendedStrategy] as const);
 
-              if (recommendedStrategy === 'BPS' && puts.length >= 2) {
-                // Bull Put Spread: Sell put at ~30 delta, buy put at ~15 delta
-                const shortPut = puts.find((p: any) => Math.abs(p.greeks?.delta || 0) >= 0.25 && Math.abs(p.greeks?.delta || 0) <= 0.35);
-                const longPut = puts.find((p: any) => 
-                  Math.abs(p.greeks?.delta || 0) >= 0.10 && 
-                  Math.abs(p.greeks?.delta || 0) <= 0.20 &&
-                  p.strike < (shortPut?.strike || 0)
-                );
+              for (const strat of strikesToBuild) {
+                if (recommendedStrikes) break; // use first successful build
 
-                if (shortPut && longPut) {
-                  const premium = (shortPut.bid - longPut.ask) * 100;
-                  const maxLoss = (shortPut.strike - longPut.strike) * 100;
-                  const pop = 100 - Math.abs(shortPut.greeks?.delta || 0.30) * 100;
-
-                  recommendedStrikes = {
-                    shortStrike: shortPut.strike,
-                    longStrike: longPut.strike,
-                    expectedPremium: premium,
-                    probabilityOfProfit: pop,
-                  };
-                }
-              } else if (recommendedStrategy === 'BCS' && calls.length >= 2) {
-                // Bear Call Spread: Sell call at ~30 delta, buy call at ~15 delta
-                const shortCall = calls.find((c: any) => Math.abs(c.greeks?.delta || 0) >= 0.25 && Math.abs(c.greeks?.delta || 0) <= 0.35);
-                const longCall = calls.find((c: any) => 
-                  Math.abs(c.greeks?.delta || 0) >= 0.10 && 
-                  Math.abs(c.greeks?.delta || 0) <= 0.20 &&
-                  c.strike > (shortCall?.strike || 0)
-                );
-
-                if (shortCall && longCall) {
-                  const premium = (shortCall.bid - longCall.ask) * 100;
-                  const maxLoss = (longCall.strike - shortCall.strike) * 100;
-                  const pop = 100 - Math.abs(shortCall.greeks?.delta || 0.30) * 100;
-
-                  recommendedStrikes = {
-                    shortStrike: shortCall.strike,
-                    longStrike: longCall.strike,
-                    expectedPremium: premium,
-                    probabilityOfProfit: pop,
-                  };
-                }
-              } else if (recommendedStrategy === 'IC' && puts.length >= 2 && calls.length >= 2) {
-                // Iron Condor: Combine BPS + BCS
-                const shortPut = puts.find((p: any) => Math.abs(p.greeks?.delta || 0) >= 0.20 && Math.abs(p.greeks?.delta || 0) <= 0.30);
-                const longPut = puts.find((p: any) => p.strike < (shortPut?.strike || 0) && Math.abs(p.greeks?.delta || 0) <= 0.15);
-                const shortCall = calls.find((c: any) => Math.abs(c.greeks?.delta || 0) >= 0.20 && Math.abs(c.greeks?.delta || 0) <= 0.30);
-                const longCall = calls.find((c: any) => c.strike > (shortCall?.strike || 0) && Math.abs(c.greeks?.delta || 0) <= 0.15);
-
-                if (shortPut && longPut && shortCall && longCall) {
-                  const putCredit = (shortPut.bid - longPut.ask) * 100;
-                  const callCredit = (shortCall.bid - longCall.ask) * 100;
-                  const totalPremium = putCredit + callCredit;
-                  const pop = 65; // Approximate PoP for IC
-
-                  recommendedStrikes = {
-                    shortStrike: shortPut.strike,
-                    longStrike: longPut.strike,
-                    expectedPremium: totalPremium,
-                    probabilityOfProfit: pop,
-                  };
+                if (strat === 'BPS' && puts.length >= 2) {
+                  const shortPut = puts.find((p: any) => Math.abs(p.greeks?.delta || 0) >= 0.20 && Math.abs(p.greeks?.delta || 0) <= 0.35);
+                  const longPut = puts.find((p: any) =>
+                    Math.abs(p.greeks?.delta || 0) >= 0.08 &&
+                    Math.abs(p.greeks?.delta || 0) <= 0.22 &&
+                    p.strike < (shortPut?.strike || 0)
+                  );
+                  if (shortPut && longPut) {
+                    const premium = (shortPut.bid - longPut.ask) * 100;
+                    const pop = 100 - Math.abs(shortPut.greeks?.delta || 0.30) * 100;
+                    recommendedStrikes = { shortStrike: shortPut.strike, longStrike: longPut.strike, expectedPremium: premium, probabilityOfProfit: pop };
+                  }
+                } else if (strat === 'BCS' && calls.length >= 2) {
+                  const shortCall = calls.find((c: any) => Math.abs(c.greeks?.delta || 0) >= 0.20 && Math.abs(c.greeks?.delta || 0) <= 0.35);
+                  const longCall = calls.find((c: any) =>
+                    Math.abs(c.greeks?.delta || 0) >= 0.08 &&
+                    Math.abs(c.greeks?.delta || 0) <= 0.22 &&
+                    c.strike > (shortCall?.strike || 0)
+                  );
+                  if (shortCall && longCall) {
+                    const premium = (shortCall.bid - longCall.ask) * 100;
+                    const pop = 100 - Math.abs(shortCall.greeks?.delta || 0.30) * 100;
+                    recommendedStrikes = { shortStrike: shortCall.strike, longStrike: longCall.strike, expectedPremium: premium, probabilityOfProfit: pop };
+                  }
+                } else if (strat === 'IC' && puts.length >= 2 && calls.length >= 2) {
+                  const shortPut = puts.find((p: any) => Math.abs(p.greeks?.delta || 0) >= 0.15 && Math.abs(p.greeks?.delta || 0) <= 0.30);
+                  const longPut = puts.find((p: any) => p.strike < (shortPut?.strike || 0) && Math.abs(p.greeks?.delta || 0) <= 0.15);
+                  const shortCall = calls.find((c: any) => Math.abs(c.greeks?.delta || 0) >= 0.15 && Math.abs(c.greeks?.delta || 0) <= 0.30);
+                  const longCall = calls.find((c: any) => c.strike > (shortCall?.strike || 0) && Math.abs(c.greeks?.delta || 0) <= 0.15);
+                  if (shortPut && longPut && shortCall && longCall) {
+                    const putCredit = (shortPut.bid - longPut.ask) * 100;
+                    const callCredit = (shortCall.bid - longCall.ask) * 100;
+                    recommendedStrikes = { shortStrike: shortPut.strike, longStrike: longPut.strike, expectedPremium: putCredit + callCredit, probabilityOfProfit: 65 };
+                  }
                 }
               }
+              console.log(`[Strategy Advisor] ${symbol} recommendedStrikes:`, recommendedStrikes ? 'built' : 'none');
             }
           } catch (error) {
             console.warn(`Failed to fetch option data for ${symbol}:`, error);
@@ -354,9 +404,8 @@ export const strategyAdvisorRouter = router({
           // Get historical performance for this ticker
           const historical = historicalBySymbol[symbol];
 
-          // Is this symbol an index? (affects scoring thresholds)
-          const { isIndexSymbol: isIdxSym } = await import('../shared/index-symbols');
-          const isIndexTicker = isIdxSym(symbol);
+          // isIdxSymbol was set at the top of this lambda from the pre-loaded checker
+          const isIndexTicker = isIdxSymbol;
 
           // Helper function to calculate fit score for ANY strategy
           const calculateStrategyFit = (strategy: 'BPS' | 'BCS' | 'IC') => {
