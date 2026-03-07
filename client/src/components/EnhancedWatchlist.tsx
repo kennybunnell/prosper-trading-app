@@ -422,22 +422,58 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
   return (
     <Card className="bg-card/50 backdrop-blur border-border/50">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
             <CardTitle>Watchlist</CardTitle>
             <CardDescription>Add symbols to analyze trading opportunities</CardDescription>
+          </div>
+          {/* Persistent Equity / Index context toggle */}
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => setAddAsIndex(false)}
+              className={`rounded-md px-4 py-1.5 text-xs font-semibold transition-all ${
+                !addAsIndex
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Equities
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddAsIndex(true)}
+              className={`rounded-md px-4 py-1.5 text-xs font-semibold transition-all ${
+                addAsIndex
+                  ? 'bg-amber-500 text-black shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Indexes
+            </button>
           </div>
           {onToggleCollapse && (
             <Button
               variant="ghost"
               size="sm"
               onClick={onToggleCollapse}
+              className="shrink-0"
             >
               <ChevronUp className="w-4 h-4 mr-2" />
               Collapse
             </Button>
           )}
         </div>
+        {addAsIndex && (
+          <p className="text-xs text-amber-400 mt-1">
+            Index mode — Add adds as Index · Select All selects only Index tickers · Section 1256 tax treatment
+          </p>
+        )}
+        {!addAsIndex && (
+          <p className="text-xs text-blue-400 mt-1">
+            Equity mode — Add adds as Equity · Select All selects only Equity tickers
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Quick Add Input with Equity/Index toggle */}
@@ -464,36 +500,11 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
               Add
             </Button>
           </div>
-          {/* Equity / Index type selector */}
-          <div className="flex items-center gap-1 rounded-md border border-border bg-muted/30 p-0.5 w-fit">
-            <button
-              type="button"
-              onClick={() => setAddAsIndex(false)}
-              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-                !addAsIndex
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Equity
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddAsIndex(true)}
-              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-                addAsIndex
-                  ? 'bg-amber-500 text-black shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Index
-            </button>
-          </div>
-          {addAsIndex && (
-            <p className="text-xs text-amber-400">
-              Adding as Index — Section 1256 tax treatment, cash settlement, no assignment risk.
-            </p>
-          )}
+          {/* Type hint below input */}
+          <p className="text-xs text-muted-foreground">
+            Adding as: <span className={addAsIndex ? 'text-amber-400 font-medium' : 'text-blue-400 font-medium'}>{addAsIndex ? 'Index' : 'Equity'}</span>
+            {' '}— switch the toggle above to change
+          </p>
         </div>
 
         {/* SPXW Quick-Add Banner */}
@@ -708,18 +719,30 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
             <div className="flex items-center gap-4">
               <span className="text-sm font-medium">
                 {selectedCount} of {watchlist.length} selected
+                <span className={`ml-2 text-xs font-normal ${addAsIndex ? 'text-amber-400' : 'text-blue-400'}`}>
+                  ({addAsIndex ? 'Index' : 'Equity'} mode)
+                </span>
               </span>
               <div className="flex gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => selectAll.mutate({ symbols: watchlist.map((w: WatchlistItem) => w.symbol) })}
-                  disabled={selectedCount === watchlist.length || selectAll.isPending}
+                  onClick={() => {
+                    // Scope Select All to the active context (Indexes or Equities)
+                    const scopedSymbols = watchlist
+                      .filter((w: WatchlistItem) => {
+                        const isIdx = (w as any).isIndex === true || (w as any).isIndex === 1 || INDEX_SYMBOLS_SET.has(w.symbol);
+                        return addAsIndex ? isIdx : !isIdx;
+                      })
+                      .map((w: WatchlistItem) => w.symbol);
+                    selectAll.mutate({ symbols: scopedSymbols });
+                  }}
+                  disabled={selectAll.isPending}
                 >
                   {selectAll.isPending ? (
                     <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                   ) : null}
-                  Select All
+                  Select All {addAsIndex ? 'Indexes' : 'Equities'}
                 </Button>
                 <Button
                   variant="outline"
