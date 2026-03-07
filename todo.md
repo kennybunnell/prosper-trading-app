@@ -7513,3 +7513,10 @@
 - [x] Score badge on each card shows the section-specific score (e.g., MRUT shows 83 under BPS, 73 under BCS, 75 under IC)
 - [x] "Trade This" button routes to the correct dashboard for that section (BCS → /cc, BPS/IC → /iron-condor)
 - [x] Checkbox lock logic updated: lock is based on the section the checkbox is in, not the ticker's primary badge
+## Iron Condor Scanner - 0 Results Bug (Mar 7, 2026)
+- [x] Confirmed: all option chain data and Greeks come from Tradier API (tradier.ts) — NOT Tastytrade
+- [x] Root cause found: getQuote('SPXW') fails — SPXW is an option series root, not a quotable equity on Tradier
+- [x] Fix: added INDEX_UNDERLYING_MAP in TradierAPI class (SPXW→$SPX.X, NDXP→$NDX.X, MRUT→$RUT.X, etc.)
+- [x] Fix: fetchSymbolOpportunities now uses underlying symbol for getQuote() and getTechnicalIndicators()
+- [x] Fix: getTechnicalIndicators wrapped in try/catch — index series that fail technicals still proceed with option chain data
+- [x] Fix: added detailed logging at each step (expirations found, underlying price, DTE range) for future debugging

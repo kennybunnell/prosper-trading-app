@@ -618,6 +618,28 @@ export class TradierAPI {
   }
 
   /**
+   * Mapping from index option series root to the Tradier-quotable underlying symbol.
+   * SPXW/SPX options trade on the S&P 500 index, quoted as $SPX.X on Tradier.
+   * We use the option root for expirations/chains, but the underlying for price/technicals.
+   */
+  private static readonly INDEX_UNDERLYING_MAP: Record<string, string> = {
+    SPXW:  '$SPX.X',
+    SPX:   '$SPX.X',
+    SPXPM: '$SPX.X',
+    XSP:   '$SPX.X',
+    NDX:   '$NDX.X',
+    NDXP:  '$NDX.X',
+    XND:   '$NDX.X',
+    RUT:   '$RUT.X',
+    MRUT:  '$RUT.X',
+    DJX:   '$DJI',
+    VIX:   '$VIX.X',
+    VIXW:  '$VIX.X',
+    OEX:   '$OEX.X',
+    XEO:   '$OEX.X',
+  };
+
+  /**
    * Fetch CSP opportunities for a single symbol
    * Used internally by fetchCSPOpportunities for parallel processing
    */
@@ -633,9 +655,16 @@ export class TradierAPI {
     console.log(`[CSP fetchSymbolOpportunities] === ENTRY === Symbol: ${symbol}`);
     const opportunities: CSPOpportunity[] = [];
     const today = new Date();
+
+    // For index option series (SPXW, NDXP, MRUT, etc.), the option chain is fetched
+    // using the option root symbol, but price quotes and technical indicators must use
+    // the underlying index symbol (e.g., $SPX.X for SPXW).
+    const underlyingSymbol = TradierAPI.INDEX_UNDERLYING_MAP[symbol.toUpperCase()] || symbol;
+    const isIndexSeries = underlyingSymbol !== symbol;
+    console.log(`[CSP fetchSymbolOpportunities] Symbol: ${symbol}, underlying: ${underlyingSymbol}, isIndex: ${isIndexSeries}`);
     
     try {
-        // Get all expirations for this symbol
+        // Get all expirations for this symbol (use option root, not underlying)
         const expirations = await this.getExpirations(symbol);
         
         // Filter expirations by DTE range
@@ -646,14 +675,26 @@ export class TradierAPI {
           return dte >= minDte && dte <= maxDte;
         });
 
-        if (filteredExpirations.length === 0) return opportunities;
+        if (filteredExpirations.length === 0) {
+          console.log(`[CSP fetchSymbolOpportunities] ${symbol}: No expirations in DTE range ${minDte}-${maxDte}. Total expirations: ${expirations.length}`);
+          return opportunities;
+        }
+        console.log(`[CSP fetchSymbolOpportunities] ${symbol}: ${filteredExpirations.length} expirations in range: ${filteredExpirations.join(', ')}`);
 
-        // Get current stock price
-        const quote = await this.getQuote(symbol);
+        // Get current price — use underlying symbol for index series
+        const quote = await this.getQuote(underlyingSymbol);
         const underlyingPrice = quote.last;
+        console.log(`[CSP fetchSymbolOpportunities] ${symbol}: underlying price = ${underlyingPrice} (from ${underlyingSymbol})`);
 
-        // Get technical indicators
-        const indicators = await this.getTechnicalIndicators(symbol);
+        // Get technical indicators — skip for pure index series (no price history on option root)
+        // For ETF proxies (SPY, QQQ, IWM) the symbol itself is quotable, so use it directly.
+        const indicatorSymbol = isIndexSeries ? underlyingSymbol : symbol;
+        let indicators: any = { rsi: null, bollingerBands: null };
+        try {
+          indicators = await this.getTechnicalIndicators(indicatorSymbol);
+        } catch (indErr: any) {
+          console.warn(`[CSP fetchSymbolOpportunities] ${symbol}: getTechnicalIndicators failed for ${indicatorSymbol}: ${indErr.message} — continuing without technicals`);
+        }
 
         // Collect IV values from all options to calculate IV Rank
         const allIVValues: number[] = [];
