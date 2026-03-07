@@ -7472,3 +7472,6 @@
 - [x] Add GTC Orders route (/gtc-orders) to App.tsx
 - [x] Add GTC Orders link to Sidebar secondary nav (Timer icon)
 - [x] Write 29 unit tests for Phase 2 (all passing)
+
+## GTC Auto-Refresh Toggle (Mar 7, 2026)
+- [x] Add auto-refresh toggle to GTC Orders page (60s interval, polls active orders, live status badge updates)
