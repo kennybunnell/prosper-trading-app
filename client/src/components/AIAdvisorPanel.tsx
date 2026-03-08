@@ -155,8 +155,8 @@ export function AIAdvisorPanel({
         {!picks && !analyze.isPending && (
           <p className="text-xs text-slate-400 mt-1">
             AI will analyze the top 30 opportunities by score and recommend the
-            best 3 trades with suggested quantities based on your $
-            {availableBuyingPower.toLocaleString()} buying power.
+            best 3 trades with suggested quantities.
+            {availableBuyingPower > 0 ? ` Based on your $${availableBuyingPower.toLocaleString()} buying power.` : ' Connect your Tastytrade account for quantity recommendations.'}
           </p>
         )}
       </CardHeader>

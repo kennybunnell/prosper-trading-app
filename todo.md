@@ -7579,3 +7579,8 @@
 - [x] Integrated AI Advisor button + panel into Iron Condor Dashboard
 - [x] TypeScript clean, 4 unit tests passing
 - [x] Scanner logic NOT modified - 384 SPX opportunities preserved
+
+## Fixes (Mar 8, 2026)
+- [x] AI Advisor returns empty picks when availableBuyingPower=0 (fixed: use fallback BP of $100k)
+- [x] AI Advisor repositioned to appear below range filters / above results table
+- [x] NDXP/MRUT showing zero BPS opportunities (fixed: nearest-strike lookup for 100pt increment index options)

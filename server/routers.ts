@@ -2602,19 +2602,38 @@ Summary: [One sentence overall assessment]`;
             }
             
             // Find the long put at our target strike
-            const longPut = options.find(
+            // For index options (NDXP, MRUT) strikes may be in 100-point increments,
+            // so find the nearest available strike at or below the target longStrike.
+            const exactLongPut = options.find(
               opt => opt.option_type === 'put' && opt.strike === longStrike
             );
+            // If exact strike not found, find nearest available put strike below target
+            const longPut = exactLongPut || (() => {
+              const puts = options.filter(opt => opt.option_type === 'put' && opt.strike < cspOpp.strike && opt.strike > 0);
+              if (puts.length === 0) return null;
+              // Find the put with strike closest to (but not above) longStrike
+              const sorted = puts.sort((a, b) => Math.abs(a.strike - longStrike) - Math.abs(b.strike - longStrike));
+              const nearest = sorted[0];
+              // Only use if within reasonable proximity:
+              // For large indices (NDXP ~24000, MRUT ~2500), the nearest strike may be 100pts away.
+              // Allow up to 10x spread width OR 200 points, whichever is larger.
+              const maxDeviation = Math.max(input.spreadWidth * 10, 200);
+              if (Math.abs(nearest.strike - longStrike) <= maxDeviation) return nearest;
+              return null;
+            })();
             
             if (!longPut || !longPut.bid || !longPut.ask) {
               // Skip if we can't find the long put or it has no quotes
               continue;
             }
+            // Use the actual strike found (may differ from target for index options)
+            const actualLongStrike = longPut.strike;
+            const actualSpreadWidth = cspOpp.strike - actualLongStrike;
             
-            // Calculate spread pricing
+            // Calculate spread pricing using actual spread width (may differ for index options)
             const spreadOpp = calculateBullPutSpread(
               cspOpp,
-              input.spreadWidth,
+              actualSpreadWidth,
               {
                 bid: longPut.bid,
                 ask: longPut.ask,
@@ -3451,14 +3470,16 @@ Summary: [One sentence overall assessment]`;
         const { invokeLLM } = await import('./_core/llm');
         const { opportunities, availableBuyingPower, strategy } = input;
 
+        const effectiveBP = availableBuyingPower > 0 ? availableBuyingPower : 100000;
         const collateralPerContract = opportunities.length > 0 ? (opportunities[0].capitalRisk || 0) : 0;
-        const maxContracts = collateralPerContract > 0 ? Math.max(1, Math.floor((availableBuyingPower * 0.20) / collateralPerContract)) : 1;
+        const maxContracts = collateralPerContract > 0 ? Math.max(1, Math.floor((effectiveBP * 0.20) / collateralPerContract)) : 5;
 
         const oppSummary = opportunities.slice(0, 30).map((o, i) =>
           `${i + 1}. ${o.symbol} | Score:${o.score} | ${o.shortStrike ? `Short:${o.shortStrike}/Long:${o.longStrike}` : `Strike:${o.strike}`} | Exp:${o.expiration} | DTE:${o.dte} | Credit:$${o.netCredit.toFixed(2)} | Collateral:$${o.capitalRisk} | ROC:${o.roc.toFixed(2)}% | Delta:${(o.delta ?? 0).toFixed(3)} | OI:${o.openInterest ?? 0} | Vol:${o.volume ?? 0} | IVRank:${(o.ivRank ?? 0).toFixed(1)}`
         ).join('\n');
 
-        const systemPrompt = `You are an expert options income trader specializing in ${strategy} strategies. Select the top 3 opportunities from the scanned list, balancing: ROC vs collateral, liquidity (OI>100, Vol>10), delta cushion, DTE sweet spot (7-21 days), and score. Suggest quantity based on 20% max buying power per trade. Available BP: $${availableBuyingPower.toLocaleString()}. Max contracts (20% BP rule): ${maxContracts}. Return ONLY valid JSON: {"picks":[{"rank":1,"opportunityIndex":0,"quantity":1,"rationale":"...","riskNote":"..."}]}`;
+        const bpDisplay = availableBuyingPower > 0 ? `$${availableBuyingPower.toLocaleString()}` : 'not specified (assume $100,000)';
+        const systemPrompt = `You are an expert options income trader specializing in ${strategy} strategies. Select the top 3 opportunities from the scanned list, balancing: ROC vs collateral, liquidity (OI>100, Vol>10), delta cushion, DTE sweet spot (7-21 days), and score. Suggest quantity based on 20% max buying power per trade. Available BP: ${bpDisplay}. Suggested max contracts per trade: ${maxContracts}. IMPORTANT: You MUST always return exactly 3 picks. Return ONLY valid JSON: {"picks":[{"rank":1,"opportunityIndex":0,"quantity":1,"rationale":"...","riskNote":"..."}]}`;
 
         const response = await invokeLLM({
           messages: [

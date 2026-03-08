@@ -1357,9 +1357,9 @@ export default function CSPDashboard() {
                 <p className="text-xs text-muted-foreground">
                   {isIndexMode ? (
                     <>
-                      {spreadWidth === 25 && "25pt index spread — ~$2,500 collateral per contract (SPX/SPXW)"}
-                      {spreadWidth === 50 && "50pt index spread — ~$5,000 collateral per contract (SPX/SPXW)"}
-                      {spreadWidth === 100 && "100pt index spread — ~$10,000 collateral per contract (SPX/SPXW)"}
+                      {spreadWidth === 25 && "25pt — ~$2,500 collateral (SPX/SPXW). For NDXP/MRUT, nearest 100pt strike used automatically."}
+                      {spreadWidth === 50 && "50pt — ~$5,000 collateral (SPX/SPXW). For NDXP/MRUT, nearest 100pt strike used automatically."}
+                      {spreadWidth === 100 && "100pt — ~$10,000 collateral (SPX/SPXW) / ~$10,000 (NDXP) / ~$1,000 (MRUT)."}
                     </>
                   ) : (
                     <>
@@ -1891,33 +1891,6 @@ export default function CSPDashboard() {
         </div>
       )}
 
-      {/* AI Advisor Panel */}
-      {showAIAdvisor && opportunities.length > 0 && (
-        <AIAdvisorPanel
-          opportunities={opportunities.map((opp: any) => ({
-            score: opp.score ?? 0,
-            symbol: opp.symbol,
-            strategy: strategyType === 'spread' ? 'BPS' : 'CSP',
-            shortStrike: strategyType === 'spread' ? (opp as any).shortStrike : undefined,
-            longStrike: strategyType === 'spread' ? (opp as any).longStrike : undefined,
-            strike: strategyType === 'csp' ? opp.strike : undefined,
-            expiration: opp.expiration,
-            dte: opp.dte,
-            netCredit: strategyType === 'spread' ? ((opp as any).netCredit ?? 0) : (opp.premium ?? 0),
-            capitalRisk: strategyType === 'spread' ? ((opp as any).capitalAtRisk ?? (opp as any).capitalRisk ?? 0) : (opp.strike * 100),
-            roc: strategyType === 'spread' ? ((opp as any).roc ?? 0) : (opp.weeklyReturn ?? 0),
-            weeklyPct: opp.weeklyReturn,
-            breakeven: opp.breakeven,
-            delta: opp.delta,
-            openInterest: opp.openInterest,
-            volume: opp.volume,
-            ivRank: opp.ivRank,
-          }))}
-          availableBuyingPower={availableBuyingPower}
-          strategy={strategyType === 'spread' ? 'BPS' : 'CSP'}
-          onClose={() => setShowAIAdvisor(false)}
-        />
-      )}
       {/* Filters */}
       <Card className="bg-card/50 backdrop-blur border-border/50" data-section="filters">
         <CardHeader>
@@ -2256,6 +2229,33 @@ export default function CSPDashboard() {
         </CardContent>
       </Card>
 
+      {/* AI Advisor Panel */}
+      {showAIAdvisor && opportunities.length > 0 && (
+        <AIAdvisorPanel
+          opportunities={opportunities.map((opp: any) => ({
+            score: opp.score ?? 0,
+            symbol: opp.symbol,
+            strategy: strategyType === 'spread' ? 'BPS' : 'CSP',
+            shortStrike: strategyType === 'spread' ? (opp as any).shortStrike : undefined,
+            longStrike: strategyType === 'spread' ? (opp as any).longStrike : undefined,
+            strike: strategyType === 'csp' ? opp.strike : undefined,
+            expiration: opp.expiration,
+            dte: opp.dte,
+            netCredit: strategyType === 'spread' ? ((opp as any).netCredit ?? 0) : (opp.premium ?? 0),
+            capitalRisk: strategyType === 'spread' ? ((opp as any).capitalAtRisk ?? (opp as any).capitalRisk ?? 0) : (opp.strike * 100),
+            roc: strategyType === 'spread' ? ((opp as any).roc ?? 0) : (opp.weeklyReturn ?? 0),
+            weeklyPct: opp.weeklyReturn,
+            breakeven: opp.breakeven,
+            delta: opp.delta,
+            openInterest: opp.openInterest,
+            volume: opp.volume,
+            ivRank: opp.ivRank,
+          }))}
+          availableBuyingPower={availableBuyingPower}
+          strategy={strategyType === 'spread' ? 'BPS' : 'CSP'}
+          onClose={() => setShowAIAdvisor(false)}
+        />
+      )}
       {/* Summary Cards - Enhanced with gradients and glassmorphism */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 to-yellow-500/5 backdrop-blur border-amber-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">

@@ -2012,33 +2012,6 @@ export default function CCDashboard() {
 
             </div>
 
-      {/* AI Advisor Panel */}
-      {showAIAdvisor && opportunities.length > 0 && (
-        <AIAdvisorPanel
-          opportunities={opportunities.map((opp: any) => ({
-            score: opp.score ?? 0,
-            symbol: opp.symbol,
-            strategy: strategyType === 'spread' ? 'BCS' : 'CC',
-            shortStrike: strategyType === 'spread' ? opp.strike : undefined,
-            longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
-            strike: strategyType === 'cc' ? opp.strike : undefined,
-            expiration: opp.expiration,
-            dte: opp.dte,
-            netCredit: strategyType === 'spread' ? (opp.netCredit ?? 0) : (opp.premium ?? 0),
-            capitalRisk: strategyType === 'spread' ? ((opp.capitalAtRisk ?? 0) * 100) : (opp.currentPrice * 100),
-            roc: opp.spreadROC ?? opp.returnPct ?? 0,
-            weeklyPct: opp.weeklyReturn,
-            breakeven: opp.breakeven,
-            delta: opp.delta,
-            openInterest: opp.openInterest,
-            volume: opp.volume,
-            ivRank: opp.ivRank,
-          }))}
-          availableBuyingPower={availableBuyingPower}
-          strategy={strategyType === 'spread' ? 'BCS' : 'CC'}
-          onClose={() => setShowAIAdvisor(false)}
-        />
-      )}
       <Card className="bg-card/50 backdrop-blur border-amber-500/20" data-section="filters">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -2378,6 +2351,33 @@ export default function CCDashboard() {
 
 
 
+      {/* AI Advisor Panel */}
+      {showAIAdvisor && opportunities.length > 0 && (
+        <AIAdvisorPanel
+          opportunities={opportunities.map((opp: any) => ({
+            score: opp.score ?? 0,
+            symbol: opp.symbol,
+            strategy: strategyType === 'spread' ? 'BCS' : 'CC',
+            shortStrike: strategyType === 'spread' ? opp.strike : undefined,
+            longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
+            strike: strategyType === 'cc' ? opp.strike : undefined,
+            expiration: opp.expiration,
+            dte: opp.dte,
+            netCredit: strategyType === 'spread' ? (opp.netCredit ?? 0) : (opp.premium ?? 0),
+            capitalRisk: strategyType === 'spread' ? ((opp.capitalAtRisk ?? 0) * 100) : (opp.currentPrice * 100),
+            roc: opp.spreadROC ?? opp.returnPct ?? 0,
+            weeklyPct: opp.weeklyReturn,
+            breakeven: opp.breakeven,
+            delta: opp.delta,
+            openInterest: opp.openInterest,
+            volume: opp.volume,
+            ivRank: opp.ivRank,
+          }))}
+          availableBuyingPower={availableBuyingPower}
+          strategy={strategyType === 'spread' ? 'BCS' : 'CC'}
+          onClose={() => setShowAIAdvisor(false)}
+        />
+      )}
       {/* Summary Cards - Enhanced with gradients and glassmorphism */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 to-yellow-500/5 backdrop-blur border-amber-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
