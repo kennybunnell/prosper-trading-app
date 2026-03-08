@@ -54,6 +54,7 @@ import { HelpBadge } from "@/components/HelpBadge";
 import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
 import { RiskBadgeList } from "@/components/RiskBadge";
+import { AIAdvisorPanel, type AIAdvisorOpportunity } from "@/components/AIAdvisorPanel";
 import { SafeguardWarningModal, SafeguardWarning } from "@/components/SafeguardWarningModal";
 
 // Strategy types
@@ -2599,6 +2600,21 @@ export default function CCDashboard() {
             )}
 
             {/* Selection Summary Cards - REMOVED: Consolidated into Order Summary above */}
+
+            {/* AI Advisor Panel */}
+            {filteredOpportunities.length > 0 && (
+              <AIAdvisorPanel
+                opportunities={filteredOpportunities as AIAdvisorOpportunity[]}
+                availableBuyingPower={availableBuyingPower}
+                strategy="BCS"
+                onSelectRecommendation={(idx) => {
+                  const opp = filteredOpportunities[idx];
+                  if (!opp) return;
+                  const key = `${opp.symbol}-${(opp as any).strike ?? (opp as any).callStrike}-${opp.expiration}`;
+                  setSelectedOpportunities(prev => { const next = new Set(prev); next.add(key); return next; });
+                }}
+              />
+            )}
 
             {/* Opportunities Table */}
             <Card className="bg-card/50 backdrop-blur border-amber-500/20">

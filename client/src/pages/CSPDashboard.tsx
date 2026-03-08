@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { RiskBadgeList } from "@/components/RiskBadge";
+import { AIAdvisorPanel, type AIAdvisorOpportunity } from "@/components/AIAdvisorPanel";
 
 // Color-coding helper functions for technical indicators
 function getRSIColor(rsi: number | null, strategy: 'csp' | 'cc'): string {
@@ -2339,6 +2340,23 @@ export default function CSPDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* AI Advisor Panel */}
+      {filteredOpportunities.length > 0 && (
+        <div className="px-1">
+          <AIAdvisorPanel
+            opportunities={filteredOpportunities as AIAdvisorOpportunity[]}
+            availableBuyingPower={availableBuyingPower}
+            strategy={strategyType === 'spread' ? 'BPS' : 'CSP'}
+            onSelectRecommendation={(idx) => {
+              const opp = filteredOpportunities[idx];
+              if (!opp) return;
+              const key = `${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`;
+              setSelectedOpportunities(prev => { const next = new Set(prev); next.add(key); return next; });
+            }}
+          />
+        </div>
+      )}
 
       {/* Opportunities Table */}
       <Card className="bg-card/50 backdrop-blur border-border/50">

@@ -7570,3 +7570,16 @@
 - [x] Added Export CSV button to IronCondorDashboard (was missing) with IC-specific columns (Put/Call Short/Long Strikes, Put/Call Credit, Total Net Credit, Total Collateral, Lower/Upper Breakeven, Profit Zone Width, Net Delta)
 - [x] All export buttons show row count in label e.g. "Export CSV (232)"
 - [x] TypeScript clean
+
+## Feature (Mar 8, 2026) - AI Advisor + Index Delta Fix
+- [ ] Fix BPS/CSP scanner: use index-appropriate delta range (0.005-0.05) when isIndexMode=true for SPXW/NDXP/MRUT
+- [ ] Add spread.aiAdvisor tRPC procedure: accepts top opportunities, calls LLM, returns 3 recommendations with quantities
+- [ ] Add AI Pick button to CSPDashboard BPS mode with recommendation panel UI
+
+## Features (Mar 8, 2026) - AI Advisor + Index Delta Fix
+- [x] Add AI Advisor tRPC procedure (spread.aiAdvisor) - sends top 30 opps to LLM, returns 3 ranked picks with quantities
+- [x] Create shared AIAdvisorPanel component with gold/silver/bronze ranked cards
+- [x] Wire AIAdvisorPanel into CSPDashboard (BPS + CSP modes)
+- [x] Wire AIAdvisorPanel into CCDashboard (BCS mode)
+- [x] Wire AIAdvisorPanel into IronCondorDashboard (IC mode)
+- [x] Fix BPS scanner delta range for index mode (0.005-0.05 instead of 0.15-0.35)

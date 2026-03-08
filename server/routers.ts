@@ -2538,10 +2538,16 @@ Summary: [One sentence overall assessment]`;
         }
 
         // Fetch CSP opportunities first (these are the short puts)
+        // Index options (SPXW, NDXP, MRUT) trade at much lower deltas (0.005-0.05)
+        // than equity options (0.15-0.35), so use index-appropriate defaults when in index mode.
+        const isIndexScan = input.isIndexMode ?? false;
+        const effectiveMinDelta = input.minDelta ?? (isIndexScan ? 0.005 : 0.15);
+        const effectiveMaxDelta = input.maxDelta ?? (isIndexScan ? 0.05 : 0.35);
+        console.log(`[BPS Scanner] isIndexMode=${isIndexScan}, delta range: ${effectiveMinDelta}-${effectiveMaxDelta}`);
         const cspOpportunities = await api.fetchCSPOpportunities(
           symbols,
-          input.minDelta || 0.15,
-          input.maxDelta || 0.35,
+          effectiveMinDelta,
+          effectiveMaxDelta,
           input.minDte || 7,
           input.maxDte || 45,
           input.minVolume || 5,
@@ -2668,11 +2674,172 @@ Summary: [One sentence overall assessment]`;
 
         // Increment scan count for Tier 1 users (after successful scan)
         await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
-
         return scoredWithBadges;
       }),
-  }),
 
+    aiAdvisor: protectedProcedure
+      .input(
+        z.object({
+          opportunities: z.array(z.object({
+            symbol: z.string(),
+            strike: z.number(),
+            longStrike: z.number().optional(),
+            spreadWidth: z.number().optional(),
+            expiration: z.string(),
+            dte: z.number(),
+            netCredit: z.number().optional(),
+            premium: z.number().optional(),
+            capitalRisk: z.number().optional(),
+            collateral: z.number().optional(),
+            roc: z.number().optional(),
+            weeklyPct: z.number().optional(),
+            breakeven: z.number().optional(),
+            delta: z.number().optional(),
+            openInterest: z.number().optional(),
+            volume: z.number().optional(),
+            score: z.number().optional(),
+            currentPrice: z.number().optional(),
+          })).max(50),
+          availableBuyingPower: z.number().optional(),
+          strategy: z.string().optional(), // 'BPS' | 'BCS' | 'IC' | 'CSP'
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+
+        const { opportunities, availableBuyingPower, strategy = 'BPS' } = input;
+        if (opportunities.length === 0) {
+          throw new Error('No opportunities provided for analysis.');
+        }
+
+        // Build a compact summary of the top opportunities for the LLM
+        const oppSummary = opportunities.slice(0, 30).map((o, i) => {
+          const credit = o.netCredit ?? o.premium ?? 0;
+          const collateral = o.capitalRisk ?? o.collateral ?? 0;
+          const roc = o.roc ?? 0;
+          const oi = o.openInterest ?? 0;
+          const vol = o.volume ?? 0;
+          const cushionPct = o.currentPrice && o.strike
+            ? (((o.currentPrice - o.strike) / o.currentPrice) * 100).toFixed(1)
+            : 'N/A';
+          return `${i + 1}. ${o.symbol} ${strategy} | Short:$${o.strike}${o.longStrike ? `/Long:$${o.longStrike}` : ''} | Exp:${o.expiration} DTE:${o.dte} | Credit:$${credit.toFixed(2)} | Collateral:$${collateral.toFixed(0)} | ROC:${roc.toFixed(2)}% | OI:${oi} | Vol:${vol} | Cushion:${cushionPct}% | Score:${o.score ?? 'N/A'}`;
+        }).join('\n');
+
+        const bpContext = availableBuyingPower
+          ? `Available buying power: $${availableBuyingPower.toLocaleString()}. Assume max 10% of buying power allocated to this strategy.`
+          : 'Assume $50,000 allocated capital for this strategy.';
+
+        const systemPrompt = `You are an expert options income trader specializing in index and equity spread strategies. 
+You analyze opportunities objectively, balancing risk-adjusted return, liquidity, and position sizing.
+You always recommend defined-risk spreads only — no naked positions.
+Return ONLY valid JSON, no markdown, no explanation outside the JSON.`;
+
+        const userPrompt = `Analyze these ${strategy} spread opportunities and select the TOP 3 to trade today.
+
+Selection criteria (in priority order):
+1. Liquidity: OI > 200 and Volume > 20 preferred
+2. Cushion: Higher % distance from current price = safer
+3. ROC: Higher return on collateral = better capital efficiency
+4. Score: Higher composite score = better overall setup
+5. DTE: 7-14 days preferred for theta decay acceleration
+
+${bpContext}
+Collateral per contract = spread width × $100.
+For each pick, recommend a quantity based on: floor(allocatedCapital × 0.33 / collateralPerContract), max 10 contracts.
+
+Opportunities:
+${oppSummary}
+
+Return JSON in this exact format:
+{
+  "recommendations": [
+    {
+      "rank": 1,
+      "opportunityIndex": 0,
+      "symbol": "SPX",
+      "strikes": "$6400/$6375",
+      "expiration": "2026-03-20",
+      "dte": 11,
+      "suggestedQuantity": 3,
+      "netCreditPerContract": 2.80,
+      "totalCredit": 840,
+      "collateralPerContract": 2500,
+      "totalCollateral": 7500,
+      "roc": 0.75,
+      "rationale": "Best liquidity with 1,714 OI and 5% cushion. Conservative pick."
+    }
+  ],
+  "summary": "Brief 1-2 sentence overall market context and strategy note."
+}`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'ai_advisor_response',
+              strict: true,
+              schema: {
+                type: 'object',
+                properties: {
+                  recommendations: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        rank: { type: 'integer' },
+                        opportunityIndex: { type: 'integer' },
+                        symbol: { type: 'string' },
+                        strikes: { type: 'string' },
+                        expiration: { type: 'string' },
+                        dte: { type: 'integer' },
+                        suggestedQuantity: { type: 'integer' },
+                        netCreditPerContract: { type: 'number' },
+                        totalCredit: { type: 'number' },
+                        collateralPerContract: { type: 'number' },
+                        totalCollateral: { type: 'number' },
+                        roc: { type: 'number' },
+                        rationale: { type: 'string' },
+                      },
+                      required: ['rank', 'opportunityIndex', 'symbol', 'strikes', 'expiration', 'dte', 'suggestedQuantity', 'netCreditPerContract', 'totalCredit', 'collateralPerContract', 'totalCollateral', 'roc', 'rationale'],
+                      additionalProperties: false,
+                    },
+                  },
+                  summary: { type: 'string' },
+                },
+                required: ['recommendations', 'summary'],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const content = response.choices?.[0]?.message?.content;
+        if (!content) throw new Error('LLM returned empty response');
+        const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+        return parsed as {
+          recommendations: Array<{
+            rank: number;
+            opportunityIndex: number;
+            symbol: string;
+            strikes: string;
+            expiration: string;
+            dte: number;
+            suggestedQuantity: number;
+            netCreditPerContract: number;
+            totalCredit: number;
+            collateralPerContract: number;
+            totalCollateral: number;
+            roc: number;
+            rationale: string;
+          }>;
+          summary: string;
+        };
+      }),
+  }),
   userPreferences: router({
     get: protectedProcedure.query(async ({ ctx }) => {
       const { getUserPreferences } = await import('./db');
