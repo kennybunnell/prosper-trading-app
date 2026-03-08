@@ -7543,3 +7543,6 @@
 - [x] Fix 1: Removed duplicate DB rows (kept lowest ID / first added for each symbol)
 - [x] Fix 2: Added server-side deduplication in routers-strategy-advisor.ts before building watchlistSymbols array
 - [x] Fix 3: Added frontend deduplication guard on rankedTickers as a safety net
+
+## Bug Fixes (Mar 8, 2026) - StrategyAdvisor Routing
+- [x] Fix "Fetch Opportunities" button routing: BPS → /csp (spread mode), BCS → /cc (spread mode), IC → /iron-condor. Also fixed per-card "Trade This" button routing. Sets csp-strategy-type/cc-strategy-type localStorage before navigation.

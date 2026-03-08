@@ -210,8 +210,10 @@ export function StrategyAdvisor() {
     const maxCount = Math.max(sectionCounts.BPS, sectionCounts.BCS, sectionCounts.IC);
     const isIndexMode = pendingScanType === 'index';
 
-    // Default: IC for indexes, Iron Condor dashboard also handles BPS/BCS for equities
-    // CSP (/csp) is intentionally excluded — Spread Advisor only surfaces spread strategies
+    // Route each strategy to its dedicated dashboard:
+    //   BPS → /csp (CSPDashboard in spread mode)
+    //   BCS → /cc  (CCDashboard in spread mode)
+    //   IC  → /iron-condor
     let targetDashboard = '/iron-condor';
     let strategyName = isIndexMode ? 'Iron Condors' : 'Bull Put Spreads';
 
@@ -221,11 +223,14 @@ export function StrategyAdvisor() {
         targetDashboard = '/iron-condor';
         strategyName = 'Iron Condors';
       } else if (sectionCounts.BCS === maxCount) {
+        // Bear Call Spreads → CC dashboard in spread mode
+        localStorage.setItem('cc-strategy-type', 'spread');
         targetDashboard = '/cc';
         strategyName = 'Bear Call Spreads';
       } else {
-        // BPS is the highest — route to spreads/condors page, not CSP
-        targetDashboard = '/iron-condor'; // BPS is handled in the Iron Condor / Spreads dashboard
+        // Bull Put Spreads → CSP dashboard in spread mode
+        localStorage.setItem('csp-strategy-type', 'spread');
+        targetDashboard = '/csp';
         strategyName = 'Bull Put Spreads';
       }
     }
@@ -740,7 +745,8 @@ export function StrategyAdvisor() {
                   // Show the score for THIS section's strategy (not the overall score)
                   const sectionScore = getBadgeScore(ticker, section);
                   // Route for the Trade This button in this section
-                  const sectionRoute = section === 'BCS' ? '/cc' : '/iron-condor';
+                  // BPS → /csp (in spread mode), BCS → /cc (in spread mode), IC → /iron-condor
+                  const sectionRoute = section === 'BCS' ? '/cc' : section === 'BPS' ? '/csp' : '/iron-condor';
                   
                   return (
                 <div
@@ -888,7 +894,12 @@ export function StrategyAdvisor() {
                     {/* Trade Button - Only show when no tickers are selected */}
                     {selectedTickers.size === 0 && (
                       <Button
-                        onClick={() => setLocation(sectionRoute)}
+                        onClick={() => {
+                          // Set strategy mode in localStorage before navigating
+                          if (section === 'BPS') localStorage.setItem('csp-strategy-type', 'spread');
+                          if (section === 'BCS') localStorage.setItem('cc-strategy-type', 'spread');
+                          setLocation(sectionRoute);
+                        }}
                         className="flex-shrink-0"
                         variant={sectionScore >= 70 ? 'default' : 'outline'}
                         disabled={sectionScore < 40}
