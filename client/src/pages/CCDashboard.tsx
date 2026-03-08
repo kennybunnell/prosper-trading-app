@@ -2635,13 +2635,42 @@ export default function CCDashboard() {
                     onClick={() => {
                       const timestamp = new Date().toISOString().split('T')[0];
                       const strategyName = strategyType === 'cc' ? 'CoveredCall' : 'BearCallSpread';
-                      exportToCSV(filteredOpportunities, `${strategyName}_Opportunities_${timestamp}`);
+                      // Build clean human-readable rows
+                      const rows = filteredOpportunities.map((opp: any) => ({
+                        Score: opp.score ?? '',
+                        Symbol: opp.symbol,
+                        Strategy: strategyType === 'spread' ? 'Bear Call Spread' : 'Covered Call',
+                        'Short Strike': opp.strike,
+                        'Long Strike': opp.longStrike ?? '',
+                        'Spread Width': opp.spreadWidth ?? '',
+                        'Current Price': opp.currentPrice,
+                        Expiration: opp.expiration,
+                        DTE: opp.dte,
+                        'Net Credit ($)': strategyType === 'spread' ? ((opp.netCredit ?? 0) * 100).toFixed(2) : (opp.premium * 100).toFixed(2),
+                        'Bid ($)': opp.bid,
+                        'Ask ($)': opp.ask,
+                        'Capital Risk ($)': strategyType === 'spread' ? ((opp.capitalAtRisk ?? 0) * 100).toFixed(2) : (opp.currentPrice * 100).toFixed(2),
+                        'ROC %': opp.spreadROC != null ? opp.spreadROC.toFixed(2) : (opp.returnPct != null ? opp.returnPct.toFixed(2) : ''),
+                        'Weekly %': opp.weeklyReturn != null ? opp.weeklyReturn.toFixed(2) : '',
+                        Breakeven: opp.breakeven ?? (opp.strike + (opp.premium ?? 0)).toFixed(2),
+                        Delta: opp.delta != null ? opp.delta.toFixed(4) : '',
+                        'Long Delta': opp.longDelta != null ? opp.longDelta.toFixed(4) : '',
+                        OI: opp.openInterest,
+                        Volume: opp.volume,
+                        RSI: opp.rsi ?? '',
+                        'BB %B': opp.bbPctB ?? '',
+                        'IV Rank': opp.ivRank ?? '',
+                        'Spread %': opp.spreadPct != null ? opp.spreadPct.toFixed(2) : '',
+                        'Distance OTM %': opp.distanceOtm != null ? opp.distanceOtm.toFixed(2) : '',
+                        Risk: opp.riskBadges?.map((b: any) => b.label ?? b).join('; ') ?? '',
+                      }));
+                      exportToCSV(rows, `${strategyName}_Opportunities_${timestamp}`);
                       toast.success(`Exported ${filteredOpportunities.length} opportunities to CSV`);
                     }}
                     disabled={filteredOpportunities.length === 0}
                   >
                     <Download className="w-4 h-4 mr-2" />
-                    Export CSV
+                    Export CSV ({filteredOpportunities.length})
                   </Button>
                   <Button
                     variant="outline"

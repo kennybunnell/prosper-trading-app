@@ -1257,13 +1257,41 @@ export default function CSPDashboard() {
                     onClick={() => {
                       const timestamp = new Date().toISOString().split('T')[0];
                       const strategyName = strategyType === 'csp' ? 'CSP' : 'BullPutSpread';
-                      exportToCSV(opportunities, `${strategyName}_Opportunities_${timestamp}`);
+                      // Build clean human-readable rows
+                      const rows = opportunities.map((opp: any) => ({
+                        Score: opp.score ?? '',
+                        Symbol: opp.symbol,
+                        Strategy: strategyType === 'spread' ? 'Bull Put Spread' : 'Cash-Secured Put',
+                        'Short Strike': opp.strike,
+                        'Long Strike': opp.longStrike ?? '',
+                        'Spread Width': opp.spreadWidth ?? '',
+                        'Current Price': opp.currentPrice,
+                        Expiration: opp.expiration,
+                        DTE: opp.dte,
+                        'Net Credit ($)': strategyType === 'spread' ? (opp.netCredit ?? '') : (opp.premium * 100).toFixed(2),
+                        'Bid ($)': opp.bid,
+                        'Ask ($)': opp.ask,
+                        'Capital Risk ($)': strategyType === 'spread' ? (opp.capitalAtRisk ?? '') : (opp.strike * 100).toFixed(2),
+                        'ROC %': opp.roc != null ? opp.roc.toFixed(2) : '',
+                        'Weekly %': opp.weeklyPct != null ? opp.weeklyPct.toFixed(2) : '',
+                        Breakeven: opp.breakeven ?? (opp.strike - (opp.premium ?? 0)).toFixed(2),
+                        Delta: opp.delta != null ? opp.delta.toFixed(4) : '',
+                        'Long Delta': opp.longDelta != null ? opp.longDelta.toFixed(4) : '',
+                        OI: opp.openInterest,
+                        Volume: opp.volume,
+                        RSI: opp.rsi ?? '',
+                        'BB %B': opp.bbPctB ?? '',
+                        'IV Rank': opp.ivRank ?? '',
+                        'Spread %': opp.spreadPct != null ? opp.spreadPct.toFixed(2) : '',
+                        Risk: opp.riskBadges?.map((b: any) => b.label ?? b).join('; ') ?? '',
+                      }));
+                      exportToCSV(rows, `${strategyName}_Opportunities_${timestamp}`);
                       toast.success(`Exported ${opportunities.length} opportunities to CSV`);
                     }}
                     className="w-full"
                   >
                     <Download className="w-4 h-4 mr-2" />
-                    Export CSV
+                    Export CSV ({opportunities.length})
                   </Button>
                 </div>
               )}

@@ -34,9 +34,11 @@ import {
   Plus,
   Minus,
   X,
+  Download,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
+import { exportToCSV } from "@/lib/utils";
 import { UnifiedOrderPreviewModal } from "@/components/UnifiedOrderPreviewModal";
 import { OrderStatusModal, OrderSubmissionStatus } from "@/components/OrderStatusModal";
 import {
@@ -1024,10 +1026,56 @@ export default function IronCondorDashboard() {
           {/* Opportunities Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Iron Condor Opportunities</CardTitle>
-              <CardDescription>
-                4-leg neutral income strategy - profit if stock stays between short strikes
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Iron Condor Opportunities</CardTitle>
+                  <CardDescription>
+                    4-leg neutral income strategy - profit if stock stays between short strikes
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const timestamp = new Date().toISOString().split('T')[0];
+                    const rows = displayedOpportunities.map((opp: any) => ({
+                      Score: opp.score ?? '',
+                      Symbol: opp.symbol,
+                      Strategy: 'Iron Condor',
+                      'Current Price': opp.currentPrice,
+                      Expiration: opp.expiration,
+                      DTE: opp.dte,
+                      'Put Short Strike': opp.putShortStrike,
+                      'Put Long Strike': opp.putLongStrike,
+                      'Call Short Strike': opp.callShortStrike,
+                      'Call Long Strike': opp.callLongStrike,
+                      'Put Credit ($)': opp.putNetCredit != null ? (opp.putNetCredit * 100).toFixed(2) : '',
+                      'Call Credit ($)': opp.callNetCredit != null ? (opp.callNetCredit * 100).toFixed(2) : '',
+                      'Total Net Credit ($)': opp.totalNetCredit != null ? (opp.totalNetCredit * 100).toFixed(2) : '',
+                      'Total Collateral ($)': opp.totalCollateral ?? '',
+                      'ROC %': opp.roc != null ? opp.roc.toFixed(2) : '',
+                      'Lower Breakeven': opp.lowerBreakeven ?? '',
+                      'Upper Breakeven': opp.upperBreakeven ?? '',
+                      'Profit Zone Width': opp.profitZone ?? '',
+                      'Put Short Delta': opp.putShortDelta != null ? opp.putShortDelta.toFixed(4) : '',
+                      'Call Short Delta': opp.callShortDelta != null ? opp.callShortDelta.toFixed(4) : '',
+                      'Net Delta': opp.netDelta != null ? opp.netDelta.toFixed(4) : '',
+                      OI: opp.openInterest ?? '',
+                      Volume: opp.volume ?? '',
+                      RSI: opp.rsi ?? '',
+                      'BB %B': opp.bbPctB ?? '',
+                      'IV Rank': opp.ivRank ?? '',
+                      Risk: opp.riskBadges?.map((b: any) => b.label ?? b).join('; ') ?? '',
+                    }));
+                    exportToCSV(rows, `IronCondor_Opportunities_${timestamp}`);
+                    toast.success(`Exported ${displayedOpportunities.length} opportunities to CSV`);
+                  }}
+                  disabled={displayedOpportunities.length === 0}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export CSV ({displayedOpportunities.length})
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
