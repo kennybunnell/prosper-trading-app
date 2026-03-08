@@ -7549,3 +7549,14 @@
 
 ## Bug Fixes (Mar 8, 2026) - Strategy Advisor Scan Type Passthrough
 - [x] When navigating from Strategy Advisor index scan → destination dashboard now auto-selects Indexes watchlist mode. strategyAdvisorScanType stored in localStorage by StrategyAdvisor, read on mount by CSP/CC/IC dashboards, cleared after consumption. TypeScript clean.
+
+## Bug Fixes (Mar 8, 2026) - CSP/BPS Dashboard Issues
+- [ ] Fix Total Premium/ROC summary cards in CSP Dashboard: non-unique selection key causes wrong premium calculation (same bug as IC Dashboard)
+- [ ] Fix low scores for index products (SPXW, NDXP, MRUT) in CSP/BPS scoring: equity-based scoring criteria don't apply to index products
+
+## Bug Fixes (Mar 8, 2026) - Index Mode Scoring & Spread Width
+- [x] CSP/BPS Dashboard: Low scores for index products (SPXW/NDXP/MRUT) - RSI/BB don't apply to indexes. Added isIndexMode flag: when true, RSI/BB get full neutral credit (30pts) instead of 9+6=15pts fallback
+- [x] CSP/BPS Dashboard: Spread width auto-switches to 25/50/100pt when in index mode (5pt spread on SPX at $6740 gives ~$0.10 credit = meaningless ROC)
+- [x] CC/BCS Dashboard: Same index mode scoring fix applied to calculateBCSScore (RSI/BB get full 40pt neutral credit for indexes)
+- [x] CC/BCS Dashboard: Spread width auto-switches to 25/50/100pt when in index mode
+- [x] Both dashboards: isIndexMode passed to server procedures for server-side scoring

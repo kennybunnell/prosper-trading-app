@@ -2499,7 +2499,8 @@ Summary: [One sentence overall assessment]`;
           maxDte: z.number().optional(),
           minVolume: z.number().optional(),
           minOI: z.number().optional(),
-          spreadWidth: z.number(), // 2, 5, or 10
+          spreadWidth: z.number(), // 2, 5, 10 (equity) or 25, 50, 100 (index)
+          isIndexMode: z.boolean().optional(), // true when scanning index products (SPXW, NDXP, MRUT)
         })
       )
       .query(async ({ ctx, input }) => {
@@ -2648,7 +2649,7 @@ Summary: [One sentence overall assessment]`;
         console.log(`[Spread Dedup] ${dedupedSpreads.length} spreads after deduplication (removed ${dedupedCount})`);
         
         // Score spread opportunities using BPS-specific scoring logic
-        const scored = scoreBPSOpportunities(dedupedSpreads) as any;
+        const scored = scoreBPSOpportunities(dedupedSpreads, { isIndexMode: input.isIndexMode ?? false }) as any;
         console.log(`[Spread Router] Scored ${scored.length} opportunities, preparing to calculate risk badges...`);
 
         // Calculate risk badges for all opportunities

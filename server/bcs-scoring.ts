@@ -27,54 +27,60 @@ export interface BCScoredOpportunity extends BearCallSpreadOpportunity {
 /**
  * Calculate Bear Call Spread Composite Score (0-100) with detailed breakdown
  */
-export function calculateBCSScore(opp: BearCallSpreadOpportunity): { score: number; breakdown: BCSScoreBreakdown } {
+export function calculateBCSScore(
+  opp: BearCallSpreadOpportunity,
+  options: { isIndexMode?: boolean } = {}
+): { score: number; breakdown: BCSScoreBreakdown } {
+  const isIndexMode = options.isIndexMode ?? false;
   let technicalScore = 0;
   let greeksScore = 0;
   let premiumScore = 0;
   let qualityScore = 0;
 
   // ===== TECHNICAL SETUP (40 points) - OVERBOUGHT INDICATORS =====
-  
-  // RSI - Overbought Indicator (20 points)
-  // Higher RSI = better for bear call spreads (stock likely to pull back)
+  // For INDEX products: RSI/BB not meaningful — award full neutral credit (20+20=40)
   const rsi = opp.rsi;
-  if (rsi !== null && rsi !== undefined) {
-    if (rsi > 75) {
-      technicalScore += 20; // Extremely overbought - excellent
-    } else if (rsi > 70) {
-      technicalScore += 18; // Overbought - very good
-    } else if (rsi > 65) {
-      technicalScore += 15; // Approaching overbought - good
-    } else if (rsi > 60) {
-      technicalScore += 12; // Neutral-bullish - acceptable
-    } else if (rsi > 50) {
-      technicalScore += 8; // Neutral - marginal
-    } else if (rsi > 40) {
-      technicalScore += 4; // Neutral-bearish - poor
-    }
-    // < 40 = 0 points (oversold - bad for bear call spreads)
-  } else {
-    technicalScore += 10; // Neutral if no data
-  }
-
-  // Bollinger Band %B (20 points)
-  // Higher %B = more overbought = better for bear call spreads
   const bb = opp.bbPctB;
-  if (bb !== null && bb !== undefined) {
-    if (bb > 1.0) {
-      technicalScore += 20; // Above upper band - excellent
-    } else if (bb > 0.85) {
-      technicalScore += 18; // Near upper band - very good
-    } else if (bb > 0.70) {
-      technicalScore += 15; // Upper third - good
-    } else if (bb > 0.50) {
-      technicalScore += 10; // Upper half - acceptable
-    } else if (bb > 0.30) {
-      technicalScore += 5; // Lower half - poor
-    }
-    // < 0.30 = 0 points (lower band - bad for bear call spreads)
+
+  if (isIndexMode) {
+    technicalScore += 20; // RSI neutral for index
+    technicalScore += 20; // BB neutral for index
   } else {
-    technicalScore += 10; // Neutral if no data
+    // RSI - Overbought Indicator (20 points)
+    if (rsi !== null && rsi !== undefined) {
+      if (rsi > 75) {
+        technicalScore += 20;
+      } else if (rsi > 70) {
+        technicalScore += 18;
+      } else if (rsi > 65) {
+        technicalScore += 15;
+      } else if (rsi > 60) {
+        technicalScore += 12;
+      } else if (rsi > 50) {
+        technicalScore += 8;
+      } else if (rsi > 40) {
+        technicalScore += 4;
+      }
+    } else {
+      technicalScore += 10;
+    }
+
+    // Bollinger Band %B (20 points)
+    if (bb !== null && bb !== undefined) {
+      if (bb > 1.0) {
+        technicalScore += 20;
+      } else if (bb > 0.85) {
+        technicalScore += 18;
+      } else if (bb > 0.70) {
+        technicalScore += 15;
+      } else if (bb > 0.50) {
+        technicalScore += 10;
+      } else if (bb > 0.30) {
+        technicalScore += 5;
+      }
+    } else {
+      technicalScore += 10;
+    }
   }
 
   // ===== GREEKS & SPREAD EFFICIENCY (30 points) =====

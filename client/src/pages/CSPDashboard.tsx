@@ -216,7 +216,8 @@ type ScoredOpportunity = {
 
 type PresetFilter = 'conservative' | 'medium' | 'aggressive' | null;
 type StrategyType = 'csp' | 'spread';
-type SpreadWidth = 2 | 5 | 10;
+type SpreadWidth = 2 | 5 | 10 | 25 | 50 | 100;
+const INDEX_SYMBOLS = new Set(['SPXW', 'SPX', 'NDXP', 'NDX', 'MRUT', 'RUT', 'XSP']);
 
 // Feature flag for Bull Put Spreads (set to false to disable)
 const ENABLE_SPREADS = true;
@@ -308,6 +309,16 @@ export default function CSPDashboard() {
     if (advisorScanType === 'index') return 'index';
     return 'equity';
   });
+  // Derived: are we in index mode?
+  const isIndexMode = watchlistContextMode === 'index';
+  // Auto-switch spread width when entering/leaving index mode
+  useEffect(() => {
+    if (isIndexMode && strategyType === 'spread') {
+      setSpreadWidth(prev => (prev <= 10 ? 25 : prev as SpreadWidth));
+    } else if (!isIndexMode && strategyType === 'spread') {
+      setSpreadWidth(prev => (prev >= 25 ? 5 : prev as SpreadWidth));
+    }
+  }, [isIndexMode, strategyType]);
   const [sortColumn, setSortColumn] = useState<string>('score');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [dryRun, setDryRun] = useState(true);
@@ -521,6 +532,7 @@ export default function CSPDashboard() {
       minDte,
       maxDte,
       spreadWidth,
+      isIndexMode, // Pass index mode flag so server uses index-appropriate scoring
     },
     { enabled: false } // Disabled by default, only fetch when user clicks button
   );
@@ -642,11 +654,10 @@ export default function CSPDashboard() {
     // Apply "Selected Only" filter
     if (showSelectedOnly) {
       filtered = filtered.filter(opp => 
-        selectedOpportunities.has(`${opp.symbol}-${opp.strike}-${opp.expiration}`)
+        selectedOpportunities.has(`${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`)
       );
     }
 
-    // Sort opportunities
     filtered.sort((a, b) => {
       const aVal = (a as any)[sortColumn];
       const bVal = (b as any)[sortColumn];
@@ -662,8 +673,8 @@ export default function CSPDashboard() {
   }, [opportunities, presetFilter, presets, minScore, showSelectedOnly, sortColumn, sortDirection, deltaRange, dteRange, scoreRange, selectedOpportunities]);
 
   // Calculate summary metrics
-  const selectedOppsList = opportunities.filter((opp: any) => 
-    selectedOpportunities.has(`${opp.symbol}-${opp.strike}-${opp.expiration}`)
+  const selectedOppsList = opportunities.filter((opp: any) =>
+    selectedOpportunities.has(`${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`)
   );
   // For spreads, use netCredit; for CSP, use premium
   const totalPremium = strategyType === 'spread'
@@ -855,7 +866,7 @@ export default function CSPDashboard() {
     const selectedKeys = new Set<string>();
     filteredOpportunities.forEach(opp => {
       if (opp.score >= scoreThreshold) {
-        const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+        const key = `${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`;
         selectedKeys.add(key);
       }
     });
@@ -870,7 +881,7 @@ export default function CSPDashboard() {
 
   // Toggle opportunity selection
   const toggleOpportunity = (opp: ScoredOpportunity) => {
-    const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+    const key = `${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`;
     const newSelected = new Set(selectedOpportunities);
     if (newSelected.has(key)) {
       newSelected.delete(key);
@@ -1261,52 +1272,63 @@ export default function CSPDashboard() {
             {/* Spread Width Selector (only show when spread selected) */}
             {strategyType === 'spread' && (
               <div className="space-y-3 p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-                <Label className="text-sm font-semibold">Spread Width</Label>
-                <div className="flex gap-3">
-                  <Button
-                    variant={spreadWidth === 2 ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setSpreadWidth(2)}
-                    className={cn(
-                      "flex-1",
-                      spreadWidth === 2
-                        ? "bg-blue-600 hover:bg-blue-700"
-                        : "hover:bg-blue-500/10 hover:border-blue-500/50"
-                    )}
-                  >
-                    2 points
-                  </Button>
-                  <Button
-                    variant={spreadWidth === 5 ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setSpreadWidth(5)}
-                    className={cn(
-                      "flex-1",
-                      spreadWidth === 5
-                        ? "bg-blue-600 hover:bg-blue-700"
-                        : "hover:bg-blue-500/10 hover:border-blue-500/50"
-                    )}
-                  >
-                    5 points
-                  </Button>
-                  <Button
-                    variant={spreadWidth === 10 ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setSpreadWidth(10)}
-                    className={cn(
-                      "flex-1",
-                      spreadWidth === 10
-                        ? "bg-blue-600 hover:bg-blue-700"
-                        : "hover:bg-blue-500/10 hover:border-blue-500/50"
-                    )}
-                  >
-                    10 points
-                  </Button>
-                </div>
+                <Label className="text-sm font-semibold">
+                  Spread Width
+                  {isIndexMode && <span className="ml-2 text-xs text-amber-400 font-normal">(Index mode — wider spreads recommended)</span>}
+                </Label>
+                {isIndexMode ? (
+                  <div className="flex gap-3">
+                    {([25, 50, 100] as SpreadWidth[]).map(w => (
+                      <Button
+                        key={w}
+                        variant={spreadWidth === w ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setSpreadWidth(w)}
+                        className={cn(
+                          "flex-1",
+                          spreadWidth === w
+                            ? "bg-amber-600 hover:bg-amber-700"
+                            : "hover:bg-amber-500/10 hover:border-amber-500/50"
+                        )}
+                      >
+                        {w} points
+                      </Button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex gap-3">
+                    {([2, 5, 10] as SpreadWidth[]).map(w => (
+                      <Button
+                        key={w}
+                        variant={spreadWidth === w ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setSpreadWidth(w)}
+                        className={cn(
+                          "flex-1",
+                          spreadWidth === w
+                            ? "bg-blue-600 hover:bg-blue-700"
+                            : "hover:bg-blue-500/10 hover:border-blue-500/50"
+                        )}
+                      >
+                        {w} points
+                      </Button>
+                    ))}
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  {spreadWidth === 2 && "Narrow spread - Lower capital efficiency, higher win rate"}
-                  {spreadWidth === 5 && "Balanced spread - Good capital efficiency and win rate"}
-                  {spreadWidth === 10 && "Wide spread - Maximum capital efficiency, lower win rate"}
+                  {isIndexMode ? (
+                    <>
+                      {spreadWidth === 25 && "25pt index spread — ~$2,500 collateral per contract (SPX/SPXW)"}
+                      {spreadWidth === 50 && "50pt index spread — ~$5,000 collateral per contract (SPX/SPXW)"}
+                      {spreadWidth === 100 && "100pt index spread — ~$10,000 collateral per contract (SPX/SPXW)"}
+                    </>
+                  ) : (
+                    <>
+                      {spreadWidth === 2 && "Narrow spread — Lower capital efficiency, higher win rate"}
+                      {spreadWidth === 5 && "Balanced spread — Good capital efficiency and win rate"}
+                      {spreadWidth === 10 && "Wide spread — Maximum capital efficiency, lower win rate"}
+                    </>
+                  )}
                 </p>
               </div>
             )}
@@ -2131,7 +2153,7 @@ export default function CSPDashboard() {
                   // Select all filtered opportunities
                   const newSelection = new Set(selectedOpportunities);
                   filteredOpportunities.forEach(opp => {
-                    const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+                    const key = `${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`;
                     newSelection.add(key);
                   });
                   setSelectedOpportunities(newSelection);
@@ -2380,12 +2402,12 @@ export default function CSPDashboard() {
                 <TableRow>
                   <TableHead className="w-12">
                     <Checkbox
-                      checked={filteredOpportunities.length > 0 && filteredOpportunities.every(opp => selectedOpportunities.has(`${opp.symbol}-${opp.strike}-${opp.expiration}`))}
+                      checked={filteredOpportunities.length > 0 && filteredOpportunities.every(opp => selectedOpportunities.has(`${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`))}
                       onCheckedChange={(checked) => {
                         const next = new Set(selectedOpportunities);
                         filteredOpportunities.forEach(opp => {
-                          const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
-                          if (checked) next.add(key); else next.delete(key);
+                          const key = `${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`;
+                          if (next.has(key)) { next.delete(key); } else { next.add(key); }
                         });
                         setSelectedOpportunities(next);
                       }}
@@ -2471,7 +2493,7 @@ export default function CSPDashboard() {
                   </TableRow>
                 ) : (
                   filteredOpportunities.map((opp) => {
-                    const key = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+                    const key = `${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`;
                     const isSelected = selectedOpportunities.has(key);
                     return (
                       <TableRow key={key} className={isSelected ? "bg-primary/10" : ""}>

@@ -421,7 +421,11 @@ export interface ScoredBPSOpportunity extends CSPOpportunity {
  * - Technical Setup (20%): RSI (12) + BB %B (8) - NEUTRAL/UPTREND preferred
  * - Premium Quality (15%): Spread tightness (10) + IV Rank (5)
  */
-export function calculateBPSScore(opp: ScoredBPSOpportunity): { score: number; breakdown: BPSScoreBreakdown } {
+export function calculateBPSScore(
+  opp: ScoredBPSOpportunity,
+  options: { isIndexMode?: boolean } = {}
+): { score: number; breakdown: BPSScoreBreakdown } {
+  const isIndexMode = options.isIndexMode ?? false;
   let spreadEfficiencyScore = 0;
   let greeksScore = 0;
   let technicalScore = 0;
@@ -497,55 +501,61 @@ export function calculateBPSScore(opp: ScoredBPSOpportunity): { score: number; b
   }
 
   // ===== TECHNICAL SETUP (30 points) =====
-  // WEIGHT ADJUSTED: Increased from 20% to 30% to prioritize technical indicators
   // NOTE: BPS prefers NEUTRAL/UPTREND, NOT oversold!
+  // For INDEX products (SPXW, NDXP, MRUT): RSI/BB are not meaningful — give full neutral credit
+  // and redistribute those points to spread efficiency and greeks.
   
-  // RSI - Momentum Indicator (12 points)
-  // RECALIBRATED: 40-60 = ideal (wider range), 35-70 = acceptable
   const rsi = opp.rsi;
-  if (rsi !== null && rsi !== undefined) {
-    if (rsi >= 40 && rsi <= 60) {
-      technicalScore += 18; // Neutral/moderate - ideal for BPS (WIDER RANGE)
-    } else if (rsi >= 35 && rsi < 40) {
-      technicalScore += 15; // Slightly bearish - acceptable
-    } else if (rsi > 60 && rsi <= 70) {
-      technicalScore += 15; // Slightly bullish - acceptable
-    } else if (rsi >= 30 && rsi < 35) {
-      technicalScore += 11; // Approaching oversold - caution
-    } else if (rsi > 70 && rsi <= 80) {
-      technicalScore += 11; // Bullish - caution
-    } else if (rsi < 30) {
-      technicalScore += 6; // Oversold - avoid (but not as harsh)
-    } else {
-      technicalScore += 6; // Overbought (>80) - avoid
-    }
-  } else {
-    technicalScore += 9; // Neutral if no data
-  }
-
-  // Bollinger Band %B (8 points)
-  // RECALIBRATED: 0.20-0.80 = acceptable (wider range), NOT just 0.30-0.70
   const bb = opp.bbPctB;
-  if (bb !== null && bb !== undefined) {
-    if (bb >= 0.30 && bb <= 0.70) {
-      technicalScore += 12; // In band - ideal
-    } else if (bb >= 0.20 && bb < 0.30) {
-      technicalScore += 11; // Lower band edge - acceptable (LESS HARSH)
-    } else if (bb > 0.70 && bb <= 0.80) {
-      technicalScore += 11; // Upper band edge - acceptable (LESS HARSH)
-    } else if (bb >= 0.10 && bb < 0.20) {
-      technicalScore += 8; // Approaching lower band - caution
-    } else if (bb > 0.80 && bb <= 0.90) {
-      technicalScore += 8; // Approaching upper band - caution
-    } else if (bb < 0.10 && bb >= 0) {
-      technicalScore += 5; // Near/at lower band - avoid (LESS HARSH)
-    } else if (bb < 0) {
-      technicalScore += 3; // Below lower band - avoid
-    } else {
-      technicalScore += 5; // Above upper band - avoid (LESS HARSH)
-    }
+
+  if (isIndexMode) {
+    // Index products: RSI/BB not applicable — award full neutral credit (18+12=30)
+    technicalScore += 18; // RSI neutral for index
+    technicalScore += 12; // BB neutral for index
   } else {
-    technicalScore += 6; // Neutral if no data
+    // RSI - Momentum Indicator (18 points)
+    if (rsi !== null && rsi !== undefined) {
+      if (rsi >= 40 && rsi <= 60) {
+        technicalScore += 18; // Neutral/moderate - ideal for BPS
+      } else if (rsi >= 35 && rsi < 40) {
+        technicalScore += 15;
+      } else if (rsi > 60 && rsi <= 70) {
+        technicalScore += 15;
+      } else if (rsi >= 30 && rsi < 35) {
+        technicalScore += 11;
+      } else if (rsi > 70 && rsi <= 80) {
+        technicalScore += 11;
+      } else if (rsi < 30) {
+        technicalScore += 6;
+      } else {
+        technicalScore += 6;
+      }
+    } else {
+      technicalScore += 9; // Neutral if no data
+    }
+
+    // Bollinger Band %B (12 points)
+    if (bb !== null && bb !== undefined) {
+      if (bb >= 0.30 && bb <= 0.70) {
+        technicalScore += 12;
+      } else if (bb >= 0.20 && bb < 0.30) {
+        technicalScore += 11;
+      } else if (bb > 0.70 && bb <= 0.80) {
+        technicalScore += 11;
+      } else if (bb >= 0.10 && bb < 0.20) {
+        technicalScore += 8;
+      } else if (bb > 0.80 && bb <= 0.90) {
+        technicalScore += 8;
+      } else if (bb < 0.10 && bb >= 0) {
+        technicalScore += 5;
+      } else if (bb < 0) {
+        technicalScore += 3;
+      } else {
+        technicalScore += 5;
+      }
+    } else {
+      technicalScore += 6; // Neutral if no data
+    }
   }
 
   // ===== PREMIUM QUALITY (15 points) =====
@@ -618,9 +628,12 @@ export function calculateBPSScore(opp: ScoredBPSOpportunity): { score: number; b
 /**
  * Score all BPS opportunities and sort by score descending
  */
-export function scoreBPSOpportunities(opportunities: ScoredBPSOpportunity[]): ScoredBPSOpportunity[] {
+export function scoreBPSOpportunities(
+  opportunities: ScoredBPSOpportunity[],
+  options: { isIndexMode?: boolean } = {}
+): ScoredBPSOpportunity[] {
   const scored = opportunities.map((opp) => {
-    const { score, breakdown } = calculateBPSScore(opp);
+    const { score, breakdown } = calculateBPSScore(opp, options);
     return {
       ...opp,
       score,

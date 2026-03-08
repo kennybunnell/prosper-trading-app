@@ -58,7 +58,7 @@ import { SafeguardWarningModal, SafeguardWarning } from "@/components/SafeguardW
 
 // Strategy types
 type StrategyType = 'cc' | 'spread';
-type SpreadWidth = 2 | 5 | 10;
+type SpreadWidth = 2 | 5 | 10 | 25 | 50 | 100;
 
 // Feature flag for Bear Call Spreads (set to false to disable)
 const ENABLE_BEAR_CALL_SPREADS = true;
@@ -282,6 +282,16 @@ export default function CCDashboard() {
     if (advisorScanType === 'index') return 'index';
     return 'equity';
   });
+  // Derived: are we in index mode?
+  const isIndexMode = watchlistContextMode === 'index';
+  // Auto-switch spread width when entering/leaving index mode
+  useEffect(() => {
+    if (isIndexMode && strategyType === 'spread') {
+      setSpreadWidth(prev => (prev <= 10 ? 25 : prev as SpreadWidth));
+    } else if (!isIndexMode && strategyType === 'spread') {
+      setSpreadWidth(prev => (prev >= 25 ? 5 : prev as SpreadWidth));
+    }
+  }, [isIndexMode, strategyType]);
   
   // Safeguard warning state
   const [showSafeguardModal, setShowSafeguardModal] = useState(false);
@@ -660,6 +670,7 @@ export default function CCDashboard() {
         const spreadResult = await utils.client.cc.bearCallSpreadOpportunities.mutate({
           ccOpportunities,
           spreadWidth,
+          isIndexMode, // Pass index mode flag for index-appropriate scoring
         });
         finalOpportunities = spreadResult;
       } else {
@@ -1226,52 +1237,63 @@ export default function CCDashboard() {
           {/* Spread Width Selector (only show when spread selected) */}
           {strategyType === 'spread' && (
             <div className="space-y-3 p-4 bg-orange-500/5 border border-orange-500/20 rounded-lg">
-              <Label className="text-sm font-semibold">Spread Width</Label>
-              <div className="flex gap-3">
-                <Button
-                  variant={spreadWidth === 2 ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSpreadWidth(2)}
-                  className={cn(
-                    "flex-1",
-                    spreadWidth === 2
-                      ? "bg-orange-600 hover:bg-orange-700"
-                      : "hover:bg-orange-500/10 hover:border-orange-500/50"
-                  )}
-                >
-                  2 points
-                </Button>
-                <Button
-                  variant={spreadWidth === 5 ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSpreadWidth(5)}
-                  className={cn(
-                    "flex-1",
-                    spreadWidth === 5
-                      ? "bg-orange-600 hover:bg-orange-700"
-                      : "hover:bg-orange-500/10 hover:border-orange-500/50"
-                  )}
-                >
-                  5 points
-                </Button>
-                <Button
-                  variant={spreadWidth === 10 ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSpreadWidth(10)}
-                  className={cn(
-                    "flex-1",
-                    spreadWidth === 10
-                      ? "bg-orange-600 hover:bg-orange-700"
-                      : "hover:bg-orange-500/10 hover:border-orange-500/50"
-                  )}
-                >
-                  10 points
-                </Button>
-              </div>
+              <Label className="text-sm font-semibold">
+                Spread Width
+                {isIndexMode && <span className="ml-2 text-xs text-amber-400 font-normal">(Index mode — wider spreads recommended)</span>}
+              </Label>
+              {isIndexMode ? (
+                <div className="flex gap-3">
+                  {([25, 50, 100] as SpreadWidth[]).map(w => (
+                    <Button
+                      key={w}
+                      variant={spreadWidth === w ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSpreadWidth(w)}
+                      className={cn(
+                        "flex-1",
+                        spreadWidth === w
+                          ? "bg-amber-600 hover:bg-amber-700"
+                          : "hover:bg-amber-500/10 hover:border-amber-500/50"
+                      )}
+                    >
+                      {w} points
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex gap-3">
+                  {([2, 5, 10] as SpreadWidth[]).map(w => (
+                    <Button
+                      key={w}
+                      variant={spreadWidth === w ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSpreadWidth(w)}
+                      className={cn(
+                        "flex-1",
+                        spreadWidth === w
+                          ? "bg-orange-600 hover:bg-orange-700"
+                          : "hover:bg-orange-500/10 hover:border-orange-500/50"
+                      )}
+                    >
+                      {w} points
+                    </Button>
+                  ))}
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
-                {spreadWidth === 2 && "Narrow spread - Lower capital efficiency, higher win rate"}
-                {spreadWidth === 5 && "Balanced spread - Good capital efficiency and win rate"}
-                {spreadWidth === 10 && "Wide spread - Maximum capital efficiency, lower win rate"}
+                {isIndexMode ? (
+                  <>
+                    {spreadWidth === 25 && "25pt index spread — ~$2,500 collateral per contract"}
+                    {spreadWidth === 50 && "50pt index spread — ~$5,000 collateral per contract"}
+                    {spreadWidth === 100 && "100pt index spread — ~$10,000 collateral per contract"}
+                  </>
+                ) : (
+                  <>
+                    {spreadWidth === 2 && "Narrow spread — Lower capital efficiency, higher win rate"}
+                    {spreadWidth === 5 && "Balanced spread — Good capital efficiency and win rate"}
+                    {spreadWidth === 10 && "Wide spread — Maximum capital efficiency, lower win rate"}
+                  </>
+                )}
               </p>
             </div>
           )}

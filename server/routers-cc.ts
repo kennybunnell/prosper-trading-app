@@ -486,7 +486,8 @@ export const ccRouter = router({
     .input(
       z.object({
         ccOpportunities: z.array(z.any()), // CC opportunities from scanOpportunities
-        spreadWidth: z.number(), // 2, 5, or 10
+        spreadWidth: z.number(), // 2, 5, 10 (equity) or 25, 50, 100 (index)
+        isIndexMode: z.boolean().optional(), // true when scanning index products
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -578,7 +579,7 @@ export const ccRouter = router({
                 if (spreadOpp.netCredit > 0) {
                   // Use BCS-specific scoring (not CC scoring)
                   const { calculateBCSScore } = await import('./bcs-scoring');
-                  const { score, breakdown } = calculateBCSScore(spreadOpp);
+                  const { score, breakdown } = calculateBCSScore(spreadOpp, { isIndexMode: input.isIndexMode ?? false });
                   spreadOpp.score = score;
                   (spreadOpp as any).scoreBreakdown = breakdown;
                   spreadOpportunities.push(spreadOpp);
