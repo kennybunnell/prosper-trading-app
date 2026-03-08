@@ -131,6 +131,12 @@ export default function IronCondorDashboard() {
   const [watchlistExpanded, setWatchlistExpanded] = useState(true);
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
   const [selectedPortfolioSizes, setSelectedPortfolioSizes] = useState<string[]>(['small', 'medium', 'large']);
+  // Watchlist context mode: read from Strategy Advisor passthrough if present
+  const [watchlistContextMode, setWatchlistContextMode] = useState<'equity' | 'index'>(() => {
+    const advisorScanType = localStorage.getItem('strategyAdvisorScanType');
+    if (advisorScanType === 'index') return 'index';
+    return 'equity';
+  });
   
   // Filter parameters
   const [minDte, setMinDte] = useState(7);
@@ -529,9 +535,10 @@ export default function IronCondorDashboard() {
       try {
         const tickers = JSON.parse(selectedTickers);
         if (tickers.length > 0) {
-          // Clear the flags
+          // Clear the flags (including scan type passthrough)
           localStorage.removeItem('strategyAdvisorSelectedTickers');
           localStorage.removeItem('strategyAdvisorAutoFetch');
+          localStorage.removeItem('strategyAdvisorScanType');
           
           // Show toast with ticker list
           toast.success(`Loaded ${tickers.length} ticker${tickers.length > 1 ? 's' : ''} from Strategy Advisor: ${tickers.join(', ')}. Click "Scan for Opportunities" when ready.`, {
@@ -653,7 +660,10 @@ export default function IronCondorDashboard() {
         </CardHeader>
         {watchlistExpanded && (
           <CardContent>
-            <EnhancedWatchlist />
+            <EnhancedWatchlist
+              contextMode={watchlistContextMode}
+              onContextModeChange={(mode) => setWatchlistContextMode(mode)}
+            />
             
             {/* Filters */}
             <div className="mt-6 space-y-4">

@@ -7546,3 +7546,6 @@
 
 ## Bug Fixes (Mar 8, 2026) - StrategyAdvisor Routing
 - [x] Fix "Fetch Opportunities" button routing: BPS → /csp (spread mode), BCS → /cc (spread mode), IC → /iron-condor. Also fixed per-card "Trade This" button routing. Sets csp-strategy-type/cc-strategy-type localStorage before navigation.
+
+## Bug Fixes (Mar 8, 2026) - Strategy Advisor Scan Type Passthrough
+- [x] When navigating from Strategy Advisor index scan → destination dashboard now auto-selects Indexes watchlist mode. strategyAdvisorScanType stored in localStorage by StrategyAdvisor, read on mount by CSP/CC/IC dashboards, cleared after consumption. TypeScript clean.

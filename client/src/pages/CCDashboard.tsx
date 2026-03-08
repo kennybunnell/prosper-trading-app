@@ -276,6 +276,12 @@ export default function CCDashboard() {
   const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
   const [minDte, setMinDte] = useState<number>(7);
   const [maxDte, setMaxDte] = useState<number>(30);
+  // Watchlist context mode: read from Strategy Advisor passthrough if present
+  const [watchlistContextMode, setWatchlistContextMode] = useState<'equity' | 'index'>(() => {
+    const advisorScanType = localStorage.getItem('strategyAdvisorScanType');
+    if (advisorScanType === 'index') return 'index';
+    return 'equity';
+  });
   
   // Safeguard warning state
   const [showSafeguardModal, setShowSafeguardModal] = useState(false);
@@ -501,9 +507,10 @@ export default function CCDashboard() {
       try {
         const tickers = JSON.parse(selectedTickers);
         if (tickers.length > 0) {
-          // Clear the flags
+          // Clear the flags (including scan type passthrough)
           localStorage.removeItem('strategyAdvisorSelectedTickers');
           localStorage.removeItem('strategyAdvisorAutoFetch');
+          localStorage.removeItem('strategyAdvisorScanType');
           
           // Show toast with ticker list
           toast.success(`Loaded ${tickers.length} ticker${tickers.length > 1 ? 's' : ''} from Strategy Advisor: ${tickers.join(', ')}. Click "Fetch Opportunities" when ready.`, {
@@ -1641,6 +1648,8 @@ export default function CCDashboard() {
           <EnhancedWatchlist 
             isCollapsed={watchlistCollapsed}
             onToggleCollapse={() => setWatchlistCollapsed(!watchlistCollapsed)}
+            contextMode={watchlistContextMode}
+            onContextModeChange={(mode) => setWatchlistContextMode(mode)}
           />
           
           {/* Fetch Options Section - Only show when watchlist is not collapsed */}

@@ -237,9 +237,11 @@ export function StrategyAdvisor() {
     
     console.log('[Strategy Advisor] targetDashboard:', targetDashboard, 'strategyName:', strategyName);
     
-    // Store selected tickers in localStorage for the target dashboard to pick up
+    // Store selected tickers and scan type in localStorage for the target dashboard to pick up
     localStorage.setItem('strategyAdvisorSelectedTickers', JSON.stringify(Array.from(selectedTickers)));
     localStorage.setItem('strategyAdvisorAutoFetch', 'true');
+    // Pass scan type so destination dashboard can auto-select Indexes vs Equities watchlist mode
+    localStorage.setItem('strategyAdvisorScanType', pendingScanType || 'equity');
     
     toast.success(`Navigating to ${strategyName} with ${selectedTickers.size} selected tickers`);
     setLocation(targetDashboard);

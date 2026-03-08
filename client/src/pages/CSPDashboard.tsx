@@ -302,6 +302,12 @@ export default function CSPDashboard() {
   const [portfolioSizeFilter, setPortfolioSizeFilter] = useState<Array<'small' | 'medium' | 'large'>>(['small', 'medium', 'large']);
   const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
   const [isFullyCollapsed, setIsFullyCollapsed] = useState(false);
+  // Watchlist context mode: read from Strategy Advisor passthrough if present
+  const [watchlistContextMode, setWatchlistContextMode] = useState<'equity' | 'index'>(() => {
+    const advisorScanType = localStorage.getItem('strategyAdvisorScanType');
+    if (advisorScanType === 'index') return 'index';
+    return 'equity';
+  });
   const [sortColumn, setSortColumn] = useState<string>('score');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [dryRun, setDryRun] = useState(true);
@@ -404,9 +410,10 @@ export default function CSPDashboard() {
       try {
         const tickers = JSON.parse(selectedTickers);
         if (tickers.length > 0) {
-          // Clear the flags
+          // Clear the flags (including scan type passthrough)
           localStorage.removeItem('strategyAdvisorSelectedTickers');
           localStorage.removeItem('strategyAdvisorAutoFetch');
+          localStorage.removeItem('strategyAdvisorScanType');
           
           // Show toast with ticker list
           toast.success(`Loaded ${tickers.length} ticker${tickers.length > 1 ? 's' : ''} from Strategy Advisor: ${tickers.join(', ')}. Click "Fetch Opportunities" when ready.`, {
@@ -1383,6 +1390,8 @@ export default function CSPDashboard() {
                 document.querySelector('[data-section="filters"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }, 100);
             }}
+            contextMode={watchlistContextMode}
+            onContextModeChange={(mode) => setWatchlistContextMode(mode)}
           />
 
           {/* DTE Range & Fetch Options */}
