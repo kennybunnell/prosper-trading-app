@@ -1257,11 +1257,24 @@ export const appRouter = router({
           return [];
         }
 
+        // Auto-detect index symbols and use appropriate delta range.
+        // fetchCSPOpportunities also auto-overrides per-symbol in tradier.ts,
+        // but we pass sensible defaults here so mixed scans work correctly.
+        const CSP_INDEX_MAP: Record<string, string> = {
+          SPXW: 'SPX', SPX: 'SPX', SPXPM: 'SPX', XSP: 'XSP',
+          NDX: 'NDX', NDXP: 'NDX', XND: 'XND',
+          RUT: 'RUT', MRUT: 'RUT',
+          DJX: 'DJX', VIX: 'VIX', VIXW: 'VIX', OEX: 'OEX', XEO: 'OEX',
+        };
+        const cspIsIndexScan = symbols.some(s => !!CSP_INDEX_MAP[s.toUpperCase()] && CSP_INDEX_MAP[s.toUpperCase()] !== s);
+        const cspMinDelta = input.minDelta ?? (cspIsIndexScan ? 0.003 : 0.15);
+        const cspMaxDelta = input.maxDelta ?? (cspIsIndexScan ? 0.06 : 0.35);
+        console.log(`[CSP Router] isIndexScan=${cspIsIndexScan}, delta range=${cspMinDelta}-${cspMaxDelta}`);
         // Fetch CSP opportunities with filters
         const opportunities = await api.fetchCSPOpportunities(
           symbols,
-          input.minDelta || 0.15,
-          input.maxDelta || 0.35,
+          cspMinDelta,
+          cspMaxDelta,
           input.minDte || 7,
           input.maxDte || 45,
           input.minVolume || 5,
@@ -2178,12 +2191,25 @@ Summary: [One sentence overall assessment]`;
         }
 
         console.log(`[Iron Condor] Scanning ${symbols.length} symbols for Iron Condor opportunities...`);
-
+        // Auto-detect index symbols and use appropriate delta range.
+        // Index options (SPXW, NDXP, MRUT, SPX, NDX, RUT) have much lower deltas (0.003-0.06)
+        // than equity options (0.15-0.35). fetchCSPOpportunities also auto-overrides per-symbol,
+        // but we pass sensible defaults here so the scan doesn't filter before reaching that logic.
+        const IC_INDEX_MAP: Record<string, string> = {
+          SPXW: 'SPX', SPX: 'SPX', SPXPM: 'SPX', XSP: 'XSP',
+          NDX: 'NDX', NDXP: 'NDX', XND: 'XND',
+          RUT: 'RUT', MRUT: 'RUT',
+          DJX: 'DJX', VIX: 'VIX', VIXW: 'VIX', OEX: 'OEX', XEO: 'OEX',
+        };
+        const icIsIndexScan = symbols.some(s => !!IC_INDEX_MAP[s.toUpperCase()] && IC_INDEX_MAP[s.toUpperCase()] !== s);
+        const icMinDelta = input.minDelta ?? (icIsIndexScan ? 0.003 : 0.15);
+        const icMaxDelta = input.maxDelta ?? (icIsIndexScan ? 0.06 : 0.35);
+        console.log(`[Iron Condor] isIndexScan=${icIsIndexScan}, delta range=${icMinDelta}-${icMaxDelta}`);
         // Fetch CSP opportunities (these will be the put side short strikes)
         const cspOpportunities = await api.fetchCSPOpportunities(
           symbols,
-          input.minDelta || 0.15,
-          input.maxDelta || 0.35,
+          icMinDelta,
+          icMaxDelta,
           input.minDte || 7,
           input.maxDte || 45,
           input.minVolume || 5,
@@ -2308,8 +2334,8 @@ Summary: [One sentence overall assessment]`;
             const callCandidates = options.filter(
               opt => opt.option_type === 'call' && 
                      opt.strike > bps.currentPrice && // OTM
-                     Math.abs(opt.greeks?.delta || 0) >= (input.minDelta || 0.15) &&
-                     Math.abs(opt.greeks?.delta || 0) <= (input.maxDelta || 0.35) &&
+                     Math.abs(opt.greeks?.delta || 0) >= icMinDelta &&
+                     Math.abs(opt.greeks?.delta || 0) <= icMaxDelta &&
                      (isHighPriceIndex || (opt.volume || 0) >= (input.minVolume || 5)) &&
                      (isHighPriceIndex || (opt.open_interest || 0) >= (input.minOI || 50)) &&
                      opt.bid && opt.ask

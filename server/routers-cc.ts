@@ -286,6 +286,25 @@ export const ccRouter = router({
 
           const symbolOpportunities: any[] = [];
 
+          // Auto-detect index symbols and use index-appropriate delta range.
+          // Index options (SPXW, NDXP, MRUT, SPX, NDX, RUT) trade at much lower deltas (0.003-0.06)
+          // than equity options. Override if equity-style defaults were passed.
+          const CC_INDEX_MAP: Record<string, string> = {
+            SPXW: 'SPX', SPX: 'SPX', SPXPM: 'SPX', XSP: 'XSP',
+            NDX: 'NDX', NDXP: 'NDX', XND: 'XND',
+            RUT: 'RUT', MRUT: 'RUT',
+            DJX: 'DJX', VIX: 'VIX', VIXW: 'VIX', OEX: 'OEX', XEO: 'OEX',
+          };
+          const ccIndexUnderlying = CC_INDEX_MAP[symbol.toUpperCase()];
+          const ccIsIndex = !!ccIndexUnderlying && ccIndexUnderlying !== symbol;
+          let effectiveMinDelta = input.minDelta;
+          let effectiveMaxDelta = input.maxDelta;
+          if (ccIsIndex) {
+            if (effectiveMinDelta >= 0.10) effectiveMinDelta = 0.003;
+            if (effectiveMaxDelta >= 0.30) effectiveMaxDelta = 0.06;
+            console.log(`[CC Scanner] ${symbol}: Index symbol — overriding delta range to ${effectiveMinDelta}-${effectiveMaxDelta}`);
+          }
+
           try {
             // Fetch indicators (RSI, IV Rank, BB %B) with timeout
             const indicators = await withTimeout(
@@ -350,8 +369,8 @@ export const ccRouter = router({
                 // Only OTM calls (strike > current price)
                 if (strike <= holding.currentPrice) continue;
 
-                // Filter by delta range
-                if (delta < input.minDelta || delta > input.maxDelta) continue;
+                // Filter by delta range (uses index-adjusted range for index symbols)
+                if (delta < effectiveMinDelta || delta > effectiveMaxDelta) continue;
 
                 // Skip if no bid
                 if (bid <= 0) continue;
