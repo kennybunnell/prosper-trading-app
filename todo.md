@@ -7531,3 +7531,6 @@
 - [x] Fix: Auto-scaling spread width for index symbols (SPX→25pts, NDX→100pts, MRUT→5pts)
 - [x] Fix: Nearest-available strike search for long legs (handles non-uniform strike intervals)
 - [x] NDX confirmed working: $910 credit, $10,000 collateral, 9.1% ROC, 11 DTE
+
+## Bug Fixes (Mar 8, 2026)
+- [x] Fixed duplicate React key warning in StrategyAdvisor: renderTickerCard now uses `${section}-${ticker.symbol}` as key so tickers appearing in multiple strategy sections (BPS/BCS/IC) no longer produce duplicate key collisions

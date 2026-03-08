@@ -741,7 +741,7 @@ export function StrategyAdvisor() {
                   
                   return (
                 <div
-                  key={ticker.symbol}
+                  key={`${section}-${ticker.symbol}`}
                   className={`border rounded-lg p-4 ${
                     ticker.score >= 80 ? 'bg-green-500/5 border-green-500/30' :
                     ticker.score >= 60 ? 'bg-yellow-500/5 border-yellow-500/30' :
