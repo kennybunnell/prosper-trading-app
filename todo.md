@@ -7583,3 +7583,4 @@
 - [x] Wire AIAdvisorPanel into CCDashboard (BCS mode)
 - [x] Wire AIAdvisorPanel into IronCondorDashboard (IC mode)
 - [x] Fix BPS scanner delta range for index mode (0.005-0.05 instead of 0.15-0.35)
+- [x] Fix filteredWatchlist to filter by isIndex flag in index mode (equity mode sends only non-index symbols, index mode sends only index symbols)

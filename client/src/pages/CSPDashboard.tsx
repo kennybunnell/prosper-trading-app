@@ -512,9 +512,21 @@ export default function CSPDashboard() {
     if (selectedSymbols.length > 0) {
       filtered = filtered.filter((w: any) => selectedSymbols.includes(w.symbol));
     }
+
+    // In index mode: only send index symbols to the scanner (isIndex flag or known index set)
+    // In equity mode: only send non-index symbols
+    if (isIndexMode) {
+      filtered = filtered.filter((w: any) =>
+        w.isIndex === true || w.isIndex === 1 || INDEX_SYMBOLS.has(w.symbol)
+      );
+    } else {
+      filtered = filtered.filter((w: any) =>
+        !w.isIndex && !INDEX_SYMBOLS.has(w.symbol)
+      );
+    }
     
     return filtered;
-  }, [watchlist, portfolioSizeFilter, selections]);
+  }, [watchlist, portfolioSizeFilter, selections, isIndexMode]);
 
   // Fetch CSP opportunities
   const { data: cspOpportunities = [], isLoading: loadingCSP, refetch: refetchCSP, error: cspError } = trpc.csp.opportunities.useQuery(
