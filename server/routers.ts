@@ -3462,6 +3462,13 @@ Summary: [One sentence overall assessment]`;
           openInterest: z.number().optional(),
           volume: z.number().optional(),
           ivRank: z.number().optional(),
+          // Order submission fields - passed through to picks
+          bid: z.number().optional(),
+          ask: z.number().optional(),
+          currentPrice: z.number().optional(),
+          longBid: z.number().optional(),
+          longAsk: z.number().optional(),
+          capitalAtRisk: z.number().optional(),
         })).max(50),
         availableBuyingPower: z.number(),
         strategy: z.string(),

@@ -2400,19 +2400,25 @@ export default function CCDashboard() {
                   const isSpread = strategyType === 'spread';
                   const orders: UnifiedOrder[] = picks.map((pick) => {
                     const opp = pick.opportunity as any;
+                    // Robust strike fallback: for spreads use shortStrike, for CC use strike
+                    const strikeValue = isSpread
+                      ? (opp.shortStrike ?? opp.strike ?? 0)
+                      : (opp.strike ?? opp.shortStrike ?? 0);
+                    const bidValue = opp.bid ?? opp.netCredit ?? 0;
+                    const askValue = opp.ask ?? opp.netCredit ?? 0;
                     return {
                       symbol: opp.symbol,
-                      strike: opp.strike ?? opp.shortStrike,
+                      strike: strikeValue,
                       expiration: opp.expiration,
-                      premium: opp.netCredit,
+                      premium: opp.netCredit ?? 0,
                       action: "STO" as const,
                       optionType: "CALL" as const,
                       longStrike: isSpread ? opp.longStrike : undefined,
                       longPremium: isSpread ? (opp.longAsk ?? 0) : undefined,
-                      longBid: isSpread ? opp.longBid : undefined,
-                      longAsk: isSpread ? opp.longAsk : undefined,
-                      bid: opp.bid ?? opp.netCredit,
-                      ask: opp.ask ?? opp.netCredit,
+                      longBid: isSpread ? (opp.longBid ?? 0) : undefined,
+                      longAsk: isSpread ? (opp.longAsk ?? 0) : undefined,
+                      bid: bidValue,
+                      ask: askValue,
                       currentPrice: opp.currentPrice ?? 0,
                       quantity: pick.quantity,
                     };

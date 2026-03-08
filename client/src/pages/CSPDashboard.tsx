@@ -2272,24 +2272,33 @@ export default function CSPDashboard() {
                   const orders = picks.map((pick) => {
                     const opp = pick.opportunity as any;
                     const isSpread = strategyType === 'spread';
+                    // For spreads: use shortStrike; for CSP: use strike
+                    // Both fields are optional on the opportunity so we need robust fallbacks
+                    const strikeValue = isSpread
+                      ? (opp.shortStrike ?? opp.strike ?? 0)
+                      : (opp.strike ?? opp.shortStrike ?? 0);
+                    const bidValue = opp.bid ?? opp.netCredit ?? 0;
+                    const askValue = opp.ask ?? opp.netCredit ?? 0;
                     return {
                       symbol: opp.symbol,
-                      strike: isSpread ? opp.shortStrike : opp.strike,
+                      strike: strikeValue,
                       expiration: opp.expiration,
                       quantity: pick.quantity,
-                      premium: opp.netCredit,
-                      bid: opp.bid ?? opp.netCredit,
-                      ask: opp.ask ?? opp.netCredit,
-                      mid: opp.netCredit,
-                      collateral: isSpread ? (opp.capitalAtRisk ?? opp.capitalRisk) : ((opp.strike ?? opp.shortStrike) * 100),
+                      premium: opp.netCredit ?? 0,
+                      bid: bidValue,
+                      ask: askValue,
+                      mid: opp.netCredit ?? 0,
+                      collateral: isSpread
+                        ? (opp.capitalAtRisk ?? opp.capitalRisk ?? strikeValue * 100)
+                        : (strikeValue * 100),
                       status: 'valid' as const,
                       currentPrice: opp.currentPrice ?? 0,
                       ivRank: opp.ivRank,
                       isSpread,
                       spreadType: isSpread ? 'bull_put' as const : undefined,
                       longStrike: isSpread ? opp.longStrike : undefined,
-                      longBid: isSpread ? opp.longBid : undefined,
-                      longAsk: isSpread ? opp.longAsk : undefined,
+                      longBid: isSpread ? (opp.longBid ?? 0) : undefined,
+                      longAsk: isSpread ? (opp.longAsk ?? 0) : undefined,
                       spreadWidth: isSpread ? spreadWidth : undefined,
                       capitalAtRisk: isSpread ? (opp.capitalAtRisk ?? opp.capitalRisk) : undefined,
                     };

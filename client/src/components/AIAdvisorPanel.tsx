@@ -25,6 +25,10 @@ export interface Opportunity {
   ivRank?: number;
   bid?: number;
   ask?: number;
+  currentPrice?: number;
+  longBid?: number;
+  longAsk?: number;
+  capitalAtRisk?: number;
 }
 
 export interface AIPick {

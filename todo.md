@@ -7619,3 +7619,6 @@
 - [x] Wire CC/BCS dashboard: onSubmitSelected builds UnifiedOrder array → opens preview modal
 - [x] Wire Iron Condor dashboard: onSubmitSelected sets selectedOpportunities → opens preview modal
 - [x] Pre-order modal has midpoint adjustment, quantity editing, dry-run, and live submit
+
+## Bug (Mar 8, 2026 - AI Advisor Pre-Order Strike Undefined)
+- [x] Fix: strike field undefined when AI Advisor picks submitted to pre-order modal (validation error)
