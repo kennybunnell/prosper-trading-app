@@ -1,0 +1,38 @@
+{
+  "query": "SELECT id, symbol, strategy, isIndex, createdAt FROM watchlists WHERE userId = 1 AND symbol IN (SELECT symbol FROM watchlists WHERE userId = 1 GROUP BY symbol HAVING COUNT(*) > 1) ORDER BY symbol, id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT id, symbol, strategy, isIndex, createdAt FROM watchlists WHERE userId = 1 AND symbol IN (SELECT symbol FROM watchlists WHERE userId = 1 GROUP BY symbol HAVING COUNT(*) > 1) ORDER BY symbol, id;",
+  "rows": [
+    {
+      "id": "30031",
+      "symbol": "CMCSA",
+      "strategy": "csp",
+      "isIndex": "0",
+      "createdAt": "2026-01-24 16:01:21"
+    },
+    {
+      "id": "210003",
+      "symbol": "CMCSA",
+      "strategy": "csp",
+      "isIndex": "0",
+      "createdAt": "2026-02-23 16:29:05"
+    },
+    {
+      "id": "5",
+      "symbol": "TSLA",
+      "strategy": "csp",
+      "isIndex": "0",
+      "createdAt": "2026-01-21 22:49:03"
+    },
+    {
+      "id": "120002",
+      "symbol": "TSLA",
+      "strategy": "csp",
+      "isIndex": "0",
+      "createdAt": "2026-02-16 04:06:34"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tsymbol\tstrategy\tisIndex\tcreatedAt\n30031\tCMCSA\tcsp\t0\t2026-01-24 16:01:21\n210003\tCMCSA\tcsp\t0\t2026-02-23 16:29:05\n5\tTSLA\tcsp\t0\t2026-01-21 22:49:03\n120002\tTSLA\tcsp\t0\t2026-02-16 04:06:34\n",
+  "stderr": "",
+  "execution_time_ms": 61
+}

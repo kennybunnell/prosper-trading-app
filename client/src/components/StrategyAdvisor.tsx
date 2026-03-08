@@ -358,7 +358,10 @@ export function StrategyAdvisor() {
   }
 
   const recommendation = data?.recommendation;
-  const rankedTickers = data?.rankedTickers || [];
+  // Deduplicate by symbol as a safety net (server should already deduplicate)
+  const rankedTickers = (data?.rankedTickers || []).filter(
+    (t: any, idx: number, arr: any[]) => arr.findIndex((x: any) => x.symbol === t.symbol) === idx
+  );
   
   if (!recommendation) {
     return null;

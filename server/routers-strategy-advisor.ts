@@ -88,7 +88,14 @@ export const strategyAdvisorRouter = router({
         return true; // 'all'
       });
 
-      const watchlistSymbols = filteredWatchlist.map((w: any) => w.symbol);
+      // Deduplicate by symbol (keep first occurrence) to prevent duplicate ticker analysis
+      const seenSymbols = new Set<string>();
+      const dedupedWatchlist = filteredWatchlist.filter((w: any) => {
+        if (seenSymbols.has(w.symbol)) return false;
+        seenSymbols.add(w.symbol);
+        return true;
+      });
+      const watchlistSymbols = dedupedWatchlist.map((w: any) => w.symbol);
 
       if (watchlistSymbols.length === 0) {
         const emptyMsg = scanType === 'index'

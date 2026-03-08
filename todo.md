@@ -7537,3 +7537,9 @@
 
 ## Bug Fixes (Mar 8, 2026) - IC Dashboard
 - [x] Fix IC Dashboard summary card: opportunity key `${symbol}-${expiration}` is not unique — SPX has many rows per expiration date with different strikes, causing all matching rows to be counted in Total Premium/Collateral/ROC when any one is selected. Fix: include putShortStrike and callShortStrike in the key.
+
+## Bug Fixes (Mar 8, 2026) - Duplicate Watchlist Symbols
+- [x] Root cause: CMCSA and TSLA had 2 database rows each in the watchlist table, causing the server to analyze them twice and return duplicate entries in rankedTickers, which then produced duplicate React keys (BPS-CMCSA, BCS-TSLA, etc.) even with the section prefix
+- [x] Fix 1: Removed duplicate DB rows (kept lowest ID / first added for each symbol)
+- [x] Fix 2: Added server-side deduplication in routers-strategy-advisor.ts before building watchlistSymbols array
+- [x] Fix 3: Added frontend deduplication guard on rankedTickers as a safety net
