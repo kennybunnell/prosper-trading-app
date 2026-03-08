@@ -2585,11 +2585,15 @@ Summary: [One sentence overall assessment]`;
         const chainCache = new Map<string, any[]>();
         
         // Pre-fetch all unique option chains in parallel
-        const uniqueChains = new Map<string, { symbol: string; expiration: string }>();
+        // For index series (SPXW, NDXP, MRUT), use optionRoot for the chain fetch so we get
+        // the weekly PM-settled contracts (not the monthly AM-settled SPX/NDX/RUT chain).
+        const uniqueChains = new Map<string, { symbol: string; chainSymbol: string; expiration: string }>();
         for (const cspOpp of cspOpportunities) {
-          const key = `${cspOpp.symbol}|${cspOpp.expiration}`;
+          // Use optionRoot (e.g. SPXW) for chain fetch if available, otherwise fall back to symbol
+          const chainSymbol = (cspOpp as any).optionRoot || cspOpp.symbol;
+          const key = `${chainSymbol}|${cspOpp.expiration}`;
           if (!uniqueChains.has(key)) {
-            uniqueChains.set(key, { symbol: cspOpp.symbol, expiration: cspOpp.expiration });
+            uniqueChains.set(key, { symbol: cspOpp.symbol, chainSymbol, expiration: cspOpp.expiration });
           }
         }
         
@@ -2601,13 +2605,13 @@ Summary: [One sentence overall assessment]`;
         
         for (let i = 0; i < chainEntries.length; i += CONCURRENT_CHAINS) {
           const batch = chainEntries.slice(i, i + CONCURRENT_CHAINS);
-          const batchPromises = batch.map(async ([key, { symbol, expiration }]) => {
+          const batchPromises = batch.map(async ([key, { chainSymbol, expiration }]) => {
             try {
-              const options = await api.getOptionChain(symbol, expiration, true);
+              const options = await api.getOptionChain(chainSymbol, expiration, true);
               chainCache.set(key, options);
-              console.log(`[Spread] Cached chain for ${symbol} ${expiration} (${options.length} contracts)`);
+              console.log(`[Spread] Cached chain for ${chainSymbol} ${expiration} (${options.length} contracts)`);
             } catch (error) {
-              console.error(`[Spread] Failed to fetch chain for ${symbol} ${expiration}:`, error);
+              console.error(`[Spread] Failed to fetch chain for ${chainSymbol} ${expiration}:`, error);
               chainCache.set(key, []); // Cache empty array to avoid retry
             }
           });
@@ -2615,18 +2619,28 @@ Summary: [One sentence overall assessment]`;
         }
         
         console.log(`[Spread] Cached ${chainCache.size} option chains, now calculating spreads...`);
+        // Debug: log first few cache keys and first few opp keys to detect mismatches
+        const cacheKeys = Array.from(chainCache.keys()).slice(0, 5);
+        const oppKeys = cspOpportunities.slice(0, 5).map((o: any) => `${o.symbol}|${o.expiration}`);
+        console.log(`[Spread Debug] Cache keys sample:`, cacheKeys);
+        console.log(`[Spread Debug] Opp keys sample:`, oppKeys);
         
         // Now calculate spreads using cached chains
         const spreadOpportunities = [];
+        let debugMissCount = 0;
+        let debugHitCount = 0;
+        let debugNoLongPut = 0;
         
         for (const cspOpp of cspOpportunities) {
           try {
             // Calculate long strike (protective put)
             const longStrike = cspOpp.strike - input.spreadWidth;
             
-            // Get cached option chain
-            const key = `${cspOpp.symbol}|${cspOpp.expiration}`;
+            // Get cached option chain — use optionRoot (SPXW) for index series, symbol (SPX) for equity
+            const chainSymbol = (cspOpp as any).optionRoot || cspOpp.symbol;
+            const key = `${chainSymbol}|${cspOpp.expiration}`;
             const options = chainCache.get(key) || [];
+            if (options.length === 0) debugMissCount++; else debugHitCount++;
             
             if (options.length === 0) {
               // Skip if chain fetch failed
@@ -2640,6 +2654,11 @@ Summary: [One sentence overall assessment]`;
             
             if (!longPut || !longPut.bid || !longPut.ask) {
               // Skip if we can't find the long put or it has no quotes
+              debugNoLongPut++;
+              if (debugNoLongPut <= 3) {
+                const putStrikes = options.filter((o: any) => o.option_type === 'put').map((o: any) => o.strike).sort((a: number, b: number) => a - b);
+                console.log(`[Spread Debug] No long put at ${longStrike} for ${cspOpp.symbol}/${cspOpp.expiration}. Available put strikes (sample):`, putStrikes.slice(0, 10));
+              }
               continue;
             }
             
@@ -2665,6 +2684,7 @@ Summary: [One sentence overall assessment]`;
           }
         }
 
+        console.log(`[Spread Debug] Summary: ${debugHitCount} cache hits, ${debugMissCount} cache misses, ${debugNoLongPut} no-long-put, ${spreadOpportunities.length} spreads formed`);
         // Deduplicate spread opportunities by unique spread identifier (symbol-shortStrike-longStrike-expiration)
         console.log(`[Spread Dedup] ${spreadOpportunities.length} spreads before deduplication`);
         const uniqueSpreads = new Map<string, any>();

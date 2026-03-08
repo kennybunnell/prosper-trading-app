@@ -128,6 +128,7 @@ export interface TechnicalIndicators {
 
 export interface CSPOpportunity {
   symbol: string;
+  optionRoot?: string; // Original option root (e.g. SPXW, NDXP, MRUT) — differs from symbol for index series
   optionSymbol: string; // Actual option symbol from Tradier API
   strike: number;
   currentPrice: number;
@@ -811,6 +812,9 @@ export class TradierAPI {
               // Use the Tradier-recognised option root as the symbol so chain cache keys
               // in the IC router (which also calls getOptionChain) stay consistent.
               symbol: tradierOptionRoot,
+              // Store the original user-facing symbol (e.g. SPXW, NDXP, MRUT) so the
+              // spread router can fetch the correct weekly chain (not the monthly SPX chain).
+              optionRoot: symbol,
               optionSymbol: put.symbol, // Use actual option symbol from Tradier
               strike,
               currentPrice: underlyingPrice,
