@@ -935,9 +935,43 @@ export default function IronCondorDashboard() {
                   openInterest: opp.openInterest,
                   volume: opp.volume,
                   ivRank: opp.ivRank,
+                  bid: opp.putShortBid,
+                  ask: opp.putShortAsk,
+                  currentPrice: opp.currentPrice,
+                  // IC-specific fields for order building
+                  callShortStrike: opp.callShortStrike,
+                  callLongStrike: opp.callLongStrike,
+                  putLongStrike: opp.putLongStrike,
+                  putShortBid: opp.putShortBid,
+                  putShortAsk: opp.putShortAsk,
+                  putLongBid: opp.putLongBid,
+                  putLongAsk: opp.putLongAsk,
+                  callShortBid: opp.callShortBid,
+                  callShortAsk: opp.callShortAsk,
+                  callLongBid: opp.callLongBid,
+                  callLongAsk: opp.callLongAsk,
+                  totalNetCredit: opp.totalNetCredit,
+                  callNetCredit: opp.callNetCredit,
                 }))}
                 availableBuyingPower={availableBuyingPower}
                 strategy="IC"
+                onSubmitSelected={(picks) => {
+                  if (!selectedAccountId) {
+                    toast.error("Please select an account in the sidebar");
+                    return;
+                  }
+                  // Build IC orders from AI picks and open preview modal
+                  // Key format must match: symbol-expiration-putShortStrike-callShortStrike
+                  const icKeys = new Set(
+                    picks.map((pick) => {
+                      const opp = pick.opportunity as any;
+                      return `${opp.symbol}-${opp.expiration}-${opp.shortStrike ?? opp.putShortStrike}-${opp.callShortStrike ?? ''}`;
+                    })
+                  );
+                  // Add to selectedOpportunities so ordersForPreview picks them up
+                  setSelectedOpportunities(icKeys);
+                  setOrderPreviewOpen(true);
+                }}
                 onClose={() => setShowAIAdvisor(false)}
               />
             )}

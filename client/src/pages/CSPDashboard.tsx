@@ -2255,9 +2255,47 @@ export default function CSPDashboard() {
                   openInterest: opp.openInterest,
                   volume: opp.volume,
                   ivRank: opp.ivRank,
+                  bid: opp.bid,
+                  ask: opp.ask,
+                  currentPrice: opp.currentPrice,
+                  longBid: strategyType === 'spread' ? (opp as any).longBid : undefined,
+                  longAsk: strategyType === 'spread' ? (opp as any).longAsk : undefined,
+                  capitalAtRisk: strategyType === 'spread' ? (opp as any).capitalAtRisk : undefined,
                 }))}
                 availableBuyingPower={availableBuyingPower}
                 strategy={strategyType === 'spread' ? 'BPS' : 'CSP'}
+                onSubmitSelected={(picks) => {
+                  if (!selectedAccountId) {
+                    toast.error("Please select an account in the sidebar");
+                    return;
+                  }
+                  const orders = picks.map((pick) => {
+                    const opp = pick.opportunity as any;
+                    const isSpread = strategyType === 'spread';
+                    return {
+                      symbol: opp.symbol,
+                      strike: isSpread ? opp.shortStrike : opp.strike,
+                      expiration: opp.expiration,
+                      quantity: pick.quantity,
+                      premium: opp.netCredit,
+                      bid: opp.bid ?? opp.netCredit,
+                      ask: opp.ask ?? opp.netCredit,
+                      mid: opp.netCredit,
+                      collateral: isSpread ? (opp.capitalAtRisk ?? opp.capitalRisk) : ((opp.strike ?? opp.shortStrike) * 100),
+                      status: 'valid' as const,
+                      currentPrice: opp.currentPrice ?? 0,
+                      ivRank: opp.ivRank,
+                      isSpread,
+                      spreadType: isSpread ? 'bull_put' as const : undefined,
+                      longStrike: isSpread ? opp.longStrike : undefined,
+                      longBid: isSpread ? opp.longBid : undefined,
+                      longAsk: isSpread ? opp.longAsk : undefined,
+                      spreadWidth: isSpread ? spreadWidth : undefined,
+                      capitalAtRisk: isSpread ? (opp.capitalAtRisk ?? opp.capitalRisk) : undefined,
+                    };
+                  });
+                  validateOrders.mutate({ orders, accountId: selectedAccountId });
+                }}
                 onClose={() => setShowAIAdvisor(false)}
               />
             )}

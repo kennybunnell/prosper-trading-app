@@ -7603,3 +7603,19 @@
 - [x] AI Advisor panel auto-triggers analysis on open (no manual "Analyze" click needed)
 - [x] Increased AI analysis from top 30 to top 50 opportunities
 - [x] Applied same changes to CSP/BPS, CC/BCS, and Iron Condor dashboards
+
+## Feature (Mar 8, 2026 - AI Advisor Pre-Order Panel)
+- [ ] Add checkboxes to each AI Advisor pick card for selection
+- [ ] Add "Submit Selected to Pre-Order" button in AI Advisor panel
+- [ ] Build pre-order panel with adjustable midpoint price and quantity per pick
+- [ ] Add dry-run and live submit buttons in pre-order panel
+- [ ] Wire pre-order panel to existing order submission flow (Tastytrade API)
+- [ ] Apply to CSP/BPS, CC/BCS, and Iron Condor dashboards
+
+## Feature (Mar 8, 2026 - AI Advisor Pre-Order)
+- [x] Add checkboxes to AI Advisor picks (all picks auto-selected by default)
+- [x] Add "Submit Selected to Pre-Order" green button below picks
+- [x] Wire CSP/BPS dashboard: onSubmitSelected calls validateOrders → opens UnifiedOrderPreviewModal
+- [x] Wire CC/BCS dashboard: onSubmitSelected builds UnifiedOrder array → opens preview modal
+- [x] Wire Iron Condor dashboard: onSubmitSelected sets selectedOpportunities → opens preview modal
+- [x] Pre-order modal has midpoint adjustment, quantity editing, dry-run, and live submit

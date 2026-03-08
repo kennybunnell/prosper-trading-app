@@ -2384,9 +2384,42 @@ export default function CCDashboard() {
                   openInterest: opp.openInterest,
                   volume: opp.volume,
                   ivRank: opp.ivRank,
+                  bid: opp.bid,
+                  ask: opp.ask,
+                  currentPrice: opp.currentPrice,
+                  longBid: strategyType === 'spread' ? opp.longBid : undefined,
+                  longAsk: strategyType === 'spread' ? opp.longAsk : undefined,
                 }))}
                 availableBuyingPower={availableBuyingPower}
                 strategy={strategyType === 'spread' ? 'BCS' : 'CC'}
+                onSubmitSelected={(picks) => {
+                  if (!selectedAccountId) {
+                    toast.error("Please select an account in the sidebar");
+                    return;
+                  }
+                  const isSpread = strategyType === 'spread';
+                  const orders: UnifiedOrder[] = picks.map((pick) => {
+                    const opp = pick.opportunity as any;
+                    return {
+                      symbol: opp.symbol,
+                      strike: opp.strike ?? opp.shortStrike,
+                      expiration: opp.expiration,
+                      premium: opp.netCredit,
+                      action: "STO" as const,
+                      optionType: "CALL" as const,
+                      longStrike: isSpread ? opp.longStrike : undefined,
+                      longPremium: isSpread ? (opp.longAsk ?? 0) : undefined,
+                      longBid: isSpread ? opp.longBid : undefined,
+                      longAsk: isSpread ? opp.longAsk : undefined,
+                      bid: opp.bid ?? opp.netCredit,
+                      ask: opp.ask ?? opp.netCredit,
+                      currentPrice: opp.currentPrice ?? 0,
+                      quantity: pick.quantity,
+                    };
+                  });
+                  setUnifiedOrders(orders);
+                  setShowPreviewDialog(true);
+                }}
                 onClose={() => setShowAIAdvisor(false)}
               />
             )}

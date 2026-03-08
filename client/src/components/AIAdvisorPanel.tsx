@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, AlertTriangle, TrendingUp, X, Loader2, RefreshCw } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Sparkles, AlertTriangle, TrendingUp, X, Loader2, RefreshCw, ShoppingCart } from 'lucide-react';
 
-interface Opportunity {
+export interface Opportunity {
   score: number;
   symbol: string;
   strategy: string;
@@ -22,9 +23,11 @@ interface Opportunity {
   openInterest?: number;
   volume?: number;
   ivRank?: number;
+  bid?: number;
+  ask?: number;
 }
 
-interface AIPick {
+export interface AIPick {
   rank: number;
   opportunityIndex: number;
   quantity: number;
@@ -38,6 +41,8 @@ interface AIAdvisorPanelProps {
   availableBuyingPower: number;
   strategy: string;
   onSelectOpportunity?: (opp: Opportunity) => void;
+  /** Called when user clicks "Submit Selected to Pre-Order" */
+  onSubmitSelected?: (picks: AIPick[]) => void;
   onClose: () => void;
 }
 
@@ -62,20 +67,31 @@ const RANK_STYLES = [
   },
 ];
 
+function formatStrike(opp: Opportunity) {
+  if (opp.shortStrike && opp.longStrike) return `$${opp.shortStrike}/$${opp.longStrike}`;
+  if (opp.strike) return `$${opp.strike}`;
+  return '—';
+}
+
 export function AIAdvisorPanel({
   opportunities,
   availableBuyingPower,
   strategy,
   onSelectOpportunity,
+  onSubmitSelected,
   onClose,
 }: AIAdvisorPanelProps) {
   const [picks, setPicks] = useState<AIPick[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasRun, setHasRun] = useState(false);
+  const [selectedPicks, setSelectedPicks] = useState<Set<number>>(new Set());
 
   const analyze = trpc.aiAdvisor.analyzeOpportunities.useMutation({
     onSuccess: (data) => {
-      setPicks(data.picks as AIPick[]);
+      const newPicks = data.picks as AIPick[];
+      setPicks(newPicks);
+      // Auto-select all picks by default
+      setSelectedPicks(new Set(newPicks.map((_, i) => i)));
       setError(null);
       setHasRun(true);
     },
@@ -97,17 +113,27 @@ export function AIAdvisorPanel({
     if (opportunities.length === 0) return;
     setPicks(null);
     setError(null);
-    // Send top 50 by score
+    setSelectedPicks(new Set());
     const top50 = [...opportunities]
       .sort((a, b) => b.score - a.score)
       .slice(0, 50);
     analyze.mutate({ opportunities: top50, availableBuyingPower, strategy });
   };
 
-  const formatStrike = (opp: Opportunity) => {
-    if (opp.shortStrike && opp.longStrike) return `$${opp.shortStrike}/$${opp.longStrike}`;
-    if (opp.strike) return `$${opp.strike}`;
-    return '—';
+  const togglePick = (idx: number) => {
+    setSelectedPicks(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  const handleSubmitSelected = () => {
+    if (!picks || !onSubmitSelected) return;
+    const chosen = picks.filter((_, i) => selectedPicks.has(i));
+    if (chosen.length === 0) return;
+    onSubmitSelected(chosen);
   };
 
   return (
@@ -186,22 +212,36 @@ export function AIAdvisorPanel({
         {picks && picks.length > 0 && !analyze.isPending && (
           <div className="space-y-3">
             <p className="text-xs text-slate-500 mb-1">
-              Top 3 from {Math.min(opportunities.length, 50)} scanned
+              Top {picks.length} from {Math.min(opportunities.length, 50)} scanned
               {availableBuyingPower > 0
                 ? ` · $${availableBuyingPower.toLocaleString()} buying power`
                 : ' · Quantities estimated from $100k BP'}
+              {onSubmitSelected && (
+                <span className="text-purple-400"> · Check picks to include in pre-order</span>
+              )}
             </p>
+
             {picks.map((pick, idx) => {
               const style = RANK_STYLES[idx] || RANK_STYLES[2];
               const opp = pick.opportunity;
               if (!opp) return null;
+              const isChecked = selectedPicks.has(idx);
               return (
                 <div
                   key={pick.rank}
-                  className={`rounded-lg border ${style.border} ${style.bg} p-3 space-y-2`}
+                  className={`rounded-lg border ${style.border} ${style.bg} p-3 space-y-2 transition-all duration-150 ${isChecked ? 'ring-1 ring-purple-500/40' : 'opacity-75'}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {/* Checkbox for pre-order selection */}
+                      {onSubmitSelected && (
+                        <Checkbox
+                          id={`ai-pick-${idx}`}
+                          checked={isChecked}
+                          onCheckedChange={() => togglePick(idx)}
+                          className="border-purple-400 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600 shrink-0"
+                        />
+                      )}
                       <Badge variant="outline" className={`text-xs font-semibold ${style.badge}`}>
                         {style.label}
                       </Badge>
@@ -263,6 +303,26 @@ export function AIAdvisorPanel({
                 </div>
               );
             })}
+
+            {/* Submit Selected to Pre-Order button */}
+            {onSubmitSelected && (
+              <div className="pt-1 space-y-1">
+                <Button
+                  className="w-full bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-500 hover:to-emerald-600 text-white font-semibold shadow-lg hover:shadow-green-900/40 transition-all duration-200 disabled:opacity-40"
+                  size="default"
+                  disabled={selectedPicks.size === 0}
+                  onClick={handleSubmitSelected}
+                >
+                  <ShoppingCart className="w-4 h-4 mr-2" />
+                  {selectedPicks.size > 0
+                    ? `Submit ${selectedPicks.size} Selected Pick${selectedPicks.size > 1 ? 's' : ''} to Pre-Order`
+                    : 'Select Picks to Submit'}
+                </Button>
+                {selectedPicks.size === 0 && (
+                  <p className="text-xs text-slate-500 text-center">Check at least one pick above to enable submission</p>
+                )}
+              </div>
+            )}
 
             <p className="text-xs text-slate-500 text-center pt-1">
               AI analysis based on score, ROC, liquidity, delta, and DTE. Always verify before trading.
