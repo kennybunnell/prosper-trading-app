@@ -1257,26 +1257,11 @@ export const appRouter = router({
           return [];
         }
 
-        // Auto-detect index symbols and use appropriate delta range.
-        // fetchCSPOpportunities also auto-overrides per-symbol in tradier.ts,
-        // but we pass sensible defaults here so mixed scans work correctly.
-        const CSP_INDEX_MAP: Record<string, string> = {
-          SPXW: 'SPX', SPX: 'SPX', SPXPM: 'SPX', XSP: 'XSP',
-          NDX: 'NDX', NDXP: 'NDX', XND: 'XND',
-          RUT: 'RUT', MRUT: 'RUT',
-          DJX: 'DJX', VIX: 'VIX', VIXW: 'VIX', OEX: 'OEX', XEO: 'OEX',
-        };
-        const cspIsIndexScan = symbols.some(s => !!CSP_INDEX_MAP[s.toUpperCase()] && CSP_INDEX_MAP[s.toUpperCase()] !== s);
-        // Index options near the money have the SAME delta range as equity options (0.15-0.35).
-        // tradier.ts handles the chain fetch correctly via OPTION_ROOT_MAP.
-        const cspMinDelta = input.minDelta ?? 0.15;
-        const cspMaxDelta = input.maxDelta ?? 0.35;
-        console.log(`[CSP Router] isIndexScan=${cspIsIndexScan}, delta range=${cspMinDelta}-${cspMaxDelta}`);
         // Fetch CSP opportunities with filters
         const opportunities = await api.fetchCSPOpportunities(
           symbols,
-          cspMinDelta,
-          cspMaxDelta,
+          input.minDelta || 0.15,
+          input.maxDelta || 0.35,
           input.minDte || 7,
           input.maxDte || 45,
           input.minVolume || 5,
@@ -2193,26 +2178,12 @@ Summary: [One sentence overall assessment]`;
         }
 
         console.log(`[Iron Condor] Scanning ${symbols.length} symbols for Iron Condor opportunities...`);
-        // Auto-detect index symbols and use appropriate delta range.
-        // Index options (SPXW, NDXP, MRUT, SPX, NDX, RUT) have much lower deltas (0.003-0.06)
-        // than equity options (0.15-0.35). fetchCSPOpportunities also auto-overrides per-symbol,
-        // but we pass sensible defaults here so the scan doesn't filter before reaching that logic.
-        const IC_INDEX_MAP: Record<string, string> = {
-          SPXW: 'SPX', SPX: 'SPX', SPXPM: 'SPX', XSP: 'XSP',
-          NDX: 'NDX', NDXP: 'NDX', XND: 'XND',
-          RUT: 'RUT', MRUT: 'RUT',
-          DJX: 'DJX', VIX: 'VIX', VIXW: 'VIX', OEX: 'OEX', XEO: 'OEX',
-        };
-        const icIsIndexScan = symbols.some(s => !!IC_INDEX_MAP[s.toUpperCase()] && IC_INDEX_MAP[s.toUpperCase()] !== s);
-        // Index options near the money have the SAME delta range as equity options (0.15-0.35).
-        const icMinDelta = input.minDelta ?? 0.15;
-        const icMaxDelta = input.maxDelta ?? 0.35;
-        console.log(`[Iron Condor] isIndexScan=${icIsIndexScan}, delta range=${icMinDelta}-${icMaxDelta}`);
+
         // Fetch CSP opportunities (these will be the put side short strikes)
         const cspOpportunities = await api.fetchCSPOpportunities(
           symbols,
-          icMinDelta,
-          icMaxDelta,
+          input.minDelta || 0.15,
+          input.maxDelta || 0.35,
           input.minDte || 7,
           input.maxDte || 45,
           input.minVolume || 5,
@@ -2337,8 +2308,8 @@ Summary: [One sentence overall assessment]`;
             const callCandidates = options.filter(
               opt => opt.option_type === 'call' && 
                      opt.strike > bps.currentPrice && // OTM
-                     Math.abs(opt.greeks?.delta || 0) >= icMinDelta &&
-                     Math.abs(opt.greeks?.delta || 0) <= icMaxDelta &&
+                     Math.abs(opt.greeks?.delta || 0) >= (input.minDelta || 0.15) &&
+                     Math.abs(opt.greeks?.delta || 0) <= (input.maxDelta || 0.35) &&
                      (isHighPriceIndex || (opt.volume || 0) >= (input.minVolume || 5)) &&
                      (isHighPriceIndex || (opt.open_interest || 0) >= (input.minOI || 50)) &&
                      opt.bid && opt.ask
@@ -2567,18 +2538,10 @@ Summary: [One sentence overall assessment]`;
         }
 
         // Fetch CSP opportunities first (these are the short puts)
-        // Index options (SPXW, NDXP, MRUT) trade at much lower deltas (0.005-0.05)
-        // than equity options (0.15-0.35), so use index-appropriate defaults when in index mode.
-        const isIndexScan = input.isIndexMode ?? false;
-        // Index options (SPXW, NDXP, MRUT) near the money have the same delta range as equity options.
-        // The tradier.ts fetchSymbolOpportunities handles the chain fetch correctly via OPTION_ROOT_MAP.
-        const effectiveMinDelta = input.minDelta ?? 0.15;
-        const effectiveMaxDelta = input.maxDelta ?? 0.35;
-        console.log(`[BPS Scanner] isIndexMode=${isIndexScan}, delta range: ${effectiveMinDelta}-${effectiveMaxDelta}`);
         const cspOpportunities = await api.fetchCSPOpportunities(
           symbols,
-          effectiveMinDelta,
-          effectiveMaxDelta,
+          input.minDelta || 0.15,
+          input.maxDelta || 0.35,
           input.minDte || 7,
           input.maxDte || 45,
           input.minVolume || 5,
@@ -2590,15 +2553,11 @@ Summary: [One sentence overall assessment]`;
         const chainCache = new Map<string, any[]>();
         
         // Pre-fetch all unique option chains in parallel
-        // For index series (SPXW, NDXP, MRUT), use optionRoot for the chain fetch so we get
-        // the weekly PM-settled contracts (not the monthly AM-settled SPX/NDX/RUT chain).
-        const uniqueChains = new Map<string, { symbol: string; chainSymbol: string; expiration: string }>();
+        const uniqueChains = new Map<string, { symbol: string; expiration: string }>();
         for (const cspOpp of cspOpportunities) {
-          // Use optionRoot (e.g. SPXW) for chain fetch if available, otherwise fall back to symbol
-          const chainSymbol = (cspOpp as any).optionRoot || cspOpp.symbol;
-          const key = `${chainSymbol}|${cspOpp.expiration}`;
+          const key = `${cspOpp.symbol}|${cspOpp.expiration}`;
           if (!uniqueChains.has(key)) {
-            uniqueChains.set(key, { symbol: cspOpp.symbol, chainSymbol, expiration: cspOpp.expiration });
+            uniqueChains.set(key, { symbol: cspOpp.symbol, expiration: cspOpp.expiration });
           }
         }
         
@@ -2610,13 +2569,13 @@ Summary: [One sentence overall assessment]`;
         
         for (let i = 0; i < chainEntries.length; i += CONCURRENT_CHAINS) {
           const batch = chainEntries.slice(i, i + CONCURRENT_CHAINS);
-          const batchPromises = batch.map(async ([key, { chainSymbol, expiration }]) => {
+          const batchPromises = batch.map(async ([key, { symbol, expiration }]) => {
             try {
-              const options = await api.getOptionChain(chainSymbol, expiration, true);
+              const options = await api.getOptionChain(symbol, expiration, true);
               chainCache.set(key, options);
-              console.log(`[Spread] Cached chain for ${chainSymbol} ${expiration} (${options.length} contracts)`);
+              console.log(`[Spread] Cached chain for ${symbol} ${expiration} (${options.length} contracts)`);
             } catch (error) {
-              console.error(`[Spread] Failed to fetch chain for ${chainSymbol} ${expiration}:`, error);
+              console.error(`[Spread] Failed to fetch chain for ${symbol} ${expiration}:`, error);
               chainCache.set(key, []); // Cache empty array to avoid retry
             }
           });
@@ -2624,28 +2583,18 @@ Summary: [One sentence overall assessment]`;
         }
         
         console.log(`[Spread] Cached ${chainCache.size} option chains, now calculating spreads...`);
-        // Debug: log first few cache keys and first few opp keys to detect mismatches
-        const cacheKeys = Array.from(chainCache.keys()).slice(0, 5);
-        const oppKeys = cspOpportunities.slice(0, 5).map((o: any) => `${o.symbol}|${o.expiration}`);
-        console.log(`[Spread Debug] Cache keys sample:`, cacheKeys);
-        console.log(`[Spread Debug] Opp keys sample:`, oppKeys);
         
         // Now calculate spreads using cached chains
         const spreadOpportunities = [];
-        let debugMissCount = 0;
-        let debugHitCount = 0;
-        let debugNoLongPut = 0;
         
         for (const cspOpp of cspOpportunities) {
           try {
             // Calculate long strike (protective put)
             const longStrike = cspOpp.strike - input.spreadWidth;
             
-            // Get cached option chain — use optionRoot (SPXW) for index series, symbol (SPX) for equity
-            const chainSymbol = (cspOpp as any).optionRoot || cspOpp.symbol;
-            const key = `${chainSymbol}|${cspOpp.expiration}`;
+            // Get cached option chain
+            const key = `${cspOpp.symbol}|${cspOpp.expiration}`;
             const options = chainCache.get(key) || [];
-            if (options.length === 0) debugMissCount++; else debugHitCount++;
             
             if (options.length === 0) {
               // Skip if chain fetch failed
@@ -2659,11 +2608,6 @@ Summary: [One sentence overall assessment]`;
             
             if (!longPut || !longPut.bid || !longPut.ask) {
               // Skip if we can't find the long put or it has no quotes
-              debugNoLongPut++;
-              if (debugNoLongPut <= 3) {
-                const putStrikes = options.filter((o: any) => o.option_type === 'put').map((o: any) => o.strike).sort((a: number, b: number) => a - b);
-                console.log(`[Spread Debug] No long put at ${longStrike} for ${cspOpp.symbol}/${cspOpp.expiration}. Available put strikes (sample):`, putStrikes.slice(0, 10));
-              }
               continue;
             }
             
@@ -2689,7 +2633,6 @@ Summary: [One sentence overall assessment]`;
           }
         }
 
-        console.log(`[Spread Debug] Summary: ${debugHitCount} cache hits, ${debugMissCount} cache misses, ${debugNoLongPut} no-long-put, ${spreadOpportunities.length} spreads formed`);
         // Deduplicate spread opportunities by unique spread identifier (symbol-shortStrike-longStrike-expiration)
         console.log(`[Spread Dedup] ${spreadOpportunities.length} spreads before deduplication`);
         const uniqueSpreads = new Map<string, any>();
@@ -2725,172 +2668,11 @@ Summary: [One sentence overall assessment]`;
 
         // Increment scan count for Tier 1 users (after successful scan)
         await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+
         return scoredWithBadges;
       }),
-
-    aiAdvisor: protectedProcedure
-      .input(
-        z.object({
-          opportunities: z.array(z.object({
-            symbol: z.string(),
-            strike: z.number(),
-            longStrike: z.number().optional(),
-            spreadWidth: z.number().optional(),
-            expiration: z.string(),
-            dte: z.number(),
-            netCredit: z.number().optional(),
-            premium: z.number().optional(),
-            capitalRisk: z.number().optional(),
-            collateral: z.number().optional(),
-            roc: z.number().optional(),
-            weeklyPct: z.number().optional(),
-            breakeven: z.number().optional(),
-            delta: z.number().optional(),
-            openInterest: z.number().optional(),
-            volume: z.number().optional(),
-            score: z.number().optional(),
-            currentPrice: z.number().optional(),
-          })).max(50),
-          availableBuyingPower: z.number().optional(),
-          strategy: z.string().optional(), // 'BPS' | 'BCS' | 'IC' | 'CSP'
-        })
-      )
-      .mutation(async ({ ctx, input }) => {
-        const { invokeLLM } = await import('./_core/llm');
-
-        const { opportunities, availableBuyingPower, strategy = 'BPS' } = input;
-        if (opportunities.length === 0) {
-          throw new Error('No opportunities provided for analysis.');
-        }
-
-        // Build a compact summary of the top opportunities for the LLM
-        const oppSummary = opportunities.slice(0, 30).map((o, i) => {
-          const credit = o.netCredit ?? o.premium ?? 0;
-          const collateral = o.capitalRisk ?? o.collateral ?? 0;
-          const roc = o.roc ?? 0;
-          const oi = o.openInterest ?? 0;
-          const vol = o.volume ?? 0;
-          const cushionPct = o.currentPrice && o.strike
-            ? (((o.currentPrice - o.strike) / o.currentPrice) * 100).toFixed(1)
-            : 'N/A';
-          return `${i + 1}. ${o.symbol} ${strategy} | Short:$${o.strike}${o.longStrike ? `/Long:$${o.longStrike}` : ''} | Exp:${o.expiration} DTE:${o.dte} | Credit:$${credit.toFixed(2)} | Collateral:$${collateral.toFixed(0)} | ROC:${roc.toFixed(2)}% | OI:${oi} | Vol:${vol} | Cushion:${cushionPct}% | Score:${o.score ?? 'N/A'}`;
-        }).join('\n');
-
-        const bpContext = availableBuyingPower
-          ? `Available buying power: $${availableBuyingPower.toLocaleString()}. Assume max 10% of buying power allocated to this strategy.`
-          : 'Assume $50,000 allocated capital for this strategy.';
-
-        const systemPrompt = `You are an expert options income trader specializing in index and equity spread strategies. 
-You analyze opportunities objectively, balancing risk-adjusted return, liquidity, and position sizing.
-You always recommend defined-risk spreads only — no naked positions.
-Return ONLY valid JSON, no markdown, no explanation outside the JSON.`;
-
-        const userPrompt = `Analyze these ${strategy} spread opportunities and select the TOP 3 to trade today.
-
-Selection criteria (in priority order):
-1. Liquidity: OI > 200 and Volume > 20 preferred
-2. Cushion: Higher % distance from current price = safer
-3. ROC: Higher return on collateral = better capital efficiency
-4. Score: Higher composite score = better overall setup
-5. DTE: 7-14 days preferred for theta decay acceleration
-
-${bpContext}
-Collateral per contract = spread width × $100.
-For each pick, recommend a quantity based on: floor(allocatedCapital × 0.33 / collateralPerContract), max 10 contracts.
-
-Opportunities:
-${oppSummary}
-
-Return JSON in this exact format:
-{
-  "recommendations": [
-    {
-      "rank": 1,
-      "opportunityIndex": 0,
-      "symbol": "SPX",
-      "strikes": "$6400/$6375",
-      "expiration": "2026-03-20",
-      "dte": 11,
-      "suggestedQuantity": 3,
-      "netCreditPerContract": 2.80,
-      "totalCredit": 840,
-      "collateralPerContract": 2500,
-      "totalCollateral": 7500,
-      "roc": 0.75,
-      "rationale": "Best liquidity with 1,714 OI and 5% cushion. Conservative pick."
-    }
-  ],
-  "summary": "Brief 1-2 sentence overall market context and strategy note."
-}`;
-
-        const response = await invokeLLM({
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: 'ai_advisor_response',
-              strict: true,
-              schema: {
-                type: 'object',
-                properties: {
-                  recommendations: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        rank: { type: 'integer' },
-                        opportunityIndex: { type: 'integer' },
-                        symbol: { type: 'string' },
-                        strikes: { type: 'string' },
-                        expiration: { type: 'string' },
-                        dte: { type: 'integer' },
-                        suggestedQuantity: { type: 'integer' },
-                        netCreditPerContract: { type: 'number' },
-                        totalCredit: { type: 'number' },
-                        collateralPerContract: { type: 'number' },
-                        totalCollateral: { type: 'number' },
-                        roc: { type: 'number' },
-                        rationale: { type: 'string' },
-                      },
-                      required: ['rank', 'opportunityIndex', 'symbol', 'strikes', 'expiration', 'dte', 'suggestedQuantity', 'netCreditPerContract', 'totalCredit', 'collateralPerContract', 'totalCollateral', 'roc', 'rationale'],
-                      additionalProperties: false,
-                    },
-                  },
-                  summary: { type: 'string' },
-                },
-                required: ['recommendations', 'summary'],
-                additionalProperties: false,
-              },
-            },
-          },
-        });
-
-        const content = response.choices?.[0]?.message?.content;
-        if (!content) throw new Error('LLM returned empty response');
-        const parsed = typeof content === 'string' ? JSON.parse(content) : content;
-        return parsed as {
-          recommendations: Array<{
-            rank: number;
-            opportunityIndex: number;
-            symbol: string;
-            strikes: string;
-            expiration: string;
-            dte: number;
-            suggestedQuantity: number;
-            netCreditPerContract: number;
-            totalCredit: number;
-            collateralPerContract: number;
-            totalCollateral: number;
-            roc: number;
-            rationale: string;
-          }>;
-          summary: string;
-        };
-      }),
   }),
+
   userPreferences: router({
     get: protectedProcedure.query(async ({ ctx }) => {
       const { getUserPreferences } = await import('./db');

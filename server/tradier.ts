@@ -128,7 +128,6 @@ export interface TechnicalIndicators {
 
 export interface CSPOpportunity {
   symbol: string;
-  optionRoot?: string; // Original option root (e.g. SPXW, NDXP, MRUT) — differs from symbol for index series
   optionSymbol: string; // Actual option symbol from Tradier API
   strike: number;
   currentPrice: number;
@@ -691,10 +690,6 @@ export class TradierAPI {
     const tradierOptionRoot = TradierAPI.OPTION_ROOT_MAP[symbol.toUpperCase()] || symbol;
     const isIndexSeries = underlyingSymbol !== symbol;
     console.log(`[CSP fetchSymbolOpportunities] Symbol: ${symbol}, tradierRoot: ${tradierOptionRoot}, underlying: ${underlyingSymbol}, isIndex: ${isIndexSeries}`);
-    // NOTE: Index options (SPXW, NDXP, MRUT) near the money have the SAME delta range as equity options
-    // (0.15-0.45). Do NOT override the delta range for index symbols — the caller's delta range is correct.
-    // The key difference for index series is the chain fetch symbol (SPX not SPXW) and root_symbol filter,
-    // both of which are handled below.
     
     try {
         // Get all expirations using the Tradier-recognised option root
@@ -807,9 +802,6 @@ export class TradierAPI {
               // Use the Tradier-recognised option root as the symbol so chain cache keys
               // in the IC router (which also calls getOptionChain) stay consistent.
               symbol: tradierOptionRoot,
-              // Store the original user-facing symbol (e.g. SPXW, NDXP, MRUT) so the
-              // spread router can fetch the correct weekly chain (not the monthly SPX chain).
-              optionRoot: symbol,
               optionSymbol: put.symbol, // Use actual option symbol from Tradier
               strike,
               currentPrice: underlyingPrice,

@@ -48,7 +48,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AIAdvisorPanel, type AIAdvisorOpportunity } from "@/components/AIAdvisorPanel";
+
 // Color-coding helper functions
 function getROCColor(roc: number): string {
   if (roc > 1.5) return "bg-green-500/20 text-green-500 border-green-500/50";
@@ -1022,36 +1022,6 @@ export default function IronCondorDashboard() {
               </Button>
             </div>
           </div>
-
-          {/* AI Advisor Panel */}
-          {displayedOpportunities.length > 0 && (
-            <AIAdvisorPanel
-              opportunities={displayedOpportunities.map((opp: any) => ({
-                symbol: opp.symbol,
-                strike: opp.putShortStrike,
-                longStrike: opp.putLongStrike,
-                expiration: opp.expiration,
-                dte: opp.dte,
-                netCredit: opp.netCredit,
-                capitalRisk: opp.totalCollateral,
-                roc: opp.roc,
-                weeklyPct: opp.weeklyPct,
-                delta: opp.netDelta,
-                openInterest: opp.putOI,
-                volume: opp.putVolume,
-                score: opp.score,
-                currentPrice: opp.currentPrice,
-              }) as AIAdvisorOpportunity)}
-              availableBuyingPower={availableBuyingPower}
-              strategy="IC"
-              onSelectRecommendation={(idx) => {
-                const opp = displayedOpportunities[idx];
-                if (!opp) return;
-                const key = `${opp.symbol}-${opp.expiration}-${opp.putShortStrike}-${opp.callShortStrike}`;
-                setSelectedOpportunities(prev => { const next = new Set(prev); next.add(key); return next; });
-              }}
-            />
-          )}
 
           {/* Opportunities Table */}
           <Card>
