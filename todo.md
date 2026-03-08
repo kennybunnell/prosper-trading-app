@@ -7584,3 +7584,22 @@
 - [x] AI Advisor returns empty picks when availableBuyingPower=0 (fixed: use fallback BP of $100k)
 - [x] AI Advisor repositioned to appear below range filters / above results table
 - [x] NDXP/MRUT showing zero BPS opportunities (fixed: nearest-strike lookup for 100pt increment index options)
+
+## UI Changes (Mar 8, 2026 - Session 2)
+- [ ] Move AI Advisor button into Filters card below "Show Selected Only", make it prominent
+- [ ] Fix AI Advisor button click not firing (currently does nothing)
+- [ ] AI Advisor should analyze ALL loaded opportunities (not just filtered subset)
+
+## UI Changes (Mar 8, 2026 - AI Advisor Relocation)
+- [x] Move AI Advisor button from strategy type header into Filters card (below Show Selected Only)
+- [x] Make AI Advisor button full-width, prominent purple gradient style
+- [x] AI Advisor panel auto-triggers analysis on open (no manual "Analyze" click needed)
+- [x] Increased AI analysis from top 30 to top 50 opportunities
+- [x] Applied same changes to CSP/BPS, CC/BCS, and Iron Condor dashboards
+
+## UI Changes (Mar 8, 2026 - AI Advisor Relocation)
+- [x] Move AI Advisor button from strategy type header into Filters card (below Show Selected Only)
+- [x] Make AI Advisor button full-width, prominent purple gradient style
+- [x] AI Advisor panel auto-triggers analysis on open (no manual "Analyze" click needed)
+- [x] Increased AI analysis from top 30 to top 50 opportunities
+- [x] Applied same changes to CSP/BPS, CC/BCS, and Iron Condor dashboards

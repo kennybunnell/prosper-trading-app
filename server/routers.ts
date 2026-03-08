@@ -3462,7 +3462,7 @@ Summary: [One sentence overall assessment]`;
           openInterest: z.number().optional(),
           volume: z.number().optional(),
           ivRank: z.number().optional(),
-        })).max(30),
+        })).max(50),
         availableBuyingPower: z.number(),
         strategy: z.string(),
       }))
@@ -3474,7 +3474,7 @@ Summary: [One sentence overall assessment]`;
         const collateralPerContract = opportunities.length > 0 ? (opportunities[0].capitalRisk || 0) : 0;
         const maxContracts = collateralPerContract > 0 ? Math.max(1, Math.floor((effectiveBP * 0.20) / collateralPerContract)) : 5;
 
-        const oppSummary = opportunities.slice(0, 30).map((o, i) =>
+        const oppSummary = opportunities.map((o, i) =>
           `${i + 1}. ${o.symbol} | Score:${o.score} | ${o.shortStrike ? `Short:${o.shortStrike}/Long:${o.longStrike}` : `Strike:${o.strike}`} | Exp:${o.expiration} | DTE:${o.dte} | Credit:$${o.netCredit.toFixed(2)} | Collateral:$${o.capitalRisk} | ROC:${o.roc.toFixed(2)}% | Delta:${(o.delta ?? 0).toFixed(3)} | OI:${o.openInterest ?? 0} | Vol:${o.volume ?? 0} | IVRank:${(o.ivRank ?? 0).toFixed(1)}`
         ).join('\n');
 
@@ -3484,7 +3484,7 @@ Summary: [One sentence overall assessment]`;
         const response = await invokeLLM({
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Top ${opportunities.length} ${strategy} opportunities:\n\n${oppSummary}\n\nSelect top 3, return JSON only.` },
+            { role: 'user', content: `Here are ${opportunities.length} ${strategy} opportunities ranked by score:\n\n${oppSummary}\n\nSelect the best 3 trades across different symbols/expirations when possible. Return JSON only.` },
           ],
           response_format: {
             type: 'json_schema',

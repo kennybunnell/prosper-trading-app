@@ -900,33 +900,49 @@ export default function IronCondorDashboard() {
                 Show Selected Only
               </label>
             </div>
+
+            {/* AI Advisor Button - prominent, full width */}
+            <div className="pt-2">
+              <Button
+                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white font-semibold shadow-lg hover:shadow-purple-900/40 transition-all duration-200"
+                size="default"
+                onClick={() => setShowAIAdvisor(!showAIAdvisor)}
+                disabled={opportunities.length === 0}
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                {showAIAdvisor ? 'Hide AI Advisor' : `AI Advisor — Analyze ${opportunities.length} Opportunities`}
+              </Button>
+              {opportunities.length === 0 && (
+                <p className="text-xs text-slate-500 text-center mt-1">Run a scan first to enable AI Advisor</p>
+              )}
+            </div>
+
+            {/* AI Advisor Panel - inline below button */}
+            {showAIAdvisor && (
+              <AIAdvisorPanel
+                opportunities={opportunities.map((opp: any) => ({
+                  score: opp.score ?? 0,
+                  symbol: opp.symbol,
+                  strategy: 'IC',
+                  shortStrike: opp.putShortStrike,
+                  longStrike: opp.putLongStrike,
+                  expiration: opp.expiration,
+                  dte: opp.dte,
+                  netCredit: opp.totalNetCredit ?? 0,
+                  capitalRisk: opp.totalCollateral ?? 0,
+                  roc: opp.roc ?? 0,
+                  delta: opp.putShortDelta,
+                  openInterest: opp.openInterest,
+                  volume: opp.volume,
+                  ivRank: opp.ivRank,
+                }))}
+                availableBuyingPower={availableBuyingPower}
+                strategy="IC"
+                onClose={() => setShowAIAdvisor(false)}
+              />
+            )}
           </CardContent>
         </Card>
-      )}
-
-      {/* AI Advisor Panel */}
-      {showAIAdvisor && opportunities.length > 0 && (
-        <AIAdvisorPanel
-          opportunities={opportunities.map((opp: any) => ({
-            score: opp.score ?? 0,
-            symbol: opp.symbol,
-            strategy: 'IC',
-            shortStrike: opp.putShortStrike,
-            longStrike: opp.putLongStrike,
-            expiration: opp.expiration,
-            dte: opp.dte,
-            netCredit: opp.totalNetCredit ?? 0,
-            capitalRisk: opp.totalCollateral ?? 0,
-            roc: opp.roc ?? 0,
-            delta: opp.putShortDelta,
-            openInterest: opp.openInterest,
-            volume: opp.volume,
-            ivRank: opp.ivRank,
-          }))}
-          availableBuyingPower={availableBuyingPower}
-          strategy="IC"
-          onClose={() => setShowAIAdvisor(false)}
-        />
       )}
       {/* Summary Cards */}
       {opportunities.length > 0 && (
@@ -1059,15 +1075,6 @@ export default function IronCondorDashboard() {
                     4-leg neutral income strategy - profit if stock stays between short strikes
                   </CardDescription>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAIAdvisor(!showAIAdvisor)}
-                  className="border-purple-500/40 text-purple-300 hover:bg-purple-500/20 hover:text-purple-200"
-                >
-                  <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
-                  AI Advisor
-                </Button>
                 <Button
                   variant="outline"
                   size="sm"

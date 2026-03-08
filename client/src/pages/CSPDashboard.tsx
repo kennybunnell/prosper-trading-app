@@ -1250,18 +1250,9 @@ export default function CSPDashboard() {
                 </Button>
               </div>
               
-              {/* Export Button + AI Advisor */}
+              {/* Export Button */}
               {opportunities.length > 0 && (
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAIAdvisor(!showAIAdvisor)}
-                    className="border-purple-500/40 text-purple-300 hover:bg-purple-500/20 hover:text-purple-200"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
-                    AI Advisor
-                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -2226,36 +2217,52 @@ export default function CSPDashboard() {
               </Label>
             </div>
           </div>
+
+            {/* AI Advisor Button - prominent, full width */}
+            <div className="pt-2">
+              <Button
+                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white font-semibold shadow-lg hover:shadow-purple-900/40 transition-all duration-200"
+                size="default"
+                onClick={() => setShowAIAdvisor(!showAIAdvisor)}
+                disabled={opportunities.length === 0}
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                {showAIAdvisor ? 'Hide AI Advisor' : `AI Advisor — Analyze ${opportunities.length} Opportunities`}
+              </Button>
+              {opportunities.length === 0 && (
+                <p className="text-xs text-slate-500 text-center mt-1">Run a scan first to enable AI Advisor</p>
+              )}
+            </div>
+
+            {/* AI Advisor Panel - inline below button */}
+            {showAIAdvisor && (
+              <AIAdvisorPanel
+                opportunities={opportunities.map((opp: any) => ({
+                  score: opp.score ?? 0,
+                  symbol: opp.symbol,
+                  strategy: strategyType === 'spread' ? 'BPS' : 'CSP',
+                  shortStrike: strategyType === 'spread' ? (opp as any).shortStrike : undefined,
+                  longStrike: strategyType === 'spread' ? (opp as any).longStrike : undefined,
+                  strike: strategyType === 'csp' ? opp.strike : undefined,
+                  expiration: opp.expiration,
+                  dte: opp.dte,
+                  netCredit: strategyType === 'spread' ? ((opp as any).netCredit ?? 0) : (opp.premium ?? 0),
+                  capitalRisk: strategyType === 'spread' ? ((opp as any).capitalAtRisk ?? (opp as any).capitalRisk ?? 0) : (opp.strike * 100),
+                  roc: strategyType === 'spread' ? ((opp as any).roc ?? 0) : (opp.weeklyReturn ?? 0),
+                  weeklyPct: opp.weeklyReturn,
+                  breakeven: opp.breakeven,
+                  delta: opp.delta,
+                  openInterest: opp.openInterest,
+                  volume: opp.volume,
+                  ivRank: opp.ivRank,
+                }))}
+                availableBuyingPower={availableBuyingPower}
+                strategy={strategyType === 'spread' ? 'BPS' : 'CSP'}
+                onClose={() => setShowAIAdvisor(false)}
+              />
+            )}
         </CardContent>
       </Card>
-
-      {/* AI Advisor Panel */}
-      {showAIAdvisor && opportunities.length > 0 && (
-        <AIAdvisorPanel
-          opportunities={opportunities.map((opp: any) => ({
-            score: opp.score ?? 0,
-            symbol: opp.symbol,
-            strategy: strategyType === 'spread' ? 'BPS' : 'CSP',
-            shortStrike: strategyType === 'spread' ? (opp as any).shortStrike : undefined,
-            longStrike: strategyType === 'spread' ? (opp as any).longStrike : undefined,
-            strike: strategyType === 'csp' ? opp.strike : undefined,
-            expiration: opp.expiration,
-            dte: opp.dte,
-            netCredit: strategyType === 'spread' ? ((opp as any).netCredit ?? 0) : (opp.premium ?? 0),
-            capitalRisk: strategyType === 'spread' ? ((opp as any).capitalAtRisk ?? (opp as any).capitalRisk ?? 0) : (opp.strike * 100),
-            roc: strategyType === 'spread' ? ((opp as any).roc ?? 0) : (opp.weeklyReturn ?? 0),
-            weeklyPct: opp.weeklyReturn,
-            breakeven: opp.breakeven,
-            delta: opp.delta,
-            openInterest: opp.openInterest,
-            volume: opp.volume,
-            ivRank: opp.ivRank,
-          }))}
-          availableBuyingPower={availableBuyingPower}
-          strategy={strategyType === 'spread' ? 'BPS' : 'CSP'}
-          onClose={() => setShowAIAdvisor(false)}
-        />
-      )}
       {/* Summary Cards - Enhanced with gradients and glassmorphism */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 to-yellow-500/5 backdrop-blur border-amber-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
