@@ -196,15 +196,26 @@ export class TradierAPI {
    */
   async getExpirations(symbol: string): Promise<string[]> {
     try {
+      // includeAllRoots=true is critical for index option series:
+      // Without it, SPX only returns standard monthly expirations (not SPXW weeklies).
+      // NDX only returns standard monthly (not NDXP PM-settled weeklies).
       const response = await this.client.get('/markets/options/expirations', {
-        params: { symbol },
+        params: { symbol, includeAllRoots: true },
       });
 
+      console.log(`[Tradier getExpirations] ${symbol} raw response:`, JSON.stringify(response.data));
+
       const expirations = response.data.expirations?.date;
-      if (!expirations) return [];
+      if (!expirations) {
+        console.log(`[Tradier getExpirations] ${symbol}: no expirations in response (null/undefined)`);
+        return [];
+      }
       
-      return Array.isArray(expirations) ? expirations : [expirations];
+      const result = Array.isArray(expirations) ? expirations : [expirations];
+      console.log(`[Tradier getExpirations] ${symbol}: ${result.length} expirations found`);
+      return result;
     } catch (error: any) {
+      console.error(`[Tradier getExpirations] ${symbol} error:`, error.response?.data, error.message);
       throw new Error(`Failed to fetch expirations: ${error.response?.data?.fault?.faultstring || error.message}`);
     }
   }
@@ -583,7 +594,8 @@ export class TradierAPI {
       const batch = symbols.slice(i, i + CONCURRENCY);
       console.log(`[Tradier API] Processing batch ${Math.floor(i / CONCURRENCY) + 1}/${Math.ceil(symbols.length / CONCURRENCY)} (symbols: ${batch.join(', ')})`);
       
-      // Wrap each symbol fetch with a timeout to prevent hanging
+      // Wrap each symbol fetch with a timeout to prevent hanging.
+      // SPX/NDX chains can have 300+ contracts per expiration — allow 90s for large index chains.
       const batchPromises = batch.map(symbol => 
         Promise.race([
           this.fetchSymbolOpportunities(
@@ -596,7 +608,7 @@ export class TradierAPI {
             minOI
           ),
           new Promise<CSPOpportunity[]>((_, reject) => 
-            setTimeout(() => reject(new Error(`Timeout after 15s`)), 15000)
+            setTimeout(() => reject(new Error(`Timeout after 90s`)), 90000)
           )
         ])
       );
@@ -622,21 +634,34 @@ export class TradierAPI {
    * SPXW/SPX options trade on the S&P 500 index, quoted as $SPX.X on Tradier.
    * We use the option root for expirations/chains, but the underlying for price/technicals.
    */
+  // Some index option series roots are not directly recognised by Tradier's expirations
+  // and option chain endpoints. Map them to the Tradier-recognised root symbol.
+  // e.g. SPXW weekly options are listed under SPX on Tradier; NDXP under NDX.
+  private static readonly OPTION_ROOT_MAP: Record<string, string> = {
+    SPXW:  'SPX',
+    SPXPM: 'SPX',
+    NDXP:  'NDX',
+    VIXW:  'VIX',
+  };
+
+  // Tradier uses the plain index ticker (SPX, NDX, RUT) for quotes — NOT the $-prefixed
+  // CBOE/Bloomberg notation ($SPX.X, $NDX.X, $RUT.X) which Tradier does not recognise.
+  // The option root (SPXW, NDXP, MRUT) is still used for expirations and option chains.
   private static readonly INDEX_UNDERLYING_MAP: Record<string, string> = {
-    SPXW:  '$SPX.X',
-    SPX:   '$SPX.X',
-    SPXPM: '$SPX.X',
-    XSP:   '$SPX.X',
-    NDX:   '$NDX.X',
-    NDXP:  '$NDX.X',
-    XND:   '$NDX.X',
-    RUT:   '$RUT.X',
-    MRUT:  '$RUT.X',
-    DJX:   '$DJI',
-    VIX:   '$VIX.X',
-    VIXW:  '$VIX.X',
-    OEX:   '$OEX.X',
-    XEO:   '$OEX.X',
+    SPXW:  'SPX',
+    SPX:   'SPX',
+    SPXPM: 'SPX',
+    XSP:   'XSP',
+    NDX:   'NDX',
+    NDXP:  'NDX',
+    XND:   'XND',
+    RUT:   'RUT',
+    MRUT:  'RUT',
+    DJX:   'DJX',
+    VIX:   'VIX',
+    VIXW:  'VIX',
+    OEX:   'OEX',
+    XEO:   'OEX',
   };
 
   /**
@@ -658,14 +683,17 @@ export class TradierAPI {
 
     // For index option series (SPXW, NDXP, MRUT, etc.), the option chain is fetched
     // using the option root symbol, but price quotes and technical indicators must use
-    // the underlying index symbol (e.g., $SPX.X for SPXW).
+    // the underlying index symbol (e.g., SPX for SPXW).
     const underlyingSymbol = TradierAPI.INDEX_UNDERLYING_MAP[symbol.toUpperCase()] || symbol;
+    // Some option roots are not recognised by Tradier's expirations endpoint — map to the
+    // Tradier-recognised root (e.g. SPXW → SPX, NDXP → NDX).
+    const tradierOptionRoot = TradierAPI.OPTION_ROOT_MAP[symbol.toUpperCase()] || symbol;
     const isIndexSeries = underlyingSymbol !== symbol;
-    console.log(`[CSP fetchSymbolOpportunities] Symbol: ${symbol}, underlying: ${underlyingSymbol}, isIndex: ${isIndexSeries}`);
+    console.log(`[CSP fetchSymbolOpportunities] Symbol: ${symbol}, tradierRoot: ${tradierOptionRoot}, underlying: ${underlyingSymbol}, isIndex: ${isIndexSeries}`);
     
     try {
-        // Get all expirations for this symbol (use option root, not underlying)
-        const expirations = await this.getExpirations(symbol);
+        // Get all expirations using the Tradier-recognised option root
+        const expirations = await this.getExpirations(tradierOptionRoot);
         
         // Filter expirations by DTE range
         const today = new Date();
@@ -699,9 +727,9 @@ export class TradierAPI {
         // Collect IV values from all options to calculate IV Rank
         const allIVValues: number[] = [];
 
-        // Fetch option chains for each expiration
+        // Fetch option chains for each expiration — use Tradier-recognised root (e.g. SPX for SPXW)
         for (const expiration of filteredExpirations) {
-          const options = await this.getOptionChain(symbol, expiration, true);
+          const options = await this.getOptionChain(tradierOptionRoot, expiration, true);
 
           // Collect IV values from all options (puts and calls)
           for (const opt of options) {
@@ -710,8 +738,16 @@ export class TradierAPI {
             }
           }
 
-          // Filter for put options
-          const puts = options.filter((opt) => opt.option_type === 'put');
+          // Filter for put options.
+          // When tradierOptionRoot differs from the original symbol (e.g. SPXW→SPX),
+          // the chain contains contracts from multiple roots (SPX AM-settled + SPXW PM-settled).
+          // Filter to only the original option series root so we don't mix AM and PM settlements.
+          const targetRoot = tradierOptionRoot !== symbol ? symbol : null;
+          const puts = options.filter((opt) => {
+            if (opt.option_type !== 'put') return false;
+            if (targetRoot && opt.root_symbol && opt.root_symbol !== targetRoot) return false;
+            return true;
+          });
 
           for (const put of puts) {
             const delta = Math.abs(put.greeks?.delta || 0);
@@ -763,7 +799,9 @@ export class TradierAPI {
             }
 
             opportunities.push({
-              symbol,
+              // Use the Tradier-recognised option root as the symbol so chain cache keys
+              // in the IC router (which also calls getOptionChain) stay consistent.
+              symbol: tradierOptionRoot,
               optionSymbol: put.symbol, // Use actual option symbol from Tradier
               strike,
               currentPrice: underlyingPrice,

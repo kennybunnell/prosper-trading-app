@@ -7520,3 +7520,14 @@
 - [x] Fix: fetchSymbolOpportunities now uses underlying symbol for getQuote() and getTechnicalIndicators()
 - [x] Fix: getTechnicalIndicators wrapped in try/catch — index series that fail technicals still proceed with option chain data
 - [x] Fix: added detailed logging at each step (expirations found, underlying price, DTE range) for future debugging
+
+## Iron Condor Scanner - Index Symbol Fixes (Mar 7, 2026)
+- [x] Root cause: getExpirations missing includeAllRoots=true — SPX only returned monthly expirations, missing SPXW weeklies
+- [x] Fix: Added includeAllRoots=true to getExpirations API call
+- [x] Fix: Added root_symbol filter on option chain so SPXW watchlist only processes SPXW (PM-settled) contracts, not SPX (AM-settled)
+- [x] Fix: Per-symbol timeout increased from 15s to 90s (SPX chain has 303+ contracts, was timing out silently)
+- [x] Fix: INDEX_UNDERLYING_MAP corrected to use Tradier symbols (RUT/SPX/NDX not $RUT.X/$SPX.X/$NDX.X)
+- [x] Fix: OPTION_ROOT_MAP added (SPXW→SPX, NDXP→NDX) for Tradier expirations/chain endpoints
+- [x] Fix: Auto-scaling spread width for index symbols (SPX→25pts, NDX→100pts, MRUT→5pts)
+- [x] Fix: Nearest-available strike search for long legs (handles non-uniform strike intervals)
+- [x] NDX confirmed working: $910 credit, $10,000 collateral, 9.1% ROC, 11 DTE

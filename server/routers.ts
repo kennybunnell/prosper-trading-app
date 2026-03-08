@@ -2226,25 +2226,50 @@ Summary: [One sentence overall assessment]`;
         
         console.log(`[Iron Condor] Cached ${chainCache.size} option chains, now calculating spreads...`);
         
+        // Build a per-symbol effective spread width.
+        // A 5-point spread on SPX ($6,740) yields near-zero premium — auto-scale for indexes.
+        // Rule: effective width = max(user input, round(underlyingPrice * 0.004 / 5) * 5)
+        // This gives ~25 pts for SPX, ~100 pts for NDX, ~10 pts for MRUT.
+        const symbolPriceMap = new Map<string, number>();
+        for (const opp of cspOpportunities) {
+          if (!symbolPriceMap.has(opp.symbol)) symbolPriceMap.set(opp.symbol, opp.currentPrice);
+        }
+        const getEffectiveWidth = (sym: string): number => {
+          const price = symbolPriceMap.get(sym) || 0;
+          if (price < 500) return input.spreadWidth; // small-price symbols: use user input
+          const autoWidth = Math.max(input.spreadWidth, Math.round((price * 0.004) / 5) * 5);
+          return autoWidth;
+        };
+
         // Calculate Bull Put Spreads
         const bullPutSpreads = new Map<string, any>();
+        let bpsAttempts = 0, bpsNoChain = 0, bpsNoLongPut = 0, bpsNoCredit = 0;
         for (const cspOpp of cspOpportunities) {
           try {
-            const longStrike = cspOpp.strike - input.spreadWidth;
+            bpsAttempts++;
+            const effectiveWidth = getEffectiveWidth(cspOpp.symbol);
+            const longStrike = cspOpp.strike - effectiveWidth;
             const key = `${cspOpp.symbol}|${cspOpp.expiration}`;
             const options = chainCache.get(key) || [];
             
-            if (options.length === 0) continue;
+            if (options.length === 0) { bpsNoChain++; continue; }
             
-            const longPut = options.find(
-              opt => opt.option_type === 'put' && opt.strike === longStrike
-            );
+            // Find the long put at or near the target strike (SPX uses non-uniform strike intervals)
+            const putStrikes = options
+              .filter(o => o.option_type === 'put' && o.bid && o.ask)
+              .map(o => o.strike)
+              .sort((a, b) => a - b);
+            // Find the closest available put strike at or below the target long strike
+            const bestLongPutStrike = putStrikes.filter(s => s <= longStrike).pop();
+            const longPut = bestLongPutStrike !== undefined
+              ? options.find(o => o.option_type === 'put' && o.strike === bestLongPutStrike && o.bid && o.ask)
+              : undefined;
             
-            if (!longPut || !longPut.bid || !longPut.ask) continue;
+            if (!longPut) { bpsNoLongPut++; continue; }
             
             const spreadOpp = calculateBullPutSpread(
               cspOpp,
-              input.spreadWidth,
+              effectiveWidth,
               {
                 bid: longPut.bid,
                 ask: longPut.ask,
@@ -2254,11 +2279,17 @@ Summary: [One sentence overall assessment]`;
             
             if (spreadOpp.netCredit > 0) {
               bullPutSpreads.set(key, spreadOpp);
+            } else {
+              bpsNoCredit++;
             }
           } catch (error) {
             console.error(`[Iron Condor] Error calculating BPS for ${cspOpp.symbol}:`, error);
           }
         }
+        console.log(`[Iron Condor] BPS: ${bpsAttempts} attempts, ${bpsNoChain} no-chain, ${bpsNoLongPut} no-long-put, ${bpsNoCredit} no-credit, ${bullPutSpreads.size} formed`);
+        // Log first few BPS keys to verify symbol format
+        const bpsKeys = Array.from(bullPutSpreads.keys()).slice(0, 5);
+        if (bpsKeys.length > 0) console.log(`[Iron Condor] BPS keys sample:`, bpsKeys);
 
         // Calculate Bear Call Spreads from the same option chains
         const bearCallSpreads = new Map<string, any>();
@@ -2270,14 +2301,17 @@ Summary: [One sentence overall assessment]`;
             if (options.length === 0) continue;
             
             // Find OTM calls with similar delta to our puts (symmetric Iron Condor)
-            // Look for calls with delta between minDelta and maxDelta
+            // For index symbols (price > 500), relax OI/volume filters — index options
+            // have different liquidity profiles than equities.
+            const bcsEffectiveWidth = getEffectiveWidth(bps.symbol);
+            const isHighPriceIndex = (symbolPriceMap.get(bps.symbol) || 0) > 500;
             const callCandidates = options.filter(
               opt => opt.option_type === 'call' && 
                      opt.strike > bps.currentPrice && // OTM
                      Math.abs(opt.greeks?.delta || 0) >= (input.minDelta || 0.15) &&
                      Math.abs(opt.greeks?.delta || 0) <= (input.maxDelta || 0.35) &&
-                     (opt.volume || 0) >= (input.minVolume || 5) &&
-                     (opt.open_interest || 0) >= (input.minOI || 50) &&
+                     (isHighPriceIndex || (opt.volume || 0) >= (input.minVolume || 5)) &&
+                     (isHighPriceIndex || (opt.open_interest || 0) >= (input.minOI || 50)) &&
                      opt.bid && opt.ask
             );
             
@@ -2291,13 +2325,19 @@ Summary: [One sentence overall assessment]`;
               return currDiff < bestDiff ? curr : best;
             });
             
-            // Find the long call (protective call)
-            const longStrike = shortCall.strike + input.spreadWidth;
-            const longCall = options.find(
-              opt => opt.option_type === 'call' && opt.strike === longStrike
-            );
+            // Find the long call at or near the target strike (index options use non-uniform intervals)
+            const callStrikes = options
+              .filter(o => o.option_type === 'call' && o.bid && o.ask)
+              .map(o => o.strike)
+              .sort((a, b) => a - b);
+            const targetLongCallStrike = shortCall.strike + bcsEffectiveWidth;
+            // Find the closest available call strike at or above the target long strike
+            const bestLongCallStrike = callStrikes.find(s => s >= targetLongCallStrike);
+            const longCall = bestLongCallStrike !== undefined
+              ? options.find(o => o.option_type === 'call' && o.strike === bestLongCallStrike && o.bid && o.ask)
+              : undefined;
             
-            if (!longCall || !longCall.bid || !longCall.ask) continue;
+            if (!longCall) continue;
             
             // Create a CC-like opportunity object for calculateBearCallSpread
             const ccOpp: any = {
@@ -2317,7 +2357,7 @@ Summary: [One sentence overall assessment]`;
             
             const spreadOpp = calculateBearCallSpread(
               ccOpp,
-              input.spreadWidth,
+              bcsEffectiveWidth,
               {
                 bid: longCall.bid,
                 ask: longCall.ask,
@@ -2333,6 +2373,10 @@ Summary: [One sentence overall assessment]`;
           }
         }
 
+        // Log BCS details
+        const bcsKeys = Array.from(bearCallSpreads.keys()).slice(0, 5);
+        if (bcsKeys.length > 0) console.log(`[Iron Condor] BCS keys sample:`, bcsKeys);
+        else console.log(`[Iron Condor] BCS: 0 formed — all BPS had no matching call candidates`);
         console.log(`[Iron Condor] Calculated ${bullPutSpreads.size} BPS, ${bearCallSpreads.size} BCS`);
 
         // Pair Bull Put Spreads with Bear Call Spreads to form Iron Condors
