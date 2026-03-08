@@ -7560,3 +7560,6 @@
 - [x] CC/BCS Dashboard: Same index mode scoring fix applied to calculateBCSScore (RSI/BB get full 40pt neutral credit for indexes)
 - [x] CC/BCS Dashboard: Spread width auto-switches to 25/50/100pt when in index mode
 - [x] Both dashboards: isIndexMode passed to server procedures for server-side scoring
+
+## Bug Fixes (Mar 8, 2026) - Order Preview Legs
+- [x] Fixed UnifiedOrderPreviewModal to show both legs for BPS (Bull Put Spread) and BCS (Bear Call Spread) orders — Strategy column now shows "Bull Put Spread / STO+BTO" and "Bear Call Spread / STO+BTO" badges, Strike column shows Short/Long strikes. Submission was already correct (both legs sent to tastytrade API). TypeScript clean.

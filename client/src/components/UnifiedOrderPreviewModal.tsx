@@ -1181,6 +1181,9 @@ export function UnifiedOrderPreviewModal({
                   // For BTC spread orders, check if we have a long leg to display
                   const isSpread = !!(order.spreadLongSymbol || order.longStrike);
                   const isBTCSpread = strategy === 'btc' && isSpread;
+                  // STO spread strategies — show both legs in the preview
+                  const isBPSOrder = strategy === 'bps' && !!order.longStrike;
+                  const isBCSOrder = strategy === 'bcs' && !!order.longStrike;
 
                   return (
                     <React.Fragment key={idx}>
@@ -1189,7 +1192,7 @@ export function UnifiedOrderPreviewModal({
                       <TableCell className="font-semibold">
                         <div className="flex flex-col">
                           <span>{order.symbol}</span>
-                          {isBTCSpread && (
+                          {(isBTCSpread || isBPSOrder || isBCSOrder) && (
                             <span className="text-[10px] text-muted-foreground font-normal">
                               2-leg spread
                             </span>
@@ -1204,6 +1207,20 @@ export function UnifiedOrderPreviewModal({
                             <Badge variant="default" className="bg-purple-600">
                               Iron Condor
                             </Badge>
+                          ) : isBPSOrder ? (
+                            <div className="flex flex-col gap-0.5">
+                              <Badge variant="default" className="bg-green-700 text-white text-[10px] px-1.5">
+                                Bull Put Spread
+                              </Badge>
+                              <span className="text-[10px] text-green-400">STO + BTO</span>
+                            </div>
+                          ) : isBCSOrder ? (
+                            <div className="flex flex-col gap-0.5">
+                              <Badge variant="default" className="bg-red-700 text-white text-[10px] px-1.5">
+                                Bear Call Spread
+                              </Badge>
+                              <span className="text-[10px] text-red-400">STO + BTO</span>
+                            </div>
                           ) : (
                             <Badge variant={order.action.includes("BTC") ? "destructive" : "default"}>
                               {order.action}
@@ -1230,6 +1247,24 @@ export function UnifiedOrderPreviewModal({
                               <div className="text-xs space-y-0.5">
                                 <div className="font-semibold text-green-600">PUT: ${order.strike.toFixed(2)}/${order.longStrike?.toFixed(2)}</div>
                                 <div className="font-semibold text-red-600">CALL: ${order.callShortStrike?.toFixed(2)}/${order.callLongStrike?.toFixed(2)}</div>
+                              </div>
+                            );
+                          }
+                          // BPS: show short put / long put
+                          if (isBPSOrder) {
+                            return (
+                              <div className="text-xs space-y-0.5">
+                                <div className="text-green-400">Short: <span className="font-semibold">${order.strike.toFixed(2)}</span></div>
+                                <div className="text-muted-foreground">Long: <span className="font-semibold">${order.longStrike!.toFixed(2)}</span></div>
+                              </div>
+                            );
+                          }
+                          // BCS: show short call / long call
+                          if (isBCSOrder) {
+                            return (
+                              <div className="text-xs space-y-0.5">
+                                <div className="text-red-400">Short: <span className="font-semibold">${order.strike.toFixed(2)}</span></div>
+                                <div className="text-muted-foreground">Long: <span className="font-semibold">${order.longStrike!.toFixed(2)}</span></div>
                               </div>
                             );
                           }
