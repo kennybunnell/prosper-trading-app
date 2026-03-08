@@ -3481,17 +3481,36 @@ Summary: [One sentence overall assessment]`;
         const collateralPerContract = opportunities.length > 0 ? (opportunities[0].capitalRisk || 0) : 0;
         const maxContracts = collateralPerContract > 0 ? Math.max(1, Math.floor((effectiveBP * 0.20) / collateralPerContract)) : 5;
 
+        // Group opportunities by symbol for diversity enforcement
+        const symbolGroups: Record<string, { idx: number; opp: typeof opportunities[0] }[]> = {};
+        opportunities.forEach((o, i) => {
+          if (!symbolGroups[o.symbol]) symbolGroups[o.symbol] = [];
+          symbolGroups[o.symbol].push({ idx: i, opp: o });
+        });
+        const uniqueSymbols = Object.keys(symbolGroups);
+        // Per-symbol max contracts based on that symbol's collateral
+        const perSymbolMaxContracts = (sym: string) => {
+          const symOpps = symbolGroups[sym];
+          if (!symOpps || symOpps.length === 0) return maxContracts;
+          const col = symOpps[0].opp.capitalRisk || 0;
+          return col > 0 ? Math.max(1, Math.floor((effectiveBP * 0.20) / col)) : maxContracts;
+        };
         const oppSummary = opportunities.map((o, i) =>
           `${i + 1}. ${o.symbol} | Score:${o.score} | ${o.shortStrike ? `Short:${o.shortStrike}/Long:${o.longStrike}` : `Strike:${o.strike}`} | Exp:${o.expiration} | DTE:${o.dte} | Credit:$${o.netCredit.toFixed(2)} | Collateral:$${o.capitalRisk} | ROC:${o.roc.toFixed(2)}% | Delta:${(o.delta ?? 0).toFixed(3)} | OI:${o.openInterest ?? 0} | Vol:${o.volume ?? 0} | IVRank:${(o.ivRank ?? 0).toFixed(1)}`
         ).join('\n');
-
+        // Per-symbol best hints for the AI prompt
+        const symbolBestHints = uniqueSymbols.map(sym => {
+          const best = [...(symbolGroups[sym] || [])].sort((a, b) => b.opp.score - a.opp.score)[0];
+          return `${sym}: best at index ${best.idx + 1} (Score:${best.opp.score}, ROC:${best.opp.roc.toFixed(2)}%, MaxQty:${perSymbolMaxContracts(sym)})`;
+        }).join('; ');
         const bpDisplay = availableBuyingPower > 0 ? `$${availableBuyingPower.toLocaleString()}` : 'not specified (assume $100,000)';
-        const systemPrompt = `You are an expert options income trader specializing in ${strategy} strategies. Select the top 3 opportunities from the scanned list, balancing: ROC vs collateral, liquidity (OI>100, Vol>10), delta cushion, DTE sweet spot (7-21 days), and score. Suggest quantity based on 20% max buying power per trade. Available BP: ${bpDisplay}. Suggested max contracts per trade: ${maxContracts}. IMPORTANT: You MUST always return exactly 3 picks. Return ONLY valid JSON: {"picks":[{"rank":1,"opportunityIndex":0,"quantity":1,"rationale":"...","riskNote":"..."}]}`;
+        const numPicks = Math.max(3, uniqueSymbols.length);
+        const systemPrompt = `You are an expert options income trader specializing in ${strategy} strategies. You MUST return exactly ${numPicks} picks — at least one pick per unique symbol (${uniqueSymbols.join(', ')}). For each symbol choose the best opportunity balancing: ROC, liquidity (OI>100, Vol>10), delta cushion, DTE sweet spot (7-21 days), and score. Recommend quantity per symbol based on 20% max buying power. Available BP: ${bpDisplay}. Per-symbol best candidates: ${symbolBestHints}. Return ONLY valid JSON: {"picks":[{"rank":1,"opportunityIndex":0,"quantity":1,"rationale":"...","riskNote":"..."}]}`;
 
         const response = await invokeLLM({
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Here are ${opportunities.length} ${strategy} opportunities ranked by score:\n\n${oppSummary}\n\nSelect the best 3 trades across different symbols/expirations when possible. Return JSON only.` },
+            { role: 'user', content: `Here are ${opportunities.length} ${strategy} opportunities across ${uniqueSymbols.length} symbols (${uniqueSymbols.join(', ')}):\n\n${oppSummary}\n\nIMPORTANT: Include at least one pick from EACH symbol: ${uniqueSymbols.join(', ')}. Return exactly ${numPicks} picks. JSON only.` },
           ],
           response_format: {
             type: 'json_schema',

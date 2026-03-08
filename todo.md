@@ -7622,3 +7622,7 @@
 
 ## Bug (Mar 8, 2026 - AI Advisor Pre-Order Strike Undefined)
 - [x] Fix: strike field undefined when AI Advisor picks submitted to pre-order modal (validation error)
+
+## Feature (Mar 8, 2026 - AI Advisor Per-Symbol Diversity + Quantity Spinner)
+- [x] AI Advisor: guarantee at least one best pick per unique symbol scanned (diversification)
+- [x] AI Advisor: show recommended quantity on each pick card with +/- spinner to adjust before submit

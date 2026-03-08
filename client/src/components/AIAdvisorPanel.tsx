@@ -3,7 +3,7 @@ import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Sparkles, AlertTriangle, TrendingUp, X, Loader2, RefreshCw, ShoppingCart } from 'lucide-react';
+import { Sparkles, AlertTriangle, TrendingUp, X, Loader2, RefreshCw, ShoppingCart, Minus, Plus } from 'lucide-react';
 
 export interface Opportunity {
   score: number;
@@ -89,6 +89,8 @@ export function AIAdvisorPanel({
   const [error, setError] = useState<string | null>(null);
   const [hasRun, setHasRun] = useState(false);
   const [selectedPicks, setSelectedPicks] = useState<Set<number>>(new Set());
+  // Per-pick quantity overrides (key = pick index, value = quantity)
+  const [quantities, setQuantities] = useState<Record<number, number>>({});
 
   const analyze = trpc.aiAdvisor.analyzeOpportunities.useMutation({
     onSuccess: (data) => {
@@ -96,6 +98,10 @@ export function AIAdvisorPanel({
       setPicks(newPicks);
       // Auto-select all picks by default
       setSelectedPicks(new Set(newPicks.map((_, i) => i)));
+      // Initialize quantities from AI recommendations
+      const initQty: Record<number, number> = {};
+      newPicks.forEach((p, i) => { initQty[i] = p.quantity || 1; });
+      setQuantities(initQty);
       setError(null);
       setHasRun(true);
     },
@@ -118,6 +124,7 @@ export function AIAdvisorPanel({
     setPicks(null);
     setError(null);
     setSelectedPicks(new Set());
+    setQuantities({});
     const top50 = [...opportunities]
       .sort((a, b) => b.score - a.score)
       .slice(0, 50);
@@ -135,7 +142,13 @@ export function AIAdvisorPanel({
 
   const handleSubmitSelected = () => {
     if (!picks || !onSubmitSelected) return;
-    const chosen = picks.filter((_, i) => selectedPicks.has(i));
+    const chosen = picks
+      .filter((_, i) => selectedPicks.has(i))
+      .map((pick, i) => {
+        const pickIdx = picks.indexOf(pick);
+        const adjustedQty = quantities[pickIdx] ?? pick.quantity;
+        return { ...pick, quantity: adjustedQty };
+      });
     if (chosen.length === 0) return;
     onSubmitSelected(chosen);
   };
@@ -254,12 +267,33 @@ export function AIAdvisorPanel({
                       <span className="text-slate-500 text-xs">{opp.expiration} · {opp.dte}d</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right">
-                        <div className="text-green-400 font-bold text-sm">
-                          {pick.quantity}x @ ${opp.netCredit.toFixed(2)}
+                      {/* Quantity spinner */}
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-1 bg-slate-800/60 rounded-lg border border-slate-600/40 px-1 py-0.5">
+                          <button
+                            className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-white hover:bg-slate-700/60 transition-colors disabled:opacity-30"
+                            onClick={() => setQuantities(prev => ({ ...prev, [idx]: Math.max(1, (prev[idx] ?? pick.quantity) - 1) }))}
+                            disabled={(quantities[idx] ?? pick.quantity) <= 1}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          <span className="text-green-400 font-bold text-sm min-w-[1.5rem] text-center">
+                            {quantities[idx] ?? pick.quantity}x
+                          </span>
+                          <button
+                            className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-white hover:bg-slate-700/60 transition-colors"
+                            onClick={() => setQuantities(prev => ({ ...prev, [idx]: (prev[idx] ?? pick.quantity) + 1 }))}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
                         </div>
-                        <div className="text-slate-500 text-xs">
-                          ${(pick.quantity * opp.netCredit * 100).toFixed(0)} total credit
+                        <div className="text-right">
+                          <div className="text-green-300 text-xs font-medium">
+                            @ ${opp.netCredit.toFixed(2)}
+                          </div>
+                          <div className="text-slate-500 text-xs">
+                            ${((quantities[idx] ?? pick.quantity) * opp.netCredit * 100).toFixed(0)} total
+                          </div>
                         </div>
                       </div>
                       {onSelectOpportunity && (
