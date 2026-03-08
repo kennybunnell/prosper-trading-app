@@ -7570,3 +7570,12 @@
 - [x] Added Export CSV button to IronCondorDashboard (was missing) with IC-specific columns (Put/Call Short/Long Strikes, Put/Call Credit, Total Net Credit, Total Collateral, Lower/Upper Breakeven, Profit Zone Width, Net Delta)
 - [x] All export buttons show row count in label e.g. "Export CSV (232)"
 - [x] TypeScript clean
+
+## Feature (Mar 8, 2026) - AI Advisor (Clean re-implementation after sandbox reset)
+- [x] Added aiAdvisor.analyzeOpportunities tRPC procedure to server/routers.ts
+- [x] Created shared AIAdvisorPanel component (client/src/components/AIAdvisorPanel.tsx)
+- [x] Integrated AI Advisor button + panel into CSP/BPS Dashboard
+- [x] Integrated AI Advisor button + panel into CC/BCS Dashboard
+- [x] Integrated AI Advisor button + panel into Iron Condor Dashboard
+- [x] TypeScript clean, 4 unit tests passing
+- [x] Scanner logic NOT modified - 384 SPX opportunities preserved

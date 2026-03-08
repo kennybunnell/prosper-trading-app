@@ -3421,5 +3421,92 @@ Summary: [One sentence overall assessment]`;
         return { status: dbStatus, tastyStatus: status };
       }),
   }),
+// ─── AI Advisor ───────────────────────────────────────────────────────────
+  aiAdvisor: router({
+    analyzeOpportunities: protectedProcedure
+      .input(z.object({
+        opportunities: z.array(z.object({
+          score: z.number(),
+          symbol: z.string(),
+          strategy: z.string(),
+          shortStrike: z.number().optional(),
+          longStrike: z.number().optional(),
+          strike: z.number().optional(),
+          expiration: z.string(),
+          dte: z.number(),
+          netCredit: z.number(),
+          capitalRisk: z.number(),
+          roc: z.number(),
+          weeklyPct: z.number().optional(),
+          breakeven: z.number().optional(),
+          delta: z.number().optional(),
+          openInterest: z.number().optional(),
+          volume: z.number().optional(),
+          ivRank: z.number().optional(),
+        })).max(30),
+        availableBuyingPower: z.number(),
+        strategy: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+        const { opportunities, availableBuyingPower, strategy } = input;
+
+        const collateralPerContract = opportunities.length > 0 ? (opportunities[0].capitalRisk || 0) : 0;
+        const maxContracts = collateralPerContract > 0 ? Math.max(1, Math.floor((availableBuyingPower * 0.20) / collateralPerContract)) : 1;
+
+        const oppSummary = opportunities.slice(0, 30).map((o, i) =>
+          `${i + 1}. ${o.symbol} | Score:${o.score} | ${o.shortStrike ? `Short:${o.shortStrike}/Long:${o.longStrike}` : `Strike:${o.strike}`} | Exp:${o.expiration} | DTE:${o.dte} | Credit:$${o.netCredit.toFixed(2)} | Collateral:$${o.capitalRisk} | ROC:${o.roc.toFixed(2)}% | Delta:${(o.delta ?? 0).toFixed(3)} | OI:${o.openInterest ?? 0} | Vol:${o.volume ?? 0} | IVRank:${(o.ivRank ?? 0).toFixed(1)}`
+        ).join('\n');
+
+        const systemPrompt = `You are an expert options income trader specializing in ${strategy} strategies. Select the top 3 opportunities from the scanned list, balancing: ROC vs collateral, liquidity (OI>100, Vol>10), delta cushion, DTE sweet spot (7-21 days), and score. Suggest quantity based on 20% max buying power per trade. Available BP: $${availableBuyingPower.toLocaleString()}. Max contracts (20% BP rule): ${maxContracts}. Return ONLY valid JSON: {"picks":[{"rank":1,"opportunityIndex":0,"quantity":1,"rationale":"...","riskNote":"..."}]}`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Top ${opportunities.length} ${strategy} opportunities:\n\n${oppSummary}\n\nSelect top 3, return JSON only.` },
+          ],
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'ai_picks',
+              strict: true,
+              schema: {
+                type: 'object',
+                properties: {
+                  picks: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        rank: { type: 'integer' },
+                        opportunityIndex: { type: 'integer' },
+                        quantity: { type: 'integer' },
+                        rationale: { type: 'string' },
+                        riskNote: { type: 'string' },
+                      },
+                      required: ['rank', 'opportunityIndex', 'quantity', 'rationale', 'riskNote'],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ['picks'],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const rawContent = response?.choices?.[0]?.message?.content;
+        if (!rawContent) throw new Error('No response from AI advisor');
+        const content = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent);
+        const parsed = JSON.parse(content);
+        return {
+          picks: parsed.picks.map((pick: any) => ({
+            ...pick,
+            opportunity: opportunities[pick.opportunityIndex],
+          })),
+        };
+      }),
+  }),
 });
 

@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
+import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -219,6 +220,7 @@ export default function IronCondorDashboard() {
 
   // Selection state
   const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
+  const [showAIAdvisor, setShowAIAdvisor] = useState(false);
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
 
   // Order preview modal
@@ -902,6 +904,30 @@ export default function IronCondorDashboard() {
         </Card>
       )}
 
+      {/* AI Advisor Panel */}
+      {showAIAdvisor && opportunities.length > 0 && (
+        <AIAdvisorPanel
+          opportunities={opportunities.map((opp: any) => ({
+            score: opp.score ?? 0,
+            symbol: opp.symbol,
+            strategy: 'IC',
+            shortStrike: opp.putShortStrike,
+            longStrike: opp.putLongStrike,
+            expiration: opp.expiration,
+            dte: opp.dte,
+            netCredit: opp.totalNetCredit ?? 0,
+            capitalRisk: opp.totalCollateral ?? 0,
+            roc: opp.roc ?? 0,
+            delta: opp.putShortDelta,
+            openInterest: opp.openInterest,
+            volume: opp.volume,
+            ivRank: opp.ivRank,
+          }))}
+          availableBuyingPower={availableBuyingPower}
+          strategy="IC"
+          onClose={() => setShowAIAdvisor(false)}
+        />
+      )}
       {/* Summary Cards */}
       {opportunities.length > 0 && (
         <>
@@ -1033,6 +1059,15 @@ export default function IronCondorDashboard() {
                     4-leg neutral income strategy - profit if stock stays between short strikes
                   </CardDescription>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAIAdvisor(!showAIAdvisor)}
+                  className="border-purple-500/40 text-purple-300 hover:bg-purple-500/20 hover:text-purple-200"
+                >
+                  <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
+                  AI Advisor
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"

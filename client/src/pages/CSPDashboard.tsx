@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
+import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -340,6 +341,7 @@ export default function CSPDashboard() {
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
   const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
+  const [showAIAdvisor, setShowAIAdvisor] = useState(false);
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{ symbol: string; strike: number; score: number; explanation: string | any[] } | null>(null);
   const [aiMode, setAiMode] = useState<'conservative' | 'aggressive'>('conservative');
   const [showTechnicalColumns, setShowTechnicalColumns] = useState(false);
@@ -1248,9 +1250,18 @@ export default function CSPDashboard() {
                 </Button>
               </div>
               
-              {/* Export Button Only */}
+              {/* Export Button + AI Advisor */}
               {opportunities.length > 0 && (
                 <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAIAdvisor(!showAIAdvisor)}
+                    className="border-purple-500/40 text-purple-300 hover:bg-purple-500/20 hover:text-purple-200"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
+                    AI Advisor
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1880,6 +1891,33 @@ export default function CSPDashboard() {
         </div>
       )}
 
+      {/* AI Advisor Panel */}
+      {showAIAdvisor && opportunities.length > 0 && (
+        <AIAdvisorPanel
+          opportunities={opportunities.map((opp: any) => ({
+            score: opp.score ?? 0,
+            symbol: opp.symbol,
+            strategy: strategyType === 'spread' ? 'BPS' : 'CSP',
+            shortStrike: strategyType === 'spread' ? (opp as any).shortStrike : undefined,
+            longStrike: strategyType === 'spread' ? (opp as any).longStrike : undefined,
+            strike: strategyType === 'csp' ? opp.strike : undefined,
+            expiration: opp.expiration,
+            dte: opp.dte,
+            netCredit: strategyType === 'spread' ? ((opp as any).netCredit ?? 0) : (opp.premium ?? 0),
+            capitalRisk: strategyType === 'spread' ? ((opp as any).capitalAtRisk ?? (opp as any).capitalRisk ?? 0) : (opp.strike * 100),
+            roc: strategyType === 'spread' ? ((opp as any).roc ?? 0) : (opp.weeklyReturn ?? 0),
+            weeklyPct: opp.weeklyReturn,
+            breakeven: opp.breakeven,
+            delta: opp.delta,
+            openInterest: opp.openInterest,
+            volume: opp.volume,
+            ivRank: opp.ivRank,
+          }))}
+          availableBuyingPower={availableBuyingPower}
+          strategy={strategyType === 'spread' ? 'BPS' : 'CSP'}
+          onClose={() => setShowAIAdvisor(false)}
+        />
+      )}
       {/* Filters */}
       <Card className="bg-card/50 backdrop-blur border-border/50" data-section="filters">
         <CardHeader>

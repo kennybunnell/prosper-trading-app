@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
+import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
 import { cn, exportToCSV } from "@/lib/utils";
 import {
   Dialog,
@@ -322,6 +323,7 @@ export default function CCDashboard() {
   
   // AI Analysis Modal state
   const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
+  const [showAIAdvisor, setShowAIAdvisor] = useState(false);
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{
     symbol: string;
     shortStrike: number;
@@ -2010,6 +2012,33 @@ export default function CCDashboard() {
 
             </div>
 
+      {/* AI Advisor Panel */}
+      {showAIAdvisor && opportunities.length > 0 && (
+        <AIAdvisorPanel
+          opportunities={opportunities.map((opp: any) => ({
+            score: opp.score ?? 0,
+            symbol: opp.symbol,
+            strategy: strategyType === 'spread' ? 'BCS' : 'CC',
+            shortStrike: strategyType === 'spread' ? opp.strike : undefined,
+            longStrike: strategyType === 'spread' ? opp.longStrike : undefined,
+            strike: strategyType === 'cc' ? opp.strike : undefined,
+            expiration: opp.expiration,
+            dte: opp.dte,
+            netCredit: strategyType === 'spread' ? (opp.netCredit ?? 0) : (opp.premium ?? 0),
+            capitalRisk: strategyType === 'spread' ? ((opp.capitalAtRisk ?? 0) * 100) : (opp.currentPrice * 100),
+            roc: opp.spreadROC ?? opp.returnPct ?? 0,
+            weeklyPct: opp.weeklyReturn,
+            breakeven: opp.breakeven,
+            delta: opp.delta,
+            openInterest: opp.openInterest,
+            volume: opp.volume,
+            ivRank: opp.ivRank,
+          }))}
+          availableBuyingPower={availableBuyingPower}
+          strategy={strategyType === 'spread' ? 'BCS' : 'CC'}
+          onClose={() => setShowAIAdvisor(false)}
+        />
+      )}
       <Card className="bg-card/50 backdrop-blur border-amber-500/20" data-section="filters">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -2628,6 +2657,15 @@ export default function CCDashboard() {
                         Show Technical Columns
                       </>
                     )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAIAdvisor(!showAIAdvisor)}
+                    className="border-purple-500/40 text-purple-300 hover:bg-purple-500/20 hover:text-purple-200"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
+                    AI Advisor
                   </Button>
                   <Button
                     variant="outline"
