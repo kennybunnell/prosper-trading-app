@@ -691,15 +691,10 @@ export class TradierAPI {
     const tradierOptionRoot = TradierAPI.OPTION_ROOT_MAP[symbol.toUpperCase()] || symbol;
     const isIndexSeries = underlyingSymbol !== symbol;
     console.log(`[CSP fetchSymbolOpportunities] Symbol: ${symbol}, tradierRoot: ${tradierOptionRoot}, underlying: ${underlyingSymbol}, isIndex: ${isIndexSeries}`);
-    // Auto-override delta range for index symbols.
-    // Index options (SPXW, NDXP, MRUT, SPX, NDX, RUT, etc.) trade at much lower deltas (0.003-0.06)
-    // than equity options (0.15-0.35). If the caller passed equity-style defaults, override them
-    // so we don't filter out all valid index opportunities.
-    if (isIndexSeries) {
-      if (minDelta >= 0.10) minDelta = 0.003;
-      if (maxDelta >= 0.30) maxDelta = 0.06;
-      console.log(`[CSP fetchSymbolOpportunities] ${symbol}: Index symbol detected — overriding delta range to ${minDelta}-${maxDelta}`);
-    }
+    // NOTE: Index options (SPXW, NDXP, MRUT) near the money have the SAME delta range as equity options
+    // (0.15-0.45). Do NOT override the delta range for index symbols — the caller's delta range is correct.
+    // The key difference for index series is the chain fetch symbol (SPX not SPXW) and root_symbol filter,
+    // both of which are handled below.
     
     try {
         // Get all expirations using the Tradier-recognised option root

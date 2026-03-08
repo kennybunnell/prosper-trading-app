@@ -297,13 +297,10 @@ export const ccRouter = router({
           };
           const ccIndexUnderlying = CC_INDEX_MAP[symbol.toUpperCase()];
           const ccIsIndex = !!ccIndexUnderlying && ccIndexUnderlying !== symbol;
-          let effectiveMinDelta = input.minDelta;
-          let effectiveMaxDelta = input.maxDelta;
-          if (ccIsIndex) {
-            if (effectiveMinDelta >= 0.10) effectiveMinDelta = 0.003;
-            if (effectiveMaxDelta >= 0.30) effectiveMaxDelta = 0.06;
-            console.log(`[CC Scanner] ${symbol}: Index symbol — overriding delta range to ${effectiveMinDelta}-${effectiveMaxDelta}`);
-          }
+          // Index options near the money have the SAME delta range as equity options (0.15-0.35).
+          // Do NOT override the delta range for index symbols.
+          const effectiveMinDelta = input.minDelta;
+          const effectiveMaxDelta = input.maxDelta;
 
           try {
             // Fetch indicators (RSI, IV Rank, BB %B) with timeout

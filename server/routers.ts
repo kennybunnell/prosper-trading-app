@@ -1267,8 +1267,10 @@ export const appRouter = router({
           DJX: 'DJX', VIX: 'VIX', VIXW: 'VIX', OEX: 'OEX', XEO: 'OEX',
         };
         const cspIsIndexScan = symbols.some(s => !!CSP_INDEX_MAP[s.toUpperCase()] && CSP_INDEX_MAP[s.toUpperCase()] !== s);
-        const cspMinDelta = input.minDelta ?? (cspIsIndexScan ? 0.003 : 0.15);
-        const cspMaxDelta = input.maxDelta ?? (cspIsIndexScan ? 0.06 : 0.35);
+        // Index options near the money have the SAME delta range as equity options (0.15-0.35).
+        // tradier.ts handles the chain fetch correctly via OPTION_ROOT_MAP.
+        const cspMinDelta = input.minDelta ?? 0.15;
+        const cspMaxDelta = input.maxDelta ?? 0.35;
         console.log(`[CSP Router] isIndexScan=${cspIsIndexScan}, delta range=${cspMinDelta}-${cspMaxDelta}`);
         // Fetch CSP opportunities with filters
         const opportunities = await api.fetchCSPOpportunities(
@@ -2202,8 +2204,9 @@ Summary: [One sentence overall assessment]`;
           DJX: 'DJX', VIX: 'VIX', VIXW: 'VIX', OEX: 'OEX', XEO: 'OEX',
         };
         const icIsIndexScan = symbols.some(s => !!IC_INDEX_MAP[s.toUpperCase()] && IC_INDEX_MAP[s.toUpperCase()] !== s);
-        const icMinDelta = input.minDelta ?? (icIsIndexScan ? 0.003 : 0.15);
-        const icMaxDelta = input.maxDelta ?? (icIsIndexScan ? 0.06 : 0.35);
+        // Index options near the money have the SAME delta range as equity options (0.15-0.35).
+        const icMinDelta = input.minDelta ?? 0.15;
+        const icMaxDelta = input.maxDelta ?? 0.35;
         console.log(`[Iron Condor] isIndexScan=${icIsIndexScan}, delta range=${icMinDelta}-${icMaxDelta}`);
         // Fetch CSP opportunities (these will be the put side short strikes)
         const cspOpportunities = await api.fetchCSPOpportunities(
@@ -2567,8 +2570,10 @@ Summary: [One sentence overall assessment]`;
         // Index options (SPXW, NDXP, MRUT) trade at much lower deltas (0.005-0.05)
         // than equity options (0.15-0.35), so use index-appropriate defaults when in index mode.
         const isIndexScan = input.isIndexMode ?? false;
-        const effectiveMinDelta = input.minDelta ?? (isIndexScan ? 0.005 : 0.15);
-        const effectiveMaxDelta = input.maxDelta ?? (isIndexScan ? 0.05 : 0.35);
+        // Index options (SPXW, NDXP, MRUT) near the money have the same delta range as equity options.
+        // The tradier.ts fetchSymbolOpportunities handles the chain fetch correctly via OPTION_ROOT_MAP.
+        const effectiveMinDelta = input.minDelta ?? 0.15;
+        const effectiveMaxDelta = input.maxDelta ?? 0.35;
         console.log(`[BPS Scanner] isIndexMode=${isIndexScan}, delta range: ${effectiveMinDelta}-${effectiveMaxDelta}`);
         const cspOpportunities = await api.fetchCSPOpportunities(
           symbols,
