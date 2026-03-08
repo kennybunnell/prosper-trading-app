@@ -7534,3 +7534,6 @@
 
 ## Bug Fixes (Mar 8, 2026)
 - [x] Fixed duplicate React key warning in StrategyAdvisor: renderTickerCard now uses `${section}-${ticker.symbol}` as key so tickers appearing in multiple strategy sections (BPS/BCS/IC) no longer produce duplicate key collisions
+
+## Bug Fixes (Mar 8, 2026) - IC Dashboard
+- [x] Fix IC Dashboard summary card: opportunity key `${symbol}-${expiration}` is not unique — SPX has many rows per expiration date with different strikes, causing all matching rows to be counted in Total Premium/Collateral/ROC when any one is selected. Fix: include putShortStrike and callShortStrike in the key.

@@ -405,7 +405,7 @@ export default function IronCondorDashboard() {
   const selectAllFiltered = () => {
     // Use displayedOpportunities which already has filters applied
     setSelectedOpportunities(new Set(
-      displayedOpportunities.map((opp: any) => `${opp.symbol}-${opp.expiration}`)
+      displayedOpportunities.map((opp: any) => `${opp.symbol}-${opp.expiration}-${opp.putShortStrike}-${opp.callShortStrike}`)
     ));
   };
 
@@ -438,10 +438,10 @@ export default function IronCondorDashboard() {
     // Apply "Show Selected Only" filter
     if (showSelectedOnly) {
       filtered = filtered.filter((opp: any) => 
-        selectedOpportunities.has(`${opp.symbol}-${opp.expiration}`)
+        selectedOpportunities.has(`${opp.symbol}-${opp.expiration}-${opp.putShortStrike}-${opp.callShortStrike}`)
       );
     }
-    
+
     // Apply sorting
     if (sortConfig) {
       filtered.sort((a: any, b: any) => {
@@ -475,8 +475,8 @@ export default function IronCondorDashboard() {
 
   // Calculate summary metrics
   const summaryMetrics = useMemo(() => {
-    const selected = opportunities.filter((opp: any) => 
-      selectedOpportunities.has(`${opp.symbol}-${opp.expiration}`)
+    const selected = opportunities.filter((opp: any) =>
+      selectedOpportunities.has(`${opp.symbol}-${opp.expiration}-${opp.putShortStrike}-${opp.callShortStrike}`)
     );
 
     const totalPremium = selected.reduce((sum: number, opp: any) => sum + (opp.totalNetCredit * 100), 0);
@@ -568,8 +568,8 @@ export default function IronCondorDashboard() {
   // Build orders for preview modal
   // Each Iron Condor creates ONE atomic 4-leg order
   const ordersForPreview = useMemo(() => {
-    const selected = opportunities.filter((opp: any) => 
-      selectedOpportunities.has(`${opp.symbol}-${opp.expiration}`)
+    const selected = opportunities.filter((opp: any) =>
+      selectedOpportunities.has(`${opp.symbol}-${opp.expiration}-${opp.putShortStrike}-${opp.callShortStrike}`)
     );
 
     return selected.map((opp: any) => {
@@ -1027,11 +1027,11 @@ export default function IronCondorDashboard() {
                       {/* 1. Select */}
                       <TableHead className="w-12">
                         <Checkbox
-                          checked={displayedOpportunities.length > 0 && displayedOpportunities.every((opp: any) => selectedOpportunities.has(`${opp.symbol}-${opp.expiration}`))}
+                          checked={displayedOpportunities.length > 0 && displayedOpportunities.every((opp: any) => selectedOpportunities.has(`${opp.symbol}-${opp.expiration}-${opp.putShortStrike}-${opp.callShortStrike}`))}
                           onCheckedChange={(checked) => {
                             const next = new Set(selectedOpportunities);
                             displayedOpportunities.forEach((opp: any) => {
-                              const key = `${opp.symbol}-${opp.expiration}`;
+                              const key = `${opp.symbol}-${opp.expiration}-${opp.putShortStrike}-${opp.callShortStrike}`;
                               if (checked) next.add(key); else next.delete(key);
                             });
                             setSelectedOpportunities(next);
@@ -1207,7 +1207,7 @@ export default function IronCondorDashboard() {
                       </TableRow>
                     ) : (
                       displayedOpportunities.map((opp: any) => {
-                        const key = `${opp.symbol}-${opp.expiration}`;
+                        const key = `${opp.symbol}-${opp.expiration}-${opp.putShortStrike}-${opp.callShortStrike}`;
                         const isSelected = selectedOpportunities.has(key);
 
                         return (
