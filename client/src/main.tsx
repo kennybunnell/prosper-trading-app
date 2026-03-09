@@ -94,8 +94,12 @@ queryClient.getQueryCache().subscribe(event => {
     // Suppress expected 401s from queries that fire before auth.me resolves —
     // these are not real errors; the queries will retry once the user is authenticated.
     const isExpectedUnauthError = error instanceof TRPCClientError && error.message === UNAUTHED_ERR_MSG;
+
+    // Suppress "Automation log not found" — happens when a stale runId is cached but the log was
+    // deleted/cleared. The query uses retry:false so this fires at most once per stale cache entry.
+    const isStaleAutomationLog = error && typeof error === 'object' && 'message' in error && error.message === 'Automation log not found';
     
-    if ((!isAccountNotFoundError || !isQueryDisabled) && !isTastytradeAuthError && !isExpectedUnauthError) {
+    if ((!isAccountNotFoundError || !isQueryDisabled) && !isTastytradeAuthError && !isExpectedUnauthError && !isStaleAutomationLog) {
       console.error("[API Query Error]", error);
     }
   }

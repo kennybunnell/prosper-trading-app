@@ -762,9 +762,14 @@ export default function AutomationDashboard() {
   }, []);
 
   // After a run completes, fetch the log to get scanResultsJson
+  // retry:false prevents error banner when the log was deleted/cleared and the cached runId is stale
   const { data: latestLog } = trpc.automation.getLog.useQuery(
     { runId: lastRunId! },
-    { enabled: !!lastRunId, refetchInterval: false }
+    {
+      enabled: !!lastRunId,
+      refetchInterval: false,
+      retry: false,
+    }
   );
 
   // Fetch automation settings
@@ -775,8 +780,12 @@ export default function AutomationDashboard() {
 
   // Delete a single log
   const deleteLog = trpc.automation.deleteLog.useMutation({
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       refetchLogs();
+      // If the deleted log was the currently displayed run, clear the cached runId
+      if (variables.runId === lastRunId) {
+        setLastRunId(null);
+      }
       toast.success('Run deleted');
     },
     onError: (err) => toast.error(`Failed to delete: ${err.message}`),
@@ -786,6 +795,8 @@ export default function AutomationDashboard() {
   const clearAllLogs = trpc.automation.clearAllLogs.useMutation({
     onSuccess: () => {
       refetchLogs();
+      // Clear the cached runId so getLog doesn’t fire a stale 404 query
+      setLastRunId(null);
       toast.success('All history cleared');
     },
     onError: (err) => toast.error(`Failed to clear: ${err.message}`),

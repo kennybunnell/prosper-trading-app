@@ -7695,3 +7695,6 @@
 
 ## Bugs (Mar 9, 2026 - Round 3)
 - [x] BUG: MSFT BTC order still rejected with "Price must be in increments of $0.05" — Fixed: (1) Rewrote snapToTick() using integer arithmetic: Math.round(price*100) then snap to nearest 5 or 1, then divide by 100. Eliminates all FP drift. (2) Replaced all 7 inline rounding calls in UnifiedOrderPreviewModal with snapToTick(). (3) Server submitOrders now uses order.premium (user's adjusted price) for single-leg orders instead of recalculating from freshNetCredit. (4) roundToNickel() also updated to use integer arithmetic. 27 tests pass.
+
+## Bugs (Mar 9, 2026 - Round 4)
+- [x] BUG: /automation page throws TRPCClientError "Automation log not found" on load — Fixed: (1) Added retry:false to getLog query; (2) clearAllLogs.onSuccess calls setLastRunId(null); (3) deleteLog.onSuccess clears lastRunId if the deleted log was active; (4) Added isStaleAutomationLog suppression in main.tsx global error handler
