@@ -125,9 +125,25 @@ export function AIAdvisorPanel({
     setError(null);
     setSelectedPicks(new Set());
     setQuantities({});
-    const top50 = [...opportunities]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 50);
+    // Build a diverse set: guarantee at least 1 best pick per unique symbol,
+    // then fill remaining slots with top-scored opportunities (up to 50 total)
+    const sorted = [...opportunities].sort((a, b) => b.score - a.score);
+    const symbolsSeen = new Set<string>();
+    const guaranteed: typeof sorted = [];
+    const remaining: typeof sorted = [];
+    // First pass: pick the best opportunity for each unique symbol
+    for (const opp of sorted) {
+      if (!symbolsSeen.has(opp.symbol)) {
+        symbolsSeen.add(opp.symbol);
+        guaranteed.push(opp);
+      }
+    }
+    // Second pass: fill with top-scored that aren't already guaranteed
+    const guaranteedSet = new Set(guaranteed);
+    for (const opp of sorted) {
+      if (!guaranteedSet.has(opp)) remaining.push(opp);
+    }
+    const top50 = [...guaranteed, ...remaining].slice(0, 50);
     analyze.mutate({ opportunities: top50, availableBuyingPower, strategy });
   };
 

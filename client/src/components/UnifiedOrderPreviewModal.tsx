@@ -414,35 +414,41 @@ export function UnifiedOrderPreviewModal({
       
       case "csp": {
         // Cash-secured puts: limited by buying power
+        // Use fallback BP of $100k when no account connected (availableBuyingPower = 0)
+        const effectiveBP_csp = availableBuyingPower > 0 ? availableBuyingPower : 100000;
         const collateralPerContract = order.strike * 100;
         const currentTotalCollateral = calculateTotalCollateral();
         const thisOrderCollateral = getQuantity(order) * collateralPerContract;
-        const remainingBP = availableBuyingPower - (currentTotalCollateral - thisOrderCollateral);
+        const remainingBP = effectiveBP_csp - (currentTotalCollateral - thisOrderCollateral);
         
-        return Math.floor(remainingBP / collateralPerContract);
+        return Math.max(1, Math.floor(remainingBP / collateralPerContract));
       }
       
       case "bcs":
       case "bps": {
         // Spreads: limited by spread collateral
+        // Use fallback BP of $100k when no account connected (availableBuyingPower = 0)
+        const effectiveBP_bps = availableBuyingPower > 0 ? availableBuyingPower : 100000;
         if (!order.longStrike) return 0;
         const spreadWidth = Math.abs(order.strike - order.longStrike);
         const collateralPerContract = spreadWidth * 100;
         const currentTotalCollateral = calculateTotalCollateral();
         const thisOrderCollateral = getQuantity(order) * collateralPerContract;
-        const remainingBP = availableBuyingPower - (currentTotalCollateral - thisOrderCollateral);
+        const remainingBP = effectiveBP_bps - (currentTotalCollateral - thisOrderCollateral);
         
-        return Math.floor(remainingBP / collateralPerContract);
+        return Math.max(1, Math.floor(remainingBP / collateralPerContract));
       }
       
       case "pmcc": {
         // PMCC (buying LEAPs): limited by buying power
+        // Use fallback BP of $100k when no account connected (availableBuyingPower = 0)
+        const effectiveBP_pmcc = availableBuyingPower > 0 ? availableBuyingPower : 100000;
         const costPerContract = order.premium * 100;
         const currentTotalCost = calculateTotalPremium();
         const thisOrderCost = getQuantity(order) * costPerContract;
-        const remainingBP = availableBuyingPower - (currentTotalCost - thisOrderCost);
+        const remainingBP = effectiveBP_pmcc - (currentTotalCost - thisOrderCost);
         
-        return Math.floor(remainingBP / costPerContract);
+        return Math.max(1, Math.floor(remainingBP / costPerContract));
       }
       
       case "btc":

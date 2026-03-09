@@ -7626,3 +7626,11 @@
 ## Feature (Mar 8, 2026 - AI Advisor Per-Symbol Diversity + Quantity Spinner)
 - [x] AI Advisor: guarantee at least one best pick per unique symbol scanned (diversification)
 - [x] AI Advisor: show recommended quantity on each pick card with +/- spinner to adjust before submit
+
+## Bugs (Mar 8, 2026 - Order Preview + AI Diversity)
+- [ ] Fix: quantity +/- buttons in Order Preview modal blocked/non-functional (+ button cut off)
+- [ ] Fix: AI Advisor still only returning SPX picks, not including NDXP/MRUT best picks
+
+## Fixes (Mar 8, 2026 - Qty + Per-Symbol)
+- [x] Fix: Order Preview modal quantity +/- buttons disabled when availableBuyingPower = $0 (use $100k fallback for all strategies)
+- [x] Fix: AI Advisor only showing SPX picks - now guarantees at least one best pick per unique symbol scanned (NDXP, MRUT, SPX all represented)
