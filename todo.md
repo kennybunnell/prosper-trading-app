@@ -7707,3 +7707,10 @@
 - [x] Fix safeguard 3 (preTradeCheck sell_call): same IC spread leg counting bug fixed
 - [x] Fix safeguard checkCoverage (checkCoveredCallCoverage): same IC spread leg counting bug fixed
 - [x] Fix TypeScript errors: replaced 'expiration-date' (not in TastytradePosition) with 'expires-at' in both locations
+
+## Rate-Limit Response Fix (Mar 9, 2026)
+- [x] Fix Working Orders tab crash: Tastytrade returns plain-text "Rate exceeded." instead of JSON, causing JSON parse error
+- [x] Add rate-limit detection in axios response interceptor (checks content-type text/plain + "rate/exceeded/limit" keywords)
+- [x] Fix getLiveOrders and getWorkingOrders to catch isRateLimit flag and JSON parse errors, throw clean message
+- [x] Fix routers-working-orders.ts catch block to surface clean "Rate exceeded" message
+- [x] Improve WorkingOrdersTab error UI: shows "Rate limit reached" with friendly message and Retry button

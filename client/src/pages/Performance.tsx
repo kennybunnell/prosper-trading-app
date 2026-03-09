@@ -1662,11 +1662,22 @@ export function WorkingOrdersTab() {
   }
 
   if (error) {
+    const isRateLimit = error.message?.includes('Rate exceeded') || error.message?.includes('rate');
     return (
       <Card className="p-8 text-center">
         <XCircle className="h-8 w-8 mx-auto mb-4 text-red-500" />
-        <p className="text-red-500">Error loading working orders</p>
-        <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
+        <p className="text-red-500">{isRateLimit ? 'Rate limit reached' : 'Error loading working orders'}</p>
+        <p className="text-sm text-muted-foreground mt-2">
+          {isRateLimit
+            ? 'Tastytrade API rate limit reached. Wait a few seconds and try again.'
+            : error.message}
+        </p>
+        <button
+          onClick={() => refetch()}
+          className="mt-4 px-4 py-2 text-sm bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/40 rounded-md transition-colors"
+        >
+          Retry
+        </button>
       </Card>
     );
   }

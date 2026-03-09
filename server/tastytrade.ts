@@ -151,6 +151,19 @@ export class TastytradeAPI {
     this.client.interceptors.response.use(
       (response) => {
         console.log(`[Tastytrade API] ${response.status} ${response.config.url}`);
+        // Detect plain-text rate-limit responses (Tastytrade returns "Rate exceeded." as text/plain)
+        const contentType = response.headers?.['content-type'] || '';
+        const isPlainText = contentType.includes('text/plain') || contentType.includes('text/html');
+        if (isPlainText && typeof response.data === 'string') {
+          const text = response.data.trim();
+          if (text.toLowerCase().includes('rate') || text.toLowerCase().includes('exceeded') || text.toLowerCase().includes('limit')) {
+            console.warn(`[Tastytrade API] Rate limit response detected: "${text}" on ${response.config.url}`);
+            const rateLimitError: any = new Error(`Rate exceeded. Please wait a moment before retrying.`);
+            rateLimitError.isRateLimit = true;
+            rateLimitError.response = response;
+            return Promise.reject(rateLimitError);
+          }
+        }
         return response;
       },
       async (error) => {
@@ -448,8 +461,15 @@ export class TastytradeAPI {
   async getWorkingOrders(accountNumber: string): Promise<TastytradeOrder[]> {
     try {
       const response = await this.client.get(`/accounts/${accountNumber}/orders/live`);
-      return response.data.data.items;
+      return response.data.data?.items || [];
     } catch (error: any) {
+      // Tastytrade sometimes returns plain-text "Rate exceeded." — surface a clean message
+      if (error.isRateLimit) {
+        throw new Error('Rate exceeded. Please wait a moment before retrying.');
+      }
+      if (error.message?.includes('not valid JSON') || error.message?.includes('Unexpected token')) {
+        throw new Error('Rate exceeded. Please wait a moment before retrying.');
+      }
       throw new Error(`Failed to fetch working orders: ${error.response?.data?.error?.message || error.message}`);
     }
   }
@@ -573,6 +593,14 @@ export class TastytradeAPI {
       const response = await this.client.get(`/accounts/${accountNumber}/orders/live`);
       return response.data.data?.items || [];
     } catch (error: any) {
+      // Tastytrade sometimes returns plain-text "Rate exceeded." — surface a clean message
+      if (error.isRateLimit) {
+        throw new Error('Rate exceeded. Please wait a moment before retrying.');
+      }
+      // Also catch JSON parse errors from plain-text rate-limit responses
+      if (error.message?.includes('not valid JSON') || error.message?.includes('Unexpected token')) {
+        throw new Error('Rate exceeded. Please wait a moment before retrying.');
+      }
       throw new Error(`Failed to fetch live orders: ${error.response?.data?.error?.message || error.message}`);
     }
   }

@@ -542,7 +542,12 @@ export const workingOrdersRouter = router({
         };
       } catch (error: any) {
         console.error('[WorkingOrders] Error fetching orders:', error);
-        throw new Error(`Failed to fetch working orders: ${error.message}`);
+        // Surface rate-limit errors with a clean, user-friendly message
+        const msg: string = error.message || '';
+        if (msg.includes('Rate exceeded') || msg.includes('not valid JSON') || msg.includes('Unexpected token')) {
+          throw new Error('Rate exceeded. Please wait a moment before retrying.');
+        }
+        throw new Error(`Failed to fetch working orders: ${msg}`);
       }
     }),
 
