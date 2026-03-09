@@ -248,21 +248,22 @@ export function UnifiedOrderPreviewModal({
             const minDebit = order.bid - order.longAsk;  // Best case (most aggressive)
             const maxDebit = order.ask - order.longBid;  // Worst case (hit the ask)
             const midDebit = (minDebit + maxDebit) / 2;
-            const goodFillPrice = midDebit + (maxDebit - midDebit) * 0.25;
-            initialPrices.set(key, Math.round(Math.max(0.01, goodFillPrice) * 20) / 20);
+            const rawPrice = Math.max(0.01, midDebit + (maxDebit - midDebit) * 0.25);
+            // Apply Tastytrade tick-size rules
+            initialPrices.set(key, rawPrice >= 3.00 ? Math.round(rawPrice * 20) / 20 : Math.round(rawPrice * 100) / 100);
           } else {
             // STO credit spread: use order.premium (netCredit mid) as the starting limit price
-            // This is already calculated as (shortMid - longMid) in the pricing function
-            const netCreditMid = order.premium;
-            initialPrices.set(key, Math.round(Math.max(0.01, netCreditMid) * 20) / 20);
+            const rawPrice = Math.max(0.01, order.premium);
+            initialPrices.set(key, rawPrice >= 3.00 ? Math.round(rawPrice * 20) / 20 : Math.round(rawPrice * 100) / 100);
           }
         }
         // For single-leg options, use bid/ask
         else if (order.bid && order.ask && order.bid > 0 && order.ask > 0) {
           const mid = (order.bid + order.ask) / 2;
           // BTC: set to mid + 25% toward ask = Good Fill Zone
-          const goodFillPrice = isBTC ? mid + (order.ask - mid) * 0.25 : mid;
-          initialPrices.set(key, Math.round(Math.max(0.01, goodFillPrice) * 20) / 20); // round to $0.05
+          const rawPrice = Math.max(0.01, isBTC ? mid + (order.ask - mid) * 0.25 : mid);
+          // Apply Tastytrade tick-size rules: $0.05 for >= $3, $0.01 for < $3
+          initialPrices.set(key, rawPrice >= 3.00 ? Math.round(rawPrice * 20) / 20 : Math.round(rawPrice * 100) / 100);
         }
         // Fallback to premium if no market data
         else {
@@ -285,8 +286,9 @@ export function UnifiedOrderPreviewModal({
   const computeGoodFillPrice = (bid: number, ask: number, isBTC: boolean): number => {
     if (bid > 0 && ask > 0) {
       const mid = (bid + ask) / 2;
-      const price = isBTC ? mid + (ask - mid) * 0.25 : mid;
-      return Math.round(Math.max(0.01, price) * 20) / 20;
+      const rawPrice = Math.max(0.01, isBTC ? mid + (ask - mid) * 0.25 : mid);
+      // Apply Tastytrade tick-size rules: $0.05 for >= $3, $0.01 for < $3
+      return rawPrice >= 3.00 ? Math.round(rawPrice * 20) / 20 : Math.round(rawPrice * 100) / 100;
     }
     return 0;
   };
@@ -597,7 +599,13 @@ export function UnifiedOrderPreviewModal({
   const handleDryRun = async () => {
     setIsSubmitting(true);
     try {
-      await onSubmit(orders, orderQuantities, true);
+      // Inject adjusted prices for dry run too
+      const ordersWithAdjustedPrices = orders.map(order => {
+        const key = getOrderKey(order);
+        const adjustedPrice = adjustedPrices.get(key);
+        return adjustedPrice !== undefined ? { ...order, premium: adjustedPrice } : order;
+      });
+      await onSubmit(ordersWithAdjustedPrices, orderQuantities, true);
       setDryRunSuccess(true);
       toast({
         title: "Dry Run Successful",
@@ -767,14 +775,26 @@ export function UnifiedOrderPreviewModal({
     try {
       let result: any;
       
+      // Inject adjusted prices into orders before submitting
+      // The modal slider/+/- buttons update adjustedPrices but not the original orders prop.
+      // We must merge them here so the parent's executeOrderSubmission uses the user-adjusted price.
+      const ordersWithAdjustedPrices = orders.map(order => {
+        const key = getOrderKey(order);
+        const adjustedPrice = adjustedPrices.get(key);
+        if (adjustedPrice !== undefined) {
+          return { ...order, premium: adjustedPrice };
+        }
+        return order;
+      });
+
       if (operationMode === "replace" && onReplaceSubmit) {
         // Replace mode - call onReplaceSubmit
         console.log('[UnifiedOrderPreviewModal] Calling onReplaceSubmit...');
-        result = await onReplaceSubmit(orders, orderQuantities, oldOrderIds, false);
+        result = await onReplaceSubmit(ordersWithAdjustedPrices, orderQuantities, oldOrderIds, false);
       } else {
         // New order mode - call onSubmit
-        console.log('[UnifiedOrderPreviewModal] Calling onSubmit...');
-        result = await onSubmit(orders, orderQuantities, false);
+        console.log('[UnifiedOrderPreviewModal] Calling onSubmit with adjusted prices...');
+        result = await onSubmit(ordersWithAdjustedPrices, orderQuantities, false);
       }
       
       console.log('[UnifiedOrderPreviewModal] Submission result:', result);
@@ -936,7 +956,10 @@ export function UnifiedOrderPreviewModal({
     const key = getOrderKey(order);
     const currentPrice = adjustedPrices.get(key) || order.premium;
     const newPrice = Math.max(0.01, currentPrice + increment);
-    const roundedPrice = Math.round(newPrice * 100) / 100;
+    // Apply Tastytrade tick-size rules: $0.05 increments for prices >= $3, $0.01 for < $3
+    const roundedPrice = newPrice >= 3.00
+      ? Math.round(newPrice * 20) / 20
+      : Math.round(newPrice * 100) / 100;
     setAdjustedPrices(prev => new Map(prev).set(key, roundedPrice));
   };
   
@@ -969,9 +992,11 @@ export function UnifiedOrderPreviewModal({
     const { minPrice, maxPrice } = getOrderPriceRange(order);
     const priceRange = maxPrice - minPrice;
     const newPrice = minPrice + (priceRange * value[0] / 100);
-    // Use $0.01 increments for prices under $0.50, $0.05 for larger prices
-    const increment = newPrice < 0.50 ? 100 : 20;
-    const roundedPrice = Math.round(Math.max(0.01, newPrice) * increment) / increment;
+    // Apply Tastytrade tick-size rules: $0.05 increments for prices >= $3, $0.01 for < $3
+    const safePrice = Math.max(0.01, newPrice);
+    const roundedPrice = safePrice >= 3.00
+      ? Math.round(safePrice * 20) / 20
+      : Math.round(safePrice * 100) / 100;
     const key = getOrderKey(order);
     setAdjustedPrices(prev => new Map(prev).set(key, roundedPrice));
   };
@@ -1018,9 +1043,11 @@ export function UnifiedOrderPreviewModal({
       if (order.bid && order.ask) {
         const isBTC = order.action === 'BTC';
         const { minPrice, maxPrice, midPrice } = getOrderPriceRange(order);
-        const goodFill = isBTC ? midPrice + (maxPrice - midPrice) * 0.25 : midPrice;
+        const rawGoodFill = Math.max(0.01, isBTC ? midPrice + (maxPrice - midPrice) * 0.25 : midPrice);
+        // Apply Tastytrade tick-size rules: $0.05 for >= $3, $0.01 for < $3
+        const goodFill = rawGoodFill >= 3.00 ? Math.round(rawGoodFill * 20) / 20 : Math.round(rawGoodFill * 100) / 100;
         const key = getOrderKey(order);
-        newPrices.set(key, Math.round(Math.max(0.01, goodFill) * 20) / 20);
+        newPrices.set(key, goodFill);
         updatedCount++;
       }
     });
@@ -1090,8 +1117,8 @@ export function UnifiedOrderPreviewModal({
           </div>
         )}
         
-        {/* No Account Warning Banner */}
-        {availableBuyingPower === 0 && !submissionComplete && (
+        {/* No Account Warning Banner — only show when no account is selected at all, NOT based on buying power */}
+        {!accountId && !submissionComplete && (
           <div className="flex items-start gap-2 px-6 py-2.5 bg-amber-950/30 border-b border-amber-500/30 text-amber-300 text-xs">
             <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-amber-400" />
             <div>
@@ -1428,7 +1455,7 @@ export function UnifiedOrderPreviewModal({
                                     size="sm"
                                     variant="outline"
                                     className="h-6 w-6 p-0"
-                                    onClick={() => adjustPrice(orderWithLive, price < 0.50 ? -0.01 : -0.05)}
+                                    onClick={() => adjustPrice(orderWithLive, price >= 3.00 ? -0.05 : -0.01)}
                                     disabled={isSubmitting}
                                   >
                                     <Minus className="h-3 w-3" />
@@ -1440,7 +1467,7 @@ export function UnifiedOrderPreviewModal({
                                     size="sm"
                                     variant="outline"
                                     className="h-6 w-6 p-0"
-                                    onClick={() => adjustPrice(orderWithLive, price < 0.50 ? 0.01 : 0.05)}
+                                    onClick={() => adjustPrice(orderWithLive, price >= 3.00 ? 0.05 : 0.01)}
                                     disabled={isSubmitting}
                                   >
                                     <Plus className="h-3 w-3" />

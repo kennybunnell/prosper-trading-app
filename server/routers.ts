@@ -1877,7 +1877,10 @@ Summary: [One sentence overall assessment]`;
               // Calculate competitive limit price for spreads and Iron Condors
               // Subtract 5% buffer (or $0.05 minimum) to encourage fills
               const buffer = (order.isSpread || order.isIronCondor) ? Math.max(freshNetCredit * 0.05, 0.05) : 0;
-              const limitPrice = Math.max(freshNetCredit - buffer, 0.01); // Ensure minimum $0.01
+              const rawLimitPrice = Math.max(freshNetCredit - buffer, 0.01); // Ensure minimum $0.01
+              // Apply Tastytrade tick-size rules: $0.05 for >= $3, $0.01 for < $3
+              const { formatPriceForSubmission } = await import('../shared/orderUtils');
+              const limitPrice = parseFloat(formatPriceForSubmission(rawLimitPrice));
               
               const orderRequest = {
                 accountNumber: input.accountId,
@@ -2797,6 +2800,16 @@ Summary: [One sentence overall assessment]`;
       const api = await authenticateTastytrade(credentials, ctx.user.id);
         
         const balances = await api.getBalances(input.accountNumber);
+        // Debug: log the keys returned by the Tastytrade balances API
+        if (balances) {
+          console.log('[getBalances] Keys returned:', Object.keys(balances).join(', '));
+          console.log('[getBalances] derivative-buying-power:', balances['derivative-buying-power']);
+          console.log('[getBalances] cash-buying-power:', balances['cash-buying-power']);
+          console.log('[getBalances] equity-buying-power:', balances['equity-buying-power']);
+          console.log('[getBalances] option-buying-power:', balances['option-buying-power']);
+        } else {
+          console.log('[getBalances] balances returned null/undefined');
+        }
         return balances;
       }),
   }),

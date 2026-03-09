@@ -68,8 +68,13 @@ export function Sidebar({ className }: SidebarProps) {
   );
 
   useEffect(() => {
-    if (credentials?.defaultTastytradeAccountId && !selectedAccountId && accounts) {
-      setSelectedAccountId(credentials.defaultTastytradeAccountId);
+    if (!selectedAccountId && accounts && accounts.length > 0) {
+      // Prefer the user's configured default account; fall back to the first available account
+      const defaultId = credentials?.defaultTastytradeAccountId;
+      const accountToSelect = defaultId && accounts.some((a: any) => a.accountId === defaultId)
+        ? defaultId
+        : accounts[0].accountId;
+      setSelectedAccountId(accountToSelect);
     }
   }, [credentials, accounts, selectedAccountId, setSelectedAccountId]);
 

@@ -31,16 +31,25 @@ export function roundToNickel(price: number): number {
 }
 
 /**
- * Format price for Tastytrade API submission
- * - Rounds to nearest nickel ($0.05)
- * - Converts to string with 2 decimal places
- * - Ensures minimum price of $0.05
- * 
+ * Format price for Tastytrade API submission.
+ * Tastytrade enforces two tick-size rules for equity options:
+ *   - Price < $3.00  → $0.01 increments (penny pilot program)
+ *   - Price >= $3.00 → $0.05 increments (nickel)
+ * Submitting a non-conforming price causes a 422 "invalid_price_increment" rejection.
+ *
  * @param price - The price to format
- * @returns Formatted price string
+ * @returns Formatted price string (e.g. "3.85", "0.47")
  */
 export function formatPriceForSubmission(price: number): string {
-  const rounded = roundToPenny(Math.max(0.01, price));
+  const safePrice = Math.max(0.01, price);
+  let rounded: number;
+  if (safePrice >= 3.00) {
+    // Nickel increments for options priced $3.00 and above
+    rounded = Math.round(safePrice * 20) / 20; // nearest $0.05
+  } else {
+    // Penny increments for options priced below $3.00
+    rounded = Math.round(safePrice * 100) / 100; // nearest $0.01
+  }
   return rounded.toFixed(2);
 }
 
@@ -165,12 +174,13 @@ export function validateOrderPrice(
     };
   }
   
-  // Check if price is a valid penny increment
-  const rounded = roundToPenny(price);
-  if (Math.abs(price - rounded) > 0.001) {
+  // Check if price is a valid tick-size increment (nickel for >= $3, penny for < $3)
+  const expectedRounded = parseFloat(formatPriceForSubmission(price));
+  if (Math.abs(price - expectedRounded) > 0.001) {
+    const increment = price >= 3.00 ? '$0.05' : '$0.01';
     return {
       isValid: false,
-      message: `Price must be in $0.01 increments (suggested: $${rounded.toFixed(2)})`
+      message: `Price must be in ${increment} increments (suggested: $${expectedRounded.toFixed(2)})`
     };
   }
   

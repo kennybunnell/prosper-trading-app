@@ -7688,3 +7688,7 @@
 ## Bugs (Mar 9, 2026 - Order Preview Account Warning + Removed Account)
 - [x] Fix: Order Preview modal shows "No account connected" warning even when an account IS selected in the sidebar — Fixed: Math.max(parseFloat(cash-buying-power), parseFloat(derivative-buying-power)) in CSPDashboard, CCDashboard, and getBuyingPower server procedure
 - [x] Fix: Removed Tastytrade account (Individual HELOC) still appears in the account list after sync — Fixed: accounts.sync now calls deleteRemovedTastytradeAccounts(); added accounts.remove mutation; added Remove button in Settings
+
+## Bugs (Mar 9, 2026 - Round 2)
+- [x] Fix: Order Preview STILL shows "No account connected" warning — Root cause: selectedAccountId was null when no default account configured. Fixed: Sidebar now auto-selects first available account as fallback when no default is set in credentials.
+- [x] Fix: Order submission reports "rejected" / MSFT invalid_price_increment — Root causes: (1) modal adjustedPrices were NOT injected into orders before calling onSubmit; (2) formatPriceForSubmission used nickel rounding for all prices but Tastytrade requires penny increments for options < $3. Fixed: injected adjustedPrices in executeLiveSubmission and handleDryRun; updated tick-size rules in formatPriceForSubmission, validateOrderPrice, adjustPrice, setPriceFromSlider, computeGoodFillPrice, handleResetAllToMidpoint, and initial price useEffect. 15 tests pass.
