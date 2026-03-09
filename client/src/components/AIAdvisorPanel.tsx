@@ -350,17 +350,17 @@ export function AIAdvisorPanel({
                   {/* Key metrics row */}
                   <div className="flex gap-3 text-xs text-slate-400 flex-wrap">
                     <span>Score: <span className="text-white font-medium">{opp.score}</span></span>
-                    <span>ROC: <span className="text-green-400 font-medium">{opp.roc.toFixed(2)}%</span></span>
-                    {opp.delta !== undefined && (
+                    <span>ROC: <span className="text-green-400 font-medium">{(opp.roc ?? 0).toFixed(2)}%</span></span>
+                    {opp.delta != null && (
                       <span>Δ: <span className="text-blue-300 font-medium">{opp.delta.toFixed(3)}</span></span>
                     )}
-                    {opp.openInterest !== undefined && (
+                    {opp.openInterest != null && (
                       <span>OI: <span className="text-slate-300 font-medium">{opp.openInterest.toLocaleString()}</span></span>
                     )}
-                    {opp.ivRank !== undefined && (
+                    {opp.ivRank != null && (
                       <span>IVR: <span className="text-orange-300 font-medium">{opp.ivRank.toFixed(0)}%</span></span>
                     )}
-                    <span>Collateral: <span className="text-slate-300 font-medium">${opp.capitalRisk.toLocaleString()}</span></span>
+                    <span>Collateral: <span className="text-slate-300 font-medium">${(opp.capitalRisk ?? 0).toLocaleString()}</span></span>
                   </div>
 
                   {/* Rationale */}

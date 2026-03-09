@@ -7681,3 +7681,6 @@
 
 ## AI Advisor ivRank Null Fix (Mar 2026)
 - [x] Fix AI Advisor tRPC schema — ivRank, delta, openInterest, volume, weeklyPct, breakeven, bid, ask, currentPrice, longBid, longAsk, capitalAtRisk all now accept null via z.number().nullable().optional()
+
+## AIAdvisorPanel Null toFixed Crash Fix (Mar 2026)
+- [x] Fix all .toFixed() calls on nullable fields in AIAdvisorPanel — changed undefined checks to != null guards, added ?? 0 fallbacks for roc and capitalRisk
