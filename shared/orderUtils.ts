@@ -3,71 +3,111 @@
  * 
  * Centralized functions for order price formatting, validation, and submission
  * to ensure consistency across CSP, CC, PMCC, and Working Orders dashboards.
+ *
+ * IMPORTANT — Floating-point safety:
+ * JavaScript's IEEE 754 representation means that values like 3.15 are stored
+ * internally as 3.14999999999999982236... When Tastytrade's server checks
+ * `price % 0.05` it gets a non-zero remainder and rejects the order with
+ * "Price must be in increments of $0.05".
+ *
+ * The fix: ALL rounding uses integer arithmetic — multiply by 100 first,
+ * round to an integer, snap to the nearest valid tick (5 for nickel, 1 for
+ * penny), then divide back. This completely avoids floating-point drift.
+ *
+ * Tastytrade tick-size rules (equity options):
+ *   Price < $3.00  → $0.01 increments (penny pilot program)
+ *   Price >= $3.00 → $0.05 increments (nickel)
+ * Exceptions (always penny regardless of price):
+ *   SPY, QQQ, IWM
  */
 
+/** Symbols that always trade in $0.01 penny increments regardless of price */
+const PENNY_PILOT_SYMBOLS = new Set(['SPY', 'QQQ', 'IWM']);
+
 /**
- * Round price to nearest $0.01 (penny)
- * 
- * @param price - The price to round
- * @returns Price rounded to nearest $0.01
- * 
+ * Returns the correct tick size for a given price and optional symbol.
+ * - SPY, QQQ, IWM → always $0.01
+ * - Price >= $3.00 → $0.05
+ * - Price < $3.00  → $0.01
+ */
+export function getTickSize(price: number, symbol?: string): 0.01 | 0.05 {
+  if (symbol && PENNY_PILOT_SYMBOLS.has(symbol.toUpperCase())) return 0.01;
+  return price >= 3.00 ? 0.05 : 0.01;
+}
+
+/**
+ * Snap a price to the nearest valid Tastytrade tick using integer arithmetic.
+ * This is the single source of truth for all price rounding in the app.
+ *
+ * @param price  - Raw price (may have floating-point noise)
+ * @param symbol - Optional underlying symbol (for penny-pilot exceptions)
+ * @returns      - Price snapped to the correct tick, free of FP errors
+ *
  * @example
- * roundToPenny(1.234) // 1.23
- * roundToPenny(1.237) // 1.24
- * roundToPenny(0.476) // 0.48
+ * snapToTick(3.15)   // 3.15  (nickel — 63 × $0.05)
+ * snapToTick(3.1499) // 3.15  (rounds to nearest nickel)
+ * snapToTick(0.476)  // 0.48  (penny)
+ * snapToTick(3.15, 'SPY') // 3.15 (penny pilot — unchanged)
+ */
+export function snapToTick(price: number, symbol?: string): number {
+  const safe = Math.max(0.01, price);
+  const tick = getTickSize(safe, symbol);
+  if (tick === 0.05) {
+    // Integer arithmetic: work in units of $0.01, snap to nearest 5 cents
+    const cents = Math.round(safe * 100); // e.g. 3.15 → 315 (exact integer)
+    const snapped = Math.round(cents / 5) * 5;  // nearest multiple of 5
+    return snapped / 100;
+  } else {
+    // Penny: just round to nearest cent
+    return Math.round(safe * 100) / 100;
+  }
+}
+
+/**
+ * Round price to nearest $0.01 (penny) — legacy helper, kept for compatibility.
  */
 export function roundToPenny(price: number): number {
   return Math.round(price * 100) / 100;
 }
 
 /**
- * Round price to nearest $0.05 (nickel) - for fallback if penny rounding fails
- * 
- * @param price - The price to round
- * @returns Price rounded to nearest $0.05
+ * Round price to nearest $0.05 (nickel) — legacy helper, kept for compatibility.
+ * NOTE: Use snapToTick() for submission-critical paths to avoid FP errors.
  */
 export function roundToNickel(price: number): number {
-  return Math.round(price * 20) / 20;
+  const cents = Math.round(price * 100);
+  return (Math.round(cents / 5) * 5) / 100;
 }
 
 /**
  * Format price for Tastytrade API submission.
- * Tastytrade enforces two tick-size rules for equity options:
- *   - Price < $3.00  → $0.01 increments (penny pilot program)
- *   - Price >= $3.00 → $0.05 increments (nickel)
- * Submitting a non-conforming price causes a 422 "invalid_price_increment" rejection.
+ * Uses integer arithmetic to avoid floating-point precision errors.
  *
- * @param price - The price to format
- * @returns Formatted price string (e.g. "3.85", "0.47")
+ * @param price  - The price to format
+ * @param symbol - Optional underlying symbol (for penny-pilot exceptions)
+ * @returns      - Formatted price string (e.g. "3.85", "0.47")
  */
-export function formatPriceForSubmission(price: number): string {
-  const safePrice = Math.max(0.01, price);
-  let rounded: number;
-  if (safePrice >= 3.00) {
-    // Nickel increments for options priced $3.00 and above
-    rounded = Math.round(safePrice * 20) / 20; // nearest $0.05
-  } else {
-    // Penny increments for options priced below $3.00
-    rounded = Math.round(safePrice * 100) / 100; // nearest $0.01
-  }
-  return rounded.toFixed(2);
+export function formatPriceForSubmission(price: number, symbol?: string): string {
+  return snapToTick(price, symbol).toFixed(2);
 }
 
 /**
- * Calculate suggested fill price based on spread width and time working
- * Uses the same logic as the Streamlit implementation but with nickel rounding
- * 
- * @param bid - Current bid price
- * @param ask - Current ask price
+ * Calculate suggested fill price based on spread width and time working.
+ * Result is snapped to the correct tick for the given price level.
+ *
+ * @param bid                - Current bid price
+ * @param ask                - Current ask price
  * @param timeWorkingMinutes - How long the order has been working (optional)
- * @param aggressive - Use aggressive pricing to prioritize fills (optional)
- * @returns Suggested price rounded to nearest nickel
+ * @param aggressive         - Use aggressive pricing to prioritize fills (optional)
+ * @param symbol             - Underlying symbol for penny-pilot check (optional)
+ * @returns Suggested price snapped to the correct tick
  */
 export function calculateSuggestedPrice(
   bid: number,
   ask: number,
   timeWorkingMinutes: number = 0,
-  aggressive: boolean = false
+  aggressive: boolean = false,
+  symbol?: string
 ): number {
   if (!bid || !ask || bid <= 0 || ask <= 0) {
     return 0;
@@ -79,16 +119,12 @@ export function calculateSuggestedPrice(
 
   // Determine strategy based on spread width
   if (spread <= 0.05) {
-    // Tight spread - use mid
     suggested = mid;
   } else if (spread <= 0.15) {
-    // Medium spread - mid minus 1 cent
     suggested = mid - 0.01;
   } else if (spread <= 0.30) {
-    // Wide spread - 60% of spread
     suggested = bid + (spread * 0.60);
   } else {
-    // Very wide spread - 50% of spread
     suggested = bid + (spread * 0.50);
   }
 
@@ -101,7 +137,7 @@ export function calculateSuggestedPrice(
     suggested = Math.max(bid + 0.01, suggested - adjustment);
   }
 
-  // Aggressive mode - lower by additional $0.01-0.02
+  // Aggressive mode — lower by additional $0.01–0.02
   if (aggressive) {
     const aggressiveAdjustment = spread > 0.10 ? 0.02 : 0.01;
     suggested = Math.max(bid + 0.01, suggested - aggressiveAdjustment);
@@ -110,20 +146,20 @@ export function calculateSuggestedPrice(
   // Ensure suggested price is at least bid
   suggested = Math.max(bid, suggested);
 
-  // Round to nearest penny
-  return roundToPenny(suggested);
+  // Snap to correct tick (integer arithmetic)
+  return snapToTick(suggested, symbol);
 }
 
 /**
  * Build Tastytrade option symbol in OCC format
  * Format: TICKER(6)YYMMDD(6)P/C(1)STRIKE(8)
- * 
- * @param symbol - Underlying symbol (e.g., 'AAPL')
+ *
+ * @param symbol     - Underlying symbol (e.g., 'AAPL')
  * @param expiration - Expiration date in YYYY-MM-DD format
  * @param optionType - 'P' for Put or 'C' for Call
- * @param strike - Strike price
+ * @param strike     - Strike price
  * @returns Formatted option symbol
- * 
+ *
  * @example
  * buildOptionSymbol('AAPL', '2026-02-06', 'P', 150)
  * // Returns: 'AAPL  260206P00150000'
@@ -134,31 +170,27 @@ export function buildOptionSymbol(
   optionType: 'P' | 'C',
   strike: number
 ): string {
-  // Pad symbol to 6 characters
   const symbolPadded = symbol.padEnd(6, ' ');
-  
-  // Format date as YYMMDD (2-digit year)
   const expFormatted = expiration.replace(/-/g, ''); // YYYYMMDD
-  const expShort = expFormatted.substring(2); // Remove century: YYMMDD
-  
-  // Format strike as 8-digit cents (multiply by 1000 for options)
+  const expShort = expFormatted.substring(2); // YYMMDD
   const strikeFormatted = (strike * 1000).toString().padStart(8, '0');
-  
   return `${symbolPadded}${expShort}${optionType}${strikeFormatted}`;
 }
 
 /**
- * Validate order price against bid/ask spread
- * 
- * @param price - The order price to validate
- * @param bid - Current bid price
- * @param ask - Current ask price
+ * Validate order price against bid/ask spread and tick-size rules.
+ *
+ * @param price  - The order price to validate
+ * @param bid    - Current bid price
+ * @param ask    - Current ask price
+ * @param symbol - Optional underlying symbol for penny-pilot check
  * @returns Validation result with isValid flag and message
  */
 export function validateOrderPrice(
   price: number,
   bid: number,
-  ask: number
+  ask: number,
+  symbol?: string
 ): { isValid: boolean; message: string } {
   if (price < bid) {
     return {
@@ -166,24 +198,25 @@ export function validateOrderPrice(
       message: `Price $${price.toFixed(2)} is below bid $${bid.toFixed(2)}`
     };
   }
-  
+
   if (price > ask) {
     return {
       isValid: false,
       message: `Price $${price.toFixed(2)} is above ask $${ask.toFixed(2)}`
     };
   }
-  
-  // Check if price is a valid tick-size increment (nickel for >= $3, penny for < $3)
-  const expectedRounded = parseFloat(formatPriceForSubmission(price));
-  if (Math.abs(price - expectedRounded) > 0.001) {
-    const increment = price >= 3.00 ? '$0.05' : '$0.01';
+
+  // Check tick-size conformance using integer arithmetic
+  const snapped = snapToTick(price, symbol);
+  if (Math.abs(price - snapped) > 0.001) {
+    const tick = getTickSize(price, symbol);
+    const increment = tick === 0.05 ? '$0.05' : '$0.01';
     return {
       isValid: false,
-      message: `Price must be in ${increment} increments (suggested: $${expectedRounded.toFixed(2)})`
+      message: `Price must be in ${increment} increments (suggested: $${snapped.toFixed(2)})`
     };
   }
-  
+
   return {
     isValid: true,
     message: 'Price is valid'

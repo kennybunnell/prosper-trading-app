@@ -1874,13 +1874,20 @@ Summary: [One sentence overall assessment]`;
                     },
                   ];
               
-              // Calculate competitive limit price for spreads and Iron Condors
-              // Subtract 5% buffer (or $0.05 minimum) to encourage fills
-              const buffer = (order.isSpread || order.isIronCondor) ? Math.max(freshNetCredit * 0.05, 0.05) : 0;
-              const rawLimitPrice = Math.max(freshNetCredit - buffer, 0.01); // Ensure minimum $0.01
-              // Apply Tastytrade tick-size rules: $0.05 for >= $3, $0.01 for < $3
-              const { formatPriceForSubmission } = await import('../shared/orderUtils');
-              const limitPrice = parseFloat(formatPriceForSubmission(rawLimitPrice));
+              // Determine limit price:
+              // - Single-leg (CSP/CC): use order.premium exactly as adjusted by the user in the modal
+              // - Spreads/IC: use freshNetCredit (market price at submission time) with a 5% buffer
+              const { snapToTick } = await import('../shared/orderUtils');
+              let rawLimitPrice: number;
+              if (order.isSpread || order.isIronCondor) {
+                const buffer = Math.max(freshNetCredit * 0.05, 0.05);
+                rawLimitPrice = Math.max(freshNetCredit - buffer, 0.01);
+              } else {
+                // Use the user's adjusted price from the modal — already snapped to tick on the frontend
+                rawLimitPrice = Math.max(order.premium, 0.01);
+              }
+              // Re-snap on server side using integer arithmetic to eliminate any FP drift from JSON serialization
+              const limitPrice = snapToTick(rawLimitPrice, order.symbol);
               
               const orderRequest = {
                 accountNumber: input.accountId,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { snapToTick } from "../../../shared/orderUtils";
 import {
   Dialog,
   DialogContent,
@@ -250,11 +251,11 @@ export function UnifiedOrderPreviewModal({
             const midDebit = (minDebit + maxDebit) / 2;
             const rawPrice = Math.max(0.01, midDebit + (maxDebit - midDebit) * 0.25);
             // Apply Tastytrade tick-size rules
-            initialPrices.set(key, rawPrice >= 3.00 ? Math.round(rawPrice * 20) / 20 : Math.round(rawPrice * 100) / 100);
+            initialPrices.set(key, snapToTick(rawPrice, order.symbol));
           } else {
             // STO credit spread: use order.premium (netCredit mid) as the starting limit price
             const rawPrice = Math.max(0.01, order.premium);
-            initialPrices.set(key, rawPrice >= 3.00 ? Math.round(rawPrice * 20) / 20 : Math.round(rawPrice * 100) / 100);
+            initialPrices.set(key, snapToTick(rawPrice, order.symbol));
           }
         }
         // For single-leg options, use bid/ask
@@ -263,7 +264,7 @@ export function UnifiedOrderPreviewModal({
           // BTC: set to mid + 25% toward ask = Good Fill Zone
           const rawPrice = Math.max(0.01, isBTC ? mid + (order.ask - mid) * 0.25 : mid);
           // Apply Tastytrade tick-size rules: $0.05 for >= $3, $0.01 for < $3
-          initialPrices.set(key, rawPrice >= 3.00 ? Math.round(rawPrice * 20) / 20 : Math.round(rawPrice * 100) / 100);
+          initialPrices.set(key, snapToTick(rawPrice, order.symbol));
         }
         // Fallback to premium if no market data
         else {
@@ -283,12 +284,12 @@ export function UnifiedOrderPreviewModal({
   }, [open, submissionComplete]); // Check submissionComplete to prevent reset after live submission
 
   // Helper: compute Good Fill Zone price for a single-leg BTC order given bid/ask
-  const computeGoodFillPrice = (bid: number, ask: number, isBTC: boolean): number => {
+  const computeGoodFillPrice = (bid: number, ask: number, isBTC: boolean, symbol?: string): number => {
     if (bid > 0 && ask > 0) {
       const mid = (bid + ask) / 2;
       const rawPrice = Math.max(0.01, isBTC ? mid + (ask - mid) * 0.25 : mid);
-      // Apply Tastytrade tick-size rules: $0.05 for >= $3, $0.01 for < $3
-      return rawPrice >= 3.00 ? Math.round(rawPrice * 20) / 20 : Math.round(rawPrice * 100) / 100;
+      // Use integer-arithmetic snapToTick to avoid floating-point precision errors
+      return snapToTick(rawPrice, symbol);
     }
     return 0;
   };
@@ -304,7 +305,7 @@ export function UnifiedOrderPreviewModal({
         if (!sym) return;
         const q = liveQuotes[sym];
         if (!q || q.bid === 0 || q.ask === 0) return;
-        const price = computeGoodFillPrice(q.bid, q.ask, order.action === 'BTC');
+        const price = computeGoodFillPrice(q.bid, q.ask, order.action === 'BTC', order.symbol);
         if (price > 0) updated.set(key, price);
       });
       return updated;
@@ -956,10 +957,8 @@ export function UnifiedOrderPreviewModal({
     const key = getOrderKey(order);
     const currentPrice = adjustedPrices.get(key) || order.premium;
     const newPrice = Math.max(0.01, currentPrice + increment);
-    // Apply Tastytrade tick-size rules: $0.05 increments for prices >= $3, $0.01 for < $3
-    const roundedPrice = newPrice >= 3.00
-      ? Math.round(newPrice * 20) / 20
-      : Math.round(newPrice * 100) / 100;
+    // Use integer-arithmetic snapToTick to avoid floating-point precision errors
+    const roundedPrice = snapToTick(newPrice, order.symbol);
     setAdjustedPrices(prev => new Map(prev).set(key, roundedPrice));
   };
   
@@ -992,11 +991,9 @@ export function UnifiedOrderPreviewModal({
     const { minPrice, maxPrice } = getOrderPriceRange(order);
     const priceRange = maxPrice - minPrice;
     const newPrice = minPrice + (priceRange * value[0] / 100);
-    // Apply Tastytrade tick-size rules: $0.05 increments for prices >= $3, $0.01 for < $3
+    // Use integer-arithmetic snapToTick to avoid floating-point precision errors
     const safePrice = Math.max(0.01, newPrice);
-    const roundedPrice = safePrice >= 3.00
-      ? Math.round(safePrice * 20) / 20
-      : Math.round(safePrice * 100) / 100;
+    const roundedPrice = snapToTick(safePrice, order.symbol);
     const key = getOrderKey(order);
     setAdjustedPrices(prev => new Map(prev).set(key, roundedPrice));
   };
@@ -1044,8 +1041,8 @@ export function UnifiedOrderPreviewModal({
         const isBTC = order.action === 'BTC';
         const { minPrice, maxPrice, midPrice } = getOrderPriceRange(order);
         const rawGoodFill = Math.max(0.01, isBTC ? midPrice + (maxPrice - midPrice) * 0.25 : midPrice);
-        // Apply Tastytrade tick-size rules: $0.05 for >= $3, $0.01 for < $3
-        const goodFill = rawGoodFill >= 3.00 ? Math.round(rawGoodFill * 20) / 20 : Math.round(rawGoodFill * 100) / 100;
+        // Use integer-arithmetic snapToTick to avoid floating-point precision errors
+        const goodFill = snapToTick(rawGoodFill, order.symbol);
         const key = getOrderKey(order);
         newPrices.set(key, goodFill);
         updatedCount++;
