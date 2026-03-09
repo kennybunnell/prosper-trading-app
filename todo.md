@@ -7678,3 +7678,6 @@
 - [x] Fix NDX BCS spread width — maxDeviation reduced to 50% of effectiveWidth, preventing 200pt when 100pt is targeted
 - [x] Fix UnifiedOrderPreviewModal initial price for STO credit spreads — now uses order.premium (netCredit mid) directly
 - [x] Fix getOrderPriceRange for credit spreads — slider range now correctly spans worstCredit to bestCredit
+
+## AI Advisor ivRank Null Fix (Mar 2026)
+- [x] Fix AI Advisor tRPC schema — ivRank, delta, openInterest, volume, weeklyPct, breakeven, bid, ask, currentPrice, longBid, longAsk, capitalAtRisk all now accept null via z.number().nullable().optional()
