@@ -691,13 +691,44 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 const allPositions = await tt.getPositions(account.accountNumber);
                 const stockPositions = allPositions.filter((p: any) => p['instrument-type'] === 'Equity' && parseFloat(p.quantity) > 0);
                 const optionPositions = allPositions.filter((p: any) => p['instrument-type'] === 'Equity Option');
-                // Identify existing short calls to avoid over-covering
-                const shortCalls: Record<string, number> = {};
+                // Identify existing NAKED short calls to avoid over-covering.
+                // IC/BCS short calls are protected by a long call at a higher strike on the same
+                // expiration — they do NOT consume CC coverage capacity.
+                // Algorithm: for each underlying, match short calls with long calls (same expiration).
+                // Only unmatched short calls (true naked CCs) consume coverage capacity.
+                const shortCallsByExpiry: Record<string, Record<string, number>> = {}; // underlying -> expiry -> qty
+                const longCallsByExpiry: Record<string, Record<string, number>> = {};  // underlying -> expiry -> qty
                 for (const opt of optionPositions) {
-                  if ((opt as any)['quantity-direction'] === 'Short' && (opt as any).symbol.includes('C')) {
-                    const underlying = (opt as any)['underlying-symbol'];
-                    shortCalls[underlying] = (shortCalls[underlying] || 0) + Math.abs(parseFloat((opt as any).quantity));
+                  const sym = (opt as any).symbol as string;
+                  // OCC symbol format: "TSLA  260313C00402500" — option_type is at position after spaces
+                  const isCall = sym.replace(/\s+/, '').match(/^[A-Z]+\d{6}C/);
+                  if (!isCall) continue;
+                  const underlying = (opt as any)['underlying-symbol'] as string;
+                  const expiry = (opt as any)['expiration-date'] as string || sym.slice(6, 12);
+                  const qty = Math.abs(parseFloat((opt as any).quantity));
+                  const dir = (opt as any)['quantity-direction'];
+                  if (dir === 'Short') {
+                    if (!shortCallsByExpiry[underlying]) shortCallsByExpiry[underlying] = {};
+                    shortCallsByExpiry[underlying][expiry] = (shortCallsByExpiry[underlying][expiry] || 0) + qty;
+                  } else if (dir === 'Long') {
+                    if (!longCallsByExpiry[underlying]) longCallsByExpiry[underlying] = {};
+                    longCallsByExpiry[underlying][expiry] = (longCallsByExpiry[underlying][expiry] || 0) + qty;
                   }
+                }
+                // For each underlying, naked short calls = max(0, total_short - total_long) per expiry
+                // (long calls at any strike on the same expiry protect the short call leg of a spread)
+                const shortCalls: Record<string, number> = {};
+                for (const underlying of Object.keys(shortCallsByExpiry)) {
+                  const shortByExpiry = shortCallsByExpiry[underlying];
+                  const longByExpiry = longCallsByExpiry[underlying] || {};
+                  let nakedCount = 0;
+                  for (const expiry of Object.keys(shortByExpiry)) {
+                    const shortQty = shortByExpiry[expiry];
+                    const longQty = longByExpiry[expiry] || 0;
+                    nakedCount += Math.max(0, shortQty - longQty);
+                  }
+                  if (nakedCount > 0) shortCalls[underlying] = nakedCount;
+                  console.log(`[Automation CC] ${underlying}: shortCalls=${JSON.stringify(shortByExpiry)}, longCalls=${JSON.stringify(longByExpiry)}, nakedCCs=${nakedCount}`);
                 }
                 // Load liquidation flags (SYMBOL-WIDE) — skip any symbol flagged for exit
                 // in ANY account. A dog is a dog — flagged in one account = blocked everywhere.

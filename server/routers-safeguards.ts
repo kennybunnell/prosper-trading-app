@@ -298,17 +298,37 @@ export const safeguardsRouter = router({
         const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
         const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
 
-        // Count existing short calls per symbol
-        const existingShortCalls: Record<string, number> = {};
+        // Count existing NAKED short calls per symbol.
+        // IC/BCS short calls are protected by a long call on the same expiry and do NOT
+        // consume CC coverage capacity. Only unmatched short calls (true naked CCs) count.
+        const shortCallsByExpiry: Record<string, Record<string, number>> = {}; // underlying -> expiry -> qty
+        const longCallsByExpiry: Record<string, Record<string, number>> = {};  // underlying -> expiry -> qty
         for (const p of optionPositions) {
-          const direction = p['quantity-direction']?.toLowerCase();
           const sym = (p.symbol || '').replace(/\s/g, '');
           const isCall = !!sym.match(/[A-Z]+\d{6}C/);
-          if (direction === 'short' && isCall) {
-            const underlying = p['underlying-symbol'] || '';
-            const qty = Math.abs(parseInt(String(p.quantity || '1')));
-            existingShortCalls[underlying] = (existingShortCalls[underlying] || 0) + qty;
+          if (!isCall) continue;
+          const underlying = p['underlying-symbol'] || '';
+          const expiry = (p['expires-at'] as string || '').split('T')[0] || '';
+          const qty = Math.abs(parseInt(String(p.quantity || '1')));
+          const direction = p['quantity-direction']?.toLowerCase();
+          if (direction === 'short') {
+            if (!shortCallsByExpiry[underlying]) shortCallsByExpiry[underlying] = {};
+            shortCallsByExpiry[underlying][expiry] = (shortCallsByExpiry[underlying][expiry] || 0) + qty;
+          } else if (direction === 'long') {
+            if (!longCallsByExpiry[underlying]) longCallsByExpiry[underlying] = {};
+            longCallsByExpiry[underlying][expiry] = (longCallsByExpiry[underlying][expiry] || 0) + qty;
           }
+        }
+        // Naked short calls = max(0, short - long) per expiry, summed across all expiries
+        const existingShortCalls: Record<string, number> = {};
+        for (const underlying of Object.keys(shortCallsByExpiry)) {
+          const shortByExpiry = shortCallsByExpiry[underlying];
+          const longByExpiry = longCallsByExpiry[underlying] || {};
+          let nakedCount = 0;
+          for (const expiry of Object.keys(shortByExpiry)) {
+            nakedCount += Math.max(0, (shortByExpiry[expiry] || 0) - (longByExpiry[expiry] || 0));
+          }
+          if (nakedCount > 0) existingShortCalls[underlying] = nakedCount;
         }
 
         // Build coverage map
@@ -650,13 +670,25 @@ export const safeguardsRouter = router({
           );
           const sharesOwned = stockPos ? parseInt(String(stockPos.quantity || '0')) : 0;
 
-          const existingShortCalls = optionPositions.filter((p: any) => {
-            const direction = p['quantity-direction']?.toLowerCase();
-            const sym = (p.symbol || '').replace(/\s/g, '');
-            return direction === 'short' && !!sym.match(/[A-Z]+\d{6}C/);
-          });
-          const existingContracts = existingShortCalls.reduce((sum: number, p: any) =>
-            sum + Math.abs(parseInt(String(p.quantity || '1'))), 0);
+          // Count only NAKED short calls for this symbol (exclude IC/BCS spread legs)
+          const shortCallsForSym: Record<string, number> = {}; // expiry -> qty
+          const longCallsForSym: Record<string, number> = {};  // expiry -> qty
+          for (const p of optionPositions) {
+            const sym2 = (p.symbol || '').replace(/\s/g, '');
+            const isCall2 = !!sym2.match(/[A-Z]+\d{6}C/);
+            if (!isCall2) continue;
+            const underlying2 = p['underlying-symbol'] || '';
+            if (underlying2 !== input.symbol) continue;
+            const expiry2 = (p['expires-at'] as string || '').split('T')[0] || '';
+            const qty2 = Math.abs(parseInt(String(p.quantity || '1')));
+            const dir2 = p['quantity-direction']?.toLowerCase();
+            if (dir2 === 'short') shortCallsForSym[expiry2] = (shortCallsForSym[expiry2] || 0) + qty2;
+            else if (dir2 === 'long') longCallsForSym[expiry2] = (longCallsForSym[expiry2] || 0) + qty2;
+          }
+          let existingContracts = 0;
+          for (const expiry2 of Object.keys(shortCallsForSym)) {
+            existingContracts += Math.max(0, (shortCallsForSym[expiry2] || 0) - (longCallsForSym[expiry2] || 0));
+          }
 
           const usedShares = existingContracts * 100;
           const availableShares = Math.max(0, sharesOwned - usedShares);

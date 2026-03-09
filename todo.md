@@ -7698,3 +7698,12 @@
 
 ## Bugs (Mar 9, 2026 - Round 4)
 - [x] BUG: /automation page throws TRPCClientError "Automation log not found" on load — Fixed: (1) Added retry:false to getLog query; (2) clearAllLogs.onSuccess calls setLastRunId(null); (3) deleteLog.onSuccess clears lastRunId if the deleted log was active; (4) Added isStaleAutomationLog suppression in main.tsx global error handler
+
+## Enhancement (Mar 9, 2026)
+- [ ] Automation scan: add pre-scan eligibility check to exclude symbols where available CC contracts = 0 (already fully covered) before building the order list
+
+## IC Short Call Counting Fix (Mar 9, 2026)
+- [x] Fix automation CC scan: IC/BCS short call legs incorrectly counted as CC coverage, blocking valid CC orders
+- [x] Fix safeguard 3 (preTradeCheck sell_call): same IC spread leg counting bug fixed
+- [x] Fix safeguard checkCoverage (checkCoveredCallCoverage): same IC spread leg counting bug fixed
+- [x] Fix TypeScript errors: replaced 'expiration-date' (not in TastytradePosition) with 'expires-at' in both locations
