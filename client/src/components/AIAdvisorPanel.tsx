@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -91,6 +91,8 @@ export function AIAdvisorPanel({
   const [selectedPicks, setSelectedPicks] = useState<Set<number>>(new Set());
   // Per-pick quantity overrides (key = pick index, value = quantity)
   const [quantities, setQuantities] = useState<Record<number, number>>({});
+  // Store the top50 array used for the last AI analysis so onSubmitSelected can look up original data
+  const top50Ref = useRef<Opportunity[]>([]);
 
   const analyze = trpc.aiAdvisor.analyzeOpportunities.useMutation({
     onSuccess: (data) => {
@@ -144,6 +146,7 @@ export function AIAdvisorPanel({
       if (!guaranteedSet.has(opp)) remaining.push(opp);
     }
     const top50 = [...guaranteed, ...remaining].slice(0, 50);
+    top50Ref.current = top50; // Store for use in onSubmitSelected
     analyze.mutate({ opportunities: top50, availableBuyingPower, strategy });
   };
 
@@ -160,10 +163,17 @@ export function AIAdvisorPanel({
     if (!picks || !onSubmitSelected) return;
     const chosen = picks
       .filter((_, i) => selectedPicks.has(i))
-      .map((pick, i) => {
+      .map((pick) => {
         const pickIdx = picks.indexOf(pick);
         const adjustedQty = quantities[pickIdx] ?? pick.quantity;
-        return { ...pick, quantity: adjustedQty };
+        // Enrich the pick's opportunity with the original data from top50Ref.
+        // The AI server may return null/undefined for optional numeric fields (shortStrike, strike)
+        // because Zod strips null values. Using the original top50 data avoids this issue.
+        const originalOpp = top50Ref.current[pick.opportunityIndex];
+        const enrichedOpportunity = originalOpp
+          ? { ...pick.opportunity, ...originalOpp }
+          : pick.opportunity;
+        return { ...pick, quantity: adjustedQty, opportunity: enrichedOpportunity };
       });
     if (chosen.length === 0) return;
     onSubmitSelected(chosen);

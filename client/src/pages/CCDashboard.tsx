@@ -2376,7 +2376,7 @@ export default function CCDashboard() {
                   expiration: opp.expiration,
                   dte: opp.dte,
                   netCredit: strategyType === 'spread' ? (opp.netCredit ?? 0) : (opp.premium ?? 0),
-                  capitalRisk: strategyType === 'spread' ? ((opp.capitalAtRisk ?? 0) * 100) : (opp.currentPrice * 100),
+                  capitalRisk: strategyType === 'spread' ? (opp.capitalAtRisk ?? 0) : (opp.currentPrice * 100),
                   roc: opp.spreadROC ?? opp.returnPct ?? 0,
                   weeklyPct: opp.weeklyReturn,
                   breakeven: opp.breakeven,
@@ -2421,6 +2421,8 @@ export default function CCDashboard() {
                       ask: askValue,
                       currentPrice: opp.currentPrice ?? 0,
                       quantity: pick.quantity,
+                      isSpread: isSpread,
+                      capitalAtRisk: isSpread ? (opp.capitalAtRisk ?? opp.capitalRisk) : undefined,
                     };
                   });
                   setUnifiedOrders(orders);

@@ -1468,9 +1468,10 @@ Summary: [One sentence overall assessment]`;
         // Validate each order
         const validatedOrders = input.orders.map(order => {
           // For spreads, use capital at risk; for CSP, use full collateral
-          const collateral = order.isSpread && order.capitalAtRisk 
-            ? order.capitalAtRisk 
-            : order.strike * 100;
+          // Guard against zero strike (data issue) by falling back to capitalAtRisk
+          const collateral = order.isSpread
+            ? (order.capitalAtRisk || (order.strike > 0 ? order.strike * 100 : 0))
+            : (order.strike > 0 ? order.strike * 100 : 0);
           
           console.log(`[validateOrders] ${order.symbol} - isSpread: ${order.isSpread}, capitalAtRisk: ${order.capitalAtRisk}, strike: ${order.strike}, calculated collateral: ${collateral}`);
           const midpoint = (order.bid + order.ask) / 2;

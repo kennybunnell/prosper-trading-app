@@ -1703,7 +1703,7 @@ export default function CSPDashboard() {
       )}
 
 
-      {/* Summary Cards - Show totals for ALL opportunities (before filtering) */}
+      {/* Summary Cards - Show totals for SELECTED opportunities only */}
       {opportunities.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
           <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 to-yellow-500/5 backdrop-blur border-amber-500/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
@@ -1719,8 +1719,8 @@ export default function CSPDashboard() {
             <CardContent className="relative">
               <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
                 ${strategyType === 'spread'
-                  ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).netCredit * 100 || 0), 0).toFixed(2)
-                  : opportunities.reduce((sum: number, opp: any) => sum + (opp.premium * 100), 0).toFixed(2)}
+                  ? selectedOppsList.reduce((sum: number, opp: any) => sum + ((opp as any).netCredit * 100 || 0), 0).toFixed(2)
+                  : selectedOppsList.reduce((sum: number, opp: any) => sum + (opp.premium * 100), 0).toFixed(2)}
               </div>
             </CardContent>
           </Card>
@@ -1739,8 +1739,8 @@ export default function CSPDashboard() {
               <div className="text-3xl font-bold bg-gradient-to-r from-slate-400 to-gray-400 bg-clip-text text-transparent">
                 ${(() => {
                   const collateral = strategyType === 'spread'
-                    ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                    : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
+                    ? selectedOppsList.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : selectedOppsList.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                   return collateral.toFixed(2);
                 })()}
               </div>
@@ -1761,11 +1761,11 @@ export default function CSPDashboard() {
               <div className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
                 {(() => {
                   const totalPrem = strategyType === 'spread'
-                    ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).netCredit * 100 || 0), 0)
-                    : opportunities.reduce((sum: number, opp: any) => sum + (opp.premium * 100), 0);
+                    ? selectedOppsList.reduce((sum: number, opp: any) => sum + ((opp as any).netCredit * 100 || 0), 0)
+                    : selectedOppsList.reduce((sum: number, opp: any) => sum + (opp.premium * 100), 0);
                   const totalColl = strategyType === 'spread'
-                    ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                    : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
+                    ? selectedOppsList.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : selectedOppsList.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                   const roc = totalColl > 0 ? (totalPrem / totalColl) * 100 : 0;
                   return roc.toFixed(2);
                 })()}%
@@ -1794,8 +1794,8 @@ export default function CSPDashboard() {
             "relative overflow-hidden backdrop-blur shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]",
             (() => {
               const totalColl = strategyType === 'spread'
-                ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
+                ? selectedOppsList.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                : selectedOppsList.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
               const availableBP = availableBuyingPower;
               const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
               return usedPct > 80 
@@ -1810,8 +1810,8 @@ export default function CSPDashboard() {
                   "p-2 rounded-lg",
                   (() => {
                     const totalColl = strategyType === 'spread'
-                      ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                      : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
+                      ? selectedOppsList.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                      : selectedOppsList.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                     const availableBP = availableBuyingPower;
                     const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                     return usedPct > 80 ? "bg-red-500/20" : "bg-emerald-500/20";
@@ -1821,8 +1821,8 @@ export default function CSPDashboard() {
                     "w-4 h-4",
                     (() => {
                       const totalColl = strategyType === 'spread'
-                        ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                        : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
+                        ? selectedOppsList.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                        : selectedOppsList.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                       const availableBP = availableBuyingPower;
                       const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                       return usedPct > 80 ? "text-red-400" : "text-emerald-400";
@@ -1840,8 +1840,8 @@ export default function CSPDashboard() {
                 "text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent",
                 (() => {
                   const totalColl = strategyType === 'spread'
-                    ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                    : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
+                    ? selectedOppsList.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : selectedOppsList.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                   const availableBP = availableBuyingPower;
                   const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                   return usedPct > 80 
@@ -1851,8 +1851,8 @@ export default function CSPDashboard() {
               )}>
                 {(() => {
                   const totalColl = strategyType === 'spread'
-                    ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                    : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
+                    ? selectedOppsList.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : selectedOppsList.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                   const availableBP = availableBuyingPower;
                   const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                   return usedPct.toFixed(1);
@@ -1862,8 +1862,8 @@ export default function CSPDashboard() {
                 "text-3xl font-bold mt-2",
                 (() => {
                   const totalColl = strategyType === 'spread'
-                    ? opportunities.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
-                    : opportunities.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
+                    ? selectedOppsList.reduce((sum: number, opp: any) => sum + ((opp as any).capitalAtRisk || 0), 0)
+                    : selectedOppsList.reduce((sum: number, opp: any) => sum + (opp.strike * 100), 0);
                   const availableBP = availableBuyingPower;
                   const usedPct = availableBP > 0 ? (totalColl / availableBP) * 100 : 0;
                   return usedPct > 80 ? "text-red-400" : "text-emerald-400";
@@ -2241,15 +2241,15 @@ export default function CSPDashboard() {
                   score: opp.score ?? 0,
                   symbol: opp.symbol,
                   strategy: strategyType === 'spread' ? 'BPS' : 'CSP',
-                  shortStrike: strategyType === 'spread' ? (opp as any).shortStrike : undefined,
-                  longStrike: strategyType === 'spread' ? (opp as any).longStrike : undefined,
-                  strike: strategyType === 'csp' ? opp.strike : undefined,
+                  shortStrike: strategyType === 'spread' ? (Number(opp.strike) || Number((opp as any).shortStrike) || undefined) : undefined,
+                  longStrike: strategyType === 'spread' ? (Number((opp as any).longStrike) || undefined) : undefined,
+                  strike: strategyType === 'csp' ? (Number(opp.strike) || undefined) : undefined,
                   expiration: opp.expiration,
                   dte: opp.dte,
                   netCredit: strategyType === 'spread' ? ((opp as any).netCredit ?? 0) : (opp.premium ?? 0),
                   capitalRisk: strategyType === 'spread' ? ((opp as any).capitalAtRisk ?? (opp as any).capitalRisk ?? 0) : (opp.strike * 100),
-                  roc: strategyType === 'spread' ? ((opp as any).roc ?? 0) : (opp.weeklyReturn ?? 0),
-                  weeklyPct: opp.weeklyReturn,
+                  roc: strategyType === 'spread' ? ((opp as any).spreadROC ?? (opp as any).roc ?? 0) : (opp.weeklyPct ?? opp.roc ?? 0),
+                  weeklyPct: opp.weeklyPct ?? (opp as any).weeklyReturn,
                   breakeven: opp.breakeven,
                   delta: opp.delta,
                   openInterest: opp.openInterest,
@@ -2270,13 +2270,17 @@ export default function CSPDashboard() {
                     return;
                   }
                   const orders = picks.map((pick) => {
+                    // pick.opportunity is now enriched with original opportunity data from top50Ref
+                    // in AIAdvisorPanel.handleSubmitSelected, so strike/shortStrike are correct.
                     const opp = pick.opportunity as any;
                     const isSpread = strategyType === 'spread';
-                    // For spreads: use shortStrike; for CSP: use strike
-                    // Both fields are optional on the opportunity so we need robust fallbacks
-                    const strikeValue = isSpread
-                      ? (opp.shortStrike ?? opp.strike ?? 0)
-                      : (opp.strike ?? opp.shortStrike ?? 0);
+                    // For spreads: the raw spread object uses `strike` as the short strike
+                    // For CSP: use `strike` directly
+                    const strikeValue = opp.strike ?? opp.shortStrike ?? 0;
+                    const longStrikeValue = opp.longStrike || undefined; // use undefined (not 0) so falsy check in calculateTotalCollateral works
+                    const spreadWidth = isSpread && strikeValue > 0 && longStrikeValue && longStrikeValue > 0
+                      ? Math.abs(strikeValue - longStrikeValue)
+                      : (opp.spreadWidth ?? 0);
                     const bidValue = opp.bid ?? opp.netCredit ?? 0;
                     const askValue = opp.ask ?? opp.netCredit ?? 0;
                     return {
@@ -2284,19 +2288,19 @@ export default function CSPDashboard() {
                       strike: strikeValue,
                       expiration: opp.expiration,
                       quantity: pick.quantity,
-                      premium: opp.netCredit ?? 0,
+                      premium: isSpread ? (opp.netCredit ?? 0) : (opp.premium ?? opp.netCredit ?? 0),
                       bid: bidValue,
                       ask: askValue,
-                      mid: opp.netCredit ?? 0,
+                      mid: isSpread ? (opp.netCredit ?? 0) : (opp.premium ?? opp.netCredit ?? 0),
                       collateral: isSpread
-                        ? (opp.capitalAtRisk ?? opp.capitalRisk ?? strikeValue * 100)
+                        ? (opp.capitalAtRisk ?? opp.capitalRisk ?? (spreadWidth > 0 ? spreadWidth * 100 : strikeValue * 100))
                         : (strikeValue * 100),
                       status: 'valid' as const,
                       currentPrice: opp.currentPrice ?? 0,
                       ivRank: opp.ivRank,
                       isSpread,
                       spreadType: isSpread ? 'bull_put' as const : undefined,
-                      longStrike: isSpread ? opp.longStrike : undefined,
+                      longStrike: isSpread ? longStrikeValue : undefined,
                       longBid: isSpread ? (opp.longBid ?? 0) : undefined,
                       longAsk: isSpread ? (opp.longAsk ?? 0) : undefined,
                       spreadWidth: isSpread ? spreadWidth : undefined,

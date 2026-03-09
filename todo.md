@@ -7644,3 +7644,17 @@
 ## Fixes (Mar 8, 2026 - Account Required Prompt)
 - [x] AI Advisor: show amber warning when no account connected (remove $100k fake estimate language)
 - [x] Order Preview Modal: show amber warning when no account connected, allow up to 99 contracts instead of capping at 0
+
+## Bug (Mar 8, 2026 - AI Advisor Order Preview Collateral)
+- [ ] Fix: Order Preview shows $3.5M collateral instead of ~$3,500 — strike=0 because shortStrike not mapped to strike field in onSubmitSelected handlers
+## Bug Fix (Mar 8, 2026 - Buying Power Check in Order Preview)
+- [x] Fix: Order Preview incorrectly shows "not enough buying power" — root cause: buying power summary card used ALL scanned opportunities instead of AI-selected ones; also fixed strike=0 issue by using Number() coercion in mapping and enriching picks with original top50Ref data in AIAdvisorPanel; fixed spreadWidth undefined variable in onSubmitSelected; added capitalAtRisk fallback in UnifiedOrderPreviewModal calculateTotalCollateral; fixed server validateOrders collateral guard for zero strike
+
+## Buying Power & Strike Price Bug Fixes (Mar 2026)
+- [x] Fix: Summary cards (Total Premium, Total Collateral, ROC, Buying Power) now use selectedOppsList (AI-selected) instead of all scanned opportunities
+- [x] Fix: AIAdvisorPanel now uses top50Ref to store original mapped opportunities and enriches AI picks before calling onSubmitSelected, ensuring strike prices flow correctly
+- [x] Fix: BPS onSubmitSelected handler uses `opp.strike ?? opp.shortStrike ?? 0` for robust strike fallback
+- [x] Fix: longStrikeValue uses `|| undefined` (not `?? 0`) to prevent passing 0 as longStrike, which would cause wrong spread width calculation
+- [x] Fix: collateral fallback improved to use `capitalAtRisk ?? capitalRisk ?? (spreadWidth > 0 ? spreadWidth * 100 : strikeValue * 100)`
+- [x] Fix: Updated comment on first summary cards section to reflect correct behavior (selectedOppsList)
+- [x] Added unit tests: server/buying-power-fix.test.ts (10 tests all passing)

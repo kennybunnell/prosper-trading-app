@@ -488,6 +488,10 @@ export function UnifiedOrderPreviewModal({
         
         case "bcs":
         case "bps":
+          // If strike is 0 (data issue), fall back to capitalAtRisk or collateral
+          if (!order.strike) {
+            return sum + (((order as any).capitalAtRisk || (order as any).collateral || 0) * qty);
+          }
           if (order.longStrike) {
             const spreadWidth = Math.abs(order.strike - order.longStrike);
             return sum + (spreadWidth * 100 * qty);
