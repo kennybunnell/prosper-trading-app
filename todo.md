@@ -7714,3 +7714,6 @@
 - [x] Fix getLiveOrders and getWorkingOrders to catch isRateLimit flag and JSON parse errors, throw clean message
 - [x] Fix routers-working-orders.ts catch block to surface clean "Rate exceeded" message
 - [x] Improve WorkingOrdersTab error UI: shows "Rate limit reached" with friendly message and Retry button
+
+## CC Dashboard Polling Crash (Mar 9, 2026)
+- [x] Fix CC Dashboard polling error: tRPC endpoint returns HTML error page instead of JSON

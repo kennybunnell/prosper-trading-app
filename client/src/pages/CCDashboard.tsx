@@ -1099,7 +1099,7 @@ export default function CCDashboard() {
         orderId: orderIds[index],
         symbol: '', // Symbol not available from polling endpoint
         status: status.status as any,
-        message: status.marketClosedMessage || status.rejectedReason || 'Status unknown',
+        message: (status as any).marketClosedMessage || (status as any).rejectedReason || (status as any).message || 'Status unknown',
       }));
     } catch (error: any) {
       console.error('[CC Dashboard] Polling error:', error);

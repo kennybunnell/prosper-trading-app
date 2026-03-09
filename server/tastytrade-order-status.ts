@@ -50,7 +50,7 @@ function isMarketOpen(): boolean {
 export async function checkOrderStatus(
   accountId: string,
   orderId: string,
-  retryCount: number = 3
+  retryCount: number = 2  // Default reduced from 3 to 2 to keep requests short
 ): Promise<OrderStatus> {
   const api = getTastytradeAPI();
   
@@ -112,6 +112,18 @@ export async function checkOrderStatus(
       console.log(`[OrderStatus] Order ${orderId} not found (404) - likely filled/cancelled and purged`);
       return { status: 'Unknown' };
     }
+
+    // Tastytrade rate-limit returns plain text "Rate exceeded." which causes JSON parse errors
+    const msg: string = error.message || '';
+    if (
+      error.isRateLimit ||
+      msg.includes('Rate exceeded') ||
+      msg.includes('not valid JSON') ||
+      msg.includes('Unexpected token')
+    ) {
+      console.warn(`[OrderStatus] Rate limited while checking order ${orderId} - returning Working`);
+      return { status: 'Working' };
+    }
     
       // On last attempt, throw the error
       if (attempt === retryCount) {
@@ -119,8 +131,8 @@ export async function checkOrderStatus(
         throw new Error(`Failed to check order status: ${error.message}`);
       }
       
-      // Wait before retrying (exponential backoff: 1s, 2s, 4s)
-      const waitTime = Math.pow(2, attempt - 1) * 1000;
+      // Wait before retrying (capped at 1 second to keep requests short)
+      const waitTime = Math.min(Math.pow(2, attempt - 1) * 1000, 1000);
       console.log(`[OrderStatus] Retry ${attempt}/${retryCount} for order ${orderId} after ${waitTime}ms`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }

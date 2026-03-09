@@ -59,22 +59,33 @@ export const ordersRouter = router({
     }),
 
   /**
-   * Poll order status until it's no longer "Working"
+   * Check order status once (single request, no server-side polling loop).
+   * The client is responsible for calling this repeatedly at its own interval.
+   * This avoids long-running HTTP requests that time out and return HTML.
    */
   pollStatus: protectedProcedure
     .input(
       z.object({
         accountId: z.string(),
         orderId: z.string(),
+        // maxAttempts / intervalMs kept for backwards-compat but ignored
         maxAttempts: z.number().optional(),
         intervalMs: z.number().optional(),
       })
     )
     .mutation(async ({ input }) => {
-      return await pollOrderStatus(input.accountId, input.orderId, {
-        maxAttempts: input.maxAttempts,
-        intervalMs: input.intervalMs,
-      });
+      try {
+        const status = await checkOrderStatus(input.accountId, input.orderId, 1);
+        return { ...status, orderId: input.orderId };
+      } catch (error: any) {
+        // Surface a clean error instead of letting the server crash
+        const msg: string = error.message || 'Unknown error';
+        if (msg.includes('Rate exceeded') || msg.includes('not valid JSON') || msg.includes('Unexpected token')) {
+          return { status: 'Working' as const, orderId: input.orderId, message: 'Rate limited — will retry' };
+        }
+        console.error(`[pollStatus] Error for order ${input.orderId}:`, msg);
+        return { status: 'Unknown' as const, orderId: input.orderId, message: msg };
+      }
     }),
 
   /**
