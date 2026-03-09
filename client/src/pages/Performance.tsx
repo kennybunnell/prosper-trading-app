@@ -1487,7 +1487,7 @@ export function WorkingOrdersTab() {
     
     // Build UnifiedOrder array from working orders
     const ordersToReplace = selectedOrders.size > 0
-      ? Array.from(selectedOrders).map(idx => orders[idx])
+      ? Array.from(selectedOrders).map(idx => orders[idx]).filter((o): o is NonNullable<typeof o> => o != null)
       : orders.filter(order => order.needsReplacement);
     
     const unifiedOrders: UnifiedOrder[] = ordersToReplace.map(order => ({
@@ -1529,15 +1529,17 @@ export function WorkingOrdersTab() {
 
   const confirmFillNow = () => {
     // Use Ask + $0.10 for guaranteed immediate fills on selected orders only
-    const ordersToFill = Array.from(selectedOrders).map(idx => {
-      const order = orders[idx];
+    const ordersToFill = Array.from(selectedOrders)
+      .map(idx => orders[idx])
+      .filter((o): o is NonNullable<typeof o> => o != null)
+      .map(order => {
       return {
         orderId: String(order.orderId),
         accountNumber: String(order.accountNumber),
-        symbol: order.symbol,
-        suggestedPrice: order.ask + 0.10, // Force Ask + $0.10 for instant fill
-        rawOrder: order.rawOrder,
-      };
+      symbol: order.symbol,
+            suggestedPrice: order.ask + 0.10, // Force Ask + $0.10 for instant fill
+            rawOrder: order.rawOrder,
+          };
     });
 
     replaceOrdersMutation.mutate({ orders: ordersToFill });
@@ -1546,11 +1548,14 @@ export function WorkingOrdersTab() {
   };
 
   const confirmCancel = () => {
-    const ordersToCancel = Array.from(selectedOrders).map(idx => ({
-      orderId: String(orders[idx].orderId), // Convert to string to match schema
-      accountNumber: String(orders[idx].accountNumber),
-      symbol: orders[idx].symbol,
-    }));
+    const ordersToCancel = Array.from(selectedOrders)
+      .map(idx => orders[idx])
+      .filter((o): o is NonNullable<typeof o> => o != null)
+      .map(order => ({
+        orderId: String(order.orderId),
+        accountNumber: String(order.accountNumber),
+        symbol: order.symbol,
+      }));
 
     cancelOrdersMutation.mutate({ orders: ordersToCancel });
     setShowCancelDialog(false);
@@ -1682,8 +1687,11 @@ export function WorkingOrdersTab() {
     );
   }
 
-  const selectedOrdersList = Array.from(selectedOrders).map(idx => orders[idx]);
-  const totalCostToClose = selectedOrdersList.reduce((sum, order) => sum + (order.suggestedPrice * order.quantity * 100), 0);
+  // Filter out stale indices — after a refetch the orders array may be shorter
+  const selectedOrdersList = Array.from(selectedOrders)
+    .map(idx => orders[idx])
+    .filter((o): o is NonNullable<typeof o> => o != null);
+  const totalCostToClose = selectedOrdersList.reduce((sum, order) => sum + ((order.suggestedPrice ?? 0) * order.quantity * 100), 0);
 
   return (
     <div className="space-y-6">
@@ -1969,7 +1977,7 @@ export function WorkingOrdersTab() {
               {Object.entries(ordersBySymbol)
                 .sort(([, a], [, b]) => b.length - a.length)
                 .map(([symbol, symbolOrders]) => {
-                  const totalValue = symbolOrders.reduce((sum, o) => sum + (o.suggestedPrice * o.quantity * 100), 0);
+                  const totalValue = symbolOrders.reduce((sum, o) => sum + ((o.suggestedPrice ?? 0) * o.quantity * 100), 0);
                   const needsReplacement = symbolOrders.filter(o => o.needsReplacement).length;
                   const avgMinutes = Math.round(symbolOrders.reduce((sum, o) => sum + o.minutesWorking, 0) / symbolOrders.length);
 
@@ -2009,7 +2017,7 @@ export function WorkingOrdersTab() {
                               orderId: String(order.orderId),
                               accountNumber: String(order.accountNumber),
                               symbol: order.symbol,
-                              suggestedPrice: order.suggestedPrice,
+                              suggestedPrice: order.suggestedPrice ?? 0,
                               rawOrder: order.rawOrder,
                             }));
                             replaceOrdersMutation.mutate({ orders: ordersToReplace });
@@ -2227,7 +2235,7 @@ export function WorkingOrdersTab() {
                           <span className={`font-medium ${
                             order.needsReplacement ? 'text-yellow-400' : 'text-green-400'
                           }`}>
-                            ${order.suggestedPrice.toFixed(2)}
+                            ${(order.suggestedPrice ?? 0).toFixed(2)}
                           </span>
                         </td>
                         <td className="p-3 text-sm text-muted-foreground" title={order.strategy}>
@@ -2382,7 +2390,7 @@ export function WorkingOrdersTab() {
                                     <span className="text-muted-foreground">Suggested fill:</span>
                                     <span className={`font-semibold ${
                                       order.needsReplacement ? 'text-yellow-400' : 'text-green-400'
-                                    }`}>${order.suggestedPrice.toFixed(2)} / spread</span>
+                                    }`}>${(order.suggestedPrice ?? 0).toFixed(2)} / spread</span>
                                   </div>
                                   <div className="flex items-center gap-1.5 text-muted-foreground/70 italic">
                                     <span>💡 Profit = original premium collected − close cost</span>
@@ -2585,7 +2593,7 @@ export function WorkingOrdersTab() {
                 </thead>
                 <tbody>
                   {(selectedOrders.size > 0 
-                    ? Array.from(selectedOrders).map(idx => orders[idx])
+                    ? Array.from(selectedOrders).map(idx => orders[idx]).filter((o): o is NonNullable<typeof o> => o != null)
                     : orders.filter(o => o.needsReplacement)
                   ).map((order, idx) => {
                     // For spread orders: use price-effect from API for direction
@@ -2621,12 +2629,12 @@ export function WorkingOrdersTab() {
                         <td className="p-2 text-right font-medium text-yellow-400">${order.ask.toFixed(2)}</td>
                         <td className="p-2 text-right">${order.mid.toFixed(2)}</td>
                         <td className="p-2 text-right">
-                          <div className="font-bold text-green-400">${order.suggestedPrice.toFixed(2)}</div>
+                          <div className="font-bold text-green-400">${(order.suggestedPrice ?? 0).toFixed(2)}</div>
                           <div className="text-xs text-muted-foreground">
-                            {order.currentPrice !== order.suggestedPrice && (
-                              <span className={order.suggestedPrice > order.currentPrice ? 'text-red-400' : 'text-green-400'}>
-                                {order.suggestedPrice > order.currentPrice ? '+' : ''}
-                                ${(order.suggestedPrice - order.currentPrice).toFixed(2)}
+                            {order.currentPrice !== (order.suggestedPrice ?? 0) && (
+                              <span className={(order.suggestedPrice ?? 0) > order.currentPrice ? 'text-red-400' : 'text-green-400'}>
+                                {(order.suggestedPrice ?? 0) > order.currentPrice ? '+' : ''}
+                                ${((order.suggestedPrice ?? 0) - order.currentPrice).toFixed(2)}
                               </span>
                             )}
                           </div>
@@ -2660,8 +2668,8 @@ export function WorkingOrdersTab() {
                 <span className="text-muted-foreground">Total Cost to Close:</span>
                 <span className="font-bold text-lg">
                   ${(selectedOrders.size > 0 
-                    ? Array.from(selectedOrders).map(idx => orders[idx]).reduce((sum, o) => sum + (o.suggestedPrice * o.quantity * 100), 0)
-                    : orders.filter(o => o.needsReplacement).reduce((sum, o) => sum + (o.suggestedPrice * o.quantity * 100), 0)
+                    ? Array.from(selectedOrders).map(idx => orders[idx]).filter((o): o is NonNullable<typeof o> => o != null).reduce((sum, o) => sum + ((o.suggestedPrice ?? 0) * o.quantity * 100), 0)
+                    : orders.filter(o => o.needsReplacement).reduce((sum, o) => sum + ((o.suggestedPrice ?? 0) * o.quantity * 100), 0)
                   ).toFixed(2)}
                 </span>
               </div>

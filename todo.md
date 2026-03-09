@@ -7717,3 +7717,6 @@
 
 ## CC Dashboard Polling Crash (Mar 9, 2026)
 - [x] Fix CC Dashboard polling error: tRPC endpoint returns HTML error page instead of JSON
+
+## WorkingOrdersTab suggestedPrice Crash (Mar 9, 2026)
+- [x] Fix TypeError: Cannot read properties of undefined (reading 'suggestedPrice') in WorkingOrdersTab
