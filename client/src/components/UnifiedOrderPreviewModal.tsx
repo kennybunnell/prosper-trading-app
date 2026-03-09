@@ -414,12 +414,12 @@ export function UnifiedOrderPreviewModal({
       
       case "csp": {
         // Cash-secured puts: limited by buying power
-        // Use fallback BP of $100k when no account connected (availableBuyingPower = 0)
-        const effectiveBP_csp = availableBuyingPower > 0 ? availableBuyingPower : 100000;
+        // If no account connected, allow up to 99 contracts (no real limit enforced)
+        if (availableBuyingPower <= 0) return 99;
         const collateralPerContract = order.strike * 100;
         const currentTotalCollateral = calculateTotalCollateral();
         const thisOrderCollateral = getQuantity(order) * collateralPerContract;
-        const remainingBP = effectiveBP_csp - (currentTotalCollateral - thisOrderCollateral);
+        const remainingBP = availableBuyingPower - (currentTotalCollateral - thisOrderCollateral);
         
         return Math.max(1, Math.floor(remainingBP / collateralPerContract));
       }
@@ -427,26 +427,26 @@ export function UnifiedOrderPreviewModal({
       case "bcs":
       case "bps": {
         // Spreads: limited by spread collateral
-        // Use fallback BP of $100k when no account connected (availableBuyingPower = 0)
-        const effectiveBP_bps = availableBuyingPower > 0 ? availableBuyingPower : 100000;
+        // If no account connected, allow up to 99 contracts (no real limit enforced)
+        if (availableBuyingPower <= 0) return 99;
         if (!order.longStrike) return 0;
         const spreadWidth = Math.abs(order.strike - order.longStrike);
         const collateralPerContract = spreadWidth * 100;
         const currentTotalCollateral = calculateTotalCollateral();
         const thisOrderCollateral = getQuantity(order) * collateralPerContract;
-        const remainingBP = effectiveBP_bps - (currentTotalCollateral - thisOrderCollateral);
+        const remainingBP = availableBuyingPower - (currentTotalCollateral - thisOrderCollateral);
         
         return Math.max(1, Math.floor(remainingBP / collateralPerContract));
       }
       
       case "pmcc": {
         // PMCC (buying LEAPs): limited by buying power
-        // Use fallback BP of $100k when no account connected (availableBuyingPower = 0)
-        const effectiveBP_pmcc = availableBuyingPower > 0 ? availableBuyingPower : 100000;
+        // If no account connected, allow up to 99 contracts (no real limit enforced)
+        if (availableBuyingPower <= 0) return 99;
         const costPerContract = order.premium * 100;
         const currentTotalCost = calculateTotalPremium();
         const thisOrderCost = getQuantity(order) * costPerContract;
-        const remainingBP = effectiveBP_pmcc - (currentTotalCost - thisOrderCost);
+        const remainingBP = availableBuyingPower - (currentTotalCost - thisOrderCost);
         
         return Math.max(1, Math.floor(remainingBP / costPerContract));
       }
@@ -1079,6 +1079,19 @@ export function UnifiedOrderPreviewModal({
           </div>
         )}
         
+        {/* No Account Warning Banner */}
+        {availableBuyingPower === 0 && !submissionComplete && (
+          <div className="flex items-start gap-2 px-6 py-2.5 bg-amber-950/30 border-b border-amber-500/30 text-amber-300 text-xs">
+            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-amber-400" />
+            <div>
+              <span className="font-semibold">No account connected</span> — buying power is unavailable, so quantity limits cannot be enforced.{' '}
+              Connect your Tastytrade account in{' '}
+              <a href="/settings" className="underline text-amber-200 hover:text-white">Settings</a>{' '}
+              to enable accurate position sizing.
+            </div>
+          </div>
+        )}
+
         <div className="space-y-6 overflow-y-auto flex-1 px-1">
           {/* Status Banner */}
           {dryRunSuccess && !finalOrderStatus && (

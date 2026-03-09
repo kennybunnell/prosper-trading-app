@@ -244,11 +244,22 @@ export function AIAdvisorPanel({
         {/* Picks */}
         {picks && picks.length > 0 && !analyze.isPending && (
           <div className="space-y-3">
+            {availableBuyingPower === 0 && (
+              <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40 text-amber-300 text-xs mb-2">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-400" />
+                <div>
+                  <span className="font-medium">No account connected</span> — quantities shown are estimates only.{' '}
+                  Connect your Tastytrade account in{' '}
+                  <a href="/settings" className="underline text-amber-200 hover:text-white">Settings</a>{' '}
+                  for accurate buying power and contract sizing.
+                </div>
+              </div>
+            )}
             <p className="text-xs text-slate-500 mb-1">
               Top {picks.length} from {Math.min(opportunities.length, 50)} scanned
               {availableBuyingPower > 0
                 ? ` · $${availableBuyingPower.toLocaleString()} buying power`
-                : ' · Quantities estimated from $100k BP'}
+                : ''}
               {onSubmitSelected && (
                 <span className="text-purple-400"> · Check picks to include in pre-order</span>
               )}

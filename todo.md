@@ -7634,3 +7634,13 @@
 ## Fixes (Mar 8, 2026 - Qty + Per-Symbol)
 - [x] Fix: Order Preview modal quantity +/- buttons disabled when availableBuyingPower = $0 (use $100k fallback for all strategies)
 - [x] Fix: AI Advisor only showing SPX picks - now guarantees at least one best pick per unique symbol scanned (NDXP, MRUT, SPX all represented)
+
+## UX Improvement (Mar 8, 2026 - Account Required)
+- [ ] Remove $100k fake BP fallback from AI Advisor and Order Preview
+- [ ] Show account-required warning in AI Advisor when no account is connected
+- [ ] Show account-required warning in Order Preview modal when availableBuyingPower = $0
+- [ ] Add "Go to Settings" link in both warnings to make it easy to configure credentials
+
+## Fixes (Mar 8, 2026 - Account Required Prompt)
+- [x] AI Advisor: show amber warning when no account connected (remove $100k fake estimate language)
+- [x] Order Preview Modal: show amber warning when no account connected, allow up to 99 contracts instead of capping at 0
