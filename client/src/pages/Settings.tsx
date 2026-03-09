@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, AlertCircle, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -108,11 +108,22 @@ export default function Settings() {
 
   const syncAccounts = trpc.accounts.sync.useMutation({
     onSuccess: (data) => {
-      toast.success(`Synced ${data.count} account(s) from Tastytrade`);
+      const removedMsg = (data as any).removed > 0 ? ` (${(data as any).removed} removed)` : '';
+      toast.success(`Synced ${data.count} account(s) from Tastytrade${removedMsg}`);
       utils.accounts.list.invalidate();
     },
     onError: (error) => {
       toast.error(`Failed to sync accounts: ${error.message}`);
+    },
+  });
+
+  const removeAccount = trpc.accounts.remove.useMutation({
+    onSuccess: () => {
+      toast.success('Account removed successfully');
+      utils.accounts.list.invalidate();
+    },
+    onError: (error) => {
+      toast.error(`Failed to remove account: ${error.message}`);
     },
   });
 
@@ -329,6 +340,32 @@ export default function Settings() {
                 Sync Accounts
               </Button>
             </div>
+            {accounts.length > 0 && (
+              <div className="space-y-2">
+                <Label>Connected Accounts</Label>
+                <div className="space-y-1">
+                  {accounts.map((account: any) => (
+                    <div key={account.accountId} className="flex items-center justify-between px-3 py-2 rounded-md bg-muted/40 text-sm">
+                      <span className="font-medium">{account.nickname || account.accountNumber}</span>
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <span>{account.accountType}</span>
+                        <span className="text-xs opacity-60">{account.accountNumber}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => removeAccount.mutate({ accountId: account.accountId })}
+                          disabled={removeAccount.isPending}
+                          title="Remove account"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {accounts.length > 0 && (
               <div className="space-y-2">
                 <Label htmlFor="default-account">Default Account</Label>

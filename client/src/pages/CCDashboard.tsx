@@ -381,7 +381,7 @@ export default function CCDashboard() {
   // Calculate available buying power based on trading mode
   const availableBuyingPower = tradingMode === 'paper'
     ? (paperBalance?.buyingPower || 0)
-    : Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
+    : Math.max(parseFloat(String(balances?.['cash-buying-power'] || '0')), parseFloat(String(balances?.['derivative-buying-power'] || '0')));
 
   const filteredOpportunities = useMemo(() => {
     let filtered = [...opportunities];

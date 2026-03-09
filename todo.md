@@ -7684,3 +7684,7 @@
 
 ## AIAdvisorPanel Null toFixed Crash Fix (Mar 2026)
 - [x] Fix all .toFixed() calls on nullable fields in AIAdvisorPanel — changed undefined checks to != null guards, added ?? 0 fallbacks for roc and capitalRisk
+
+## Bugs (Mar 9, 2026 - Order Preview Account Warning + Removed Account)
+- [x] Fix: Order Preview modal shows "No account connected" warning even when an account IS selected in the sidebar — Fixed: Math.max(parseFloat(cash-buying-power), parseFloat(derivative-buying-power)) in CSPDashboard, CCDashboard, and getBuyingPower server procedure
+- [x] Fix: Removed Tastytrade account (Individual HELOC) still appears in the account list after sync — Fixed: accounts.sync now calls deleteRemovedTastytradeAccounts(); added accounts.remove mutation; added Remove button in Settings

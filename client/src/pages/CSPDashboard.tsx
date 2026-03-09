@@ -693,7 +693,7 @@ export default function CSPDashboard() {
   // Calculate buying power metrics
   const availableBuyingPower = tradingMode === 'paper' 
     ? (paperBalance?.buyingPower || 0)
-    : Number(balances?.['cash-buying-power'] || balances?.['derivative-buying-power'] || 0);
+    : Math.max(parseFloat(String(balances?.['cash-buying-power'] || '0')), parseFloat(String(balances?.['derivative-buying-power'] || '0')));
   const buyingPowerUsedPct = availableBuyingPower > 0 ? (totalCollateral / availableBuyingPower) * 100 : 0;
   const overLimit = totalCollateral > availableBuyingPower ? totalCollateral - availableBuyingPower : 0;
   const buyingPowerColor = buyingPowerUsedPct < 80 ? 'text-green-500' : buyingPowerUsedPct < 90 ? 'text-yellow-500' : 'text-red-500';

@@ -511,6 +511,42 @@ export async function upsertTastytradeAccount(userId: number, account: { account
   }
 }
 
+/**
+ * Delete accounts that are no longer returned by the Tastytrade API.
+ * Called after a sync to remove closed/removed accounts from the local DB.
+ * Safety guard: if liveAccountNumbers is empty, nothing is deleted.
+ */
+export async function deleteRemovedTastytradeAccounts(userId: number, liveAccountNumbers: string[]): Promise<number> {
+  if (liveAccountNumbers.length === 0) return 0;
+  const db = await getDb();
+  if (!db) return 0;
+  const { tastytradeAccounts } = await import('../drizzle/schema');
+  const { eq, and, inArray } = await import('drizzle-orm');
+
+  const existing = await db.select({ accountNumber: tastytradeAccounts.accountNumber })
+    .from(tastytradeAccounts)
+    .where(eq(tastytradeAccounts.userId, userId));
+
+  // Find accounts in DB that are NOT in the live list from Tastytrade
+  const toDelete = existing
+    .map((a) => a.accountNumber)
+    .filter((n) => !liveAccountNumbers.includes(n));
+
+  if (toDelete.length === 0) return 0;
+
+  console.log('[DB] Deleting removed Tastytrade accounts:', toDelete);
+  // Use inArray (not notInArray) to delete ONLY the removed accounts
+  await db.delete(tastytradeAccounts)
+    .where(
+      and(
+        eq(tastytradeAccounts.userId, userId),
+        inArray(tastytradeAccounts.accountNumber, toDelete)
+      )
+    );
+
+  return toDelete.length;
+}
+
 // Trades queries
 export async function saveTrade(userId: number, trade: any) {
   const db = await getDb();

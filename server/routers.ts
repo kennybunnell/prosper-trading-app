@@ -1007,20 +1007,35 @@ export const appRouter = router({
       const { getTastytradeAccounts } = await import('./db');
       return getTastytradeAccounts(ctx.user.id);
     }),
-    sync: protectedProcedure.mutation(async ({ ctx }) => {
-      const { getApiCredentials, upsertTastytradeAccount } = await import('./db');
+    remove: protectedProcedure
+      .input(z.object({ accountId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await (await import('./db')).getDb();
+        if (!db) throw new Error('Database unavailable');
+        const { tastytradeAccounts } = await import('../drizzle/schema');
+        const { eq, and } = await import('drizzle-orm');
+        await db.delete(tastytradeAccounts).where(
+          and(
+            eq(tastytradeAccounts.userId, ctx.user.id),
+            eq(tastytradeAccounts.accountId, input.accountId)
+          )
+        );
+        console.log(`[Accounts] Removed account ${input.accountId} for user ${ctx.user.id}`);
+        return { success: true };
+      }),
+     sync: protectedProcedure.mutation(async ({ ctx }) => {
+      const { getApiCredentials, upsertTastytradeAccount, deleteRemovedTastytradeAccounts } = await import('./db');
       const { getTastytradeAPI } = await import('./tastytrade');
-
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
         throw new Error('Tastytrade OAuth2 credentials not configured. Please add them in Settings.');
       }
-
       const { authenticateTastytrade } = await import('./tastytrade');
       const api = await authenticateTastytrade(credentials, ctx.user.id);
       const accounts = await api.getAccounts();
-
       console.log('[Account Sync] Retrieved accounts from Tastytrade:', JSON.stringify(accounts, null, 2));
+
+      const liveAccountNumbers: string[] = [];
 
       for (const item of accounts) {
         console.log('[Account Sync] Processing account:', JSON.stringify(item, null, 2));
@@ -1044,9 +1059,17 @@ export const appRouter = router({
           accountType: accountType,
           nickname: nickname || undefined,
         });
+
+        liveAccountNumbers.push(accountNumber);
       }
 
-      return { success: true, count: accounts.length };
+      // Remove accounts that no longer exist in Tastytrade (closed/removed accounts)
+      const removed = await deleteRemovedTastytradeAccounts(ctx.user.id, liveAccountNumbers);
+      if (removed > 0) {
+        console.log(`[Account Sync] Removed ${removed} account(s) no longer in Tastytrade`);
+      }
+
+      return { success: true, count: accounts.length, removed };
     }),
     getBuyingPower: protectedProcedure
       .input(z.object({ accountId: z.string() }))
@@ -1061,8 +1084,13 @@ export const appRouter = router({
 
         const api = await authenticateTastytrade(credentials, ctx.user.id);
         const balances = await api.getBalances(input.accountId);
-        const buyingPower = Number(balances['derivative-buying-power'] || 0);
-
+        // Tastytrade returns numeric fields as strings (e.g. "617261.367").
+        // Use parseFloat + Math.max to avoid the truthy-string bug where
+        // Number("0.0" || "617261.367") incorrectly evaluates to 0.
+        const buyingPower = Math.max(
+          parseFloat(String(balances?.['derivative-buying-power'] || '0')),
+          parseFloat(String(balances?.['cash-buying-power'] || '0'))
+        );
         return { buyingPower };
       }),
   }),

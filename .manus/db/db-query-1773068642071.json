@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, accountId, accountNumber, accountType, nickname FROM tastytradeAccounts ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT id, accountId, accountNumber, accountType, nickname FROM tastytradeAccounts ORDER BY id;",
+  "rows": [
+    {
+      "id": "2",
+      "accountId": "5WZ80418",
+      "accountNumber": "5WZ80418",
+      "accountType": "Traditional IRA",
+      "nickname": "Traditional IRA"
+    },
+    {
+      "id": "3",
+      "accountId": "5WZ77313",
+      "accountNumber": "5WZ77313",
+      "accountType": "Individual",
+      "nickname": "Main Cash Account"
+    },
+    {
+      "id": "60001",
+      "accountId": "DEMO-3420094-1769952241150",
+      "accountNumber": "DEMO3420094",
+      "accountType": "Demo Account",
+      "nickname": "Demo Trading Account"
+    },
+    {
+      "id": "90001",
+      "accountId": "5WI37251",
+      "accountNumber": "5WI37251",
+      "accountType": "Individual",
+      "nickname": "HELOC Margin"
+    },
+    {
+      "id": "120001",
+      "accountId": "DEMO-9780091-1771397215161",
+      "accountNumber": "DEMO9780091",
+      "accountType": "Demo Account",
+      "nickname": "Demo Trading Account"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\taccountId\taccountNumber\taccountType\tnickname\n2\t5WZ80418\t5WZ80418\tTraditional IRA\tTraditional IRA\n3\t5WZ77313\t5WZ77313\tIndividual\tMain Cash Account\n60001\tDEMO-3420094-1769952241150\tDEMO3420094\tDemo Account\tDemo Trading Account\n90001\t5WI37251\t5WI37251\tIndividual\tHELOC Margin\n120001\tDEMO-9780091-1771397215161\tDEMO9780091\tDemo Account\tDemo Trading Account\n",
+  "stderr": "",
+  "execution_time_ms": 64
+}
