@@ -241,15 +241,21 @@ export function UnifiedOrderPreviewModal({
         const key = getOrderKey(order);
         const isBTC = order.action === 'BTC';
         
-        // For spreads, calculate net debit range from both legs
+        // For spreads, calculate net credit/debit range from both legs
         if (order.longStrike && order.bid && order.ask && order.longBid && order.longAsk) {
-          // Net debit range for BTC spread: (shortBid - longAsk) to (shortAsk - longBid)
-          const minDebit = order.bid - order.longAsk;  // Best case (most aggressive)
-          const maxDebit = order.ask - order.longBid;  // Worst case (hit the ask)
-          const midDebit = (minDebit + maxDebit) / 2;
-          // BTC: set to mid + 25% toward ask = Good Fill Zone
-          const goodFillPrice = isBTC ? midDebit + (maxDebit - midDebit) * 0.25 : midDebit;
-          initialPrices.set(key, Math.round(Math.max(0.01, goodFillPrice) * 20) / 20); // round to $0.05
+          if (isBTC) {
+            // BTC spread: net debit range (shortBid - longAsk) to (shortAsk - longBid)
+            const minDebit = order.bid - order.longAsk;  // Best case (most aggressive)
+            const maxDebit = order.ask - order.longBid;  // Worst case (hit the ask)
+            const midDebit = (minDebit + maxDebit) / 2;
+            const goodFillPrice = midDebit + (maxDebit - midDebit) * 0.25;
+            initialPrices.set(key, Math.round(Math.max(0.01, goodFillPrice) * 20) / 20);
+          } else {
+            // STO credit spread: use order.premium (netCredit mid) as the starting limit price
+            // This is already calculated as (shortMid - longMid) in the pricing function
+            const netCreditMid = order.premium;
+            initialPrices.set(key, Math.round(Math.max(0.01, netCreditMid) * 20) / 20);
+          }
         }
         // For single-leg options, use bid/ask
         else if (order.bid && order.ask && order.bid > 0 && order.ask > 0) {
@@ -943,13 +949,14 @@ export function UnifiedOrderPreviewModal({
       const fallback = Math.max(0.01, order.premium);
       return { minPrice: 0.01, maxPrice: Math.max(fallback * 2, 0.50), midPrice: fallback };
     }
-    if (order.longStrike && order.longBid !== undefined && order.longAsk !== undefined) {
-      // Spread: net debit range (short leg ask - long leg bid = worst case; short bid - long ask = best case)
-      const naturalMin = order.bid - order.longAsk;  // Best case for BTC
-      const naturalMax = order.ask - order.longBid;  // Worst case for BTC
-      const midPrice = (naturalMin + naturalMax) / 2;
-      // Always allow going below natural min (down to $0.01) and above natural max (up to 2x)
-      return { minPrice: 0.01, maxPrice: Math.max(naturalMax * 2, 0.50), midPrice };
+    if (order.longStrike && order.bid && order.ask && order.longBid !== undefined && order.longAsk !== undefined) {
+      // Credit spread (STO): net credit range
+      //   worst case (least credit): sell at bid, buy at ask = bid - longAsk
+      //   best case (most credit):  sell at ask, buy at bid = ask - longBid
+      const worstCredit = Math.max(0.01, order.bid - order.longAsk);
+      const bestCredit  = order.ask - order.longBid;
+      const midPrice = order.premium; // netCredit mid = (shortMid - longMid)
+      return { minPrice: Math.max(0.01, worstCredit * 0.5), maxPrice: Math.max(bestCredit * 1.5, 0.50), midPrice };
     }
     // Single-leg: extend range below bid and above ask for full manual control
     const midPrice = (order.bid + order.ask) / 2;

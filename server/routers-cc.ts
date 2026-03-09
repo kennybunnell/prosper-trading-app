@@ -613,7 +613,10 @@ export const ccRouter = router({
                   .map(o => o.strike as number)
                   .sort((a, b) => a - b);
 
-                const maxDeviation = Math.max(effectiveWidth * 2, 50);
+                // maxDeviation: allow at most 50% overshoot of the target width
+                // (e.g., for a 100pt NDX target, accept strikes between 50pt and 150pt above short)
+                // This prevents accepting a 200pt strike when 100pt is the target.
+                const maxDeviation = Math.max(Math.round(effectiveWidth * 0.5), 5);
                 const bestLongStrike = callStrikes.reduce((best: number | undefined, s) => {
                   if (Math.abs(s - targetLongStrike) > maxDeviation) return best;
                   if (best === undefined) return s;

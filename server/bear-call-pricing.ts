@@ -72,9 +72,12 @@ export function calculateBearCallSpread(
   const longStrike = shortStrike + spreadWidth;
   
   // Net credit = premium received from short call - premium paid for long call
-  // Use bid for selling (short call) and ask for buying (long call)
-  const shortPremium = ccOpp.bid; // What we receive
-  const longPremium = longCallQuote.ask; // What we pay
+  // Use mid prices for spread pricing (standard approach for limit order calculation)
+  // The order preview slider will let the user adjust from this mid-based starting point
+  const shortMid = (ccOpp.bid + ccOpp.ask) / 2;
+  const longMid = (longCallQuote.bid + longCallQuote.ask) / 2;
+  const shortPremium = shortMid; // Mid of short call
+  const longPremium = longMid;   // Mid of long call
   const netCredit = shortPremium - longPremium;
   
   // Capital at risk = spread width - net credit received

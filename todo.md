@@ -7672,3 +7672,9 @@
 - [x] Fix BCS scan to resolve index symbol aliases for Tradier API (SPXW→SPX, NDXP→NDX, MRUT→RUT) in scanOpportunities and bearCallSpreadOpportunities
 - [x] Add nearest-strike fallback and auto-scaling spread width for index BCS (mirrors IC scanner logic)
 - [x] Pass actualWidth to calculateBearCallSpread for correct collateral on index spreads
+
+## BCS Net Credit Calculation Fix (Mar 2026)
+- [x] Fix calculateBearCallSpread — net credit now uses mid prices (shortMid - longMid)
+- [x] Fix NDX BCS spread width — maxDeviation reduced to 50% of effectiveWidth, preventing 200pt when 100pt is targeted
+- [x] Fix UnifiedOrderPreviewModal initial price for STO credit spreads — now uses order.premium (netCredit mid) directly
+- [x] Fix getOrderPriceRange for credit spreads — slider range now correctly spans worstCredit to bestCredit
