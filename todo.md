@@ -7662,3 +7662,13 @@
 ## NDX/NDXP Spread Width Fix (Mar 2026)
 - [x] Fix: NDX/NDXP now uses 100pt spread width — added getEffectiveSpreadWidth() to the single-spread scan path (same auto-scaling logic as Iron Condor scan)
 - [x] Verify symbol-based spread width logic correctly enforces NDX=100pt, SPX/SPXW=25pt (auto-scaled via price * 0.004 formula)
+
+## Bear Call Spread No Results Bug (Mar 2026)
+- [ ] Diagnose why Bear Call Spread scan returns no results in CC Dashboard
+- [ ] Check BCS scan logic in routers.ts — CC opportunities, long call strike calculation, filter thresholds
+- [ ] Verify the watchlist symbols (AMD, META, GOOGL, TSLA, NVDA etc.) have available call options
+
+## BCS Index Symbol Filter Fix (Mar 2026)
+- [x] Fix BCS scan to resolve index symbol aliases for Tradier API (SPXW→SPX, NDXP→NDX, MRUT→RUT) in scanOpportunities and bearCallSpreadOpportunities
+- [x] Add nearest-strike fallback and auto-scaling spread width for index BCS (mirrors IC scanner logic)
+- [x] Pass actualWidth to calculateBearCallSpread for correct collateral on index spreads

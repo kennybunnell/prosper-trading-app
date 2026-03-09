@@ -267,17 +267,25 @@ export const ccRouter = router({
           
           if (!holding && isBearCallSpreadMode) {
             // Fetch current price from Tradier quote API
+            // For index option series (NDXP, MRUT, SPXW), Tradier requires the underlying
+            // index symbol for quotes: NDXP → NDX, MRUT → RUT, SPXW → SPX.
+            const INDEX_QUOTE_MAP: Record<string, string> = {
+              SPXW: 'SPX', SPXPM: 'SPX', NDX: 'NDX', NDXP: 'NDX',
+              XND: 'XND', RUT: 'RUT', MRUT: 'RUT', DJX: 'DJX',
+              VIX: 'VIX', VIXW: 'VIX', OEX: 'OEX', XEO: 'OEX', XSP: 'XSP',
+            };
+            const quoteSymbol = INDEX_QUOTE_MAP[symbol.toUpperCase()] || symbol;
             try {
-              const quote = await api.getQuote(symbol);
+              const quote = await api.getQuote(quoteSymbol);
               holding = {
                 symbol,
                 quantity: 0, // No stock ownership required for bear call spreads
                 currentPrice: quote.last || quote.close || 0,
                 maxContracts: 999, // Unlimited contracts for spreads (no stock requirement)
               };
-              console.log(`[CC Scanner] Fetched quote for ${symbol}: $${holding.currentPrice}`);
+              console.log(`[CC Scanner] Fetched quote for ${symbol} (via ${quoteSymbol}): $${holding.currentPrice}`);
             } catch (error: any) {
-              console.error(`[CC Scanner] Failed to fetch quote for ${symbol}: ${error.message}`);
+              console.error(`[CC Scanner] Failed to fetch quote for ${symbol} (via ${quoteSymbol}): ${error.message}`);
               return [];
             }
           }
@@ -286,19 +294,40 @@ export const ccRouter = router({
 
           const symbolOpportunities: any[] = [];
 
+          // Resolve Tradier-recognised symbols for index option series.
+          // SPXW/SPXPM expirations and chains are listed under SPX on Tradier;
+          // NDXP under NDX; MRUT under RUT. Quotes use the same underlying symbol.
+          const INDEX_OPTION_ROOT_MAP: Record<string, string> = {
+            SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX',
+          };
+          const INDEX_UNDERLYING_MAP_CC: Record<string, string> = {
+            SPXW: 'SPX', SPXPM: 'SPX', NDX: 'NDX', NDXP: 'NDX',
+            XND: 'XND', RUT: 'RUT', MRUT: 'RUT', DJX: 'DJX',
+            VIX: 'VIX', VIXW: 'VIX', OEX: 'OEX', XEO: 'OEX', XSP: 'XSP',
+          };
+          // tradierRoot: used for expirations + option chain (e.g. SPX for SPXW)
+          const tradierRoot = INDEX_OPTION_ROOT_MAP[symbol.toUpperCase()] || symbol;
+          // underlyingSymbol: used for quotes + technical indicators (e.g. SPX for SPXW)
+          const underlyingSymbol = INDEX_UNDERLYING_MAP_CC[symbol.toUpperCase()] || symbol;
+          const isIndexSeries = tradierRoot !== symbol || underlyingSymbol !== symbol;
+          if (isIndexSeries) {
+            console.log(`[CC Scanner] Index series detected: ${symbol} → root: ${tradierRoot}, underlying: ${underlyingSymbol}`);
+          }
+
           try {
             // Fetch indicators (RSI, IV Rank, BB %B) with timeout
+            // For index series use the underlying symbol (e.g. SPX not SPXW)
             const indicators = await withTimeout(
-              api.getTechnicalIndicators(symbol),
+              api.getTechnicalIndicators(underlyingSymbol),
               API_TIMEOUT_MS
             ).catch(() => ({ rsi: null, ivRank: null, bollingerBands: { percentB: null } }));
             const rsi = indicators?.rsi || null;
             const ivRank = indicators?.ivRank || null;
             const bbPctB = indicators?.bollingerBands?.percentB || null;
 
-            // Fetch expirations and filter by DTE with timeout
+            // Fetch expirations using Tradier-recognised option root (e.g. SPX for SPXW)
             const expirations = await withTimeout(
-              api.getExpirations(symbol),
+              api.getExpirations(tradierRoot),
               API_TIMEOUT_MS
             ).catch(() => []);
             const today = new Date();
@@ -317,9 +346,10 @@ export const ccRouter = router({
               const expBatch = filteredExpirations.slice(j, j + EXP_CONCURRENCY);
               const expPromises = expBatch.map(async (expiration) => {
                 try {
-                  console.log(`[CC Scanner DEBUG] ${symbol} ${expiration}: Fetching option chain...`);
+                  console.log(`[CC Scanner DEBUG] ${symbol} ${expiration}: Fetching option chain (via ${tradierRoot})...`);
+                  // Use tradierRoot for option chain (e.g. SPX for SPXW, NDX for NDXP)
                   const options = await withTimeout(
-                    api.getOptionChain(symbol, expiration, true),
+                    api.getOptionChain(tradierRoot, expiration, true),
                     API_TIMEOUT_MS
                   );
                   console.log(`[CC Scanner DEBUG] ${symbol} ${expiration}: Received ${options.length} total options from Tradier API`);
@@ -524,6 +554,20 @@ export const ccRouter = router({
 
       console.log(`[BearCallSpread] Processing ${input.ccOpportunities.length} opportunities grouped into ${Object.keys(groupedOpps).length} unique symbol+expiration combos`);
 
+      // Resolve Tradier option root for index series (same mapping as IC scanner)
+      const BCS_OPTION_ROOT_MAP: Record<string, string> = {
+        SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX',
+      };
+
+      // Auto-scale spread width for index symbols (mirrors IC scanner getEffectiveWidth logic)
+      // Rule: effective width = max(user input, round(price * 0.004 / 5) * 5)
+      // Gives ~25 pts for SPX (~6700), ~100 pts for NDX (~21000), ~10 pts for MRUT (~2100)
+      const getEffectiveSpreadWidth = (price: number): number => {
+        if (price < 500) return input.spreadWidth; // equity: use user input
+        const autoWidth = Math.max(input.spreadWidth, Math.round((price * 0.004) / 5) * 5);
+        return autoWidth;
+      };
+
       // Process each group (fetch option chain once, process all strikes)
       const CONCURRENCY_LIMIT = 5; // Process 5 groups at a time
       const API_TIMEOUT_MS = 15000; // 15 second timeout per API call
@@ -546,28 +590,50 @@ export const ccRouter = router({
           try {
             const [symbol, expiration] = key.split('|');
             
-            // Fetch option chain ONCE for this symbol+expiration
+            // Resolve Tradier-recognised option root for index series
+            const tradierRoot = BCS_OPTION_ROOT_MAP[symbol.toUpperCase()] || symbol;
+
+            // Fetch option chain ONCE for this symbol+expiration (use tradierRoot for indexes)
             const options = await withTimeout(
-              api.getOptionChain(symbol, expiration, true),
+              api.getOptionChain(tradierRoot, expiration, true),
               API_TIMEOUT_MS
             ).catch(() => []);
             
             // Process all opportunities for this expiration
             for (const ccOpp of opps) {
               try {
-                const longStrike = ccOpp.strike + input.spreadWidth;
+                // Auto-scale spread width for index symbols
+                const effectiveWidth = getEffectiveSpreadWidth(ccOpp.currentPrice || 0);
+                const targetLongStrike = ccOpp.strike + effectiveWidth;
                 
+                // Find the long call — first try exact match, then nearest available strike
+                // (index options have non-uniform strike intervals)
+                const callStrikes = options
+                  .filter(o => o.option_type === 'call' && o.bid && o.ask && o.strike > ccOpp.strike)
+                  .map(o => o.strike as number)
+                  .sort((a, b) => a - b);
+
+                const maxDeviation = Math.max(effectiveWidth * 2, 50);
+                const bestLongStrike = callStrikes.reduce((best: number | undefined, s) => {
+                  if (Math.abs(s - targetLongStrike) > maxDeviation) return best;
+                  if (best === undefined) return s;
+                  return Math.abs(s - targetLongStrike) < Math.abs(best - targetLongStrike) ? s : best;
+                }, undefined);
+
+                if (bestLongStrike === undefined) continue;
+                const actualWidth = bestLongStrike - ccOpp.strike;
+
                 // Find the long call from cached option chain
                 const longCall = options.find(
-                  opt => opt.option_type === 'call' && opt.strike === longStrike
+                  opt => opt.option_type === 'call' && opt.strike === bestLongStrike
                 );
                 
                 if (!longCall || !longCall.bid || !longCall.ask) continue;
                 
-                // Calculate spread pricing
+                // Calculate spread pricing (use actualWidth for correct collateral calculation)
                 const spreadOpp = calculateBearCallSpread(
                   ccOpp,
-                  input.spreadWidth,
+                  actualWidth,
                   {
                     bid: longCall.bid,
                     ask: longCall.ask,
