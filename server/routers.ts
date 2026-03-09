@@ -2585,13 +2585,35 @@ Summary: [One sentence overall assessment]`;
         
         console.log(`[Spread] Cached ${chainCache.size} option chains, now calculating spreads...`);
         
+        // Build a per-symbol effective spread width.
+        // For large-priced indexes (NDX ~23000, MRUT ~2500), the user's spreadWidth (e.g. 25pt)
+        // is too narrow — strikes are in 100pt increments so the nearest available long put
+        // ends up 100-200pt away, inflating collateral. Auto-scale to the nearest 5pt multiple
+        // that is at least 0.4% of the underlying price, then take the max with the user input.
+        // Examples: NDX $23,000 → max(25, round(23000*0.004/5)*5) = max(25,90) = 90pt → nearest 100pt strike → 100pt spread ✓
+        //           SPX $6,400 → max(25, round(6400*0.004/5)*5) = max(25,25) = 25pt ✓
+        //           MRUT $2,500 → max(5, round(2500*0.004/5)*5) = max(5,10) = 10pt ✓
+        const symbolPriceMapSpread = new Map<string, number>();
+        for (const opp of cspOpportunities) {
+          if (!symbolPriceMapSpread.has(opp.symbol)) symbolPriceMapSpread.set(opp.symbol, opp.currentPrice);
+        }
+        const getEffectiveSpreadWidth = (sym: string): number => {
+          const price = symbolPriceMapSpread.get(sym) || 0;
+          if (price < 500) return input.spreadWidth; // small-price equities: use user input as-is
+          const autoWidth = Math.max(input.spreadWidth, Math.round((price * 0.004) / 5) * 5);
+          return autoWidth;
+        };
+        
         // Now calculate spreads using cached chains
         const spreadOpportunities = [];
         
         for (const cspOpp of cspOpportunities) {
           try {
             // Calculate long strike (protective put)
-            const longStrike = cspOpp.strike - input.spreadWidth;
+            // Use auto-scaled effective width for large-priced indexes (NDX, MRUT) to avoid
+            // landing on a strike 200pt away when only 100pt increments exist.
+            const effectiveWidth = getEffectiveSpreadWidth(cspOpp.symbol);
+            const longStrike = cspOpp.strike - effectiveWidth;
             
             // Get cached option chain
             const key = `${cspOpp.symbol}|${cspOpp.expiration}`;

@@ -7658,3 +7658,7 @@
 - [x] Fix: collateral fallback improved to use `capitalAtRisk ?? capitalRisk ?? (spreadWidth > 0 ? spreadWidth * 100 : strikeValue * 100)`
 - [x] Fix: Updated comment on first summary cards section to reflect correct behavior (selectedOppsList)
 - [x] Added unit tests: server/buying-power-fix.test.ts (10 tests all passing)
+
+## NDX/NDXP Spread Width Fix (Mar 2026)
+- [x] Fix: NDX/NDXP now uses 100pt spread width — added getEffectiveSpreadWidth() to the single-spread scan path (same auto-scaling logic as Iron Condor scan)
+- [x] Verify symbol-based spread width logic correctly enforces NDX=100pt, SPX/SPXW=25pt (auto-scaled via price * 0.004 formula)
