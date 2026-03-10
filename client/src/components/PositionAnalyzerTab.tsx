@@ -366,48 +366,61 @@ function SellCCDialog({
                   </AlertDescription>
                 </Alert>
               )}
-              {chainStrikes.length > 0 && (
-                <div className="rounded-lg border border-border overflow-hidden">
-                  <div className="grid grid-cols-5 gap-0 text-xs text-muted-foreground bg-muted/20 px-3 py-1.5 font-medium">
-                    <span>Strike</span>
-                    <span className="text-right">Bid</span>
-                    <span className="text-right">Ask</span>
-                    <span className="text-right">Mid</span>
-                    <span className="text-right">Credit</span>
+              {chainStrikes.length > 0 && (() => {
+                const basis = pos.avgOpenPrice;
+                // Find the lowest strike where effective exit (strike + mid) >= basis
+                const basisNeutralStrike = chainStrikes
+                  .filter(s => (s.strike + s.mid) >= basis)
+                  .sort((a, b) => a.strike - b.strike)[0] ?? null;
+                return (
+                  <div className="rounded-lg border border-border overflow-hidden">
+                    <div className="grid grid-cols-5 gap-0 text-xs text-muted-foreground bg-muted/20 px-3 py-1.5 font-medium">
+                      <span>Strike</span>
+                      <span className="text-right">Bid</span>
+                      <span className="text-right">Ask</span>
+                      <span className="text-right">Mid</span>
+                      <span className="text-right">Credit</span>
+                    </div>
+                    {chainStrikes.map((s) => {
+                      const isSelected = activeStrike?.strike === s.strike;
+                      const isRecommended = recommendedStrike?.strike === s.strike;
+                      const isBasisNeutral = basisNeutralStrike?.strike === s.strike;
+                      return (
+                        <button
+                          key={s.strike}
+                          onClick={() => setSelectedStrike(s)}
+                          className={`w-full grid grid-cols-5 gap-0 px-3 py-2 text-sm text-left transition-colors border-t border-border/50 ${
+                            isSelected
+                              ? 'bg-emerald-950/50 border-l-2 border-l-emerald-500'
+                              : isBasisNeutral && !isSelected
+                              ? 'bg-cyan-950/20 border-l-2 border-l-cyan-500 hover:bg-cyan-950/30'
+                              : 'hover:bg-muted/20'
+                          }`}
+                        >
+                          <span className="font-semibold text-white flex items-center gap-1 flex-wrap">
+                            ${s.strike}
+                            {s.isItm && <span className="text-amber-400 text-xs">(ITM)</span>}
+                            {!s.isItm && <span className="text-blue-400 text-xs">(OTM)</span>}
+                            {isRecommended && <span className="text-emerald-400 text-xs">★</span>}
+                            {isBasisNeutral && <span className="text-cyan-400 text-xs font-bold">◎</span>}
+                          </span>
+                          <span className="text-right text-muted-foreground">${s.bid.toFixed(2)}</span>
+                          <span className="text-right text-muted-foreground">${s.ask.toFixed(2)}</span>
+                          <span className="text-right text-white font-medium">${s.mid.toFixed(2)}</span>
+                          <span className="text-right text-emerald-400 font-semibold">${fmt(s.estimatedCredit100 * contracts, 0)}</span>
+                        </button>
+                      );
+                    })}
+                    <div className="px-3 py-1.5 text-xs text-muted-foreground bg-muted/10 border-t border-border flex flex-wrap gap-x-3 gap-y-0.5">
+                      <span>Expiration: <span className="text-white font-medium">{expiration}</span></span>
+                      {chainQuery.data && <span className="text-emerald-400">● Live</span>}
+                      <span>★ = WTR-recommended</span>
+                      <span className="text-cyan-400">◎ = Basis-Neutral (lowest strike that covers your cost)</span>
+                      {!basisNeutralStrike && <span className="text-red-400">No strike in this chain covers your ${fmt(basis)} basis</span>}
+                    </div>
                   </div>
-                  {chainStrikes.map((s) => {
-                    const isSelected = activeStrike?.strike === s.strike;
-                    const isRecommended = recommendedStrike?.strike === s.strike;
-                    return (
-                      <button
-                        key={s.strike}
-                        onClick={() => setSelectedStrike(s)}
-                        className={`w-full grid grid-cols-5 gap-0 px-3 py-2 text-sm text-left transition-colors border-t border-border/50 ${
-                          isSelected
-                            ? 'bg-emerald-950/50 border-l-2 border-l-emerald-500'
-                            : 'hover:bg-muted/20'
-                        }`}
-                      >
-                        <span className="font-semibold text-white flex items-center gap-1">
-                          ${s.strike}
-                          {s.isItm && <span className="text-amber-400 text-xs">(ITM)</span>}
-                          {!s.isItm && <span className="text-blue-400 text-xs">(OTM)</span>}
-                          {isRecommended && <span className="text-emerald-400 text-xs">★</span>}
-                        </span>
-                        <span className="text-right text-muted-foreground">${s.bid.toFixed(2)}</span>
-                        <span className="text-right text-muted-foreground">${s.ask.toFixed(2)}</span>
-                        <span className="text-right text-white font-medium">${s.mid.toFixed(2)}</span>
-                        <span className="text-right text-emerald-400 font-semibold">${fmt(s.estimatedCredit100 * contracts, 0)}</span>
-                      </button>
-                    );
-                  })}
-                  <div className="px-3 py-1.5 text-xs text-muted-foreground bg-muted/10 border-t border-border">
-                    Expiration: <span className="text-white font-medium">{expiration}</span>
-                    {chainQuery.data && <span className="ml-2 text-emerald-400">● Live</span>}
-                    <span className="ml-1 text-muted-foreground">· ★ = WTR-recommended</span>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Summary of selected strike */}
               {activeStrike && (() => {

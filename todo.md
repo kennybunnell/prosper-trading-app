@@ -7816,3 +7816,8 @@
 ## Mar 10 2026 - Basis-Aware P&L Warning in Sell ITM CC Dialog
 - [x] Add color-coded Effective Exit vs. Basis P&L row to SellCCDialog (green if above basis, red if below)
 - [x] Add basis-loss warning when effective exit is >10% below avg cost basis, showing exact $/share and % loss
+
+## Mar 10 2026 - Basis-Neutral Strike in Sell ITM CC Dialog
+- [x] Identify the lowest strike in the chain picker where (strike + mid) >= avg cost basis and mark it "Basis-Neutral"
+- [x] Highlight the Basis-Neutral row with a distinct teal/cyan border and badge
+- [x] Add a legend note below the chain table explaining the three labels: ★ WTR-recommended, ◎ Basis-Neutral, and no label = loss territory
