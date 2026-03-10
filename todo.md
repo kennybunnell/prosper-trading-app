@@ -7826,3 +7826,6 @@
 - [x] Add persistent scan badge counts to step tabs 1 (Close for Profit), 2 (Roll Positions), 3 (Sell Calls) on the Daily Actions / Automation page
 - [x] Badge persists until next scan run; auto-refreshes when cache updates
 - [x] Steps 4 and 5 have no badge (not scanned)
+
+## Mar 10 2026 - Open Positions 95%+ Filter Bug
+- [x] 95%+ quick filter shows count=6 but only 3 rows appear, and none of the 3 rows are actually at 95%+ — fixed: removed minRealizedPercent from server query (was pre-filtering data before counts were computed); scoped profitCounts to current positionType tab so count always matches table rows

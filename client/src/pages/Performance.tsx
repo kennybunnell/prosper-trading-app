@@ -125,12 +125,10 @@ export function ActivePositionsTab() {
     audio.play().catch(() => {});
   };
 
-  // Fetch active positions
+  // Fetch active positions — always fetch ALL positions; frontend handles profit filter
   const { data, isLoading, refetch, error } = trpc.performance.getActivePositions.useQuery(
     {
       accountId: selectedAccountId || '',
-      // Fetch all positions - frontend filters by strategy tab
-      minRealizedPercent: profitFilter || undefined,
     },
     {
       enabled: !!selectedAccountId,
@@ -568,18 +566,26 @@ export function ActivePositionsTab() {
     singleLegCapitalEfficiency: 0,
   };
 
-  // Count positions by profit threshold
+  // Count positions by profit threshold — scoped to the current strategy tab so count matches table
   const profitCounts = useMemo(() => {
     if (!data?.positions) return { p70: 0, p75: 0, p80: 0, p85: 0, p90: 0, p95: 0 };
+    let tabPositions = data.positions;
+    switch (positionType) {
+      case 'csp': tabPositions = tabPositions.filter(p => p.type === 'CSP' && !p.spreadType); break;
+      case 'cc':  tabPositions = tabPositions.filter(p => p.type === 'CC'  && !p.spreadType); break;
+      case 'bps': tabPositions = tabPositions.filter(p => p.spreadType === 'bull_put');   break;
+      case 'bcs': tabPositions = tabPositions.filter(p => p.spreadType === 'bear_call');  break;
+      case 'ic':  tabPositions = tabPositions.filter(p => p.spreadType === 'iron_condor'); break;
+    }
     return {
-      p70: data.positions.filter(p => p.realizedPercent >= 70 && !p.hasWorkingOrder).length,
-      p75: data.positions.filter(p => p.realizedPercent >= 75 && !p.hasWorkingOrder).length,
-      p80: data.positions.filter(p => p.realizedPercent >= 80 && !p.hasWorkingOrder).length,
-      p85: data.positions.filter(p => p.realizedPercent >= 85 && !p.hasWorkingOrder).length,
-      p90: data.positions.filter(p => p.realizedPercent >= 90 && !p.hasWorkingOrder).length,
-      p95: data.positions.filter(p => p.realizedPercent >= 95 && !p.hasWorkingOrder).length,
+      p70: tabPositions.filter(p => p.realizedPercent >= 70 && !p.hasWorkingOrder).length,
+      p75: tabPositions.filter(p => p.realizedPercent >= 75 && !p.hasWorkingOrder).length,
+      p80: tabPositions.filter(p => p.realizedPercent >= 80 && !p.hasWorkingOrder).length,
+      p85: tabPositions.filter(p => p.realizedPercent >= 85 && !p.hasWorkingOrder).length,
+      p90: tabPositions.filter(p => p.realizedPercent >= 90 && !p.hasWorkingOrder).length,
+      p95: tabPositions.filter(p => p.realizedPercent >= 95 && !p.hasWorkingOrder).length,
     };
-  }, [data?.positions]);
+  }, [data?.positions, positionType]);
 
   // Show account selection prompt if no account selected
   if (!selectedAccountId) {
