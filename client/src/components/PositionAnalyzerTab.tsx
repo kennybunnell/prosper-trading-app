@@ -222,7 +222,12 @@ function exportToCSV(positions: AnalyzedPosition[], scannedAt: string) {
   URL.revokeObjectURL(url);
 }
 
-// ─── Sell CC Confirmation Dialog ─────────────────────────────────────────────
+// ─── Sell CC Confirmation Dialog (with live option chain picker) ──────────────
+type ChainStrike = {
+  strike: number; bid: number; ask: number; mid: number;
+  isItm: boolean; estimatedCredit100: number; effectiveExit: number;
+};
+
 function SellCCDialog({
   state,
   onClose,
@@ -232,161 +237,326 @@ function SellCCDialog({
 }) {
   const [dryRun, setDryRun] = useState(true);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [selectedStrike, setSelectedStrike] = useState<ChainStrike | null>(null);
+  // Two-step confirm: 'pick' → user selects strike, 'confirm' → shows OCC + final price before submit
+  const [step, setStep] = useState<'pick' | 'confirm'>('pick');
+
+  const pos = state.position;
+
+  // Fetch live option chain when dialog opens
+  const chainQuery = trpc.positionAnalyzer.getOptionChainForSymbol.useQuery(
+    { symbol: pos?.symbol ?? '', currentPrice: pos?.currentPrice ?? 1 },
+    {
+      enabled: state.open && !!pos,
+      staleTime: 30_000, // re-fetch if older than 30s
+      retry: 1,
+    }
+  );
+
+  // Auto-select the recommended strike once chain loads
+  const chainStrikes = chainQuery.data?.strikes ?? [];
+  const expiration = chainQuery.data?.expiration ?? pos?.ccExpiration ?? '';
+
+  // Pick the recommended strike: match pos.ccAtmStrike, or default to first ITM
+  const recommendedStrike = chainStrikes.find(s => s.strike === pos?.ccAtmStrike)
+    ?? chainStrikes.find(s => s.isItm)
+    ?? chainStrikes[0]
+    ?? null;
+
+  // Use selectedStrike if user picked one, otherwise fall back to recommended
+  const activeStrike = selectedStrike ?? recommendedStrike;
 
   const sellMutation = trpc.positionAnalyzer.sellCoveredCall.useMutation({
     onSuccess: (data) => {
       setLastResult(data.message);
+      setStep('pick'); // reset to pick step after result
       if (!dryRun) {
-        toast.success(`Order submitted: ${data.symbol} ${data.strike}C — ${data.quantity} contract(s)`);
+        toast.success(`Order submitted: ${data.symbol} $${data.strike}C — ${data.quantity} contract(s)`);
       } else {
         toast.info('Dry run complete — no real order placed');
       }
     },
     onError: (err) => {
       toast.error(`Order failed: ${err.message}`);
+      setStep('pick');
     },
   });
 
-  const pos = state.position;
-  if (!pos || !pos.ccAtmStrike || !pos.ccAtmPremium || !pos.ccExpiration) return null;
+  if (!pos) return null;
 
-  // forceQuantity is set when selling exit CC on a Dog with locked contracts
   const isForcedExit = state.forceQuantity !== undefined;
   const totalContracts = Math.floor(pos.quantity / 100);
   const availableContracts = pos.availableContracts ?? totalContracts;
-  // Normal path: cap at availableContracts to avoid Tastytrade rejection
-  // Forced exit path: use forceQuantity (totalContracts) — user accepts double-coverage risk
   const contracts = state.forceQuantity ?? availableContracts;
   const lockedContracts = totalContracts - availableContracts;
-  const estimatedCredit = pos.ccAtmPremium * contracts * 100;
-  const roundToNickel = (price: number) => Math.round(price * 20) / 20;
+
+  const estimatedCredit = activeStrike ? activeStrike.mid * contracts * 100 : 0;
+
+  // Build OCC symbol for display: SYMBOL  YYMMDDCSTRIKE
+  const buildOCC = (sym: string, exp: string, strike: number) => {
+    const expDate = new Date(exp);
+    const expStr = expDate.toISOString().slice(2, 10).replace(/-/g, '');
+    const strikeStr = (strike * 1000).toFixed(0).padStart(8, '0');
+    return `${sym.padEnd(6, ' ')}${expStr}C${strikeStr}`;
+  };
+
+  const handleConfirmStep = () => {
+    if (!activeStrike) return;
+    setStep('confirm');
+  };
+
   const handleSubmit = () => {
+    if (!activeStrike) return;
     setLastResult(null);
     sellMutation.mutate({
       accountNumber: pos.accountNumber,
       symbol: pos.symbol,
-      strike: pos.ccAtmStrike!,
-      expiration: pos.ccExpiration!,
+      strike: activeStrike.strike,
+      expiration,
       quantity: contracts,
-      limitPrice: roundToNickel(pos.ccAtmPremium!),
+      limitPrice: activeStrike.mid,
       dryRun,
     });
   };
 
+  const handleClose = () => {
+    onClose();
+    setLastResult(null);
+    setSelectedStrike(null);
+    setStep('pick');
+  };
+
   return (
-    <Dialog open={state.open} onOpenChange={(open) => { if (!open) { onClose(); setLastResult(null); } }}>
-      <DialogContent className="max-w-md bg-card" style={{ border: '2px solid #374151', boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 25px 50px rgba(0,0,0,0.8)' }}>
+    <Dialog open={state.open} onOpenChange={(open) => { if (!open) handleClose(); }}>
+      <DialogContent className="max-w-lg bg-card" style={{ border: '2px solid #374151', boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 25px 50px rgba(0,0,0,0.8)' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TrendingUp className={`h-5 w-5 ${isForcedExit ? 'text-red-400' : 'text-emerald-400'}`} />
-            {isForcedExit ? '⛔ Force Exit' : 'Sell'} {pos.ccDeltaTier === 'ITM' ? 'ITM' : pos.ccDeltaTier === 'D30' ? 'Δ0.30 OTM' : pos.ccDeltaTier === 'D25' ? 'Δ0.25 OTM' : pos.ccDeltaTier === 'D20' ? 'Δ0.20 OTM' : 'ATM'} Covered Call — {pos.symbol}
+            {isForcedExit ? '⛔ Force Exit' : 'Sell'} Covered Call — {pos.symbol}
           </DialogTitle>
           <DialogDescription>
-            Review the order details below before submitting.
+            {step === 'pick'
+              ? 'Select a strike from the live option chain below, then confirm.'
+              : 'Review the final order details and OCC contract before submitting.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
-          <div className="rounded-lg bg-muted/20 border border-border p-3 space-y-2 text-sm">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <div className="text-muted-foreground text-xs">Symbol</div>
-                <div className="font-semibold text-white">{pos.symbol}</div>
+          {/* ── Step 1: Strike Picker ── */}
+          {step === 'pick' && (
+            <>
+              {/* Position context */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/10 rounded-lg px-3 py-2 border border-border">
+                <span>{pos.symbol} · {pos.quantity} shares · avg cost ${fmt(pos.avgOpenPrice)} · current ${fmt(pos.currentPrice)}</span>
+                <span className="text-amber-400 font-medium">{contracts} contract{contracts !== 1 ? 's' : ''}</span>
               </div>
-              <div>
-                <div className="text-muted-foreground text-xs">Action</div>
-                <div className="font-semibold text-emerald-400">Sell to Open (STO)</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground text-xs">Strike</div>
-                <div className="font-semibold text-white">${fmt(pos.ccAtmStrike)} <span className="text-xs text-muted-foreground">({pos.ccDeltaTier === 'ITM' ? 'ITM' : pos.ccDeltaTier === 'D30' ? '~Δ0.30' : pos.ccDeltaTier === 'D25' ? '~Δ0.25' : pos.ccDeltaTier === 'D20' ? '~Δ0.20' : 'ATM'})</span></div>
-              </div>
-              <div>
-                <div className="text-muted-foreground text-xs">Expiration</div>
-                <div className="font-semibold text-white">{pos.ccExpiration}</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground text-xs">Contracts</div>
-                <div className="font-semibold text-white">{contracts}</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground text-xs">Limit Price (mid)</div>
-                <div className="font-semibold text-white">${fmt(pos.ccAtmPremium)}/share</div>
-              </div>
-            </div>
-            <div className="border-t border-border pt-2 flex items-center justify-between">
-              <span className="text-muted-foreground text-xs">Estimated Credit</span>
-              <span className="text-emerald-400 font-bold text-base">${fmt(estimatedCredit, 0)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground text-xs">Effective Exit Price</span>
-              <span className="text-blue-400 font-semibold">${fmt(pos.ccEffectiveExit ?? 0)} vs. ${fmt(pos.currentPrice)} today</span>
-            </div>
-            {pos.weeksToRecover !== null && (
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-xs">Weeks to Recover Basis</span>
-                <span className={`font-semibold ${wtrColor(pos.weeksToRecover)}`}>{fmtWTR(pos.weeksToRecover, pos.monthsToRecover)}</span>
-              </div>
-            )}
-          </div>
 
-          <div className="flex items-center justify-between rounded-lg bg-muted/10 border border-border px-3 py-2">
-            <div>
-              <Label htmlFor="sell-dry-run" className="text-sm font-medium">Dry Run Mode</Label>
-              <p className="text-xs text-muted-foreground">Preview only — no real order placed</p>
-            </div>
-            <Switch id="sell-dry-run" checked={dryRun} onCheckedChange={setDryRun} />
-          </div>
+              {/* Live chain table */}
+              {chainQuery.isLoading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Fetching live option chain from Tradier…
+                </div>
+              )}
+              {chainQuery.isError && (
+                <Alert className="border-red-800/40 bg-red-950/20">
+                  <AlertTriangle className="h-4 w-4 text-red-400" />
+                  <AlertDescription className="text-red-300 text-xs">
+                    Could not load live chain: {chainQuery.error?.message}. Using cached strike from Position Analyzer.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {chainStrikes.length > 0 && (
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <div className="grid grid-cols-5 gap-0 text-xs text-muted-foreground bg-muted/20 px-3 py-1.5 font-medium">
+                    <span>Strike</span>
+                    <span className="text-right">Bid</span>
+                    <span className="text-right">Ask</span>
+                    <span className="text-right">Mid</span>
+                    <span className="text-right">Credit</span>
+                  </div>
+                  {chainStrikes.map((s) => {
+                    const isSelected = activeStrike?.strike === s.strike;
+                    const isRecommended = recommendedStrike?.strike === s.strike;
+                    return (
+                      <button
+                        key={s.strike}
+                        onClick={() => setSelectedStrike(s)}
+                        className={`w-full grid grid-cols-5 gap-0 px-3 py-2 text-sm text-left transition-colors border-t border-border/50 ${
+                          isSelected
+                            ? 'bg-emerald-950/50 border-l-2 border-l-emerald-500'
+                            : 'hover:bg-muted/20'
+                        }`}
+                      >
+                        <span className="font-semibold text-white flex items-center gap-1">
+                          ${s.strike}
+                          {s.isItm && <span className="text-amber-400 text-xs">(ITM)</span>}
+                          {!s.isItm && <span className="text-blue-400 text-xs">(OTM)</span>}
+                          {isRecommended && <span className="text-emerald-400 text-xs">★</span>}
+                        </span>
+                        <span className="text-right text-muted-foreground">${s.bid.toFixed(2)}</span>
+                        <span className="text-right text-muted-foreground">${s.ask.toFixed(2)}</span>
+                        <span className="text-right text-white font-medium">${s.mid.toFixed(2)}</span>
+                        <span className="text-right text-emerald-400 font-semibold">${fmt(s.estimatedCredit100 * contracts, 0)}</span>
+                      </button>
+                    );
+                  })}
+                  <div className="px-3 py-1.5 text-xs text-muted-foreground bg-muted/10 border-t border-border">
+                    Expiration: <span className="text-white font-medium">{expiration}</span>
+                    {chainQuery.data && <span className="ml-2 text-emerald-400">● Live</span>}
+                    <span className="ml-1 text-muted-foreground">· ★ = WTR-recommended</span>
+                  </div>
+                </div>
+              )}
 
-          {isForcedExit && lockedContracts > 0 && (
-            <Alert className="border-red-800/40 bg-red-950/20">
-              <AlertTriangle className="h-4 w-4 text-red-400" />
-              <AlertDescription className="text-red-300 text-xs">
-                <strong>⚠️ Forced Exit — Locked Contracts:</strong> {lockedContracts} contract{lockedContracts > 1 ? 's' : ''} are already covered under an active CC. Selling this exit CC will create a <strong>double-covered position</strong>. Only proceed if you intend to buy back the existing CC first, or let both expire and accept assignment at the lower strike.
-              </AlertDescription>
-            </Alert>
+              {/* Summary of selected strike */}
+              {activeStrike && (
+                <div className="rounded-lg bg-muted/20 border border-border p-3 space-y-1.5 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground text-xs">Selected Strike</span>
+                    <span className="font-bold text-white">${activeStrike.strike} {activeStrike.isItm ? '(ITM)' : '(OTM)'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground text-xs">Limit Price (mid, nickel-rounded)</span>
+                    <span className="font-semibold text-white">${activeStrike.mid.toFixed(2)}/share</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground text-xs">Estimated Credit ({contracts} contracts)</span>
+                    <span className="text-emerald-400 font-bold text-base">${fmt(estimatedCredit, 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground text-xs">Effective Exit Price</span>
+                    <span className="text-blue-400 font-semibold">${fmt(activeStrike.effectiveExit)} vs. ${fmt(pos.currentPrice)} today</span>
+                  </div>
+                  {pos.weeksToRecover !== null && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground text-xs">Weeks to Recover Basis</span>
+                      <span className={`font-semibold ${wtrColor(pos.weeksToRecover)}`}>{fmtWTR(pos.weeksToRecover, pos.monthsToRecover)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Dry Run toggle */}
+              <div className="flex items-center justify-between rounded-lg bg-muted/10 border border-border px-3 py-2">
+                <div>
+                  <Label htmlFor="sell-dry-run" className="text-sm font-medium">Dry Run Mode</Label>
+                  <p className="text-xs text-muted-foreground">Preview only — no real order placed</p>
+                </div>
+                <Switch id="sell-dry-run" checked={dryRun} onCheckedChange={setDryRun} />
+              </div>
+
+              {isForcedExit && lockedContracts > 0 && (
+                <Alert className="border-red-800/40 bg-red-950/20">
+                  <AlertTriangle className="h-4 w-4 text-red-400" />
+                  <AlertDescription className="text-red-300 text-xs">
+                    <strong>⚠️ Forced Exit — Locked Contracts:</strong> {lockedContracts} contract{lockedContracts > 1 ? 's' : ''} are already covered. This will create a double-covered position.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </>
           )}
-          {!dryRun && (
+
+          {/* ── Step 2: Confirm + OCC Display ── */}
+          {step === 'confirm' && activeStrike && (
+            <>
+              <div className="rounded-lg bg-muted/20 border border-border p-3 space-y-2 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-muted-foreground text-xs">Symbol</div>
+                    <div className="font-semibold text-white">{pos.symbol}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-xs">Action</div>
+                    <div className="font-semibold text-emerald-400">Sell to Open (STO)</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-xs">Strike</div>
+                    <div className="font-semibold text-white">${activeStrike.strike} {activeStrike.isItm ? '(ITM)' : '(OTM)'}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-xs">Expiration</div>
+                    <div className="font-semibold text-white">{expiration}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-xs">Contracts</div>
+                    <div className="font-semibold text-white">{contracts}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-xs">Limit Price (mid)</div>
+                    <div className="font-semibold text-white">${activeStrike.mid.toFixed(2)}/share</div>
+                  </div>
+                </div>
+                <div className="border-t border-border pt-2 flex items-center justify-between">
+                  <span className="text-muted-foreground text-xs">Estimated Credit</span>
+                  <span className="text-emerald-400 font-bold text-base">${fmt(estimatedCredit, 0)}</span>
+                </div>
+                <div className="border-t border-border pt-2">
+                  <div className="text-muted-foreground text-xs mb-1">OCC Contract Symbol</div>
+                  <div className="font-mono text-xs bg-muted/30 rounded px-2 py-1.5 text-white tracking-wider">
+                    {buildOCC(pos.symbol, expiration, activeStrike.strike)}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">This is the exact contract that will be sent to Tastytrade.</div>
+                </div>
+              </div>
+
+              {!dryRun && (
+                <Alert className="border-amber-800/40 bg-amber-950/20">
+                  <AlertTriangle className="h-4 w-4 text-amber-400" />
+                  <AlertDescription className="text-amber-300 text-xs">
+                    <strong>Live mode:</strong> This will submit a real Sell to Open order on Tastytrade. Make sure you have {pos.quantity} shares of {pos.symbol} in account ...{pos.accountNumber.slice(-4)}.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {lastResult && (
+                <div className="rounded-lg bg-emerald-950/30 border border-emerald-800/30 p-3 text-xs text-emerald-300">
+                  {lastResult}
+                </div>
+              )}
+            </>
+          )}
+
+          {contracts === 0 && !isForcedExit && (
             <Alert className="border-amber-800/40 bg-amber-950/20">
               <AlertTriangle className="h-4 w-4 text-amber-400" />
               <AlertDescription className="text-amber-300 text-xs">
-                <strong>Live mode:</strong> This will submit a real Sell to Open order on Tastytrade. Make sure you have {pos.quantity} shares of {pos.symbol} in account ...{pos.accountNumber.slice(-4)}.
+                <strong>All {totalContracts} contracts are already covered</strong> by an active short call.
               </AlertDescription>
             </Alert>
           )}
-
-          {lastResult && (
-            <div className="rounded-lg bg-emerald-950/30 border border-emerald-800/30 p-3 text-xs text-emerald-300">
-              {lastResult}
-            </div>
-          )}
         </div>
 
-        {contracts === 0 && !isForcedExit && (
-          <Alert className="border-amber-800/40 bg-amber-950/20">
-            <AlertTriangle className="h-4 w-4 text-amber-400" />
-            <AlertDescription className="text-amber-300 text-xs">
-              <strong>All {totalContracts} contracts are already covered</strong> by an active short call. Wait for the existing CC to expire, or use the Force Exit button to sell an exit ITM CC despite the lock.
-            </AlertDescription>
-          </Alert>
-        )}
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => { onClose(); setLastResult(null); }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={sellMutation.isPending || contracts === 0}
-            className={dryRun ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}
-          >
-            {sellMutation.isPending ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Submitting…</>
-            ) : dryRun ? (
-              'Preview Order'
-            ) : (
-              '★ Submit Live Order'
-            )}
-          </Button>
+          {step === 'pick' ? (
+            <>
+              <Button variant="outline" onClick={handleClose}>Cancel</Button>
+              <Button
+                onClick={handleConfirmStep}
+                disabled={!activeStrike || contracts === 0 || chainQuery.isLoading}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Review Order →
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => setStep('pick')}>← Back</Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={sellMutation.isPending || contracts === 0}
+                className={dryRun ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}
+              >
+                {sellMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Submitting…</>
+                ) : dryRun ? (
+                  'Preview Order (Dry Run)'
+                ) : (
+                  '★ Confirm & Submit Live Order'
+                )}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

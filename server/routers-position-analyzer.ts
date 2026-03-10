@@ -771,11 +771,11 @@ export const positionAnalyzerRouter = router({
         };
       }
 
-      // ── EARNINGS BLOCK PRE-FLIGHT ──────────────────────────────────────────
+      // ── EARNINGS BLOCK PRE-FLIGHT ──────────────────────────────────────────────────────
+      const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
       {
         const { TradierAPI } = await import('./tradier');
         const { checkEarningsBlock, formatEarningsBlockMessage } = await import('./earningsBlock');
-        const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
         if (tradierKey) {
           const tradierAPI = new TradierAPI(tradierKey);
           const earningsResult = await checkEarningsBlock([input.symbol], tradierAPI);
@@ -784,14 +784,37 @@ export const positionAnalyzerRouter = router({
           }
         }
       }
-      // ────────────────────────────────────────────────────────────────────────
+      // ── FRESH MID-PRICE RE-FETCH ──────────────────────────────────────────────────────
+      // Re-fetch the current mid-price for the selected strike immediately before placing
+      // the live order to ensure the limit price is not stale from when the analyzer loaded.
+      let finalLimitPrice = input.limitPrice;
+      if (tradierKey) {
+        try {
+          const { TradierAPI } = await import('./tradier');
+          const tradierAPI = new TradierAPI(tradierKey, false);
+          const chain = await tradierAPI.getOptionChain(input.symbol, input.expiration, false);
+          const calls = (chain as any[]).filter(o => o.option_type === 'call' || o.type === 'call');
+          const match = calls.find((c: any) => Math.abs(c.strike - input.strike) < 0.01);
+          if (match) {
+            const freshMid = (match.bid + match.ask) / 2;
+            if (freshMid > 0) {
+              finalLimitPrice = Math.round(freshMid * 20) / 20; // round to nickel
+              console.log(`[sellCoveredCall] Fresh mid for ${input.symbol} $${input.strike}C: $${freshMid.toFixed(2)} → limit $${finalLimitPrice.toFixed(2)} (was $${input.limitPrice.toFixed(2)})`);
+            }
+          }
+        } catch (e) {
+          // Non-fatal: fall back to the user-provided limit price
+          console.warn('[sellCoveredCall] Could not re-fetch mid-price, using provided limit price:', e);
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────────
 
       const api = await authenticateTastytrade(credentials, ctx.user.id);
       const result = await api.submitOrder({
         accountNumber: input.accountNumber,
         timeInForce: 'Day',
         orderType: 'Limit',
-        price: input.limitPrice.toFixed(2),
+        price: finalLimitPrice.toFixed(2),
         priceEffect: 'Credit',
         legs: [
           {
@@ -811,11 +834,11 @@ export const positionAnalyzerRouter = router({
         strike: input.strike,
         expiration: input.expiration,
         quantity: input.quantity,
-        limitPrice: input.limitPrice,
-        estimatedCredit: input.limitPrice * input.quantity * 100,
+        limitPrice: finalLimitPrice,
+        estimatedCredit: finalLimitPrice * input.quantity * 100,
         orderId: result.id,
         orderStatus: result.status,
-        message: `Sell to Open order submitted: ${input.quantity} contract(s) of ${optionSymbol} at $${input.limitPrice.toFixed(2)}`,
+        message: `Sell to Open order submitted: ${input.quantity} contract(s) of ${optionSymbol} at $${finalLimitPrice.toFixed(2)} (fresh mid)`,
       };
     }),
 
@@ -1045,6 +1068,77 @@ export const positionAnalyzerRouter = router({
 
       const totalCredit = results.filter(r => r.success).reduce((s, r) => s + r.estimatedCredit, 0);
       return { dryRun: input.dryRun, results, totalCredit, successCount: results.filter(r => r.success).length };
+    }),
+
+  /**
+   * Fetch live option chain for a symbol on demand.
+   * Returns ITM + ATM call strikes with live bid/ask/mid so the user can pick a strike
+   * in the Sell ITM CC dialog before submitting the order.
+   */
+  getOptionChainForSymbol: protectedProcedure
+    .input(z.object({
+      symbol: z.string(),
+      currentPrice: z.number().positive(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+      const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+      if (!tradierKey) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tradier API key not configured.' });
+      const { TradierAPI } = await import('./tradier');
+      const tradierApi = new TradierAPI(tradierKey, false);
+      // Find nearest Friday expiration
+      const today = new Date();
+      const dayOfWeek = today.getDay();
+      const daysUntilFriday = (5 - dayOfWeek + 7) % 7 || 7;
+      const friday = new Date(today);
+      friday.setDate(today.getDate() + daysUntilFriday);
+      const fridayStr = friday.toISOString().split('T')[0];
+      const expirations = await tradierApi.getExpirations(input.symbol);
+      if (!expirations || expirations.length === 0) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `No expirations found for ${input.symbol}` });
+      }
+      const sortedExps = expirations.sort();
+      const targetExp = sortedExps.find(e => e >= fridayStr) || sortedExps[0];
+      const chain = await tradierApi.getOptionChain(input.symbol, targetExp, false);
+      const calls = (chain as any[]).filter(o => o.option_type === 'call' || o.type === 'call');
+      if (calls.length === 0) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `No call options found for ${input.symbol} on ${targetExp}` });
+      }
+      // Build strike list with mid-prices
+      const strikes: Array<{
+        strike: number; bid: number; ask: number; mid: number;
+        isItm: boolean; estimatedCredit100: number; effectiveExit: number;
+      }> = [];
+      for (const c of calls) {
+        const bid = typeof c.bid === 'number' ? c.bid : 0;
+        const ask = typeof c.ask === 'number' ? c.ask : 0;
+        const mid = (bid + ask) / 2;
+        if (mid <= 0) continue;
+        const isItm = c.strike < input.currentPrice;
+        const midNickel = Math.round(mid * 20) / 20; // round to nearest $0.05
+        strikes.push({
+          strike: c.strike,
+          bid,
+          ask,
+          mid: midNickel,
+          isItm,
+          estimatedCredit100: Math.round(midNickel * 100 * 100) / 100,
+          effectiveExit: Math.round((c.strike + midNickel) * 100) / 100,
+        });
+      }
+      // Sort descending by strike (deepest ITM first)
+      strikes.sort((a, b) => b.strike - a.strike);
+      // Return up to 4 ITM + 2 ATM/OTM strikes
+      const itmStrikes = strikes.filter(s => s.isItm).slice(0, 4);
+      const otmStrikes = strikes.filter(s => !s.isItm).slice(0, 2);
+      const relevant = [...itmStrikes, ...otmStrikes].sort((a, b) => b.strike - a.strike);
+      return {
+        symbol: input.symbol,
+        expiration: targetExp,
+        currentPrice: input.currentPrice,
+        strikes: relevant,
+      };
     }),
 
   /**

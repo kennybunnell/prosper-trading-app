@@ -7806,3 +7806,9 @@
 - [x] Trigger immediate daily scan on demand so step cards show live data without waiting for 8:30 AM cron
 ## Mar 10 2026 - Dogs Badge Deep-Link (PERSISTENT BUG)
 - [x] Dogs badge MUST navigate to /portfolio and activate the Position Analyzer tab — root cause: tab value was 'position-analyzer' but component uses 'analyzer'; Portfolio page never read ?tab= URL param. Fixed both.
+## Mar 10 2026 - Live Option Chain Picker in Sell ITM CC Dialog
+- [x] Add getOptionChainForSymbol tRPC procedure — fetches live Tradier chain for a symbol+expiration on demand
+- [x] Rebuild Sell ITM CC dialog: show selectable ITM call strikes (3-5 rows) with live mid, estimated credit, effective exit
+- [x] Pre-select the WTR-recommended strike but allow user to pick any row
+- [x] Re-fetch fresh mid-price at submit time before placing the live order
+- [x] Two-step confirm: first click shows OCC symbol + final price, second click places the order
