@@ -641,14 +641,14 @@ export const appRouter = router({
       }),
 
     /**
-     * Lightweight action badge counts for the Home page tile grid.
-     * Only uses fast DB queries — no Tastytrade API calls.
+     * Action badge counts for the Home page tile grid.
+     * DB queries are fast; Tastytrade API calls use an 8s timeout with null fallback.
      */
     getActionBadges: protectedProcedure.query(async ({ ctx }) => {
       try {
         const { getDb } = await import('./db');
         const db = await getDb();
-        if (!db) return { liquidationFlags: 0, gtcPending: 0 };
+        if (!db) return { liquidationFlags: 0, gtcPending: 0, workingOrdersCount: null, openPositionsCount: null };
 
         const { liquidationFlags: liquidationFlagsTable, gtcOrders: gtcOrdersTable } = await import('../drizzle/schema');
         const { eq, and, count } = await import('drizzle-orm');
@@ -663,13 +663,50 @@ export const appRouter = router({
           .from(gtcOrdersTable)
           .where(and(eq(gtcOrdersTable.userId, ctx.user.id), eq(gtcOrdersTable.status, 'submitted')));
 
+        // Working orders + open positions from Tastytrade (8s timeout, null on failure)
+        let workingOrdersCount: number | null = null;
+        let openPositionsCount: number | null = null;
+        try {
+          const { getTastytradeAPI } = await import('./tastytrade');
+          const api = getTastytradeAPI();
+          const withTimeout = <T>(p: Promise<T>): Promise<T | null> =>
+            Promise.race([p, new Promise<null>((res) => setTimeout(() => res(null), 8000))]);
+          const accounts = await withTimeout(api.getAccounts());
+          if (accounts) {
+            const accountNums: string[] = (accounts as any[]).map((a: any) =>
+              a.account?.['account-number'] || a['account-number']
+            ).filter(Boolean);
+            let totalOrders = 0;
+            let totalPositions = 0;
+            await Promise.all(accountNums.map(async (accNum: string) => {
+              try {
+                const [orders, positions] = await Promise.all([
+                  withTimeout(api.getLiveOrders(accNum)),
+                  withTimeout(api.getPositions(accNum)),
+                ]);
+                if (orders) {
+                  const active = (orders as any[]).filter((o: any) =>
+                    !['filled','cancelled','rejected','expired','replaced'].includes((o.status||'').toLowerCase())
+                  );
+                  totalOrders += active.length;
+                }
+                if (positions) totalPositions += (positions as any[]).length;
+              } catch { /* skip account on error */ }
+            }));
+            workingOrdersCount = totalOrders;
+            openPositionsCount = totalPositions;
+          }
+        } catch { /* Tastytrade not configured — return nulls */ }
+
         return {
           liquidationFlags: Number(flagRow?.value ?? 0),
           gtcPending: Number(gtcRow?.value ?? 0),
+          workingOrdersCount,
+          openPositionsCount,
         };
       } catch (e) {
         console.error('[ActionBadges] Error:', e);
-        return { liquidationFlags: 0, gtcPending: 0 };
+        return { liquidationFlags: 0, gtcPending: 0, workingOrdersCount: null, openPositionsCount: null };
       }
     }),
   }),

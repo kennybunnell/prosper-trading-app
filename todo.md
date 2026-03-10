@@ -7772,3 +7772,10 @@
 - [x] CC Dialog: option chain is fetched live from Tradier via ccChainMap in analyzePositions procedure
 - [x] CC Dialog: contract quantity capped at availableContracts for normal path; zero-contracts guard added
 - [x] Daily Actions page: Inbox added as 3rd sub-menu tab (Automation | Evaluation | Inbox)
+
+## Mar 10 2026 - Batch 5 Changes
+- [ ] Home dashboard: full visual redesign with rich gradient cards, distinct icons, and visual hierarchy
+- [ ] Home dashboard: deep-link badges — clicking any badge navigates to the exact sub-page/tab
+- [ ] Home dashboard: Daily Actions section broken into individual sub-cards (Automation, Working Orders, Open Positions, Auto-Close, Inbox) each with live badges
+- [ ] Home dashboard: Trading Strategies section — CC, CSP, Spreads, PMCC each get their own card with metrics
+- [ ] Home dashboard: section headers styled as proper visual dividers
