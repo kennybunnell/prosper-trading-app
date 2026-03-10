@@ -73,7 +73,7 @@ export interface TastytradePosition {
 }
 
 export interface OrderLeg {
-  instrumentType: 'Equity' | 'Equity Option' | 'Index Option';
+  instrumentType: 'Equity' | 'Equity Option';
   symbol: string;
   quantity: string;
   action: 'Sell to Open' | 'Buy to Close' | 'Buy to Open' | 'Sell to Close';

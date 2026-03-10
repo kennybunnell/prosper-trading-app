@@ -1,15 +1,18 @@
 /**
  * Phase 1 SPX/SPXW Integration Tests
- * - Instrument-type flag: SPXW/SPX legs must use 'Index Option', not 'Equity Option'
+ * - Instrument-type: Tastytrade API ONLY accepts 'Equity Option' for ALL options in order submission
+ *   (including index options like SPX/SPXW/NDX/RUT/VIX). 'Index Option' is returned by the
+ *   positions API but REJECTED by the order submission API with a 400 validation error.
  * - Profit target: 75% default, 50% alternative
  */
 
 import { describe, it, expect } from 'vitest';
 
-// ─── Instrument-type helper (mirrors the logic added to routers.ts) ──────────
-function getInstrumentType(symbol: string): 'Index Option' | 'Equity Option' {
-  const indexSymbols = ['SPX', 'SPXW', 'NDX', 'RUT', 'VIX'];
-  return indexSymbols.includes(symbol.toUpperCase()) ? 'Index Option' : 'Equity Option';
+// ─── Instrument-type helper (all options use 'Equity Option' for order submission) ──────────
+function getInstrumentTypeForOrderSubmission(_symbol: string): 'Equity Option' {
+  // Tastytrade API only accepts 'Equity Option' for all options including index options
+  // 'Index Option' is only in the positions response, NOT in order submission
+  return 'Equity Option';
 }
 
 // ─── Profit target helper ────────────────────────────────────────────────────
@@ -18,41 +21,41 @@ function calcCloseTarget(totalPremium: number, profitTargetPct: 50 | 75): number
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
-describe('SPXW Phase 1 — Instrument Type', () => {
-  it('returns Index Option for SPXW', () => {
-    expect(getInstrumentType('SPXW')).toBe('Index Option');
+describe('SPXW Phase 1 — Instrument Type (Order Submission)', () => {
+  it('returns Equity Option for SPXW (Tastytrade API requirement)', () => {
+    expect(getInstrumentTypeForOrderSubmission('SPXW')).toBe('Equity Option');
   });
 
-  it('returns Index Option for SPX', () => {
-    expect(getInstrumentType('SPX')).toBe('Index Option');
+  it('returns Equity Option for SPX (Tastytrade API requirement)', () => {
+    expect(getInstrumentTypeForOrderSubmission('SPX')).toBe('Equity Option');
   });
 
-  it('returns Index Option for NDX', () => {
-    expect(getInstrumentType('NDX')).toBe('Index Option');
+  it('returns Equity Option for NDX (Tastytrade API requirement)', () => {
+    expect(getInstrumentTypeForOrderSubmission('NDX')).toBe('Equity Option');
   });
 
-  it('returns Index Option for RUT', () => {
-    expect(getInstrumentType('RUT')).toBe('Index Option');
+  it('returns Equity Option for RUT (Tastytrade API requirement)', () => {
+    expect(getInstrumentTypeForOrderSubmission('RUT')).toBe('Equity Option');
   });
 
-  it('returns Index Option for VIX', () => {
-    expect(getInstrumentType('VIX')).toBe('Index Option');
+  it('returns Equity Option for VIX (Tastytrade API requirement)', () => {
+    expect(getInstrumentTypeForOrderSubmission('VIX')).toBe('Equity Option');
   });
 
   it('returns Equity Option for AAPL', () => {
-    expect(getInstrumentType('AAPL')).toBe('Equity Option');
+    expect(getInstrumentTypeForOrderSubmission('AAPL')).toBe('Equity Option');
   });
 
   it('returns Equity Option for NVDA', () => {
-    expect(getInstrumentType('NVDA')).toBe('Equity Option');
+    expect(getInstrumentTypeForOrderSubmission('NVDA')).toBe('Equity Option');
   });
 
   it('returns Equity Option for TSLA', () => {
-    expect(getInstrumentType('TSLA')).toBe('Equity Option');
+    expect(getInstrumentTypeForOrderSubmission('TSLA')).toBe('Equity Option');
   });
 
-  it('is case-insensitive for spxw', () => {
-    expect(getInstrumentType('spxw')).toBe('Index Option');
+  it('is consistent regardless of case', () => {
+    expect(getInstrumentTypeForOrderSubmission('spxw')).toBe('Equity Option');
   });
 });
 

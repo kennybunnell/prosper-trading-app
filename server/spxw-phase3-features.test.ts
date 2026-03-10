@@ -12,7 +12,7 @@ function mirrorLegs(legs: Array<{ symbol: string; action: string; quantity: numb
     symbol: leg.symbol,
     action: (leg.action === 'Sell to Open' ? 'Buy to Close' : 'Sell to Close') as 'Buy to Close' | 'Sell to Close',
     quantity: leg.quantity,
-    instrumentType: leg.instrumentType as 'Equity Option' | 'Index Option',
+    instrumentType: 'Equity Option' as const, // Tastytrade only accepts 'Equity Option' in order submission
   }));
 }
 
@@ -26,17 +26,17 @@ describe('GTC leg mirroring', () => {
   });
 
   it('mirrors a BTO leg to Sell to Close', () => {
-    const legs = [{ symbol: 'SPXW 240119P05650000', action: 'Buy to Open', quantity: 1, instrumentType: 'Index Option' }];
+    const legs = [{ symbol: 'SPXW 240119P05650000', action: 'Buy to Open', quantity: 1, instrumentType: 'Equity Option' }];
     const mirrored = mirrorLegs(legs);
     expect(mirrored[0].action).toBe('Sell to Close');
   });
 
   it('mirrors a 4-leg IC correctly', () => {
     const legs = [
-      { symbol: 'SPXW 240119P05700000', action: 'Sell to Open', quantity: 1, instrumentType: 'Index Option' },
-      { symbol: 'SPXW 240119P05650000', action: 'Buy to Open',  quantity: 1, instrumentType: 'Index Option' },
-      { symbol: 'SPXW 240119C05900000', action: 'Sell to Open', quantity: 1, instrumentType: 'Index Option' },
-      { symbol: 'SPXW 240119C05950000', action: 'Buy to Open',  quantity: 1, instrumentType: 'Index Option' },
+      { symbol: 'SPXW 240119P05700000', action: 'Sell to Open', quantity: 1, instrumentType: 'Equity Option' },
+      { symbol: 'SPXW 240119P05650000', action: 'Buy to Open',  quantity: 1, instrumentType: 'Equity Option' },
+      { symbol: 'SPXW 240119C05900000', action: 'Sell to Open', quantity: 1, instrumentType: 'Equity Option' },
+      { symbol: 'SPXW 240119C05950000', action: 'Buy to Open',  quantity: 1, instrumentType: 'Equity Option' },
     ];
     const mirrored = mirrorLegs(legs);
     expect(mirrored[0].action).toBe('Buy to Close');
@@ -46,9 +46,9 @@ describe('GTC leg mirroring', () => {
   });
 
   it('preserves instrumentType and quantity through mirroring', () => {
-    const legs = [{ symbol: 'SPXW 240119P05700000', action: 'Sell to Open', quantity: 3, instrumentType: 'Index Option' }];
+    const legs = [{ symbol: 'SPXW 240119P05700000', action: 'Sell to Open', quantity: 3, instrumentType: 'Equity Option' }];
     const mirrored = mirrorLegs(legs);
-    expect(mirrored[0].instrumentType).toBe('Index Option');
+    expect(mirrored[0].instrumentType).toBe('Equity Option');
     expect(mirrored[0].quantity).toBe(3);
   });
 

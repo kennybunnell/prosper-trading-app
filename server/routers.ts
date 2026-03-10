@@ -1675,7 +1675,7 @@ Summary: [One sentence overall assessment]`;
             });
             
             // Build legs to see what would be submitted
-            const dryRunInstrumentType = (order.symbol === 'SPXW' || order.symbol === 'SPX') ? 'Index Option' : 'Equity Option';
+            const dryRunInstrumentType = 'Equity Option'; // Tastytrade only accepts 'Equity Option' for all options including index options (SPX/SPXW)
             const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
               ? [
                   { symbol: order.putShortLeg.optionSymbol, action: order.putShortLeg.action, instrumentType: dryRunInstrumentType },
@@ -1846,9 +1846,9 @@ Summary: [One sentence overall assessment]`;
               }
               
               // Build legs based on order type
-              // SPXW and SPX are index options — Tastytrade requires 'Index Option' as the instrument type
-              const isIndexOption = order.symbol === 'SPXW' || order.symbol === 'SPX';
-              const legInstrumentType = isIndexOption ? 'Index Option' as const : 'Equity Option' as const;
+              // Tastytrade API only accepts 'Equity Option' for all options including index options (SPX/SPXW/NDX/NDXP)
+              // 'Index Option' is only returned by the positions API, NOT accepted in order submission
+              const legInstrumentType = 'Equity Option' as const;
               const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
               ? [
                     // Iron Condor: Leg 1 - Sell Put (short put)
@@ -1948,7 +1948,7 @@ Summary: [One sentence overall assessment]`;
                 symbol: leg.symbol,
                 action: (leg.action === 'Sell to Open' ? 'Buy to Close' : 'Sell to Close') as 'Buy to Close' | 'Sell to Close',
                 quantity: Number(leg.quantity),
-                instrumentType: leg.instrumentType as 'Equity Option' | 'Index Option',
+                instrumentType: 'Equity Option' as const, // Tastytrade only accepts 'Equity Option' in order submission
               }));
 
               return {
@@ -3362,7 +3362,7 @@ Summary: [One sentence overall assessment]`;
           symbol: z.string(),
           action: z.enum(['Buy to Close', 'Sell to Close']),
           quantity: z.number(),
-          instrumentType: z.enum(['Equity Option', 'Index Option']),
+          instrumentType: z.enum(['Equity Option']), // Tastytrade only accepts 'Equity Option' in order submission
         })),
       }))
       .mutation(async ({ ctx, input }) => {

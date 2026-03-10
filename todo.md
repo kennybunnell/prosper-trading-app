@@ -7747,3 +7747,12 @@
 - [x] Step 8: Clean up Action Items orphan tabs (content now in Portfolio tabs)
 - [x] Step 9: Add redirect from /action-items and /portfolio-advisor to /portfolio
 - [ ] Proactive Badge Cron Job: implement action_badges table + nightly scan job (see prosper-badge-cron-architecture.md)
+
+## Mar 10 2026 - Batch 2 Changes
+- [x] Home page: Move Monthly Premium Earnings chart to top, tiles second, Market News third with timestamps
+- [x] Confirm ATM CC STO logic is correct (sell highest premium, stock called away at DTE) — uses ITM strikes for LIQUIDATE (even better than ATM)
+- [x] Rename "Daily Automation" → "Daily Actions" throughout sidebar and page
+- [x] Restructure Daily Actions sidebar: Automation sub-menu (5 steps) + Evaluation sub-menu (Working Orders, Open Positions)
+- [x] Remove redundant "Auto-Close Orders" standalone sidebar item (kept inside Daily Actions > Automation sub-menu)
+- [x] Fix SPX Iron Condor instrument-type bug: was sending "Index Option" (invalid), now sends "Equity Option" for all options including SPX/SPXW
+- [ ] Verify SPX Iron Condor appears in Working Orders after submission (instrument-type fix deployed)

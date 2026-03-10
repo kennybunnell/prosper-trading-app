@@ -23,6 +23,9 @@ import {
   Activity,
   Grid3X3,
   Timer,
+  ClipboardList,
+  ListOrdered,
+  Inbox as InboxIcon,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -38,6 +41,7 @@ export function Sidebar({ className }: SidebarProps) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [incomeExpanded, setIncomeExpanded] = useState(true);
+  const [dailyActionsExpanded, setDailyActionsExpanded] = useState(true);
   const { selectedAccountId, setSelectedAccountId } = useAccount();
   const { user } = useAuth();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -93,6 +97,13 @@ export function Sidebar({ className }: SidebarProps) {
     }
   }, [location]);
 
+  // Auto-expand Daily Actions if on automation/gtc routes
+  useEffect(() => {
+    if (location.startsWith('/automation') || location.startsWith('/gtc-orders')) {
+      setDailyActionsExpanded(true);
+    }
+  }, [location]);
+
   const selectedAccount = accounts?.find((acc: any) => acc.accountId === selectedAccountId);
 
   // Primary nav items (top-level, always visible)
@@ -111,12 +122,18 @@ export function Sidebar({ className }: SidebarProps) {
       badgeCritical: (safetyData?.criticalCount ?? 0) > 0,
       description: 'Command Center',
     },
-    {
-      name: 'Daily Automation',
-      path: '/automation',
-      icon: Zap,
-      description: '4-step workflow',
-    },
+  ];
+
+  // Daily Actions — Automation sub-items
+  const dailyAutomationItems = [
+    { name: 'Automation Steps', path: '/automation', icon: Zap, description: '5-step workflow' },
+    { name: 'Auto-Close Orders', path: '/gtc-orders', icon: Timer, description: 'GTC profit targets' },
+  ];
+
+  // Daily Actions — Evaluation sub-items
+  const dailyEvaluationItems = [
+    { name: 'Working Orders', path: '/automation?tab=working-orders', icon: ClipboardList, description: 'Open orders' },
+    { name: 'Open Positions', path: '/automation?tab=open-positions', icon: ListOrdered, description: 'Active positions' },
   ];
 
   // Trading strategy sub-items (collapsible group)
@@ -127,11 +144,8 @@ export function Sidebar({ className }: SidebarProps) {
     { name: 'PMCC Dashboard', path: '/pmcc', icon: Activity },
   ];
 
-  // Daily Tasks items (shown below Daily Automation)
-  const dailyTaskItems = [
-    { name: 'Auto-Close Orders', path: '/gtc-orders', icon: Timer, description: 'GTC profit targets' },
-    { name: 'Inbox', path: '/inbox', icon: Activity, description: 'Alerts & notifications', badge: unreadCount?.count ?? 0 },
-  ];
+  // Inbox (standalone)
+  const inboxItem = { name: 'Inbox', path: '/inbox', icon: InboxIcon, description: 'Alerts & notifications', badge: unreadCount?.count ?? 0 };
 
   // Secondary nav items
   const secondaryNavItems = [
@@ -140,6 +154,7 @@ export function Sidebar({ className }: SidebarProps) {
   ];
 
   const isIncomeActive = incomeStrategyItems.some(i => location === i.path);
+  const isDailyActionsActive = location.startsWith('/automation') || location.startsWith('/gtc-orders');
 
   const renderNavLink = (item: { name: string; path: string; icon: any; badge?: number; badgeCritical?: boolean; description?: string }, indent = false) => {
     const Icon = item.icon;
@@ -288,8 +303,60 @@ export function Sidebar({ className }: SidebarProps) {
       )}
 
       <nav className="flex-1 px-2 space-y-1 overflow-y-auto">
-        {/* Primary items: Portfolio + Daily Automation */}
+        {/* Primary items: Dashboard + Portfolio */}
         {primaryNavItems.map(item => renderNavLink(item))}
+
+        {/* Daily Actions collapsible group */}
+        <div>
+          {!collapsed ? (
+            <button
+              onClick={() => setDailyActionsExpanded(!dailyActionsExpanded)}
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300',
+                isDailyActionsActive
+                  ? 'text-amber-300 bg-amber-900/20 border border-amber-500/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/30'
+              )}
+            >
+              <div className={cn(
+                'flex items-center justify-center w-10 h-10 rounded-lg',
+                isDailyActionsActive ? 'bg-gradient-to-br from-amber-600/60 to-yellow-700/60' : 'bg-accent/50'
+              )}>
+                <Zap className={cn('w-5 h-5', isDailyActionsActive ? 'text-amber-200' : 'text-muted-foreground')} />
+              </div>
+              <div className="flex-1 text-left">
+                <span className="text-sm font-medium block">Daily Actions</span>
+                <span className="text-[10px] text-muted-foreground">Automation · Evaluation</span>
+              </div>
+              {dailyActionsExpanded ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
+            </button>
+          ) : (
+            <button
+              onClick={() => setDailyActionsExpanded(!dailyActionsExpanded)}
+              className={cn(
+                'w-full flex items-center justify-center p-3 rounded-xl transition-all duration-300',
+                isDailyActionsActive ? 'bg-amber-900/30 text-amber-300' : 'text-muted-foreground hover:bg-accent/30'
+              )}
+            >
+              <Zap className="w-5 h-5" />
+            </button>
+          )}
+
+          {dailyActionsExpanded && !collapsed && (
+            <div className="pl-2 mt-0.5 space-y-0.5">
+              {/* Automation sub-section */}
+              <div className="px-4 py-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Automation</span>
+              </div>
+              {dailyAutomationItems.map(item => renderNavLink(item, true))}
+              {/* Evaluation sub-section */}
+              <div className="px-4 py-1 mt-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Evaluation</span>
+              </div>
+              {dailyEvaluationItems.map(item => renderNavLink(item, true))}
+            </div>
+          )}
+        </div>
 
         {/* Income Strategies collapsible group */}
         <div>
@@ -335,8 +402,8 @@ export function Sidebar({ className }: SidebarProps) {
           )}
         </div>
 
-        {/* Daily Tasks: Auto-Close Orders + Inbox */}
-        {dailyTaskItems.map(item => renderNavLink(item))}
+        {/* Inbox */}
+        {renderNavLink(inboxItem)}
 
         {/* Secondary: Spread Advisor + Performance */}
         {secondaryNavItems.map(item => renderNavLink(item))}

@@ -1,7 +1,8 @@
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, TrendingDown, AlertTriangle, Newspaper, ExternalLink } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertTriangle, Newspaper, ExternalLink, Clock } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 
 interface NewsItem {
@@ -124,6 +125,12 @@ export function MarketNewsScanner() {
                           {keyword}
                         </Badge>
                       ))}
+                      {item.publishedAt && (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          {new Date(item.publishedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
                     </div>
                     <Button
                       size="sm"

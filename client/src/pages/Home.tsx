@@ -139,21 +139,14 @@ function NavigationTileGrid() {
       label: "Daily Tasks",
       tiles: [
         {
-          title: "Daily Automation",
-          description: "4-step workflow: scan, review, submit, and confirm your daily covered calls and puts.",
+          title: "Daily Actions",
+          description: "5-step automation + evaluation hub: close for profit, roll, sell calls, PMCC, GTC — plus Working Orders and Open Positions.",
           href: "/automation",
           icon: Zap,
-          accentColor: "text-amber-400",
-        },
-        {
-          title: "Auto-Close Orders",
-          description: "GTC profit-target orders placed after every STO fill. Monitor pending and filled closes.",
-          href: "/gtc-orders",
-          icon: Timer,
           badge: gtcPending > 0 ? gtcPending : undefined,
-          badgeLabel: "pending",
+          badgeLabel: "pending GTC",
           badgeVariant: "default",
-          accentColor: "text-orange-400",
+          accentColor: "text-amber-400",
         },
         {
           title: "Inbox",
@@ -335,13 +328,13 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 relative z-10 space-y-10">
-        {/* Navigation Tile Grid */}
-        <NavigationTileGrid />
-
-        {/* Monthly Premium Chart */}
+        {/* Monthly Premium Chart — top for at-a-glance income overview */}
         <MonthlyPremiumChartSection />
 
-        {/* Market Pulse */}
+        {/* Navigation Tile Grid — middle for daily actions */}
+        <NavigationTileGrid />
+
+        {/* Market Pulse — bottom for context */}
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
             <Newspaper className="w-4 h-4" />
