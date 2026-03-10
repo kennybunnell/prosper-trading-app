@@ -391,7 +391,7 @@ function NavigationGrid() {
             gradient="bg-gradient-to-br from-cyan-950/60 via-card/80 to-card/40"
             iconBg="bg-cyan-500/15"
             iconColor="text-cyan-400"
-            badges={dogs > 0 ? [{ label: `${dogs} ${dogs === 1 ? 'dog' : 'dogs'}`, variant: "destructive", href: '/portfolio?tab=position-analyzer' }] : undefined}
+            badges={dogs > 0 ? [{ label: `${dogs} ${dogs === 1 ? 'dog' : 'dogs'}`, variant: "destructive", href: '/portfolio?tab=analyzer' }] : undefined}
             metric={openPositions !== null ? { value: openPositions, label: "open positions", color: "text-cyan-400" } : undefined}
           />
         </div>

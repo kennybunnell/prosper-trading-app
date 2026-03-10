@@ -1508,7 +1508,35 @@ function TickerAnalysisPanel({
 
 // --- Main Page ---
 export default function PortfolioCommandCenter() {
-  const [activeTab, setActiveTab] = useState('heatmap');
+  // Read ?tab= from URL on mount — supports 'analyzer', 'position-analyzer', 'positions', 'orders', 'safety', 'advisor', 'heatmap'
+  const initialTab = (() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const t = params.get('tab');
+      if (t === 'position-analyzer' || t === 'analyzer') return 'analyzer';
+      if (t === 'positions') return 'positions';
+      if (t === 'orders') return 'orders';
+      if (t === 'safety') return 'safety';
+      if (t === 'advisor') return 'advisor';
+      if (t === 'heatmap') return 'heatmap';
+    }
+    return 'heatmap';
+  })();
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Also respond to URL changes (e.g. navigating from Home dashboard badge)
+  const [location] = useLocation();
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get('tab');
+    if (!t) return;
+    if (t === 'position-analyzer' || t === 'analyzer') setActiveTab('analyzer');
+    else if (t === 'positions') setActiveTab('positions');
+    else if (t === 'orders') setActiveTab('orders');
+    else if (t === 'safety') setActiveTab('safety');
+    else if (t === 'advisor') setActiveTab('advisor');
+    else if (t === 'heatmap') setActiveTab('heatmap');
+  }, [location]);
   const [viewMode, setViewMode] = useState<ViewMode>('delta');
   const [selectedTicker, setSelectedTicker] = useState<TickerData | null>(null);
 
