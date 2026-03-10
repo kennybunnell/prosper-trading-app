@@ -90,6 +90,8 @@ interface SellCCDialogState {
   open: boolean;
   position: AnalyzedPosition | null;
   dryRun: boolean;
+  /** When set, overrides availableContracts — used for forced Dog exit when all contracts are locked */
+  forceQuantity?: number;
 }
 
 interface BatchSellDialogState {
@@ -248,7 +250,10 @@ function SellCCDialog({
   const pos = state.position;
   if (!pos || !pos.ccAtmStrike || !pos.ccAtmPremium || !pos.ccExpiration) return null;
 
-  const contracts = Math.floor(pos.quantity / 100);
+  // forceQuantity is set when selling exit CC on a Dog with locked contracts
+  const isForcedExit = state.forceQuantity !== undefined;
+  const contracts = state.forceQuantity ?? Math.floor(pos.quantity / 100);
+  const lockedContracts = Math.floor(pos.quantity / 100) - (pos.availableContracts ?? Math.floor(pos.quantity / 100));
   const estimatedCredit = pos.ccAtmPremium * contracts * 100;
   const roundToNickel = (price: number) => Math.round(price * 20) / 20;
   const handleSubmit = () => {
@@ -269,8 +274,8 @@ function SellCCDialog({
       <DialogContent className="max-w-md bg-card" style={{ border: '2px solid #374151', boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 25px 50px rgba(0,0,0,0.8)' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-emerald-400" />
-            Sell {pos.ccDeltaTier === 'ITM' ? 'ITM' : pos.ccDeltaTier === 'D30' ? 'Δ0.30 OTM' : pos.ccDeltaTier === 'D25' ? 'Δ0.25 OTM' : pos.ccDeltaTier === 'D20' ? 'Δ0.20 OTM' : 'ATM'} Covered Call — {pos.symbol}
+            <TrendingUp className={`h-5 w-5 ${isForcedExit ? 'text-red-400' : 'text-emerald-400'}`} />
+            {isForcedExit ? '⛔ Force Exit' : 'Sell'} {pos.ccDeltaTier === 'ITM' ? 'ITM' : pos.ccDeltaTier === 'D30' ? 'Δ0.30 OTM' : pos.ccDeltaTier === 'D25' ? 'Δ0.25 OTM' : pos.ccDeltaTier === 'D20' ? 'Δ0.20 OTM' : 'ATM'} Covered Call — {pos.symbol}
           </DialogTitle>
           <DialogDescription>
             Review the order details below before submitting.
@@ -329,6 +334,14 @@ function SellCCDialog({
             <Switch id="sell-dry-run" checked={dryRun} onCheckedChange={setDryRun} />
           </div>
 
+          {isForcedExit && lockedContracts > 0 && (
+            <Alert className="border-red-800/40 bg-red-950/20">
+              <AlertTriangle className="h-4 w-4 text-red-400" />
+              <AlertDescription className="text-red-300 text-xs">
+                <strong>⚠️ Forced Exit — Locked Contracts:</strong> {lockedContracts} contract{lockedContracts > 1 ? 's' : ''} are already covered under an active CC. Selling this exit CC will create a <strong>double-covered position</strong>. Only proceed if you intend to buy back the existing CC first, or let both expire and accept assignment at the lower strike.
+              </AlertDescription>
+            </Alert>
+          )}
           {!dryRun && (
             <Alert className="border-amber-800/40 bg-amber-950/20">
               <AlertTriangle className="h-4 w-4 text-amber-400" />
@@ -393,6 +406,7 @@ function WtrTrendBadge({ current, previous }: { current: number | null; previous
 function PositionCard({
   pos,
   onSellCC,
+  onSellDogCC,
   isFlagged,
   onToggleFlag,
   isFlagging,
@@ -400,6 +414,7 @@ function PositionCard({
 }: {
   pos: AnalyzedPosition;
   onSellCC: (pos: AnalyzedPosition) => void;
+  onSellDogCC: (pos: AnalyzedPosition, forceQuantity: number) => void;
   isFlagged: boolean;
   onToggleFlag: (pos: AnalyzedPosition, flag: boolean) => void;
   isFlagging: boolean;
@@ -611,41 +626,84 @@ function PositionCard({
         <div className="space-y-2">
           {pos.ccAtmStrike && pos.ccAtmPremium ? (
             <>
-              <div className="rounded-md bg-black/30 border border-emerald-800/30 p-2.5 text-xs space-y-1.5">
-                <div className="text-muted-foreground font-medium uppercase tracking-wide text-[10px]">Harvest &amp; Exit — Sell {pos.ccIsItm ? 'ITM' : 'ATM'} Covered Call</div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div>
-                    <div className="text-muted-foreground">Strike</div>
-                    <div className="font-bold text-white">${fmt(pos.ccAtmStrike)} {pos.ccIsItm ? <span className="text-amber-400">(ITM)</span> : <span className="text-blue-400">(ATM)</span>}</div>
+              {/* Normal path: contracts available */}
+              {contracts > 0 && (
+                <>
+                  <div className="rounded-md bg-black/30 border border-emerald-800/30 p-2.5 text-xs space-y-1.5">
+                    <div className="text-muted-foreground font-medium uppercase tracking-wide text-[10px]">Harvest &amp; Exit — Sell {pos.ccIsItm ? 'ITM' : 'ATM'} Covered Call</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div>
+                        <div className="text-muted-foreground">Strike</div>
+                        <div className="font-bold text-white">${fmt(pos.ccAtmStrike)} {pos.ccIsItm ? <span className="text-amber-400">(ITM)</span> : <span className="text-blue-400">(ATM)</span>}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Expiry</div>
+                        <div className="font-bold text-white">{pos.ccExpiration}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Premium/share</div>
+                        <div className="font-bold text-emerald-400">${fmt(pos.ccAtmPremium)}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Total Credit</div>
+                        <div className="font-bold text-emerald-400">${fmt(pos.ccAtmPremium * contracts * 100, 0)}</div>
+                      </div>
+                    </div>
+                    {pos.ccEffectiveExit && (
+                      <div className="text-xs text-muted-foreground">
+                        Effective exit price: <span className="text-blue-400 font-medium">${fmt(pos.ccEffectiveExit)}</span>
+                        {' '}· {contracts} contract{contracts !== 1 ? 's' : ''} ({pos.quantity.toLocaleString()} shares)
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <div className="text-muted-foreground">Expiry</div>
-                    <div className="font-bold text-white">{pos.ccExpiration}</div>
+                  <Button
+                    size="sm"
+                    onClick={() => onSellCC(pos)}
+                    className="w-full h-9 text-sm font-semibold bg-emerald-700 hover:bg-emerald-600 text-white border-0"
+                  >
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Liquidate / Sell {pos.ccIsItm ? 'ITM' : 'ATM'} CC — Collect ${fmt(pos.ccAtmPremium * contracts * 100, 0)} Premium
+                  </Button>
+                </>
+              )}
+              {/* Forced exit path: all contracts locked but this is a Dog — allow override */}
+              {contracts === 0 && pos.recommendation === 'LIQUIDATE' && (
+                <div className="rounded-md bg-red-950/20 border border-red-800/40 p-2.5 text-xs space-y-2">
+                  <div className="text-red-300 font-medium uppercase tracking-wide text-[10px] flex items-center gap-1.5">
+                    <AlertTriangle className="h-3 w-3" />
+                    Dog — All {lockedContracts} Contract{lockedContracts !== 1 ? 's' : ''} Locked Under Active CC
                   </div>
-                  <div>
-                    <div className="text-muted-foreground">Premium/share</div>
-                    <div className="font-bold text-emerald-400">${fmt(pos.ccAtmPremium)}</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div>
+                      <div className="text-muted-foreground">ITM Strike</div>
+                      <div className="font-bold text-white">${fmt(pos.ccAtmStrike)} <span className="text-red-400">(ITM)</span></div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Expiry</div>
+                      <div className="font-bold text-white">{pos.ccExpiration}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Premium/share</div>
+                      <div className="font-bold text-emerald-400">${fmt(pos.ccAtmPremium)}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Total Credit</div>
+                      <div className="font-bold text-emerald-400">${fmt(pos.ccAtmPremium * totalContracts * 100, 0)}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-muted-foreground">Total Credit</div>
-                    <div className="font-bold text-emerald-400">${fmt(pos.ccAtmPremium * contracts * 100, 0)}</div>
+                  <div className="text-xs text-red-300/70">
+                    Existing CC expires in {pos.openShortCalls?.[0]?.daysToExpiry ?? '?'}d. You can sell the exit ITM CC now and accept double-coverage, or wait for the existing CC to expire first.
                   </div>
+                  <Button
+                    size="sm"
+                    onClick={() => onSellDogCC(pos, totalContracts)}
+                    className="w-full h-9 text-sm font-semibold bg-red-800 hover:bg-red-700 text-white border-0"
+                  >
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    ⛔ Force Exit — Sell ITM CC ({totalContracts} contracts) — ${fmt(pos.ccAtmPremium * totalContracts * 100, 0)} Premium
+                  </Button>
                 </div>
-                {pos.ccEffectiveExit && (
-                  <div className="text-xs text-muted-foreground">
-                    Effective exit price: <span className="text-blue-400 font-medium">${fmt(pos.ccEffectiveExit)}</span>
-                    {' '}· {contracts} contract{contracts !== 1 ? 's' : ''} ({pos.quantity.toLocaleString()} shares)
-                  </div>
-                )}
-              </div>
-              <Button
-                size="sm"
-                onClick={() => onSellCC(pos)}
-                className="w-full h-9 text-sm font-semibold bg-emerald-700 hover:bg-emerald-600 text-white border-0"
-              >
-                <TrendingUp className="h-4 w-4 mr-2" />
-                Liquidate / Sell {pos.ccIsItm ? 'ITM' : 'ATM'} CC — Collect ${fmt(pos.ccAtmPremium * contracts * 100, 0)} Premium
-              </Button>
+              )}
             </>
           ) : (
             <div className="rounded-md border border-white/10 bg-black/20 p-2.5 text-xs text-muted-foreground flex items-center gap-2">
@@ -1157,6 +1215,7 @@ export function PositionAnalyzerTab() {
                 key={`${pos.symbol}-${pos.accountNumber}-${i}`}
                 pos={pos as AnalyzedPosition}
                 onSellCC={(p) => setSellDialog({ open: true, position: p, dryRun: true })}
+                onSellDogCC={(p, forceQty) => setSellDialog({ open: true, position: p, dryRun: true, forceQuantity: forceQty })}
                 isFlagged={flaggedSet.has(flagKey)}
                 onToggleFlag={handleToggleFlag}
                 isFlagging={flaggingKey === flagKey}

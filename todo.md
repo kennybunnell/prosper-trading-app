@@ -7756,3 +7756,11 @@
 - [x] Remove redundant "Auto-Close Orders" standalone sidebar item (kept inside Daily Actions > Automation sub-menu)
 - [x] Fix SPX Iron Condor instrument-type bug: was sending "Index Option" (invalid), now sends "Equity Option" for all options including SPX/SPXW
 - [ ] Verify SPX Iron Condor appears in Working Orders after submission (instrument-type fix deployed)
+
+## Mar 10 2026 - Batch 3 Changes
+- [x] Audit ALL SPX spread types — Bear Call, Bull Put, Iron Condor, Rolls all confirmed using 'Equity Option'; no 'Index Option' in any code path
+- [x] Add ⛔ Force Exit ITM CC button on LIQUIDATE Dog cards in Position Analyzer (bypasses CC automation pipeline block)
+- [x] SellCCDialog: forceQuantity override uses totalContracts for locked Dogs
+- [x] SellCCDialog: shows double-coverage warning when all contracts are locked
+- [x] SellCCDialog: dialog title changes to '⛔ Force Exit' for Dog path
+- [x] 8 vitest tests for Dog forced-exit and instrument-type validation (all pass)
