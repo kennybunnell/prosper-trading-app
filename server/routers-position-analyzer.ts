@@ -555,6 +555,46 @@ export const positionAnalyzerRouter = router({
       }
       // ─────────────────────────────────────────────────────────────────────────────────────────
 
+      // ─── Override recommendation for manually-flagged positions ──────────────────────────────
+      // If the user manually flagged a position for liquidation, force it to LIQUIDATE + ITM
+      // regardless of WTR. This ensures the CC dialog shows the ITM strike for Dogs.
+      try {
+        const { getDb: getDb2 } = await import('./db');
+        const db2 = await getDb2();
+        if (db2) {
+          const { liquidationFlags: lf } = await import('../drizzle/schema');
+          const { eq: eq2 } = await import('drizzle-orm');
+          const userFlags = await db2.select({
+            symbol: lf.symbol,
+            accountNumber: lf.accountNumber,
+          }).from(lf).where(eq2(lf.userId, ctx.user.id));
+          const flaggedKeys = new Set(userFlags.map(f => `${f.symbol.toUpperCase()}-${f.accountNumber}`));
+          for (const pos of analyzedPositions) {
+            const key = `${pos.symbol.toUpperCase()}-${pos.accountNumber}`;
+            if (flaggedKeys.has(key) && pos.recommendation !== 'LIQUIDATE') {
+              pos.recommendation = 'LIQUIDATE';
+              pos.recommendationReason = 'Manually flagged for exit — selling ITM call to force assignment';
+              pos.ccDeltaTier = 'ITM';
+              // Re-pick the ITM strike from the live chain
+              const ccChain = ccChainMap.get(pos.symbol);
+              if (ccChain) {
+                const itmStrike = pickStrikeForDeltaTier(ccChain.sortedStrikes, pos.currentPrice, 'ITM');
+                if (itmStrike) {
+                  pos.ccAtmStrike = itmStrike;
+                  pos.ccAtmPremium = ccChain.strikeToMid.get(itmStrike) ?? pos.ccAtmPremium;
+                  pos.ccIsItm = itmStrike < pos.currentPrice;
+                  pos.ccEffectiveExit = pos.ccAtmStrike + (pos.ccAtmPremium ?? 0);
+                }
+              }
+              console.log(`[PositionAnalyzer] ${pos.symbol} (${pos.accountNumber}) overridden to LIQUIDATE/ITM due to manual flag`);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[PositionAnalyzer] Flag override check failed (non-fatal):', e);
+      }
+      // ─────────────────────────────────────────────────────────────────────────────────────────
+
       // Sort: LIQUIDATE first, then MONITOR, then HARVEST, then KEEP; within each group by WTR desc (worst first)
       const order: Record<PositionRecommendation, number> = { LIQUIDATE: 0, MONITOR: 1, HARVEST: 2, KEEP: 3 };
       analyzedPositions.sort((a, b) => {

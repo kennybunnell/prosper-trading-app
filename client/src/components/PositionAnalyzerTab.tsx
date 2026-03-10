@@ -252,8 +252,12 @@ function SellCCDialog({
 
   // forceQuantity is set when selling exit CC on a Dog with locked contracts
   const isForcedExit = state.forceQuantity !== undefined;
-  const contracts = state.forceQuantity ?? Math.floor(pos.quantity / 100);
-  const lockedContracts = Math.floor(pos.quantity / 100) - (pos.availableContracts ?? Math.floor(pos.quantity / 100));
+  const totalContracts = Math.floor(pos.quantity / 100);
+  const availableContracts = pos.availableContracts ?? totalContracts;
+  // Normal path: cap at availableContracts to avoid Tastytrade rejection
+  // Forced exit path: use forceQuantity (totalContracts) — user accepts double-coverage risk
+  const contracts = state.forceQuantity ?? availableContracts;
+  const lockedContracts = totalContracts - availableContracts;
   const estimatedCredit = pos.ccAtmPremium * contracts * 100;
   const roundToNickel = (price: number) => Math.round(price * 20) / 20;
   const handleSubmit = () => {
@@ -358,13 +362,21 @@ function SellCCDialog({
           )}
         </div>
 
+        {contracts === 0 && !isForcedExit && (
+          <Alert className="border-amber-800/40 bg-amber-950/20">
+            <AlertTriangle className="h-4 w-4 text-amber-400" />
+            <AlertDescription className="text-amber-300 text-xs">
+              <strong>All {totalContracts} contracts are already covered</strong> by an active short call. Wait for the existing CC to expire, or use the Force Exit button to sell an exit ITM CC despite the lock.
+            </AlertDescription>
+          </Alert>
+        )}
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => { onClose(); setLastResult(null); }}>
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={sellMutation.isPending}
+            disabled={sellMutation.isPending || contracts === 0}
             className={dryRun ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}
           >
             {sellMutation.isPending ? (

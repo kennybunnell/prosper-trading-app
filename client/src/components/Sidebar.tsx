@@ -22,10 +22,6 @@ import {
   LayoutDashboard,
   Activity,
   Grid3X3,
-  Timer,
-  ClipboardList,
-  ListOrdered,
-  Inbox as InboxIcon,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -41,7 +37,6 @@ export function Sidebar({ className }: SidebarProps) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [incomeExpanded, setIncomeExpanded] = useState(true);
-  const [dailyActionsExpanded, setDailyActionsExpanded] = useState(true);
   const { selectedAccountId, setSelectedAccountId } = useAccount();
   const { user } = useAuth();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -49,12 +44,6 @@ export function Sidebar({ className }: SidebarProps) {
   // Fetch Tastytrade accounts (only when authenticated)
   const { data: accounts, isLoading: accountsLoading } = trpc.accounts.list.useQuery(undefined, { enabled: !!user });
   const { data: credentials } = trpc.settings.getCredentials.useQuery(undefined, { enabled: !!user });
-
-  // Fetch unread count for inbox badge
-  const { data: unreadCount } = trpc.inbox.getUnreadCount.useQuery(undefined, {
-    enabled: !!user,
-    refetchInterval: 30000,
-  });
 
   // Fetch Portfolio Safety violation count
   const { data: safetyData } = trpc.iraSafety.scanViolations.useQuery(undefined, {
@@ -73,7 +62,6 @@ export function Sidebar({ className }: SidebarProps) {
 
   useEffect(() => {
     if (!selectedAccountId && accounts && accounts.length > 0) {
-      // Prefer the user's configured default account; fall back to the first available account
       const defaultId = credentials?.defaultTastytradeAccountId;
       const accountToSelect = defaultId && accounts.some((a: any) => a.accountId === defaultId)
         ? defaultId
@@ -97,16 +85,9 @@ export function Sidebar({ className }: SidebarProps) {
     }
   }, [location]);
 
-  // Auto-expand Daily Actions if on automation/gtc routes
-  useEffect(() => {
-    if (location.startsWith('/automation') || location.startsWith('/gtc-orders')) {
-      setDailyActionsExpanded(true);
-    }
-  }, [location]);
-
   const selectedAccount = accounts?.find((acc: any) => acc.accountId === selectedAccountId);
 
-  // Primary nav items (top-level, always visible)
+  // Primary nav items — all flat single links
   const primaryNavItems = [
     {
       name: 'Dashboard',
@@ -122,30 +103,21 @@ export function Sidebar({ className }: SidebarProps) {
       badgeCritical: (safetyData?.criticalCount ?? 0) > 0,
       description: 'Command Center',
     },
+    {
+      name: 'Daily Actions',
+      path: '/automation',
+      icon: Zap,
+      description: 'Automation · Evaluation',
+    },
   ];
 
-  // Daily Actions — Automation sub-items
-  const dailyAutomationItems = [
-    { name: 'Automation Steps', path: '/automation', icon: Zap, description: '5-step workflow' },
-    { name: 'Auto-Close Orders', path: '/gtc-orders', icon: Timer, description: 'GTC profit targets' },
-  ];
-
-  // Daily Actions — Evaluation sub-items
-  const dailyEvaluationItems = [
-    { name: 'Working Orders', path: '/automation?tab=working-orders', icon: ClipboardList, description: 'Open orders' },
-    { name: 'Open Positions', path: '/automation?tab=open-positions', icon: ListOrdered, description: 'Active positions' },
-  ];
-
-  // Trading strategy sub-items (collapsible group)
+  // Trading Strategies — the ONLY group with sidebar sub-menus
   const incomeStrategyItems = [
     { name: 'Covered Calls', path: '/cc', icon: TrendingUp },
     { name: 'Cash-Secured Puts', path: '/csp', icon: TrendingDown },
     { name: 'Spreads / Condors', path: '/iron-condor', icon: Layers },
     { name: 'PMCC Dashboard', path: '/pmcc', icon: Activity },
   ];
-
-  // Inbox (standalone)
-  const inboxItem = { name: 'Inbox', path: '/inbox', icon: InboxIcon, description: 'Alerts & notifications', badge: unreadCount?.count ?? 0 };
 
   // Secondary nav items
   const secondaryNavItems = [
@@ -154,12 +126,14 @@ export function Sidebar({ className }: SidebarProps) {
   ];
 
   const isIncomeActive = incomeStrategyItems.some(i => location === i.path);
-  const isDailyActionsActive = location.startsWith('/automation') || location.startsWith('/gtc-orders');
 
   const renderNavLink = (item: { name: string; path: string; icon: any; badge?: number; badgeCritical?: boolean; description?: string }, indent = false) => {
     const Icon = item.icon;
-    // For root path, only match exactly; for others, use exact match too
-    const isActive = item.path === '/' ? location === '/' : location === item.path;
+    const isActive = item.path === '/'
+      ? location === '/'
+      : item.path === '/automation'
+        ? location.startsWith('/automation') || location.startsWith('/gtc-orders')
+        : location === item.path;
     return (
       <Link
         key={item.path}
@@ -262,7 +236,10 @@ export function Sidebar({ className }: SidebarProps) {
                   <Separator className="my-1" />
                   {accounts.map((account: any) => (
                     <SelectItem key={account.id} value={account.accountId}>
-                      {account.nickname || account.accountNumber}
+                      <div className="flex flex-col">
+                        <span className="font-medium">{account.nickname || account.accountNumber}</span>
+                        <span className="text-xs text-muted-foreground">{account.accountType}</span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -303,62 +280,10 @@ export function Sidebar({ className }: SidebarProps) {
       )}
 
       <nav className="flex-1 px-2 space-y-1 overflow-y-auto">
-        {/* Primary items: Dashboard + Portfolio */}
+        {/* Flat primary items: Dashboard, Portfolio, Daily Actions */}
         {primaryNavItems.map(item => renderNavLink(item))}
 
-        {/* Daily Actions collapsible group */}
-        <div>
-          {!collapsed ? (
-            <button
-              onClick={() => setDailyActionsExpanded(!dailyActionsExpanded)}
-              className={cn(
-                'w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300',
-                isDailyActionsActive
-                  ? 'text-amber-300 bg-amber-900/20 border border-amber-500/20'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/30'
-              )}
-            >
-              <div className={cn(
-                'flex items-center justify-center w-10 h-10 rounded-lg',
-                isDailyActionsActive ? 'bg-gradient-to-br from-amber-600/60 to-yellow-700/60' : 'bg-accent/50'
-              )}>
-                <Zap className={cn('w-5 h-5', isDailyActionsActive ? 'text-amber-200' : 'text-muted-foreground')} />
-              </div>
-              <div className="flex-1 text-left">
-                <span className="text-sm font-medium block">Daily Actions</span>
-                <span className="text-[10px] text-muted-foreground">Automation · Evaluation</span>
-              </div>
-              {dailyActionsExpanded ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
-            </button>
-          ) : (
-            <button
-              onClick={() => setDailyActionsExpanded(!dailyActionsExpanded)}
-              className={cn(
-                'w-full flex items-center justify-center p-3 rounded-xl transition-all duration-300',
-                isDailyActionsActive ? 'bg-amber-900/30 text-amber-300' : 'text-muted-foreground hover:bg-accent/30'
-              )}
-            >
-              <Zap className="w-5 h-5" />
-            </button>
-          )}
-
-          {dailyActionsExpanded && !collapsed && (
-            <div className="pl-2 mt-0.5 space-y-0.5">
-              {/* Automation sub-section */}
-              <div className="px-4 py-1">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Automation</span>
-              </div>
-              {dailyAutomationItems.map(item => renderNavLink(item, true))}
-              {/* Evaluation sub-section */}
-              <div className="px-4 py-1 mt-1">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Evaluation</span>
-              </div>
-              {dailyEvaluationItems.map(item => renderNavLink(item, true))}
-            </div>
-          )}
-        </div>
-
-        {/* Income Strategies collapsible group */}
+        {/* Trading Strategies — the ONLY collapsible group in the sidebar */}
         <div>
           {!collapsed ? (
             <button
@@ -394,16 +319,13 @@ export function Sidebar({ className }: SidebarProps) {
             </button>
           )}
 
-          {/* Sub-items */}
+          {/* Trading Strategies sub-items */}
           {incomeExpanded && (
             <div className={cn('space-y-0.5 mt-0.5', !collapsed && 'pl-2')}>
               {incomeStrategyItems.map(item => renderNavLink(item, !collapsed))}
             </div>
           )}
         </div>
-
-        {/* Inbox */}
-        {renderNavLink(inboxItem)}
 
         {/* Secondary: Spread Advisor + Performance */}
         {secondaryNavItems.map(item => renderNavLink(item))}

@@ -7764,3 +7764,11 @@
 - [x] SellCCDialog: shows double-coverage warning when all contracts are locked
 - [x] SellCCDialog: dialog title changes to '⛔ Force Exit' for Dog path
 - [x] 8 vitest tests for Dog forced-exit and instrument-type validation (all pass)
+
+## Mar 10 2026 - Batch 4 Changes
+- [x] Sidebar: flatten Daily Actions — single flat link, no sub-items in left nav
+- [x] Sidebar: ONLY Trading Strategies keeps sub-menu items in left nav; all others are flat single links
+- [x] CC Dialog: backend now forces LIQUIDATE+ITM override for manually-flagged Dogs; dialog label shows ITM
+- [x] CC Dialog: option chain is fetched live from Tradier via ccChainMap in analyzePositions procedure
+- [x] CC Dialog: contract quantity capped at availableContracts for normal path; zero-contracts guard added
+- [x] Daily Actions page: Inbox added as 3rd sub-menu tab (Automation | Evaluation | Inbox)
