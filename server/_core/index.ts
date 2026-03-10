@@ -74,6 +74,17 @@ async function startServer() {
   
   // Dev utilities endpoint (development only)
   if (process.env.NODE_ENV === "development") {
+    // Dev endpoint to trigger daily scan immediately (no auth required in dev)
+    app.post("/api/dev/trigger-daily-scan", async (req, res) => {
+      try {
+        const { runDailyScanForAllUsersExport } = await import('../automation-scheduler');
+        await runDailyScanForAllUsersExport();
+        res.json({ success: true, message: 'Daily scan triggered for all users' });
+      } catch (e: any) {
+        res.status(500).json({ success: false, error: e?.message });
+      }
+    });
+
     app.post("/api/dev/restart", (req, res) => {
       console.log("[Dev] Restart requested via API");
       res.json({ success: true, message: "Server restarting..." });

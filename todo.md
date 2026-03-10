@@ -7801,3 +7801,6 @@
 - [x] Home dashboard: fix Working Orders / Open Positions fallback text — now shows "—" instead of "Configure API"
 - [x] Home dashboard: quick-access row (Working Orders, Open Positions, Auto-Close, Inbox) moved below step cards
 - [x] 18 vitest tests for daily scan logic (parseOptionSymbol, scanCloseForProfit, scanRollPositions, scanSellCalls) — all pass
+## Mar 10 2026 - Bug Fixes (Priority)
+- [x] Fix Portfolio Command Center "dogs" badge deep-link — clicking badge must navigate to /portfolio?tab=position-analyzer, not just /portfolio
+- [x] Trigger immediate daily scan on demand so step cards show live data without waiting for 8:30 AM cron

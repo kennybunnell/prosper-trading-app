@@ -125,7 +125,12 @@ export function stopAutomationScheduler() {
 /**
  * Run daily scan cache refresh for all users with a Tastytrade API configured.
  * Computes Close for Profit, Roll Positions, Sell Calls badge counts.
+ * Exported so the dev endpoint can trigger it on demand.
  */
+export async function runDailyScanForAllUsersExport() {
+  return runDailyScanForAllUsers();
+}
+
 async function runDailyScanForAllUsers() {
   try {
     const db = await getDb();
