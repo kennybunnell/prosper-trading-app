@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ActivePositionsTab, WorkingOrdersTab } from './Performance';
 import { IraSafetyTab } from '@/components/IraSafetyTab';
+import { PositionAnalyzerTab } from '@/components/PositionAnalyzerTab';
+import PortfolioAdvisor from '@/pages/PortfolioAdvisor';
 import {
   Grid3X3,
   Activity,
@@ -25,6 +27,8 @@ import {
   Brain,
   X,
   Sparkles,
+  Dog,
+  BookOpen,
   ChevronRight,
   GraduationCap,
   Target,
@@ -1594,7 +1598,7 @@ export default function PortfolioCommandCenter() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="heatmap" className="flex items-center gap-1.5 text-xs">
             <Grid3X3 className="w-3.5 h-3.5" />
             Heat Map
@@ -1610,6 +1614,14 @@ export default function PortfolioCommandCenter() {
           <TabsTrigger value="safety" className="flex items-center gap-1.5 text-xs">
             <ShieldCheck className="w-3.5 h-3.5" />
             Risk Monitor
+          </TabsTrigger>
+          <TabsTrigger value="analyzer" className="flex items-center gap-1.5 text-xs">
+            <Dog className="w-3.5 h-3.5" />
+            Position Analyzer
+          </TabsTrigger>
+          <TabsTrigger value="advisor" className="flex items-center gap-1.5 text-xs">
+            <BookOpen className="w-3.5 h-3.5" />
+            Portfolio Advisor
           </TabsTrigger>
         </TabsList>
 
@@ -1828,6 +1840,14 @@ export default function PortfolioCommandCenter() {
 
         <TabsContent value="safety">
           <IraSafetyTab />
+        </TabsContent>
+
+        <TabsContent value="analyzer">
+          <PositionAnalyzerTab />
+        </TabsContent>
+
+        <TabsContent value="advisor">
+          <PortfolioAdvisor />
         </TabsContent>
       </Tabs>
 

@@ -7720,3 +7720,17 @@
 
 ## WorkingOrdersTab suggestedPrice Crash (Mar 9, 2026)
 - [x] Fix TypeError: Cannot read properties of undefined (reading 'suggestedPrice') in WorkingOrdersTab
+
+## Navigation Reorganization & Cleanup (Mar 10, 2026)
+
+### Cleanup
+- [x] Delete stale CCDashboard backup files (.new, .adapted, .backup)
+- [x] Delete orphaned StockBasis.tsx page file
+- [x] Add MarketNewsScanner to Home page as "Market Pulse" section
+
+### Nav Steps 1-5
+- [x] Step 1: Add Position Analyzer tab to Portfolio Command Center
+- [x] Step 2: Add Portfolio Advisor tab to Portfolio Command Center
+- [x] Step 3: Rename sidebar group "Income Strategies" → "Trading Strategies"
+- [x] Step 4: Move GTC Orders sidebar link under Daily Tasks section, rename label
+- [x] Step 5: Add Inbox sidebar link under Daily Tasks section

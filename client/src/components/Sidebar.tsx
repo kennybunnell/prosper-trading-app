@@ -119,7 +119,7 @@ export function Sidebar({ className }: SidebarProps) {
     },
   ];
 
-  // Income strategy sub-items (collapsible group)
+  // Trading strategy sub-items (collapsible group)
   const incomeStrategyItems = [
     { name: 'Covered Calls', path: '/cc', icon: TrendingUp },
     { name: 'Cash-Secured Puts', path: '/csp', icon: TrendingDown },
@@ -127,10 +127,15 @@ export function Sidebar({ className }: SidebarProps) {
     { name: 'PMCC Dashboard', path: '/pmcc', icon: Activity },
   ];
 
+  // Daily Tasks items (shown below Daily Automation)
+  const dailyTaskItems = [
+    { name: 'Auto-Close Orders', path: '/gtc-orders', icon: Timer, description: 'GTC profit targets' },
+    { name: 'Inbox', path: '/inbox', icon: Activity, description: 'Alerts & notifications', badge: unreadCount?.count ?? 0 },
+  ];
+
   // Secondary nav items
   const secondaryNavItems = [
     { name: 'Spread Advisor', path: '/strategy-advisor', icon: Sparkles },
-    { name: 'GTC Orders', path: '/gtc-orders', icon: Timer },
     { name: 'Performance', path: '/performance', icon: BarChart3 },
   ];
 
@@ -305,7 +310,7 @@ export function Sidebar({ className }: SidebarProps) {
                 <LayoutDashboard className={cn('w-5 h-5', isIncomeActive ? 'text-amber-200' : 'text-muted-foreground')} />
               </div>
               <div className="flex-1 text-left">
-                <span className="text-sm font-medium block">Income Strategies</span>
+                <span className="text-sm font-medium block">Trading Strategies</span>
                 <span className="text-[10px] text-muted-foreground">CC · CSP · Spreads · PMCC</span>
               </div>
               {incomeExpanded ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
@@ -329,6 +334,9 @@ export function Sidebar({ className }: SidebarProps) {
             </div>
           )}
         </div>
+
+        {/* Daily Tasks: Auto-Close Orders + Inbox */}
+        {dailyTaskItems.map(item => renderNavLink(item))}
 
         {/* Secondary: Spread Advisor + Performance */}
         {secondaryNavItems.map(item => renderNavLink(item))}

@@ -9,6 +9,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { trpc } from "@/lib/trpc";
 import { MonthlyPremiumChart } from "@/components/MonthlyPremiumChart";
 import { PortfolioAdvisorSummary } from "@/components/PortfolioAdvisorSummary";
+import { MarketNewsScanner } from "@/components/MarketNewsScanner";
 
 function MonthlyPremiumChartSection() {
   const [selectedYear, setSelectedYear] = React.useState<number | undefined>(new Date().getFullYear());
@@ -212,33 +213,10 @@ export default function Home() {
         {/* Monthly Premium Chart - All Accounts Combined */}
         <MonthlyPremiumChartSection />
         
-        {/* Portfolio Advisor Summary Cards */}
+        {/* Market Pulse — Market News & Risk Alerts */}
         <div className="mt-8">
-          <h2 className="text-2xl font-bold mb-4">Portfolio Risk Analysis</h2>
-          <PortfolioAdvisorSummary />
+          <MarketNewsScanner />
         </div>
-
-        {/* Setup Notice */}
-        <Card className="mt-8 border-yellow-500/50 bg-yellow-500/5 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Setup Required</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            <p className="mb-4">
-              To start trading, you need to configure your API credentials in Settings:
-            </p>
-            <ul className="space-y-1 mb-4">
-              <li>• Tastytrade API (for order execution)</li>
-              <li>• Tradier API (for market data and option chains)</li>
-            </ul>
-            <Button asChild variant="outline">
-              <Link href="/settings">
-                <SettingsIcon className="h-4 w-4 mr-2" />
-                Go to Settings
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
       </main>
     </div>
   );
