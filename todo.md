@@ -7812,3 +7812,7 @@
 - [x] Pre-select the WTR-recommended strike but allow user to pick any row
 - [x] Re-fetch fresh mid-price at submit time before placing the live order
 - [x] Two-step confirm: first click shows OCC symbol + final price, second click places the order
+
+## Mar 10 2026 - Basis-Aware P&L Warning in Sell ITM CC Dialog
+- [x] Add color-coded Effective Exit vs. Basis P&L row to SellCCDialog (green if above basis, red if below)
+- [x] Add basis-loss warning when effective exit is >10% below avg cost basis, showing exact $/share and % loss

@@ -410,32 +410,58 @@ function SellCCDialog({
               )}
 
               {/* Summary of selected strike */}
-              {activeStrike && (
-                <div className="rounded-lg bg-muted/20 border border-border p-3 space-y-1.5 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground text-xs">Selected Strike</span>
-                    <span className="font-bold text-white">${activeStrike.strike} {activeStrike.isItm ? '(ITM)' : '(OTM)'}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground text-xs">Limit Price (mid, nickel-rounded)</span>
-                    <span className="font-semibold text-white">${activeStrike.mid.toFixed(2)}/share</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground text-xs">Estimated Credit ({contracts} contracts)</span>
-                    <span className="text-emerald-400 font-bold text-base">${fmt(estimatedCredit, 0)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground text-xs">Effective Exit Price</span>
-                    <span className="text-blue-400 font-semibold">${fmt(activeStrike.effectiveExit)} vs. ${fmt(pos.currentPrice)} today</span>
-                  </div>
-                  {pos.weeksToRecover !== null && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground text-xs">Weeks to Recover Basis</span>
-                      <span className={`font-semibold ${wtrColor(pos.weeksToRecover)}`}>{fmtWTR(pos.weeksToRecover, pos.monthsToRecover)}</span>
+              {activeStrike && (() => {
+                const effectiveExit = activeStrike.effectiveExit;
+                const basis = pos.avgOpenPrice;
+                const pnlPerShare = effectiveExit - basis;
+                const pnlPct = basis > 0 ? (pnlPerShare / basis) * 100 : 0;
+                const isLoss = pnlPerShare < 0;
+                const isSignificantLoss = pnlPct < -10;
+                return (
+                  <>
+                    <div className="rounded-lg bg-muted/20 border border-border p-3 space-y-1.5 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground text-xs">Selected Strike</span>
+                        <span className="font-bold text-white">${activeStrike.strike} {activeStrike.isItm ? '(ITM)' : '(OTM)'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground text-xs">Limit Price (mid, nickel-rounded)</span>
+                        <span className="font-semibold text-white">${activeStrike.mid.toFixed(2)}/share</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground text-xs">Estimated Credit ({contracts} contracts)</span>
+                        <span className="text-emerald-400 font-bold text-base">${fmt(estimatedCredit, 0)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground text-xs">Effective Exit Price</span>
+                        <span className="text-blue-400 font-semibold">${fmt(effectiveExit)} vs. ${fmt(pos.currentPrice)} today</span>
+                      </div>
+                      {/* Basis P&L row — color-coded */}
+                      <div className="flex items-center justify-between border-t border-border pt-1.5">
+                        <span className="text-muted-foreground text-xs">Exit vs. Your Basis (${fmt(basis)})</span>
+                        <span className={`font-bold text-sm ${isLoss ? 'text-red-400' : 'text-emerald-400'}`}>
+                          {isLoss ? '▼' : '▲'} ${Math.abs(pnlPerShare).toFixed(2)}/share ({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)
+                        </span>
+                      </div>
+                      {pos.weeksToRecover !== null && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground text-xs">Weeks to Recover Basis</span>
+                          <span className={`font-semibold ${wtrColor(pos.weeksToRecover)}`}>{fmtWTR(pos.weeksToRecover, pos.monthsToRecover)}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
+                    {/* Basis-loss warning */}
+                    {isSignificantLoss && (
+                      <Alert className="border-red-800/60 bg-red-950/30">
+                        <AlertTriangle className="h-4 w-4 text-red-400" />
+                        <AlertDescription className="text-red-300 text-xs">
+                          <strong>⚠️ This exit locks in a realized loss of ${Math.abs(pnlPerShare).toFixed(2)}/share ({Math.abs(pnlPct).toFixed(1)}% below your ${fmt(basis)} basis).</strong> The premium collected does not recover the gap between your cost basis and the strike. Confirm you intend to exit this position at a loss to free up capital.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* Dry Run toggle */}
               <div className="flex items-center justify-between rounded-lg bg-muted/10 border border-border px-3 py-2">
@@ -491,6 +517,22 @@ function SellCCDialog({
                   <span className="text-muted-foreground text-xs">Estimated Credit</span>
                   <span className="text-emerald-400 font-bold text-base">${fmt(estimatedCredit, 0)}</span>
                 </div>
+                {/* Basis P&L row on confirm step */}
+                {(() => {
+                  const effectiveExit = activeStrike.effectiveExit;
+                  const basis = pos.avgOpenPrice;
+                  const pnlPerShare = effectiveExit - basis;
+                  const pnlPct = basis > 0 ? (pnlPerShare / basis) * 100 : 0;
+                  const isLoss = pnlPerShare < 0;
+                  return (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground text-xs">Exit vs. Your Basis (${fmt(basis)})</span>
+                      <span className={`font-bold text-sm ${isLoss ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {isLoss ? '▼' : '▲'} ${Math.abs(pnlPerShare).toFixed(2)}/share ({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div className="border-t border-border pt-2">
                   <div className="text-muted-foreground text-xs mb-1">OCC Contract Symbol</div>
                   <div className="font-mono text-xs bg-muted/30 rounded px-2 py-1.5 text-white tracking-wider">
