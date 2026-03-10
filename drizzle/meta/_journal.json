@@ -435,6 +435,13 @@
       "when": 1772919065145,
       "tag": "0062_gifted_dexter_bennett",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "5",
+      "when": 1773181230688,
+      "tag": "0063_new_lizard",
+      "breakpoints": true
     }
   ]
 }

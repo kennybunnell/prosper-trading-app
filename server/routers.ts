@@ -641,6 +641,64 @@ export const appRouter = router({
       }),
 
     /**
+     * Returns cached daily scan counts (Close for Profit, Roll Positions, Sell Calls).
+     * Populated by the 8:30 AM ET scheduled cron job — no live API call on page load.
+     */
+    getDailyActionCounts: protectedProcedure.query(async ({ ctx }) => {
+      try {
+        const { getDb } = await import('./db');
+        const db = await getDb();
+        if (!db) return { closeProfitCount: null, rollPositionsCount: null, sellCallsCount: null, scannedAt: null, scanSuccess: null, closeProfitItems: [], rollPositionsItems: [], sellCallsItems: [] };
+
+        const { dailyScanCache } = await import('../drizzle/schema');
+        const { eq, desc } = await import('drizzle-orm');
+
+        const [row] = await db
+          .select()
+          .from(dailyScanCache)
+          .where(eq(dailyScanCache.userId, ctx.user.id))
+          .orderBy(desc(dailyScanCache.scannedAt))
+          .limit(1);
+
+        if (!row) return { closeProfitCount: null, rollPositionsCount: null, sellCallsCount: null, scannedAt: null, scanSuccess: null, closeProfitItems: [], rollPositionsItems: [], sellCallsItems: [] };
+
+        const safeParse = (s: string | null | undefined): any[] => {
+          if (!s) return [];
+          try { return JSON.parse(s); } catch { return []; }
+        };
+
+        return {
+          closeProfitCount: row.closeProfitCount,
+          rollPositionsCount: row.rollPositionsCount,
+          sellCallsCount: row.sellCallsCount,
+          scannedAt: row.scannedAt,
+          scanSuccess: row.scanSuccess,
+          closeProfitItems: safeParse(row.closeProfitItems),
+          rollPositionsItems: safeParse(row.rollPositionsItems),
+          sellCallsItems: safeParse(row.sellCallsItems),
+        };
+      } catch (e) {
+        console.error('[getDailyActionCounts] Error:', e);
+        return { closeProfitCount: null, rollPositionsCount: null, sellCallsCount: null, scannedAt: null, scanSuccess: null, closeProfitItems: [], rollPositionsItems: [], sellCallsItems: [] };
+      }
+    }),
+
+    /**
+     * Manually trigger a fresh daily scan (used by "Scan Now" buttons on Home dashboard).
+     * Runs the same logic as the 8:30 AM ET cron job.
+     */
+    triggerDailyScan: protectedProcedure.mutation(async ({ ctx }) => {
+      try {
+        const { runDailyScan } = await import('./daily-scan');
+        const result = await runDailyScan(ctx.user.id);
+        return result;
+      } catch (e: any) {
+        console.error('[triggerDailyScan] Error:', e);
+        return { success: false, closeProfitCount: 0, rollPositionsCount: 0, sellCallsCount: 0, error: e?.message || 'Unknown error' };
+      }
+    }),
+
+    /**
      * Action badge counts for the Home page tile grid.
      * DB queries are fast; Tastytrade API calls use an 8s timeout with null fallback.
      */

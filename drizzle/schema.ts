@@ -936,3 +936,37 @@ export const gtcOrders = mysqlTable('gtcOrders', {
 
 export type GtcOrder = typeof gtcOrders.$inferSelect;
 export type InsertGtcOrder = typeof gtcOrders.$inferInsert;
+
+/**
+ * Daily scan cache — stores pre-computed counts and top items for the 3 key
+ * automation steps (Close for Profit, Roll Positions, Sell Calls).
+ * Populated by the 8:30 AM ET scheduled cron job.
+ * One row per user per scan run (upserted on each run).
+ */
+export const dailyScanCache = mysqlTable('daily_scan_cache', {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  /** UTC timestamp when this cache entry was last populated */
+  scannedAt: timestamp("scannedAt").notNull(),
+  /** Count of positions at >= 90% of max profit (ready to close) */
+  closeProfitCount: int("closeProfitCount").default(0).notNull(),
+  /** JSON array of top items for Close for Profit (symbol, profitPct, daysLeft) */
+  closeProfitItems: text("closeProfitItems"),
+  /** Count of short option positions with DTE <= 7 needing a roll */
+  rollPositionsCount: int("rollPositionsCount").default(0).notNull(),
+  /** JSON array of top items for Roll Positions (symbol, dte, strike, type) */
+  rollPositionsItems: text("rollPositionsItems"),
+  /** Count of HARVEST/MONITOR stock positions with no active covered call */
+  sellCallsCount: int("sellCallsCount").default(0).notNull(),
+  /** JSON array of top items for Sell Calls (symbol, shares, wtr, recommendation) */
+  sellCallsItems: text("sellCallsItems"),
+  /** Whether the last scan completed successfully */
+  scanSuccess: boolean("scanSuccess").default(true).notNull(),
+  /** Error message if scan failed */
+  scanError: text("scanError"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DailyScanCache = typeof dailyScanCache.$inferSelect;
+export type InsertDailyScanCache = typeof dailyScanCache.$inferInsert;

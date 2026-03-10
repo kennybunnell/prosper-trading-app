@@ -15,6 +15,7 @@ let scheduledTask: cron.ScheduledTask | null = null;
 let fridaySweepTask: cron.ScheduledTask | null = null;
 let dailyITMScanTask: cron.ScheduledTask | null = null;
 let weeklyPositionDigestTask: cron.ScheduledTask | null = null;
+let dailyScanCacheTask: cron.ScheduledTask | null = null;
 
 /**
  * Initialize the automation scheduler
@@ -74,6 +75,20 @@ export function initializeAutomationScheduler() {
     }
   );
   console.log('[Automation Scheduler] Weekly position digest initialized. Will run at 8:00 AM ET every Monday.');
+
+  // Daily scan cache refresh at 8:30 AM ET every weekday (Mon-Fri)
+  // Computes Close for Profit, Roll Positions, Sell Calls badge counts
+  dailyScanCacheTask = cron.schedule(
+    '30 8 * * 1-5', // 8:30 AM Monday-Friday
+    async () => {
+      console.log('[Daily Scan Cache] Running 8:30 AM ET daily scan...');
+      await runDailyScanForAllUsers();
+    },
+    {
+      timezone: 'America/New_York',
+    }
+  );
+  console.log('[Automation Scheduler] Daily scan cache initialized. Will run at 8:30 AM ET every weekday.');
 }
 
 /**
@@ -99,6 +114,51 @@ export function stopAutomationScheduler() {
     weeklyPositionDigestTask.stop();
     weeklyPositionDigestTask = null;
     console.log('[Weekly Digest] Stopped');
+  }
+  if (dailyScanCacheTask) {
+    dailyScanCacheTask.stop();
+    dailyScanCacheTask = null;
+    console.log('[Daily Scan Cache] Stopped');
+  }
+}
+
+/**
+ * Run daily scan cache refresh for all users with a Tastytrade API configured.
+ * Computes Close for Profit, Roll Positions, Sell Calls badge counts.
+ */
+async function runDailyScanForAllUsers() {
+  try {
+    const db = await getDb();
+    if (!db) {
+      console.error('[Daily Scan Cache] Database not available');
+      return;
+    }
+
+    // Get all users who have Tastytrade credentials configured
+    const { apiCredentials } = await import('../drizzle/schema');
+    const { isNotNull } = await import('drizzle-orm');
+    const users = await db
+      .select({ userId: apiCredentials.userId })
+      .from(apiCredentials)
+      .where(isNotNull(apiCredentials.tastytradeRefreshToken));
+
+    console.log(`[Daily Scan Cache] Scanning ${users.length} user(s)...`);
+
+    for (const user of users) {
+      try {
+        const { runDailyScan } = await import('./daily-scan');
+        const result = await runDailyScan(user.userId);
+        if (result.success) {
+          console.log(`[Daily Scan Cache] User ${user.userId}: closeProfit=${result.closeProfitCount}, roll=${result.rollPositionsCount}, sellCalls=${result.sellCallsCount}`);
+        } else {
+          console.error(`[Daily Scan Cache] User ${user.userId} scan failed: ${result.error}`);
+        }
+      } catch (userError) {
+        console.error(`[Daily Scan Cache] Error scanning user ${user.userId}:`, userError);
+      }
+    }
+  } catch (error) {
+    console.error('[Daily Scan Cache] Error in daily scan run:', error);
   }
 }
 

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,8 @@ import {
   Moon, Sun, Zap, Layers, Activity, Timer, Inbox, ShieldAlert,
   LayoutDashboard, TrendingDown, LineChart, AlertTriangle, ChevronRight,
   Newspaper, ClipboardList, ListOrdered, BellRing, Briefcase, Target,
-  ArrowUpRight, RefreshCw, CheckCircle2, Clock, Bot
+  ArrowUpRight, RefreshCw, CheckCircle2, Clock, Bot, TrendingDown as ProfitIcon,
+  RotateCcw, PhoneCall, Scan, Play
 } from "lucide-react";
 import { getLoginUrl } from "@/const";
 import { Link, useLocation } from "wouter";
@@ -19,7 +20,7 @@ import { MarketNewsScanner } from "@/components/MarketNewsScanner";
 // ─── Monthly Premium Chart Section ───────────────────────────────────────────
 
 function MonthlyPremiumChartSection() {
-  const [selectedYear, setSelectedYear] = React.useState<number | undefined>(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState<number | undefined>(new Date().getFullYear());
   const { data, isLoading, error } = trpc.dashboard.getMonthlyPremiumData.useQuery(
     selectedYear ? { year: selectedYear } : undefined,
     { retry: false, refetchOnWindowFocus: false }
@@ -95,12 +96,11 @@ interface RichCardProps {
   description: string;
   href: string;
   icon: React.ElementType;
-  gradient: string;        // Tailwind gradient classes for the card bg
-  iconBg: string;          // Icon container bg
-  iconColor: string;       // Icon color
+  gradient: string;
+  iconBg: string;
+  iconColor: string;
   badges?: { label: string; variant?: "default" | "destructive" | "secondary" | "outline"; color?: string }[];
   metric?: { value: string | number; label: string; color?: string };
-  onClick?: () => void;
 }
 
 function RichCard({ title, description, href, icon: Icon, gradient, iconBg, iconColor, badges, metric }: RichCardProps) {
@@ -110,11 +110,8 @@ function RichCard({ title, description, href, icon: Icon, gradient, iconBg, icon
       onClick={() => navigate(href)}
       className={`group relative overflow-hidden cursor-pointer rounded-2xl border border-border/30 ${gradient} hover:border-border/60 transition-all duration-300 hover:shadow-xl hover:shadow-black/20 hover:-translate-y-1 h-full`}
     >
-      {/* Subtle shine overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] to-transparent pointer-events-none" />
-
       <div className="relative p-5 flex flex-col gap-3 h-full">
-        {/* Top row: icon + badges */}
         <div className="flex items-start justify-between gap-2">
           <div className={`p-2.5 rounded-xl ${iconBg} shrink-0`}>
             <Icon className={`w-5 h-5 ${iconColor}`} />
@@ -122,25 +119,17 @@ function RichCard({ title, description, href, icon: Icon, gradient, iconBg, icon
           {badges && badges.length > 0 && (
             <div className="flex flex-wrap gap-1 justify-end">
               {badges.map((b, i) => (
-                <Badge
-                  key={i}
-                  variant={b.variant ?? "default"}
-                  className={`text-xs font-bold shrink-0 ${b.color ?? ''}`}
-                >
+                <Badge key={i} variant={b.variant ?? "default"} className={`text-xs font-bold shrink-0 ${b.color ?? ''}`}>
                   {b.label}
                 </Badge>
               ))}
             </div>
           )}
         </div>
-
-        {/* Title + description */}
         <div className="flex-1">
           <h3 className="font-bold text-foreground text-sm leading-tight">{title}</h3>
           <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{description}</p>
         </div>
-
-        {/* Bottom row: metric or open link */}
         <div className="flex items-center justify-between">
           {metric ? (
             <div>
@@ -157,7 +146,7 @@ function RichCard({ title, description, href, icon: Icon, gradient, iconBg, icon
   );
 }
 
-// ─── Daily Actions Sub-Card Grid ──────────────────────────────────────────────
+// ─── Daily Actions Sub-Card (simple link) ─────────────────────────────────────
 
 interface DailySubCardProps {
   title: string;
@@ -195,9 +184,123 @@ function DailySubCard({ title, href, icon: Icon, iconColor, iconBg, badge, badge
   );
 }
 
+// ─── Automation Step Card (with badge + mini-preview + Scan Now) ──────────────
+
+interface StepCardItem {
+  label: string;
+  sub?: string;
+}
+
+interface AutoStepCardProps {
+  title: string;
+  href: string;
+  icon: React.ElementType;
+  iconColor: string;
+  iconBg: string;
+  gradient: string;
+  count: number | null;
+  countLabel: string;
+  countColor: string;
+  items: StepCardItem[];
+  isScanning: boolean;
+  onScanNow: () => void;
+  lastScanned?: Date | null;
+}
+
+function AutoStepCard({
+  title, href, icon: Icon, iconColor, iconBg, gradient,
+  count, countLabel, countColor,
+  items, isScanning, onScanNow, lastScanned
+}: AutoStepCardProps) {
+  const [, navigate] = useLocation();
+
+  const scannedLabel = lastScanned
+    ? `Scanned ${new Date(lastScanned).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    : 'Not yet scanned today';
+
+  return (
+    <div className={`group relative overflow-hidden rounded-2xl border border-border/30 ${gradient} transition-all duration-300 hover:border-border/60 hover:shadow-xl hover:shadow-black/20`}>
+      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent pointer-events-none" />
+      <div className="relative p-5 flex flex-col gap-3">
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className={`p-2 rounded-xl ${iconBg} shrink-0`}>
+              <Icon className={`w-4 h-4 ${iconColor}`} />
+            </div>
+            <div>
+              <h3 className="font-bold text-foreground text-sm leading-tight">{title}</h3>
+              <p className="text-xs text-muted-foreground">{scannedLabel}</p>
+            </div>
+          </div>
+          {/* Count badge */}
+          {count !== null && count > 0 && (
+            <Badge className={`text-sm font-bold shrink-0 px-2.5 py-0.5 ${countColor}`}>
+              {count} {countLabel}
+            </Badge>
+          )}
+          {count === 0 && (
+            <Badge variant="outline" className="text-xs text-muted-foreground shrink-0">
+              All clear
+            </Badge>
+          )}
+          {count === null && (
+            <Badge variant="outline" className="text-xs text-muted-foreground shrink-0">
+              —
+            </Badge>
+          )}
+        </div>
+
+        {/* Mini preview list */}
+        {items.length > 0 && (
+          <div className="space-y-1 border-t border-border/20 pt-2">
+            {items.slice(0, 3).map((item, i) => (
+              <div key={i} className="flex items-center justify-between text-xs">
+                <span className="font-medium text-foreground">{item.label}</span>
+                {item.sub && <span className="text-muted-foreground">{item.sub}</span>}
+              </div>
+            ))}
+            {items.length > 3 && (
+              <p className="text-xs text-muted-foreground">+{items.length - 3} more…</p>
+            )}
+          </div>
+        )}
+
+        {/* Action row */}
+        <div className="flex items-center gap-2 pt-1">
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 h-7 text-xs border-border/40 hover:bg-card/80"
+            onClick={() => navigate(href)}
+          >
+            <ArrowUpRight className="w-3 h-3 mr-1" />
+            Open
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs border-border/40 hover:bg-card/80"
+            onClick={(e) => { e.stopPropagation(); onScanNow(); }}
+            disabled={isScanning}
+          >
+            {isScanning ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3 h-3" />
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Navigation Grid ─────────────────────────────────────────────────────
 
 function NavigationGrid() {
+  const utils = trpc.useUtils();
+
   const { data: badges, isLoading: badgesLoading } = trpc.dashboard.getActionBadges.useQuery(undefined, {
     refetchInterval: 90_000,
     retry: false,
@@ -206,12 +309,67 @@ function NavigationGrid() {
     refetchInterval: 60_000,
     retry: false,
   });
+  const { data: dailyCounts, isLoading: dailyLoading } = trpc.dashboard.getDailyActionCounts.useQuery(undefined, {
+    refetchInterval: 5 * 60_000, // refresh every 5 min
+    retry: false,
+  });
+
+  const [isScanning, setIsScanning] = useState(false);
+  const triggerScan = trpc.dashboard.triggerDailyScan.useMutation({
+    onSuccess: () => {
+      utils.dashboard.getDailyActionCounts.invalidate();
+    },
+  });
+
+  const handleScanNow = async () => {
+    setIsScanning(true);
+    try {
+      await triggerScan.mutateAsync();
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   const dogs = badges?.liquidationFlags ?? 0;
   const gtcPending = badges?.gtcPending ?? 0;
   const workingOrders = badges?.workingOrdersCount ?? null;
   const openPositions = badges?.openPositionsCount ?? null;
   const inboxUnread = unread?.count ?? 0;
+
+  // Daily scan data
+  const closeProfitCount = dailyCounts?.closeProfitCount ?? null;
+  const rollPositionsCount = dailyCounts?.rollPositionsCount ?? null;
+  const sellCallsCount = dailyCounts?.sellCallsCount ?? null;
+  const scannedAt = dailyCounts?.scannedAt ?? null;
+
+  // Build mini-preview items for each step card
+  const closeProfitItems: StepCardItem[] = (dailyCounts?.closeProfitItems ?? []).map((item: any) => ({
+    label: item.underlyingSymbol || item.symbol,
+    sub: `${item.profitPct?.toFixed(0)}% profit · ${item.daysLeft}d left`,
+  }));
+
+  const rollPositionsItems: StepCardItem[] = (dailyCounts?.rollPositionsItems ?? []).map((item: any) => ({
+    label: item.underlyingSymbol || item.symbol,
+    sub: `${item.dte}d DTE · $${item.strike} ${item.optionType}`,
+  }));
+
+  const sellCallsItems: StepCardItem[] = (dailyCounts?.sellCallsItems ?? []).map((item: any) => ({
+    label: item.symbol,
+    sub: `${item.shares} shares · ${item.recommendation}`,
+  }));
+
+  // Working orders / open positions status text
+  const workingOrdersStatus = badgesLoading
+    ? "Loading..."
+    : workingOrders === null
+    ? "—"
+    : undefined;
+
+  const openPositionsStatus = badgesLoading
+    ? "Loading..."
+    : openPositions === null
+    ? "—"
+    : undefined;
 
   return (
     <div className="space-y-10">
@@ -237,15 +395,58 @@ function NavigationGrid() {
       {/* ── DAILY ACTIONS ─────────────────────────────────────────────────── */}
       <div>
         <SectionHeader icon={Zap} label="Daily Actions" accent="text-amber-400" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-          <DailySubCard
-            title="Automation Steps"
+
+        {/* Top row: three automation step cards with scan badges */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-3">
+          <AutoStepCard
+            title="Close for Profit"
             href="/automation?tab=automation"
-            icon={Bot}
-            iconColor="text-amber-400"
-            iconBg="bg-amber-500/15"
-            status="5-step daily workflow"
+            icon={CheckCircle2}
+            iconColor="text-emerald-400"
+            iconBg="bg-emerald-500/15"
+            gradient="bg-gradient-to-br from-emerald-950/50 via-card/80 to-card/40"
+            count={closeProfitCount}
+            countLabel="ready"
+            countColor="bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+            items={closeProfitItems}
+            isScanning={isScanning}
+            onScanNow={handleScanNow}
+            lastScanned={scannedAt}
           />
+          <AutoStepCard
+            title="Roll Positions"
+            href="/automation?tab=automation"
+            icon={RotateCcw}
+            iconColor="text-orange-400"
+            iconBg="bg-orange-500/15"
+            gradient="bg-gradient-to-br from-orange-950/50 via-card/80 to-card/40"
+            count={rollPositionsCount}
+            countLabel="expiring"
+            countColor="bg-orange-500/20 text-orange-300 border-orange-500/30"
+            items={rollPositionsItems}
+            isScanning={isScanning}
+            onScanNow={handleScanNow}
+            lastScanned={scannedAt}
+          />
+          <AutoStepCard
+            title="Sell Calls"
+            href="/automation?tab=automation"
+            icon={PhoneCall}
+            iconColor="text-blue-400"
+            iconBg="bg-blue-500/15"
+            gradient="bg-gradient-to-br from-blue-950/50 via-card/80 to-card/40"
+            count={sellCallsCount}
+            countLabel="eligible"
+            countColor="bg-blue-500/20 text-blue-300 border-blue-500/30"
+            items={sellCallsItems}
+            isScanning={isScanning}
+            onScanNow={handleScanNow}
+            lastScanned={scannedAt}
+          />
+        </div>
+
+        {/* Bottom row: quick-access links */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <DailySubCard
             title="Working Orders"
             href="/automation?tab=working-orders"
@@ -255,7 +456,7 @@ function NavigationGrid() {
             badge={workingOrders}
             badgeLabel="active"
             badgeColor="bg-blue-500/20 text-blue-300 border-blue-500/30"
-            status={badgesLoading ? "Loading..." : workingOrders === null ? "Configure API" : undefined}
+            status={workingOrdersStatus}
           />
           <DailySubCard
             title="Open Positions"
@@ -266,12 +467,12 @@ function NavigationGrid() {
             badge={openPositions}
             badgeLabel="positions"
             badgeColor="bg-green-500/20 text-green-300 border-green-500/30"
-            status={badgesLoading ? "Loading..." : openPositions === null ? "Configure API" : undefined}
+            status={openPositionsStatus}
           />
           <DailySubCard
             title="Auto-Close Orders"
             href="/automation?tab=auto-close"
-            icon={CheckCircle2}
+            icon={Timer}
             iconColor="text-purple-400"
             iconBg="bg-purple-500/15"
             badge={gtcPending > 0 ? gtcPending : undefined}

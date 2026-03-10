@@ -7774,8 +7774,30 @@
 - [x] Daily Actions page: Inbox added as 3rd sub-menu tab (Automation | Evaluation | Inbox)
 
 ## Mar 10 2026 - Batch 5 Changes
-- [ ] Home dashboard: full visual redesign with rich gradient cards, distinct icons, and visual hierarchy
-- [ ] Home dashboard: deep-link badges — clicking any badge navigates to the exact sub-page/tab
-- [ ] Home dashboard: Daily Actions section broken into individual sub-cards (Automation, Working Orders, Open Positions, Auto-Close, Inbox) each with live badges
-- [ ] Home dashboard: Trading Strategies section — CC, CSP, Spreads, PMCC each get their own card with metrics
-- [ ] Home dashboard: section headers styled as proper visual dividers
+- [x] Home dashboard: full visual redesign with rich gradient cards, distinct icons, and visual hierarchy
+- [x] Home dashboard: deep-link badges — clicking any badge navigates to the exact sub-page/tab
+- [x] Home dashboard: Daily Actions section broken into individual sub-cards (Automation, Working Orders, Open Positions, Auto-Close, Inbox) each with live badges
+- [x] Home dashboard: Trading Strategies section — CC, CSP, Spreads, PMCC each get their own card with metrics
+- [x] Home dashboard: section headers styled as proper visual dividers
+- [x] Backend: getActionBadges extended to include working orders and open positions counts from Tastytrade API
+
+## Mar 10 2026 - Batch 6 Changes
+- [ ] Create daily_scan_cache DB table (stores Close for Profit, Roll Positions, Sell Calls counts + top items)
+- [ ] Build backend scan logic: closeProfitCount (positions >= 90% profit), rollPositionsCount (DTE <= 7), sellCallsCount (HARVEST/MONITOR with no active CC)
+- [ ] Scheduled cron job at 8:30 AM ET (12:30 UTC) that runs all 3 scans and writes to cache
+- [ ] getDailyActionCounts tRPC procedure reads from cache (fast, no API call on page load)
+- [ ] Home dashboard: fix '15 dogs' badge to deep-link to /portfolio?tab=position-analyzer
+- [ ] Home dashboard: fix 'Configure API' fallback text for Working Orders and Open Positions cards
+- [ ] Home dashboard: add badge counts to Close for Profit, Roll Positions, Sell Calls step cards
+- [ ] Home dashboard: mini-preview table on each step card showing top 3 items
+- [ ] Manual 'Scan Now' button on each step card to trigger fresh scan outside scheduled window
+## Mar 10 2026 - Batch 6 Changes (COMPLETED)
+- [x] Create daily_scan_cache DB table (stores Close for Profit, Roll Positions, Sell Calls counts + top items)
+- [x] Build backend scan logic: closeProfitCount (positions >= 90% profit), rollPositionsCount (DTE <= 7), sellCallsCount (HARVEST/MONITOR with no active CC)
+- [x] Scheduled cron job at 8:30 AM ET (America/New_York) every weekday that runs all 3 scans and writes to cache
+- [x] getDailyActionCounts tRPC procedure reads from cache (fast, no API call on page load)
+- [x] triggerDailyScan tRPC mutation for manual "Scan Now" button
+- [x] Home dashboard: three AutoStepCard components (Close for Profit, Roll Positions, Sell Calls) with badge counts + mini-preview + Scan Now button
+- [x] Home dashboard: fix Working Orders / Open Positions fallback text — now shows "—" instead of "Configure API"
+- [x] Home dashboard: quick-access row (Working Orders, Open Positions, Auto-Close, Inbox) moved below step cards
+- [x] 18 vitest tests for daily scan logic (parseOptionSymbol, scanCloseForProfit, scanRollPositions, scanSellCalls) — all pass
