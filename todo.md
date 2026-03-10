@@ -7821,3 +7821,8 @@
 - [x] Identify the lowest strike in the chain picker where (strike + mid) >= avg cost basis and mark it "Basis-Neutral"
 - [x] Highlight the Basis-Neutral row with a distinct teal/cyan border and badge
 - [x] Add a legend note below the chain table explaining the three labels: ★ WTR-recommended, ◎ Basis-Neutral, and no label = loss territory
+
+## Mar 10 2026 - Daily Actions Step Tab Badges
+- [x] Add persistent scan badge counts to step tabs 1 (Close for Profit), 2 (Roll Positions), 3 (Sell Calls) on the Daily Actions / Automation page
+- [x] Badge persists until next scan run; auto-refreshes when cache updates
+- [x] Steps 4 and 5 have no badge (not scanned)

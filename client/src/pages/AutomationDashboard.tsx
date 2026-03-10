@@ -204,6 +204,15 @@ export default function AutomationDashboard() {
   const [isSweeping, setIsSweeping] = useState(false);
   const [isDailyScanning, setIsDailyScanning] = useState(false);
 
+  // Persistent daily scan badge counts from cache
+  const { data: dailyCounts, refetch: refetchDailyCounts } = trpc.dashboard.getDailyActionCounts.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000, // 5 min
+    refetchInterval: 5 * 60 * 1000,
+  });
+  const cachedCloseProfitCount = dailyCounts?.closeProfitCount ?? null;
+  const cachedRollPositionsCount = dailyCounts?.rollPositionsCount ?? null;
+  const cachedSellCallsCount = dailyCounts?.sellCallsCount ?? null;
+
   // Daily scan schedule toggle
   const { data: dailyScanScheduleData, refetch: refetchDailyScanSchedule } = trpc.safeguards.getDailyScanEnabled.useQuery();
   const dailyScanEnabled = dailyScanScheduleData?.enabled ?? true;
@@ -1232,14 +1241,15 @@ export default function AutomationDashboard() {
             <span className="flex items-center gap-1">
               Close for Profit
               {(() => {
-                const profitCount = lastRunResult?.scanResults?.filter(r => r.action === 'WOULD_CLOSE').length ?? 0;
-                return profitCount > 0 ? (
-                  <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold leading-none">
-                    {profitCount}
+                // Prefer live scan count; fall back to cached daily count
+                const liveCount = lastRunResult?.scanResults?.filter(r => r.action === 'WOULD_CLOSE').length ?? null;
+                const displayCount = liveCount !== null ? liveCount : cachedCloseProfitCount;
+                return displayCount !== null && displayCount > 0 ? (
+                  <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold leading-none" title={liveCount !== null ? 'Live scan count' : 'Cached from last daily scan'}>
+                    {displayCount}
                   </span>
                 ) : null;
-              })()
-              }
+              })()}
             </span>
           </TabsTrigger>
           <TabsTrigger value="step2-roll" className="relative flex flex-col gap-0.5 py-2 text-xs">
@@ -1247,14 +1257,17 @@ export default function AutomationDashboard() {
             <span className="flex items-center gap-1">
               Roll Positions
               {(() => {
-                const rollCount = rollScanResults?.red?.length ?? 0;
-                return rollCount > 0 ? (
-                  <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
-                    {rollCount}
-                  </span>
-                ) : rollScanResults && rollScanResults.total > 0 ? (
-                  <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-orange-500 text-white text-[10px] font-bold leading-none">
-                    {rollScanResults.total}
+                // Prefer live scan count; fall back to cached daily count
+                const liveRed = rollScanResults?.red?.length ?? null;
+                const liveTotal = rollScanResults?.total ?? null;
+                const displayCount = liveRed !== null ? liveRed : (liveTotal !== null ? liveTotal : cachedRollPositionsCount);
+                const isLive = liveRed !== null || liveTotal !== null;
+                const color = (isLive && liveRed !== null && liveRed > 0) ? 'bg-red-500'
+                  : (isLive && liveTotal !== null && liveTotal > 0) ? 'bg-orange-500'
+                  : 'bg-amber-500';
+                return displayCount !== null && displayCount > 0 ? (
+                  <span className={`inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full ${color} text-white text-[10px] font-bold leading-none`} title={isLive ? 'Live scan count' : 'Cached from last daily scan'}>
+                    {displayCount}
                   </span>
                 ) : null;
               })()}
@@ -1262,7 +1275,14 @@ export default function AutomationDashboard() {
           </TabsTrigger>
           <TabsTrigger value="step3-cc" className="flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">3</span>
-            <span>Sell Calls</span>
+            <span className="flex items-center gap-1">
+              Sell Calls
+              {cachedSellCallsCount !== null && cachedSellCallsCount > 0 ? (
+                <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-none" title="Cached from last daily scan">
+                  {cachedSellCallsCount}
+                </span>
+              ) : null}
+            </span>
           </TabsTrigger>
           <TabsTrigger value="step4-pmcc" className="flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">4</span>
