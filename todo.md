@@ -7734,3 +7734,16 @@
 - [x] Step 3: Rename sidebar group "Income Strategies" → "Trading Strategies"
 - [x] Step 4: Move GTC Orders sidebar link under Daily Tasks section, rename label
 - [x] Step 5: Add Inbox sidebar link under Daily Tasks section
+
+### Nav Steps 6-9
+- [ ] Step 6: Redesign Home page with Navigation Tile Grid and live action badges
+- [ ] Step 7: Add Step 5 (Auto-Close Orders) tab to Daily Automation page
+- [ ] Step 8: Clean up Action Items page (remove orphaned tabs now in Portfolio)
+- [ ] Step 9: Add redirect from /action-items to /portfolio
+
+## Navigation Reorganization Steps 6-9 (Mar 10, 2026)
+- [x] Step 6: Redesign Home page with Navigation Tile Grid and live action badges
+- [x] Step 7: Add Step 5 (Auto-Close Orders) tab to Daily Automation page
+- [x] Step 8: Clean up Action Items orphan tabs (content now in Portfolio tabs)
+- [x] Step 9: Add redirect from /action-items and /portfolio-advisor to /portfolio
+- [ ] Proactive Badge Cron Job: implement action_badges table + nightly scan job (see prosper-badge-cron-architecture.md)

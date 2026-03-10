@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle,
   TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2, Square, CheckSquare, Send, ShoppingCart,
-  Power, Settings2, RefreshCw, BarChart3, GitMerge, Zap, Lock, Unlock, Download
+  Power, Settings2, RefreshCw, BarChart3, GitMerge, Zap, Lock, Unlock, Download, Timer, ExternalLink
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterPill } from '@/components/FilterPill';
@@ -33,6 +33,7 @@ import {
 import { toast } from 'sonner';
 import { ConnectionStatusIndicator } from '@/components/ConnectionStatusIndicator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Link } from 'wouter';
 import { Separator } from '@/components/ui/separator';
 import { skipToken } from '@tanstack/react-query';
 
@@ -1142,9 +1143,9 @@ export default function AutomationDashboard() {
         </div>
       )}
 
-      {/* Four-Step Automation Tabs */}
+      {/* Five-Step Automation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-5 h-auto">
           <TabsTrigger value="step1-close" className="relative flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">1</span>
             <span className="flex items-center gap-1">
@@ -1185,6 +1186,10 @@ export default function AutomationDashboard() {
           <TabsTrigger value="step4-pmcc" className="flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">4</span>
             <span>PMCC Mgmt</span>
+          </TabsTrigger>
+          <TabsTrigger value="step5-gtc" className="relative flex flex-col gap-0.5 py-2 text-xs">
+            <span className="font-bold text-sm">5</span>
+            <span>Auto-Close</span>
           </TabsTrigger>
         </TabsList>
 
@@ -2879,7 +2884,38 @@ export default function AutomationDashboard() {
           </Card>
         </TabsContent>
 
-      </Tabs>{/* end four-step tabs */}
+        {/* ─────────────────────────────────────────────────────────────────
+            STEP 5: Auto-Close Orders (GTC)
+        ───────────────────────────────────────────────────────────────── */}
+        <TabsContent value="step5-gtc">
+          <Card className="border-orange-500/30 bg-orange-500/5">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Timer className="h-5 w-5 text-orange-400" />
+                <div>
+                  <CardTitle>Auto-Close Orders (GTC)</CardTitle>
+                  <CardDescription>Monitor and manage Good-Till-Cancelled profit-target close orders placed after every STO fill</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="p-4 rounded-lg bg-background/50 border border-border/40 text-sm text-muted-foreground space-y-2">
+                <p>GTC close orders are automatically submitted after every confirmed STO fill. They close your position when it reaches <strong>50–80% of maximum profit</strong>, locking in gains without manual monitoring.</p>
+                <p>Use the full Auto-Close Orders page to cancel individual orders, manually poll for fills, or review the complete order history.</p>
+              </div>
+              <div className="flex gap-3">
+                <Button asChild className="bg-orange-600 hover:bg-orange-700">
+                  <Link href="/gtc-orders">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Open Auto-Close Orders
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+      </Tabs>{/* end five-step tabs */}
 
       {/* Unified Order Preview Modal */}
       {showOrderPreview && unifiedOrders.length > 0 && (

@@ -19,7 +19,7 @@ import PortfolioAdvisor from "./pages/PortfolioAdvisor";
 import AutomationDashboard from "./pages/AutomationDashboard";
 import PortfolioCommandCenter from "./pages/PortfolioCommandCenter";
 
-import ActionItems from "./pages/ActionItems";
+import { Redirect } from "wouter";
 import PendingApproval from "./pages/PendingApproval";
 import InviteAccept from "./pages/InviteAccept";
 import { AdminDashboard } from "./pages/AdminDashboard";
@@ -153,9 +153,10 @@ function Router() {
           <Route path={"/settings"} component={Settings} />
           <Route path={"/subscription"} component={Subscription} />
           <Route path="/inbox" component={Inbox} />
-          <Route path="/action-items" component={ActionItems} />
+          {/* /action-items and /portfolio-advisor now live inside Portfolio Command Center tabs */}
+          <Route path="/action-items"><Redirect to="/portfolio" /></Route>
+          <Route path="/portfolio-advisor"><Redirect to="/portfolio" /></Route>
           <Route path="/strategy-advisor" component={StrategyAdvisorPage} />
-          <Route path="/portfolio-advisor" component={PortfolioAdvisor} />
           <Route path="/automation" component={AutomationDashboard} />
           <Route path={"/csp"} component={CSPDashboard} />
           <Route path={"/cc"} component={CCDashboard} />

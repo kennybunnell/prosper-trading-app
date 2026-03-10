@@ -639,6 +639,39 @@ export const appRouter = router({
           return { events: [], error: error.message };
         }
       }),
+
+    /**
+     * Lightweight action badge counts for the Home page tile grid.
+     * Only uses fast DB queries — no Tastytrade API calls.
+     */
+    getActionBadges: protectedProcedure.query(async ({ ctx }) => {
+      try {
+        const { getDb } = await import('./db');
+        const db = await getDb();
+        if (!db) return { liquidationFlags: 0, gtcPending: 0 };
+
+        const { liquidationFlags: liquidationFlagsTable, gtcOrders: gtcOrdersTable } = await import('../drizzle/schema');
+        const { eq, and, count } = await import('drizzle-orm');
+
+        // Liquidation-flagged symbols (dogs) — fast DB-only query
+        const [flagRow] = await db.select({ value: count() })
+          .from(liquidationFlagsTable)
+          .where(eq(liquidationFlagsTable.userId, ctx.user.id));
+
+        // Pending GTC orders (submitted but not filled/cancelled)
+        const [gtcRow] = await db.select({ value: count() })
+          .from(gtcOrdersTable)
+          .where(and(eq(gtcOrdersTable.userId, ctx.user.id), eq(gtcOrdersTable.status, 'submitted')));
+
+        return {
+          liquidationFlags: Number(flagRow?.value ?? 0),
+          gtcPending: Number(gtcRow?.value ?? 0),
+        };
+      } catch (e) {
+        console.error('[ActionBadges] Error:', e);
+        return { liquidationFlags: 0, gtcPending: 0 };
+      }
+    }),
   }),
   auth: router({
     me: publicProcedure.query(opts => {
