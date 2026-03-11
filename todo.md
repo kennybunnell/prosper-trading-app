@@ -7829,3 +7829,22 @@
 
 ## Mar 10 2026 - Open Positions 95%+ Filter Bug
 - [x] 95%+ quick filter shows count=6 but only 3 rows appear, and none of the 3 rows are actually at 95%+ — fixed: removed minRealizedPercent from server query (was pre-filtering data before counts were computed); scoped profitCounts to current positionType tab so count always matches table rows
+
+## Mar 10 2026 - Review Roadmap Tier 1 Fixes
+- [x] Fix BPS net credit to use mid prices in spread-pricing.ts (shortMid/longMid instead of bid/ask extremes) — also fixed BCS to match
+- [x] Fix CSP index scoring bias in scoring.ts — added CSP_INDEX_SYMBOLS set, SPXW/NDXP/MRUT/SPX/NDX/RUT/XSP get full 40-pt neutral technical credit; also excluded index from perfect setup bonus
+- [x] Fix quantity +/- button CSS overflow in UnifiedOrderPreviewModal — added overflow-visible + min-w-[5rem] to quantity TableCell
+- [x] Fix sidebar navigation placeholder entries in DashboardLayout.tsx — replaced Page 1/Page 2 with 10 real routes: Dashboard, Portfolio, Daily Actions, CSP Scanner, Bear Call Spreads, Iron Condors, PMCC, GTC Orders, Performance, Settings
+
+## Mar 10 2026 - Review Roadmap Tier 2 Fixes
+- [ ] Add monthly income target tracker to Home page (progress bar: collected / $30k target)
+- [ ] Add win rate dashboard to Performance page (pull from gtcOrders + trades, show win rate by strategy)
+- [ ] Add earnings exclusion filter to CSP/BPS scanner (checkbox: exclude earnings within X days)
+- [ ] Fix BCS scan returning no results for equity symbols (investigate score threshold / overbought filter)
+
+## Mar 10 2026 - Review Roadmap Tier 3 Enhancements
+- [ ] Add AI Advisor feedback loop (include last 10 closed trades in LLM system prompt)
+- [ ] Add index spread roll candidates to Action Items page (SPXW weekly spreads with ≤3 DTE and short strike within 1% of current price)
+- [ ] Fix failing test suite (triage 42 failing tests, fix mock data mismatches)
+- [ ] Add portfolio-level delta limit (net delta calculator in Portfolio Command Center, alert at ±50 delta)
+- [ ] Add closed trade history view (Closed Trades tab in Performance page)

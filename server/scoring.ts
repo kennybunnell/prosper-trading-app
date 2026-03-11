@@ -28,6 +28,9 @@ export interface ScoredOpportunity extends CSPOpportunity {
  * - Premium Quality (20%): Weekly Return (15) + Spread (5)
  * - Stock Quality (10%): Mag 7 (5) + Market Cap (5)
  */
+// Index symbols: RSI/BB are not meaningful signals for cash-settled index products
+const CSP_INDEX_SYMBOLS = new Set(['SPXW', 'NDXP', 'MRUT', 'SPX', 'NDX', 'RUT', 'XSP']);
+
 export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdown: ScoreBreakdown } {
   let technicalScore = 0;
   let greeksScore = 0;
@@ -35,47 +38,55 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
   let qualityScore = 0;
 
   // ===== TECHNICAL SETUP (40 points) =====
-  
-  // RSI - Oversold Indicator (20 points)
-  // Lower is better for CSP (oversold stocks bounce)
-  const rsi = opp.rsi;
-  if (rsi !== null && rsi !== undefined) {
-    if (rsi < 25) {
-      technicalScore += 20; // Deeply oversold - bounce likely
-    } else if (rsi < 30) {
-      technicalScore += 18; // Oversold - excellent
-    } else if (rsi < 35) {
-      technicalScore += 15; // Approaching oversold - very good
-    } else if (rsi < 40) {
-      technicalScore += 12; // Neutral-bearish - good
-    } else if (rsi < 50) {
-      technicalScore += 8; // Neutral - acceptable
-    } else if (rsi < 60) {
-      technicalScore += 4; // Neutral-bullish - caution
-    }
-    // > 60 = 0 points (overbought - avoid)
-  } else {
-    technicalScore += 10; // Neutral if no data
-  }
+  const isIndex = CSP_INDEX_SYMBOLS.has((opp.symbol || '').toUpperCase());
 
-  // Bollinger Band %B (20 points)
-  // Lower is better for CSP (near lower band = oversold)
-  const bb = opp.bbPctB;
-  if (bb !== null && bb !== undefined) {
-    if (bb < 0) {
-      technicalScore += 20; // Below lower band - extreme oversold
-    } else if (bb < 0.15) {
-      technicalScore += 18; // Near lower band - excellent
-    } else if (bb < 0.30) {
-      technicalScore += 15; // Lower third - very good
-    } else if (bb < 0.50) {
-      technicalScore += 10; // Middle - acceptable
-    } else if (bb < 0.70) {
-      technicalScore += 5; // Upper third - caution
-    }
-    // > 0.70 = 0 points (near/above upper band - avoid)
+  if (isIndex) {
+    // For index products (SPXW, NDXP, MRUT, etc.) RSI and Bollinger Bands are not meaningful
+    // Award full neutral credit (20+20) so index CSPs are not penalized vs equity CSPs
+    technicalScore += 20; // RSI neutral for index
+    technicalScore += 20; // BB neutral for index
   } else {
-    technicalScore += 10; // Neutral if no data
+    // RSI - Oversold Indicator (20 points)
+    // Lower is better for CSP (oversold stocks bounce)
+    const rsi = opp.rsi;
+    if (rsi !== null && rsi !== undefined) {
+      if (rsi < 25) {
+        technicalScore += 20; // Deeply oversold - bounce likely
+      } else if (rsi < 30) {
+        technicalScore += 18; // Oversold - excellent
+      } else if (rsi < 35) {
+        technicalScore += 15; // Approaching oversold - very good
+      } else if (rsi < 40) {
+        technicalScore += 12; // Neutral-bearish - good
+      } else if (rsi < 50) {
+        technicalScore += 8; // Neutral - acceptable
+      } else if (rsi < 60) {
+        technicalScore += 4; // Neutral-bullish - caution
+      }
+      // > 60 = 0 points (overbought - avoid)
+    } else {
+      technicalScore += 10; // Neutral if no data
+    }
+
+    // Bollinger Band %B (20 points)
+    // Lower is better for CSP (near lower band = oversold)
+    const bb = opp.bbPctB;
+    if (bb !== null && bb !== undefined) {
+      if (bb < 0) {
+        technicalScore += 20; // Below lower band - extreme oversold
+      } else if (bb < 0.15) {
+        technicalScore += 18; // Near lower band - excellent
+      } else if (bb < 0.30) {
+        technicalScore += 15; // Lower third - very good
+      } else if (bb < 0.50) {
+        technicalScore += 10; // Middle - acceptable
+      } else if (bb < 0.70) {
+        technicalScore += 5; // Upper third - caution
+      }
+      // > 0.70 = 0 points (near/above upper band - avoid)
+    } else {
+      technicalScore += 10; // Neutral if no data
+    }
   }
 
   // ===== GREEKS & TIMING (30 points) =====
@@ -191,8 +202,9 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
   let perfectSetupBonus = 0;
   
   const isPerfectSetup = (
-    rsi !== null && rsi !== undefined && rsi < 30 && // Deeply oversold
-    bb !== null && bb !== undefined && bb < 0.20 && // Near lower band
+    !isIndex && // Index products don't qualify for perfect setup bonus
+    opp.rsi !== null && opp.rsi !== undefined && opp.rsi < 30 && // Deeply oversold
+    opp.bbPctB !== null && opp.bbPctB !== undefined && opp.bbPctB < 0.20 && // Near lower band
     weekly >= 1.5 && // Excellent premium (6%+/month)
     delta >= 0.20 && delta <= 0.29 && // Ideal probability
     dte >= 7 && dte <= 14 && // Optimal theta decay

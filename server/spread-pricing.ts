@@ -49,10 +49,11 @@ export function calculateBullPutSpread(
   const longStrike = shortStrike - spreadWidth;
   
   // Net credit = premium received from short put - premium paid for long put
-  // Use bid for selling (short put) and ask for buying (long put)
-  // This gives us the realistic net credit we can actually receive
-  const shortPremium = cspOpp.bid; // What we receive (bid price)
-  const longPremium = longPutQuote.ask; // What we pay (ask price)
+  // Use mid prices for both legs for accurate, consistent net credit (matches BCS and market convention)
+  const shortMid = (cspOpp.bid + cspOpp.ask) / 2;
+  const longMid = (longPutQuote.bid + longPutQuote.ask) / 2;
+  const shortPremium = shortMid; // Mid price for short put
+  const longPremium = longMid;   // Mid price for long put
   const netCredit = shortPremium - longPremium;
   
   // Capital at risk = spread width - net credit received
@@ -178,9 +179,11 @@ export function calculateBearCallSpread(
   const longStrike = shortStrike + spreadWidth;
   
   // Net credit = premium received from short call - premium paid for long call
-  // Use bid for selling (short call) and ask for buying (long call)
-  const shortPremium = ccOpp.bid; // What we receive (bid price)
-  const longPremium = longCallQuote.ask; // What we pay (ask price)
+  // Use mid prices for both legs for accurate, consistent net credit (matches BPS and market convention)
+  const shortMid = (ccOpp.bid + ccOpp.ask) / 2;
+  const longMid = (longCallQuote.bid + longCallQuote.ask) / 2;
+  const shortPremium = shortMid; // Mid price for short call
+  const longPremium = longMid;   // Mid price for long call
   const netCredit = shortPremium - longPremium;
   
   // Capital at risk = spread width - net credit received

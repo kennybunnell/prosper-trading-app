@@ -1346,9 +1346,9 @@ export function UnifiedOrderPreviewModal({
                       <TableCell>{new Date(order.expiration).toLocaleDateString()}</TableCell>
                       
                       {/* Quantity */}
-                      <TableCell className="text-right">
+                      <TableCell className="text-right overflow-visible">
                         {allowQuantityEdit ? (
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="flex items-center justify-end gap-1 min-w-[5rem]">
                             <Button
                               size="sm"
                               variant="outline"

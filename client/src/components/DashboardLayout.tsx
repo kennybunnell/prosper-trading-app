@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, TrendingUp, TrendingDown } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, BarChart2, Zap, ShieldCheck, TrendingDown, TrendingUp, Activity, ListChecks, Settings, Repeat2, Target } from "lucide-react";
 import { useTradingMode } from "@/contexts/TradingModeContext";
 import { Switch } from "@/components/ui/switch";
 import { CSSProperties, useEffect, useRef, useState } from "react";
@@ -32,8 +32,16 @@ import { AuthStatusIndicator } from './AuthStatusIndicator';
 import { Button } from "./ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: BarChart2, label: "Portfolio", path: "/portfolio" },
+  { icon: Zap, label: "Daily Actions", path: "/automation" },
+  { icon: ShieldCheck, label: "CSP Scanner", path: "/csp" },
+  { icon: TrendingDown, label: "Bear Call Spreads", path: "/cc" },
+  { icon: Target, label: "Iron Condors", path: "/iron-condor" },
+  { icon: Repeat2, label: "PMCC", path: "/pmcc" },
+  { icon: ListChecks, label: "GTC Orders", path: "/gtc-orders" },
+  { icon: Activity, label: "Performance", path: "/performance" },
+  { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
