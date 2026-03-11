@@ -7853,3 +7853,15 @@
 - [x] Add monthlyIncomeTarget field to userPreferences table in drizzle/schema.ts and pushed via SQL ALTER
 - [x] Add tRPC procedures: setMonthlyTarget (saves to DB), getMonthlyCollected (computes from closed GTC orders + reads target)
 - [x] Built Monthly Premium Income card on Home dashboard: emerald progress bar, editable target (click pencil), collected/remaining/% display
+
+## Mar 10 2026 - Fix Monthly Income Tracker Data Source
+- [ ] Update getMonthlyCollected to use Tastytrade transaction history (same source as monthly earnings chart) instead of empty GTC orders table
+
+## Mar 10 2026 - Home Dashboard Reorder
+- [ ] Move Monthly Income Target card to above the Monthly Premium Earnings chart (currently it sits below Portfolio section, needs to be the first thing visible)
+
+## Session Changes (Mar 10, 2026)
+- [x] Move Monthly Income Target card to appear ABOVE the Monthly Premium Earnings chart on Home dashboard
+- [x] Fix data source mismatch: getMonthlyCollected now uses same logic as chart (option-symbol regex + net-value-effect Credit/Debit)
+- [x] Extract MonthlyIncomeTracker as standalone component (no longer embedded in NavigationGrid)
+- [x] Add 6 unit tests for getMonthlyCollected logic (all passing)

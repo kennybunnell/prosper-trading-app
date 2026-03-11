@@ -2927,31 +2927,59 @@ Summary: [One sentence overall assessment]`;
         return { success: true };
       }),
     getMonthlyCollected: protectedProcedure.query(async ({ ctx }) => {
-      const { getDb, getUserPreferences } = await import('./db');
-      const { gtcOrders } = await import('../drizzle/schema');
-      const { eq, and, gte, sql } = await import('drizzle-orm');
-      const db = await getDb();
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const rows = db ? await db
-        .select({ total: sql<string>`SUM(CAST(${gtcOrders.totalPremiumCollected} AS DECIMAL(12,2)))` })
-        .from(gtcOrders)
-        .where(
-          and(
-            eq(gtcOrders.userId, ctx.user.id),
-            eq(gtcOrders.status, 'filled'),
-            gte(gtcOrders.filledAt, monthStart)
-          )
-        ) : [];
-      const collected = parseFloat(rows[0]?.total ?? '0') || 0;
+      const { getUserPreferences, getApiCredentials } = await import('./db');
       const prefs = await getUserPreferences(ctx.user.id);
       const target = prefs?.monthlyIncomeTarget ?? 150000;
-      return {
-        collected,
-        target,
-        remaining: Math.max(0, target - collected),
-        pct: target > 0 ? Math.min(100, (collected / target) * 100) : 0,
-      };
+
+      // Use the EXACT same logic as getMonthlyPremiumData chart:
+      // option-symbol regex filter + net-value-effect (Credit/Debit)
+      try {
+        const credentials = await getApiCredentials(ctx.user.id);
+        if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+          return { collected: 0, target, remaining: target, pct: 0, error: 'Tastytrade credentials not configured' };
+        }
+        const { authenticateTastytrade } = await import('./tastytrade');
+        const api = await authenticateTastytrade(credentials, ctx.user.id);
+        const accounts = await api.getAccounts();
+        if (!accounts || accounts.length === 0) {
+          return { collected: 0, target, remaining: target, pct: 0 };
+        }
+        const now = new Date();
+        const startDateStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const endDateStr = now.toISOString().split('T')[0];
+        let credits = 0;
+        let debits = 0;
+        for (const account of accounts) {
+          const accountNumber = account.account['account-number'];
+          try {
+            const transactions = await api.getTransactionHistory(accountNumber, startDateStr, endDateStr);
+            for (const txn of transactions) {
+              // Only count Trade transactions
+              if (txn['transaction-type'] !== 'Trade') continue;
+              // Only count option transactions (same regex as chart)
+              const txnSymbol: string = txn['symbol'] || '';
+              const isOptionSymbol = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol);
+              if (!isOptionSymbol) continue;
+              const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
+              const netValueEffect = txn['net-value-effect'];
+              if (!netValueEffect || netValue === 0) continue;
+              if (netValueEffect === 'Credit') credits += netValue;
+              else if (netValueEffect === 'Debit') debits += netValue;
+            }
+          } catch (e) {
+            // Skip failed accounts silently
+          }
+        }
+        const collected = Math.round((credits - debits) * 100) / 100;
+        return {
+          collected,
+          target,
+          remaining: Math.max(0, target - collected),
+          pct: target > 0 ? Math.min(100, (collected / target) * 100) : 0,
+        };
+      } catch (e) {
+        return { collected: 0, target, remaining: target, pct: 0, error: String(e) };
+      }
     }),
   }),
 

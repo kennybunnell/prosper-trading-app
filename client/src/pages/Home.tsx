@@ -301,6 +301,117 @@ function AutoStepCard({
   );
 }
 
+// ─── Monthly Income Tracker ─────────────────────────────────────────────────────
+
+function MonthlyIncomeTracker() {
+  const { data: monthlyData, refetch: refetchMonthly } = trpc.userPreferences.getMonthlyCollected.useQuery(undefined, {
+    refetchInterval: 10 * 60_000,
+    retry: false,
+  });
+  const setMonthlyTarget = trpc.userPreferences.setMonthlyTarget.useMutation({
+    onSuccess: () => refetchMonthly(),
+  });
+  const [editingTarget, setEditingTarget] = useState(false);
+  const [targetInput, setTargetInput] = useState('');
+
+  return (
+    <div>
+      <SectionHeader icon={Target} label="Monthly Income Target" accent="text-emerald-400" />
+      <div className="rounded-2xl border border-border/30 bg-gradient-to-br from-emerald-950/40 via-card/80 to-card/40 backdrop-blur-sm p-5">
+        {monthlyData ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-500/15">
+                  <Target className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    <span className="text-emerald-400 text-xl font-bold">${monthlyData.collected.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                    <span className="text-muted-foreground text-sm font-normal ml-2">collected this month</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    ${monthlyData.remaining.toLocaleString('en-US', { maximumFractionDigits: 0 })} remaining · {monthlyData.pct.toFixed(1)}% of target
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {editingTarget ? (
+                  <form
+                    className="flex items-center gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const val = parseInt(targetInput.replace(/[^0-9]/g, ''));
+                      if (val >= 1000) {
+                        setMonthlyTarget.mutate({ target: val });
+                        setEditingTarget(false);
+                      }
+                    }}
+                  >
+                    <input
+                      autoFocus
+                      type="text"
+                      value={targetInput}
+                      onChange={(e) => setTargetInput(e.target.value)}
+                      placeholder="e.g. 150000"
+                      className="w-32 px-2.5 py-1.5 rounded-lg border border-emerald-500/40 bg-background/60 text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                    />
+                    <Button size="sm" type="submit" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-500 text-white" disabled={setMonthlyTarget.isPending}>
+                      {setMonthlyTarget.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
+                    </Button>
+                    <Button size="sm" variant="outline" type="button" className="h-7 text-xs" onClick={() => setEditingTarget(false)}>Cancel</Button>
+                  </form>
+                ) : (
+                  <button
+                    onClick={() => { setTargetInput(String(monthlyData.target)); setEditingTarget(true); }}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors border border-border/40 rounded-lg px-2.5 py-1.5 hover:border-border/70"
+                  >
+                    Target: ${monthlyData.target.toLocaleString()} ✎
+                  </button>
+                )}
+              </div>
+            </div>
+            {/* Progress bar */}
+            <div className="space-y-1.5">
+              <div className="w-full h-3 rounded-full bg-muted/30 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-700 ${
+                    monthlyData.pct >= 100
+                      ? 'bg-gradient-to-r from-emerald-500 to-green-400'
+                      : monthlyData.pct >= 75
+                      ? 'bg-gradient-to-r from-emerald-600 to-emerald-400'
+                      : monthlyData.pct >= 50
+                      ? 'bg-gradient-to-r from-amber-600 to-amber-400'
+                      : 'bg-gradient-to-r from-orange-700 to-orange-500'
+                  }`}
+                  style={{ width: `${Math.min(100, monthlyData.pct)}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>$0</span>
+                <span className={monthlyData.pct >= 100 ? 'text-emerald-400 font-semibold' : ''}>
+                  {monthlyData.pct >= 100 ? '🎯 Target reached!' : `$${(monthlyData.target / 2).toLocaleString()} midpoint`}
+                </span>
+                <span>${monthlyData.target.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 py-2">
+            <div className="p-2.5 rounded-xl bg-emerald-500/15">
+              <Target className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Monthly Income Target</p>
+              <p className="text-xs text-muted-foreground">Configure Tastytrade credentials to track premium collected</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Navigation Grid ─────────────────────────────────────────────────────
 
 function NavigationGrid() {
@@ -318,16 +429,6 @@ function NavigationGrid() {
     refetchInterval: 5 * 60_000, // refresh every 5 min
     retry: false,
   });
-
-  const { data: monthlyData, refetch: refetchMonthly } = trpc.userPreferences.getMonthlyCollected.useQuery(undefined, {
-    refetchInterval: 10 * 60_000,
-    retry: false,
-  });
-  const setMonthlyTarget = trpc.userPreferences.setMonthlyTarget.useMutation({
-    onSuccess: () => refetchMonthly(),
-  });
-  const [editingTarget, setEditingTarget] = useState(false);
-  const [targetInput, setTargetInput] = useState('');
 
   const [isScanning, setIsScanning] = useState(false);
   const triggerScan = trpc.dashboard.triggerDailyScan.useMutation({
@@ -404,102 +505,6 @@ function NavigationGrid() {
             badges={dogs > 0 ? [{ label: `${dogs} ${dogs === 1 ? 'dog' : 'dogs'}`, variant: "destructive", href: '/portfolio?tab=analyzer' }] : undefined}
             metric={openPositions !== null ? { value: openPositions, label: "open positions", color: "text-cyan-400" } : undefined}
           />
-        </div>
-      </div>
-
-      {/* ── MONTHLY INCOME TRACKER ────────────────────────────────────────── */}
-      <div>
-        <SectionHeader icon={Target} label="Monthly Income Target" accent="text-emerald-400" />
-        <div className="rounded-2xl border border-border/30 bg-gradient-to-br from-emerald-950/40 via-card/80 to-card/40 backdrop-blur-sm p-5">
-          {monthlyData ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-emerald-500/15">
-                    <Target className="w-5 h-5 text-emerald-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      <span className="text-emerald-400 text-xl font-bold">${monthlyData.collected.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                      <span className="text-muted-foreground text-sm font-normal ml-2">collected this month</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      ${monthlyData.remaining.toLocaleString('en-US', { maximumFractionDigits: 0 })} remaining · {monthlyData.pct.toFixed(1)}% of target
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {editingTarget ? (
-                    <form
-                      className="flex items-center gap-2"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        const val = parseInt(targetInput.replace(/[^0-9]/g, ''));
-                        if (val >= 1000) {
-                          setMonthlyTarget.mutate({ target: val });
-                          setEditingTarget(false);
-                        }
-                      }}
-                    >
-                      <input
-                        autoFocus
-                        type="text"
-                        value={targetInput}
-                        onChange={(e) => setTargetInput(e.target.value)}
-                        placeholder="e.g. 150000"
-                        className="w-32 px-2.5 py-1.5 rounded-lg border border-emerald-500/40 bg-background/60 text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
-                      />
-                      <Button size="sm" type="submit" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-500 text-white" disabled={setMonthlyTarget.isPending}>
-                        {setMonthlyTarget.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
-                      </Button>
-                      <Button size="sm" variant="outline" type="button" className="h-7 text-xs" onClick={() => setEditingTarget(false)}>Cancel</Button>
-                    </form>
-                  ) : (
-                    <button
-                      onClick={() => { setTargetInput(String(monthlyData.target)); setEditingTarget(true); }}
-                      className="text-xs text-muted-foreground hover:text-foreground transition-colors border border-border/40 rounded-lg px-2.5 py-1.5 hover:border-border/70"
-                    >
-                      Target: ${monthlyData.target.toLocaleString()} ✎
-                    </button>
-                  )}
-                </div>
-              </div>
-              {/* Progress bar */}
-              <div className="space-y-1.5">
-                <div className="w-full h-3 rounded-full bg-muted/30 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-700 ${
-                      monthlyData.pct >= 100
-                        ? 'bg-gradient-to-r from-emerald-500 to-green-400'
-                        : monthlyData.pct >= 75
-                        ? 'bg-gradient-to-r from-emerald-600 to-emerald-400'
-                        : monthlyData.pct >= 50
-                        ? 'bg-gradient-to-r from-amber-600 to-amber-400'
-                        : 'bg-gradient-to-r from-orange-700 to-orange-500'
-                    }`}
-                    style={{ width: `${Math.min(100, monthlyData.pct)}%` }}
-                  />
-                </div>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>$0</span>
-                  <span className={monthlyData.pct >= 100 ? 'text-emerald-400 font-semibold' : ''}>
-                    {monthlyData.pct >= 100 ? '🎯 Target reached!' : `$${(monthlyData.target / 2).toLocaleString()} midpoint`}
-                  </span>
-                  <span>${monthlyData.target.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 py-2">
-              <div className="p-2.5 rounded-xl bg-emerald-500/15">
-                <Target className="w-5 h-5 text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">Monthly Income Target</p>
-                <p className="text-xs text-muted-foreground">Configure Tastytrade credentials to track premium collected</p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -783,6 +788,9 @@ export default function Home() {
       <main className="container mx-auto px-4 py-8 relative z-10 space-y-10">
         {/* Monthly Premium Chart */}
         <MonthlyPremiumChartSection />
+
+        {/* Monthly Income Target Tracker */}
+        <MonthlyIncomeTracker />
 
         {/* Navigation Grid */}
         <NavigationGrid />

@@ -428,3 +428,68 @@ describe('scanSellCalls', () => {
     expect(result.count).toBe(0);
   });
 });
+
+// ─── Inline helper: getMonthlyCollected logic ─────────────────────────────────
+
+function calcMonthlyCollected(transactions: any[]): number {
+  let credits = 0;
+  let debits = 0;
+  for (const txn of transactions) {
+    if (txn['transaction-type'] !== 'Trade') continue;
+    const txnSymbol: string = txn['symbol'] || '';
+    const isOptionSymbol = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol);
+    if (!isOptionSymbol) continue;
+    const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
+    const netValueEffect = txn['net-value-effect'];
+    if (!netValueEffect || netValue === 0) continue;
+    if (netValueEffect === 'Credit') credits += netValue;
+    else if (netValueEffect === 'Debit') debits += netValue;
+  }
+  return Math.round((credits - debits) * 100) / 100;
+}
+
+describe('getMonthlyCollected logic', () => {
+  it('counts option Credits and subtracts Debits', () => {
+    const txns = [
+      { 'transaction-type': 'Trade', symbol: 'AAPL 260117C00150000', 'net-value': '3.50', 'net-value-effect': 'Credit' },
+      { 'transaction-type': 'Trade', symbol: 'TSLA260117P00200000', 'net-value': '1.20', 'net-value-effect': 'Debit' },
+    ];
+    expect(calcMonthlyCollected(txns)).toBeCloseTo(2.30, 2);
+  });
+
+  it('skips stock (equity) transactions with no option suffix', () => {
+    const txns = [
+      { 'transaction-type': 'Trade', symbol: 'AAPL', 'net-value': '1000.00', 'net-value-effect': 'Credit' },
+      { 'transaction-type': 'Trade', symbol: 'TSLA 260117C00200000', 'net-value': '5.00', 'net-value-effect': 'Credit' },
+    ];
+    expect(calcMonthlyCollected(txns)).toBeCloseTo(5.00, 2);
+  });
+
+  it('skips non-Trade transaction types', () => {
+    const txns = [
+      { 'transaction-type': 'Money Movement', symbol: 'AAPL 260117C00150000', 'net-value': '500.00', 'net-value-effect': 'Credit' },
+      { 'transaction-type': 'Trade', symbol: 'AAPL 260117C00150000', 'net-value': '2.00', 'net-value-effect': 'Credit' },
+    ];
+    expect(calcMonthlyCollected(txns)).toBeCloseTo(2.00, 2);
+  });
+
+  it('returns 0 when there are no option trades', () => {
+    const txns = [
+      { 'transaction-type': 'Trade', symbol: 'CVX', 'net-value': '200.00', 'net-value-effect': 'Credit' },
+    ];
+    expect(calcMonthlyCollected(txns)).toBe(0);
+  });
+
+  it('handles empty transaction list', () => {
+    expect(calcMonthlyCollected([])).toBe(0);
+  });
+
+  it('produces same net as chart: credits minus debits', () => {
+    const txns = [
+      { 'transaction-type': 'Trade', symbol: 'SPX 260117C04500000', 'net-value': '10.00', 'net-value-effect': 'Credit' },
+      { 'transaction-type': 'Trade', symbol: 'SPX 260117C04500000', 'net-value': '3.00', 'net-value-effect': 'Debit' },
+      { 'transaction-type': 'Trade', symbol: 'NVDA260117P00500000', 'net-value': '7.50', 'net-value-effect': 'Credit' },
+    ];
+    expect(calcMonthlyCollected(txns)).toBeCloseTo(14.50, 2);
+  });
+});
