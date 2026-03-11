@@ -265,7 +265,7 @@ export function GapAdvisorModal({ open, onClose, gap, target, collected }: GapAd
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 bg-background border-2 border-amber-600/60 shadow-[0_0_30px_rgba(180,120,30,0.25)]">
+      <DialogContent className="max-w-4xl sm:max-w-4xl w-[92vw] max-h-[90vh] flex flex-col p-0 gap-0 bg-background border-2 border-amber-600/60 shadow-[0_0_30px_rgba(180,120,30,0.25)]">
 
         {/* Header */}
         <DialogHeader className="px-6 pt-5 pb-4 border-b border-amber-700/30 shrink-0">

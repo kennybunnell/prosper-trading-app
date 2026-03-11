@@ -7894,3 +7894,4 @@
 - [x] Update LLM prompt to let AI reason freely from real per-account BP rather than pre-cooked allocation splits
 - [x] Keep: real account BP, account-type classification, 90-day strategy history, top CSP tickers, CC candidates
 - [x] Gap Advisor: AI response must always open with a buying power summary (total across all accounts + per-account breakdown) before any strategy recommendations
+- [x] Gap Advisor modal: increase width so context cards and AI response are fully readable (currently cut off)
