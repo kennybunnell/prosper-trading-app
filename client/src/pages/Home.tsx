@@ -390,12 +390,10 @@ function MonthlyIncomeTracker() {
                 <div
                   className={`h-full rounded-full transition-all duration-700 ${
                     monthlyData.pct >= 100
-                      ? 'bg-gradient-to-r from-emerald-500 to-green-400'
-                      : monthlyData.pct >= 75
-                      ? 'bg-gradient-to-r from-emerald-600 to-emerald-400'
-                      : monthlyData.pct >= 50
-                      ? 'bg-gradient-to-r from-amber-600 to-amber-400'
-                      : 'bg-gradient-to-r from-orange-700 to-orange-500'
+                      ? 'bg-gradient-to-r from-emerald-400 to-green-300 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
+                      : monthlyData.pct >= 80
+                      ? 'bg-gradient-to-r from-yellow-500 to-amber-400 shadow-[0_0_8px_rgba(234,179,8,0.4)]'
+                      : 'bg-gradient-to-r from-red-600 to-red-400'
                   }`}
                   style={{ width: `${Math.min(100, monthlyData.pct)}%` }}
                 />
