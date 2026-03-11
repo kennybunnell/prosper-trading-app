@@ -798,23 +798,94 @@ export const appRouter = router({
         }
       } catch { /* skip */ }
 
-      // ── 4. SPX spread capacity estimate (no live chain — use heuristic) ─────
-      // Estimate BPS credit for different DTE buckets using typical market conditions
-      // 5-wide SPX BPS at 30 DTE ~= $0.80-1.20 credit; at 7-10 DTE ~= $0.40-0.70 credit
+      // ── 4. Account-type classification ──────────────────────────────────────
+      // Classify accounts by nickname keywords: IRA, Cash, HELOC, LLC, etc.
+      const accountTypeBreakdown = accountSummaries.map(acct => {
+        const nick = acct.nickname.toLowerCase();
+        let type = 'Cash';
+        if (nick.includes('ira') || nick.includes('roth') || nick.includes('traditional')) type = 'IRA';
+        else if (nick.includes('heloc') || nick.includes('home equity') || nick.includes('line of credit')) type = 'HELOC';
+        else if (nick.includes('llc') || nick.includes('entity') || nick.includes('business') || nick.includes('trust')) type = 'LLC/Entity';
+        // IRA accounts cannot sell naked puts — only spreads and covered calls
+        const spreadOnly = type === 'IRA';
+        return { ...acct, type, spreadOnly };
+      });
+
+      // ── 5. 90-day strategy history analysis ─────────────────────────────────
+      // Count trades by strategy type and extract top CSP tickers
+      let strategyHistory = { spxSpreads: 0, csps: 0, coveredCalls: 0, ironCondors: 0, totalTrades: 0 };
+      let topCspTickers: { symbol: string; count: number; avgPremium: number }[] = [];
+      const MAG7 = new Set(['AAPL', 'MSFT', 'NVDA', 'AMZN', 'META', 'GOOGL', 'GOOG', 'TSLA']);
+      try {
+        const now90 = new Date();
+        const start90 = new Date(now90);
+        start90.setDate(start90.getDate() - 90);
+        const start90Str = start90.toISOString().split('T')[0];
+        const end90Str = now90.toISOString().split('T')[0];
+        const accounts90 = await api.getAccounts();
+        const cspMap: Record<string, { count: number; totalPremium: number }> = {};
+        for (const acct of accounts90) {
+          try {
+            const txns = await api.getTransactionHistory(acct.account['account-number'], start90Str, end90Str);
+            for (const txn of txns) {
+              if (txn['transaction-type'] !== 'Trade') continue;
+              const sym: string = txn['symbol'] || '';
+              const desc: string = (txn['description'] || '').toLowerCase();
+              const isOption = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(sym);
+              if (!isOption) continue;
+              strategyHistory.totalTrades++;
+              const underlying = (sym.match(/^([A-Z0-9]+)\s*\d{6}/) || [])[1] || '';
+              const isSpx = ['SPX', 'SPXW', 'NDX', 'XSP', 'RUT'].includes(underlying);
+              const isPut = sym.includes('P') && !sym.includes('C');
+              const isCall = sym.includes('C') && !sym.includes('P');
+              const isSTO = txn['net-value-effect'] === 'Credit';
+              const isBTC = txn['net-value-effect'] === 'Debit';
+              if (isSpx && isSTO) strategyHistory.spxSpreads++;
+              else if (!isSpx && isPut && isSTO) {
+                strategyHistory.csps++;
+                if (underlying) {
+                  if (!cspMap[underlying]) cspMap[underlying] = { count: 0, totalPremium: 0 };
+                  cspMap[underlying].count++;
+                  cspMap[underlying].totalPremium += Math.abs(parseFloat(txn['net-value'] || '0'));
+                }
+              } else if (!isSpx && isCall && isSTO) strategyHistory.coveredCalls++;
+              // Iron condors: if same underlying has both put and call STO on same day — approximate
+              if (isSpx && isSTO && (desc.includes('condor') || desc.includes('iron'))) strategyHistory.ironCondors++;
+            }
+          } catch { /* skip */ }
+        }
+        // Sort CSP tickers by count, Mag7 first
+        topCspTickers = Object.entries(cspMap)
+          .map(([symbol, data]) => ({ symbol, count: data.count, avgPremium: data.count > 0 ? Math.round(data.totalPremium / data.count) : 0 }))
+          .sort((a, b) => {
+            const aMag = MAG7.has(a.symbol) ? 1 : 0;
+            const bMag = MAG7.has(b.symbol) ? 1 : 0;
+            if (bMag !== aMag) return bMag - aMag; // Mag7 first
+            return b.count - a.count;
+          })
+          .slice(0, 10);
+      } catch { /* skip */ }
+
+      // ── 6. SPX spread capacity estimate ─────────────────────────────────────
       const bp80pct = totalBuyingPower * 0.80;
-      const remainingBP = Math.max(0, bp80pct - (totalBuyingPower - bp80pct)); // conservative
+      // Allocate BP by strategy: 45% SPX spreads, 30% CSPs, 10% ICs, 15% buffer
+      const bpForSpreads = bp80pct * 0.45;
+      const bpForCsps = bp80pct * 0.30;
+      const bpForIcs = bp80pct * 0.10;
       // 5-wide SPX spread requires ~$500 collateral per contract
-      const spreadsAt30DTE = Math.floor(bp80pct / 500);
-      const spreadsAt7DTE = spreadsAt30DTE; // same collateral
-      const estimatedCreditPer30DTE = 1.00; // mid estimate per contract
+      const spreadsAt30DTE = Math.floor(bpForSpreads / 500);
+      const spreadsAt7DTE = spreadsAt30DTE;
+      const estimatedCreditPer30DTE = 1.00;
       const estimatedCreditPer7DTE = 0.55;
       const spreadCredit30DTE = Math.round(spreadsAt30DTE * estimatedCreditPer30DTE * 100) / 100;
       const spreadCredit7DTE = Math.round(spreadsAt7DTE * estimatedCreditPer7DTE * 100) / 100;
-      // Velocity: how many 7-DTE cycles fit in remaining month days
       const now = new Date();
       const daysLeftInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
       const cycles7DTE = Math.max(1, Math.floor(daysLeftInMonth / 7));
       const velocityCredit7DTE = Math.round(cycles7DTE * spreadCredit7DTE * 100) / 100;
+      // Iron condor estimate: 10-wide IC ~= $1.50-2.00 credit, requires ~$1000 collateral
+      const icContracts = Math.floor(bpForIcs / 1000);
+      const icCredit = Math.round(icContracts * 1.75 * 100) / 100;
 
       return {
         target,
@@ -824,7 +895,10 @@ export const appRouter = router({
         totalBuyingPower: Math.round(totalBuyingPower),
         bp80pct: Math.round(bp80pct),
         accountSummaries,
+        accountTypeBreakdown,
         ccCandidates,
+        strategyHistory,
+        topCspTickers,
         spreads: {
           contractsAvailable: spreadsAt30DTE,
           credit30DTE: spreadCredit30DTE,
@@ -832,6 +906,18 @@ export const appRouter = router({
           velocityCredit7DTE,
           cycles7DTE,
           daysLeftInMonth,
+          bpAllocated: Math.round(bpForSpreads),
+        },
+        ironCondors: {
+          contractsAvailable: icContracts,
+          estimatedCredit: icCredit,
+          bpAllocated: Math.round(bpForIcs),
+        },
+        allocationSuggestion: {
+          spxSpreads: Math.round(bpForSpreads),
+          csps: Math.round(bpForCsps),
+          ironCondors: Math.round(bpForIcs),
+          buffer: Math.round(totalBuyingPower * 0.20),
         },
       };
     }),
@@ -855,50 +941,91 @@ export const appRouter = router({
         const bp80 = ctx.bp80pct ?? 0;
         const ccCandidates: any[] = ctx.ccCandidates ?? [];
         const spreads = ctx.spreads ?? {};
+        const ironCondors = ctx.ironCondors ?? {};
         const daysLeft = spreads.daysLeftInMonth ?? 0;
         const cycles7 = spreads.cycles7DTE ?? 0;
+        const strategyHistory = ctx.strategyHistory ?? {};
+        const topCspTickers: any[] = ctx.topCspTickers ?? [];
+        const accountTypeBreakdown: any[] = ctx.accountTypeBreakdown ?? [];
+        const allocationSuggestion = ctx.allocationSuggestion ?? {};
 
         const ccList = ccCandidates.slice(0, 8).map((c: any) =>
           `  - ${c.symbol}: ${c.shares} shares, avg cost $${c.avgCost?.toFixed(2)}, current $${c.currentPrice?.toFixed(2)} (${c.recommendation})`
         ).join('\n');
 
-        const systemPrompt = `You are a conservative options income advisor for an experienced retail trader. 
+        const cspTickerList = topCspTickers.slice(0, 8).map((t: any) =>
+          `  - ${t.symbol}: ${t.count} CSPs in last 90 days, avg premium $${t.avgPremium?.toLocaleString()}`
+        ).join('\n');
+
+        const accountList = accountTypeBreakdown.map((a: any) =>
+          `  - ${a.nickname} (${a.type}): $${a.buyingPower?.toLocaleString()} BP${a.spreadOnly ? ' [IRA — spreads/CCs only, no naked puts]' : ''}`
+        ).join('\n');
+
+        const systemPrompt = `You are a conservative options income advisor for an experienced retail trader running a premium income wheel strategy.
 Your job is to give specific, actionable recommendations to close a monthly income gap safely.
-Always prioritize capital preservation. Never recommend strategies that increase net delta exposure beyond what is already held.
-Format your response in clean markdown with ## section headers. Be concise but specific — include estimated dollar amounts where possible.`;
+Always prioritize capital preservation. Keep delta exposure low. Never recommend strategies that significantly increase directional risk.
+Consider account-type restrictions: IRA accounts cannot sell naked puts — only spreads and covered calls are allowed in IRAs.
+Format your response in clean markdown with ## section headers and a summary allocation table. Be concise but specific — include estimated dollar amounts and contract counts where possible.`;
 
         const userPrompt = `Monthly income target: $${target.toLocaleString()}
 Collected so far this month: $${collected.toLocaleString('en-US', { maximumFractionDigits: 0 })} (${pct}%)
 Gap remaining: $${gap.toLocaleString('en-US', { maximumFractionDigits: 0 })}
 Days left in month: ${daysLeft}
 
-Total buying power: $${bp.toLocaleString()}
+Total buying power across all accounts: $${bp.toLocaleString()}
 80% BP ceiling (safe deployment limit): $${bp80.toLocaleString()}
+
+Account breakdown:
+${accountList || '  No account data'}
+
+Suggested BP allocation (starting point for your analysis — adjust based on gap and conditions):
+  - SPX/SPXW Spreads: $${(allocationSuggestion.spxSpreads ?? 0).toLocaleString()} (45% of 80% BP)
+  - Cash-Secured Puts: $${(allocationSuggestion.csps ?? 0).toLocaleString()} (30% of 80% BP)
+  - Iron Condors: $${(allocationSuggestion.ironCondors ?? 0).toLocaleString()} (10% of 80% BP)
+  - Buffer (unallocated): $${(allocationSuggestion.buffer ?? 0).toLocaleString()} (20% reserve)
+
+90-day trading history:
+  - SPX/index spreads sold: ${strategyHistory.spxSpreads ?? 0}
+  - Cash-secured puts sold: ${strategyHistory.csps ?? 0}
+  - Covered calls sold: ${strategyHistory.coveredCalls ?? 0}
+  - Iron condors: ${strategyHistory.ironCondors ?? 0}
+  - Total option trades: ${strategyHistory.totalTrades ?? 0}
+
+Top CSP tickers from history (Mag7 prioritized):
+${cspTickerList || '  No CSP history found'}
 
 Covered call candidates (long equity, no active CC):
 ${ccList || '  None detected'}
 
-SPX/SPXW spread capacity (5-wide BPS, heuristic estimate):
-  - Contracts available at 80% BP: ${spreads.contractsAvailable ?? 0}
-  - Estimated credit at 30 DTE: $${((spreads.credit30DTE ?? 0) * 100).toFixed(0)} per contract
-  - Estimated credit at 7-10 DTE: $${((spreads.credit7DTE ?? 0) * 100).toFixed(0)} per contract
-  - 7-DTE velocity: ${cycles7} cycle${cycles7 !== 1 ? 's' : ''} remaining this month → estimated $${((spreads.velocityCredit7DTE ?? 0) * 100).toFixed(0)} total if all cycles used
+SPX/SPXW spread capacity (5-wide BPS, heuristic estimate, 45% BP allocated):
+  - Contracts available: ${spreads.contractsAvailable ?? 0} (BP: $${(spreads.bpAllocated ?? 0).toLocaleString()})
+  - Est. credit at 30 DTE: $${((spreads.credit30DTE ?? 0) * 100).toFixed(0)} per contract
+  - Est. credit at 7-10 DTE: $${((spreads.credit7DTE ?? 0) * 100).toFixed(0)} per contract
+  - 7-DTE velocity: ${cycles7} cycle${cycles7 !== 1 ? 's' : ''} remaining → est. $${((spreads.velocityCredit7DTE ?? 0) * 100).toFixed(0)} total
+
+Iron condor capacity (10-wide SPX, heuristic, 10% BP allocated):
+  - Contracts available: ${ironCondors.contractsAvailable ?? 0} (BP: $${(ironCondors.bpAllocated ?? 0).toLocaleString()})
+  - Est. total credit: $${((ironCondors.estimatedCredit ?? 0) * 100).toFixed(0)}
 
 Please provide:
-## 1. Quick Wins (Low Risk)
-Covered call opportunities on idle positions — specific symbols, suggested DTE range, estimated premium.
+## 1. Recommended Allocation Table
+A markdown table: Strategy | BP Allocated | Contracts/Positions | Est. Credit | Risk Level
+Adjust the suggested allocation based on the gap, history, and account types. Include a Totals row.
 
-## 2. Spread Strategies (Medium Risk)
-SPX/SPXW/NDX BPS or BCS recommendations — DTE, width, estimated credit, number of contracts to close the gap.
+## 2. SPX Spread Strategy
+Specific BPS recommendations — compare 7-10 DTE (velocity) vs 21-30 DTE (standard). Show the compounding math for remaining cycles. Include 5-wide vs 10-wide comparison if gap warrants it.
 
-## 3. Velocity Strategy
-Compare 7-10 DTE vs 21-30 DTE cycle approach for the remaining days. Show the math on compounding cycles.
+## 3. Cash-Secured Puts (Non-IRA accounts only)
+Top 3-5 specific tickers from the CSP history. For each: suggested strike range, DTE, est. premium per contract, number of contracts. Prioritize Mag7 names already in the history.
 
-## 4. 80% Buying Power Scenario
-If you deployed to 80% of buying power across the best mix of strategies above, what total premium could you expect this month?
+## 4. Iron Condors
+Only recommend if gap warrants it or history shows spread experience. Suggest SPX IC structure, wing widths, DTE, and est. credit. Note if this is a new strategy for this portfolio.
 
-## 5. Conservative Caution
-Any risks or things to watch out for given the current market environment and this portfolio's exposure.`;
+## 5. Covered Call Quick Wins
+For each idle CC candidate: suggested strike (ATM or slight OTM), DTE range, est. premium.
+
+## 6. Conservative Caution
+Key risks: assignment risk on CSPs, spread widening, account-type restrictions, market environment warnings.`;
 
         const response = await invokeLLM({
           messages: [

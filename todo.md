@@ -7879,3 +7879,11 @@
 ## Gap Advisor Enhancements (Mar 10, 2026)
 - [x] Add bronze/amber border to Gap Advisor modal so it stands out against dark background
 - [x] Add follow-up chat input at bottom of modal so user can ask clarifying questions (maintains conversation thread with AI)
+
+## Gap Advisor Context Enrichment (Mar 10, 2026)
+- [x] Add account-type breakdown to getGapAdvisorContext (IRA, Cash, HELOC, LLC with per-account BP)
+- [x] Add strategy history analysis: count SPX spreads, CSPs, CCs, ICs from last 90 days of transactions
+- [x] Add iron condor feasibility check (detect high-IV environment from recent spread data)
+- [x] Update LLM prompt to produce structured allocation table: SPX spreads %, CSPs %, ICs %, CCs %, buffer %
+- [x] Prompt to recommend specific CSP tickers from user's trading history (Mag 7 priority)
+- [x] Prompt to show compounding math: SPX premium → CSP buying power scenario
