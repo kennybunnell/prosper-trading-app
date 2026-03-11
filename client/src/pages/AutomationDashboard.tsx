@@ -63,6 +63,15 @@ type ScanResult = {
   standaloneRemainder?: number; // Number of unmatched short contracts routed as single-leg BTC
   // Underlying stock price — enriched via Tradier batch quote
   underlyingPrice?: number;
+  // ITM demoted — set by safety guard when buyBackCost >= premiumCollected
+  itmDemoted?: boolean;
+  // Roll suggestion — populated for ITM CCs by the roll advisor step
+  rollSuggestion?: {
+    newStrike: number;
+    newExpiration: string;
+    estimatedCredit: number;
+    newDte: number;
+  };
 };
 
 type RunSummary = {
@@ -1002,6 +1011,14 @@ export default function AutomationDashboard() {
     });
   };
 
+  const handleRescanBTC = () => {
+    setIsRunning(true);
+    setActiveScanStep('all');
+    setLastRunResult(null);
+    toast.info('Re-scanning all positions for close-for-profit opportunities…');
+    runAutomation.mutate({ triggerType: 'manual', scanSteps: ['btc'] });
+  };
+
   const handleToggle = (key: string, value: boolean) => {
     updateSettings.mutate({ [key]: value });
   };
@@ -1537,6 +1554,17 @@ export default function AutomationDashboard() {
                   </Button>
                 )}
                 <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRescanBTC}
+                  disabled={isRunning}
+                  className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10 hover:border-amber-400"
+                  title="Re-run the close-for-profit scan with live option prices"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRunning ? 'animate-spin' : ''}`} />
+                  Re-scan Now
+                </Button>
+                <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowScanResults(!showScanResults)}
@@ -1910,6 +1938,23 @@ export default function AutomationDashboard() {
                                   Ready to Close
                                 </button>
                               )
+                            ) : result.action === 'BELOW_THRESHOLD' && result.itmDemoted ? (
+                              // ITM — safety guard demoted this position
+                              <div className="flex flex-col items-center gap-1">
+                                <Badge className="bg-red-600/20 text-red-400 border border-red-500/40 text-[10px] font-bold">
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  ITM — Loss
+                                </Badge>
+                                {result.rollSuggestion && (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-amber-600/15 text-amber-300 border border-amber-500/30 cursor-default"
+                                    title={`Roll Up & Out: Buy back current call, sell $${result.rollSuggestion.newStrike} call expiring ${result.rollSuggestion.newExpiration} (${result.rollSuggestion.newDte} DTE). Est. credit: $${result.rollSuggestion.estimatedCredit.toFixed(0)}`}
+                                  >
+                                    <TrendingUp className="h-2.5 w-2.5" />
+                                    Roll ↑ $${result.rollSuggestion.newStrike} &bull; ${result.rollSuggestion.newDte}d &bull; ~$${result.rollSuggestion.estimatedCredit.toFixed(0)}
+                                  </span>
+                                )}
+                              </div>
                             ) : result.action === 'BELOW_THRESHOLD' ? (
                               <Badge variant="outline" className="text-muted-foreground">
                                 <Minus className="h-3 w-3 mr-1" />

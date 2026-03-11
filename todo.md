@@ -7909,3 +7909,8 @@
 - [x] Add absolute hard safety guard: if buyBackCost >= premiumCollected at ANY point, force action = BELOW_THRESHOLD (no exceptions)
 - [x] Add safety guard BOTH in the initial threshold check AND after the live quote refresh
 - [x] Verified root cause: OCC symbols from Tastytrade have spaces (e.g. "NBIS  260320C00103000") but Tradier requires no spaces — fixed by normalizing all symbols before Tradier call
+
+## Close for Profit Enhancements (Mar 11, 2026)
+- [x] ITM warning badge: red "ITM — Loss" badge in scan table for positions demoted by safety guard (buyBackCost >= premiumCollected)
+- [x] Roll Up & Out suggestion: fetch Tradier option chain for ITM CCs, show estimated credit + new strike/expiration in Action column
+- [x] Re-scan Now button: prominent button at top of Close for Profit table to refresh results mid-day without navigating away

@@ -399,6 +399,15 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           standaloneRemainder?: number; // Number of unmatched short contracts routed as single-leg BTC
           // Underlying stock price — enriched after scan via Tradier batch quote
           underlyingPrice?: number;
+          // ITM demoted — set by safety guard when buyBackCost >= premiumCollected (position is at a loss)
+          itmDemoted?: boolean;
+          // Roll suggestion — populated for ITM CCs by the roll advisor step
+          rollSuggestion?: {
+            newStrike: number;
+            newExpiration: string;
+            estimatedCredit: number;
+            newDte: number;
+          };
         }> = [];
         let totalPositionsClosed = 0;
         let totalCoveredCallsOpened = 0;
@@ -986,6 +995,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               `Net profit would be -$${(result.buyBackCost - result.premiumCollected).toFixed(2)}. Forcing BELOW_THRESHOLD.`
             );
             result.action = 'BELOW_THRESHOLD';
+            result.itmDemoted = true;
             // Remove any pending order for this position
             pendingOrders.splice(0, pendingOrders.length,
               ...pendingOrders.filter(o => o.symbol !== result.optionSymbol)
@@ -1026,6 +1036,65 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         } catch (priceErr) {
           console.warn('[Automation] Failed to enrich scan results with stock prices:', priceErr);
           // Non-fatal — scan results still valid without prices
+        }
+
+        // ── Roll Up & Out suggestions for ITM CCs ───────────────────────────
+        // For each CC that was demoted by the safety guard (itmDemoted=true),
+        // fetch the option chain and find the nearest OTM call 21-35 DTE out.
+        // Attach the suggestion so the UI can show a "Roll Up & Out" hint.
+        try {
+          const itmCCs = scanResults.filter(r => r.itmDemoted && (r.type === 'CC' || r.type === 'Call'));
+          if (itmCCs.length > 0) {
+            const { createTradierAPI } = await import('./tradier');
+            const storedKey = credentials?.tradierApiKey;
+            const tradierApiKey = (storedKey && storedKey.length > 15 ? storedKey : null) || process.env.TRADIER_API_KEY;
+            if (tradierApiKey) {
+              const tradierApi = createTradierAPI(tradierApiKey);
+              const today = new Date();
+              const targetMinDte = 21;
+              const targetMaxDte = 42;
+              for (const result of itmCCs) {
+                try {
+                  const expirations = await tradierApi.getExpirations(result.symbol);
+                  // Find expiration in 21-42 DTE range
+                  const targetExp = expirations.find(exp => {
+                    const expDate = new Date(exp);
+                    const dte = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                    return dte >= targetMinDte && dte <= targetMaxDte;
+                  });
+                  if (!targetExp) continue;
+                  const expDate = new Date(targetExp);
+                  const newDte = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                  // Fetch call chain for that expiration
+                  const chain = await tradierApi.getOptionChain(result.symbol, targetExp, false);
+                  const calls = chain.filter(c => c.option_type === 'call' && c.strike > 0);
+                  if (calls.length === 0) continue;
+                  // Find the nearest OTM call (strike >= underlying price)
+                  const underlyingPx = result.underlyingPrice ?? 0;
+                  const otmCalls = calls
+                    .filter(c => c.strike >= underlyingPx)
+                    .sort((a, b) => a.strike - b.strike);
+                  // Pick 1-2 strikes OTM for a roll with some credit
+                  const rollTarget = otmCalls[1] ?? otmCalls[0];
+                  if (!rollTarget) continue;
+                  const rollBid = rollTarget.bid ?? 0;
+                  const estimatedCredit = Math.round(rollBid * result.quantity * 100 * 100) / 100;
+                  result.rollSuggestion = {
+                    newStrike: rollTarget.strike,
+                    newExpiration: targetExp,
+                    estimatedCredit,
+                    newDte,
+                  };
+                  console.log(`[Automation Roll] ${result.symbol}: Roll Up & Out → $${rollTarget.strike} ${targetExp} (${newDte} DTE), est. credit $${estimatedCredit}`);
+                } catch (rollErr) {
+                  console.warn(`[Automation Roll] Failed to fetch roll suggestion for ${result.symbol}:`, rollErr);
+                }
+              }
+            }
+          }
+        } catch (rollErr) {
+          console.warn('[Automation Roll] Failed to compute roll suggestions:', rollErr);
+          // Non-fatal — scan results still valid without roll suggestions
         }
 
         // Save pending orders to database
