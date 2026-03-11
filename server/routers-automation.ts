@@ -857,6 +857,98 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           }
         }
 
+        // ── Enrich scan results with live option marks + underlying stock prices ──
+        // IMPORTANT: fetch live option marks FIRST so buyBackCost and realizedPercent
+        // reflect the current market price, not the stale previous-day close-price.
+        // This prevents ITM options (stock gapped up overnight) from showing as
+        // "Ready to Close" when the actual buyback cost exceeds the premium collected.
+        try {
+          const optionSymbolsToRefresh = Array.from(
+            new Set(
+              scanResults
+                .filter(r => r.optionSymbol && r.action !== 'SKIPPED')
+                .map(r => r.optionSymbol)
+            )
+          );
+          if (optionSymbolsToRefresh.length > 0) {
+            const { createTradierAPI } = await import('./tradier');
+            const storedKey = credentials?.tradierApiKey;
+            const tradierApiKey = (storedKey && storedKey.length > 15 ? storedKey : null) || process.env.TRADIER_API_KEY;
+            if (tradierApiKey) {
+              const tradierApi = createTradierAPI(tradierApiKey);
+              const liveOptionQuotes = await tradierApi.getQuotes(optionSymbolsToRefresh);
+              const liveMarkMap = new Map<string, number>();
+              for (const q of liveOptionQuotes) {
+                const mid = (q.bid + q.ask) / 2;
+                const mark = mid > 0 ? mid : (q.last > 0 ? q.last : 0);
+                if (q.symbol && mark > 0) liveMarkMap.set(q.symbol, mark);
+              }
+              console.log(`[Automation] Live option marks fetched for ${liveMarkMap.size}/${optionSymbolsToRefresh.length} option symbols`);
+
+              // Re-compute buyBackCost and realizedPercent from live marks.
+              // Re-evaluate action: if realizedPercent drops below threshold, demote to BELOW_THRESHOLD.
+              // Also handle spread long legs: recalculate net cost using live long-leg mark.
+              for (const result of scanResults) {
+                if (result.action === 'SKIPPED') continue;
+                const liveMark = liveMarkMap.get(result.optionSymbol);
+                if (!liveMark) continue; // no live quote — keep stale values
+
+                const isEstimatedNow = false;
+                const qty = result.quantity;
+                const multiplier = 100;
+                let newBuyBackCost = liveMark * qty * multiplier;
+
+                // For spreads: subtract long-leg credit from buyback cost
+                if (result.spreadLongSymbol) {
+                  const longMark = liveMarkMap.get(result.spreadLongSymbol);
+                  if (longMark !== undefined) {
+                    const longCredit = longMark * qty * multiplier;
+                    newBuyBackCost = Math.max(0, newBuyBackCost - longCredit);
+                  }
+                }
+
+                const newRealizedPct = result.premiumCollected > 0
+                  ? ((result.premiumCollected - newBuyBackCost) / result.premiumCollected) * 100
+                  : 0;
+
+                console.log(`[Automation] ${result.symbol} ${result.type}: stale buyBack=$${result.buyBackCost.toFixed(2)} realized=${result.realizedPercent.toFixed(1)}% → live buyBack=$${newBuyBackCost.toFixed(2)} realized=${newRealizedPct.toFixed(1)}%`);
+
+                result.buyBackCost = newBuyBackCost;
+                result.realizedPercent = Math.round(newRealizedPct * 100) / 100;
+                result.isEstimated = isEstimatedNow;
+
+                // Re-evaluate action based on updated realizedPercent
+                if (result.action === 'WOULD_CLOSE' && newRealizedPct < settings.profitThresholdPercent) {
+                  console.log(`[Automation] ${result.symbol} ${result.type}: demoted from WOULD_CLOSE to BELOW_THRESHOLD (live realized=${newRealizedPct.toFixed(1)}% < threshold=${settings.profitThresholdPercent}%)`);
+                  result.action = 'BELOW_THRESHOLD';
+                  // Also remove the corresponding pending order if it was created
+                  // (pendingOrders array is already built — filter it)
+                  const beforeCount = pendingOrders.length;
+                  pendingOrders.splice(0, pendingOrders.length,
+                    ...pendingOrders.filter(o => o.symbol !== result.optionSymbol)
+                  );
+                  if (pendingOrders.length < beforeCount) {
+                    console.log(`[Automation] ${result.symbol}: removed ${beforeCount - pendingOrders.length} stale pending order(s) after live-price demotion`);
+                  }
+                } else if (result.action === 'BELOW_THRESHOLD' && newRealizedPct >= settings.profitThresholdPercent) {
+                  // Promote: stale close-price was below threshold but live mark is now above
+                  console.log(`[Automation] ${result.symbol} ${result.type}: promoted from BELOW_THRESHOLD to WOULD_CLOSE (live realized=${newRealizedPct.toFixed(1)}% >= threshold=${settings.profitThresholdPercent}%)`);
+                  result.action = 'WOULD_CLOSE';
+                }
+              }
+
+              // Recompute summary counts after live-price re-evaluation
+              totalPositionsClosed = scanResults.filter(r => r.action === 'WOULD_CLOSE').length;
+              totalProfitRealized = scanResults
+                .filter(r => r.action === 'WOULD_CLOSE')
+                .reduce((sum, r) => sum + (r.premiumCollected - r.buyBackCost), 0);
+            }
+          }
+        } catch (optionQuoteErr) {
+          console.warn('[Automation] Failed to refresh live option marks — using stale close-price values:', optionQuoteErr);
+          // Non-fatal: scan results remain valid with stale prices, just less accurate
+        }
+
         // ── Enrich scan results with underlying stock prices ─────────────────
         // Batch-fetch current prices for all unique underlying symbols via Tradier
         try {

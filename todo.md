@@ -7897,3 +7897,9 @@
 - [x] Gap Advisor modal: increase width so context cards and AI response are fully readable (currently cut off)
 - [x] Monthly Income Target: progress bar color changes red → yellow (within 20% of target) → green (at/above target)
 - [x] Gap Advisor: fetch live VIX level from Tradier and pass to LLM prompt for VIX-aware cycle recommendations (high VIX → short-cycle spreads, low VIX → longer-cycle plays)
+
+## Close for Profit Bug Fix (Mar 11, 2026)
+- [x] Fix Realized % formula: must be (premium_collected - buyback_cost) / premium_collected * 100 (true profit realization), not option price decay %
+- [x] Filter: positions where buyback_cost > premium_collected must NEVER appear as "Ready to Close" — they are at a loss
+- [x] Verify the threshold filter (≥75%) applies to the corrected profit-based Realized %, not a decay-based one
+- [x] Added live option quote refresh step in scan: batch-fetches Tradier marks for all option symbols, recalculates buyBackCost and realizedPercent from live mid-price, demotes/promotes WOULD_CLOSE vs BELOW_THRESHOLD accordingly
