@@ -867,25 +867,9 @@ export const appRouter = router({
       } catch { /* skip */ }
 
       // ── 6. SPX spread capacity estimate ─────────────────────────────────────
-      const bp80pct = totalBuyingPower * 0.80;
-      // Allocate BP by strategy: 45% SPX spreads, 30% CSPs, 10% ICs, 15% buffer
-      const bpForSpreads = bp80pct * 0.45;
-      const bpForCsps = bp80pct * 0.30;
-      const bpForIcs = bp80pct * 0.10;
-      // 5-wide SPX spread requires ~$500 collateral per contract
-      const spreadsAt30DTE = Math.floor(bpForSpreads / 500);
-      const spreadsAt7DTE = spreadsAt30DTE;
-      const estimatedCreditPer30DTE = 1.00;
-      const estimatedCreditPer7DTE = 0.55;
-      const spreadCredit30DTE = Math.round(spreadsAt30DTE * estimatedCreditPer30DTE * 100) / 100;
-      const spreadCredit7DTE = Math.round(spreadsAt7DTE * estimatedCreditPer7DTE * 100) / 100;
+      // Days remaining in month (used by LLM for velocity reasoning)
       const now = new Date();
       const daysLeftInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
-      const cycles7DTE = Math.max(1, Math.floor(daysLeftInMonth / 7));
-      const velocityCredit7DTE = Math.round(cycles7DTE * spreadCredit7DTE * 100) / 100;
-      // Iron condor estimate: 10-wide IC ~= $1.50-2.00 credit, requires ~$1000 collateral
-      const icContracts = Math.floor(bpForIcs / 1000);
-      const icCredit = Math.round(icContracts * 1.75 * 100) / 100;
 
       return {
         target,
@@ -893,32 +877,11 @@ export const appRouter = router({
         gap,
         pct: target > 0 ? Math.min(100, (collected / target) * 100) : 0,
         totalBuyingPower: Math.round(totalBuyingPower),
-        bp80pct: Math.round(bp80pct),
-        accountSummaries,
+        daysLeftInMonth,
         accountTypeBreakdown,
         ccCandidates,
         strategyHistory,
         topCspTickers,
-        spreads: {
-          contractsAvailable: spreadsAt30DTE,
-          credit30DTE: spreadCredit30DTE,
-          credit7DTE: spreadCredit7DTE,
-          velocityCredit7DTE,
-          cycles7DTE,
-          daysLeftInMonth,
-          bpAllocated: Math.round(bpForSpreads),
-        },
-        ironCondors: {
-          contractsAvailable: icContracts,
-          estimatedCredit: icCredit,
-          bpAllocated: Math.round(bpForIcs),
-        },
-        allocationSuggestion: {
-          spxSpreads: Math.round(bpForSpreads),
-          csps: Math.round(bpForCsps),
-          ironCondors: Math.round(bpForIcs),
-          buffer: Math.round(totalBuyingPower * 0.20),
-        },
       };
     }),
 
@@ -938,16 +901,12 @@ export const appRouter = router({
         const collected = ctx.collected ?? 0;
         const pct = target > 0 ? ((collected / target) * 100).toFixed(1) : '0';
         const bp = ctx.totalBuyingPower ?? 0;
-        const bp80 = ctx.bp80pct ?? 0;
+        const bp80 = Math.round(bp * 0.80);
+        const daysLeft = ctx.daysLeftInMonth ?? 0;
         const ccCandidates: any[] = ctx.ccCandidates ?? [];
-        const spreads = ctx.spreads ?? {};
-        const ironCondors = ctx.ironCondors ?? {};
-        const daysLeft = spreads.daysLeftInMonth ?? 0;
-        const cycles7 = spreads.cycles7DTE ?? 0;
         const strategyHistory = ctx.strategyHistory ?? {};
         const topCspTickers: any[] = ctx.topCspTickers ?? [];
         const accountTypeBreakdown: any[] = ctx.accountTypeBreakdown ?? [];
-        const allocationSuggestion = ctx.allocationSuggestion ?? {};
 
         const ccList = ccCandidates.slice(0, 8).map((c: any) =>
           `  - ${c.symbol}: ${c.shares} shares, avg cost $${c.avgCost?.toFixed(2)}, current $${c.currentPrice?.toFixed(2)} (${c.recommendation})`
@@ -965,7 +924,8 @@ export const appRouter = router({
 Your job is to give specific, actionable recommendations to close a monthly income gap safely.
 Always prioritize capital preservation. Keep delta exposure low. Never recommend strategies that significantly increase directional risk.
 Consider account-type restrictions: IRA accounts cannot sell naked puts — only spreads and covered calls are allowed in IRAs.
-Format your response in clean markdown with ## section headers and a summary allocation table. Be concise but specific — include estimated dollar amounts and contract counts where possible.`;
+IMPORTANT: Always begin your response with a ## Buying Power Summary section that clearly states the total buying power across all accounts and the per-account breakdown. This is the most important context for the user.
+Format your response in clean markdown with ## section headers. Be concise but specific — include estimated dollar amounts and contract counts where possible.`;
 
         const userPrompt = `Monthly income target: $${target.toLocaleString()}
 Collected so far this month: $${collected.toLocaleString('en-US', { maximumFractionDigits: 0 })} (${pct}%)
@@ -973,18 +933,12 @@ Gap remaining: $${gap.toLocaleString('en-US', { maximumFractionDigits: 0 })}
 Days left in month: ${daysLeft}
 
 Total buying power across all accounts: $${bp.toLocaleString()}
-80% BP ceiling (safe deployment limit): $${bp80.toLocaleString()}
+80% safe deployment ceiling: $${bp80.toLocaleString()}
 
-Account breakdown:
-${accountList || '  No account data'}
+Per-account buying power breakdown:
+${accountList || '  No account data available'}
 
-Suggested BP allocation (starting point for your analysis — adjust based on gap and conditions):
-  - SPX/SPXW Spreads: $${(allocationSuggestion.spxSpreads ?? 0).toLocaleString()} (45% of 80% BP)
-  - Cash-Secured Puts: $${(allocationSuggestion.csps ?? 0).toLocaleString()} (30% of 80% BP)
-  - Iron Condors: $${(allocationSuggestion.ironCondors ?? 0).toLocaleString()} (10% of 80% BP)
-  - Buffer (unallocated): $${(allocationSuggestion.buffer ?? 0).toLocaleString()} (20% reserve)
-
-90-day trading history:
+90-day trading history (use this to ground your recommendations in what the user actually trades):
   - SPX/index spreads sold: ${strategyHistory.spxSpreads ?? 0}
   - Cash-secured puts sold: ${strategyHistory.csps ?? 0}
   - Covered calls sold: ${strategyHistory.coveredCalls ?? 0}
@@ -994,38 +948,27 @@ Suggested BP allocation (starting point for your analysis — adjust based on ga
 Top CSP tickers from history (Mag7 prioritized):
 ${cspTickerList || '  No CSP history found'}
 
-Covered call candidates (long equity, no active CC):
+Covered call candidates (long equity positions with no active short call):
 ${ccList || '  None detected'}
 
-SPX/SPXW spread capacity (5-wide BPS, heuristic estimate, 45% BP allocated):
-  - Contracts available: ${spreads.contractsAvailable ?? 0} (BP: $${(spreads.bpAllocated ?? 0).toLocaleString()})
-  - Est. credit at 30 DTE: $${((spreads.credit30DTE ?? 0) * 100).toFixed(0)} per contract
-  - Est. credit at 7-10 DTE: $${((spreads.credit7DTE ?? 0) * 100).toFixed(0)} per contract
-  - 7-DTE velocity: ${cycles7} cycle${cycles7 !== 1 ? 's' : ''} remaining → est. $${((spreads.velocityCredit7DTE ?? 0) * 100).toFixed(0)} total
+Please provide the following sections:
 
-Iron condor capacity (10-wide SPX, heuristic, 10% BP allocated):
-  - Contracts available: ${ironCondors.contractsAvailable ?? 0} (BP: $${(ironCondors.bpAllocated ?? 0).toLocaleString()})
-  - Est. total credit: $${((ironCondors.estimatedCredit ?? 0) * 100).toFixed(0)}
+## Buying Power Summary
+State the total buying power across all accounts and show the per-account breakdown in a table. Show the 80% safe deployment ceiling ($${bp80.toLocaleString()}) and what that leaves as a buffer.
 
-Please provide:
-## 1. Recommended Allocation Table
-A markdown table: Strategy | BP Allocated | Contracts/Positions | Est. Credit | Risk Level
-Adjust the suggested allocation based on the gap, history, and account types. Include a Totals row.
+## Strategy Recommendations
+Based on the gap of $${gap.toLocaleString('en-US', { maximumFractionDigits: 0 })} and ${daysLeft} days remaining, recommend the best mix of strategies from the user's actual trading history. For each strategy:
+- Recommended allocation from the available buying power (use real per-account BP, not percentages)
+- Specific tickers or instruments (SPX/SPXW for spreads, Mag7 names from history for CSPs)
+- DTE range — compare short-cycle (7-10 DTE) vs standard (21-30 DTE) where relevant
+- Estimated premium range based on typical market conditions
+- Account to use (respect IRA restrictions)
 
-## 2. SPX Spread Strategy
-Specific BPS recommendations — compare 7-10 DTE (velocity) vs 21-30 DTE (standard). Show the compounding math for remaining cycles. Include 5-wide vs 10-wide comparison if gap warrants it.
+## Covered Call Quick Wins
+For each idle CC candidate above: suggested strike (ATM or slight OTM), DTE range, estimated premium.
 
-## 3. Cash-Secured Puts (Non-IRA accounts only)
-Top 3-5 specific tickers from the CSP history. For each: suggested strike range, DTE, est. premium per contract, number of contracts. Prioritize Mag7 names already in the history.
-
-## 4. Iron Condors
-Only recommend if gap warrants it or history shows spread experience. Suggest SPX IC structure, wing widths, DTE, and est. credit. Note if this is a new strategy for this portfolio.
-
-## 5. Covered Call Quick Wins
-For each idle CC candidate: suggested strike (ATM or slight OTM), DTE range, est. premium.
-
-## 6. Conservative Caution
-Key risks: assignment risk on CSPs, spread widening, account-type restrictions, market environment warnings.`;
+## Conservative Caution
+Key risks to watch: assignment risk on CSPs, spread widening, IRA restrictions, and any notes on current market conditions.`;
 
         const response = await invokeLLM({
           messages: [

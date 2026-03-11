@@ -7887,3 +7887,10 @@
 - [x] Update LLM prompt to produce structured allocation table: SPX spreads %, CSPs %, ICs %, CCs %, buffer %
 - [x] Prompt to recommend specific CSP tickers from user's trading history (Mag 7 priority)
 - [x] Prompt to show compounding math: SPX premium → CSP buying power scenario
+
+## Gap Advisor Cleanup (Mar 10, 2026)
+- [x] Remove heuristic SPX/IC spread capacity estimates from getGapAdvisorContext (bpForSpreads, bpForCsps, bpForIcs, spreadsAt30DTE, etc.)
+- [x] Remove allocationSuggestion object from context return (was based on fixed percentages, not real data)
+- [x] Update LLM prompt to let AI reason freely from real per-account BP rather than pre-cooked allocation splits
+- [x] Keep: real account BP, account-type classification, 90-day strategy history, top CSP tickers, CC candidates
+- [x] Gap Advisor: AI response must always open with a buying power summary (total across all accounts + per-account breakdown) before any strategy recommendations

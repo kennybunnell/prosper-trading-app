@@ -313,9 +313,9 @@ export function GapAdvisorModal({ open, onClose, gap, target, collected }: GapAd
             />
             <ContextCard
               icon={Activity}
-              label="Buying Power (80%)"
-              value={ctx ? `$${Math.round(ctx.bp80pct ?? 0).toLocaleString()}` : ctxLoading ? '…' : '—'}
-              sub={ctx ? `of $${Math.round(ctx.totalBuyingPower ?? 0).toLocaleString()} total` : undefined}
+              label="Total Buying Power"
+              value={ctx ? `$${Math.round(ctx.totalBuyingPower ?? 0).toLocaleString()}` : ctxLoading ? '…' : '—'}
+              sub={ctx ? `80% ceiling: $${Math.round((ctx.totalBuyingPower ?? 0) * 0.8).toLocaleString()}` : undefined}
               color="text-cyan-400"
             />
           </div>
@@ -348,7 +348,7 @@ export function GapAdvisorModal({ open, onClose, gap, target, collected }: GapAd
           )}
 
           {/* Quick-link row (shown once advice is available) */}
-          {hasAdvice && ctx && ((ctx.ccCandidates?.length ?? 0) > 0 || (ctx.spreads?.contractsAvailable ?? 0) > 0) && (
+          {hasAdvice && ctx && (
             <div className="flex flex-wrap gap-2 pb-2 border-b border-amber-700/20">
               {(ctx.ccCandidates?.length ?? 0) > 0 && (
                 <Link href="/portfolio?tab=analyzer">
@@ -358,14 +358,12 @@ export function GapAdvisorModal({ open, onClose, gap, target, collected }: GapAd
                   </Button>
                 </Link>
               )}
-              {(ctx.spreads?.contractsAvailable ?? 0) > 0 && (
-                <Link href="/spreads">
-                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10" onClick={onClose}>
-                    <BarChart3 className="w-3 h-3" />
-                    Open Spread Advisor →
-                  </Button>
-                </Link>
-              )}
+              <Link href="/spreads">
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10" onClick={onClose}>
+                  <BarChart3 className="w-3 h-3" />
+                  Spread Advisor →
+                </Button>
+              </Link>
               <Link href="/csp">
                 <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-purple-500/30 text-purple-400 hover:bg-purple-500/10" onClick={onClose}>
                   <Zap className="w-3 h-3" />
