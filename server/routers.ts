@@ -866,8 +866,26 @@ export const appRouter = router({
           .slice(0, 10);
       } catch { /* skip */ }
 
-      // ── 6. SPX spread capacity estimate ─────────────────────────────────────
-      // Days remaining in month (used by LLM for velocity reasoning)
+      // ── 6. Live VIX level ────────────────────────────────────────────────────
+      let vix: number | null = null;
+      let vixLabel = 'unknown';
+      try {
+        if (credentials?.tradierApiKey) {
+          const { createTradierAPI } = await import('./tradier');
+          const tradierApi = createTradierAPI(credentials.tradierApiKey);
+          const vixQuote = await tradierApi.getQuote('VIX');
+          const vixLast = vixQuote?.last ?? vixQuote?.close ?? null;
+          if (vixLast && !isNaN(Number(vixLast))) {
+            vix = Math.round(Number(vixLast) * 100) / 100;
+            if (vix >= 30) vixLabel = 'HIGH (≥30) — elevated fear, premium-rich environment';
+            else if (vix >= 20) vixLabel = 'ELEVATED (20–29) — above-average volatility';
+            else if (vix >= 15) vixLabel = 'MODERATE (15–19) — normal range';
+            else vixLabel = 'LOW (<15) — compressed volatility, lower premium';
+          }
+        }
+      } catch { /* VIX fetch is best-effort, don't fail the whole context */ }
+
+      // ── 7. Days remaining in month ───────────────────────────────────────────
       const now = new Date();
       const daysLeftInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
 
@@ -882,6 +900,8 @@ export const appRouter = router({
         ccCandidates,
         strategyHistory,
         topCspTickers,
+        vix,
+        vixLabel,
       };
     }),
 
@@ -907,6 +927,8 @@ export const appRouter = router({
         const strategyHistory = ctx.strategyHistory ?? {};
         const topCspTickers: any[] = ctx.topCspTickers ?? [];
         const accountTypeBreakdown: any[] = ctx.accountTypeBreakdown ?? [];
+        const vix: number | null = ctx.vix ?? null;
+        const vixLabel: string = ctx.vixLabel ?? 'unknown';
 
         const ccList = ccCandidates.slice(0, 8).map((c: any) =>
           `  - ${c.symbol}: ${c.shares} shares, avg cost $${c.avgCost?.toFixed(2)}, current $${c.currentPrice?.toFixed(2)} (${c.recommendation})`
@@ -920,17 +942,24 @@ export const appRouter = router({
           `  - ${a.nickname} (${a.type}): $${a.buyingPower?.toLocaleString()} BP${a.spreadOnly ? ' [IRA — spreads/CCs only, no naked puts]' : ''}`
         ).join('\n');
 
+        const vixContext = vix !== null
+          ? `Current VIX: ${vix} — ${vixLabel}. Use this to calibrate DTE and strategy selection: HIGH VIX (≥30) favors short-cycle spreads (7-14 DTE) for elevated premium capture; ELEVATED VIX (20-29) supports both short and standard cycles; MODERATE/LOW VIX (<20) favors longer-cycle plays (21-45 DTE) and covered calls where premium is still meaningful.`
+          : 'VIX data unavailable — use general market conditions for cycle guidance.';
+
         const systemPrompt = `You are a conservative options income advisor for an experienced retail trader running a premium income wheel strategy.
 Your job is to give specific, actionable recommendations to close a monthly income gap safely.
 Always prioritize capital preservation. Keep delta exposure low. Never recommend strategies that significantly increase directional risk.
 Consider account-type restrictions: IRA accounts cannot sell naked puts — only spreads and covered calls are allowed in IRAs.
+${vixContext}
 IMPORTANT: Always begin your response with a ## Buying Power Summary section that clearly states the total buying power across all accounts and the per-account breakdown. This is the most important context for the user.
 Format your response in clean markdown with ## section headers. Be concise but specific — include estimated dollar amounts and contract counts where possible.`;
+
+        const vixLine = vix !== null ? `\nCurrent VIX: ${vix} (${vixLabel})` : '';
 
         const userPrompt = `Monthly income target: $${target.toLocaleString()}
 Collected so far this month: $${collected.toLocaleString('en-US', { maximumFractionDigits: 0 })} (${pct}%)
 Gap remaining: $${gap.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-Days left in month: ${daysLeft}
+Days left in month: ${daysLeft}${vixLine}
 
 Total buying power across all accounts: $${bp.toLocaleString()}
 80% safe deployment ceiling: $${bp80.toLocaleString()}

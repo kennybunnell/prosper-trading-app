@@ -7896,3 +7896,4 @@
 - [x] Gap Advisor: AI response must always open with a buying power summary (total across all accounts + per-account breakdown) before any strategy recommendations
 - [x] Gap Advisor modal: increase width so context cards and AI response are fully readable (currently cut off)
 - [x] Monthly Income Target: progress bar color changes red → yellow (within 20% of target) → green (at/above target)
+- [x] Gap Advisor: fetch live VIX level from Tradier and pass to LLM prompt for VIX-aware cycle recommendations (high VIX → short-cycle spreads, low VIX → longer-cycle plays)
