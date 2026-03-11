@@ -7865,3 +7865,13 @@
 - [x] Fix data source mismatch: getMonthlyCollected now uses same logic as chart (option-symbol regex + net-value-effect Credit/Debit)
 - [x] Extract MonthlyIncomeTracker as standalone component (no longer embedded in NavigationGrid)
 - [x] Add 6 unit tests for getMonthlyCollected logic (all passing)
+
+## Gap Advisor AI Feature
+- [x] Build getGapAdvisorContext tRPC procedure: buying power (all accounts), CC candidates (HARVEST/MONITOR with no active CC), spread scan (SPX/SPXW/NDX/XSP BPS opportunities), gap math (remaining vs target)
+- [x] Add velocity analysis: compare 7-10 DTE vs 21-30 DTE cycle compounding effect
+- [x] Add 80% buying power ceiling framing in context
+- [x] Build GapAdvisorModal component with streaming LLM response
+- [x] Show loading progress indicator while context is being gathered (Tradier API calls)
+- [x] Wire sparkle/AI button into MonthlyIncomeTracker card (top-right corner)
+- [x] Modal is read-only (no execute button) — links to relevant pages only
+- [x] LLM prompt instructs conservative framing: capital preservation first

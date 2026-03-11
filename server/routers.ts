@@ -699,9 +699,223 @@ export const appRouter = router({
     }),
 
     /**
-     * Action badge counts for the Home page tile grid.
-     * DB queries are fast; Tastytrade API calls use an 8s timeout with null fallback.
+     * Gather context for the Gap Advisor AI modal.
+     * Collects: buying power, covered call candidates, SPX spread scan, velocity math.
+     * This is intentionally on-demand (not cached) — user clicks the AI button.
      */
+    getGapAdvisorContext: protectedProcedure.query(async ({ ctx }) => {
+      const { getApiCredentials, getUserPreferences } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+      const prefs = await getUserPreferences(ctx.user.id);
+      const target = prefs?.monthlyIncomeTarget ?? 150000;
+
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        return { error: 'Tastytrade credentials not configured', target, collected: 0, gap: target };
+      }
+
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+
+      // ── 1. Buying power across all accounts ─────────────────────────────────
+      let totalBuyingPower = 0;
+      let accountSummaries: { accountNumber: string; nickname: string; buyingPower: number }[] = [];
+      try {
+        const accounts = await api.getAccounts();
+        for (const acct of accounts) {
+          const accNum = acct.account['account-number'];
+          const nickname = acct.account.nickname || accNum;
+          try {
+            const balances = await api.getBalances(accNum);
+            const bp = parseFloat(
+              balances?.['derivative-buying-power'] ||
+              balances?.['equity-buying-power'] ||
+              balances?.['net-liquidating-value'] || '0'
+            );
+            totalBuyingPower += bp;
+            accountSummaries.push({ accountNumber: accNum, nickname, buyingPower: bp });
+          } catch { /* skip */ }
+        }
+      } catch { /* skip */ }
+
+      // ── 2. Monthly collected so far (same logic as tracker) ─────────────────
+      let collected = 0;
+      try {
+        const accounts = await api.getAccounts();
+        const now = new Date();
+        const startDateStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const endDateStr = now.toISOString().split('T')[0];
+        let credits = 0, debits = 0;
+        for (const acct of accounts) {
+          try {
+            const txns = await api.getTransactionHistory(acct.account['account-number'], startDateStr, endDateStr);
+            for (const txn of txns) {
+              if (txn['transaction-type'] !== 'Trade') continue;
+              const sym: string = txn['symbol'] || '';
+              if (!/[A-Z0-9]+\s*\d{6}[CP]\d+/.test(sym)) continue;
+              const val = Math.abs(parseFloat(txn['net-value'] || '0'));
+              if (!val) continue;
+              if (txn['net-value-effect'] === 'Credit') credits += val;
+              else if (txn['net-value-effect'] === 'Debit') debits += val;
+            }
+          } catch { /* skip */ }
+        }
+        collected = Math.round((credits - debits) * 100) / 100;
+      } catch { /* skip */ }
+
+      const gap = Math.max(0, target - collected);
+
+      // ── 3. Covered call candidates (long equity >= 100 shares, no active short call) ──
+      let ccCandidates: { symbol: string; shares: number; avgCost: number; currentPrice: number; recommendation: string }[] = [];
+      try {
+        const accounts = await api.getAccounts();
+        for (const acct of accounts) {
+          const accNum = acct.account['account-number'];
+          try {
+            const positions = await api.getPositions(accNum);
+            const longEquity = positions.filter((p: any) =>
+              p['instrument-type'] === 'Equity' &&
+              p['quantity-direction'] === 'Long' &&
+              parseFloat(p.quantity || '0') >= 100
+            );
+            const shortCalls = new Set(
+              positions
+                .filter((p: any) => p['instrument-type'] === 'Equity Option' && p['quantity-direction'] === 'Short')
+                .map((p: any) => (p['underlying-symbol'] || '').toUpperCase())
+            );
+            for (const pos of longEquity) {
+              const sym = (pos['underlying-symbol'] || pos.symbol || '').toUpperCase();
+              if (shortCalls.has(sym)) continue; // already has CC
+              const shares = typeof pos.quantity === 'number' ? pos.quantity : parseFloat(String(pos.quantity || '0'));
+              const avgCost = parseFloat(pos['average-open-price'] || '0');
+              const currentPrice = parseFloat(pos['close-price'] || '0');
+              const pctFromCost = avgCost > 0 ? ((currentPrice - avgCost) / avgCost) * 100 : 0;
+              const recommendation = pctFromCost <= -40 ? 'LIQUIDATE' : pctFromCost <= -20 ? 'HARVEST' : 'MONITOR';
+              if (recommendation !== 'LIQUIDATE') {
+                ccCandidates.push({ symbol: sym, shares, avgCost, currentPrice, recommendation });
+              }
+            }
+          } catch { /* skip */ }
+        }
+      } catch { /* skip */ }
+
+      // ── 4. SPX spread capacity estimate (no live chain — use heuristic) ─────
+      // Estimate BPS credit for different DTE buckets using typical market conditions
+      // 5-wide SPX BPS at 30 DTE ~= $0.80-1.20 credit; at 7-10 DTE ~= $0.40-0.70 credit
+      const bp80pct = totalBuyingPower * 0.80;
+      const remainingBP = Math.max(0, bp80pct - (totalBuyingPower - bp80pct)); // conservative
+      // 5-wide SPX spread requires ~$500 collateral per contract
+      const spreadsAt30DTE = Math.floor(bp80pct / 500);
+      const spreadsAt7DTE = spreadsAt30DTE; // same collateral
+      const estimatedCreditPer30DTE = 1.00; // mid estimate per contract
+      const estimatedCreditPer7DTE = 0.55;
+      const spreadCredit30DTE = Math.round(spreadsAt30DTE * estimatedCreditPer30DTE * 100) / 100;
+      const spreadCredit7DTE = Math.round(spreadsAt7DTE * estimatedCreditPer7DTE * 100) / 100;
+      // Velocity: how many 7-DTE cycles fit in remaining month days
+      const now = new Date();
+      const daysLeftInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
+      const cycles7DTE = Math.max(1, Math.floor(daysLeftInMonth / 7));
+      const velocityCredit7DTE = Math.round(cycles7DTE * spreadCredit7DTE * 100) / 100;
+
+      return {
+        target,
+        collected,
+        gap,
+        pct: target > 0 ? Math.min(100, (collected / target) * 100) : 0,
+        totalBuyingPower: Math.round(totalBuyingPower),
+        bp80pct: Math.round(bp80pct),
+        accountSummaries,
+        ccCandidates,
+        spreads: {
+          contractsAvailable: spreadsAt30DTE,
+          credit30DTE: spreadCredit30DTE,
+          credit7DTE: spreadCredit7DTE,
+          velocityCredit7DTE,
+          cycles7DTE,
+          daysLeftInMonth,
+        },
+      };
+    }),
+
+    /**
+     * Generate AI advice for closing the monthly income gap.
+     * Takes the pre-fetched context JSON and calls the LLM.
+     */
+    generateGapAdvice: protectedProcedure
+      .input(z.object({ contextJson: z.string() }))
+      .mutation(async ({ input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+        let ctx: any = {};
+        try { ctx = JSON.parse(input.contextJson); } catch { /* use empty */ }
+
+        const gap = ctx.gap ?? 0;
+        const target = ctx.target ?? 150000;
+        const collected = ctx.collected ?? 0;
+        const pct = target > 0 ? ((collected / target) * 100).toFixed(1) : '0';
+        const bp = ctx.totalBuyingPower ?? 0;
+        const bp80 = ctx.bp80pct ?? 0;
+        const ccCandidates: any[] = ctx.ccCandidates ?? [];
+        const spreads = ctx.spreads ?? {};
+        const daysLeft = spreads.daysLeftInMonth ?? 0;
+        const cycles7 = spreads.cycles7DTE ?? 0;
+
+        const ccList = ccCandidates.slice(0, 8).map((c: any) =>
+          `  - ${c.symbol}: ${c.shares} shares, avg cost $${c.avgCost?.toFixed(2)}, current $${c.currentPrice?.toFixed(2)} (${c.recommendation})`
+        ).join('\n');
+
+        const systemPrompt = `You are a conservative options income advisor for an experienced retail trader. 
+Your job is to give specific, actionable recommendations to close a monthly income gap safely.
+Always prioritize capital preservation. Never recommend strategies that increase net delta exposure beyond what is already held.
+Format your response in clean markdown with ## section headers. Be concise but specific — include estimated dollar amounts where possible.`;
+
+        const userPrompt = `Monthly income target: $${target.toLocaleString()}
+Collected so far this month: $${collected.toLocaleString('en-US', { maximumFractionDigits: 0 })} (${pct}%)
+Gap remaining: $${gap.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+Days left in month: ${daysLeft}
+
+Total buying power: $${bp.toLocaleString()}
+80% BP ceiling (safe deployment limit): $${bp80.toLocaleString()}
+
+Covered call candidates (long equity, no active CC):
+${ccList || '  None detected'}
+
+SPX/SPXW spread capacity (5-wide BPS, heuristic estimate):
+  - Contracts available at 80% BP: ${spreads.contractsAvailable ?? 0}
+  - Estimated credit at 30 DTE: $${((spreads.credit30DTE ?? 0) * 100).toFixed(0)} per contract
+  - Estimated credit at 7-10 DTE: $${((spreads.credit7DTE ?? 0) * 100).toFixed(0)} per contract
+  - 7-DTE velocity: ${cycles7} cycle${cycles7 !== 1 ? 's' : ''} remaining this month → estimated $${((spreads.velocityCredit7DTE ?? 0) * 100).toFixed(0)} total if all cycles used
+
+Please provide:
+## 1. Quick Wins (Low Risk)
+Covered call opportunities on idle positions — specific symbols, suggested DTE range, estimated premium.
+
+## 2. Spread Strategies (Medium Risk)
+SPX/SPXW/NDX BPS or BCS recommendations — DTE, width, estimated credit, number of contracts to close the gap.
+
+## 3. Velocity Strategy
+Compare 7-10 DTE vs 21-30 DTE cycle approach for the remaining days. Show the math on compounding cycles.
+
+## 4. 80% Buying Power Scenario
+If you deployed to 80% of buying power across the best mix of strategies above, what total premium could you expect this month?
+
+## 5. Conservative Caution
+Any risks or things to watch out for given the current market environment and this portfolio's exposure.`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+        });
+
+        const rawContent = response?.choices?.[0]?.message?.content;
+        const advice: string = typeof rawContent === 'string'
+          ? rawContent
+          : Array.isArray(rawContent)
+            ? rawContent.map((c: any) => c.text || '').join('')
+            : 'Unable to generate advice at this time.';
+        return { advice };
+      }),
+
     getActionBadges: protectedProcedure.query(async ({ ctx }) => {
       try {
         const { getDb } = await import('./db');

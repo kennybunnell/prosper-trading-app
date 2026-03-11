@@ -8,7 +8,7 @@ import {
   LayoutDashboard, TrendingDown, LineChart, AlertTriangle, ChevronRight,
   Newspaper, ClipboardList, ListOrdered, BellRing, Briefcase, Target,
   ArrowUpRight, RefreshCw, CheckCircle2, Clock, Bot, TrendingDown as ProfitIcon,
-  RotateCcw, PhoneCall, Scan, Play
+  RotateCcw, PhoneCall, Scan, Play, Sparkles
 } from "lucide-react";
 import { getLoginUrl } from "@/const";
 import { Link, useLocation } from "wouter";
@@ -16,6 +16,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { trpc } from "@/lib/trpc";
 import { MonthlyPremiumChart } from "@/components/MonthlyPremiumChart";
 import { MarketNewsScanner } from "@/components/MarketNewsScanner";
+import { GapAdvisorModal } from "@/components/GapAdvisorModal";
 
 // ─── Monthly Premium Chart Section ───────────────────────────────────────────
 
@@ -313,6 +314,7 @@ function MonthlyIncomeTracker() {
   });
   const [editingTarget, setEditingTarget] = useState(false);
   const [targetInput, setTargetInput] = useState('');
+  const [advisorOpen, setAdvisorOpen] = useState(false);
 
   return (
     <div>
@@ -336,6 +338,17 @@ function MonthlyIncomeTracker() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {/* Gap Advisor AI button */}
+                {!editingTarget && (
+                  <button
+                    onClick={() => setAdvisorOpen(true)}
+                    title="Gap Advisor — AI recommendations to close your income gap"
+                    className="flex items-center gap-1.5 text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors border border-emerald-500/30 hover:border-emerald-400/50 rounded-lg px-2.5 py-1.5 bg-emerald-500/5 hover:bg-emerald-500/10"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Ask AI
+                  </button>
+                )}
                 {editingTarget ? (
                   <form
                     className="flex items-center gap-2"
@@ -408,6 +421,14 @@ function MonthlyIncomeTracker() {
           </div>
         )}
       </div>
+      {/* Gap Advisor Modal */}
+      <GapAdvisorModal
+        open={advisorOpen}
+        onClose={() => setAdvisorOpen(false)}
+        gap={monthlyData?.remaining ?? 0}
+        target={monthlyData?.target ?? 150000}
+        collected={monthlyData?.collected ?? 0}
+      />
     </div>
   );
 }
