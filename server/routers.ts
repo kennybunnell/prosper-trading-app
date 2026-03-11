@@ -916,6 +916,33 @@ Any risks or things to watch out for given the current market environment and th
         return { advice };
       }),
 
+    followUpGapAdvice: protectedProcedure
+      .input(z.object({
+        contextJson: z.string(),
+        history: z.array(z.object({ role: z.enum(['assistant', 'user']), content: z.string() })),
+        question: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+        const systemPrompt = `You are a conservative options trading advisor helping a premium income investor close their monthly income gap. 
+You have already provided an initial analysis. The user is asking a follow-up question.
+Context: ${input.contextJson}
+Answer concisely and specifically. Stay conservative — capital preservation first. Use markdown formatting (## headers, - bullets, **bold**).`;
+        const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+          { role: 'system', content: systemPrompt },
+          ...input.history.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+          { role: 'user', content: input.question },
+        ];
+        const response = await invokeLLM({ messages });
+        const rawContent = response?.choices?.[0]?.message?.content;
+        const answer: string = typeof rawContent === 'string'
+          ? rawContent
+          : Array.isArray(rawContent)
+            ? rawContent.map((c: any) => c.text || '').join('')
+            : 'Unable to answer at this time.';
+        return { answer };
+      }),
+
     getActionBadges: protectedProcedure.query(async ({ ctx }) => {
       try {
         const { getDb } = await import('./db');

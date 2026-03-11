@@ -7875,3 +7875,7 @@
 - [x] Wire sparkle/AI button into MonthlyIncomeTracker card (top-right corner)
 - [x] Modal is read-only (no execute button) — links to relevant pages only
 - [x] LLM prompt instructs conservative framing: capital preservation first
+
+## Gap Advisor Enhancements (Mar 10, 2026)
+- [x] Add bronze/amber border to Gap Advisor modal so it stands out against dark background
+- [x] Add follow-up chat input at bottom of modal so user can ask clarifying questions (maintains conversation thread with AI)
