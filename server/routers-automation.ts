@@ -863,34 +863,56 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         // This prevents ITM options (stock gapped up overnight) from showing as
         // "Ready to Close" when the actual buyback cost exceeds the premium collected.
         try {
-          const optionSymbolsToRefresh = Array.from(
+          // OCC symbols from Tastytrade contain spaces (e.g. "NBIS  260320C00103000").
+          // Tradier requires space-free OCC symbols (e.g. "NBIS260320C00103000").
+          // Build a map: normalizedSymbol → originalSymbol so we can look up results.
+          const normalizeOCC = (s: string) => s.replace(/\s+/g, '');
+          const rawOptionSymbols = Array.from(
             new Set(
               scanResults
                 .filter(r => r.optionSymbol && r.action !== 'SKIPPED')
-                .map(r => r.optionSymbol)
+                .flatMap(r => [
+                  r.optionSymbol,
+                  ...(r.spreadLongSymbol ? [r.spreadLongSymbol] : []),
+                ])
             )
           );
-          if (optionSymbolsToRefresh.length > 0) {
+          // Map normalized → original for reverse lookup after Tradier responds
+          const normToOrig = new Map<string, string>();
+          for (const sym of rawOptionSymbols) {
+            normToOrig.set(normalizeOCC(sym), sym);
+          }
+          const normalizedSymbols = Array.from(normToOrig.keys());
+
+          if (normalizedSymbols.length > 0) {
             const { createTradierAPI } = await import('./tradier');
             const storedKey = credentials?.tradierApiKey;
             const tradierApiKey = (storedKey && storedKey.length > 15 ? storedKey : null) || process.env.TRADIER_API_KEY;
             if (tradierApiKey) {
               const tradierApi = createTradierAPI(tradierApiKey);
-              const liveOptionQuotes = await tradierApi.getQuotes(optionSymbolsToRefresh);
+              console.log(`[Automation] Fetching live option marks for ${normalizedSymbols.length} symbols (sample: ${normalizedSymbols.slice(0, 3).join(', ')})`);
+              const liveOptionQuotes = await tradierApi.getQuotes(normalizedSymbols);
+              // Build mark map keyed by ORIGINAL symbol (with spaces) for easy lookup
               const liveMarkMap = new Map<string, number>();
               for (const q of liveOptionQuotes) {
                 const mid = (q.bid + q.ask) / 2;
                 const mark = mid > 0 ? mid : (q.last > 0 ? q.last : 0);
-                if (q.symbol && mark > 0) liveMarkMap.set(q.symbol, mark);
+                if (q.symbol && mark > 0) {
+                  const origSym = normToOrig.get(q.symbol) ?? q.symbol;
+                  liveMarkMap.set(origSym, mark);   // original (with spaces)
+                  liveMarkMap.set(q.symbol, mark);  // normalized (no spaces)
+                }
               }
-              console.log(`[Automation] Live option marks fetched for ${liveMarkMap.size}/${optionSymbolsToRefresh.length} option symbols`);
+              console.log(`[Automation] Live option marks fetched for ${liveMarkMap.size / 2}/${normalizedSymbols.length} option symbols`);
 
               // Re-compute buyBackCost and realizedPercent from live marks.
               // Re-evaluate action: if realizedPercent drops below threshold, demote to BELOW_THRESHOLD.
               // Also handle spread long legs: recalculate net cost using live long-leg mark.
               for (const result of scanResults) {
                 if (result.action === 'SKIPPED') continue;
-                const liveMark = liveMarkMap.get(result.optionSymbol);
+                // Try both original and normalized symbol for lookup
+                const liveMark = liveMarkMap.get(result.optionSymbol)
+                  ?? liveMarkMap.get(normalizeOCC(result.optionSymbol));
                 if (!liveMark) continue; // no live quote — keep stale values
 
                 const isEstimatedNow = false;
@@ -947,6 +969,37 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         } catch (optionQuoteErr) {
           console.warn('[Automation] Failed to refresh live option marks — using stale close-price values:', optionQuoteErr);
           // Non-fatal: scan results remain valid with stale prices, just less accurate
+        }
+
+        // ── ABSOLUTE SAFETY GUARD ─────────────────────────────────────────────
+        // Regardless of how buyBackCost was computed (stale close-price, time-decay
+        // estimate, or live quote), a position where buyBackCost >= premiumCollected
+        // is at a LOSS and must NEVER appear as "Ready to Close".
+        // This is the final backstop that catches any edge cases the live-quote
+        // refresh may have missed (e.g., Tradier returned no quote for the symbol).
+        let safetyGuardDemotions = 0;
+        for (const result of scanResults) {
+          if (result.action === 'WOULD_CLOSE' && result.buyBackCost >= result.premiumCollected) {
+            console.warn(
+              `[Automation] SAFETY GUARD: ${result.symbol} ${result.type} demoted — ` +
+              `buyBackCost ($${result.buyBackCost.toFixed(2)}) >= premiumCollected ($${result.premiumCollected.toFixed(2)}). ` +
+              `Net profit would be -$${(result.buyBackCost - result.premiumCollected).toFixed(2)}. Forcing BELOW_THRESHOLD.`
+            );
+            result.action = 'BELOW_THRESHOLD';
+            // Remove any pending order for this position
+            pendingOrders.splice(0, pendingOrders.length,
+              ...pendingOrders.filter(o => o.symbol !== result.optionSymbol)
+            );
+            safetyGuardDemotions++;
+          }
+        }
+        if (safetyGuardDemotions > 0) {
+          console.warn(`[Automation] Safety guard demoted ${safetyGuardDemotions} position(s) that would have shown a net loss as Ready to Close.`);
+          // Recompute totals after safety guard
+          totalPositionsClosed = scanResults.filter(r => r.action === 'WOULD_CLOSE').length;
+          totalProfitRealized = scanResults
+            .filter(r => r.action === 'WOULD_CLOSE')
+            .reduce((sum, r) => sum + (r.premiumCollected - r.buyBackCost), 0);
         }
 
         // ── Enrich scan results with underlying stock prices ─────────────────

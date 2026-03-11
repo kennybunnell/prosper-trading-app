@@ -7903,3 +7903,9 @@
 - [x] Filter: positions where buyback_cost > premium_collected must NEVER appear as "Ready to Close" — they are at a loss
 - [x] Verify the threshold filter (≥75%) applies to the corrected profit-based Realized %, not a decay-based one
 - [x] Added live option quote refresh step in scan: batch-fetches Tradier marks for all option symbols, recalculates buyBackCost and realizedPercent from live mid-price, demotes/promotes WOULD_CLOSE vs BELOW_THRESHOLD accordingly
+
+## Close for Profit Hard Safety Guard (Mar 11, 2026)
+- [x] Diagnose why NBIS still shows 88.6% realized with $1,368 buyback after live quote fix
+- [x] Add absolute hard safety guard: if buyBackCost >= premiumCollected at ANY point, force action = BELOW_THRESHOLD (no exceptions)
+- [x] Add safety guard BOTH in the initial threshold check AND after the live quote refresh
+- [x] Verified root cause: OCC symbols from Tastytrade have spaces (e.g. "NBIS  260320C00103000") but Tradier requires no spaces — fixed by normalizing all symbols before Tradier call
