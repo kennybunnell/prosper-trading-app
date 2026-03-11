@@ -7848,3 +7848,8 @@
 - [ ] Fix failing test suite (triage 42 failing tests, fix mock data mismatches)
 - [ ] Add portfolio-level delta limit (net delta calculator in Portfolio Command Center, alert at ±50 delta)
 - [ ] Add closed trade history view (Closed Trades tab in Performance page)
+
+## Mar 10 2026 - Monthly Premium Income Target Tracker
+- [x] Add monthlyIncomeTarget field to userPreferences table in drizzle/schema.ts and pushed via SQL ALTER
+- [x] Add tRPC procedures: setMonthlyTarget (saves to DB), getMonthlyCollected (computes from closed GTC orders + reads target)
+- [x] Built Monthly Premium Income card on Home dashboard: emerald progress bar, editable target (click pencil), collected/remaining/% display

@@ -442,6 +442,20 @@
       "when": 1773181230688,
       "tag": "0063_new_lizard",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "5",
+      "when": 1773197160407,
+      "tag": "0064_fast_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "5",
+      "when": 1773197218671,
+      "tag": "0065_wooden_monster_badoon",
+      "breakpoints": true
     }
   ]
 }

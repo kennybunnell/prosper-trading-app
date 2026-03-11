@@ -2917,6 +2917,42 @@ Summary: [One sentence overall assessment]`;
         });
         return { success: true };
       }),
+    setMonthlyTarget: protectedProcedure
+      .input(z.object({ target: z.number().min(1000).max(10000000) }))
+      .mutation(async ({ ctx, input }) => {
+        const { upsertUserPreferences } = await import('./db');
+        await upsertUserPreferences(ctx.user.id, {
+          monthlyIncomeTarget: input.target,
+        });
+        return { success: true };
+      }),
+    getMonthlyCollected: protectedProcedure.query(async ({ ctx }) => {
+      const { getDb, getUserPreferences } = await import('./db');
+      const { gtcOrders } = await import('../drizzle/schema');
+      const { eq, and, gte, sql } = await import('drizzle-orm');
+      const db = await getDb();
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const rows = db ? await db
+        .select({ total: sql<string>`SUM(CAST(${gtcOrders.totalPremiumCollected} AS DECIMAL(12,2)))` })
+        .from(gtcOrders)
+        .where(
+          and(
+            eq(gtcOrders.userId, ctx.user.id),
+            eq(gtcOrders.status, 'filled'),
+            gte(gtcOrders.filledAt, monthStart)
+          )
+        ) : [];
+      const collected = parseFloat(rows[0]?.total ?? '0') || 0;
+      const prefs = await getUserPreferences(ctx.user.id);
+      const target = prefs?.monthlyIncomeTarget ?? 150000;
+      return {
+        collected,
+        target,
+        remaining: Math.max(0, target - collected),
+        pct: target > 0 ? Math.min(100, (collected / target) * 100) : 0,
+      };
+    }),
   }),
 
   account: router({

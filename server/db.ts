@@ -857,6 +857,7 @@ export async function upsertUserPreferences(
     strategyAdvisorAutoRefresh?: boolean;
     strategyAdvisorRefreshInterval?: number;
     taxRate?: number;
+    monthlyIncomeTarget?: number;
   }
 ) {
   const db = await getDb();
@@ -881,6 +882,9 @@ export async function upsertUserPreferences(
     }
     if (preferences.taxRate !== undefined) {
       updates.taxRate = preferences.taxRate;
+    }
+    if (preferences.monthlyIncomeTarget !== undefined) {
+      updates.monthlyIncomeTarget = preferences.monthlyIncomeTarget;
     }
     
     if (Object.keys(updates).length > 0) {

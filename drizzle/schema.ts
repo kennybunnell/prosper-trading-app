@@ -271,6 +271,9 @@ export const userPreferences = mysqlTable("userPreferences", {
   // Tax settings
   taxRate: int("taxRate").notNull().default(24), // User's marginal tax rate percentage (e.g., 24, 32, 37)
   
+  // Monthly premium income target (in dollars, e.g. 150000 = $150,000)
+  monthlyIncomeTarget: int("monthlyIncomeTarget").notNull().default(150000),
+  
   // Friday expiration sweep schedule toggle
   fridaySweepEnabled: boolean("fridaySweepEnabled").notNull().default(true), // Auto-run sweep every Friday at 9:30 AM ET
   // Daily ITM scan schedule toggle
@@ -970,3 +973,4 @@ export const dailyScanCache = mysqlTable('daily_scan_cache', {
 
 export type DailyScanCache = typeof dailyScanCache.$inferSelect;
 export type InsertDailyScanCache = typeof dailyScanCache.$inferInsert;
+
