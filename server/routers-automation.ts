@@ -558,6 +558,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               // Time-decay heuristic: MUST run AFTER spread detection so spread netting can't zero it out.
               // When buyBackCost is still 0 after spread netting (both legs have close-price=0),
               // estimate using theta decay: estimatedPerShare = openPrice × sqrt(daysRemaining / daysOriginal)
+              // MINIMUM FLOOR: spreads/ICs always have at least $0.05/share residual cost to close.
               // Uses actual position created-at date for true original DTE (not a hardcoded assumption)
               let isEstimated = false;
               if (buyBackCost === 0 && expiration) {
@@ -572,8 +573,10 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 if (daysRemaining > 0) {
                   const decayFactor = Math.sqrt(daysRemaining / daysOriginal);
                   const estimatedPerShare = openPrice * decayFactor;
-                  // Floor at $0.01 per share minimum (options rarely trade below this)
-                  const flooredPerShare = Math.max(0.01, estimatedPerShare);
+                  // Floor at $0.05/share minimum for spreads/ICs (two legs to close, always some residual)
+                  // Single-leg options use $0.01/share floor
+                  const minFloor = isSpread ? 0.05 : 0.01;
+                  const flooredPerShare = Math.max(minFloor, estimatedPerShare);
                   buyBackCost = flooredPerShare * effectiveQty * multiplier;
                   isEstimated = true;
                   console.log(`[Automation] ${underlyingSymbol} ${optionType}: buyBackCost=0 after spread netting, using time-decay estimate: $${buyBackCost.toFixed(2)} (${daysRemaining.toFixed(1)} of ${daysOriginal.toFixed(1)} DTE remaining, decay=${decayFactor.toFixed(3)})`);
@@ -930,12 +933,20 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 let newBuyBackCost = liveMark * qty * multiplier;
 
                 // For spreads: subtract long-leg credit from buyback cost
+                const isSpreadResult = result.type === 'BPS' || result.type === 'BCS' || result.type === 'IC';
                 if (result.spreadLongSymbol) {
                   const longMark = liveMarkMap.get(result.spreadLongSymbol);
                   if (longMark !== undefined) {
                     const longCredit = longMark * qty * multiplier;
                     newBuyBackCost = Math.max(0, newBuyBackCost - longCredit);
                   }
+                }
+                // Apply minimum floor: spreads/ICs always have at least $0.05/share residual
+                // (two legs to close means commissions + bid/ask spread always add up)
+                const minFloorLive = isSpreadResult ? (0.05 * qty * multiplier) : (0.01 * qty * multiplier);
+                if (newBuyBackCost < minFloorLive) {
+                  newBuyBackCost = minFloorLive;
+                  result.isEstimated = true;
                 }
 
                 const newRealizedPct = result.premiumCollected > 0

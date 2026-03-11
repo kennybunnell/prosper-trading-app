@@ -7914,3 +7914,9 @@
 - [x] ITM warning badge: red "ITM — Loss" badge in scan table for positions demoted by safety guard (buyBackCost >= premiumCollected)
 - [x] Roll Up & Out suggestion: fetch Tradier option chain for ITM CCs, show estimated credit + new strike/expiration in Action column
 - [x] Re-scan Now button: prominent button at top of Close for Profit table to refresh results mid-day without navigating away
+
+## IC Buy-Back Cost Bug (Mar 11, 2026)
+- [x] Diagnose why Iron Condor positions show $0.00 buy-back cost and 100% realized — root cause: deep OTM options with bid=ask=0 from Tradier, live refresh skipped them, stale value was $0
+- [x] Fix IC buy-back cost: live refresh now applies $0.05/share floor for spreads/ICs when mark=0
+- [x] Ensure IC realizedPercent is calculated from actual live buyback cost, not stale close-price
+- [x] IC/spread buy-back cost: apply $0.05/share minimum floor so positions never show exactly $0.00 — mark as estimated (~)
