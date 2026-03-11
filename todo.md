@@ -7920,3 +7920,11 @@
 - [x] Fix IC buy-back cost: live refresh now applies $0.05/share floor for spreads/ICs when mark=0
 - [x] Ensure IC realizedPercent is calculated from actual live buyback cost, not stale close-price
 - [x] IC/spread buy-back cost: apply $0.05/share minimum floor so positions never show exactly $0.00 — mark as estimated (~)
+
+## Spread Integrity Fix (Mar 11, 2026)
+- [x] Fix spread integrity violation error blocking IC batch close submissions
+- [x] Root cause: scan was matching short leg as its own long leg (self-match bug) when Tastytrade returned a long position with same OCC symbol as the short
+- [x] Fix 1: Added self-match guard in spread detection — skip any long leg whose normalised OCC symbol equals the short leg's symbol
+- [x] Fix 2: Added same-strike guard — skip long legs with identical strike to short leg (impossible valid spread)
+- [x] Fix 3: Rewrote submitCloseOrders integrity check to be pair-aware: only block if a long leg appears as a standalone (non-spread) close in the same batch
+- [x] Added 8 new unit tests covering self-match, same-strike, valid IC batch, mixed batch, and cross-collision scenarios — all 19 spread tests pass

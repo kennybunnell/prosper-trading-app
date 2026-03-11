@@ -518,6 +518,23 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                   const longOccMatch = longPos.symbol?.match(/([CP])(\d{8})$/);
                   const longIsPut = longOccMatch ? longOccMatch[1] === 'P' : (longPos.symbol?.includes('P') ?? false);
                   if (longIsPut === isPut) {
+                    // SAFETY: never match the same OCC symbol as both short and long leg.
+                    // This can happen when Tastytrade returns a long position with the same
+                    // symbol as the short (e.g., stale data or IC where both legs share a strike).
+                    // Normalise symbols (strip spaces) before comparing.
+                    const normLongSym = (longPos.symbol || '').replace(/\s+/g, '');
+                    const normShortSym = optionSymbol.replace(/\s+/g, '');
+                    if (normLongSym === normShortSym) {
+                      console.warn(`[Automation] Skipping self-match: long leg symbol ${longPos.symbol} equals short leg ${optionSymbol}`);
+                      continue;
+                    }
+                    // SAFETY: long-leg strike must differ from short-leg strike for a valid spread.
+                    const shortStrikeNum = occTypeMatch ? parseInt(occTypeMatch[2], 10) : 0;
+                    const longStrikeNum = longOccMatch ? parseInt(longOccMatch[2], 10) : 0;
+                    if (shortStrikeNum !== 0 && longStrikeNum !== 0 && shortStrikeNum === longStrikeNum) {
+                      console.warn(`[Automation] Skipping same-strike match: ${optionSymbol} and ${longPos.symbol} have the same strike ${shortStrikeNum}`);
+                      continue;
+                    }
                     const longQty = Math.abs(parseInt(String(longPos.quantity || '0')));
                     const matchedQty = Math.min(quantity, longQty); // only match up to long qty
                     const longClosePrice = Math.abs(parseFloat(String(longPos['close-price'] || '0')));
@@ -1243,24 +1260,56 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         }
       }
       // ── Spread integrity pre-flight guard ─────────────────────────────────────
-      // Detect any order whose symbol indicates it was scanned as a spread (BPS/BCS/IC)
-      // but is missing its long leg. This would result in a naked short — hard reject.
-      // The scan always attaches spreadLongSymbol when it finds a matching long leg;
-      // if it is absent for a spread-type order, the scan had a data gap and we must not submit.
-      // NOTE: We detect spread type by checking if the option symbol has a matching long leg
-      // in the same batch (same underlying, same expiration, opposite direction).
-      // For safety we also check the spreadLongSymbol field directly.
+      // Detect any order whose spreadLongSymbol equals its own optionSymbol (self-match bug).
+      // This indicates the scan incorrectly matched a position as its own long leg.
+      // Also detect if a spreadLongSymbol appears as the optionSymbol of a DIFFERENT order
+      // that is NOT its paired counterpart (which would indicate a double-close attempt).
+      // NOTE: For Iron Condors, two spread orders share the same underlying but have different
+      // OCC symbols (put spread + call spread), so they are valid and must NOT be blocked.
       const spreadOrders = input.orders.filter(o => !!o.spreadLongSymbol);
       const singleLegOrders = input.orders.filter(o => !o.spreadLongSymbol);
-      // If any order has a spreadLongSymbol that is the same as another order's optionSymbol,
-      // that would indicate a double-submission — block it.
-      const longSymbolsInBatch = new Set(spreadOrders.map(o => o.spreadLongSymbol!));
-      const shortSymbolsInBatch = new Set(input.orders.map(o => o.optionSymbol));
-      const overlap = Array.from(longSymbolsInBatch).filter(s => shortSymbolsInBatch.has(s));
-      if (overlap.length > 0) {
+
+      // Check 1: Self-match — spreadLongSymbol equals its own optionSymbol (normalise spaces)
+      const selfMatchOrders = spreadOrders.filter(o => {
+        const normShort = o.optionSymbol.replace(/\s+/g, '');
+        const normLong = o.spreadLongSymbol!.replace(/\s+/g, '');
+        return normShort === normLong;
+      });
+      if (selfMatchOrders.length > 0) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: `Spread integrity violation: the following long-leg symbols appear as both a short and long leg in the same batch submission: ${overlap.join(', ')}. This would close legs independently. Rerun the scan and resubmit.`,
+          message: `Spread data error: the following positions have the same symbol for both legs — this indicates a scan data issue. Please re-run the scan and resubmit: ${selfMatchOrders.map(o => o.optionSymbol).join(', ')}.`,
+        });
+      }
+
+      // Check 2: Cross-order collision — a spreadLongSymbol appears as the optionSymbol of
+      // a DIFFERENT order that is NOT paired with it.
+      // Build a map: normalised optionSymbol → order, for all orders
+      const normShortMap = new Map<string, typeof input.orders[number]>();
+      for (const o of input.orders) {
+        normShortMap.set(o.optionSymbol.replace(/\s+/g, ''), o);
+      }
+      // Build a set of all paired long symbols (normalised) so we can exclude them
+      const pairedLongSymbols = new Set(spreadOrders.map(o => o.spreadLongSymbol!.replace(/\s+/g, '')));
+      // A collision exists when a long symbol matches a short symbol in a DIFFERENT order
+      // AND that short symbol is not itself a long leg of any other order (i.e., it's a standalone close)
+      const crossCollisions: string[] = [];
+      for (const spreadOrder of spreadOrders) {
+        const normLong = spreadOrder.spreadLongSymbol!.replace(/\s+/g, '');
+        const collidingOrder = normShortMap.get(normLong);
+        if (collidingOrder && collidingOrder.optionSymbol !== spreadOrder.optionSymbol) {
+          // The long leg of this spread is also being submitted as a standalone short close.
+          // This is only a problem if the colliding order has NO spreadLongSymbol (i.e., it's
+          // being closed as a single-leg order, not as part of its own spread pair).
+          if (!collidingOrder.spreadLongSymbol) {
+            crossCollisions.push(spreadOrder.spreadLongSymbol!);
+          }
+        }
+      }
+      if (crossCollisions.length > 0) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Spread integrity violation: the following long-leg symbols are also being submitted as standalone close orders in the same batch: ${crossCollisions.join(', ')}. This would close legs independently. Rerun the scan and resubmit.`,
         });
       }
 

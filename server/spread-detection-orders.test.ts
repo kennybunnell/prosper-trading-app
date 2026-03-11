@@ -352,3 +352,237 @@ describe('Spread Order Generation', () => {
     expect(limitPrice).toBeGreaterThanOrEqual(0.01);
   });
 });
+
+// ─── Self-match safety guard tests ────────────────────────────────────────────
+// These mirror the new safety checks added to routers-automation.ts to prevent
+// a position from being matched as its own long leg (self-match bug).
+
+function detectSpreadTypeSafe(
+  position: MockPosition,
+  longPositionMap: Map<string, MockPosition>,
+  shortByUnderlying: Map<string, { put?: MockPosition; call?: MockPosition }>
+): {
+  optionType: string;
+  isSpread: boolean;
+  matchedLongLeg: MockPosition | null;
+  buyBackCost: number;
+} {
+  const qty = Math.abs(parseInt(position.quantity));
+  const multiplier = parseInt(position.multiplier || '100');
+  const occTypeMatch = position.symbol.match(/([CP])(\d{8})$/);
+  const isPut = occTypeMatch ? occTypeMatch[1] === 'P' : position.symbol.includes('P');
+  let optionType: string = isPut ? 'CSP' : 'CC';
+  const closePrice = Math.abs(parseFloat(position['close-price'] || '0'));
+  let buyBackCost = closePrice * qty * multiplier;
+
+  let isSpread = false;
+  let matchedLongLeg: MockPosition | null = null;
+
+  for (const [, longPos] of Array.from(longPositionMap.entries())) {
+    if (
+      longPos['underlying-symbol'] === position['underlying-symbol'] &&
+      longPos['expires-at'] === position['expires-at']
+    ) {
+      const longOccMatch = longPos.symbol.match(/([CP])(\d{8})$/);
+      const longIsPut = longOccMatch ? longOccMatch[1] === 'P' : longPos.symbol.includes('P');
+      if (longIsPut === isPut) {
+        // SAFETY: skip self-match (same OCC symbol after stripping spaces)
+        const normLong = longPos.symbol.replace(/\s+/g, '');
+        const normShort = position.symbol.replace(/\s+/g, '');
+        if (normLong === normShort) continue;
+
+        // SAFETY: skip same-strike match
+        const shortStrikeNum = occTypeMatch ? parseInt(occTypeMatch[2], 10) : 0;
+        const longStrikeNum = longOccMatch ? parseInt(longOccMatch[2], 10) : 0;
+        if (shortStrikeNum !== 0 && longStrikeNum !== 0 && shortStrikeNum === longStrikeNum) continue;
+
+        const longClosePrice = Math.abs(parseFloat(longPos['close-price'] || '0'));
+        const longBuyBackCredit = longClosePrice * qty * parseInt(longPos.multiplier || '100');
+        const netCost = buyBackCost - longBuyBackCredit;
+        if (netCost >= 0) {
+          buyBackCost = netCost;
+          isSpread = true;
+          matchedLongLeg = longPos;
+          optionType = isPut ? 'BPS' : 'BCS';
+        }
+        break;
+      }
+    }
+  }
+
+  if (isSpread) {
+    const icKey = `${position['underlying-symbol']}|${position['expires-at']}`;
+    const icEntry = shortByUnderlying.get(icKey);
+    if (icEntry && icEntry.put && icEntry.call) {
+      optionType = 'IC';
+    }
+  }
+
+  return { optionType, isSpread, matchedLongLeg, buyBackCost };
+}
+
+// Integrity check helper (mirrors submitCloseOrders validation)
+function checkSpreadIntegrity(orders: Array<{ optionSymbol: string; spreadLongSymbol?: string }>): {
+  selfMatchViolations: string[];
+  crossCollisions: string[];
+} {
+  const spreadOrders = orders.filter(o => !!o.spreadLongSymbol);
+
+  // Check 1: self-match
+  const selfMatchViolations = spreadOrders
+    .filter(o => o.optionSymbol.replace(/\s+/g, '') === o.spreadLongSymbol!.replace(/\s+/g, ''))
+    .map(o => o.optionSymbol);
+
+  // Check 2: cross-order collision
+  const normShortMap = new Map<string, typeof orders[number]>();
+  for (const o of orders) {
+    normShortMap.set(o.optionSymbol.replace(/\s+/g, ''), o);
+  }
+  const crossCollisions: string[] = [];
+  for (const spreadOrder of spreadOrders) {
+    const normLong = spreadOrder.spreadLongSymbol!.replace(/\s+/g, '');
+    const collidingOrder = normShortMap.get(normLong);
+    if (collidingOrder && collidingOrder.optionSymbol !== spreadOrder.optionSymbol) {
+      if (!collidingOrder.spreadLongSymbol) {
+        crossCollisions.push(spreadOrder.spreadLongSymbol!);
+      }
+    }
+  }
+
+  return { selfMatchViolations, crossCollisions };
+}
+
+describe('Self-match safety guard', () => {
+  it('skips a long leg that has the same OCC symbol as the short leg', () => {
+    // Simulate the bug: Tastytrade returns a "long" position with the same symbol as the short
+    const shortPutWithSpaces: MockPosition = {
+      symbol: 'MSFT  260320P00390000',
+      'underlying-symbol': 'MSFT',
+      'instrument-type': 'Equity Option',
+      quantity: '-1',
+      'quantity-direction': 'short',
+      'average-open-price': '2.73',
+      'close-price': '0.05',
+      'expires-at': '2026-03-20T20:00:00.000Z',
+    };
+    // Simulate a "long" position with same symbol (stale/duplicate data)
+    const fakeLongSameSymbol: MockPosition = {
+      ...shortPutWithSpaces,
+      quantity: '1',
+      'quantity-direction': 'long',
+    };
+
+    const positions = [shortPutWithSpaces, fakeLongSameSymbol];
+    const longMap = buildLongPositionMap(positions);
+    const shortMap = buildShortByUnderlying(positions);
+
+    const result = detectSpreadTypeSafe(shortPutWithSpaces, longMap, shortMap);
+
+    // Should NOT be identified as a spread — self-match must be skipped
+    expect(result.isSpread).toBe(false);
+    expect(result.optionType).toBe('CSP');
+    expect(result.matchedLongLeg).toBeNull();
+  });
+
+  it('skips a long leg with the same strike as the short leg', () => {
+    const shortPut: MockPosition = {
+      symbol: 'AVGO260313P00320000',
+      'underlying-symbol': 'AVGO',
+      'instrument-type': 'Equity Option',
+      quantity: '-1',
+      'quantity-direction': 'short',
+      'average-open-price': '3.00',
+      'close-price': '0.05',
+      'expires-at': '2026-03-13T20:00:00.000Z',
+    };
+    const sameLongPut: MockPosition = {
+      symbol: 'AVGO260313P00320000',  // same strike — invalid spread
+      'underlying-symbol': 'AVGO',
+      'instrument-type': 'Equity Option',
+      quantity: '1',
+      'quantity-direction': 'long',
+      'average-open-price': '3.00',
+      'close-price': '0.05',
+      'expires-at': '2026-03-13T20:00:00.000Z',
+    };
+
+    const positions = [shortPut, sameLongPut];
+    const longMap = buildLongPositionMap(positions);
+    const shortMap = buildShortByUnderlying(positions);
+
+    const result = detectSpreadTypeSafe(shortPut, longMap, shortMap);
+
+    expect(result.isSpread).toBe(false);
+    expect(result.optionType).toBe('CSP');
+  });
+
+  it('still correctly identifies a valid BPS when strikes differ', () => {
+    const positions = [shortPut, longPut];
+    const longMap = buildLongPositionMap(positions);
+    const shortMap = buildShortByUnderlying(positions);
+
+    const result = detectSpreadTypeSafe(shortPut, longMap, shortMap);
+
+    expect(result.isSpread).toBe(true);
+    expect(result.optionType).toBe('BPS');
+    expect(result.matchedLongLeg?.symbol).toBe('NVDA260307P00145000');
+  });
+});
+
+describe('Spread integrity check (submitCloseOrders validation)', () => {
+  it('flags a self-match violation when spreadLongSymbol equals optionSymbol', () => {
+    const orders = [
+      { optionSymbol: 'MSFT  260320P00390000', spreadLongSymbol: 'MSFT  260320P00390000' },
+    ];
+    const { selfMatchViolations, crossCollisions } = checkSpreadIntegrity(orders);
+    expect(selfMatchViolations).toHaveLength(1);
+    expect(crossCollisions).toHaveLength(0);
+  });
+
+  it('does NOT flag a valid IC batch (put spread + call spread on same underlying)', () => {
+    const orders = [
+      { optionSymbol: 'AVGO  260313P00320000', spreadLongSymbol: 'AVGO  260313P00310000' },
+      { optionSymbol: 'AVGO  260313C00390000', spreadLongSymbol: 'AVGO  260313C00400000' },
+    ];
+    const { selfMatchViolations, crossCollisions } = checkSpreadIntegrity(orders);
+    expect(selfMatchViolations).toHaveLength(0);
+    expect(crossCollisions).toHaveLength(0);
+  });
+
+  it('does NOT flag a mixed batch of IC + CSP + CC orders', () => {
+    // Realistic batch: AVGO IC (2 spread orders) + AAPL CSP (single-leg) + MSFT CC (single-leg)
+    const orders = [
+      { optionSymbol: 'AVGO  260313P00320000', spreadLongSymbol: 'AVGO  260313P00310000' },
+      { optionSymbol: 'AVGO  260313C00390000', spreadLongSymbol: 'AVGO  260313C00400000' },
+      { optionSymbol: 'AAPL  260313P00200000' },  // standalone CSP
+      { optionSymbol: 'MSFT  260313C00420000' },  // standalone CC
+    ];
+    const { selfMatchViolations, crossCollisions } = checkSpreadIntegrity(orders);
+    expect(selfMatchViolations).toHaveLength(0);
+    expect(crossCollisions).toHaveLength(0);
+  });
+
+  it('flags a cross-collision when a long leg is also submitted as a standalone close', () => {
+    // Dangerous: spread order has long=NVDA260307P00145000, but that same symbol
+    // is also being submitted as a standalone single-leg close
+    const orders = [
+      { optionSymbol: 'NVDA260307P00150000', spreadLongSymbol: 'NVDA260307P00145000' },
+      { optionSymbol: 'NVDA260307P00145000' },  // standalone — would double-close the long leg
+    ];
+    const { selfMatchViolations, crossCollisions } = checkSpreadIntegrity(orders);
+    expect(selfMatchViolations).toHaveLength(0);
+    expect(crossCollisions).toHaveLength(1);
+    expect(crossCollisions[0]).toBe('NVDA260307P00145000');
+  });
+
+  it('does NOT flag when both orders are spread orders sharing a symbol in their long legs', () => {
+    // Two different spreads where neither long leg is a standalone order
+    const orders = [
+      { optionSymbol: 'TSLA260313P00402500', spreadLongSymbol: 'TSLA260313P00395000' },
+      { optionSymbol: 'TSLA260313C00422500', spreadLongSymbol: 'TSLA260313C00430000' },
+    ];
+    const { selfMatchViolations, crossCollisions } = checkSpreadIntegrity(orders);
+    expect(selfMatchViolations).toHaveLength(0);
+    expect(crossCollisions).toHaveLength(0);
+  });
+});
