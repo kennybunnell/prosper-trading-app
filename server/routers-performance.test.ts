@@ -9,6 +9,7 @@ vi.mock('./db', () => ({
 
 vi.mock('./tastytrade', () => ({
   getTastytradeAPI: vi.fn(),
+  authenticateTastytrade: vi.fn(),
 }));
 
 describe('Performance Router - getActivePositions', () => {
@@ -44,12 +45,12 @@ describe('Performance Router - getActivePositions', () => {
 
   it('should return empty positions when no accounts found', async () => {
     const { getApiCredentials } = await import('./db');
-    const { getTastytradeAPI } = await import('./tastytrade');
+    const { authenticateTastytrade } = await import('./tastytrade');
 
     vi.mocked(getApiCredentials).mockResolvedValue({
       userId: 'test-user-id',
-      tastytradeUsername: 'test-user',
-      tastytradePassword: 'test-pass',
+      tastytradeClientSecret: "test-client-secret",
+      tastytradeRefreshToken: "test-refresh-token",
       tradierApiKey: null,
       tradierAccountId: null,
       defaultTastytradeAccountId: null,
@@ -61,7 +62,7 @@ describe('Performance Router - getActivePositions', () => {
       getPositions: vi.fn(),
     };
 
-    vi.mocked(getTastytradeAPI).mockReturnValue(mockApi as any);
+    vi.mocked(authenticateTastytrade).mockResolvedValue(mockApi as any);
 
     const caller = performanceRouter.createCaller(mockContext);
 
@@ -82,12 +83,12 @@ describe('Performance Router - getActivePositions', () => {
 
   it('should filter and process short option positions correctly', async () => {
     const { getApiCredentials } = await import('./db');
-    const { getTastytradeAPI } = await import('./tastytrade');
+    const { authenticateTastytrade } = await import('./tastytrade');
 
     vi.mocked(getApiCredentials).mockResolvedValue({
       userId: 'test-user-id',
-      tastytradeUsername: 'test-user',
-      tastytradePassword: 'test-pass',
+      tastytradeClientSecret: "test-client-secret",
+      tastytradeRefreshToken: "test-refresh-token",
       tradierApiKey: null,
       tradierAccountId: null,
       defaultTastytradeAccountId: null,
@@ -97,72 +98,72 @@ describe('Performance Router - getActivePositions', () => {
     const mockPositions: TastytradePosition[] = [
       {
         symbol: 'AAPL250117P00150000',
-        instrumentType: 'Equity Option',
-        underlyingSymbol: 'AAPL',
+        'instrument-type': 'Equity Option',
+        'underlying-symbol': 'AAPL',
         quantity: '-2',
-        quantityDirection: 'Short',
-        closePrice: '0.50',
-        averageOpenPrice: '2.00',
+        'quantity-direction': 'Short',
+        'close-price': '0.50',
+        'average-open-price': '2.00',
         multiplier: 100,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-        averageYearlyMarketClosePrice: '0',
-        averageDailyMarketClosePrice: '0',
-        costEffect: 'Credit',
-        isSuppressed: false,
-        isFrozen: false,
-        restrictedQuantity: '0',
-        realizedDayGain: '0',
-        realizedDayGainEffect: 'None',
-        realizedDayGainDate: '',
-        realizedToday: '0',
-        realizedTodayEffect: 'None',
-        realizedTodayDate: '',
+        'expires-at': new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+        'average-yearly-market-close-price': '0',
+        'average-daily-market-close-price': '0',
+        'cost-effect': 'Credit',
+        'is-suppressed': false,
+        'is-frozen': false,
+        'restricted-quantity': '0',
+        'realized-day-gain': '0',
+        'realized-day-gain-effect': 'None',
+        'realized-day-gain-date': '',
+        'realized-today': '0',
+        'realized-today-effect': 'None',
+        'realized-today-date': '',
       },
       {
         symbol: 'TSLA250117C00250000',
-        instrumentType: 'Equity Option',
-        underlyingSymbol: 'TSLA',
+        'instrument-type': 'Equity Option',
+        'underlying-symbol': 'TSLA',
         quantity: '-1',
-        quantityDirection: 'Short',
-        closePrice: '0.10',
-        averageOpenPrice: '1.00',
+        'quantity-direction': 'Short',
+        'close-price': '0.10',
+        'average-open-price': '1.00',
         multiplier: 100,
-        expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(), // 15 days from now
-        averageYearlyMarketClosePrice: '0',
-        averageDailyMarketClosePrice: '0',
-        costEffect: 'Credit',
-        isSuppressed: false,
-        isFrozen: false,
-        restrictedQuantity: '0',
-        realizedDayGain: '0',
-        realizedDayGainEffect: 'None',
-        realizedDayGainDate: '',
-        realizedToday: '0',
-        realizedTodayEffect: 'None',
-        realizedTodayDate: '',
+        'expires-at': new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(), // 15 days from now
+        'average-yearly-market-close-price': '0',
+        'average-daily-market-close-price': '0',
+        'cost-effect': 'Credit',
+        'is-suppressed': false,
+        'is-frozen': false,
+        'restricted-quantity': '0',
+        'realized-day-gain': '0',
+        'realized-day-gain-effect': 'None',
+        'realized-day-gain-date': '',
+        'realized-today': '0',
+        'realized-today-effect': 'None',
+        'realized-today-date': '',
       },
       {
         symbol: 'NVDA250117C00500000',
-        instrumentType: 'Equity Option',
-        underlyingSymbol: 'NVDA',
+        'instrument-type': 'Equity Option',
+        'underlying-symbol': 'NVDA',
         quantity: '1',
-        quantityDirection: 'Long',
-        closePrice: '10.00',
-        averageOpenPrice: '8.00',
+        'quantity-direction': 'Long',
+        'close-price': '10.00',
+        'average-open-price': '8.00',
         multiplier: 100,
-        expiresAt: new Date(Date.now() + 300 * 24 * 60 * 60 * 1000).toISOString(), // 300 days (LEAP)
-        averageYearlyMarketClosePrice: '0',
-        averageDailyMarketClosePrice: '0',
-        costEffect: 'Debit',
-        isSuppressed: false,
-        isFrozen: false,
-        restrictedQuantity: '0',
-        realizedDayGain: '0',
-        realizedDayGainEffect: 'None',
-        realizedDayGainDate: '',
-        realizedToday: '0',
-        realizedTodayEffect: 'None',
-        realizedTodayDate: '',
+        'expires-at': new Date(Date.now() + 300 * 24 * 60 * 60 * 1000).toISOString(), // 300 days (LEAP)
+        'average-yearly-market-close-price': '0',
+        'average-daily-market-close-price': '0',
+        'cost-effect': 'Debit',
+        'is-suppressed': false,
+        'is-frozen': false,
+        'restricted-quantity': '0',
+        'realized-day-gain': '0',
+        'realized-day-gain-effect': 'None',
+        'realized-day-gain-date': '',
+        'realized-today': '0',
+        'realized-today-effect': 'None',
+        'realized-today-date': '',
       },
     ];
 
@@ -187,9 +188,12 @@ describe('Performance Router - getActivePositions', () => {
         },
       ]),
       getPositions: vi.fn().mockResolvedValue(mockPositions),
+      getWorkingOrders: vi.fn().mockResolvedValue([]),
+      getOptionQuotesBatch: vi.fn().mockResolvedValue({}),
+      getUnderlyingQuotesBatch: vi.fn().mockResolvedValue({}),
     };
 
-    vi.mocked(getTastytradeAPI).mockReturnValue(mockApi as any);
+    vi.mocked(authenticateTastytrade).mockResolvedValue(mockApi as any);
 
     const caller = performanceRouter.createCaller(mockContext);
 
@@ -231,12 +235,12 @@ describe('Performance Router - getActivePositions', () => {
 
   it('should filter positions by type (CSP only)', async () => {
     const { getApiCredentials } = await import('./db');
-    const { getTastytradeAPI } = await import('./tastytrade');
+    const { authenticateTastytrade } = await import('./tastytrade');
 
     vi.mocked(getApiCredentials).mockResolvedValue({
       userId: 'test-user-id',
-      tastytradeUsername: 'test-user',
-      tastytradePassword: 'test-pass',
+      tastytradeClientSecret: "test-client-secret",
+      tastytradeRefreshToken: "test-refresh-token",
       tradierApiKey: null,
       tradierAccountId: null,
       defaultTastytradeAccountId: null,
@@ -245,49 +249,49 @@ describe('Performance Router - getActivePositions', () => {
     const mockPositions: TastytradePosition[] = [
       {
         symbol: 'AAPL250117P00150000',
-        instrumentType: 'Equity Option',
-        underlyingSymbol: 'AAPL',
+        'instrument-type': 'Equity Option',
+        'underlying-symbol': 'AAPL',
         quantity: '-1',
-        quantityDirection: 'Short',
-        closePrice: '0.50',
-        averageOpenPrice: '2.00',
+        'quantity-direction': 'Short',
+        'close-price': '0.50',
+        'average-open-price': '2.00',
         multiplier: 100,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        averageYearlyMarketClosePrice: '0',
-        averageDailyMarketClosePrice: '0',
-        costEffect: 'Credit',
-        isSuppressed: false,
-        isFrozen: false,
-        restrictedQuantity: '0',
-        realizedDayGain: '0',
-        realizedDayGainEffect: 'None',
-        realizedDayGainDate: '',
-        realizedToday: '0',
-        realizedTodayEffect: 'None',
-        realizedTodayDate: '',
+        'expires-at': new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        'average-yearly-market-close-price': '0',
+        'average-daily-market-close-price': '0',
+        'cost-effect': 'Credit',
+        'is-suppressed': false,
+        'is-frozen': false,
+        'restricted-quantity': '0',
+        'realized-day-gain': '0',
+        'realized-day-gain-effect': 'None',
+        'realized-day-gain-date': '',
+        'realized-today': '0',
+        'realized-today-effect': 'None',
+        'realized-today-date': '',
       },
       {
         symbol: 'TSLA250117C00250000',
-        instrumentType: 'Equity Option',
-        underlyingSymbol: 'TSLA',
+        'instrument-type': 'Equity Option',
+        'underlying-symbol': 'TSLA',
         quantity: '-1',
-        quantityDirection: 'Short',
-        closePrice: '0.10',
-        averageOpenPrice: '1.00',
+        'quantity-direction': 'Short',
+        'close-price': '0.10',
+        'average-open-price': '1.00',
         multiplier: 100,
-        expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
-        averageYearlyMarketClosePrice: '0',
-        averageDailyMarketClosePrice: '0',
-        costEffect: 'Credit',
-        isSuppressed: false,
-        isFrozen: false,
-        restrictedQuantity: '0',
-        realizedDayGain: '0',
-        realizedDayGainEffect: 'None',
-        realizedDayGainDate: '',
-        realizedToday: '0',
-        realizedTodayEffect: 'None',
-        realizedTodayDate: '',
+        'expires-at': new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+        'average-yearly-market-close-price': '0',
+        'average-daily-market-close-price': '0',
+        'cost-effect': 'Credit',
+        'is-suppressed': false,
+        'is-frozen': false,
+        'restricted-quantity': '0',
+        'realized-day-gain': '0',
+        'realized-day-gain-effect': 'None',
+        'realized-day-gain-date': '',
+        'realized-today': '0',
+        'realized-today-effect': 'None',
+        'realized-today-date': '',
       },
     ];
 
@@ -312,9 +316,12 @@ describe('Performance Router - getActivePositions', () => {
         },
       ]),
       getPositions: vi.fn().mockResolvedValue(mockPositions),
+      getWorkingOrders: vi.fn().mockResolvedValue([]),
+      getOptionQuotesBatch: vi.fn().mockResolvedValue({}),
+      getUnderlyingQuotesBatch: vi.fn().mockResolvedValue({}),
     };
 
-    vi.mocked(getTastytradeAPI).mockReturnValue(mockApi as any);
+    vi.mocked(authenticateTastytrade).mockResolvedValue(mockApi as any);
 
     const caller = performanceRouter.createCaller(mockContext);
 
@@ -331,12 +338,12 @@ describe('Performance Router - getActivePositions', () => {
 
   it('should filter positions by minimum realized percent', async () => {
     const { getApiCredentials } = await import('./db');
-    const { getTastytradeAPI } = await import('./tastytrade');
+    const { authenticateTastytrade } = await import('./tastytrade');
 
     vi.mocked(getApiCredentials).mockResolvedValue({
       userId: 'test-user-id',
-      tastytradeUsername: 'test-user',
-      tastytradePassword: 'test-pass',
+      tastytradeClientSecret: "test-client-secret",
+      tastytradeRefreshToken: "test-refresh-token",
       tradierApiKey: null,
       tradierAccountId: null,
       defaultTastytradeAccountId: null,
@@ -345,49 +352,49 @@ describe('Performance Router - getActivePositions', () => {
     const mockPositions: TastytradePosition[] = [
       {
         symbol: 'AAPL250117P00150000',
-        instrumentType: 'Equity Option',
-        underlyingSymbol: 'AAPL',
+        'instrument-type': 'Equity Option',
+        'underlying-symbol': 'AAPL',
         quantity: '-1',
-        quantityDirection: 'Short',
-        closePrice: '0.50',
-        averageOpenPrice: '2.00',
+        'quantity-direction': 'Short',
+        'close-price': '0.50',
+        'average-open-price': '2.00',
         multiplier: 100,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        averageYearlyMarketClosePrice: '0',
-        averageDailyMarketClosePrice: '0',
-        costEffect: 'Credit',
-        isSuppressed: false,
-        isFrozen: false,
-        restrictedQuantity: '0',
-        realizedDayGain: '0',
-        realizedDayGainEffect: 'None',
-        realizedDayGainDate: '',
-        realizedToday: '0',
-        realizedTodayEffect: 'None',
-        realizedTodayDate: '',
+        'expires-at': new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        'average-yearly-market-close-price': '0',
+        'average-daily-market-close-price': '0',
+        'cost-effect': 'Credit',
+        'is-suppressed': false,
+        'is-frozen': false,
+        'restricted-quantity': '0',
+        'realized-day-gain': '0',
+        'realized-day-gain-effect': 'None',
+        'realized-day-gain-date': '',
+        'realized-today': '0',
+        'realized-today-effect': 'None',
+        'realized-today-date': '',
       },
       {
         symbol: 'TSLA250117C00250000',
-        instrumentType: 'Equity Option',
-        underlyingSymbol: 'TSLA',
+        'instrument-type': 'Equity Option',
+        'underlying-symbol': 'TSLA',
         quantity: '-1',
-        quantityDirection: 'Short',
-        closePrice: '0.10',
-        averageOpenPrice: '1.00',
+        'quantity-direction': 'Short',
+        'close-price': '0.10',
+        'average-open-price': '1.00',
         multiplier: 100,
-        expiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
-        averageYearlyMarketClosePrice: '0',
-        averageDailyMarketClosePrice: '0',
-        costEffect: 'Credit',
-        isSuppressed: false,
-        isFrozen: false,
-        restrictedQuantity: '0',
-        realizedDayGain: '0',
-        realizedDayGainEffect: 'None',
-        realizedDayGainDate: '',
-        realizedToday: '0',
-        realizedTodayEffect: 'None',
-        realizedTodayDate: '',
+        'expires-at': new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+        'average-yearly-market-close-price': '0',
+        'average-daily-market-close-price': '0',
+        'cost-effect': 'Credit',
+        'is-suppressed': false,
+        'is-frozen': false,
+        'restricted-quantity': '0',
+        'realized-day-gain': '0',
+        'realized-day-gain-effect': 'None',
+        'realized-day-gain-date': '',
+        'realized-today': '0',
+        'realized-today-effect': 'None',
+        'realized-today-date': '',
       },
     ];
 
@@ -412,9 +419,12 @@ describe('Performance Router - getActivePositions', () => {
         },
       ]),
       getPositions: vi.fn().mockResolvedValue(mockPositions),
+      getWorkingOrders: vi.fn().mockResolvedValue([]),
+      getOptionQuotesBatch: vi.fn().mockResolvedValue({}),
+      getUnderlyingQuotesBatch: vi.fn().mockResolvedValue({}),
     };
 
-    vi.mocked(getTastytradeAPI).mockReturnValue(mockApi as any);
+    vi.mocked(authenticateTastytrade).mockResolvedValue(mockApi as any);
 
     const caller = performanceRouter.createCaller(mockContext);
 
@@ -450,12 +460,12 @@ describe('Performance Router - closePositions', () => {
 
   it('should validate close orders in dry run mode', async () => {
     const { getApiCredentials } = await import('./db');
-    const { getTastytradeAPI } = await import('./tastytrade');
+    const { authenticateTastytrade } = await import('./tastytrade');
 
     vi.mocked(getApiCredentials).mockResolvedValue({
       userId: 'test-user-id',
-      tastytradeUsername: 'test-user',
-      tastytradePassword: 'test-pass',
+      tastytradeClientSecret: "test-client-secret",
+      tastytradeRefreshToken: "test-refresh-token",
       tradierApiKey: null,
       tradierAccountId: null,
       defaultTastytradeAccountId: null,
@@ -463,13 +473,14 @@ describe('Performance Router - closePositions', () => {
 
     const mockApi = {
       login: vi.fn().mockResolvedValue(undefined),
+      getWorkingOrders: vi.fn().mockResolvedValue([]),
       buyToCloseOption: vi.fn().mockResolvedValue({
         success: true,
         message: 'Dry run successful for 1 contract(s) at $0.50',
       }),
     };
 
-    vi.mocked(getTastytradeAPI).mockReturnValue(mockApi as any);
+    vi.mocked(authenticateTastytrade).mockResolvedValue(mockApi as any);
 
     const caller = performanceRouter.createCaller(mockContext);
 
@@ -495,19 +506,19 @@ describe('Performance Router - closePositions', () => {
       '5WZ77313',
       'AAPL  260117P00150000',
       1,
-      0.50,
+      0.55,  // 0.50 + max(0.50*0.10, 0.05) = 0.50 + 0.05 = 0.55
       true
     );
   });
 
   it('should submit live close orders when dry run is false', async () => {
     const { getApiCredentials } = await import('./db');
-    const { getTastytradeAPI } = await import('./tastytrade');
+    const { authenticateTastytrade } = await import('./tastytrade');
 
     vi.mocked(getApiCredentials).mockResolvedValue({
       userId: 'test-user-id',
-      tastytradeUsername: 'test-user',
-      tastytradePassword: 'test-pass',
+      tastytradeClientSecret: "test-client-secret",
+      tastytradeRefreshToken: "test-refresh-token",
       tradierApiKey: null,
       tradierAccountId: null,
       defaultTastytradeAccountId: null,
@@ -515,6 +526,7 @@ describe('Performance Router - closePositions', () => {
 
     const mockApi = {
       login: vi.fn().mockResolvedValue(undefined),
+      getWorkingOrders: vi.fn().mockResolvedValue([]),
       buyToCloseOption: vi.fn().mockResolvedValue({
         success: true,
         orderId: 'ORDER123',
@@ -522,7 +534,7 @@ describe('Performance Router - closePositions', () => {
       }),
     };
 
-    vi.mocked(getTastytradeAPI).mockReturnValue(mockApi as any);
+    vi.mocked(authenticateTastytrade).mockResolvedValue(mockApi as any);
 
     const caller = performanceRouter.createCaller(mockContext);
 
@@ -548,19 +560,19 @@ describe('Performance Router - closePositions', () => {
       '5WZ77313',
       'TSLA  260117P00200000',
       2,
-      1.25,
+      expect.closeTo(1.375, 2),  // 1.25 + max(1.25*0.10, 0.05) = 1.25 + 0.125 = 1.375
       false
     );
   });
 
   it('should handle multiple positions and track success/failure', async () => {
     const { getApiCredentials } = await import('./db');
-    const { getTastytradeAPI } = await import('./tastytrade');
+    const { authenticateTastytrade } = await import('./tastytrade');
 
     vi.mocked(getApiCredentials).mockResolvedValue({
       userId: 'test-user-id',
-      tastytradeUsername: 'test-user',
-      tastytradePassword: 'test-pass',
+      tastytradeClientSecret: "test-client-secret",
+      tastytradeRefreshToken: "test-refresh-token",
       tradierApiKey: null,
       tradierAccountId: null,
       defaultTastytradeAccountId: null,
@@ -574,7 +586,7 @@ describe('Performance Router - closePositions', () => {
         .mockResolvedValueOnce({ success: false, message: 'Insufficient buying power' }),
     };
 
-    vi.mocked(getTastytradeAPI).mockReturnValue(mockApi as any);
+    vi.mocked(authenticateTastytrade).mockResolvedValue(mockApi as any);
 
     const caller = performanceRouter.createCaller(mockContext);
 
@@ -642,12 +654,12 @@ describe('Performance Router - closePositions', () => {
 
   it('should include position details in results', async () => {
     const { getApiCredentials } = await import('./db');
-    const { getTastytradeAPI } = await import('./tastytrade');
+    const { authenticateTastytrade } = await import('./tastytrade');
 
     vi.mocked(getApiCredentials).mockResolvedValue({
       userId: 'test-user-id',
-      tastytradeUsername: 'test-user',
-      tastytradePassword: 'test-pass',
+      tastytradeClientSecret: "test-client-secret",
+      tastytradeRefreshToken: "test-refresh-token",
       tradierApiKey: null,
       tradierAccountId: null,
       defaultTastytradeAccountId: null,
@@ -655,13 +667,14 @@ describe('Performance Router - closePositions', () => {
 
     const mockApi = {
       login: vi.fn().mockResolvedValue(undefined),
+      getWorkingOrders: vi.fn().mockResolvedValue([]),
       buyToCloseOption: vi.fn().mockResolvedValue({
         success: true,
         message: 'Dry run successful',
       }),
     };
 
-    vi.mocked(getTastytradeAPI).mockReturnValue(mockApi as any);
+    vi.mocked(authenticateTastytrade).mockResolvedValue(mockApi as any);
 
     const caller = performanceRouter.createCaller(mockContext);
 

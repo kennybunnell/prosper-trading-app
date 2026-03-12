@@ -2,22 +2,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { appRouter } from './routers';
 import type { Context } from './_core/context';
 
-// Mock Tastytrade API
+// Mock Tastytrade API - shared mock object so tests can configure it
+const sharedMockAPI = {
+  login: vi.fn(),
+  getAccounts: vi.fn().mockResolvedValue([]),
+  getLiveOrders: vi.fn(),
+  getOptionQuotesBatch: vi.fn(),
+  cancelOrder: vi.fn(),
+  cancelReplaceOrder: vi.fn(),
+};
 vi.mock('./tastytrade', () => ({
-  getTastytradeAPI: vi.fn(() => ({
-    login: vi.fn(),
-    getLiveOrders: vi.fn(),
-    getOptionQuotesBatch: vi.fn(),
-    cancelOrder: vi.fn(),
-    cancelReplaceOrder: vi.fn(),
-  })),
+  getTastytradeAPI: vi.fn(() => sharedMockAPI),
 }));
 
 // Mock database functions
 vi.mock('./db', () => ({
   getApiCredentials: vi.fn(() => ({
-    tastytradeUsername: 'test_user',
-    tastytradePassword: 'test_pass',
+    tastytradeClientSecret: 'test-client-secret',
+    tastytradeRefreshToken: 'test-refresh-token',
   })),
   getTastytradeAccounts: vi.fn(() => [
     { accountId: '5WZ77313', accountNumber: '5WZ77313', nickname: 'Main Cash Account' },
@@ -25,17 +27,20 @@ vi.mock('./db', () => ({
 }));
 
 // Mock pricing utils
-vi.mock('./lib/working-orders-utils', () => ({
-  calculateSmartFillPrice: vi.fn((order, quote, aggressiveFillMode) => {
+vi.mock('./working-orders-utils', () => ({
+  calculateSmartFillPrice: vi.fn((quote, currentPrice, minutesWorking, aggressiveFillMode, action) => {
     const mid = (quote.bid + quote.ask) / 2;
     return {
       suggestedPrice: aggressiveFillMode ? mid - 0.02 : mid - 0.01,
       strategy: 'Mid - $0.01',
-      needsReplacement: Math.abs(order.price - mid) > 0.05,
+      needsReplacement: Math.abs(currentPrice - mid) > 0.05,
     };
   }),
+  calculateMinutesWorking: vi.fn(() => 60),
+  formatTimeWorking: vi.fn((m) => m + " min"),
   isMarketOpen: vi.fn(() => true),
   isSafeToReplace: vi.fn(() => true),
+  isSafeToReplaceOrders: vi.fn(() => true),
   getMarketStatus: vi.fn(() => 'Open'),
 }));
 
@@ -82,15 +87,14 @@ describe('Working Orders Router', () => {
       ]);
 
       // Mock quotes response
-      vi.mocked(mockAPI.getOptionQuotesBatch).mockResolvedValue([
-        {
-          symbol: 'SPY  260117P00580000',
+      vi.mocked(mockAPI.getOptionQuotesBatch).mockResolvedValue({
+        'SPY  260117P00580000': {
           bid: 1.45,
           ask: 1.55,
           mid: 1.50,
           last: 1.52,
         },
-      ]);
+      });
 
       const result = await caller.workingOrders.getWorkingOrders({
         accountId: '5WZ77313',
@@ -102,7 +106,7 @@ describe('Working Orders Router', () => {
         orderId: 'order-1',
         accountNumber: '5WZ77313',
         underlyingSymbol: 'SPY',
-        optionType: 'P',
+        optionType: 'PUT',
         strike: 580,
         quantity: 2,
         currentPrice: 1.50,
@@ -119,13 +123,11 @@ describe('Working Orders Router', () => {
 
     it('should handle ALL_ACCOUNTS aggregation', async () => {
       const { getTastytradeAPI } = await import('./tastytrade');
-      const { getTastytradeAccounts } = await import('./db');
       const mockAPI = getTastytradeAPI();
-
-      // Mock multiple accounts
-      vi.mocked(getTastytradeAccounts).mockResolvedValue([
-        { accountId: '5WZ77313', accountNumber: '5WZ77313', nickname: 'Main' },
-        { accountId: '5WI06812', accountNumber: '5WI06812', nickname: 'HELOC' },
+      // Mock multiple accounts via api.getAccounts (used by ALL_ACCOUNTS path)
+      vi.mocked(mockAPI.getAccounts).mockResolvedValue([
+        { account: { 'account-number': '5WZ77313' } },
+        { account: { 'account-number': '5WI06812' } },
       ]);
 
       // Mock orders for each account
@@ -178,10 +180,10 @@ describe('Working Orders Router', () => {
         ];
       });
 
-      vi.mocked(mockAPI.getOptionQuotesBatch).mockResolvedValue([
-        { symbol: 'SPY  260117P00580000', bid: 1.45, ask: 1.55, mid: 1.50, last: 1.52 },
-        { symbol: 'AAPL 260117C00200000', bid: 1.95, ask: 2.05, mid: 2.00, last: 2.02 },
-      ]);
+      vi.mocked(mockAPI.getOptionQuotesBatch).mockResolvedValue({
+        'SPY  260117P00580000': { bid: 1.45, ask: 1.55, mid: 1.50, last: 1.52 },
+        'AAPL 260117C00200000': { bid: 1.95, ask: 2.05, mid: 2.00, last: 2.02 },
+      });
 
       const result = await caller.workingOrders.getWorkingOrders({
         accountId: 'ALL_ACCOUNTS',
@@ -221,9 +223,9 @@ describe('Working Orders Router', () => {
         },
       ]);
 
-      vi.mocked(mockAPI.getOptionQuotesBatch).mockResolvedValue([
-        { symbol: 'SPY  260117P00580000', bid: 1.45, ask: 1.55, mid: 1.50, last: 1.52 },
-      ]);
+      vi.mocked(mockAPI.getOptionQuotesBatch).mockResolvedValue({
+        'SPY  260117P00580000': { bid: 1.45, ask: 1.55, mid: 1.50, last: 1.52 },
+      });
 
       const result = await caller.workingOrders.getWorkingOrders({
         accountId: '5WZ77313',
@@ -281,10 +283,10 @@ describe('Working Orders Router', () => {
         },
       ]);
 
-      vi.mocked(mockAPI.getOptionQuotesBatch).mockResolvedValue([
-        { symbol: 'SPY  260117P00580000', bid: 1.45, ask: 1.55, mid: 1.50, last: 1.52 },
-        { symbol: 'AAPL 260117C00200000', bid: 1.95, ask: 2.05, mid: 2.00, last: 2.02 },
-      ]);
+      vi.mocked(mockAPI.getOptionQuotesBatch).mockResolvedValue({
+        'SPY  260117P00580000': { bid: 1.45, ask: 1.55, mid: 1.50, last: 1.52 },
+        'AAPL 260117C00200000': { bid: 1.95, ask: 2.05, mid: 2.00, last: 2.02 },
+      });
 
       const result = await caller.workingOrders.getWorkingOrders({
         accountId: '5WZ77313',
@@ -361,7 +363,7 @@ describe('Working Orders Router', () => {
             accountNumber: '5WZ77313',
             symbol: 'SPY  260117P00580000',
             suggestedPrice: 1.49,
-            originalOrder: {
+            rawOrder: {
               price: '1.50',
               'underlying-symbol': 'SPY',
               'time-in-force': 'GTC',
@@ -399,7 +401,7 @@ describe('Working Orders Router', () => {
             accountNumber: '5WZ77313',
             symbol: 'SPY  260117P00580000',
             suggestedPrice: 1.49,
-            originalOrder: {
+            rawOrder: {
               price: '1.50',
               'underlying-symbol': 'SPY',
               'time-in-force': 'GTC',

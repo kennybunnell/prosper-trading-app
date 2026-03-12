@@ -634,8 +634,18 @@ export const performanceRouter = router({
         console.log(`[Performance] Capital efficiency: Overall ${overallCapitalEfficiency.toFixed(1)}% (Spreads: ${spreadCapitalEfficiency.toFixed(1)}%, Single-leg: ${singleLegCapitalEfficiency.toFixed(1)}%)`);
         console.log(`[Performance] Total capital at risk: $${totalCapitalAtRisk.toFixed(2)} (Spreads: $${totalSpreadCapital.toFixed(2)}, Single-leg: $${totalSingleLegCapital.toFixed(2)})`)
 
+        // Apply optional filters
+        let filteredPositions = processedPositions;
+        if (positionType) {
+          const typeFilter = positionType.toUpperCase();
+          filteredPositions = filteredPositions.filter(pos => pos.type === typeFilter);
+        }
+        if (minRealizedPercent !== undefined) {
+          filteredPositions = filteredPositions.filter(pos => pos.realizedPercent >= minRealizedPercent);
+        }
+
         return {
-          positions: processedPositions,
+          positions: filteredPositions,
           summary: {
             openPositions,
             totalPremiumAtRisk,

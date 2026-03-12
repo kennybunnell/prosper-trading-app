@@ -15,21 +15,21 @@ describe('BPS Filter Preset Fixes', () => {
       
       // Conservative preset
       expect(conservative).toBeDefined();
-      expect(conservative.minDte).toBe(14);
-      expect(conservative.maxDte).toBe(45);
-      expect(conservative.minScore).toBe(60);
+      expect(conservative.minDte).toBe(7);
+      expect(conservative.maxDte).toBe(60);
+      expect(conservative.minScore).toBe(50);
       
       // Medium preset
       expect(medium).toBeDefined();
-      expect(medium.minDte).toBe(10);
-      expect(medium.maxDte).toBe(30);
-      expect(medium.minScore).toBe(50);
+      expect(medium.minDte).toBe(7);
+      expect(medium.maxDte).toBe(60);
+      expect(medium.minScore).toBe(40);
       
       // Aggressive preset
       expect(aggressive).toBeDefined();
       expect(aggressive.minDte).toBe(7);
-      expect(aggressive.maxDte).toBe(21);
-      expect(aggressive.minScore).toBe(40);
+      expect(aggressive.maxDte).toBe(60);
+      expect(aggressive.minScore).toBe(30);
     });
 
     it('should have BCS recommended filter values defined', () => {

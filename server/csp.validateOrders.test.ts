@@ -9,6 +9,7 @@ vi.mock('./db', () => ({
 
 vi.mock('./tastytrade', () => ({
   getTastytradeAPI: vi.fn(),
+  authenticateTastytrade: vi.fn(),
 }));
 
 describe('csp.validateOrders', () => {
@@ -28,13 +29,13 @@ describe('csp.validateOrders', () => {
 
   it('should validate orders with sufficient buying power', async () => {
     const { getApiCredentials } = await import('./db');
-    const { getTastytradeAPI } = await import('./tastytrade');
+    const { authenticateTastytrade } = await import('./tastytrade');
 
     // Mock credentials
     vi.mocked(getApiCredentials).mockResolvedValue({
       userId: '1',
-      tastytradeUsername: 'testuser',
-      tastytradePassword: 'testpass',
+      tastytradeClientSecret: 'test-client-secret',
+      tastytradeRefreshToken: 'test-refresh-token',
       tradierApiKey: 'test-key',
       tradierAccountId: 'test-account',
       defaultTastytradeAccountId: 'test-account-id',
@@ -47,7 +48,7 @@ describe('csp.validateOrders', () => {
         {
           accountId: 'test-account-id',
           account: {
-            'account-number': 'TEST123',
+            'account-number': 'test-account-id',
             'external-id': 'ext-123',
             'opened-at': '2024-01-01',
             'nickname': 'Test Account',
@@ -66,7 +67,7 @@ describe('csp.validateOrders', () => {
         'derivative-buying-power': 50000,
       }),
     };
-    vi.mocked(getTastytradeAPI).mockReturnValue(mockAPI as any);
+    vi.mocked(authenticateTastytrade).mockResolvedValue(mockAPI as any);
 
     type ValidateOrdersInput = inferProcedureInput<typeof appRouter.csp.validateOrders>;
     const input: ValidateOrdersInput = {
@@ -110,12 +111,12 @@ describe('csp.validateOrders', () => {
 
   it('should detect insufficient buying power', async () => {
     const { getApiCredentials } = await import('./db');
-    const { getTastytradeAPI } = await import('./tastytrade');
+    const { authenticateTastytrade } = await import('./tastytrade');
 
     vi.mocked(getApiCredentials).mockResolvedValue({
       userId: '1',
-      tastytradeUsername: 'testuser',
-      tastytradePassword: 'testpass',
+      tastytradeClientSecret: 'test-client-secret',
+      tastytradeRefreshToken: 'test-refresh-token',
       tradierApiKey: 'test-key',
       tradierAccountId: 'test-account',
       defaultTastytradeAccountId: 'test-account-id',
@@ -127,7 +128,7 @@ describe('csp.validateOrders', () => {
         {
           accountId: 'test-account-id',
           account: {
-            'account-number': 'TEST123',
+            'account-number': 'test-account-id',
             'external-id': 'ext-123',
             'opened-at': '2024-01-01',
             'nickname': 'Test Account',
@@ -146,7 +147,7 @@ describe('csp.validateOrders', () => {
         'derivative-buying-power': 10000, // Less than required collateral
       }),
     };
-    vi.mocked(getTastytradeAPI).mockReturnValue(mockAPI as any);
+    vi.mocked(authenticateTastytrade).mockResolvedValue(mockAPI as any);
 
     type ValidateOrdersInput = inferProcedureInput<typeof appRouter.csp.validateOrders>;
     const input: ValidateOrdersInput = {
@@ -172,12 +173,12 @@ describe('csp.validateOrders', () => {
 
   it('should calculate midpoint pricing correctly', async () => {
     const { getApiCredentials } = await import('./db');
-    const { getTastytradeAPI } = await import('./tastytrade');
+    const { authenticateTastytrade } = await import('./tastytrade');
 
     vi.mocked(getApiCredentials).mockResolvedValue({
       userId: '1',
-      tastytradeUsername: 'testuser',
-      tastytradePassword: 'testpass',
+      tastytradeClientSecret: 'test-client-secret',
+      tastytradeRefreshToken: 'test-refresh-token',
       tradierApiKey: 'test-key',
       tradierAccountId: 'test-account',
       defaultTastytradeAccountId: 'test-account-id',
@@ -189,7 +190,7 @@ describe('csp.validateOrders', () => {
         {
           accountId: 'test-account-id',
           account: {
-            'account-number': 'TEST123',
+            'account-number': 'test-account-id',
             'external-id': 'ext-123',
             'opened-at': '2024-01-01',
             'nickname': 'Test Account',
@@ -208,7 +209,7 @@ describe('csp.validateOrders', () => {
         'derivative-buying-power': 50000,
       }),
     };
-    vi.mocked(getTastytradeAPI).mockReturnValue(mockAPI as any);
+    vi.mocked(authenticateTastytrade).mockResolvedValue(mockAPI as any);
 
     type ValidateOrdersInput = inferProcedureInput<typeof appRouter.csp.validateOrders>;
     const input: ValidateOrdersInput = {
@@ -254,18 +255,18 @@ describe('csp.validateOrders', () => {
     };
 
     await expect(caller.csp.validateOrders(input)).rejects.toThrow(
-      'Tastytrade credentials not configured'
+      'Tastytrade OAuth2 credentials not configured'
     );
   });
 
   it('should throw error when account is not found', async () => {
     const { getApiCredentials } = await import('./db');
-    const { getTastytradeAPI } = await import('./tastytrade');
+    const { authenticateTastytrade } = await import('./tastytrade');
 
     vi.mocked(getApiCredentials).mockResolvedValue({
       userId: '1',
-      tastytradeUsername: 'testuser',
-      tastytradePassword: 'testpass',
+      tastytradeClientSecret: 'test-client-secret',
+      tastytradeRefreshToken: 'test-refresh-token',
       tradierApiKey: 'test-key',
       tradierAccountId: 'test-account',
       defaultTastytradeAccountId: 'test-account-id',
@@ -275,7 +276,7 @@ describe('csp.validateOrders', () => {
       login: vi.fn().mockResolvedValue(undefined),
       getAccounts: vi.fn().mockResolvedValue([]), // No accounts
     };
-    vi.mocked(getTastytradeAPI).mockReturnValue(mockAPI as any);
+    vi.mocked(authenticateTastytrade).mockResolvedValue(mockAPI as any);
 
     type ValidateOrdersInput = inferProcedureInput<typeof appRouter.csp.validateOrders>;
     const input: ValidateOrdersInput = {

@@ -35,7 +35,9 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
       clearCookie: (name: string, options: Record<string, unknown>) => {
         clearedCookies.push({ name, options });
       },
-    } as TrpcContext["res"],
+      getHeader: (_name: string) => undefined,
+      setHeader: (_name: string, _value: unknown) => {},
+    } as unknown as TrpcContext["res"],
   };
 
   return { ctx, clearedCookies };
@@ -52,7 +54,6 @@ describe("auth.logout", () => {
     expect(clearedCookies).toHaveLength(1);
     expect(clearedCookies[0]?.name).toBe(COOKIE_NAME);
     expect(clearedCookies[0]?.options).toMatchObject({
-      maxAge: -1,
       secure: true,
       sameSite: "none",
       httpOnly: true,

@@ -72,7 +72,10 @@ describe('Risk Assessment System', () => {
 
   describe('calculateRiskBadges', () => {
     it('should detect earnings within 7 days (extreme risk)', async () => {
-      const earningsMap = new Map([['HOOD', '2026-02-27']]); // 2 days away
+      const today = new Date();
+      const in3Days = new Date(today);
+      in3Days.setDate(today.getDate() + 3);
+      const earningsMap = new Map([['HOOD', in3Days.toISOString().split('T')[0]]]);
       const badges = await calculateRiskBadges('HOOD', mockAPI, earningsMap);
 
       const earningsBadge = badges.find(b => b.type === 'earnings-this-week');
@@ -131,7 +134,10 @@ describe('Risk Assessment System', () => {
     });
 
     it('should return multiple badges for high-risk stocks', async () => {
-      const earningsMap = new Map([['HOOD', '2026-02-27']]);
+      const today = new Date();
+      const in2Days = new Date(today);
+      in2Days.setDate(today.getDate() + 2);
+      const earningsMap = new Map([['HOOD', in2Days.toISOString().split('T')[0]]]);
       const badges = await calculateRiskBadges('HOOD', mockAPI, earningsMap);
 
       // HOOD should have: earnings-this-week, extreme-volatility, below-support, momentum-reversal
@@ -197,7 +203,10 @@ describe('Risk Assessment System', () => {
 
   describe('Badge Tooltips', () => {
     it('should include helpful tooltip information', async () => {
-      const earningsMap = new Map([['HOOD', '2026-02-27']]);
+      const today = new Date();
+      const in3Days = new Date(today);
+      in3Days.setDate(today.getDate() + 3);
+      const earningsMap = new Map([['HOOD', in3Days.toISOString().split('T')[0]]]);
       const badges = await calculateRiskBadges('HOOD', mockAPI, earningsMap);
 
       badges.forEach(badge => {
