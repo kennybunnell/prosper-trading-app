@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest';
 import {
   snapToTick,
   getTickSize,
+  isTrueIndexOption,
   formatPriceForSubmission,
   validateOrderPrice,
   roundToNickel,
@@ -46,6 +47,53 @@ describe('getTickSize', () => {
 
   it('returns $0.01 for IWM regardless of price', () => {
     expect(getTickSize(4.00, 'IWM')).toBe(0.01);
+  });
+
+  it('returns $0.05 for true index options regardless of price (SPXW, NDX, NDXP, RUT, MRUT)', () => {
+    // Index options always require $0.05 increments — even for sub-$3 net credits
+    expect(getTickSize(1.50, 'SPXW')).toBe(0.05);  // sub-$3 index spread
+    expect(getTickSize(2.80, 'NDXP')).toBe(0.05);  // sub-$3 index spread
+    expect(getTickSize(59.00, 'NDXP')).toBe(0.05); // high-value index spread
+    expect(getTickSize(1.00, 'RUT')).toBe(0.05);
+    expect(getTickSize(2.50, 'MRUT')).toBe(0.05);
+    expect(getTickSize(0.50, 'SPX')).toBe(0.05);
+    expect(getTickSize(100.00, 'NDX')).toBe(0.05);
+    expect(getTickSize(5.00, 'VIX')).toBe(0.05);
+  });
+
+  it('does NOT treat ETF proxies as true index options', () => {
+    // SPY/QQQ/IWM are penny-pilot ETFs, not true index options
+    expect(getTickSize(5.00, 'SPY')).toBe(0.01);
+    expect(getTickSize(5.00, 'QQQ')).toBe(0.01);
+    expect(getTickSize(5.00, 'IWM')).toBe(0.01);
+  });
+});
+
+describe('isTrueIndexOption', () => {
+  it('identifies true cash-settled index options', () => {
+    expect(isTrueIndexOption('SPXW')).toBe(true);
+    expect(isTrueIndexOption('SPX')).toBe(true);
+    expect(isTrueIndexOption('NDX')).toBe(true);
+    expect(isTrueIndexOption('NDXP')).toBe(true);
+    expect(isTrueIndexOption('RUT')).toBe(true);
+    expect(isTrueIndexOption('MRUT')).toBe(true);
+    expect(isTrueIndexOption('VIX')).toBe(true);
+    expect(isTrueIndexOption('DJX')).toBe(true);
+    expect(isTrueIndexOption('XSP')).toBe(true);
+  });
+
+  it('is case-insensitive', () => {
+    expect(isTrueIndexOption('spxw')).toBe(true);
+    expect(isTrueIndexOption('ndxp')).toBe(true);
+    expect(isTrueIndexOption('mrut')).toBe(true);
+  });
+
+  it('does NOT flag ETF proxies as true index options', () => {
+    expect(isTrueIndexOption('SPY')).toBe(false);
+    expect(isTrueIndexOption('QQQ')).toBe(false);
+    expect(isTrueIndexOption('IWM')).toBe(false);
+    expect(isTrueIndexOption('AAPL')).toBe(false);
+    expect(isTrueIndexOption('TSLA')).toBe(false);
   });
 });
 

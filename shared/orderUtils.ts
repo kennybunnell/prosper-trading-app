@@ -25,12 +25,45 @@
 const PENNY_PILOT_SYMBOLS = new Set(['SPY', 'QQQ', 'IWM']);
 
 /**
+ * True cash-settled index options — always $0.05 increments regardless of price.
+ * These are NOT ETFs; they are cash-settled European-style index options.
+ * Tastytrade requires instrumentType = 'Index Option' for these symbols.
+ *
+ * Note: ETF proxies (SPY, QQQ, IWM) are excluded — they use the penny-pilot rule above.
+ */
+export const TRUE_INDEX_OPTION_SYMBOLS = new Set([
+  // S&P 500 family (cash-settled)
+  'SPX', 'SPXW', 'SPXPM', 'XSP', 'NANOS',
+  // Nasdaq-100 family (cash-settled)
+  'NDX', 'NDXP', 'XND',
+  // Russell 2000 family (cash-settled)
+  'RUT', 'MRUT',
+  // Dow Jones (cash-settled)
+  'DJX',
+  // Volatility indexes (cash-settled)
+  'VIX', 'VIXW',
+  // S&P 100 (cash-settled)
+  'OEX', 'XEO',
+]);
+
+/**
+ * Returns true if the symbol is a true cash-settled index option.
+ * These require instrumentType = 'Index Option' in Tastytrade API calls
+ * and always use $0.05 tick increments regardless of price.
+ */
+export function isTrueIndexOption(symbol: string): boolean {
+  return TRUE_INDEX_OPTION_SYMBOLS.has(symbol.toUpperCase());
+}
+
+/**
  * Returns the correct tick size for a given price and optional symbol.
- * - SPY, QQQ, IWM → always $0.01
+ * - True index options (SPX, SPXW, NDX, NDXP, RUT, MRUT, etc.) → always $0.05
+ * - SPY, QQQ, IWM (penny pilot ETFs) → always $0.01
  * - Price >= $3.00 → $0.05
  * - Price < $3.00  → $0.01
  */
 export function getTickSize(price: number, symbol?: string): 0.01 | 0.05 {
+  if (symbol && isTrueIndexOption(symbol)) return 0.05;
   if (symbol && PENNY_PILOT_SYMBOLS.has(symbol.toUpperCase())) return 0.01;
   return price >= 3.00 ? 0.05 : 0.01;
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { snapToTick } from "../../../shared/orderUtils";
+import { snapToTick, isTrueIndexOption } from "../../../shared/orderUtils";
 import {
   Dialog,
   DialogContent,
@@ -1481,7 +1481,30 @@ export function UnifiedOrderPreviewModal({
                                 return ((effectiveBid! + effectiveAsk!) / 2).toFixed(2);
                               })()}</div>
                               <div className="text-[10px]">
-                                Bid: ${effectiveBid?.toFixed(2)} / Ask: ${effectiveAsk?.toFixed(2)}
+                                {(() => {
+                                  const isIndex = isTrueIndexOption(order.symbol);
+                                  // IC (4-leg): total net credit = put spread + call spread
+                                  if (order.callShortBid != null && order.callShortAsk != null &&
+                                      order.callLongBid != null && order.callLongAsk != null &&
+                                      order.longBid != null && order.longAsk != null) {
+                                    const putNetLow  = Math.max(0.01, (effectiveBid! - order.longAsk));
+                                    const putNetHigh = Math.max(0.01, (effectiveAsk! - order.longBid));
+                                    const callNetLow  = Math.max(0.01, (order.callShortBid - order.callLongAsk));
+                                    const callNetHigh = Math.max(0.01, (order.callShortAsk - order.callLongBid));
+                                    const totalLow  = snapToTick(putNetLow  + callNetLow,  order.symbol);
+                                    const totalHigh = snapToTick(putNetHigh + callNetHigh, order.symbol);
+                                    return <span>Net: ${totalLow.toFixed(2)} – ${totalHigh.toFixed(2)}{isIndex ? ' ★' : ''}</span>;
+                                  }
+                                  // BPS / BCS (2-leg): net credit range
+                                  if (order.longBid != null && order.longAsk != null &&
+                                      effectiveBid != null && effectiveAsk != null) {
+                                    const netLow  = snapToTick(Math.max(0.01, effectiveBid - order.longAsk), order.symbol);
+                                    const netHigh = snapToTick(Math.max(0.01, effectiveAsk - order.longBid), order.symbol);
+                                    return <span>Net: ${netLow.toFixed(2)} – ${netHigh.toFixed(2)}{isIndex ? ' ★' : ''}</span>;
+                                  }
+                                  // Single-leg: show raw bid/ask
+                                  return <span>Bid: ${effectiveBid?.toFixed(2)} / Ask: ${effectiveAsk?.toFixed(2)}</span>;
+                                })()}
                               </div>
                             </div>
                           )}

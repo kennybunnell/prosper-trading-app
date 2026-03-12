@@ -7961,3 +7961,8 @@
 - [x] CSP page crash: TypeError Cannot read properties of undefined (reading 'strike') in onSubmitSelected
   - Root cause: AI Advisor returns picks with opportunityIndex out-of-bounds or stripped opportunity objects missing strike
   - Fix: Added .filter() guard in AIAdvisorPanel.handleSubmitSelected and CSPDashboard.onSubmitSelected to drop picks missing strike/shortStrike before mapping to orders
+
+## Bug Fixes (Mar 12, 2026 - Session 2)
+- [x] Fix Order Preview modal: show net spread credit bid/ask range (not individual leg prices) for BPS, BCS, IC
+- [x] Add isTrueIndexOption() to orderUtils — index options (SPXW, NDX, NDXP, RUT, MRUT, etc.) always use $0.05 tick regardless of price
+- [x] Add ★ indicator in Order Preview when symbol is a true index option
