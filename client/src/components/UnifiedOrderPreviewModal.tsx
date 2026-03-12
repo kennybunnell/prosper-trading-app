@@ -1251,6 +1251,17 @@ export function UnifiedOrderPreviewModal({
                               2-leg spread
                             </span>
                           )}
+                          {isIronCondor && (
+                            <span className="text-[10px] text-muted-foreground font-normal">
+                              4-leg condor
+                            </span>
+                          )}
+                          {/* Underlying stock price */}
+                          {order.currentPrice != null && order.currentPrice > 0 && (
+                            <span className="text-[10px] text-blue-300 font-normal mt-0.5">
+                              @ ${order.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                       
@@ -1298,27 +1309,97 @@ export function UnifiedOrderPreviewModal({
                           }
                           if (isIronCondor) {
                             return (
-                              <div className="text-xs space-y-0.5">
-                                <div className="font-semibold text-green-600">PUT: ${order.strike.toFixed(2)}/${order.longStrike?.toFixed(2)}</div>
-                                <div className="font-semibold text-red-600">CALL: ${order.callShortStrike?.toFixed(2)}/${order.callLongStrike?.toFixed(2)}</div>
+                              <div className="text-xs space-y-1.5">
+                                {/* PUT spread legs */}
+                                <div className="space-y-0.5">
+                                  <div className="font-semibold text-green-500 text-[10px] uppercase tracking-wide">PUT Spread</div>
+                                  <div className="text-green-400">Short: <span className="font-semibold">${order.strike.toFixed(2)}</span>
+                                    {(order.bid != null || order.ask != null) && (
+                                      <span className="text-[10px] text-muted-foreground ml-1">
+                                        (B: ${order.bid?.toFixed(2)} / A: ${order.ask?.toFixed(2)})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-muted-foreground">Long: <span className="font-semibold">${order.longStrike?.toFixed(2)}</span>
+                                    {(order.longBid != null || order.longAsk != null) && (
+                                      <span className="text-[10px] text-muted-foreground ml-1">
+                                        (B: ${order.longBid?.toFixed(2)} / A: ${order.longAsk?.toFixed(2)})
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {/* CALL spread legs */}
+                                <div className="space-y-0.5 border-t border-white/10 pt-1">
+                                  <div className="font-semibold text-red-500 text-[10px] uppercase tracking-wide">CALL Spread</div>
+                                  <div className="text-red-400">Short: <span className="font-semibold">${order.callShortStrike?.toFixed(2)}</span>
+                                    {(order.callShortBid != null || order.callShortAsk != null) && (
+                                      <span className="text-[10px] text-muted-foreground ml-1">
+                                        (B: ${order.callShortBid?.toFixed(2)} / A: ${order.callShortAsk?.toFixed(2)})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-muted-foreground">Long: <span className="font-semibold">${order.callLongStrike?.toFixed(2)}</span>
+                                    {(order.callLongBid != null || order.callLongAsk != null) && (
+                                      <span className="text-[10px] text-muted-foreground ml-1">
+                                        (B: ${order.callLongBid?.toFixed(2)} / A: ${order.callLongAsk?.toFixed(2)})
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             );
                           }
-                          // BPS: show short put / long put
+                          // BPS: show short put / long put with bid/ask
                           if (isBPSOrder) {
                             return (
-                              <div className="text-xs space-y-0.5">
-                                <div className="text-green-400">Short: <span className="font-semibold">${order.strike.toFixed(2)}</span></div>
-                                <div className="text-muted-foreground">Long: <span className="font-semibold">${order.longStrike!.toFixed(2)}</span></div>
+                              <div className="text-xs space-y-1">
+                                <div className="space-y-0">
+                                  <div className="text-green-400">Short: <span className="font-semibold">${order.strike.toFixed(2)}</span></div>
+                                  {(order.bid != null || order.ask != null) && (
+                                    <div className="text-[10px] text-muted-foreground pl-2">
+                                      {order.bid != null && <span>B: ${order.bid.toFixed(2)}</span>}
+                                      {order.bid != null && order.ask != null && <span className="mx-0.5">/</span>}
+                                      {order.ask != null && <span>A: ${order.ask.toFixed(2)}</span>}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="space-y-0">
+                                  <div className="text-muted-foreground">Long: <span className="font-semibold">${order.longStrike!.toFixed(2)}</span></div>
+                                  {(order.longBid != null || order.longAsk != null) && (
+                                    <div className="text-[10px] text-muted-foreground pl-2">
+                                      {order.longBid != null && <span>B: ${order.longBid.toFixed(2)}</span>}
+                                      {order.longBid != null && order.longAsk != null && <span className="mx-0.5">/</span>}
+                                      {order.longAsk != null && <span>A: ${order.longAsk.toFixed(2)}</span>}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             );
                           }
-                          // BCS: show short call / long call
+                          // BCS: show short call / long call with bid/ask
                           if (isBCSOrder) {
                             return (
-                              <div className="text-xs space-y-0.5">
-                                <div className="text-red-400">Short: <span className="font-semibold">${order.strike.toFixed(2)}</span></div>
-                                <div className="text-muted-foreground">Long: <span className="font-semibold">${order.longStrike!.toFixed(2)}</span></div>
+                              <div className="text-xs space-y-1">
+                                <div className="space-y-0">
+                                  <div className="text-red-400">Short: <span className="font-semibold">${order.strike.toFixed(2)}</span></div>
+                                  {(order.bid != null || order.ask != null) && (
+                                    <div className="text-[10px] text-muted-foreground pl-2">
+                                      {order.bid != null && <span>B: ${order.bid.toFixed(2)}</span>}
+                                      {order.bid != null && order.ask != null && <span className="mx-0.5">/</span>}
+                                      {order.ask != null && <span>A: ${order.ask.toFixed(2)}</span>}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="space-y-0">
+                                  <div className="text-muted-foreground">Long: <span className="font-semibold">${order.longStrike!.toFixed(2)}</span></div>
+                                  {(order.longBid != null || order.longAsk != null) && (
+                                    <div className="text-[10px] text-muted-foreground pl-2">
+                                      {order.longBid != null && <span>B: ${order.longBid.toFixed(2)}</span>}
+                                      {order.longBid != null && order.longAsk != null && <span className="mx-0.5">/</span>}
+                                      {order.longAsk != null && <span>A: ${order.longAsk.toFixed(2)}</span>}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             );
                           }

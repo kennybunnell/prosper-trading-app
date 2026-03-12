@@ -610,6 +610,8 @@ export default function IronCondorDashboard() {
         callLongPremium: opp.callLongAsk * 100, // CALL long cost
         callLongBid: opp.callLongBid,
         callLongAsk: opp.callLongAsk,
+        // Underlying stock price shown in Order Preview dialog
+        currentPrice: opp.currentPrice,
       };
     });
   }, [opportunities, selectedOpportunities]);
