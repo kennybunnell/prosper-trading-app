@@ -1387,9 +1387,12 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             const shortLegLivePrice = calcBtcLimitPrice(order.optionSymbol, shortLegCostPerShare);
             const longLegLiveQ = order.spreadLongSymbol ? liveQuoteMap.get(order.spreadLongSymbol) : null;
             const longLegLiveCredit = longLegLiveQ ? longLegLiveQ.bid : longLegCreditPerShare;
-            const netDebit = Math.max(0.01, shortLegLivePrice - longLegLiveCredit);
-            // Round net debit to $0.01
-            limitPrice = Math.round(netDebit * 100) / 100;
+            const rawNetDebit = Math.max(0.01, shortLegLivePrice - longLegLiveCredit);
+            // IMPORTANT: Use snapToTick (integer arithmetic) to avoid IEEE 754 drift.
+            // Spread prices >= $3.00 require $0.05 increments; raw Math.round can produce
+            // values that fail Tastytrade's server-side `price % 0.05` check.
+            const { snapToTick: snapTick } = await import('../shared/orderUtils');
+            limitPrice = snapTick(rawNetDebit, order.symbol);
           } else {
             limitPrice = calcBtcLimitPrice(order.optionSymbol, shortLegCostPerShare);
           }
