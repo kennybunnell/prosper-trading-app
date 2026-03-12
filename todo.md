@@ -7956,3 +7956,8 @@
   - Suite 8: Security Headers (4 tests) — content-type, JSON API responses
   - Suite 9: Stripe Webhook (1 test) — endpoint exists, not 404/500
   - Suite 10: OAuth Callback (2 tests) — graceful error handling
+
+## Bug Fixes (Mar 12, 2026)
+- [x] CSP page crash: TypeError Cannot read properties of undefined (reading 'strike') in onSubmitSelected
+  - Root cause: AI Advisor returns picks with opportunityIndex out-of-bounds or stripped opportunity objects missing strike
+  - Fix: Added .filter() guard in AIAdvisorPanel.handleSubmitSelected and CSPDashboard.onSubmitSelected to drop picks missing strike/shortStrike before mapping to orders

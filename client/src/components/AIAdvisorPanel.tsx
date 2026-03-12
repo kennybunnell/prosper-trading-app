@@ -174,6 +174,15 @@ export function AIAdvisorPanel({
           ? { ...pick.opportunity, ...originalOpp }
           : pick.opportunity;
         return { ...pick, quantity: adjustedQty, opportunity: enrichedOpportunity };
+      })
+      // Guard: drop any pick whose enriched opportunity is missing critical fields
+      .filter((pick) => {
+        const opp = pick.opportunity as any;
+        const hasStrike = (opp?.strike ?? opp?.shortStrike) != null;
+        if (!hasStrike) {
+          console.warn('[AIAdvisorPanel] Dropping pick missing strike:', opp);
+        }
+        return hasStrike;
       });
     if (chosen.length === 0) return;
     onSubmitSelected(chosen);

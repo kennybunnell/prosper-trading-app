@@ -2269,7 +2269,14 @@ export default function CSPDashboard() {
                     toast.error("Please select an account in the sidebar");
                     return;
                   }
-                  const orders = picks.map((pick) => {
+                  const orders = picks
+                    .filter((pick) => {
+                      const opp = pick.opportunity as any;
+                      const hasStrike = (opp?.strike ?? opp?.shortStrike) != null;
+                      if (!hasStrike) console.warn('[CSPDashboard] Skipping pick missing strike:', opp);
+                      return hasStrike;
+                    })
+                    .map((pick) => {
                     // pick.opportunity is now enriched with original opportunity data from top50Ref
                     // in AIAdvisorPanel.handleSubmitSelected, so strike/shortStrike are correct.
                     const opp = pick.opportunity as any;
