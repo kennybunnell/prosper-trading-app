@@ -29,7 +29,8 @@ export interface ScoredOpportunity extends CSPOpportunity {
  * - Stock Quality (10%): Mag 7 (5) + Market Cap (5)
  */
 // Index symbols: RSI/BB are not meaningful signals for cash-settled index products
-const CSP_INDEX_SYMBOLS = new Set(['SPXW', 'NDXP', 'MRUT', 'SPX', 'NDX', 'RUT', 'XSP']);
+// Also used for delta recalibration: index options trade at 0.02–0.06 OTM (vs equity 0.20–0.30)
+const CSP_INDEX_SYMBOLS = new Set(['SPXW', 'NDXP', 'MRUT', 'SPX', 'NDX', 'RUT', 'XSP', 'MRUT', 'DJX', 'VIX', 'VIXW', 'OEX', 'XEO']);
 
 export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdown: ScoreBreakdown } {
   let technicalScore = 0;
@@ -92,18 +93,35 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
   // ===== GREEKS & TIMING (30 points) =====
   
   // Delta - Probability Sweet Spot (15 points)
-  // 0.20-0.29 = ideal (~70-80% OTM probability)
   const delta = Math.abs(opp.delta || 0);
-  if (delta >= 0.20 && delta <= 0.29) {
-    greeksScore += 15; // Ideal range
-  } else if ((delta >= 0.15 && delta < 0.20) || (delta > 0.29 && delta <= 0.35)) {
-    greeksScore += 12; // Good range (safer or higher premium)
-  } else if ((delta >= 0.10 && delta < 0.15) || (delta > 0.35 && delta <= 0.40)) {
-    greeksScore += 8; // Acceptable (very safe or aggressive)
-  } else if (delta > 0 && delta < 0.10) {
-    greeksScore += 3; // Too safe - thin premium
-  } else if (delta > 0.40) {
-    greeksScore += 3; // Too aggressive - high risk
+  if (isIndex) {
+    // Index CSPs trade at much lower absolute deltas (0.02–0.06 OTM is the ideal range)
+    if (delta >= 0.02 && delta <= 0.06) {
+      greeksScore += 15; // Perfect range for index
+    } else if ((delta > 0.06 && delta <= 0.10) || (delta >= 0.01 && delta < 0.02)) {
+      greeksScore += 12; // Good range
+    } else if (delta > 0.10 && delta <= 0.15) {
+      greeksScore += 8; // Acceptable — slightly elevated risk
+    } else if (delta > 0.15 && delta <= 0.20) {
+      greeksScore += 5; // Higher risk for index
+    } else if (delta > 0.20) {
+      greeksScore += 2; // Too close ITM for index
+    } else if (delta > 0 && delta < 0.01) {
+      greeksScore += 3; // Too far OTM — negligible premium
+    }
+  } else {
+    // Equity CSPs: 0.20-0.29 = ideal (~70-80% OTM probability)
+    if (delta >= 0.20 && delta <= 0.29) {
+      greeksScore += 15; // Ideal range
+    } else if ((delta >= 0.15 && delta < 0.20) || (delta > 0.29 && delta <= 0.35)) {
+      greeksScore += 12; // Good range (safer or higher premium)
+    } else if ((delta >= 0.10 && delta < 0.15) || (delta > 0.35 && delta <= 0.40)) {
+      greeksScore += 8; // Acceptable (very safe or aggressive)
+    } else if (delta > 0 && delta < 0.10) {
+      greeksScore += 3; // Too safe - thin premium
+    } else if (delta > 0.40) {
+      greeksScore += 3; // Too aggressive - high risk
+    }
   }
 
   // DTE - Time Decay Optimization (10 points)
@@ -178,11 +196,16 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
 
   // ===== STOCK QUALITY (10 points) =====
   
-  // Mag 7 Bonus (5 points)
-  // Assignment-worthy companies for Wheel strategy
-  const mag7 = ['AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA'];
-  if (mag7.includes(opp.symbol)) {
+  // Mag 7 / Index Quality Bonus (5 points)
+  if (isIndex) {
+    // Index products are premium-quality instruments — award full 5 pts
     qualityScore += 5;
+  } else {
+    // Equity: Mag 7 preference (assignment-worthy companies for Wheel strategy)
+    const mag7 = ['AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA'];
+    if (mag7.includes(opp.symbol)) {
+      qualityScore += 5;
+    }
   }
 
   // Market Cap Bonus (5 points)
