@@ -15,5 +15,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
+    testTimeout: 60000,   // integration tests call real APIs, need more time
+    hookTimeout: 30000,   // beforeAll/afterAll hooks also need more time
   },
 });

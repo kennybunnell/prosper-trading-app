@@ -85,11 +85,13 @@ describe('Tradier Account Health Monitoring', () => {
   });
 
   it('should detect when 24-hour check is needed', async () => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    // Use 25 hours ago to ensure it's clearly past the 24-hour threshold
+    // (setDate(-1) creates exactly 24h ago which may fail the strictly-greater-than check)
+    const twentyFiveHoursAgo = new Date();
+    twentyFiveHoursAgo.setTime(twentyFiveHoursAgo.getTime() - 25 * 60 * 60 * 1000);
 
     await upsertApiCredentials(testUserId, {
-      tradierLastHealthCheck: yesterday,
+      tradierLastHealthCheck: twentyFiveHoursAgo,
     });
 
     const credentials = await getApiCredentials(testUserId);

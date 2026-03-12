@@ -7928,3 +7928,31 @@
 - [x] Fix 2: Added same-strike guard — skip long legs with identical strike to short leg (impossible valid spread)
 - [x] Fix 3: Rewrote submitCloseOrders integrity check to be pair-aware: only block if a long leg appears as a standalone (non-spread) close in the same batch
 - [x] Added 8 new unit tests covering self-match, same-strike, valid IC batch, mixed batch, and cross-collision scenarios — all 19 spread tests pass
+
+## ✅ Testing Passes (Mar 11, 2026)
+
+### Pass 2: Integration Tests
+- [x] Fixed 7 failing integration test assertions across 4 test files
+  - cc.getEligiblePositions: added required accountNumber input
+  - automation.getSettings: corrected field names (autoScheduleEnabled, requireApproval, profitThresholdPercent)
+  - tax.getTaxSummary: corrected field names (taxYear, realizedGains, realizedLosses, ordinaryIncome)
+  - projections.getThetaDecay: corrected return shape (dailyTheta, weeklyTheta, monthlyTheta, positionCount)
+  - performance.getPerformanceOverview: corrected to monthlyData, performanceMetrics, totals, dateRange
+  - performance.getActivePositions: corrected field names (premium, current, type, optionSymbol)
+  - tradier.health: changed exactly-24h boundary to 25h to avoid timing edge case
+- [x] Final result: 1,123 passing | 9 skipped | 0 failing (81 test files)
+
+### Pass 3: Browser E2E Tests (Playwright)
+- [x] Installed Playwright with Chromium browser
+- [x] Created playwright.config.ts and e2e/pass3.spec.ts
+- [x] 48 tests across 10 suites — all passing
+  - Suite 1: Server Health (5 tests) — GET /, tRPC, static assets
+  - Suite 2: Authenticated Dashboard UI (7 tests) — sidebar, nav items, paper trading mode
+  - Suite 3: Page Navigation (15 tests) — all 11 routes load without JS errors + content checks
+  - Suite 4: HTML Structure & Meta Tags (4 tests) — title, viewport, root element
+  - Suite 5: tRPC API Endpoints (4 tests) — auth.me, protected procedures, batch
+  - Suite 6: 404 & Error Handling (3 tests) — unknown routes, API 404
+  - Suite 7: Performance (3 tests) — home <5s, auth.me <2s, assets <3s
+  - Suite 8: Security Headers (4 tests) — content-type, JSON API responses
+  - Suite 9: Stripe Webhook (1 test) — endpoint exists, not 404/500
+  - Suite 10: OAuth Callback (2 tests) — graceful error handling
