@@ -8054,3 +8054,6 @@
 ## Bug Fixes (Mar 13, 2026 - Session 2)
 - [x] CSP dashboard returning 0 opportunities for equity tickers — root cause was isIndex filter missing from filteredWatchlist memo
 - [x] All dashboards (CSP, CC/BCS, IC, PMCC) now filter symbols by isIndex mode before scanning — equity mode only scans equities, index mode only scans indexes
+
+## Bug Fixes (Mar 13, 2026 - Session 3)
+- [x] Bollinger chart times out at 30s fetching Tradier history — increased to 60s per attempt with 2 auto-retries on timeout

@@ -57,6 +57,8 @@ export const chartsRouter = router({
       symbol: z.string().min(1).max(10),
       timeframe: z.enum(['1M', '3M', '6M', '1Y']).default('3M'),
     }))
+    // Note: Tradier history calls can be slow (large payload). Retries are handled
+    // inside getHistoricalData with a 60s per-attempt timeout (2 retries = up to 180s).
     .query(async ({ input, ctx }) => {
       const { getApiCredentials } = await import('./db');
       const { createTradierAPI } = await import('./tradier');

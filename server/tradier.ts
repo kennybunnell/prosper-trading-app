@@ -281,23 +281,28 @@ export class TradierAPI {
    * Get historical data for technical indicators
    */
   async getHistoricalData(symbol: string, interval: string = 'daily', start?: string, end?: string): Promise<HistoricalData[]> {
-    try {
-      const response = await this.client.get('/markets/history', {
-        params: {
-          symbol,
-          interval,
-          start,
-          end,
-        },
-      });
-
-      const history = response.data.history?.day;
-      if (!history) return [];
-      
-      return Array.isArray(history) ? history : [history];
-    } catch (error: any) {
-      throw new Error(`Failed to fetch historical data: ${error.response?.data?.fault?.faultstring || error.message}`);
+    const maxRetries = 2;
+    let lastError: any;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await this.client.get('/markets/history', {
+          params: { symbol, interval, start, end },
+          timeout: 60000, // 60s timeout for history (larger payload than option chains)
+        });
+        const history = response.data.history?.day;
+        if (!history) return [];
+        return Array.isArray(history) ? history : [history];
+      } catch (error: any) {
+        lastError = error;
+        if (attempt < maxRetries && (error.code === 'ECONNABORTED' || error.message?.includes('timeout'))) {
+          // Brief pause before retry
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        throw new Error(`Failed to fetch historical data: ${error.response?.data?.fault?.faultstring || error.message}`);
+      }
     }
+    throw new Error(`Failed to fetch historical data after ${maxRetries + 1} attempts: ${lastError?.message}`);
   }
 
   /**
