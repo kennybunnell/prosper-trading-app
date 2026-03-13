@@ -8057,3 +8057,7 @@
 
 ## Bug Fixes (Mar 13, 2026 - Session 3)
 - [x] Bollinger chart times out at 30s fetching Tradier history — increased to 60s per attempt with 2 auto-retries on timeout
+
+## Performance & UX (Mar 13, 2026 - Session 4)
+- [x] Parallel option chain fetching in CSP/BPS scanner — expiration chains now fetched with Promise.allSettled in parallel per symbol
+- [x] Widen BollingerChartPanel to 75% viewport width (w-[75vw] with 600px min-width)

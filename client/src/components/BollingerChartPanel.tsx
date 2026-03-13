@@ -221,7 +221,7 @@ export function BollingerChartPanel({ symbol, strikePrice, onClose }: BollingerC
     : null;
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 flex flex-col w-[700px] max-w-[95vw] bg-[#0d1117] border-l border-slate-700/60 shadow-2xl">
+    <div className="fixed inset-y-0 right-0 z-50 flex flex-col w-[75vw] max-w-[95vw] min-w-[600px] bg-[#0d1117] border-l border-slate-700/60 shadow-2xl">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/60 bg-[#0f1117]">
         <div className="flex items-center gap-2">

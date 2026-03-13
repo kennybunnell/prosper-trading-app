@@ -732,9 +732,22 @@ export class TradierAPI {
         // Collect IV values from all options to calculate IV Rank
         const allIVValues: number[] = [];
 
-        // Fetch option chains for each expiration — use Tradier-recognised root (e.g. SPX for SPXW)
-        for (const expiration of filteredExpirations) {
-          const options = await this.getOptionChain(tradierOptionRoot, expiration, true);
+        // Fetch all expiration chains in PARALLEL for speed (was sequential)
+        console.log(`[CSP fetchSymbolOpportunities] ${symbol}: fetching ${filteredExpirations.length} chains in parallel`);
+        const chainResults = await Promise.allSettled(
+          filteredExpirations.map(exp => this.getOptionChain(tradierOptionRoot, exp, true))
+        );
+
+        const targetRoot = tradierOptionRoot !== symbol ? symbol : null;
+
+        for (let ei = 0; ei < filteredExpirations.length; ei++) {
+          const chainResult = chainResults[ei];
+          if (chainResult.status === 'rejected') {
+            console.warn(`[CSP fetchSymbolOpportunities] ${symbol} ${filteredExpirations[ei]}: chain fetch failed — ${chainResult.reason}`);
+            continue;
+          }
+          const options = chainResult.value;
+          const expiration = filteredExpirations[ei];
 
           // Collect IV values from all options (puts and calls)
           for (const opt of options) {
@@ -747,7 +760,6 @@ export class TradierAPI {
           // When tradierOptionRoot differs from the original symbol (e.g. SPXW→SPX),
           // the chain contains contracts from multiple roots (SPX AM-settled + SPXW PM-settled).
           // Filter to only the original option series root so we don't mix AM and PM settlements.
-          const targetRoot = tradierOptionRoot !== symbol ? symbol : null;
           const puts = options.filter((opt) => {
             if (opt.option_type !== 'put') return false;
             if (targetRoot && opt.root_symbol && opt.root_symbol !== targetRoot) return false;
