@@ -8061,3 +8061,7 @@
 ## Performance & UX (Mar 13, 2026 - Session 4)
 - [x] Parallel option chain fetching in CSP/BPS scanner — expiration chains now fetched with Promise.allSettled in parallel per symbol
 - [x] Widen BollingerChartPanel to 75% viewport width (w-[75vw] with 600px min-width)
+
+## Chart Performance (Mar 13, 2026 - Session 5)
+- [x] Add server-side in-memory cache (15min TTL) for chart history — same data served instantly on repeat opens
+- [x] Progressive chart loading: candlesticks render immediately via getCandles, BB bands overlay after via getHistory

@@ -60,13 +60,42 @@ export function BollingerChartPanel({ symbol, strikePrice, onClose }: BollingerC
   const middleBBRef = useRef<ISeriesApi<'Line'> | null>(null);
   const lowerBBRef = useRef<ISeriesApi<'Line'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const strikePriceLineRef = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
 
-  const { data, isLoading, error, refetch } = trpc.charts.getHistory.useQuery(
+  // ── Stage 1: Fast candles-only query ──────────────────────────────────────
+  const {
+    data: candleData,
+    isLoading: candlesLoading,
+    error: candlesError,
+    refetch: refetchCandles,
+  } = trpc.charts.getCandles.useQuery(
     { symbol, timeframe },
-    { staleTime: 5 * 60 * 1000 }
+    { staleTime: 15 * 60 * 1000 }
   );
 
-  // Create chart once on mount
+  // ── Stage 2: Full BB data — only fires after candles are loaded ───────────
+  const {
+    data: fullData,
+    isLoading: bbLoading,
+    refetch: refetchFull,
+  } = trpc.charts.getHistory.useQuery(
+    { symbol, timeframe },
+    {
+      staleTime: 15 * 60 * 1000,
+      // Don't start until candles are already rendered
+      enabled: !!candleData && candleData.bars.length > 0,
+    }
+  );
+
+  const isLoading = candlesLoading;
+  const error = candlesError;
+
+  function refetch() {
+    refetchCandles();
+    refetchFull();
+  }
+
+  // ── Create chart once on mount ────────────────────────────────────────────
   useEffect(() => {
     if (!chartContainerRef.current) return;
     const container = chartContainerRef.current;
@@ -139,7 +168,7 @@ export function BollingerChartPanel({ symbol, strikePrice, onClose }: BollingerC
       title: 'BB Lower',
     });
 
-    // Volume in a separate pane — explicitly create pane 1 first, then add series
+    // Volume in a separate pane — explicitly create pane 1 first
     const volumePane = chart.addPane();
     volumePane.setHeight(80);
     const volumeSeries = chart.addSeries(HistogramSeries, {
@@ -167,12 +196,13 @@ export function BollingerChartPanel({ symbol, strikePrice, onClose }: BollingerC
     };
   }, []);
 
-  // Populate data when query result changes
+  // ── Stage 1 effect: render candles + volume as soon as they arrive ────────
   useEffect(() => {
-    if (!data || !chartRef.current) return;
-    const { bars, bbSeries } = data;
+    if (!candleData || !chartRef.current) return;
+    const { bars } = candleData;
+    if (!bars.length) return;
 
-    const candleData: CandlestickData[] = bars.map(b => ({
+    const candles: CandlestickData[] = bars.map(b => ({
       time: b.time as Time,
       open: b.open,
       high: b.high,
@@ -180,24 +210,21 @@ export function BollingerChartPanel({ symbol, strikePrice, onClose }: BollingerC
       close: b.close,
     }));
 
-    const volumeData: HistogramData[] = bars.map((b: { time: number; open: number; high: number; low: number; close: number; volume: number }) => ({
+    const volumes: HistogramData[] = bars.map((b: { time: number; open: number; close: number; volume: number }) => ({
       time: b.time as Time,
       value: b.volume,
       color: b.close >= b.open ? COLORS.volume.up : COLORS.volume.down,
     }));
 
-    const upperData: LineData[] = bbSeries.map((b: { time: number; upper: number; middle: number; lower: number; percentB: number }) => ({ time: b.time as Time, value: b.upper }));
-    const middleData: LineData[] = bbSeries.map((b: { time: number; upper: number; middle: number; lower: number; percentB: number }) => ({ time: b.time as Time, value: b.middle }));
-    const lowerData: LineData[] = bbSeries.map((b: { time: number; upper: number; middle: number; lower: number; percentB: number }) => ({ time: b.time as Time, value: b.lower }));
+    candleSeriesRef.current?.setData(candles);
+    volumeSeriesRef.current?.setData(volumes);
 
-    candleSeriesRef.current?.setData(candleData);
-    volumeSeriesRef.current?.setData(volumeData);
-    upperBBRef.current?.setData(upperData);
-    middleBBRef.current?.setData(middleData);
-    lowerBBRef.current?.setData(lowerData);
-
+    // Add strike price line
     if (strikePrice && candleSeriesRef.current) {
-      candleSeriesRef.current.createPriceLine({
+      if (strikePriceLineRef.current) {
+        candleSeriesRef.current.removePriceLine(strikePriceLineRef.current);
+      }
+      strikePriceLineRef.current = candleSeriesRef.current.createPriceLine({
         price: strikePrice,
         color: COLORS.strike,
         lineWidth: 1,
@@ -208,10 +235,27 @@ export function BollingerChartPanel({ symbol, strikePrice, onClose }: BollingerC
     }
 
     chartRef.current.timeScale().fitContent();
-  }, [data, strikePrice]);
+  }, [candleData, strikePrice]);
 
-  const latestBB = data?.bbSeries?.[data.bbSeries.length - 1];
-  const latestBar = data?.bars?.[data.bars.length - 1];
+  // ── Stage 2 effect: overlay BB bands once full data arrives ───────────────
+  useEffect(() => {
+    if (!fullData || !chartRef.current) return;
+    const { bbSeries } = fullData;
+    if (!bbSeries.length) return;
+
+    const upperData: LineData[] = bbSeries.map((b: { time: number; upper: number }) => ({ time: b.time as Time, value: b.upper }));
+    const middleData: LineData[] = bbSeries.map((b: { time: number; middle: number }) => ({ time: b.time as Time, value: b.middle }));
+    const lowerData: LineData[] = bbSeries.map((b: { time: number; lower: number }) => ({ time: b.time as Time, value: b.lower }));
+
+    upperBBRef.current?.setData(upperData);
+    middleBBRef.current?.setData(middleData);
+    lowerBBRef.current?.setData(lowerData);
+  }, [fullData]);
+
+  // ── Derived display values ─────────────────────────────────────────────────
+  const latestBB = fullData?.bbSeries?.[fullData.bbSeries.length - 1];
+  const latestBar = (candleData?.bars ?? fullData?.bars)?.[((candleData?.bars ?? fullData?.bars)?.length ?? 0) - 1];
+
   const bbSignal = latestBB
     ? latestBB.percentB > 0.8
       ? { label: 'Near Upper Band', color: 'text-red-400' }
@@ -228,6 +272,12 @@ export function BollingerChartPanel({ symbol, strikePrice, onClose }: BollingerC
           <BarChart2 className="h-4 w-4 text-amber-400" />
           <span className="font-bold text-white text-sm">{symbol}</span>
           <span className="text-slate-500 text-xs">· Bollinger Bands (20, 2)</span>
+          {bbLoading && !fullData && (
+            <span className="flex items-center gap-1 text-xs text-indigo-400">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Loading BB…
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <div className="flex gap-1">
@@ -287,7 +337,7 @@ export function BollingerChartPanel({ symbol, strikePrice, onClose }: BollingerC
           <div className="absolute inset-0 flex items-center justify-center bg-[#0d1117]/80 z-10">
             <div className="flex flex-col items-center gap-2">
               <Loader2 className="h-6 w-6 text-amber-400 animate-spin" />
-              <span className="text-slate-400 text-sm">Loading chart data…</span>
+              <span className="text-slate-400 text-sm">Loading chart…</span>
             </div>
           </div>
         )}
