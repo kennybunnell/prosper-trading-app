@@ -1430,10 +1430,9 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           }
 
           // Build order legs
-          // Cash-settled index options (SPXW, NDXP, MRUT, etc.) require 'Index Option';
-          // all other options use 'Equity Option'.
-          const { isTrueIndexOption: isIdxClose } = await import('../shared/orderUtils');
-          const closeInstrumentType = isIdxClose(order.symbol) ? 'Index Option' : 'Equity Option';
+          // Tastytrade order submission API only accepts 'Equity Option' for all options
+          // (including cash-settled index options like SPXW, NDXP, MRUT).
+          const closeInstrumentType = 'Equity Option' as const;
 
           const legs: import('./tastytrade').OrderLeg[] = [
             {

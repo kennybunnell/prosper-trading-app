@@ -778,12 +778,13 @@ export class TastytradeAPI {
    */
   async buyToCloseOption(accountNumber: string, optionSymbol: string, quantity: number, price: number, dryRun: boolean = false): Promise<{ success: boolean; orderId?: string; message: string }> {
     // Import price formatting utility
-    const { formatPriceForSubmission, isTrueIndexOption } = await import('../shared/orderUtils');
-    // Parse option symbol to extract underlying
+    const { formatPriceForSubmission } = await import('../shared/orderUtils');
+    // Tastytrade order submission API only accepts 'Equity Option' for all options
+    // (including cash-settled index options like SPXW, NDXP, MRUT).
+    const btcInstrumentType = 'Equity Option' as const;
+    // Parse option symbol to extract underlying for the order payload
     const underlyingMatch = optionSymbol.match(/^([A-Z]+)/);
     const underlyingSymbol = underlyingMatch ? underlyingMatch[1] : optionSymbol.substring(0, 6).trim();
-    // Determine instrument type based on underlying symbol
-    const btcInstrumentType = isTrueIndexOption(underlyingSymbol) ? 'Index Option' : 'Equity Option';
 
     // Ensure option symbol has proper spacing for Tastytrade API
     // OCC format requires 6-char ticker padded with spaces
@@ -1106,9 +1107,9 @@ export class TastytradeAPI {
       const closeSymbol = formatOptionSymbol(params.closeLeg);
       const openSymbol = formatOptionSymbol(params.openLeg);
 
-      // Determine instrument type: cash-settled index options require 'Index Option'
-      const { isTrueIndexOption: isIdxRoll } = await import('../shared/orderUtils');
-      const rollInstrumentType = isIdxRoll(params.symbol) ? 'Index Option' : 'Equity Option';
+      // Tastytrade order submission API only accepts 'Equity Option' for all options
+      // (including cash-settled index options like SPXW, NDXP, MRUT).
+      const rollInstrumentType = 'Equity Option' as const;
 
       // Build 2-leg order
       const orderPayload = {
@@ -1168,9 +1169,10 @@ export class TastytradeAPI {
   }): Promise<{ orderId: string }> {
     try {
       // Import price formatting utility
-      const { formatPriceForSubmission, isTrueIndexOption: isIdxClose2 } = await import('../shared/orderUtils');
-      // Determine instrument type: cash-settled index options require 'Index Option'
-      const singleCloseInstrumentType = isIdxClose2(params.symbol) ? 'Index Option' : 'Equity Option';
+      const { formatPriceForSubmission } = await import('../shared/orderUtils');
+      // Tastytrade order submission API only accepts 'Equity Option' for all options
+      // (including cash-settled index options like SPXW, NDXP, MRUT).
+      const singleCloseInstrumentType = 'Equity Option' as const;
       
       // Use the actual option symbol from Tastytrade if provided, otherwise construct it
       let optionSymbol: string;

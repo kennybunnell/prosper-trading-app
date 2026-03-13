@@ -48,8 +48,11 @@ export const TRUE_INDEX_OPTION_SYMBOLS = new Set([
 
 /**
  * Returns true if the symbol is a true cash-settled index option.
- * These require instrumentType = 'Index Option' in Tastytrade API calls
- * and always use $0.05 tick increments regardless of price.
+ * NOTE: Tastytrade's order submission API only accepts 'Equity Option' as the instrument type
+ * for ALL options (including index options like SPXW, NDXP, MRUT). The 'Index Option' type
+ * is NOT a valid order submission type per official TT docs.
+ * This function is used for tick-size calculation ($0.05 for index options) and
+ * position filtering (TT positions API returns 'Index Option' for these symbols).
  */
 export function isTrueIndexOption(symbol: string): boolean {
   return TRUE_INDEX_OPTION_SYMBOLS.has(symbol.toUpperCase());

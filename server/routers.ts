@@ -2281,10 +2281,10 @@ Summary: [One sentence overall assessment]`;
               }
               
               // Build legs based on order type
-              // Cash-settled index options (SPXW, NDXP, MRUT, etc.) require 'Index Option';
-              // all other options use 'Equity Option'.
-              const { isTrueIndexOption: isIdxLeg } = await import('../shared/orderUtils');
-              const legInstrumentType = (isIdxLeg(order.symbol) ? 'Index Option' : 'Equity Option') as 'Index Option' | 'Equity Option';
+              // Tastytrade order submission API only accepts 'Equity Option' for all options
+              // (including cash-settled index options like SPXW, NDXP, MRUT).
+              // 'Index Option' is only returned by TT in positions/balances responses, NOT accepted in orders.
+              const legInstrumentType = 'Equity Option' as const;
               const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
               ? [
                     // Iron Condor: Leg 1 - Sell Put (short put)

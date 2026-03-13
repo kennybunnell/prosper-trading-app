@@ -3,9 +3,12 @@
  *
  * Verifies that:
  * 1. The sellCoveredCall procedure does NOT check liquidation flags (bypass is intentional)
- * 2. Equity options use 'Equity Option' instrument type
- * 3. Cash-settled index options (SPXW, NDXP, MRUT) use 'Index Option' instrument type
- * 4. All order submission paths use isTrueIndexOption to determine the correct type
+ * 2. ALL order submission paths use 'Equity Option' — this is the ONLY valid instrument type
+ *    for order legs per the official Tastytrade API docs (valid types: Equity, Equity Option,
+ *    Cryptocurrency, Future, Future Option). 'Index Option' is NOT a valid order submission type.
+ * 3. Position FILTERING accepts both 'Equity Option' and 'Index Option' because Tastytrade
+ *    RETURNS 'Index Option' in positions/balances responses for SPXW, NDXP, MRUT, etc.
+ *    (receiving vs. sending are different — TT returns 'Index Option' but only accepts 'Equity Option')
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -30,8 +33,8 @@ describe('Dog forced-exit ITM CC — instrument type validation', () => {
     expect(procedureBody).not.toContain('liquidationFlags.symbol');
   });
 
-  it('sellCoveredCall uses isTrueIndexOption to determine instrument type', () => {
-    // routers-position-analyzer.ts may still use 'Equity Option' directly for covered calls
+  it('sellCoveredCall uses Equity Option instrument type (covered calls are always equity)', () => {
+    // routers-position-analyzer.ts uses 'Equity Option' directly for covered calls
     // (covered calls are always on equity stocks, not index options)
     const src = readFileSync(join(serverDir, 'routers-position-analyzer.ts'), 'utf-8');
     const sellCCStart = src.indexOf('sellCoveredCall: protectedProcedure');
@@ -41,29 +44,29 @@ describe('Dog forced-exit ITM CC — instrument type validation', () => {
     expect(procedureBody).toContain("instrumentType: 'Equity Option'");
   });
 
-  it('Bear Call Spread submit uses isTrueIndexOption for instrument type', () => {
+  it('Bear Call Spread submit uses Equity Option (only valid type for TT order submission)', () => {
     const src = readFileSync(join(serverDir, 'routers-cc.ts'), 'utf-8');
     const submitStart = src.indexOf('submitBearCallSpreadOrders');
     expect(submitStart).toBeGreaterThan(-1);
     // Use a larger window (6000 chars) to capture the full procedure body
     const submitBody = src.slice(submitStart, submitStart + 6000);
-    // Should use isTrueIndexOption to determine instrument type dynamically
-    expect(submitBody).toContain('isTrueIndexOption');
-    // Should support both instrument types
-    expect(submitBody).toContain("'Index Option'");
+    // Per Tastytrade API docs, only 'Equity Option' is valid for order leg instrument-type.
+    // 'Index Option' is NOT a valid submission type (only returned in positions responses).
     expect(submitBody).toContain("'Equity Option'");
+    // Should NOT use 'Index Option' in order submission (it causes self-cancellation)
+    // Note: comments may contain 'Index Option' for documentation — check non-comment code
+    const noComments = submitBody.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(noComments).not.toContain("'Index Option'");
   });
 
-  it('Iron Condor live order uses isTrueIndexOption for instrument type', () => {
+  it('Iron Condor live order uses Equity Option for instrument type', () => {
     const src = readFileSync(join(serverDir, 'routers.ts'), 'utf-8');
-    // Find the iron condor live order submission
-    const icStart = src.indexOf('isTrueIndexOption: isIdxLeg');
-    expect(icStart).toBeGreaterThan(-1);
-    const icBody = src.slice(icStart, icStart + 500);
-    // Should use isTrueIndexOption to determine instrument type dynamically
-    expect(icBody).toContain('isTrueIndexOption');
-    expect(icBody).toContain("'Index Option'");
-    expect(icBody).toContain("'Equity Option'");
+    // Find the live order submission section (not dry run)
+    const submitStart = src.indexOf("const legInstrumentType = 'Equity Option' as const;");
+    expect(submitStart).toBeGreaterThan(-1);
+    // Should use 'Equity Option' as const — the only valid type for TT order submission
+    const submitBody = src.slice(submitStart, submitStart + 200);
+    expect(submitBody).toContain("'Equity Option'");
   });
 
   it('Iron Condor dry run uses Equity Option (dry run only logs, not submitted)', () => {
@@ -75,7 +78,7 @@ describe('Dog forced-exit ITM CC — instrument type validation', () => {
     expect(dryRunBody).toContain("'Equity Option'");
   });
 
-  it('All order submission paths use isTrueIndexOption for instrument type', () => {
+  it('All order submission paths use Equity Option (NOT Index Option) for instrument type', () => {
     const files = [
       'routers.ts',
       'routers-cc.ts',
@@ -84,20 +87,24 @@ describe('Dog forced-exit ITM CC — instrument type validation', () => {
     ];
     for (const file of files) {
       const src = readFileSync(join(serverDir, file), 'utf-8');
-      // Remove comments before checking
+      // Remove comments before checking (comments may mention 'Index Option' for documentation)
       const noComments = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
-      // Each file that submits orders should use isTrueIndexOption to determine instrument type
-      const hasIndexOption = noComments.includes("'Index Option'") || noComments.includes('"Index Option"');
+      // Each file that submits orders should use 'Equity Option' — the only valid TT order type
+      const hasEquityOption = noComments.includes("'Equity Option'") || noComments.includes('"Equity Option"');
       expect(
-        hasIndexOption,
-        `${file} should support 'Index Option' for cash-settled index options (SPXW, NDXP, MRUT)`
+        hasEquityOption,
+        `${file} should use 'Equity Option' for order submission (the only valid Tastytrade instrument type for options)`
       ).toBe(true);
+      // Position FILTERING may contain 'Index Option' (TT returns this in positions responses)
+      // But ORDER SUBMISSION should never use 'Index Option' as it causes self-cancellation
+      // We only enforce this for the order submission paths, not position filtering
     }
   });
 
-  it('tastytrade OrderLeg type includes Index Option', () => {
+  it('tastytrade OrderLeg type includes Index Option in the union (for type safety with TT responses)', () => {
     const src = readFileSync(join(serverDir, 'tastytrade.ts'), 'utf-8');
-    // The OrderLeg interface must include 'Index Option' to support NDXP, SPXW, MRUT
+    // The OrderLeg interface includes 'Index Option' in the union for type safety
+    // (even though we only submit 'Equity Option', TT may return 'Index Option' in order status)
     expect(src).toContain("'Equity' | 'Equity Option' | 'Index Option'");
   });
 
