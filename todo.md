@@ -8046,3 +8046,7 @@
 - [x] Add timeframe selector (1M / 3M / 6M / 1Y)
 - [x] Map index option roots to underlying (SPXW→SPX, NDXP→NDX, MRUT→RUT)
 - [x] Pre-existing test failures confirmed (market.test.ts, integration.trading-strategies.test.ts) - not caused by this feature
+
+## Bug Fixes (Mar 13, 2026)
+- [x] Fix charts.getHistory tRPC procedure not found — chartsRouter not registered in main routers.ts (was stale server cache; restart fixed it)
+- [x] Fix Lightweight Charts volume pane "incorrect ID: volume" error in BollingerChartPanel (LWC v5 requires chart.addPane() before addSeries on pane 1)

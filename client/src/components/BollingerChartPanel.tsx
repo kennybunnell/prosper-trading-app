@@ -139,15 +139,12 @@ export function BollingerChartPanel({ symbol, strikePrice, onClose }: BollingerC
       title: 'BB Lower',
     });
 
-    // Volume in a separate pane (paneIndex 1)
+    // Volume in a separate pane — explicitly create pane 1 first, then add series
+    const volumePane = chart.addPane();
+    volumePane.setHeight(80);
     const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: 'volume' },
-      priceScaleId: 'volume',
     }, 1);
-
-    chart.priceScale('volume').applyOptions({
-      scaleMargins: { top: 0.7, bottom: 0 },
-    });
 
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
