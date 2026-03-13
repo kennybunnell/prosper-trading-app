@@ -168,12 +168,16 @@ export default function PMCCDashboard() {
   
   // Fetch selected watchlist symbols for filtering
   const { data: selectedSymbolsData = [] } = trpc.watchlist.getSelections.useQuery();
-  // Filter to only get symbols where isSelected === 1, then map to symbol strings
+  // Filter to only get equity symbols where isSelected === 1 (PMCC is equity-only, never indexes)
   const selectedSymbols = useMemo(() => {
+    // Cross-reference with watchlist to exclude index tickers
+    const equitySymbols = new Set(
+      watchlist.filter((w: any) => !w.isIndex).map((w: any) => w.symbol)
+    );
     return selectedSymbolsData
-      .filter((s: any) => s.isSelected === 1)
+      .filter((s: any) => s.isSelected === 1 && equitySymbols.has(s.symbol))
       .map((s: any) => s.symbol);
-  }, [selectedSymbolsData]);
+  }, [selectedSymbolsData, watchlist]);
   
   // Countdown timer effect
   useEffect(() => {

@@ -640,15 +640,16 @@ export default function CCDashboard() {
         const watchlistResult = await utils.client.watchlist.get.query();
         const selectionsResult = await utils.client.watchlist.getSelections.query();
         
-        // Filter to only selected tickers
-        const selectedSymbols = watchlistResult
+        // Filter to only selected tickers that match the current mode (equity vs index)
+        const modeFilteredWatchlist = watchlistResult.filter((item: any) => !!item.isIndex === isIndexMode);
+        const selectedSymbols = modeFilteredWatchlist
           .filter((item: any) => {
             const selection = selectionsResult.find((s: any) => s.symbol === item.symbol);
             return selection && selection.isSelected === 1;
           })
           .map((item: any) => item.symbol);
         
-        const watchlistSymbols = selectedSymbols.length > 0 ? selectedSymbols : watchlistResult.map((item: any) => item.symbol);
+        const watchlistSymbols = selectedSymbols.length > 0 ? selectedSymbols : modeFilteredWatchlist.map((item: any) => item.symbol);
         setWatchlistSymbolCount(watchlistSymbols.length);
 
         if (watchlistSymbols.length === 0) {

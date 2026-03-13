@@ -169,8 +169,12 @@ export default function IronCondorDashboard() {
   });
 
   // Filter watchlist by portfolio size AND selected symbols
+  const isIndexMode = watchlistContextMode === 'index';
   const filteredWatchlist = useMemo(() => {
-    let filtered = watchlist.filter((w: any) => 
+    // CRITICAL: Only include symbols that match the current mode (equity vs index)
+    let filtered = watchlist.filter((w: any) => !!w.isIndex === isIndexMode);
+
+    filtered = filtered.filter((w: any) =>
       selectedPortfolioSizes.includes(w.portfolioSize || 'medium')
     );
     
@@ -184,7 +188,7 @@ export default function IronCondorDashboard() {
     }
     
     return filtered;
-  }, [watchlist, selectedPortfolioSizes, selections]);
+  }, [watchlist, selectedPortfolioSizes, selections, isIndexMode]);
 
   // Detect if SPXW is in the watchlist (drives the conditional SPXW Score column)
   const spxwInWatchlist = useMemo(() =>

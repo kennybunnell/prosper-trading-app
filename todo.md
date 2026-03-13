@@ -8050,3 +8050,7 @@
 ## Bug Fixes (Mar 13, 2026)
 - [x] Fix charts.getHistory tRPC procedure not found — chartsRouter not registered in main routers.ts (was stale server cache; restart fixed it)
 - [x] Fix Lightweight Charts volume pane "incorrect ID: volume" error in BollingerChartPanel (LWC v5 requires chart.addPane() before addSeries on pane 1)
+
+## Bug Fixes (Mar 13, 2026 - Session 2)
+- [x] CSP dashboard returning 0 opportunities for equity tickers — root cause was isIndex filter missing from filteredWatchlist memo
+- [x] All dashboards (CSP, CC/BCS, IC, PMCC) now filter symbols by isIndex mode before scanning — equity mode only scans equities, index mode only scans indexes

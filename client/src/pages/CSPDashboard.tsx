@@ -497,9 +497,14 @@ export default function CSPDashboard() {
   );
   
   // Fetch opportunities (only when user clicks "Fetch Opportunities")
-  // Filter watchlist by selected portfolio sizes AND ticker selections
+  // Filter watchlist by selected portfolio sizes AND ticker selections AND equity/index mode
   const filteredWatchlist = useMemo(() => {
     let filtered = watchlist;
+
+    // CRITICAL: Only include symbols that match the current mode.
+    // Equity mode → exclude index tickers (SPXW, NDXP, MRUT, etc.)
+    // Index mode  → exclude equity tickers
+    filtered = filtered.filter((w: any) => !!w.isIndex === isIndexMode);
     
     // Filter by portfolio size
     if (portfolioSizeFilter.length < 3) {
@@ -518,7 +523,7 @@ export default function CSPDashboard() {
     }
     
     return filtered;
-  }, [watchlist, portfolioSizeFilter, selections]);
+  }, [watchlist, portfolioSizeFilter, selections, isIndexMode]);
 
   // Fetch CSP opportunities
   const { data: cspOpportunities = [], isLoading: loadingCSP, refetch: refetchCSP, error: cspError } = trpc.csp.opportunities.useQuery(
