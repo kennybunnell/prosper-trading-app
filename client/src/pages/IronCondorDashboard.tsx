@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
+import { BollingerChartPanel } from "@/components/BollingerChartPanel";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +37,7 @@ import {
   Minus,
   X,
   Download,
+  BarChart2,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
@@ -221,6 +223,7 @@ export default function IronCondorDashboard() {
   // Selection state
   const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
   const [showAIAdvisor, setShowAIAdvisor] = useState(false);
+  const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number } | null>(null);
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
 
   // Order preview modal
@@ -1444,7 +1447,14 @@ export default function IronCondorDashboard() {
                             {/* 3. Symbol */}
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-1.5">
-                                {opp.symbol}
+                                <span>{opp.symbol}</span>
+                                <button
+                                  title={`View ${opp.symbol} chart`}
+                                  onClick={() => setChartSymbol({ symbol: opp.symbol, strike: opp.putShortStrike })}
+                                  className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-700/50 transition-colors"
+                                >
+                                  <BarChart2 className="h-3.5 w-3.5" />
+                                </button>
                                 {(opp.symbol === 'SPXW' || opp.symbol === 'SPX') && (
                                   <Badge className="text-[10px] px-1 py-0 bg-amber-500/20 text-amber-400 border-amber-500/40">
                                     PM
@@ -1643,6 +1653,14 @@ export default function IronCondorDashboard() {
         orderStatuses={submissionStatuses}
         accountId={selectedAccountId || ''}
       />
+      {/* Bollinger Band Chart Slide-out */}
+      {chartSymbol && (
+        <BollingerChartPanel
+          symbol={chartSymbol.symbol}
+          strikePrice={chartSymbol.strike}
+          onClose={() => setChartSymbol(null)}
+        />
+      )}
     </div>
   );
 }

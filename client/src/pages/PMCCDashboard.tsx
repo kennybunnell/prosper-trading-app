@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign, Download, RefreshCw, Plus, Minus, Sparkles } from "lucide-react";
+import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign, Download, RefreshCw, Plus, Minus, Sparkles, BarChart2 } from "lucide-react";
+import { BollingerChartPanel } from "@/components/BollingerChartPanel";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { HelpBadge } from "@/components/HelpBadge";
@@ -153,6 +154,7 @@ export default function PMCCDashboard() {
   const [analyzingRowKey, setAnalyzingRowKey] = useState<string | null>(null);
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<any>(null);
   const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
+  const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number } | null>(null);
   
   // Range filter states (using range arrays like CSP/CC dashboards)
   const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
@@ -845,7 +847,7 @@ export default function PMCCDashboard() {
                                   className="border-2 border-muted-foreground data-[state=checked]:border-green-500 data-[state=checked]:bg-green-500"
                                 />
                               </td>
-                              <td className="p-2 font-medium">{leap.symbol}</td>
+                              <td className="p-2 font-medium"><div className="flex items-center gap-1.5"><span>{leap.symbol}</span><button title={`View ${leap.symbol} chart`} onClick={() => setChartSymbol({ symbol: leap.symbol, strike: leap.strike })} className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-700/50 transition-colors"><BarChart2 className="h-3.5 w-3.5" /></button></div></td>
                               <td className="p-2 text-right">${leap.strike.toFixed(2)}</td>
                               <td className="p-2">{leap.expiration}</td>
                               <td className="p-2 text-right">{leap.dte}</td>
@@ -1192,6 +1194,14 @@ export default function PMCCDashboard() {
             </div>
           </DialogContent>
         </Dialog>
+      {/* Bollinger Band Chart Slide-out */}
+      {chartSymbol && (
+        <BollingerChartPanel
+          symbol={chartSymbol.symbol}
+          strikePrice={chartSymbol.strike}
+          onClose={() => setChartSymbol(null)}
+        />
+      )}
       </div>
     </div>
   );

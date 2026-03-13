@@ -34,12 +34,14 @@ import {
   Minus,
   Plus,
   Wallet,
+  BarChart2,
 } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
+import { BollingerChartPanel } from "@/components/BollingerChartPanel";
 import { cn, exportToCSV } from "@/lib/utils";
 import {
   Dialog,
@@ -324,6 +326,7 @@ export default function CCDashboard() {
   // AI Analysis Modal state
   const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
   const [showAIAdvisor, setShowAIAdvisor] = useState(false);
+  const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number } | null>(null);
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{
     symbol: string;
     shortStrike: number;
@@ -3025,7 +3028,18 @@ export default function CCDashboard() {
                         </TableCell>
                         
                         {/* 3. Symbol */}
-                        <TableCell className="font-semibold">{opp.symbol}</TableCell>
+                        <TableCell className="font-semibold">
+                          <div className="flex items-center gap-1.5">
+                            <span>{opp.symbol}</span>
+                            <button
+                              title={`View ${opp.symbol} chart`}
+                              onClick={() => setChartSymbol({ symbol: opp.symbol, strike: opp.strike })}
+                              className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-700/50 transition-colors"
+                            >
+                              <BarChart2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </TableCell>
                         
                         {/* 4. Current Price */}
                         <TableCell className="text-right">
@@ -3329,6 +3343,14 @@ export default function CCDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Bollinger Band Chart Slide-out */}
+      {chartSymbol && (
+        <BollingerChartPanel
+          symbol={chartSymbol.symbol}
+          strikePrice={chartSymbol.strike}
+          onClose={() => setChartSymbol(null)}
+        />
+      )}
     </div>
   );
 }

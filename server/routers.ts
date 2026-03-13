@@ -26,6 +26,7 @@ import { taxRouter } from './routers-tax';
 import { portfolioAdvisorRouter } from './routers-portfolio-advisor';
 import { automationRouter } from './routers-automation';
 import { iraSafetyRouter } from './routers-ira-safety';
+import { chartsRouter } from './routers-charts';
 import { positionAnalyzerRouter } from './routers-position-analyzer';
 import { safeguardsRouter } from './routers-safeguards';
 
@@ -320,6 +321,7 @@ export const appRouter = router({
   portfolioAdvisor: portfolioAdvisorRouter,
   automation: automationRouter,
   iraSafety: iraSafetyRouter,
+  charts: chartsRouter,
   positionAnalyzer: positionAnalyzerRouter,
   safeguards: safeguardsRouter,
   rolls: rollsRouter,

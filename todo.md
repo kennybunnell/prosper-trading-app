@@ -8032,3 +8032,17 @@
 - [x] Root cause of NDXP cancellation: short call strike (24925) was ITM when NDX was above that level
 
 - [ ] Change order preview modal default quantity from auto-calculated max to 1, keep max as reference label
+
+## Bollinger Band Chart Slide-out Panel (Mar 13, 2026)
+- [x] Add Tradier historical OHLCV data tRPC endpoint (charts.getHistory)
+- [x] Implement server-side Bollinger Band calculation (20-period SMA, 2σ bands, %B)
+- [x] Build BollingerChartPanel component using Lightweight Charts v5 (candlestick + BB overlay + volume)
+- [x] Add chart icon button to CSP Dashboard scan result rows
+- [x] Add chart icon button to CC Dashboard scan result rows
+- [x] Add chart icon button to Iron Condor Dashboard scan result rows
+- [x] Add chart icon button to PMCC Dashboard scan result rows
+- [x] Show strike price as reference line on chart
+- [x] Show %B signal strip (Near Upper Band / Near Lower Band / Mid-Band Range)
+- [x] Add timeframe selector (1M / 3M / 6M / 1Y)
+- [x] Map index option roots to underlying (SPXW→SPX, NDXP→NDX, MRUT→RUT)
+- [x] Pre-existing test failures confirmed (market.test.ts, integration.trading-strategies.test.ts) - not caused by this feature

@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
+import { BollingerChartPanel } from "@/components/BollingerChartPanel";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +43,7 @@ import {
   X,
   Download,
   Sparkles,
+  BarChart2,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { RiskBadgeList } from "@/components/RiskBadge";
@@ -342,6 +344,7 @@ export default function CSPDashboard() {
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
   const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
   const [showAIAdvisor, setShowAIAdvisor] = useState(false);
+  const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number } | null>(null);
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{ symbol: string; strike: number; score: number; explanation: string | any[] } | null>(null);
   const [aiMode, setAiMode] = useState<'conservative' | 'aggressive'>('conservative');
   const [showTechnicalColumns, setShowTechnicalColumns] = useState(false);
@@ -2727,7 +2730,18 @@ export default function CSPDashboard() {
                                 </Tooltip>
                               </TooltipProvider>
                             </TableCell>
-                            <TableCell className="font-medium">{opp.symbol}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-1.5">
+                                <span>{opp.symbol}</span>
+                                <button
+                                  title={`View ${opp.symbol} chart`}
+                                  onClick={() => setChartSymbol({ symbol: opp.symbol, strike: opp.strike })}
+                                  className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-700/50 transition-colors"
+                                >
+                                  <BarChart2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </TableCell>
                             <TableCell>
                               <div className="flex flex-col text-xs">
                                 <span className="text-blue-400 font-semibold">${opp.strike.toFixed(2)}</span>
@@ -2792,7 +2806,18 @@ export default function CSPDashboard() {
                               </Badge>
                             </TableCell>
                             {/* Symbol */}
-                            <TableCell className="font-medium">{opp.symbol}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-1.5">
+                                <span>{opp.symbol}</span>
+                                <button
+                                  title={`View ${opp.symbol} chart`}
+                                  onClick={() => setChartSymbol({ symbol: opp.symbol, strike: opp.strike })}
+                                  className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-700/50 transition-colors"
+                                >
+                                  <BarChart2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </TableCell>
                             {/* Current */}
                             <TableCell>${opp.currentPrice.toFixed(2)}</TableCell>
                             {/* Strike */}
@@ -3127,6 +3152,14 @@ export default function CSPDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Bollinger Band Chart Slide-out */}
+      {chartSymbol && (
+        <BollingerChartPanel
+          symbol={chartSymbol.symbol}
+          strikePrice={chartSymbol.strike}
+          onClose={() => setChartSymbol(null)}
+        />
+      )}
       </div>
     </div>
   );
