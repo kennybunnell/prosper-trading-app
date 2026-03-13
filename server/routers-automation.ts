@@ -2326,4 +2326,149 @@ For howToExecute, write 3-5 numbered steps that teach the student EXACTLY how to
       // Return top 6 candidates with DTE window info
       return { candidates: candidates.slice(0, 6), dteWindowUsed, icTestedSide: isIC ? icTestedSide : undefined };
     }),
+
+  // ─── AI Strategy Review ───────────────────────────────────────────────────
+  // Analyzes a filtered set of scan-result positions for a given strategy type
+  // and returns a structured markdown analysis with close/hold/alert sections.
+  aiStrategyReview: protectedProcedure
+    .input(
+      z.object({
+        strategy: z.enum(['BPS', 'BCS', 'IC', 'CSP', 'CC', 'all']),
+        positions: z.array(
+          z.object({
+            symbol: z.string(),
+            type: z.string(),
+            optionSymbol: z.string(),
+            price: z.number(),
+            account: z.string(),
+            expiration: z.string(),
+            dte: z.number(),
+            premiumCollected: z.number(),
+            buyBackCost: z.number(),
+            netProfit: z.number(),
+            realizedPct: z.number(),
+            action: z.string(),
+            // Spread fields (optional)
+            spreadLongSymbol: z.string().optional(),
+            spreadShortStrike: z.number().optional(),
+            spreadLongStrike: z.number().optional(),
+          })
+        ),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('./_core/llm');
+
+      const { strategy, positions } = input;
+      if (positions.length === 0) {
+        return { analysis: 'No positions found for this strategy filter.' };
+      }
+
+      // Build compact position summaries for the LLM
+      const positionSummaries = positions.map(p => {
+        const base = {
+          symbol: p.symbol,
+          type: p.type,
+          expiration: p.expiration,
+          dte: p.dte,
+          premiumCollected: `$${p.premiumCollected.toFixed(2)}`,
+          buyBackCost: `$${p.buyBackCost.toFixed(2)}`,
+          netProfit: `$${p.netProfit.toFixed(2)}`,
+          realizedPct: `${p.realizedPct.toFixed(1)}%`,
+          action: p.action,
+        };
+        if (p.spreadShortStrike && p.spreadLongStrike) {
+          return {
+            ...base,
+            shortStrike: p.spreadShortStrike,
+            longStrike: p.spreadLongStrike,
+            spreadWidth: Math.abs(p.spreadShortStrike - p.spreadLongStrike),
+          };
+        }
+        return base;
+      });
+
+      const strategyLabel = strategy === 'all' ? 'mixed strategies' : strategy;
+      const readyToClose = positions.filter(p => p.action === 'WOULD_CLOSE');
+      const holdPositions = positions.filter(p => p.action !== 'WOULD_CLOSE');
+
+      const systemPrompt = `You are an expert options trading analyst and risk manager specializing in premium-selling strategies (CSP, CC, BPS, BCS, Iron Condors). 
+You are reviewing a set of open positions that a trader is considering closing for profit. Your job is to:
+1. Validate whether each "Ready to Close" position is genuinely the right time to close
+2. Identify any positions that should be closed URGENTLY (gamma risk, earnings approaching, unusual buy-back cost spike)
+3. Flag any positions that look problematic (e.g., realized% is negative, DTE is very low with large unrealized loss, spread is dangerously narrow)
+4. Provide a concise, actionable plain-English summary
+
+Format your response in clean Markdown with these exact sections:
+## ✅ Close Recommendations
+List each position recommended to close with a 1-sentence reason.
+
+## ⏸ Hold Recommendations  
+List positions that should stay open with a 1-sentence reason.
+
+## ⚠️ Risk Alerts
+List any positions with concerning characteristics (earnings risk, gamma risk, unusual cost, etc.).
+
+## 📊 Overall Summary
+A 2-3 sentence plain-English assessment of the overall health of this strategy group.
+
+Be specific — use actual numbers (DTE, realized%, premium amounts). Do not be generic.`;
+
+      const userPrompt = `Strategy filter: ${strategyLabel}
+Total positions: ${positions.length} (${readyToClose.length} flagged Ready to Close, ${holdPositions.length} on Hold)
+
+Position data:
+${JSON.stringify(positionSummaries, null, 2)}`;
+
+      const response = await invokeLLM({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      });
+
+      const analysis = response.choices?.[0]?.message?.content ?? 'Unable to generate analysis.';
+      return { analysis };
+    }),
+
+  // Follow-up chat for the AI Strategy Review panel
+  aiStrategyFollowUp: protectedProcedure
+    .input(
+      z.object({
+        strategy: z.enum(['BPS', 'BCS', 'IC', 'CSP', 'CC', 'all']),
+        initialAnalysis: z.string(),
+        conversationHistory: z.array(
+          z.object({
+            role: z.enum(['user', 'assistant']),
+            content: z.string(),
+          })
+        ),
+        userMessage: z.string().max(2000),
+        // Compact position context for follow-up questions
+        positionContext: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('./_core/llm');
+
+      const systemPrompt = `You are an expert options trading analyst reviewing ${input.strategy === 'all' ? 'mixed strategy' : input.strategy} positions.
+You already provided an initial analysis. The trader has a follow-up question.
+Context of the positions being reviewed:
+${input.positionContext}
+
+Your initial analysis was:
+${input.initialAnalysis}
+
+Answer the trader's follow-up question concisely and specifically. Use actual numbers from the position data when relevant. Format in Markdown.`;
+
+      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+        { role: 'system', content: systemPrompt },
+        ...input.conversationHistory,
+        { role: 'user', content: input.userMessage },
+      ];
+
+      const response = await invokeLLM({ messages });
+      const reply = response.choices?.[0]?.message?.content ?? 'Unable to generate response.';
+      return { reply };
+    }),
 });

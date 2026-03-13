@@ -17,7 +17,8 @@ import { Badge } from '@/components/ui/badge';
 import {
   Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle,
   TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2, Square, CheckSquare, Send, ShoppingCart,
-  Power, Settings2, RefreshCw, BarChart3, GitMerge, Zap, Lock, Unlock, Download, Timer, ExternalLink, Activity, Mail
+  Power, Settings2, RefreshCw, BarChart3, GitMerge, Zap, Lock, Unlock, Download, Timer, ExternalLink, Activity, Mail,
+  Sparkles
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterPill } from '@/components/FilterPill';
@@ -39,6 +40,7 @@ import { Link } from 'wouter';
 import { Separator } from '@/components/ui/separator';
 import InboxPage from './Inbox';
 import { skipToken } from '@tanstack/react-query';
+import { AIStrategyReviewPanel, ReviewPosition, StrategyType } from '@/components/AIStrategyReviewPanel';
 
 type ScanResult = {
   account: string;
@@ -354,6 +356,9 @@ export default function AutomationDashboard() {
   const [scanSortCol, setScanSortCol] = useState<string>('realizedPercent');
   const [scanSortDir, setScanSortDir] = useState<'asc' | 'desc'>('desc');
   const [scanTypeFilter, setScanTypeFilter] = useState<string>('all');
+  // AI Strategy Review Panel state
+  const [aiReviewStrategy, setAiReviewStrategy] = useState<StrategyType | null>(null);
+  const [aiReviewPositions, setAiReviewPositions] = useState<ReviewPosition[]>([]);
   // Ref to always-current visibleScanResults — used by handleOpenOrderPreview
   // (which is declared before the useMemo that computes visibleScanResults)
   const visibleScanResultsRef = useRef<ScanResult[]>([]);
@@ -1694,16 +1699,57 @@ export default function AutomationDashboard() {
                     ? `Filter to ${t} positions (${flaggedCount} ready to close). Use checkboxes to select.`
                     : undefined;
 
+                  const handleAiReviewClick = (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    // Build ReviewPosition array from all visible positions of this type
+                    const positionsForReview: ReviewPosition[] = visibleOfType.map(r => {
+                      const occMatch = r.optionSymbol.match(/([CP])(\d{8})$/);
+                      const shortStrike = occMatch ? parseInt(occMatch[2], 10) / 1000 : undefined;
+                      const longOccMatch = r.spreadLongSymbol?.match(/([CP])(\d{8})$/);
+                      const longStrike = longOccMatch ? parseInt(longOccMatch[2], 10) / 1000 : undefined;
+                      return {
+                        symbol: r.symbol,
+                        type: r.type,
+                        optionSymbol: r.optionSymbol,
+                        price: r.buyBackCost / (r.quantity * 100),
+                        account: r.account,
+                        expiration: r.expiration ?? '',
+                        dte: r.dte ?? 0,
+                        premiumCollected: r.premiumCollected,
+                        buyBackCost: r.buyBackCost,
+                        netProfit: r.premiumCollected - r.buyBackCost,
+                        realizedPct: r.realizedPercent,
+                        action: r.action,
+                        spreadLongSymbol: r.spreadLongSymbol,
+                        spreadShortStrike: shortStrike,
+                        spreadLongStrike: longStrike,
+                      };
+                    });
+                    setAiReviewPositions(positionsForReview);
+                    setAiReviewStrategy(t as StrategyType);
+                  };
+
                   return (
-                    <FilterPill
-                      key={t}
-                      label={pillLabel}
-                      count={count}
-                      selected={scanTypeFilter === t}
-                      variant={variantMap2[t] ?? 'default'}
-                      title={pillTitle}
-                      onClick={handlePillClick}
-                    />
+                    <div key={t} className="inline-flex items-center gap-0.5">
+                      <FilterPill
+                        label={pillLabel}
+                        count={count}
+                        selected={scanTypeFilter === t}
+                        variant={variantMap2[t] ?? 'default'}
+                        title={pillTitle}
+                        onClick={handlePillClick}
+                      />
+                      {t !== 'all' && count > 0 && (
+                        <button
+                          type="button"
+                          title={`AI Strategy Review: Analyze all ${count} ${t} positions`}
+                          onClick={handleAiReviewClick}
+                          className="inline-flex items-center justify-center w-5 h-5 rounded-full text-orange-400/60 hover:text-orange-400 hover:bg-orange-500/15 transition-all duration-150 cursor-pointer"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -3146,6 +3192,15 @@ export default function AutomationDashboard() {
             setOrderSubmissionComplete(complete);
             setOrderFinalStatus(status);
           }}
+        />
+      )}
+
+      {/* AI Strategy Review Panel — slide-out overlay */}
+      {aiReviewStrategy && (
+        <AIStrategyReviewPanel
+          strategy={aiReviewStrategy}
+          positions={aiReviewPositions}
+          onClose={() => setAiReviewStrategy(null)}
         />
       )}
 

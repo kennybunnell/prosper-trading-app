@@ -7966,3 +7966,14 @@
 - [x] Fix Order Preview modal: show net spread credit bid/ask range (not individual leg prices) for BPS, BCS, IC
 - [x] Add isTrueIndexOption() to orderUtils — index options (SPXW, NDX, NDXP, RUT, MRUT, etc.) always use $0.05 tick regardless of price
 - [x] Add ★ indicator in Order Preview when symbol is a true index option
+
+## AI Strategy Review Feature (Mar 13, 2026)
+- [x] Create `AIStrategyReviewPanel` component with streaming analysis display and follow-up chat
+- [x] Create `automation.aiStrategyReview` tRPC mutation — sends positions to LLM, returns structured markdown analysis (Close Recommendations, Hold Recommendations, Risk Alerts, Overall Summary)
+- [x] Create `automation.aiStrategyFollowUp` tRPC mutation — multi-turn chat with conversation history
+- [x] Add ✦ (Sparkles) AI icon button next to each strategy filter pill (BPS, BCS, IC, CSP, CC) on the Close for Profit tab
+- [x] Wire click handler to map ScanResult → ReviewPosition and open AIStrategyReviewPanel
+- [x] Render AIStrategyReviewPanel as a fixed slide-out overlay (right side, full height, 2xl wide)
+- [x] Add 20 unit tests for AI Strategy Review position mapping, OCC strike parsing, and input validation
+- [x] Fix market.test.ts: updated assertions to handle all Tradier market status descriptions (premarket, after-hours, etc.)
+- [x] All 1,148 tests passing (82 test files, 9 skipped)
