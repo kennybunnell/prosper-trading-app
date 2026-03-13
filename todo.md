@@ -7984,3 +7984,10 @@
 - [x] Fix: Pass opp.optionSymbol (Tradier raw symbol, e.g. 'SPXW260323P06325000') through the order object as scanOptionSymbol
 - [x] Fix: Extract real ticker from scanOptionSymbol (SPXW) and use it to build correct OCC symbol for Tastytrade
 - [x] Applies to both CSP single-leg and BPS/spread two-leg orders
+
+## ✅ Bug Fix: Market Hours Check AbortError (Mar 13, 2026)
+- [x] Fixed "signal is aborted without reason" error surfacing to user on /cc page
+- [x] Root cause: Tradier TLS handshake took >5s, triggering AbortController timeout; console.error was captured by debug overlay and shown as user-visible error
+- [x] Fix 1: Changed console.error to console.warn in checkMarketHours catch block (AbortError is expected/handled, not a real error)
+- [x] Fix 2: Increased client-side AbortController timeout from 5s to 10s for both market check and safeguard pre-trade check
+- [x] Fix 3: Added 4-second server-side Promise.race timeout on Tradier market status call so server responds well within client window

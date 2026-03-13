@@ -658,7 +658,7 @@ export function UnifiedOrderPreviewModal({
         });
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
         try {
           const resp = await fetch(`/api/trpc/safeguards.preTradeCheck?${params.toString()}`, { signal: controller.signal });
           clearTimeout(timeoutId);
@@ -698,9 +698,9 @@ export function UnifiedOrderPreviewModal({
     try {
       console.log('[Market Hours Check] Fetching market status...');
       
-      // Call API endpoint with 5 second timeout
+      // Call API endpoint with 10 second timeout (Tradier TLS handshake can be slow)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       
       const response = await fetch('/api/trpc/market.getMarketStatus', {
         signal: controller.signal
@@ -733,13 +733,14 @@ export function UnifiedOrderPreviewModal({
       
       return true; // Allow submission
     } catch (error: any) {
-      console.error('[Market Hours Check] Error:', error);
-      
-      // If timeout or network error, fail open and allow submission
+      // Use console.warn (not console.error) for expected transient failures so the
+      // debug overlay doesn't surface these as user-visible errors.
+      // AbortError = timeout; other errors = network/TLS issues — both are handled by
+      // failing open (allowing the submission to proceed).
       if (error.name === 'AbortError') {
-        console.warn('[Market Hours Check] Request timed out after 5 seconds, allowing submission');
+        console.warn('[Market Hours Check] Request timed out after 10 seconds, allowing submission');
       } else {
-        console.warn('[Market Hours Check] Failed to check market status, allowing submission');
+        console.warn('[Market Hours Check] Failed to check market status, allowing submission:', error?.message);
       }
       
       return true; // Allow submission on error (fail open)
