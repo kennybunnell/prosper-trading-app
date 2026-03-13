@@ -4,6 +4,7 @@
  */
 
 import { protectedProcedure, router } from "./_core/trpc";
+import { withRateLimit } from './tradierRateLimiter';
 import { TRPCError } from '@trpc/server';
 import { z } from "zod";
 import * as schema from '../drizzle/schema';
@@ -349,9 +350,11 @@ export const ccRouter = router({
                 try {
                   console.log(`[CC Scanner DEBUG] ${symbol} ${expiration}: Fetching option chain (via ${tradierRoot})...`);
                   // Use tradierRoot for option chain (e.g. SPX for SPXW, NDX for NDXP)
-                  const options = await withTimeout(
-                    api.getOptionChain(tradierRoot, expiration, true),
-                    API_TIMEOUT_MS
+                  const options = await withRateLimit(() =>
+                    withTimeout(
+                      api.getOptionChain(tradierRoot, expiration, true),
+                      API_TIMEOUT_MS
+                    )
                   );
                   console.log(`[CC Scanner DEBUG] ${symbol} ${expiration}: Received ${options.length} total options from Tradier API`);
                   

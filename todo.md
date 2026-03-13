@@ -8079,3 +8079,13 @@
 - [x] BPS/Spread scanner: replaced CONCURRENT_CHAINS=5 sequential batching with fully parallel Promise.allSettled
 - [x] PMCC scanner: replaced sequential for loop over LEAP expirations with parallel Promise.allSettled
 - [x] CSP scanner (tradier.ts): already uses Promise.allSettled per symbol — confirmed no change needed
+
+## BCS Timeout Investigation (Mar 13, 2026)
+- [ ] BCS returning 0 opportunities and timing out — started after charts capability was added
+- [ ] Check if getTechnicalIndicators is being called during BCS scan (adds extra Tradier API calls per symbol)
+
+## BCS/Scanner Rate Limit Fix (Mar 13, 2026)
+- [x] Root cause: fully parallel chain fetches (64 simultaneous requests) overwhelm Tradier connection pool and time out
+- [x] Fix: created shared tradierRateLimiter.ts semaphore capping all concurrent option chain fetches at 6 across ALL scanners
+- [x] Applied withRateLimit() wrapper to: CC scanner (routers-cc.ts), IC scanner (routers.ts), BPS/Spread scanner (routers.ts), PMCC scanner (routers-pmcc.ts), CSP scanner (tradier.ts)
+- [x] 0 TypeScript errors confirmed

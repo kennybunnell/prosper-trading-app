@@ -732,10 +732,11 @@ export class TradierAPI {
         // Collect IV values from all options to calculate IV Rank
         const allIVValues: number[] = [];
 
-        // Fetch all expiration chains in PARALLEL for speed (was sequential)
+        // Fetch all expiration chains in PARALLEL for speed — rate-limited to 6 concurrent across all scanners
         console.log(`[CSP fetchSymbolOpportunities] ${symbol}: fetching ${filteredExpirations.length} chains in parallel`);
+        const { withRateLimit } = await import('./tradierRateLimiter');
         const chainResults = await Promise.allSettled(
-          filteredExpirations.map(exp => this.getOptionChain(tradierOptionRoot, exp, true))
+          filteredExpirations.map(exp => withRateLimit(() => this.getOptionChain(tradierOptionRoot, exp, true)))
         );
 
         const targetRoot = tradierOptionRoot !== symbol ? symbol : null;

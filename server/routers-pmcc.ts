@@ -6,6 +6,7 @@
 import { protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { withRateLimit } from './tradierRateLimiter';
 
 export type LeapOpportunity = {
   symbol: string;
@@ -149,7 +150,7 @@ export const pmccRouter = router({
             const symbolOpportunities: LeapOpportunity[] = [];
 
             await Promise.allSettled(leapExpirations.map(async (expiration) => {
-              const chain = await api.getOptionChain(symbol, expiration);
+              const chain = await withRateLimit(() => api.getOptionChain(symbol, expiration));
               const calls = chain.filter((opt) => opt.option_type === "call");
 
               // Calculate DTE
@@ -696,9 +697,15 @@ export const pmccRouter = router({
 
           console.log(`[PMCC Short Call Scanner] ${leap.symbol}: Found ${validExpirations.length} valid expirations (${input.minDte}-${input.maxDte} DTE)`);
 
-          // Get option chains for each expiration
-          for (const expiration of validExpirations) {
-            const chain = await api.getOptionChain(leap.symbol, expiration, true);
+          // Get option chains for each expiration — rate-limited to avoid Tradier throttling
+          const shortCallChains = await Promise.allSettled(
+            validExpirations.map(exp => withRateLimit(() => api.getOptionChain(leap.symbol, exp, true)))
+          );
+          for (let _ei = 0; _ei < validExpirations.length; _ei++) {
+            const expiration = validExpirations[_ei];
+            const chainResult = shortCallChains[_ei];
+            if (chainResult.status === 'rejected') continue;
+            const chain = chainResult.value;
             
             if (!chain || !Array.isArray(chain)) {
               continue;

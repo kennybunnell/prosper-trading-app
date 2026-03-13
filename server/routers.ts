@@ -1,4 +1,5 @@
 import { COOKIE_NAME } from "@shared/const";
+import { withRateLimit } from './tradierRateLimiter';
 import { addPartitionedAttribute, getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
@@ -2720,7 +2721,7 @@ Summary: [One sentence overall assessment]`;
         await Promise.allSettled(
           chainEntries.map(async ([key, { symbol, expiration }]) => {
             try {
-              const options = await api.getOptionChain(symbol, expiration, true);
+              const options = await withRateLimit(() => api.getOptionChain(symbol, expiration, true));
               chainCache.set(key, options);
               console.log(`[Iron Condor] Cached chain for ${symbol} ${expiration} (${options.length} contracts)`);
             } catch (error) {
@@ -3089,9 +3090,10 @@ Summary: [One sentence overall assessment]`;
         await Promise.allSettled(
           chainEntries2.map(async ([key, { symbol, expiration }]) => {
             try {
-              const options = await api.getOptionChain(symbol, expiration, true);
+              const options = await withRateLimit(() => api.getOptionChain(symbol, expiration, true));
               chainCache.set(key, options);
               console.log(`[Spread] Cached chain for ${symbol} ${expiration} (${options.length} contracts)`);
+
             } catch (error) {
               console.error(`[Spread] Failed to fetch chain for ${symbol} ${expiration}:`, error);
               chainCache.set(key, []); // Cache empty array to avoid retry
