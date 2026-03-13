@@ -7977,3 +7977,10 @@
 - [x] Add 20 unit tests for AI Strategy Review position mapping, OCC strike parsing, and input validation
 - [x] Fix market.test.ts: updated assertions to handle all Tradier market status descriptions (premarket, after-hours, etc.)
 - [x] All 1,148 tests passing (82 test files, 9 skipped)
+
+## ✅ Bug Fix: SPX/SPXW Order Submission (Mar 13, 2026)
+- [x] Fixed "Trading of SPX   260323P06480000 is not supported" error
+- [x] Root cause: CSP dashboard was using opp.symbol (tradierOptionRoot = 'SPX') to build OCC symbols, producing 'SPX   ...' instead of 'SPXW  ...'
+- [x] Fix: Pass opp.optionSymbol (Tradier raw symbol, e.g. 'SPXW260323P06325000') through the order object as scanOptionSymbol
+- [x] Fix: Extract real ticker from scanOptionSymbol (SPXW) and use it to build correct OCC symbol for Tastytrade
+- [x] Applies to both CSP single-leg and BPS/spread two-leg orders

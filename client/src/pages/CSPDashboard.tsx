@@ -943,6 +943,10 @@ export default function CSPDashboard() {
       longAsk: strategyType === 'spread' ? (opp as any).longAsk : undefined,
       spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
       capitalAtRisk: strategyType === 'spread' ? (opp as any).capitalAtRisk : undefined,
+      // Pass through the Tradier option symbol so executeOrderSubmission can derive the correct
+      // OCC ticker (e.g. SPXW) instead of re-building from opp.symbol (which may be SPX, the
+      // tradierOptionRoot, causing Tastytrade to reject the order).
+      scanOptionSymbol: (opp as any).optionSymbol as string | undefined,
     }));
 
     validateOrders.mutate({
@@ -1004,18 +1008,34 @@ export default function CSPDashboard() {
       // Round premium to nearest $0.05 (Tastytrade requirement)
       const roundToNickel = (price: number) => Math.round(price * 20) / 20;
       
-      // Helper function to build option symbol
-      const buildOptionSymbol = (symbol: string, expiration: string, strike: number) => {
+      // Helper function to build OCC option symbol.
+      // When a Tradier optionSymbol is available (e.g. 'SPXW260323P06325000'), we extract the
+      // real ticker from it (SPXW) so the OCC symbol sent to Tastytrade uses the correct root
+      // (e.g. 'SPXW  260323P06480000') instead of the tradierOptionRoot (SPX) which Tastytrade
+      // rejects with "Trading of SPX   ... is not supported".
+      const buildOptionSymbol = (
+        symbol: string,
+        expiration: string,
+        strike: number,
+        optionType: 'P' | 'C' = 'P',
+        tradierOptionSymbol?: string
+      ) => {
         const expFormatted = expiration.replace(/-/g, ''); // YYYYMMDD
         const expShort = expFormatted.substring(2); // YYMMDD
         const strikeFormatted = (strike * 1000).toString().padStart(8, '0');
-        const ticker = symbol.padEnd(6, ' ');
-        return `${ticker}${expShort}P${strikeFormatted}`;
+        // If we have the raw Tradier symbol, extract the actual ticker from it.
+        // Tradier format (no spaces): TICKER + YYMMDD + P/C + 8-digit-strike  (15 suffix chars)
+        let ticker = symbol;
+        if (tradierOptionSymbol && tradierOptionSymbol.length > 15) {
+          ticker = tradierOptionSymbol.slice(0, tradierOptionSymbol.length - 15);
+        }
+        return `${ticker.padEnd(6, ' ')}${expShort}${optionType}${strikeFormatted}`;
       };
       
       const orderLegs = orders.map((order, idx) => {
       const orderKey = `${order.symbol}-${order.strike}-${order.expiration}`;
       const quantity = quantities.get(orderKey) || 1;
+      const scanOptionSymbol = (order as any).scanOptionSymbol as string | undefined;
       
       // Check if this is a spread order
       const isSpread = !!order.longStrike || strategyType === 'spread';
@@ -1031,12 +1051,12 @@ export default function CSPDashboard() {
           quantity,
           // Leg 1: Sell to Open (short put at higher strike)
           shortLeg: {
-            optionSymbol: buildOptionSymbol(order.symbol, order.expiration, order.strike),
+            optionSymbol: buildOptionSymbol(order.symbol, order.expiration, order.strike, 'P', scanOptionSymbol),
             action: 'Sell to Open' as const,
           },
           // Leg 2: Buy to Open (long put at lower strike)
           longLeg: {
-            optionSymbol: buildOptionSymbol(order.symbol, order.expiration, order.longStrike || (order.strike - spreadWidth)),
+            optionSymbol: buildOptionSymbol(order.symbol, order.expiration, order.longStrike || (order.strike - spreadWidth), 'P', scanOptionSymbol),
             action: 'Buy to Open' as const,
           },
         };
@@ -1049,7 +1069,7 @@ export default function CSPDashboard() {
           premium: roundToNickel(order.premium),
           isSpread: false,
           quantity,
-          optionSymbol: buildOptionSymbol(order.symbol, order.expiration, order.strike),
+          optionSymbol: buildOptionSymbol(order.symbol, order.expiration, order.strike, 'P', scanOptionSymbol),
           action: 'Sell to Open' as const,
         };
       }
