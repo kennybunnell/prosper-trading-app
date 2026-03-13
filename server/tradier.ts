@@ -771,6 +771,15 @@ export class TradierAPI {
             // Validate data
             if (bid <= 0 || strike <= 0) continue;
 
+            // Hard structural filter: reject ITM puts (strike >= current price).
+            // An ITM short put has intrinsic value, making it unsuitable as a
+            // cash-secured put — the premium collected would not compensate for
+            // immediate assignment risk and the position would show an instant loss.
+            if (strike >= underlyingPrice) {
+              console.log(`[CSP Scanner] Skipping ITM put ${symbol} ${expiration} strike ${strike} (price=${underlyingPrice})`);
+              continue;
+            }
+
             // Calculate DTE
             const expDate = new Date(put.expiration_date);
             const dte = Math.floor((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));

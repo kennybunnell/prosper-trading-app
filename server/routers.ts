@@ -2755,6 +2755,14 @@ Summary: [One sentence overall assessment]`;
         for (const cspOpp of cspOpportunities) {
           try {
             bpsAttempts++;
+            // Hard structural filter: short put must be OTM (strike < current price).
+            // The CSP scanner now enforces this too, but guard here as well in case
+            // cspOpportunities comes from a path that bypasses that filter.
+            if (cspOpp.strike >= cspOpp.currentPrice) {
+              console.log(`[BPS Scanner] Skipping ITM short put ${cspOpp.symbol} strike ${cspOpp.strike} (price=${cspOpp.currentPrice})`);
+              bpsNoCredit++;
+              continue;
+            }
             const effectiveWidth = getEffectiveWidth(cspOpp.symbol);
             const longStrike = cspOpp.strike - effectiveWidth;
             const key = `${cspOpp.symbol}|${cspOpp.expiration}`;
@@ -2785,9 +2793,12 @@ Summary: [One sentence overall assessment]`;
               }
             );
             
-            if (spreadOpp.netCredit > 0) {
+            const bpsWidth = spreadOpp.spreadWidth || effectiveWidth;
+            const bpsCreditRatio = bpsWidth > 0 ? spreadOpp.netCredit / bpsWidth : 0;
+            if (spreadOpp.netCredit > 0 && bpsCreditRatio <= 0.80) {
               bullPutSpreads.set(key, spreadOpp);
             } else {
+              if (bpsCreditRatio > 0.80) console.log(`[IC BPS] Rejecting ${cspOpp.symbol} strike ${cspOpp.strike}: credit/width ${(bpsCreditRatio*100).toFixed(0)}% > 80%`);
               bpsNoCredit++;
             }
           } catch (error) {
@@ -2873,8 +2884,12 @@ Summary: [One sentence overall assessment]`;
               }
             );
             
-            if (spreadOpp.netCredit > 0) {
+            const bcsWidth = spreadOpp.spreadWidth || bcsEffectiveWidth;
+            const bcsCreditRatio = bcsWidth > 0 ? spreadOpp.netCredit / bcsWidth : 0;
+            if (spreadOpp.netCredit > 0 && bcsCreditRatio <= 0.80) {
               bearCallSpreads.set(key, spreadOpp);
+            } else if (bcsCreditRatio > 0.80) {
+              console.log(`[IC BCS] Rejecting ${bps.symbol} strike ${ccOpp.strike}: credit/width ${(bcsCreditRatio*100).toFixed(0)}% > 80%`);
             }
           } catch (error) {
             console.error(`[Iron Condor] Error calculating BCS for ${bps.symbol}:`, error);
@@ -3116,6 +3131,13 @@ Summary: [One sentence overall assessment]`;
         
         for (const cspOpp of cspOpportunities) {
           try {
+            // Hard structural filter: short put must be OTM (strike < current price).
+            // ITM puts have intrinsic value and would produce an unrealistically high
+            // credit-to-width ratio, indicating a deep ITM or stale-priced spread.
+            if (cspOpp.strike >= cspOpp.currentPrice) {
+              console.log(`[BPS Standalone] Skipping ITM short put ${cspOpp.symbol} strike ${cspOpp.strike} (price=${cspOpp.currentPrice})`);
+              continue;
+            }
             // Calculate long strike (protective put)
             // Use auto-scaled effective width for large-priced indexes (NDX, MRUT) to avoid
             // landing on a strike 200pt away when only 100pt increments exist.
@@ -3171,9 +3193,15 @@ Summary: [One sentence overall assessment]`;
               }
             );
             
-            // Only include if net credit is positive
-            if (spreadOpp.netCredit > 0) {
+            // Only include if net credit is positive AND structurally sound.
+            // Credit-to-width sanity check: reject spreads where net credit > 80% of spread width.
+            // A credit exceeding 80% of max profit signals the spread is deep ITM or prices are stale.
+            // (A fair OTM credit spread typically collects 15-40% of width.)
+            const creditToWidthRatio = actualSpreadWidth > 0 ? spreadOpp.netCredit / actualSpreadWidth : 0;
+            if (spreadOpp.netCredit > 0 && creditToWidthRatio <= 0.80) {
               spreadOpportunities.push(spreadOpp);
+            } else if (creditToWidthRatio > 0.80) {
+              console.log(`[BPS Standalone] Rejecting ${cspOpp.symbol} strike ${cspOpp.strike}: credit/width ${(creditToWidthRatio*100).toFixed(0)}% > 80% (ITM or stale prices)`);
             }
           } catch (error) {
             console.error(`[Spread] Error calculating spread for ${cspOpp.symbol}:`, error);

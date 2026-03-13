@@ -647,14 +647,19 @@ export const ccRouter = router({
                   }
                 );
                 
-                // Only include if net credit is positive
-                if (spreadOpp.netCredit > 0) {
+                // Only include if net credit is positive AND structurally sound.
+                // Credit-to-width sanity check: reject spreads where net credit > 80% of spread width.
+                // A credit exceeding 80% of max profit signals the spread is deep ITM or prices are stale.
+                const bcsCreditRatio = actualWidth > 0 ? spreadOpp.netCredit / actualWidth : 0;
+                if (spreadOpp.netCredit > 0 && bcsCreditRatio <= 0.80) {
                   // Use BCS-specific scoring (not CC scoring)
                   const { calculateBCSScore } = await import('./bcs-scoring');
                   const { score, breakdown } = calculateBCSScore(spreadOpp, { isIndexMode: input.isIndexMode ?? false });
                   spreadOpp.score = score;
                   (spreadOpp as any).scoreBreakdown = breakdown;
                   spreadOpportunities.push(spreadOpp);
+                } else if (bcsCreditRatio > 0.80) {
+                  console.log(`[BCS] Rejecting ${ccOpp.symbol} strike ${ccOpp.strike}: credit/width ${(bcsCreditRatio*100).toFixed(0)}% > 80% (ITM or stale prices)`);
                 }
               } catch (error) {
                 console.error(`[BearCallSpread] Error calculating spread for ${ccOpp.symbol} ${ccOpp.strike}:`, error);

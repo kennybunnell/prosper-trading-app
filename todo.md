@@ -8001,3 +8001,32 @@
 - [x] Fixed automation close orders in routers-automation.ts
 - [x] Fixed live order submission in routers.ts (BPS/CSP/IC)
 - [x] Updated dog-forced-exit.test.ts to reflect correct behavior
+
+## 🔒 Structural Validity Filters for All Spread Scanners (Mar 13, 2026)
+- [ ] BCS scanner: hard filter — reject short calls where strike <= current price (ITM)
+- [ ] BCS scanner: hard filter — reject zero/negative net credit spreads
+- [ ] BCS scanner: hard filter — reject inverted spreads (long strike <= short strike)
+- [ ] BCS scanner: sanity check — reject if credit > 80% of spread width (likely stale/ITM)
+- [ ] BPS scanner: hard filter — reject short puts where strike >= current price (ITM)
+- [ ] BPS scanner: hard filter — reject zero/negative net credit spreads
+- [ ] BPS scanner: sanity check — reject if credit > 80% of spread width
+- [ ] IC scanner: hard filter — reject ITM short strikes on both call and put legs
+- [ ] IC scanner: validate both legs are OTM before scoring
+- [ ] CSP scanner: hard filter — reject short puts where strike >= current price (ITM)
+- [ ] CC scanner: hard filter — reject short calls where strike <= current price (ITM)
+- [ ] All scanners: log rejected spreads with reason for debugging
+- [ ] Write vitest tests for all new structural validity filters
+
+## ✅ Structural Validity Filters (Mar 13, 2026)
+- [x] Audit all 5 scanners (CC, BCS, CSP, BPS, IC) for ITM and structural validity gaps
+- [x] Add ITM short put filter to CSP scanner (tradier.ts) — rejects puts where strike >= currentPrice
+- [x] Add ITM short put filter to standalone BPS scanner (routers.ts) — double-guard on top of CSP filter
+- [x] Add ITM short put filter to IC BPS path (routers.ts) — same guard in IC scanner loop
+- [x] Add credit-to-width sanity check (max 80%) to BCS scanner (routers-cc.ts)
+- [x] Add credit-to-width sanity check (max 80%) to standalone BPS scanner (routers.ts)
+- [x] Add credit-to-width sanity check (max 80%) to IC BPS scanner (routers.ts)
+- [x] Add credit-to-width sanity check (max 80%) to IC BCS scanner (routers.ts)
+- [x] Write 22 unit tests covering all structural validity filter scenarios
+- [x] Confirmed: CC scanner already had OTM filter for short calls (line 384 of routers-cc.ts)
+- [x] Confirmed: all spread scanners already had netCredit > 0 check
+- [x] Root cause of NDXP cancellation: short call strike (24925) was ITM when NDX was above that level
