@@ -2715,13 +2715,10 @@ Summary: [One sentence overall assessment]`;
         
         console.log(`[Iron Condor] Fetching ${uniqueChains.size} unique option chains...`);
         
-        // Fetch all chains in parallel (with concurrency limit)
-        const CONCURRENT_CHAINS = 5;
+        // Fetch ALL chains fully in parallel — no sequential batching
         const chainEntries = Array.from(uniqueChains.entries());
-        
-        for (let i = 0; i < chainEntries.length; i += CONCURRENT_CHAINS) {
-          const batch = chainEntries.slice(i, i + CONCURRENT_CHAINS);
-          const batchPromises = batch.map(async ([key, { symbol, expiration }]) => {
+        await Promise.allSettled(
+          chainEntries.map(async ([key, { symbol, expiration }]) => {
             try {
               const options = await api.getOptionChain(symbol, expiration, true);
               chainCache.set(key, options);
@@ -2730,9 +2727,8 @@ Summary: [One sentence overall assessment]`;
               console.error(`[Iron Condor] Failed to fetch chain for ${symbol} ${expiration}:`, error);
               chainCache.set(key, []); // Cache empty array to avoid retry
             }
-          });
-          await Promise.all(batchPromises);
-        }
+          })
+        );
         
         console.log(`[Iron Condor] Cached ${chainCache.size} option chains, now calculating spreads...`);
         
@@ -3088,13 +3084,10 @@ Summary: [One sentence overall assessment]`;
         
         console.log(`[Spread] Fetching ${uniqueChains.size} unique option chains for ${cspOpportunities.length} opportunities`);
         
-        // Fetch all chains in parallel (with concurrency limit)
-        const CONCURRENT_CHAINS = 5;
-        const chainEntries = Array.from(uniqueChains.entries());
-        
-        for (let i = 0; i < chainEntries.length; i += CONCURRENT_CHAINS) {
-          const batch = chainEntries.slice(i, i + CONCURRENT_CHAINS);
-          const batchPromises = batch.map(async ([key, { symbol, expiration }]) => {
+        // Fetch ALL chains fully in parallel — no sequential batching
+        const chainEntries2 = Array.from(uniqueChains.entries());
+        await Promise.allSettled(
+          chainEntries2.map(async ([key, { symbol, expiration }]) => {
             try {
               const options = await api.getOptionChain(symbol, expiration, true);
               chainCache.set(key, options);
@@ -3103,9 +3096,8 @@ Summary: [One sentence overall assessment]`;
               console.error(`[Spread] Failed to fetch chain for ${symbol} ${expiration}:`, error);
               chainCache.set(key, []); // Cache empty array to avoid retry
             }
-          });
-          await Promise.all(batchPromises);
-        }
+          })
+        );
         
         console.log(`[Spread] Cached ${chainCache.size} option chains, now calculating spreads...`);
         

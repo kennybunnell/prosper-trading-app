@@ -145,10 +145,10 @@ export const pmccRouter = router({
               return [];
             }
 
-            // Scan each LEAP expiration for deep ITM call opportunities
+            // Scan each LEAP expiration for deep ITM call opportunities — all in parallel
             const symbolOpportunities: LeapOpportunity[] = [];
 
-            for (const expiration of leapExpirations) {
+            await Promise.allSettled(leapExpirations.map(async (expiration) => {
               const chain = await api.getOptionChain(symbol, expiration);
               const calls = chain.filter((opt) => opt.option_type === "call");
 
@@ -201,7 +201,7 @@ export const pmccRouter = router({
                   }
                 }
               }
-            }
+            })); // end Promise.allSettled over leapExpirations
 
             // Sort by score descending
             symbolOpportunities.sort((a, b) => b.score - a.score);

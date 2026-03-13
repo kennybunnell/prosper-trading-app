@@ -8065,3 +8065,17 @@
 ## Chart Performance (Mar 13, 2026 - Session 5)
 - [x] Add server-side in-memory cache (15min TTL) for chart history — same data served instantly on repeat opens
 - [x] Progressive chart loading: candlesticks render immediately via getCandles, BB bands overlay after via getHistory
+
+## Scanner Performance Audit (Mar 13, 2026 - Session 6)
+- [ ] Audit all scanner methods in tradier.ts for sequential vs parallel expiration chain fetching
+- [ ] Fix CC/BCS scanner parallel fetching
+- [ ] Fix Iron Condor scanner parallel fetching
+- [ ] Fix PMCC scanner parallel fetching
+- [ ] Ensure isIndex mode filter is applied consistently in all dashboard filteredWatchlist memos
+
+## Scanner Performance Audit (Mar 13, 2026)
+- [x] CC scanner: replaced EXP_CONCURRENCY=3 sequential batching with fully parallel Promise.allSettled
+- [x] Iron Condor scanner: replaced CONCURRENT_CHAINS=5 sequential batching with fully parallel Promise.allSettled
+- [x] BPS/Spread scanner: replaced CONCURRENT_CHAINS=5 sequential batching with fully parallel Promise.allSettled
+- [x] PMCC scanner: replaced sequential for loop over LEAP expirations with parallel Promise.allSettled
+- [x] CSP scanner (tradier.ts): already uses Promise.allSettled per symbol — confirmed no change needed

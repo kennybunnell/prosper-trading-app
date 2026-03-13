@@ -342,12 +342,10 @@ export const ccRouter = router({
 
             if (filteredExpirations.length === 0) return [];
 
-            // Process expirations in parallel (up to 3 at a time to avoid overwhelming API)
-            const EXP_CONCURRENCY = 3;
-            console.log(`[CC Scanner DEBUG] ${symbol}: Processing ${filteredExpirations.length} expirations: ${filteredExpirations.join(', ')}`);
-            for (let j = 0; j < filteredExpirations.length; j += EXP_CONCURRENCY) {
-              const expBatch = filteredExpirations.slice(j, j + EXP_CONCURRENCY);
-              const expPromises = expBatch.map(async (expiration) => {
+            // Process ALL expirations fully in parallel — no sequential batching
+            console.log(`[CC Scanner DEBUG] ${symbol}: Processing ${filteredExpirations.length} expirations in parallel: ${filteredExpirations.join(', ')}`);
+            {
+              const expPromises = filteredExpirations.map(async (expiration) => {
                 try {
                   console.log(`[CC Scanner DEBUG] ${symbol} ${expiration}: Fetching option chain (via ${tradierRoot})...`);
                   // Use tradierRoot for option chain (e.g. SPX for SPXW, NDX for NDXP)
@@ -432,7 +430,7 @@ export const ccRouter = router({
               });
               
               await Promise.allSettled(expPromises);
-            }
+            } // end parallel expiration fetch
             
             // Check for duplicates in symbolOpportunities before returning
             const oppDuplicateCheck = new Map<string, number>();
