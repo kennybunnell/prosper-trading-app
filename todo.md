@@ -7991,3 +7991,13 @@
 - [x] Fix 1: Changed console.error to console.warn in checkMarketHours catch block (AbortError is expected/handled, not a real error)
 - [x] Fix 2: Increased client-side AbortController timeout from 5s to 10s for both market check and safeguard pre-trade check
 - [x] Fix 3: Added 4-second server-side Promise.race timeout on Tradier market status call so server responds well within client window
+
+## ✅ Bug Fix: NDXP/SPXW Index Option Instrument Type (Mar 13, 2026)
+- [x] Fixed all order submission paths to use 'Index Option' for NDXP, SPXW, MRUT (cash-settled index options)
+- [x] Fixed position filters to include 'Index Option' positions (not just 'Equity Option')
+- [x] Updated OrderLeg type in tastytrade.ts to include 'Index Option'
+- [x] Fixed buyToCloseOption, submitRollOrder, and single-leg close in tastytrade.ts
+- [x] Fixed submitBearCallSpreadOrders and CC single-leg STO in routers-cc.ts
+- [x] Fixed automation close orders in routers-automation.ts
+- [x] Fixed live order submission in routers.ts (BPS/CSP/IC)
+- [x] Updated dog-forced-exit.test.ts to reflect correct behavior

@@ -445,7 +445,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             const shortByUnderlying = new Map<string, { put?: any; call?: any }>();
             if (runBTCScan) {
               for (const pos of positions) {
-                if (pos['instrument-type'] !== 'Equity Option') continue;
+                if (pos['instrument-type'] !== 'Equity Option' && pos['instrument-type'] !== 'Index Option') continue;
                 const qty = parseInt(String(pos.quantity || '0'));
                 const direction = pos['quantity-direction']?.toLowerCase();
                 const isShortPos = direction === 'short' || qty < 0;
@@ -1430,9 +1430,14 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           }
 
           // Build order legs
+          // Cash-settled index options (SPXW, NDXP, MRUT, etc.) require 'Index Option';
+          // all other options use 'Equity Option'.
+          const { isTrueIndexOption: isIdxClose } = await import('../shared/orderUtils');
+          const closeInstrumentType = isIdxClose(order.symbol) ? 'Index Option' : 'Equity Option';
+
           const legs: import('./tastytrade').OrderLeg[] = [
             {
-              instrumentType: 'Equity Option',
+              instrumentType: closeInstrumentType,
               symbol: order.optionSymbol,
               quantity: order.quantity.toString(),
               action: 'Buy to Close',
@@ -1441,7 +1446,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           if (isSpreadOrder && order.spreadLongSymbol) {
             // Long leg: Sell to Close (we bought it to open, now sell it to close)
             legs.push({
-              instrumentType: 'Equity Option',
+              instrumentType: closeInstrumentType,
               symbol: order.spreadLongSymbol,
               quantity: order.quantity.toString(),
               action: 'Sell to Close',
@@ -1560,7 +1565,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
       // Group positions by underlying+expiration to batch chain lookups
       const chainKeys = new Map<string, { symbol: string; expiration: string; positions: any[] }>();
       for (const pos of positions) {
-        if (pos['instrument-type'] !== 'Equity Option') continue;
+        if (pos['instrument-type'] !== 'Equity Option' && pos['instrument-type'] !== 'Index Option') continue;
         const underlying = pos['underlying-symbol'] || '';
         const expiration = pos['expires-at'] ? pos['expires-at'].split('T')[0] : null;
         if (!underlying || !expiration) continue;
@@ -1768,7 +1773,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
       } catch { continue; }
 
       for (const pos of positions) {
-        if (pos['instrument-type'] !== 'Equity Option') continue;
+        if (pos['instrument-type'] !== 'Equity Option' && pos['instrument-type'] !== 'Index Option') continue;
         const underlying = pos['underlying-symbol'] || '';
         const expiration = pos['expires-at'] ? pos['expires-at'].split('T')[0] : null;
         if (!underlying || !expiration) continue;

@@ -82,7 +82,10 @@ export const ccRouter = router({
       // Separate stock positions and option positions
       // Tastytrade API returns hyphenated field names like 'instrument-type', not camelCase
       const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
-      const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
+      // Include both 'Equity Option' and 'Index Option' (e.g., SPXW, NDXP, MRUT)
+      const optionPositions = positions.filter((p: any) =>
+        p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
+      );
 
       // Identify short calls (covered calls already sold) from POSITIONS
       const shortCalls: Record<string, { contracts: number; details: any[] }> = {};
@@ -113,7 +116,7 @@ export const ccRouter = router({
         const legs = (order as any).legs || [];
         for (const leg of legs) {
           // Short calls: action = "Sell to Open" and instrument type = "Equity Option" and symbol contains 'C'
-          if (leg.action === 'Sell to Open' && leg['instrument-type'] === 'Equity Option' && leg.symbol.includes('C')) {
+          if (leg.action === 'Sell to Open' && (leg['instrument-type'] === 'Equity Option' || leg['instrument-type'] === 'Index Option') && leg.symbol.includes('C')) {
             const underlying = (order as any)['underlying-symbol'];
             if (!workingShortCalls[underlying]) {
               workingShortCalls[underlying] = { contracts: 0, details: [] };
@@ -768,7 +771,10 @@ export const ccRouter = router({
       // Fetch current positions to get maxContracts for each symbol
       const positions = await api.getPositions(input.accountNumber);
       const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
-      const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
+      // Include both 'Equity Option' and 'Index Option' (e.g., SPXW, NDXP, MRUT)
+      const optionPositions = positions.filter((p: any) =>
+        p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
+      );
 
       // Identify short calls (covered calls already sold)
       const shortCalls: Record<string, number> = {};
@@ -881,6 +887,9 @@ export const ccRouter = router({
           const strikeStr = (order.strike * 1000).toFixed(0).padStart(8, '0');
           const optionSymbol = `${order.symbol.padEnd(6)}${expStr}C${strikeStr}`;
 
+          const { isTrueIndexOption: isIdxOpt } = await import('../shared/orderUtils');
+          const ccInstrumentType = isIdxOpt(order.symbol) ? 'Index Option' : 'Equity Option';
+
           console.log('[CC submitOrders] Submitting order to Tastytrade API:', {
             symbol: order.symbol,
             strike: order.strike,
@@ -888,6 +897,7 @@ export const ccRouter = router({
             quantity: order.quantity,
             price: order.price,
             optionSymbol,
+            instrumentType: ccInstrumentType,
           });
 
           // Submit sell-to-open order
@@ -899,7 +909,7 @@ export const ccRouter = router({
             priceEffect: 'Credit',
             legs: [
               {
-                instrumentType: 'Equity Option',
+                instrumentType: ccInstrumentType,
                 symbol: optionSymbol,
                 quantity: order.quantity.toString(),
                 action: 'Sell to Open',
@@ -1050,10 +1060,14 @@ export const ccRouter = router({
             // IMPORTANT: Use snapToTick with integer arithmetic to avoid IEEE 754 floating-point drift.
             // Raw arithmetic like (netCredit - buffer).toFixed(2) can produce values that fail
             // Tastytrade's server-side `price % 0.05` check (e.g. 9.253 → "9.25" but stored as 9.249999...).
-            const { snapToTick } = await import('../shared/orderUtils');
+            const { snapToTick, isTrueIndexOption } = await import('../shared/orderUtils');
             const buffer = Math.max(order.netCredit * 0.05, 0.05);
             const rawLimitPrice = Math.max(order.netCredit - buffer, 0.01);
             const limitPrice = snapToTick(rawLimitPrice, order.symbol); // Snap to $0.05 (or $0.01 for penny-pilot)
+
+            // Determine instrument type: cash-settled index options (SPXW, NDXP, MRUT, etc.) require
+            // 'Index Option'; all others use 'Equity Option'.
+            const legInstrumentType = isTrueIndexOption(order.symbol) ? 'Index Option' : 'Equity Option';
 
             // Submit two-leg spread order
             const result = await api.submitOrder({
@@ -1064,13 +1078,13 @@ export const ccRouter = router({
               priceEffect: 'Credit',
               legs: [
                 {
-                  instrumentType: 'Equity Option',
+                  instrumentType: legInstrumentType,
                   symbol: shortCallSymbol,
                   quantity: order.quantity.toString(),
                   action: 'Sell to Open',
                 },
                 {
-                  instrumentType: 'Equity Option',
+                  instrumentType: legInstrumentType,
                   symbol: longCallSymbol,
                   quantity: order.quantity.toString(),
                   action: 'Buy to Open',

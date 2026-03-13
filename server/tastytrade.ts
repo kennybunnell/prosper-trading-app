@@ -73,7 +73,7 @@ export interface TastytradePosition {
 }
 
 export interface OrderLeg {
-  instrumentType: 'Equity' | 'Equity Option';
+  instrumentType: 'Equity' | 'Equity Option' | 'Index Option';
   symbol: string;
   quantity: string;
   action: 'Sell to Open' | 'Buy to Close' | 'Buy to Open' | 'Sell to Close';
@@ -778,10 +778,12 @@ export class TastytradeAPI {
    */
   async buyToCloseOption(accountNumber: string, optionSymbol: string, quantity: number, price: number, dryRun: boolean = false): Promise<{ success: boolean; orderId?: string; message: string }> {
     // Import price formatting utility
-    const { formatPriceForSubmission } = await import('../shared/orderUtils');
+    const { formatPriceForSubmission, isTrueIndexOption } = await import('../shared/orderUtils');
     // Parse option symbol to extract underlying
     const underlyingMatch = optionSymbol.match(/^([A-Z]+)/);
     const underlyingSymbol = underlyingMatch ? underlyingMatch[1] : optionSymbol.substring(0, 6).trim();
+    // Determine instrument type based on underlying symbol
+    const btcInstrumentType = isTrueIndexOption(underlyingSymbol) ? 'Index Option' : 'Equity Option';
 
     // Ensure option symbol has proper spacing for Tastytrade API
     // OCC format requires 6-char ticker padded with spaces
@@ -814,7 +816,7 @@ export class TastytradeAPI {
       'price-effect': 'Debit', // We pay to buy back
       legs: [
         {
-          'instrument-type': 'Equity Option',
+          'instrument-type': btcInstrumentType,
           symbol: formattedSymbol,
           quantity: quantity.toString(),
           action: 'Buy to Close',
@@ -1104,6 +1106,10 @@ export class TastytradeAPI {
       const closeSymbol = formatOptionSymbol(params.closeLeg);
       const openSymbol = formatOptionSymbol(params.openLeg);
 
+      // Determine instrument type: cash-settled index options require 'Index Option'
+      const { isTrueIndexOption: isIdxRoll } = await import('../shared/orderUtils');
+      const rollInstrumentType = isIdxRoll(params.symbol) ? 'Index Option' : 'Equity Option';
+
       // Build 2-leg order
       const orderPayload = {
         'time-in-force': 'Day',
@@ -1111,13 +1117,13 @@ export class TastytradeAPI {
         'price-effect': 'Debit', // Will be calculated by Tastytrade based on legs
         legs: [
           {
-            'instrument-type': 'Equity Option',
+            'instrument-type': rollInstrumentType,
             symbol: closeSymbol,
             action: params.closeLeg.action,
             quantity: params.closeLeg.quantity,
           },
           {
-            'instrument-type': 'Equity Option',
+            'instrument-type': rollInstrumentType,
             symbol: openSymbol,
             action: params.openLeg.action,
             quantity: params.openLeg.quantity,
@@ -1162,7 +1168,9 @@ export class TastytradeAPI {
   }): Promise<{ orderId: string }> {
     try {
       // Import price formatting utility
-      const { formatPriceForSubmission } = await import('../shared/orderUtils');
+      const { formatPriceForSubmission, isTrueIndexOption: isIdxClose2 } = await import('../shared/orderUtils');
+      // Determine instrument type: cash-settled index options require 'Index Option'
+      const singleCloseInstrumentType = isIdxClose2(params.symbol) ? 'Index Option' : 'Equity Option';
       
       // Use the actual option symbol from Tastytrade if provided, otherwise construct it
       let optionSymbol: string;
@@ -1208,7 +1216,7 @@ export class TastytradeAPI {
         'price-effect': priceEffect,
         legs: [
           {
-            'instrument-type': 'Equity Option',
+            'instrument-type': singleCloseInstrumentType,
             symbol: optionSymbol,
             quantity: params.closeLeg.quantity.toString(),
             action: actionText,

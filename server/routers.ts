@@ -95,7 +95,7 @@ const projectionsRouter = router({
 
       for (const pos of positions) {
         const instrumentType = pos['instrument-type'];
-        if (instrumentType !== 'Equity Option') continue;
+        if (instrumentType !== 'Equity Option' && instrumentType !== 'Index Option') continue;
 
         const quantity = parseInt(String(pos.quantity || '0'));
         const quantityDirection = pos['quantity-direction'];
@@ -166,7 +166,7 @@ const projectionsRouter = router({
 
       for (const pos of positions) {
         const instrumentType = pos['instrument-type'];
-        if (instrumentType !== 'Equity Option') continue;
+        if (instrumentType !== 'Equity Option' && instrumentType !== 'Index Option') continue;
 
         const quantity = parseInt(String(pos.quantity || '0'));
         const quantityDirection = pos['quantity-direction'];
@@ -2281,9 +2281,10 @@ Summary: [One sentence overall assessment]`;
               }
               
               // Build legs based on order type
-              // Tastytrade API only accepts 'Equity Option' for all options including index options (SPX/SPXW/NDX/NDXP)
-              // 'Index Option' is only returned by the positions API, NOT accepted in order submission
-              const legInstrumentType = 'Equity Option' as const;
+              // Cash-settled index options (SPXW, NDXP, MRUT, etc.) require 'Index Option';
+              // all other options use 'Equity Option'.
+              const { isTrueIndexOption: isIdxLeg } = await import('../shared/orderUtils');
+              const legInstrumentType = (isIdxLeg(order.symbol) ? 'Index Option' : 'Equity Option') as 'Index Option' | 'Equity Option';
               const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
               ? [
                     // Iron Condor: Leg 1 - Sell Put (short put)
