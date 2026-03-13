@@ -8030,3 +8030,5 @@
 - [x] Confirmed: CC scanner already had OTM filter for short calls (line 384 of routers-cc.ts)
 - [x] Confirmed: all spread scanners already had netCredit > 0 check
 - [x] Root cause of NDXP cancellation: short call strike (24925) was ITM when NDX was above that level
+
+- [ ] Change order preview modal default quantity from auto-calculated max to 1, keep max as reference label

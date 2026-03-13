@@ -35,6 +35,7 @@ export interface AIPick {
   rank: number;
   opportunityIndex: number;
   quantity: number;
+  suggestedMaxQty?: number;
   rationale: string;
   riskNote: string;
   opportunity: Opportunity;
@@ -100,9 +101,9 @@ export function AIAdvisorPanel({
       setPicks(newPicks);
       // Auto-select all picks by default
       setSelectedPicks(new Set(newPicks.map((_, i) => i)));
-      // Initialize quantities from AI recommendations
+      // Always initialize quantities to 1 (suggestedMaxQty shown as reference)
       const initQty: Record<number, number> = {};
-      newPicks.forEach((p, i) => { initQty[i] = p.quantity || 1; });
+      newPicks.forEach((_p, i) => { initQty[i] = 1; });
       setQuantities(initQty);
       setError(null);
       setHasRun(true);
@@ -318,27 +319,32 @@ export function AIAdvisorPanel({
                         <div className="flex items-center gap-1 bg-slate-800/60 rounded-lg border border-slate-600/40 px-1 py-0.5">
                           <button
                             className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-white hover:bg-slate-700/60 transition-colors disabled:opacity-30"
-                            onClick={() => setQuantities(prev => ({ ...prev, [idx]: Math.max(1, (prev[idx] ?? pick.quantity) - 1) }))}
-                            disabled={(quantities[idx] ?? pick.quantity) <= 1}
+                            onClick={() => setQuantities(prev => ({ ...prev, [idx]: Math.max(1, (prev[idx] ?? 1) - 1) }))}
+                            disabled={(quantities[idx] ?? 1) <= 1}
                           >
                             <Minus className="h-3 w-3" />
                           </button>
                           <span className="text-green-400 font-bold text-sm min-w-[1.5rem] text-center">
-                            {quantities[idx] ?? pick.quantity}x
+                            {quantities[idx] ?? 1}x
                           </span>
                           <button
                             className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-white hover:bg-slate-700/60 transition-colors"
-                            onClick={() => setQuantities(prev => ({ ...prev, [idx]: (prev[idx] ?? pick.quantity) + 1 }))}
+                            onClick={() => setQuantities(prev => ({ ...prev, [idx]: (prev[idx] ?? 1) + 1 }))}
                           >
                             <Plus className="h-3 w-3" />
                           </button>
                         </div>
+                        {pick.suggestedMaxQty != null && pick.suggestedMaxQty > 1 && (
+                          <div className="text-slate-500 text-xs text-right">
+                            max: {pick.suggestedMaxQty}x
+                          </div>
+                        )}
                         <div className="text-right">
                           <div className="text-green-300 text-xs font-medium">
                             @ ${opp.netCredit.toFixed(2)}
                           </div>
                           <div className="text-slate-500 text-xs">
-                            ${((quantities[idx] ?? pick.quantity) * opp.netCredit * 100).toFixed(0)} total
+                            ${((quantities[idx] ?? 1) * opp.netCredit * 100).toFixed(0)} total
                           </div>
                         </div>
                       </div>

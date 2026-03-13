@@ -4137,7 +4137,7 @@ Summary: [One sentence overall assessment]`;
         }).join('; ');
         const bpDisplay = availableBuyingPower > 0 ? `$${availableBuyingPower.toLocaleString()}` : 'not specified (assume $100,000)';
         const numPicks = Math.max(3, uniqueSymbols.length);
-        const systemPrompt = `You are an expert options income trader specializing in ${strategy} strategies. You MUST return exactly ${numPicks} picks — at least one pick per unique symbol (${uniqueSymbols.join(', ')}). For each symbol choose the best opportunity balancing: ROC, liquidity (OI>100, Vol>10), delta cushion, DTE sweet spot (7-21 days), and score. Recommend quantity per symbol based on 20% max buying power. Available BP: ${bpDisplay}. Per-symbol best candidates: ${symbolBestHints}. Return ONLY valid JSON: {"picks":[{"rank":1,"opportunityIndex":0,"quantity":1,"rationale":"...","riskNote":"..."}]}`;
+        const systemPrompt = `You are an expert options income trader specializing in ${strategy} strategies. You MUST return exactly ${numPicks} picks — at least one pick per unique symbol (${uniqueSymbols.join(', ')}). For each symbol choose the best opportunity balancing: ROC, liquidity (OI>100, Vol>10), delta cushion, DTE sweet spot (7-21 days), and score. Calculate suggestedMaxQty per symbol based on 20% max buying power rule. Available BP: ${bpDisplay}. Per-symbol best candidates: ${symbolBestHints}. Return ONLY valid JSON: {"picks":[{"rank":1,"opportunityIndex":0,"suggestedMaxQty":5,"rationale":"...","riskNote":"..."}]}`;
 
         const response = await invokeLLM({
           messages: [
@@ -4159,11 +4159,11 @@ Summary: [One sentence overall assessment]`;
                       properties: {
                         rank: { type: 'integer' },
                         opportunityIndex: { type: 'integer' },
-                        quantity: { type: 'integer' },
+                        suggestedMaxQty: { type: 'integer' },
                         rationale: { type: 'string' },
                         riskNote: { type: 'string' },
                       },
-                      required: ['rank', 'opportunityIndex', 'quantity', 'rationale', 'riskNote'],
+                      required: ['rank', 'opportunityIndex', 'suggestedMaxQty', 'rationale', 'riskNote'],
                       additionalProperties: false,
                     },
                   },
@@ -4182,6 +4182,7 @@ Summary: [One sentence overall assessment]`;
         return {
           picks: parsed.picks.map((pick: any) => ({
             ...pick,
+            quantity: 1, // Always default to 1; suggestedMaxQty shown as reference
             opportunity: opportunities[pick.opportunityIndex],
           })),
         };
