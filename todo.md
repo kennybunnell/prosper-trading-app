@@ -8089,3 +8089,7 @@
 - [x] Fix: created shared tradierRateLimiter.ts semaphore capping all concurrent option chain fetches at 6 across ALL scanners
 - [x] Applied withRateLimit() wrapper to: CC scanner (routers-cc.ts), IC scanner (routers.ts), BPS/Spread scanner (routers.ts), PMCC scanner (routers-pmcc.ts), CSP scanner (tradier.ts)
 - [x] 0 TypeScript errors confirmed
+
+## Chart Enhancements (Mar 14, 2026)
+- [x] Add 5Y timeframe button to Bollinger chart panel
+- [x] Add RSI (14-period) indicator panel below the chart with 70/30 reference lines and signal in header strip

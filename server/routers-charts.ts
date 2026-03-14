@@ -10,6 +10,11 @@ export interface OHLCVBar {
   volume: number;
 }
 
+export interface RSIBar {
+  time: number;
+  rsi: number;
+}
+
 export interface BBBar {
   time: number;
   upper: number;
@@ -50,9 +55,42 @@ function calcBollingerSeries(
 // ─── In-memory cache ────────────────────────────────────────────────────────
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
+/**
+ * Calculate 14-period RSI for every bar in the series.
+ * Uses Wilder's smoothing (EMA-based).
+ */
+function calcRSISeries(bars: OHLCVBar[], period = 14): RSIBar[] {
+  if (bars.length < period + 1) return [];
+  const result: RSIBar[] = [];
+  let avgGain = 0;
+  let avgLoss = 0;
+  // Seed the first average
+  for (let i = 1; i <= period; i++) {
+    const change = bars[i].close - bars[i - 1].close;
+    if (change > 0) avgGain += change;
+    else avgLoss += Math.abs(change);
+  }
+  avgGain /= period;
+  avgLoss /= period;
+  const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+  result.push({ time: bars[period].time, rsi: parseFloat((100 - 100 / (1 + rs)).toFixed(2)) });
+  // Wilder smoothing for remaining bars
+  for (let i = period + 1; i < bars.length; i++) {
+    const change = bars[i].close - bars[i - 1].close;
+    const gain = change > 0 ? change : 0;
+    const loss = change < 0 ? Math.abs(change) : 0;
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
+    const rsi = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+    result.push({ time: bars[i].time, rsi: parseFloat(rsi.toFixed(2)) });
+  }
+  return result;
+}
+
 interface CacheEntry {
   bars: OHLCVBar[];
   bbSeries: BBBar[];
+  rsiSeries: RSIBar[];
   fetchedAt: number;
 }
 
@@ -69,8 +107,8 @@ function getCached(key: string): CacheEntry | null {
   return entry;
 }
 
-function setCached(key: string, bars: OHLCVBar[], bbSeries: BBBar[]) {
-  historyCache.set(key, { bars, bbSeries, fetchedAt: Date.now() });
+function setCached(key: string, bars: OHLCVBar[], bbSeries: BBBar[], rsiSeries: RSIBar[]) {
+  historyCache.set(key, { bars, bbSeries, rsiSeries, fetchedAt: Date.now() });
 }
 
 // Map index option roots to their underlying ticker for price history
@@ -86,16 +124,17 @@ const LOOKBACK_DAYS: Record<string, number> = {
   '3M': 90,
   '6M': 180,
   '1Y': 365,
+  '5Y': 1825,
 };
 
 async function fetchAndCacheBars(
   userId: number,
   symbol: string,
   timeframe: string
-): Promise<{ bars: OHLCVBar[]; bbSeries: BBBar[] }> {
+): Promise<{ bars: OHLCVBar[]; bbSeries: BBBar[]; rsiSeries: RSIBar[] }> {
   const cacheKey = `${userId}:${symbol}:${timeframe}`;
   const cached = getCached(cacheKey);
-  if (cached) return { bars: cached.bars, bbSeries: cached.bbSeries };
+  if (cached) return { bars: cached.bars, bbSeries: cached.bbSeries, rsiSeries: cached.rsiSeries ?? [] };
 
   const { getApiCredentials } = await import('./db');
   const { createTradierAPI } = await import('./tradier');
@@ -123,7 +162,7 @@ async function fetchAndCacheBars(
   );
 
   if (!rawHistory || rawHistory.length === 0) {
-    return { bars: [], bbSeries: [] };
+    return { bars: [], bbSeries: [], rsiSeries: [] };
   }
 
   const allBars: OHLCVBar[] = rawHistory
@@ -138,15 +177,17 @@ async function fetchAndCacheBars(
     .sort((a, b) => a.time - b.time);
 
   const bbSeries = calcBollingerSeries(allBars, 20, 2);
+  const rsiSeries = calcRSISeries(allBars, 14);
 
   const cutoff = Math.floor(
     new Date(new Date().setDate(new Date().getDate() - LOOKBACK_DAYS[timeframe])).getTime() / 1000
   );
   const trimmedBars = allBars.filter(b => b.time >= cutoff);
   const trimmedBB = bbSeries.filter(b => b.time >= cutoff);
+  const trimmedRSI = rsiSeries.filter(b => b.time >= cutoff);
 
-  setCached(cacheKey, trimmedBars, trimmedBB);
-  return { bars: trimmedBars, bbSeries: trimmedBB };
+  setCached(cacheKey, trimmedBars, trimmedBB, trimmedRSI);
+  return { bars: trimmedBars, bbSeries: trimmedBB, rsiSeries: trimmedRSI };
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────────
@@ -158,14 +199,15 @@ export const chartsRouter = router({
   getCandles: protectedProcedure
     .input(z.object({
       symbol: z.string().min(1).max(10),
-      timeframe: z.enum(['1M', '3M', '6M', '1Y']).default('3M'),
+      timeframe: z.enum(['1M', '3M', '6M', '1Y', '5Y']).default('3M'),
     }))
     .query(async ({ input, ctx }) => {
-      const { bars } = await fetchAndCacheBars(ctx.user.id, input.symbol, input.timeframe);
+      const { bars, rsiSeries } = await fetchAndCacheBars(ctx.user.id, input.symbol, input.timeframe);
       return {
         symbol: input.symbol,
         timeframe: input.timeframe,
         bars,
+        rsiSeries,
       };
     }),
 
@@ -176,15 +218,16 @@ export const chartsRouter = router({
   getHistory: protectedProcedure
     .input(z.object({
       symbol: z.string().min(1).max(10),
-      timeframe: z.enum(['1M', '3M', '6M', '1Y']).default('3M'),
+      timeframe: z.enum(['1M', '3M', '6M', '1Y', '5Y']).default('3M'),
     }))
     .query(async ({ input, ctx }) => {
-      const { bars, bbSeries } = await fetchAndCacheBars(ctx.user.id, input.symbol, input.timeframe);
+      const { bars, bbSeries, rsiSeries } = await fetchAndCacheBars(ctx.user.id, input.symbol, input.timeframe);
       return {
         symbol: input.symbol,
         timeframe: input.timeframe,
         bars,
         bbSeries,
+        rsiSeries,
       };
     }),
 });
