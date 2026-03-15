@@ -174,8 +174,8 @@ export async function getWatchlist(userId: number) {
   const db = await getDb();
   if (!db) return [];
   const { watchlists } = await import('../drizzle/schema');
-  const { eq } = await import('drizzle-orm');
-  return db.select().from(watchlists).where(eq(watchlists.userId, userId));
+  const { eq, asc } = await import('drizzle-orm');
+  return db.select().from(watchlists).where(eq(watchlists.userId, userId)).orderBy(asc(watchlists.symbol));
 }
 
 export async function addToWatchlist(userId: number, symbol: string, strategy: 'csp' | 'cc' | 'pmcc' | 'bps' | 'bcs' = 'csp') {
