@@ -18,6 +18,7 @@ import StrategyAdvisorPage from "./pages/StrategyAdvisorPage";
 import PortfolioAdvisor from "./pages/PortfolioAdvisor";
 import AutomationDashboard from "./pages/AutomationDashboard";
 import PortfolioCommandCenter from "./pages/PortfolioCommandCenter";
+import StockScreener from "./pages/StockScreener";
 
 import { Redirect } from "wouter";
 import PendingApproval from "./pages/PendingApproval";
@@ -149,6 +150,7 @@ function Router() {
           <PaperTradingBanner />
           <SupportWidget />        <Switch>
           <Route path={"/"} component={Home} />
+          <Route path={"/screener"} component={StockScreener} />
           <Route path={"/portfolio"} component={PortfolioCommandCenter} />
           <Route path={"/settings"} component={Settings} />
           <Route path={"/subscription"} component={Subscription} />

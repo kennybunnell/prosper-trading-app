@@ -8100,3 +8100,17 @@
 - [x] Replace Market Pulse section on main dashboard with TradingView Economic Calendar widget
 - [x] Add TradingView Ticker Tape widget to dashboard header area
 - [x] Clean up server-side chart code: getCandles, getHistory endpoints, BB/RSI calculations, 15-min cache
+
+## Stock Screener Page (Mar 15, 2026)
+- [x] Create /screener route with TradingView Stock Screener widget + watchlist sidebar
+- [x] Watchlist sidebar: type-and-add input, remove button per ticker, click-to-chart
+- [x] 75%-width slide-out chart panel with TradingView Advanced Chart (BB + RSI pre-loaded)
+- [x] Register /screener as first Portfolio submenu in DashboardLayout sidebar
+- [x] Shared watchlist sync: add/remove mutations use existing trpc.watchlist procedures
+
+## Stock Screener Page (Mar 15, 2026)
+- [x] Create /screener route with TradingView Stock Screener widget + watchlist sidebar
+- [x] Watchlist sidebar: type-and-add input, remove button per ticker, click-to-chart
+- [x] 75%-width slide-out chart panel with TradingView Advanced Chart (BB + RSI pre-loaded)
+- [x] Register /screener as first Portfolio submenu in DashboardLayout sidebar
+- [x] Shared watchlist sync: add/remove mutations use existing trpc.watchlist procedures
