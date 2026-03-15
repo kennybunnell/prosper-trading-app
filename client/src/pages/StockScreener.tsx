@@ -10,13 +10,55 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+// ─── TradingView Symbol Resolution ───────────────────────────────────────────
+// Resolves the correct exchange prefix for a symbol using TradingView's public
+// symbol search API. Returns e.g. "NYSE:IBM", "NASDAQ:AAPL", "CBOE:SPX", etc.
+// Returns null if the symbol is not found.
+async function resolveTVSymbol(symbol: string): Promise<string | null> {
+  try {
+    const clean = symbol.trim().toUpperCase().replace(/^[A-Z]+:/, ''); // strip any existing prefix
+    const url = `https://symbol-search.tradingview.com/symbol_search/?text=${encodeURIComponent(clean)}&type=stock,index,fund,dr,structured&exchange=&lang=en&domain=production`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data: Array<{ symbol: string; exchange: string; type: string; description: string }> = await res.json();
+    if (!data || data.length === 0) return null;
+    // Find exact symbol match (case-insensitive)
+    const exact = data.find(d => d.symbol.toUpperCase() === clean);
+    const best = exact ?? data[0];
+    if (!best) return null;
+    return `${best.exchange}:${best.symbol}`;
+  } catch {
+    return null;
+  }
+}
+
 // ─── TradingView Advanced Chart Panel (slide-out) ────────────────────────────
 
 function TradingViewAdvancedChart({ symbol }: { symbol: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // resolvedSymbol holds the exchange-qualified symbol once lookup completes
+  const [resolvedSymbol, setResolvedSymbol] = useState<string | null>(null);
+  const [resolveError, setResolveError] = useState(false);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    setResolvedSymbol(null);
+    setResolveError(false);
+    // If already exchange-qualified, use as-is
+    if (symbol.includes(':')) {
+      setResolvedSymbol(symbol);
+      return;
+    }
+    resolveTVSymbol(symbol).then(resolved => {
+      if (resolved) {
+        setResolvedSymbol(resolved);
+      } else {
+        setResolveError(true);
+      }
+    });
+  }, [symbol]);
+
+  useEffect(() => {
+    if (!containerRef.current || !resolvedSymbol) return;
     containerRef.current.innerHTML = '';
 
     const script = document.createElement('script');
@@ -25,7 +67,7 @@ function TradingViewAdvancedChart({ symbol }: { symbol: string }) {
     script.async = true;
     script.innerHTML = JSON.stringify({
       autosize: true,
-      symbol: symbol.includes(':') ? symbol : `NASDAQ:${symbol}`,
+      symbol: resolvedSymbol,
       interval: 'D',
       timezone: 'America/New_York',
       theme: 'dark',
@@ -47,7 +89,26 @@ function TradingViewAdvancedChart({ symbol }: { symbol: string }) {
     });
 
     containerRef.current.appendChild(script);
-  }, [symbol]);
+  }, [resolvedSymbol]);
+
+  if (resolveError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+        <AlertCircle className="h-10 w-10 text-destructive/60" />
+        <p className="text-sm font-medium">Symbol not found on TradingView</p>
+        <p className="text-xs text-muted-foreground/60">"{symbol}" could not be resolved to a valid exchange listing.</p>
+      </div>
+    );
+  }
+
+  if (!resolvedSymbol) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="text-sm">Resolving {symbol}...</p>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -171,18 +232,49 @@ function WatchlistSidebar({
     },
   });
 
-  const handleAdd = useCallback(() => {
+  const [validating, setValidating] = useState(false);
+
+  const handleAdd = useCallback(async () => {
     const raw = inputValue.trim().toUpperCase();
     if (!raw) return;
 
     // Support comma-separated entry
-    const symbols = raw.split(',').map(s => s.trim()).filter(Boolean);
-    for (const sym of symbols) {
-      if (sym.length > 0 && sym.length <= 10) {
-        addMutation.mutate({ symbol: sym });
-      }
+    const symbols = raw.split(',').map(s => s.trim()).filter(s => s.length > 0 && s.length <= 10);
+    if (symbols.length === 0) return;
+
+    setValidating(true);
+    const valid: string[] = [];
+    const invalid: string[] = [];
+
+    // Validate each symbol against TradingView before adding
+    await Promise.all(
+      symbols.map(async sym => {
+        const resolved = await resolveTVSymbol(sym);
+        if (resolved) {
+          valid.push(sym);
+        } else {
+          invalid.push(sym);
+        }
+      })
+    );
+    setValidating(false);
+
+    if (invalid.length > 0) {
+      toast({
+        title: `Unknown symbol${invalid.length > 1 ? 's' : ''}: ${invalid.join(', ')}`,
+        description: 'These symbols could not be found on TradingView and were not added.',
+        variant: 'destructive',
+      });
     }
-  }, [inputValue, addMutation]);
+
+    for (const sym of valid) {
+      addMutation.mutate({ symbol: sym });
+    }
+
+    if (valid.length > 0) {
+      setInputValue('');
+    }
+  }, [inputValue, addMutation, toast]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') handleAdd();
@@ -228,9 +320,9 @@ function WatchlistSidebar({
             size="icon"
             className="h-8 w-8 shrink-0"
             onClick={handleAdd}
-            disabled={!inputValue.trim() || addMutation.isPending}
+            disabled={!inputValue.trim() || addMutation.isPending || validating}
           >
-            {addMutation.isPending ? (
+            {(addMutation.isPending || validating) ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <Plus className="h-3.5 w-3.5" />
