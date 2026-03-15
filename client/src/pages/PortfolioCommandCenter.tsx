@@ -9,6 +9,7 @@ import { ActivePositionsTab, WorkingOrdersTab } from './Performance';
 import { IraSafetyTab } from '@/components/IraSafetyTab';
 import { PositionAnalyzerTab } from '@/components/PositionAnalyzerTab';
 import PortfolioAdvisor from '@/pages/PortfolioAdvisor';
+import StockScreener from '@/pages/StockScreener';
 import {
   Grid3X3,
   Activity,
@@ -36,6 +37,7 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
+  ScanLine,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useLocation } from 'wouter';
@@ -1519,8 +1521,9 @@ export default function PortfolioCommandCenter() {
       if (t === 'safety') return 'safety';
       if (t === 'advisor') return 'advisor';
       if (t === 'heatmap') return 'heatmap';
+      if (t === 'screener') return 'screener';
     }
-    return 'heatmap';
+    return 'screener';
   })();
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -1536,6 +1539,7 @@ export default function PortfolioCommandCenter() {
     else if (t === 'safety') setActiveTab('safety');
     else if (t === 'advisor') setActiveTab('advisor');
     else if (t === 'heatmap') setActiveTab('heatmap');
+    else if (t === 'screener') setActiveTab('screener');
   }, [location]);
   const [viewMode, setViewMode] = useState<ViewMode>('delta');
   const [selectedTicker, setSelectedTicker] = useState<TickerData | null>(null);
@@ -1626,7 +1630,11 @@ export default function PortfolioCommandCenter() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="screener" className="flex items-center gap-1.5 text-xs">
+            <ScanLine className="w-3.5 h-3.5" />
+            Screener
+          </TabsTrigger>
           <TabsTrigger value="heatmap" className="flex items-center gap-1.5 text-xs">
             <Grid3X3 className="w-3.5 h-3.5" />
             Heat Map
@@ -1652,6 +1660,10 @@ export default function PortfolioCommandCenter() {
             Portfolio Advisor
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="screener" className="space-y-0">
+          <StockScreener />
+        </TabsContent>
 
         <TabsContent value="heatmap" className="space-y-4">
           <Card className="bg-card/50 backdrop-blur border-border/50">

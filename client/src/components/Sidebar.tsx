@@ -22,7 +22,6 @@ import {
   LayoutDashboard,
   Activity,
   Grid3X3,
-  ScanLine,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -285,38 +284,6 @@ export function Sidebar({ className }: SidebarProps) {
         {primaryNavItems.map(item => (
           <div key={item.path}>
             {renderNavLink(item)}
-            {/* Portfolio sub-items: Screener */}
-            {item.path === '/portfolio' && (
-              <div className={cn('space-y-0.5 mt-0.5', !collapsed && 'pl-2')}>
-                <Link
-                  href="/screener"
-                  className={cn(
-                    'relative overflow-hidden flex items-center gap-3 px-4 py-2 rounded-xl transition-all duration-300 group ml-3',
-                    location === '/screener'
-                      ? 'bg-gradient-to-r from-amber-900/30 via-yellow-900/20 to-amber-800/30 text-amber-100 shadow-xl shadow-amber-500/30 border border-amber-500/40'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/30 hover:shadow-lg hover:shadow-amber-500/10 hover:scale-[1.02]'
-                  )}
-                >
-                  <div className={cn(
-                    'flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-300',
-                    location === '/screener'
-                      ? 'bg-gradient-to-br from-amber-600 to-yellow-700 shadow-lg shadow-amber-500/50'
-                      : 'bg-accent/50 group-hover:bg-accent'
-                  )}>
-                    <ScanLine className={cn(
-                      'w-4 h-4 transition-all duration-300',
-                      location === '/screener' ? 'text-white' : 'text-muted-foreground group-hover:text-foreground'
-                    )} />
-                  </div>
-                  {!collapsed && (
-                    <span className={cn(
-                      'text-sm font-medium transition-all duration-300',
-                      location === '/screener' ? 'text-amber-100' : 'text-foreground'
-                    )}>Stock Screener</span>
-                  )}
-                </Link>
-              </div>
-            )}
           </div>
         ))}
 
