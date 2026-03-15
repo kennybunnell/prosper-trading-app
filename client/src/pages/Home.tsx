@@ -15,7 +15,8 @@ import { Link, useLocation } from "wouter";
 import { useTheme } from "@/contexts/ThemeContext";
 import { trpc } from "@/lib/trpc";
 import { MonthlyPremiumChart } from "@/components/MonthlyPremiumChart";
-import { MarketNewsScanner } from "@/components/MarketNewsScanner";
+import { TradingViewEconomicCalendar } from "@/components/TradingViewEconomicCalendar";
+import { TradingViewTickerTape } from "@/components/TradingViewTickerTape";
 import { GapAdvisorModal } from "@/components/GapAdvisorModal";
 
 // ─── Monthly Premium Chart Section ───────────────────────────────────────────
@@ -814,10 +815,20 @@ export default function Home() {
         {/* Navigation Grid */}
         <NavigationGrid />
 
-        {/* Market Pulse */}
+        {/* Ticker Tape */}
+        <div className="-mx-4 sm:-mx-0">
+          <TradingViewTickerTape />
+        </div>
+
+        {/* Market Events — Economic Calendar */}
         <div>
-          <SectionHeader icon={Newspaper} label="Market Pulse" accent="text-orange-400" />
-          <MarketNewsScanner />
+          <SectionHeader icon={Newspaper} label="Market Events" accent="text-orange-400" />
+          <p className="text-sm text-muted-foreground mb-4">
+            Upcoming economic events, Fed decisions, CPI, NFP, and earnings releases — critical context for managing short premium positions.
+          </p>
+          <div className="rounded-2xl border border-border/30 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm overflow-hidden" style={{ height: '500px' }}>
+            <TradingViewEconomicCalendar />
+          </div>
         </div>
       </main>
     </div>

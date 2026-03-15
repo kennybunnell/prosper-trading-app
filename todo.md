@@ -8093,3 +8093,10 @@
 ## Chart Enhancements (Mar 14, 2026)
 - [x] Add 5Y timeframe button to Bollinger chart panel
 - [x] Add RSI (14-period) indicator panel below the chart with 70/30 reference lines and signal in header strip
+
+## TradingView Integration (Mar 15, 2026)
+- [x] Replace BollingerChartPanel with TradingView Advanced Chart widget (dark theme, pre-loaded BB + RSI indicators)
+- [x] Remove lightweight-charts dependency (no longer imported)
+- [x] Replace Market Pulse section on main dashboard with TradingView Economic Calendar widget
+- [x] Add TradingView Ticker Tape widget to dashboard header area
+- [x] Clean up server-side chart code: getCandles, getHistory endpoints, BB/RSI calculations, 15-min cache
