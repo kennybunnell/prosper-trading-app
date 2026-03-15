@@ -1701,15 +1701,47 @@ Answer concisely and specifically. Stay conservative — capital preservation fi
         await setAllWatchlistSelections(ctx.user.id, input.symbols, true);
         return { success: true };
       }),
-    clearAll: protectedProcedure
+     clearAll: protectedProcedure
       .input(z.object({ symbols: z.array(z.string()) }))
       .mutation(async ({ ctx, input }) => {
         const { setAllWatchlistSelections } = await import('./db');
         await setAllWatchlistSelections(ctx.user.id, input.symbols, false);
         return { success: true };
       }),
-  }),
 
+    // Resolve a ticker symbol via TradingView symbol search (server-side to avoid CORS).
+    // Returns the best match with exchange prefix, or null if not found.
+    resolveSymbol: protectedProcedure
+      .input(z.object({ symbol: z.string().min(1).max(20) }))
+      .query(async ({ input }) => {
+        const clean = input.symbol.trim().toUpperCase().replace(/^[A-Z]+:/, '');
+        const url = `https://symbol-search.tradingview.com/symbol_search/?text=${encodeURIComponent(clean)}&type=stock,index,fund,dr,structured&exchange=&lang=en&domain=production`;
+        try {
+          const res = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Origin': 'https://www.tradingview.com',
+              'Referer': 'https://www.tradingview.com/',
+            },
+          });
+          if (!res.ok) return null;
+          const data: Array<{ symbol: string; exchange: string; type: string; description: string }> = await res.json();
+          if (!data || data.length === 0) return null;
+          const exact = data.find((d: any) => d.symbol.toUpperCase() === clean);
+          const best = exact ?? data[0];
+          if (!best) return null;
+          return {
+            symbol: best.symbol,
+            exchange: best.exchange,
+            fullSymbol: `${best.exchange}:${best.symbol}`,
+            description: best.description,
+            type: best.type,
+          };
+        } catch {
+          return null;
+        }
+      }),
+  }),
   csp: router({
     opportunities: protectedProcedure
       .input(

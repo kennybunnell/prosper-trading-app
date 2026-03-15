@@ -10,52 +10,23 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-// ─── TradingView Symbol Resolution ───────────────────────────────────────────
-// Resolves the correct exchange prefix for a symbol using TradingView's public
-// symbol search API. Returns e.g. "NYSE:IBM", "NASDAQ:AAPL", "CBOE:SPX", etc.
-// Returns null if the symbol is not found.
-async function resolveTVSymbol(symbol: string): Promise<string | null> {
-  try {
-    const clean = symbol.trim().toUpperCase().replace(/^[A-Z]+:/, ''); // strip any existing prefix
-    const url = `https://symbol-search.tradingview.com/symbol_search/?text=${encodeURIComponent(clean)}&type=stock,index,fund,dr,structured&exchange=&lang=en&domain=production`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data: Array<{ symbol: string; exchange: string; type: string; description: string }> = await res.json();
-    if (!data || data.length === 0) return null;
-    // Find exact symbol match (case-insensitive)
-    const exact = data.find(d => d.symbol.toUpperCase() === clean);
-    const best = exact ?? data[0];
-    if (!best) return null;
-    return `${best.exchange}:${best.symbol}`;
-  } catch {
-    return null;
-  }
-}
+// Symbol resolution is handled server-side via trpc.watchlist.resolveSymbol
+// to avoid CORS restrictions on TradingView's symbol search API.
 
 // ─── TradingView Advanced Chart Panel (slide-out) ────────────────────────────
 
 function TradingViewAdvancedChart({ symbol }: { symbol: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // resolvedSymbol holds the exchange-qualified symbol once lookup completes
-  const [resolvedSymbol, setResolvedSymbol] = useState<string | null>(null);
-  const [resolveError, setResolveError] = useState(false);
 
-  useEffect(() => {
-    setResolvedSymbol(null);
-    setResolveError(false);
-    // If already exchange-qualified, use as-is
-    if (symbol.includes(':')) {
-      setResolvedSymbol(symbol);
-      return;
-    }
-    resolveTVSymbol(symbol).then(resolved => {
-      if (resolved) {
-        setResolvedSymbol(resolved);
-      } else {
-        setResolveError(true);
-      }
-    });
-  }, [symbol]);
+  // Use the server-side resolver (avoids CORS). Skip if already exchange-qualified.
+  const alreadyQualified = symbol.includes(':');
+  const { data: resolved, isLoading: resolving, isError: resolveError } =
+    trpc.watchlist.resolveSymbol.useQuery(
+      { symbol },
+      { enabled: !alreadyQualified, retry: 1 }
+    );
+
+  const resolvedSymbol = alreadyQualified ? symbol : (resolved?.fullSymbol ?? null);
 
   useEffect(() => {
     if (!containerRef.current || !resolvedSymbol) return;
@@ -233,6 +204,7 @@ function WatchlistSidebar({
   });
 
   const [validating, setValidating] = useState(false);
+  const utils = trpc.useUtils();
 
   const handleAdd = useCallback(async () => {
     const raw = inputValue.trim().toUpperCase();
@@ -246,13 +218,17 @@ function WatchlistSidebar({
     const valid: string[] = [];
     const invalid: string[] = [];
 
-    // Validate each symbol against TradingView before adding
+    // Validate each symbol via the server-side TradingView proxy (avoids CORS)
     await Promise.all(
       symbols.map(async sym => {
-        const resolved = await resolveTVSymbol(sym);
-        if (resolved) {
-          valid.push(sym);
-        } else {
+        try {
+          const result = await utils.watchlist.resolveSymbol.fetch({ symbol: sym });
+          if (result) {
+            valid.push(sym);
+          } else {
+            invalid.push(sym);
+          }
+        } catch {
           invalid.push(sym);
         }
       })
@@ -274,7 +250,7 @@ function WatchlistSidebar({
     if (valid.length > 0) {
       setInputValue('');
     }
-  }, [inputValue, addMutation, toast]);
+  }, [inputValue, addMutation, toast, utils]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') handleAdd();
