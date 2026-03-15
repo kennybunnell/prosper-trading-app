@@ -257,14 +257,18 @@ function WatchlistSidebar({
             </p>
           </div>
         ) : (
-          <ul className="space-y-0.5 px-2">
+            <ul className="space-y-0.5 px-2">
             {watchlist.map((item: any) => {
               const isSelected = selectedSymbol === item.symbol;
               return (
                 <li key={item.symbol}>
-                  <button
+                  {/* Use div instead of button to avoid nested <button> inside <button> (remove btn) */}
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => onSelectSymbol(item.symbol)}
-                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all group ${
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelectSymbol(item.symbol); }}
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all group cursor-pointer select-none ${
                       isSelected
                         ? 'bg-primary/15 border border-primary/30 text-primary'
                         : 'hover:bg-accent/50 text-foreground border border-transparent'
@@ -305,11 +309,12 @@ function WatchlistSidebar({
                         onClick={e => handleRemove(e, item.symbol)}
                         className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive transition-all"
                         title={`Remove ${item.symbol}`}
+                        type="button"
                       >
                         <X className="h-3 w-3" />
                       </button>
                     </div>
-                  </button>
+                  </div>
                 </li>
               );
             })}
