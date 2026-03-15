@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
 import { TradingViewStockScreener } from '@/components/TradingViewStockScreener';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Search, Plus, X, Star, ChevronRight, TrendingUp, BarChart3,
-  Loader2, AlertCircle, BookMarked
+  Loader2, AlertCircle, BookMarked, ArrowUpDown, ArrowDownAZ, ArrowUpAZ
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -285,6 +285,22 @@ function WatchlistSidebar({
     removeMutation.mutate({ symbol });
   };
 
+  // Sort state: 'original' | 'asc' | 'desc'
+  const [sortOrder, setSortOrder] = useState<'original' | 'asc' | 'desc'>('original');
+
+  const cycleSortOrder = useCallback(() => {
+    setSortOrder(prev =>
+      prev === 'original' ? 'asc' : prev === 'asc' ? 'desc' : 'original'
+    );
+  }, []);
+
+  const sortedWatchlist = useMemo(() => {
+    if (!watchlist) return [];
+    if (sortOrder === 'asc') return [...watchlist].sort((a: any, b: any) => a.symbol.localeCompare(b.symbol));
+    if (sortOrder === 'desc') return [...watchlist].sort((a: any, b: any) => b.symbol.localeCompare(a.symbol));
+    return watchlist;
+  }, [watchlist, sortOrder]);
+
   return (
     <aside className="w-72 shrink-0 flex flex-col border-r border-border/40 bg-card/30 backdrop-blur-sm h-full">
       {/* Header */}
@@ -295,9 +311,31 @@ function WatchlistSidebar({
           <Badge variant="secondary" className="ml-auto text-xs h-5 px-1.5">
             {watchlist?.length ?? 0} tickers
           </Badge>
+          {/* Sort toggle: cycles original → A→Z → Z→A → original */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`h-6 w-6 shrink-0 transition-colors ${
+              sortOrder !== 'original'
+                ? 'text-primary bg-primary/10 hover:bg-primary/20'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={cycleSortOrder}
+            title={
+              sortOrder === 'original' ? 'Sort A → Z'
+              : sortOrder === 'asc' ? 'Sort Z → A'
+              : 'Back to original order'
+            }
+          >
+            {sortOrder === 'original' && <ArrowUpDown className="h-3.5 w-3.5" />}
+            {sortOrder === 'asc' && <ArrowDownAZ className="h-3.5 w-3.5" />}
+            {sortOrder === 'desc' && <ArrowUpAZ className="h-3.5 w-3.5" />}
+          </Button>
         </div>
         <p className="text-xs text-muted-foreground leading-snug">
-          Click any ticker to open its chart
+          {sortOrder === 'asc' ? 'Sorted A → Z · click ⇕ to reverse'
+           : sortOrder === 'desc' ? 'Sorted Z → A · click ⇕ to reset'
+           : 'Click any ticker to open its chart'}
         </p>
       </div>
 
@@ -350,7 +388,7 @@ function WatchlistSidebar({
           </div>
         ) : (
             <ul className="space-y-0.5 px-2">
-            {watchlist.map((item: any) => {
+            {sortedWatchlist.map((item: any) => {
               const isSelected = selectedSymbol === item.symbol;
               return (
                 <li key={item.symbol}>
