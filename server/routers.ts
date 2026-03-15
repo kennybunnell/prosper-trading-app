@@ -1715,7 +1715,11 @@ Answer concisely and specifically. Stay conservative — capital preservation fi
       .input(z.object({ symbol: z.string().min(1).max(20) }))
       .query(async ({ input }) => {
         const clean = input.symbol.trim().toUpperCase().replace(/^[A-Z]+:/, '');
-        const url = `https://symbol-search.tradingview.com/symbol_search/?text=${encodeURIComponent(clean)}&type=stock,index,fund,dr,structured&exchange=&lang=en&domain=production`;
+        // Only request options-relevant types: stocks, ETFs/funds, depositary receipts
+        // Excludes futures, indices, crypto, forex, structured products
+        const url = `https://symbol-search.tradingview.com/symbol_search/?text=${encodeURIComponent(clean)}&type=stock,fund,dr&exchange=&lang=en&domain=production`;
+        // Allowlist of instrument types valid for options trading
+        const OPTIONS_TYPES = new Set(['stock', 'fund', 'dr', 'etf']);
         try {
           const res = await fetch(url, {
             headers: {
@@ -1727,8 +1731,12 @@ Answer concisely and specifically. Stay conservative — capital preservation fi
           if (!res.ok) return null;
           const data: Array<{ symbol: string; exchange: string; type: string; description: string }> = await res.json();
           if (!data || data.length === 0) return null;
-          const exact = data.find((d: any) => d.symbol.toUpperCase() === clean);
-          const best = exact ?? data[0];
+          // Filter to options-relevant types only — reject futures, indices, derivatives, crypto, forex
+          const eligible = data.filter((d: any) => OPTIONS_TYPES.has((d.type || '').toLowerCase()));
+          if (eligible.length === 0) return null;
+          // Prefer exact symbol match first, then first eligible result
+          const exact = eligible.find((d: any) => d.symbol.toUpperCase() === clean);
+          const best = exact ?? eligible[0];
           if (!best) return null;
           return {
             symbol: best.symbol,
