@@ -312,8 +312,9 @@ export const performanceRouter = router({
         }
         
         // Filter for option positions (both short and long)
+        // Include BOTH Equity Option AND Index Option (SPX/NDX/RUT/SPXW are Index Options)
         const optionPositions = positions.filter((pos) => {
-          return pos['instrument-type'] === 'Equity Option';
+          return pos['instrument-type'] === 'Equity Option' || pos['instrument-type'] === 'Index Option';
         });
         console.log(`[Performance] Found ${optionPositions.length} option positions`);
         
@@ -321,15 +322,41 @@ export const performanceRouter = router({
         const shortOptions = optionPositions.filter(pos => pos['quantity-direction'] === 'Short');
         const longOptions = optionPositions.filter(pos => pos['quantity-direction'] === 'Long');
         console.log(`[Performance] ${shortOptions.length} short, ${longOptions.length} long`);
-        
-        // Build a map of long positions by key (underlying + expiration + strike + type)
+
+        // ── Order-ID-based spread leg linkage ──────────────────────────────────────
+        // Fetch filled orders to build a definitive symbol → orderId map.
+        // Two positions sharing an order ID are guaranteed to be legs of the same spread.
+        const perfSymbolToOrderId = new Map<string, string>();
+        const perfOrderIdToLongSym = new Map<string, string>();
+        const perfConsumedLongSyms = new Set<string>();
+        for (const accNum of accountsToFetch) {
+          try {
+            const filledOrders = await api.getFilledOrders(accNum);
+            for (const order of filledOrders) {
+              const orderId = String(order.id || '');
+              if (!orderId) continue;
+              const legs: any[] = order.legs || [];
+              if (legs.length < 2) continue;
+              for (const leg of legs) {
+                const sym = (leg.symbol || '').replace(/\s+/g, '');
+                if (sym) perfSymbolToOrderId.set(sym, orderId);
+                const action = (leg.action || '').toLowerCase();
+                if (action.includes('buy') && action.includes('open')) {
+                  perfOrderIdToLongSym.set(orderId, sym);
+                }
+              }
+            }
+          } catch (e: any) {
+            console.warn(`[Performance] Could not fetch filled orders for ${accNum} (will use heuristic): ${e.message}`);
+          }
+        }
+        console.log(`[Performance] Order-ID linkage: ${perfSymbolToOrderId.size} symbols mapped`);
+
+        // Build a map of long positions by normalised OCC symbol
         const longPositionMap = new Map<string, any>();
         for (const longPos of longOptions) {
-          const isPut = longPos.symbol.includes('P');
-          const strikeMatch = longPos.symbol.match(/[CP](\d+)/);
-          const strike = strikeMatch ? parseFloat(strikeMatch[1]) / 1000 : 0;
-          const key = `${longPos['underlying-symbol']}_${longPos['expires-at']}_${strike}_${isPut ? 'P' : 'C'}`;
-          longPositionMap.set(key, longPos);
+          const normSym = (longPos.symbol || '').replace(/\s+/g, '');
+          longPositionMap.set(normSym, longPos);
         }
         console.log(`[Performance] Built map of ${longPositionMap.size} long positions`);
         
@@ -419,57 +446,72 @@ export const performanceRouter = router({
           let longStrike: number | undefined;
           let spreadWidth: number | undefined;
           let capitalAtRisk: number | undefined;
-          
-          // Look for a long position with same underlying, expiration, and option type
-          // For bull put spread: short put at higher strike + long put at lower strike
-          // For bear call spread: short call at lower strike + long call at higher strike
-          for (const [, longPos] of Array.from(longPositionMap.entries())) {
-            if (longPos['underlying-symbol'] === pos['underlying-symbol'] &&
-                longPos['expires-at'] === pos['expires-at']) {
-              const longOccMatch = longPos.symbol.match(/([CP])(\d{8})$/);
-              const longIsPut = longOccMatch ? longOccMatch[1] === 'P' : longPos.symbol.includes('P');
-              if (longIsPut === isPut) {
-                // Same option type - potential spread
-                const longStrikeMatch = longPos.symbol.match(/[CP](\d+)/);
-                const longStrikeValue = longStrikeMatch ? parseFloat(longStrikeMatch[1]) / 1000 : 0;
-                const longOpenPrice = Math.abs(parseFloat(longPos['average-open-price']));
-                const longOpenCost = longOpenPrice * quantity * longPos.multiplier;
+          // ── Spread detection: Order-ID-first, then heuristic fallback ────────────
+          // Helper to apply spread metrics once a long leg is found
+          const applySpreadMatch = (longPos: any): boolean => {
+            const longStrikeMatch = longPos.symbol.match(/[CP](\d+)/);
+            const longStrikeValue = longStrikeMatch ? parseFloat(longStrikeMatch[1]) / 1000 : 0;
+            const longOpenPrice = Math.abs(parseFloat(longPos['average-open-price']));
+            const longOpenCost = longOpenPrice * quantity * longPos.multiplier;
+            if (isPut && longStrikeValue < strike) {
+              spreadType = 'bull_put';
+              longStrike = longStrikeValue;
+              spreadWidth = strike - longStrikeValue;
+              premiumReceived = (shortOpenPrice * quantity * pos.multiplier) - longOpenCost;
+              capitalAtRisk = (spreadWidth * 100 * quantity) - premiumReceived;
+              const longQuote = quotes[longPos.symbol];
+              const longCurrentPrice = longQuote ? longQuote.mark || longQuote.mid || longQuote.last : parseFloat(longPos['close-price']);
+              currentCost = (currentPrice * quantity * pos.multiplier) - (longCurrentPrice * quantity * longPos.multiplier);
+              console.log(`[Performance] BPS: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt, netCredit=$${premiumReceived.toFixed(2)}, capitalAtRisk=$${capitalAtRisk?.toFixed(2)}, netCurrentCost=$${currentCost.toFixed(2)})`);
+              return true;
+            } else if (!isPut && longStrikeValue > strike) {
+              spreadType = 'bear_call';
+              longStrike = longStrikeValue;
+              spreadWidth = longStrikeValue - strike;
+              premiumReceived = (shortOpenPrice * quantity * pos.multiplier) - longOpenCost;
+              capitalAtRisk = (spreadWidth * 100 * quantity) - premiumReceived;
+              const longQuote = quotes[longPos.symbol];
+              const longCurrentPrice = longQuote ? longQuote.mark || longQuote.mid || longQuote.last : parseFloat(longPos['close-price']);
+              currentCost = (currentPrice * quantity * pos.multiplier) - (longCurrentPrice * quantity * longPos.multiplier);
+              console.log(`[Performance] BCS: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt, netCredit=$${premiumReceived.toFixed(2)}, capitalAtRisk=$${capitalAtRisk?.toFixed(2)}, netCurrentCost=$${currentCost.toFixed(2)})`);
+              return true;
+            }
+            return false;
+          };
 
-                if (isPut && longStrikeValue < strike) {
-                  // Bull put spread: short higher strike, long lower strike
-                  spreadType = 'bull_put';
-                  longStrike = longStrikeValue;
-                  spreadWidth = strike - longStrikeValue;
+          const normShortSym = (pos.symbol || '').replace(/\s+/g, '');
+          let spreadMatched = false;
 
-                  // NET credit received when spread was opened = short premium - long premium paid
-                  premiumReceived = (shortOpenPrice * quantity * pos.multiplier) - longOpenCost;
-                  // Capital at risk = spread width x 100 x qty - net credit
-                  capitalAtRisk = (spreadWidth * 100 * quantity) - premiumReceived;
+          // Pass 1: Order-ID-based matching (authoritative)
+          const shortOrderId = perfSymbolToOrderId.get(normShortSym);
+          if (shortOrderId) {
+            const linkedLongSym = perfOrderIdToLongSym.get(shortOrderId);
+            if (linkedLongSym && linkedLongSym !== normShortSym && !perfConsumedLongSyms.has(linkedLongSym)) {
+              const longPos = longPositionMap.get(linkedLongSym);
+              if (longPos && applySpreadMatch(longPos)) {
+                perfConsumedLongSyms.add(linkedLongSym);
+                spreadMatched = true;
+                console.log(`[Performance] Order-ID match: ${normShortSym} → order ${shortOrderId} → long ${linkedLongSym}`);
+              }
+            }
+          }
 
-                  // Net current cost to close = (pay to BTC short) - (receive from STC long)
-                  const longQuote = quotes[longPos.symbol];
-                  const longCurrentPrice = longQuote ? longQuote.mark || longQuote.mid || longQuote.last : parseFloat(longPos['close-price']);
-                  currentCost = (currentPrice * quantity * pos.multiplier) - (longCurrentPrice * quantity * longPos.multiplier);
-
-                  console.log(`[Performance] BPS: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt, netCredit=$${premiumReceived.toFixed(2)}, capitalAtRisk=$${capitalAtRisk?.toFixed(2)}, netCurrentCost=$${currentCost.toFixed(2)})`);
-                } else if (!isPut && longStrikeValue > strike) {
-                  // Bear call spread: short lower strike, long higher strike
-                  spreadType = 'bear_call';
-                  longStrike = longStrikeValue;
-                  spreadWidth = longStrikeValue - strike;
-
-                  // NET credit received when spread was opened
-                  premiumReceived = (shortOpenPrice * quantity * pos.multiplier) - longOpenCost;
-                  capitalAtRisk = (spreadWidth * 100 * quantity) - premiumReceived;
-
-                  // Net current cost to close
-                  const longQuote = quotes[longPos.symbol];
-                  const longCurrentPrice = longQuote ? longQuote.mark || longQuote.mid || longQuote.last : parseFloat(longPos['close-price']);
-                  currentCost = (currentPrice * quantity * pos.multiplier) - (longCurrentPrice * quantity * longPos.multiplier);
-
-                  console.log(`[Performance] BCS: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt, netCredit=$${premiumReceived.toFixed(2)}, capitalAtRisk=$${capitalAtRisk?.toFixed(2)}, netCurrentCost=$${currentCost.toFixed(2)})`);
+          // Pass 2: Heuristic fallback (for legacy/manual positions)
+          if (!spreadMatched) {
+            for (const [normLongSym, longPos] of Array.from(longPositionMap.entries())) {
+              if (perfConsumedLongSyms.has(normLongSym)) continue;
+              if (normLongSym === normShortSym) continue;
+              if (longPos['underlying-symbol'] === pos['underlying-symbol'] &&
+                  longPos['expires-at'] === pos['expires-at']) {
+                const longOccMatch = longPos.symbol.match(/([CP])(\d{8})$/);
+                const longIsPut = longOccMatch ? longOccMatch[1] === 'P' : longPos.symbol.includes('P');
+                if (longIsPut === isPut) {
+                  if (applySpreadMatch(longPos)) {
+                    perfConsumedLongSyms.add(normLongSym);
+                    console.log(`[Performance] Heuristic match (fallback): ${normShortSym} → long ${normLongSym}`);
+                    break;
+                  }
                 }
-                break;
               }
             }
           }

@@ -606,6 +606,45 @@ export class TastytradeAPI {
   }
 
   /**
+   * Get filled orders for an account within a date range.
+   * Used for order-ID-based spread leg linkage: each multi-leg order has a single ID
+   * that ties all its legs together, giving us authoritative spread pairing.
+   *
+   * @param accountNumber - Account number
+   * @param startDate - Start date (YYYY-MM-DD), defaults to 90 days ago
+   * @param perPage - Max orders per page (default 250)
+   */
+  async getFilledOrders(
+    accountNumber: string,
+    startDate?: string,
+    perPage: number = 250
+  ): Promise<any[]> {
+    try {
+      const start = startDate || (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 90);
+        return d.toISOString().split('T')[0];
+      })();
+      const response = await this.client.get(`/accounts/${accountNumber}/orders`, {
+        params: {
+          status: 'Filled',
+          'start-date': start,
+          'per-page': perPage,
+        },
+      });
+      return response.data.data?.items || [];
+    } catch (error: any) {
+      if (error.isRateLimit) throw new Error('Rate exceeded. Please wait a moment before retrying.');
+      if (error.message?.includes('not valid JSON') || error.message?.includes('Unexpected token')) {
+        throw new Error('Rate exceeded. Please wait a moment before retrying.');
+      }
+      // Non-fatal: fall back to empty list so spread detection degrades gracefully
+      console.warn(`[Tastytrade] getFilledOrders failed for ${accountNumber}: ${error.response?.data?.error?.message || error.message}`);
+      return [];
+    }
+  }
+
+  /**
    * Get order details by ID
    * Returns order with status (Received, Live, Filled, Cancelled, Rejected, etc.)
    */

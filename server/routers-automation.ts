@@ -431,8 +431,46 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             //   realizedPercent = (premiumReceived - currentCost) / premiumReceived × 100
             const positions = runBTCScan ? await tt.getPositions(account.accountNumber) : [];
             
-            // Build a map of long positions for spread detection (keyed by OCC symbol)
+            // ── Order-ID-based spread leg linkage ──────────────────────────────────────
+            // Tastytrade positions API does NOT include order IDs, so we fetch the filled
+            // orders history to build a definitive symbol → orderId map.
+            // Two positions that share an order ID are guaranteed to be legs of the same spread.
+            // This prevents the heuristic (match first available long) from cross-pairing legs
+            // when multiple spreads on the same underlying+expiration exist (e.g. SPX BCS + CC).
+            //
+            // symbolToOrderId: normalised OCC symbol → order ID string
+            // orderIdToLongSymbol: order ID → normalised OCC symbol of the long leg
+            const symbolToOrderId = new Map<string, string>();
+            const orderIdToLongSymbol = new Map<string, string>();
+            if (runBTCScan) {
+              try {
+                const filledOrders = await tt.getFilledOrders(account.accountNumber);
+                for (const order of filledOrders) {
+                  const orderId = String(order.id || '');
+                  if (!orderId) continue;
+                  const legs: any[] = order.legs || [];
+                  if (legs.length < 2) continue; // single-leg orders are not spreads
+                  for (const leg of legs) {
+                    const sym = (leg.symbol || '').replace(/\s+/g, '');
+                    if (sym) symbolToOrderId.set(sym, orderId);
+                    // Track which leg is the long (Buy to Open)
+                    const action = (leg.action || '').toLowerCase();
+                    if (action.includes('buy') && action.includes('open')) {
+                      orderIdToLongSymbol.set(orderId, sym);
+                    }
+                  }
+                }
+                const multiLegCount = filledOrders.filter((o: any) => (o.legs || []).length >= 2).length;
+                console.log(`[Automation] Order-ID linkage: ${symbolToOrderId.size} symbols mapped from ${multiLegCount} multi-leg filled orders`);
+              } catch (e: any) {
+                console.warn(`[Automation] Could not fetch filled orders for order-ID linkage (will use heuristic): ${e.message}`);
+              }
+            }
+
+            // Build a map of long positions for spread detection (keyed by normalised OCC symbol)
+            // Track consumed long legs so each long is only matched to ONE short
             const longPositionMap = new Map<string, any>();
+            const consumedLongSymbols = new Set<string>();
             if (runBTCScan) {
               for (const pos of positions) {
                 const qty = parseInt(String(pos.quantity || '0'));
@@ -440,7 +478,9 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 const isLong = direction === 'long' || qty > 0;
                 // Include both 'Equity Option' and 'Index Option' (SPX/NDX/RUT long legs)
                 if (isLong && (pos['instrument-type'] === 'Equity Option' || pos['instrument-type'] === 'Index Option')) {
-                  longPositionMap.set(pos.symbol, pos);
+                  // Key by normalised symbol (no spaces) for consistent lookup
+                  const normSym = (pos.symbol || '').replace(/\s+/g, '');
+                  longPositionMap.set(normSym, pos);
                 }
               }
             }
@@ -506,57 +546,92 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               let buyBackCost = closePrice * quantity * multiplier;
 
               // ── Spread detection ──────────────────────────────────────────────────────
-              // Step A: find a matching long leg (same underlying, same expiration, same put/call)
-              //         → Bull Put Spread (BPS) if puts, Bear Call Spread (BCS) if calls
-              // QUANTITY-AWARE: if long qty < short qty, only the matched portion is a spread;
-              //   the remainder is a standalone CC/CSP and gets a separate single-leg BTC order.
-              // Step B: check if this short option is part of an Iron Condor
-              //         (there is ALSO a short option of the opposite type on the same underlying+expiration)
+              // STRATEGY: Order-ID-first, then heuristic fallback.
+              //
+              // Pass 1 (authoritative): if the short leg's normalised OCC symbol appears in
+              //   symbolToOrderId, we know the exact order that opened it. We look up the
+              //   long leg for that order from orderIdToLongSymbol and match it directly.
+              //   This is 100% accurate and prevents cross-pairing when multiple spreads on
+              //   the same underlying+expiration exist (e.g. SPX BCS at 6820/6845 + CC at 6835).
+              //
+              // Pass 2 (heuristic fallback): for positions not found in the order history
+              //   (legacy/manual positions, orders older than 90 days), fall back to the
+              //   original symbol/type/expiration matching — but now we track consumed long
+              //   legs so each long is only paired with ONE short.
               let isSpread = false;
               let matchedLongLeg: any = null;
               let spreadQuantity = quantity;   // how many contracts to close as a spread
               let singleLegRemainder = 0;       // how many contracts to close as single-leg BTC
 
-              for (const [, longPos] of Array.from(longPositionMap.entries())) {
-                if (longPos['underlying-symbol'] === position['underlying-symbol'] &&
-                    longPos['expires-at'] === position['expires-at']) {
-                  const longOccMatch = longPos.symbol?.match(/([CP])(\d{8})$/);
-                  const longIsPut = longOccMatch ? longOccMatch[1] === 'P' : (longPos.symbol?.includes('P') ?? false);
-                  if (longIsPut === isPut) {
-                    // SAFETY: never match the same OCC symbol as both short and long leg.
-                    // This can happen when Tastytrade returns a long position with the same
-                    // symbol as the short (e.g., stale data or IC where both legs share a strike).
-                    // Normalise symbols (strip spaces) before comparing.
-                    const normLongSym = (longPos.symbol || '').replace(/\s+/g, '');
-                    const normShortSym = optionSymbol.replace(/\s+/g, '');
-                    if (normLongSym === normShortSym) {
-                      console.warn(`[Automation] Skipping self-match: long leg symbol ${longPos.symbol} equals short leg ${optionSymbol}`);
-                      continue;
-                    }
-                    // SAFETY: long-leg strike must differ from short-leg strike for a valid spread.
-                    const shortStrikeNum = occTypeMatch ? parseInt(occTypeMatch[2], 10) : 0;
-                    const longStrikeNum = longOccMatch ? parseInt(longOccMatch[2], 10) : 0;
-                    if (shortStrikeNum !== 0 && longStrikeNum !== 0 && shortStrikeNum === longStrikeNum) {
-                      console.warn(`[Automation] Skipping same-strike match: ${optionSymbol} and ${longPos.symbol} have the same strike ${shortStrikeNum}`);
-                      continue;
-                    }
+              const normShortSym = optionSymbol.replace(/\s+/g, '');
+
+              // ── Pass 1: Order-ID-based matching ──
+              const shortOrderId = symbolToOrderId.get(normShortSym);
+              if (shortOrderId) {
+                const linkedLongSym = orderIdToLongSymbol.get(shortOrderId);
+                if (linkedLongSym && linkedLongSym !== normShortSym && !consumedLongSymbols.has(linkedLongSym)) {
+                  const longPos = longPositionMap.get(linkedLongSym);
+                  if (longPos) {
                     const longQty = Math.abs(parseInt(String(longPos.quantity || '0')));
-                    const matchedQty = Math.min(quantity, longQty); // only match up to long qty
+                    const matchedQty = Math.min(quantity, longQty);
                     const longClosePrice = Math.abs(parseFloat(String(longPos['close-price'] || '0')));
                     const longBuyBackCredit = longClosePrice * matchedQty * parseInt(String(longPos.multiplier || '100'));
-                    const shortCostForMatched = (closePrice * matchedQty * multiplier);
+                    const shortCostForMatched = closePrice * matchedQty * multiplier;
                     const netCost = shortCostForMatched - longBuyBackCredit;
                     if (netCost >= 0) {
                       isSpread = true;
                       matchedLongLeg = longPos;
                       spreadQuantity = matchedQty;
-                      singleLegRemainder = quantity - matchedQty; // unmatched short contracts
-                      // Recalculate buyBackCost for the spread portion only
+                      singleLegRemainder = quantity - matchedQty;
                       buyBackCost = netCost;
-                      // Rename type: CSP+long put → BPS, CC+long call → BCS
                       optionType = isPut ? 'BPS' : 'BCS';
+                      consumedLongSymbols.add(linkedLongSym); // mark as used
+                      console.log(`[Automation] Order-ID match: ${normShortSym} → order ${shortOrderId} → long ${linkedLongSym}`);
                     }
-                    break;
+                  }
+                }
+              }
+
+              // ── Pass 2: Heuristic fallback (only if Pass 1 did not match) ──
+              if (!isSpread) {
+                for (const [normLongSym, longPos] of Array.from(longPositionMap.entries())) {
+                  // Skip already-consumed long legs
+                  if (consumedLongSymbols.has(normLongSym)) continue;
+                  if (longPos['underlying-symbol'] === position['underlying-symbol'] &&
+                      longPos['expires-at'] === position['expires-at']) {
+                    const longOccMatch = longPos.symbol?.match(/([CP])(\d{8})$/);
+                    const longIsPut = longOccMatch ? longOccMatch[1] === 'P' : (longPos.symbol?.includes('P') ?? false);
+                    if (longIsPut === isPut) {
+                      // SAFETY: skip self-match
+                      if (normLongSym === normShortSym) {
+                        console.warn(`[Automation] Skipping self-match: long leg symbol ${longPos.symbol} equals short leg ${optionSymbol}`);
+                        continue;
+                      }
+                      // SAFETY: skip same-strike match
+                      const shortStrikeNum = occTypeMatch ? parseInt(occTypeMatch[2], 10) : 0;
+                      const longStrikeNum = longOccMatch ? parseInt(longOccMatch[2], 10) : 0;
+                      if (shortStrikeNum !== 0 && longStrikeNum !== 0 && shortStrikeNum === longStrikeNum) {
+                        console.warn(`[Automation] Skipping same-strike match: ${optionSymbol} and ${longPos.symbol} have the same strike ${shortStrikeNum}`);
+                        continue;
+                      }
+                      const longQty = Math.abs(parseInt(String(longPos.quantity || '0')));
+                      const matchedQty = Math.min(quantity, longQty);
+                      const longClosePrice = Math.abs(parseFloat(String(longPos['close-price'] || '0')));
+                      const longBuyBackCredit = longClosePrice * matchedQty * parseInt(String(longPos.multiplier || '100'));
+                      const shortCostForMatched = closePrice * matchedQty * multiplier;
+                      const netCost = shortCostForMatched - longBuyBackCredit;
+                      if (netCost >= 0) {
+                        isSpread = true;
+                        matchedLongLeg = longPos;
+                        spreadQuantity = matchedQty;
+                        singleLegRemainder = quantity - matchedQty;
+                        buyBackCost = netCost;
+                        optionType = isPut ? 'BPS' : 'BCS';
+                        consumedLongSymbols.add(normLongSym); // mark as used
+                        console.log(`[Automation] Heuristic match (fallback): ${normShortSym} → long ${normLongSym}`);
+                      }
+                      break;
+                    }
                   }
                 }
               }

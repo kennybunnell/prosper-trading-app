@@ -8165,3 +8165,10 @@
 - [x] Updated dog-forced-exit.test.ts to reflect correct instrument type behavior
 - [x] Updated orderUtils.test.ts to reflect $0.10 dime rule for large index options >= $3.00
 - [x] All 1,238 tests passing (87 test files, 9 skipped)
+
+## Spread Detection Fix: Order ID Linkage (Mar 16, 2026)
+- [x] Audit current spread detection logic (how legs are currently paired)
+- [x] Redesign spread detection to use Tastytrade order ID as primary linkage key
+- [x] Handle edge cases: index options, multi-account, partial fills, legacy positions without order IDs
+- [x] Fix "+N standalone" warnings for SPX, APLD, and other multi-leg strategies
+- [x] Run tests and save checkpoint
