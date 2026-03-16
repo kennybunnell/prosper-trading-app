@@ -739,6 +739,19 @@ export const positionAnalyzerRouter = router({
       dryRun: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
+      // CRITICAL: Block all order submission in paper trading mode
+      {
+        const { getDb: _getDbP } = await import('./db');
+        const _pdbP = await _getDbP();
+        if (_pdbP) {
+          const { users: _uP } = await import('../drizzle/schema.js');
+          const { eq: _eqP } = await import('drizzle-orm');
+          const [_puP] = await _pdbP.select().from(_uP).where(_eqP(_uP.id, ctx.user.id)).limit(1);
+          if (_puP?.tradingMode === 'paper') {
+            throw new TRPCError({ code: 'FORBIDDEN', message: 'Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.' });
+          }
+        }
+      }
       const { getApiCredentials } = await import('./db');
       const { authenticateTastytrade } = await import('./tastytrade');
 
@@ -1001,6 +1014,19 @@ export const positionAnalyzerRouter = router({
       dryRun: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
+      // CRITICAL: Block all order submission in paper trading mode
+      {
+        const { getDb: _getDbP } = await import('./db');
+        const _pdbP = await _getDbP();
+        if (_pdbP) {
+          const { users: _uP } = await import('../drizzle/schema.js');
+          const { eq: _eqP } = await import('drizzle-orm');
+          const [_puP] = await _pdbP.select().from(_uP).where(_eqP(_uP.id, ctx.user.id)).limit(1);
+          if (_puP?.tradingMode === 'paper') {
+            throw new TRPCError({ code: 'FORBIDDEN', message: 'Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.' });
+          }
+        }
+      }
       const { getApiCredentials } = await import('./db');
       const { authenticateTastytrade } = await import('./tastytrade');
 

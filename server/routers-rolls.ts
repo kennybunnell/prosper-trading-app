@@ -750,9 +750,19 @@ export const rollsRouter = router({
       }))
     }))
     .mutation(async ({ ctx, input }) => {
-      const { getApiCredentials } = await import('./db');
+      // CRITICAL: Block all order submission in paper trading mode
+      const { getDb: _getDb, getApiCredentials } = await import('./db');
+      const _pdb = await _getDb();
+      if (_pdb) {
+        const { users: _u } = await import('../drizzle/schema.js');
+        const { eq: _eq } = await import('drizzle-orm');
+        const [_pu] = await _pdb.select().from(_u).where(_eq(_u.id, ctx.user.id)).limit(1);
+        if (_pu?.tradingMode === 'paper') {
+          const { TRPCError: _E } = await import('@trpc/server');
+          throw new _E({ code: 'FORBIDDEN', message: 'Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.' });
+        }
+      }
       const { authenticateTastytrade } = await import('./tastytrade');
-
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials || !credentials.tastytradeClientSecret || !credentials.tastytradeRefreshToken) {
         throw new Error('Tastytrade credentials not found');

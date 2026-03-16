@@ -8,16 +8,23 @@ interface TradingModeContextType {
   mode: TradingMode;
   setMode: (mode: TradingMode) => void;
   isLoading: boolean;
+  showOnboarding: boolean;
+  setShowOnboarding: (v: boolean) => void;
 }
 
 const TradingModeContext = createContext<TradingModeContextType | undefined>(undefined);
 
 export function TradingModeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeState] = useState<TradingMode>('paper');
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const { user, loading: authLoading } = useAuth();
   const updateModeMutation = trpc.user.setTradingMode.useMutation();
   const seedMockPositionsMutation = trpc.paperTrading.seedMockPositions.useMutation();
   const seedPerformanceDataMutation = trpc.paperTrading.seedPerformanceData.useMutation();
+  const { data: onboardingStatus } = trpc.paperTrading.getOnboardingStatus.useQuery(
+    undefined,
+    { enabled: !!user && !authLoading, staleTime: 60_000 }
+  );
 
   // Initialize mode from user data
   useEffect(() => {
@@ -32,6 +39,15 @@ export function TradingModeProvider({ children }: { children: React.ReactNode })
       }
     }
   }, [user, authLoading]);
+
+  // Show onboarding when user first enters paper mode and hasn't seen it yet
+  useEffect(() => {
+    if (onboardingStatus && mode === 'paper' && !onboardingStatus.hasSeenPaperOnboarding) {
+      // Small delay so the page renders first
+      const timer = setTimeout(() => setShowOnboarding(true), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [onboardingStatus, mode]);
 
   // Update mode both locally and in database
   const setMode = async (newMode: TradingMode) => {
@@ -51,6 +67,7 @@ export function TradingModeProvider({ children }: { children: React.ReactNode })
           console.error('Failed to seed mock data:', seedError);
           // Don't revert mode on seed failure - user can still use paper mode
         }
+        // Show onboarding if user hasn't seen it yet (check will happen via useEffect)
       }
     } catch (error) {
       console.error('Failed to update trading mode:', error);
@@ -60,7 +77,7 @@ export function TradingModeProvider({ children }: { children: React.ReactNode })
   };
 
   return (
-    <TradingModeContext.Provider value={{ mode, setMode, isLoading: authLoading }}>
+    <TradingModeContext.Provider value={{ mode, setMode, isLoading: authLoading, showOnboarding, setShowOnboarding }}>
       {children}
     </TradingModeContext.Provider>
   );

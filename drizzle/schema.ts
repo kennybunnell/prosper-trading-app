@@ -40,6 +40,8 @@ export const users = mysqlTable("users", {
   approvedAt: timestamp("approvedAt"),
   /** Admin user ID who approved this user */
   approvedBy: int("approvedBy"),
+  /** Whether the user has seen the paper trading onboarding walkthrough */
+  hasSeenPaperOnboarding: boolean("hasSeenPaperOnboarding").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

@@ -136,6 +136,36 @@ export const paperTradingRouter = router({
   }),
 
   /**
+   * Mark that the user has seen the paper trading onboarding walkthrough
+   */
+  markOnboardingSeen: protectedProcedure.mutation(async ({ ctx }) => {
+    const { getDb } = await import('./db');
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+    const { users } = await import('../drizzle/schema.js');
+    await db.update(users).set({ hasSeenPaperOnboarding: true }).where(eq(users.id, ctx.user.id));
+    return { success: true };
+  }),
+
+  /**
+   * Get whether the user has seen the paper trading onboarding walkthrough
+   */
+  getOnboardingStatus: protectedProcedure.query(async ({ ctx }) => {
+    const { getDb } = await import('./db');
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+    const { users } = await import('../drizzle/schema.js');
+    const [user] = await db.select({
+      hasSeenPaperOnboarding: users.hasSeenPaperOnboarding,
+      tradingMode: users.tradingMode,
+    }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+    return {
+      hasSeenPaperOnboarding: user?.hasSeenPaperOnboarding ?? false,
+      tradingMode: user?.tradingMode ?? 'paper',
+    };
+  }),
+
+  /**
    * Submit a simulated paper trading order (records to paperTradingOrders table)
    */
   submitOrder: protectedProcedure

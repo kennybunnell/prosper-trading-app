@@ -171,6 +171,9 @@ export function UnifiedOrderPreviewModal({
   const [gtcSubmitStatus, setGtcSubmitStatus] = useState<'idle' | 'submitting' | 'success' | 'failed'>('idle');
   const [gtcSubmitMessage, setGtcSubmitMessage] = useState<string>('');
   const gtcSubmitMutation = trpc.gtc.submit.useMutation();
+  // Paper trading order submission
+  const paperSubmitMutation = trpc.paperTrading.submitOrder.useMutation();
+  const [paperOrderResult, setPaperOrderResult] = useState<{ orderId: number; message: string; totalPremiumDollars: number } | null>(null);
   // Safeguard pre-flight check state
   const [safeguardWarnings, setSafeguardWarnings] = useState<Array<{ title: string; description: string; requiredAction: string; severity: string }>>([]);
   const [showSafeguardWarning, setShowSafeguardWarning] = useState(false);
@@ -623,6 +626,71 @@ export function UnifiedOrderPreviewModal({
     }
   };
   
+  // Handle paper trading simulation (records order to paperTradingOrders table)
+  const handlePaperSubmit = async () => {
+    setIsSubmitting(true);
+    setPaperOrderResult(null);
+    try {
+      // Submit each order as a paper trade
+      const results = [];
+      for (const order of orders) {
+        const qty = orderQuantities.get(getOrderKey(order)) || 1;
+        const price = adjustedPrices.get(getOrderKey(order)) || order.premium;
+        const premiumCents = Math.round(price * 100); // Convert $ to cents
+        // Calculate DTE from expiration date
+        const dte = order.expiration
+          ? Math.round((new Date(order.expiration).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+          : undefined;
+        const result = await paperSubmitMutation.mutateAsync({
+          symbol: order.symbol,
+          strategy,
+          action: order.action,
+          optionType: order.optionType,
+          strike: String(order.strike),
+          expiration: order.expiration,
+          dte,
+          premiumCents,
+          contracts: qty,
+          orderSnapshot: {
+            symbol: order.symbol,
+            strike: order.strike,
+            expiration: order.expiration,
+            premium: price,
+            action: order.action,
+            optionType: order.optionType,
+            strategy,
+            bid: order.bid,
+            ask: order.ask,
+            longStrike: order.longStrike,
+            longPremium: order.longPremium,
+          },
+        });
+        results.push(result);
+      }
+      // Aggregate results
+      const totalPremiumDollars = results.reduce((sum, r) => sum + (r.totalPremiumCents ? r.totalPremiumCents / 100 : 0), 0);
+      const firstResult = results[0];
+      setPaperOrderResult({
+        orderId: firstResult.orderId as number,
+        message: firstResult.message,
+        totalPremiumDollars,
+      });
+      setSubmissionState(true, 'Filled');
+      toast({
+        title: '📝 Paper Trade Simulated',
+        description: `${orders.length} order${orders.length > 1 ? 's' : ''} recorded. Total premium: $${totalPremiumDollars.toFixed(2)}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Paper Trade Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Safeguard pre-flight check — runs before any live submission
   const runSafeguardCheck = async (): Promise<boolean> => {
     try {
@@ -1093,8 +1161,17 @@ export function UnifiedOrderPreviewModal({
           </DialogDescription>
         </DialogHeader>
         
-        {/* Skip Dry Run Checkbox */}
-        {!submissionComplete && (
+        {/* Paper Mode Banner */}
+        {tradingMode === 'paper' && (
+          <div className="flex items-center gap-2 px-6 py-2 bg-blue-500/10 border-b border-blue-500/20 text-blue-300 text-sm">
+            <span className="text-base">📝</span>
+            <span className="font-medium">Paper Trading Mode</span>
+            <span className="text-blue-300/60">— Orders are simulated and recorded to your Paper Orders history. No real trades will be placed.</span>
+          </div>
+        )}
+
+        {/* Skip Dry Run Checkbox — hidden in paper mode */}
+        {!submissionComplete && tradingMode !== 'paper' && (
           <div className="flex items-center space-x-2 px-6 py-2 bg-muted/30 border-b">
             <input
               type="checkbox"
@@ -1831,6 +1908,26 @@ export function UnifiedOrderPreviewModal({
             </div>
           )}
 
+          {/* Paper Trade Confirmation Banner */}
+          {paperOrderResult && tradingMode === 'paper' && (
+            <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/30 space-y-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-blue-400 flex-shrink-0" />
+                <h4 className="font-semibold text-blue-300">Paper Trade Recorded</h4>
+              </div>
+              <p className="text-sm text-blue-200/80">
+                {paperOrderResult.message}
+              </p>
+              <div className="flex items-center gap-4 text-sm">
+                <span className="text-muted-foreground">Order ID:</span>
+                <span className="font-mono text-blue-300">#{paperOrderResult.orderId}</span>
+                <span className="text-muted-foreground">Premium:</span>
+                <span className="font-semibold text-green-400">${paperOrderResult.totalPremiumDollars.toFixed(2)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">View in Portfolio → Paper Orders tab</p>
+            </div>
+          )}
+
           {/* Order Status Display (after live submission) */}
           {orderStatuses.length > 0 && (
             <div className="p-4 bg-muted/30 rounded-lg border space-y-3">
@@ -1877,7 +1974,28 @@ export function UnifiedOrderPreviewModal({
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-          {(!dryRunSuccess || skipDryRun) && !submissionComplete ? (
+          {submissionComplete ? (
+            <Button
+              onClick={() => onOpenChange(false)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Close
+            </Button>
+          ) : tradingMode === "paper" ? (
+            /* Paper mode: show Simulate Trade button instead of live buttons */
+            <Button
+              onClick={handlePaperSubmit}
+              disabled={!canSubmit || isSubmitting}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isSubmitting
+                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                : <span className="mr-2">📝</span>
+              }
+              Simulate Trade
+            </Button>
+          ) : (!dryRunSuccess || skipDryRun) ? (
             !skipDryRun ? (
               <Button
                 onClick={handleDryRun}
@@ -1891,30 +2009,20 @@ export function UnifiedOrderPreviewModal({
               <Button
                 onClick={handleLiveSubmit}
                 variant="destructive"
-                disabled={!canSubmit || tradingMode === "paper"}
+                disabled={!canSubmit}
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Submit Live Orders
-                {tradingMode === "paper" && <span className="ml-2 text-xs">(Disabled in Paper Mode)</span>}
               </Button>
             )
-          ) : submissionComplete ? (
-            <Button
-              onClick={() => onOpenChange(false)}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              <CheckCircle2 className="mr-2 h-4 w-4" />
-              Close
-            </Button>
           ) : (
             <Button
               onClick={handleLiveSubmit}
               variant="destructive"
-              disabled={!canSubmit || tradingMode === "paper"}
+              disabled={!canSubmit}
             >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Submit Live
-              {tradingMode === "paper" && <span className="ml-2 text-xs">(Disabled in Paper Mode)</span>}
             </Button>
           )}
           </div>

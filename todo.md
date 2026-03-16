@@ -8114,3 +8114,41 @@
 - [x] 75%-width slide-out chart panel with TradingView Advanced Chart (BB + RSI pre-loaded)
 - [x] Register /screener as first Portfolio submenu in DashboardLayout sidebar
 - [x] Shared watchlist sync: add/remove mutations use existing trpc.watchlist procedures
+
+## Paper Trading - Order Wiring & Onboarding (Mar 15, 2026)
+- [ ] Wire UnifiedOrderPreviewModal to call trpc.paperTrading.submitOrder when tradingMode === 'paper'
+- [ ] Replace "Submit Live" disabled button with "Simulate Trade" button in paper mode
+- [ ] Show paper trade confirmation with recorded order details
+- [ ] Add hasSeenPaperOnboarding column to users table in schema
+- [ ] Add markPaperOnboardingSeen procedure to paper trading router
+- [ ] Build 3-step onboarding walkthrough modal (PaperTradingOnboardingModal component)
+- [ ] Step 1: $100K balance and mock positions explanation
+- [ ] Step 2: How to run a scan
+- [ ] Step 3: How to simulate a trade
+- [ ] Show onboarding modal on first paper mode activation (TradingModeContext)
+
+## Paper Trading - Phase 2 (March 2026)
+- [x] Wire order preview modal to call trpc.paperTrading.submitOrder in paper mode
+- [x] Add "Simulate Trade" button (blue) replacing disabled "Submit Live" in paper mode
+- [x] Add paper mode banner in order preview modal header
+- [x] Hide dry-run checkbox in paper mode (not needed)
+- [x] Show paper trade confirmation banner with order ID and premium after submission
+- [x] Add hasSeenPaperOnboarding column to users table (DB migration applied)
+- [x] Add markOnboardingSeen and getOnboardingStatus procedures to paper trading router
+- [x] Build 3-step onboarding walkthrough modal (PaperTradingOnboardingModal)
+- [x] Auto-trigger onboarding on first paper mode entry via TradingModeContext
+- [x] Mount onboarding modal in DashboardLayout
+- [x] Write vitest tests for paper trading onboarding and order submission (8 tests pass)
+
+## Paper Trading - Phase 2 (March 2026)
+- [x] Wire order preview modal to call trpc.paperTrading.submitOrder in paper mode
+- [x] Add Simulate Trade button (blue) replacing disabled Submit Live in paper mode
+- [x] Add paper mode banner in order preview modal header
+- [x] Hide dry-run checkbox in paper mode (not needed)
+- [x] Show paper trade confirmation banner with order ID and premium after submission
+- [x] Add hasSeenPaperOnboarding column to users table (DB migration applied)
+- [x] Add markOnboardingSeen and getOnboardingStatus procedures to paper trading router
+- [x] Build 3-step onboarding walkthrough modal (PaperTradingOnboardingModal)
+- [x] Auto-trigger onboarding on first paper mode entry via TradingModeContext
+- [x] Mount onboarding modal in DashboardLayout
+- [x] Write vitest tests for paper trading onboarding and order submission (8 tests pass)

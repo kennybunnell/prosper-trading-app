@@ -429,7 +429,18 @@ export const iraSafetyRouter = router({
       dryRun: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { getApiCredentials } = await import('./db');
+      // CRITICAL: Block all order submission in paper trading mode
+      const { getDb: _getDb2, getApiCredentials } = await import('./db');
+      const _pdb2 = await _getDb2();
+      if (_pdb2) {
+        const { users: _u2 } = await import('../drizzle/schema.js');
+        const { eq: _eq2 } = await import('drizzle-orm');
+        const [_pu2] = await _pdb2.select().from(_u2).where(_eq2(_u2.id, ctx.user.id)).limit(1);
+        if (_pu2?.tradingMode === 'paper') {
+          const { TRPCError: _E2 } = await import('@trpc/server');
+          throw new _E2({ code: 'FORBIDDEN', message: 'Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.' });
+        }
+      }
       const { authenticateTastytrade } = await import('./tastytrade');
 
       const credentials = await getApiCredentials(ctx.user.id);
@@ -492,7 +503,18 @@ export const iraSafetyRouter = router({
       dryRun: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { getApiCredentials } = await import('./db');
+      // CRITICAL: Block all order submission in paper trading mode
+      const { getDb: _getDb2, getApiCredentials } = await import('./db');
+      const _pdb2 = await _getDb2();
+      if (_pdb2) {
+        const { users: _u2 } = await import('../drizzle/schema.js');
+        const { eq: _eq2 } = await import('drizzle-orm');
+        const [_pu2] = await _pdb2.select().from(_u2).where(_eq2(_u2.id, ctx.user.id)).limit(1);
+        if (_pu2?.tradingMode === 'paper') {
+          const { TRPCError: _E2 } = await import('@trpc/server');
+          throw new _E2({ code: 'FORBIDDEN', message: 'Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.' });
+        }
+      }
       const { authenticateTastytrade } = await import('./tastytrade');
 
       const credentials = await getApiCredentials(ctx.user.id);
@@ -574,7 +596,18 @@ export const iraSafetyRouter = router({
       dryRun: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { getApiCredentials } = await import('./db');
+      // CRITICAL: Block all order submission in paper trading mode
+      const { getDb: _getDb2, getApiCredentials } = await import('./db');
+      const _pdb2 = await _getDb2();
+      if (_pdb2) {
+        const { users: _u2 } = await import('../drizzle/schema.js');
+        const { eq: _eq2 } = await import('drizzle-orm');
+        const [_pu2] = await _pdb2.select().from(_u2).where(_eq2(_u2.id, ctx.user.id)).limit(1);
+        if (_pu2?.tradingMode === 'paper') {
+          const { TRPCError: _E2 } = await import('@trpc/server');
+          throw new _E2({ code: 'FORBIDDEN', message: 'Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.' });
+        }
+      }
       const { authenticateTastytrade } = await import('./tastytrade');
 
       const credentials = await getApiCredentials(ctx.user.id);
@@ -635,7 +668,18 @@ export const iraSafetyRouter = router({
       dryRun: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { getApiCredentials } = await import('./db');
+      // CRITICAL: Block all order submission in paper trading mode
+      const { getDb: _getDb2, getApiCredentials } = await import('./db');
+      const _pdb2 = await _getDb2();
+      if (_pdb2) {
+        const { users: _u2 } = await import('../drizzle/schema.js');
+        const { eq: _eq2 } = await import('drizzle-orm');
+        const [_pu2] = await _pdb2.select().from(_u2).where(_eq2(_u2.id, ctx.user.id)).limit(1);
+        if (_pu2?.tradingMode === 'paper') {
+          const { TRPCError: _E2 } = await import('@trpc/server');
+          throw new _E2({ code: 'FORBIDDEN', message: 'Order submission is disabled in Paper Trading mode. Switch to Live Trading to submit orders.' });
+        }
+      }
       const { authenticateTastytrade } = await import('./tastytrade');
 
       const credentials = await getApiCredentials(ctx.user.id);

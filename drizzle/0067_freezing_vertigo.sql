@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `hasSeenPaperOnboarding` boolean DEFAULT false NOT NULL;

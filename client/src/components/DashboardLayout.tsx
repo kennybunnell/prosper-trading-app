@@ -30,6 +30,7 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { AuthStatusIndicator } from './AuthStatusIndicator';
 import { Button } from "./ui/button";
+import { PaperTradingOnboardingModal } from './PaperTradingOnboardingModal';
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -126,6 +127,7 @@ function DashboardLayoutContent({
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
+  const { showOnboarding, setShowOnboarding } = useTradingMode();
   
   // Fetch user's background texture preferences (only when authenticated)
   const { data: backgroundPrefs } = trpc.settings.getBackgroundPreferences.useQuery(undefined, { enabled: !!user });
@@ -342,6 +344,11 @@ function DashboardLayoutContent({
         )}
         <main className="flex-1 p-4 relative z-10">{children}</main>
       </SidebarInset>
+      {/* Paper Trading Onboarding Walkthrough */}
+      <PaperTradingOnboardingModal
+        open={showOnboarding}
+        onOpenChange={setShowOnboarding}
+      />
     </>
   );
 }

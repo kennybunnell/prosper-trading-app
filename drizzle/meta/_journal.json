@@ -463,6 +463,13 @@
       "when": 1773623327874,
       "tag": "0066_powerful_risque",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "5",
+      "when": 1773630787381,
+      "tag": "0067_freezing_vertigo",
+      "breakpoints": true
     }
   ]
 }
