@@ -813,17 +813,27 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                       console.log(`[Automation CC] DTE override: ${effectiveDteMin}-${effectiveDteMax} days (Tranche 2 rescan)`);
                     }
                     const today = new Date();
-                    for (const stock of eligibleStocks) {
+                    // Parallel CC scan: batch all stocks 5 at a time to avoid Tradier rate limits.
+                    // Each stock fetches expirations + option chains concurrently.
+                    // Reduces sequential ~75s down to ~15s (bounded by slowest single call).
+                    const CC_BATCH = 5;
+                    const scanOneStock = async (stock: typeof eligibleStocks[0]) => {
                       try {
                         const expirations = await tradierApi.getExpirations(stock.symbol);
                         const validExpirations = expirations.filter((exp: string) => {
                           const dte = Math.ceil((new Date(exp).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
                           return dte >= effectiveDteMin && dte <= effectiveDteMax;
                         });
-                        if (validExpirations.length === 0) continue;
+                        if (validExpirations.length === 0) return null;
+                        // Fetch all valid expiration chains in parallel
+                        const chainResults = await Promise.all(
+                          validExpirations.map(async (expiration: string) => {
+                            const options = await tradierApi.getOptionChain(stock.symbol, expiration, true);
+                            return { expiration, options };
+                          })
+                        );
                         let bestOpp: any = null;
-                        for (const expiration of validExpirations) {
-                          const options = await tradierApi.getOptionChain(stock.symbol, expiration, true);
+                        for (const { expiration, options } of chainResults) {
                           const calls = options.filter((opt: any) => opt.option_type === 'call');
                           for (const option of calls) {
                             const strike = option.strike || 0;
@@ -841,37 +851,46 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                             if (!bestOpp || weeklyReturn > bestOpp.weeklyReturn) bestOpp = opp;
                           }
                         }
-                        if (bestOpp) {
-                          // Build OCC option symbol: SYMBOL + YYMMDD + C/P + strike*1000 padded to 8 digits
-                          const expParts = bestOpp.expiration.split('-');
-                          const optSymDate = expParts[0].slice(2) + expParts[1] + expParts[2];
-                          const optionSymbol = `${bestOpp.symbol}${optSymDate}C${String(Math.round(bestOpp.strike * 1000)).padStart(8, '0')}`;
-                          const totalPremium = bestOpp.mid * bestOpp.maxContracts * 100;
-                          ccScanResults.push({
-                            account: account.accountNumber,
-                            symbol: bestOpp.symbol,
-                            optionSymbol,
-                            strike: bestOpp.strike,
-                            expiration: bestOpp.expiration,
-                            dte: bestOpp.dte,
-                            delta: bestOpp.delta,
-                            bid: bestOpp.bid,
-                            ask: bestOpp.ask,
-                            mid: bestOpp.mid,
-                            quantity: bestOpp.maxContracts,
-                            premiumPerContract: bestOpp.mid * 100,
-                            totalPremium,
-                            returnPct: bestOpp.returnPct,
-                            weeklyReturn: bestOpp.weeklyReturn,
-                            currentPrice: bestOpp.currentPrice,
-                            action: 'WOULD_SELL_CC' as const,
-                          });
-                          totalPremiumCollected += totalPremium;
-                          console.log(`[Automation CC] ${bestOpp.symbol}: Best CC = $${bestOpp.strike} exp ${bestOpp.expiration} (DTE ${bestOpp.dte}, delta ${bestOpp.delta.toFixed(2)}, mid $${bestOpp.mid.toFixed(2)})`);
-                        }
+                        return bestOpp;
                       } catch (stockErr: any) {
                         console.error(`[Automation CC] Error scanning ${stock.symbol}:`, stockErr.message);
+                        return null;
                       }
+                    };
+                    const allCCOpps: any[] = [];
+                    for (let i = 0; i < eligibleStocks.length; i += CC_BATCH) {
+                      const batch = eligibleStocks.slice(i, i + CC_BATCH);
+                      const results = await Promise.all(batch.map(scanOneStock));
+                      allCCOpps.push(...results);
+                    }
+                    for (const bestOpp of allCCOpps) {
+                      if (!bestOpp) continue;
+                      // Build OCC option symbol: SYMBOL + YYMMDD + C/P + strike*1000 padded to 8 digits
+                      const expParts = bestOpp.expiration.split('-');
+                      const optSymDate = expParts[0].slice(2) + expParts[1] + expParts[2];
+                      const optionSymbol = `${bestOpp.symbol}${optSymDate}C${String(Math.round(bestOpp.strike * 1000)).padStart(8, '0')}`;
+                      const totalPremium = bestOpp.mid * bestOpp.maxContracts * 100;
+                      ccScanResults.push({
+                        account: account.accountNumber,
+                        symbol: bestOpp.symbol,
+                        optionSymbol,
+                        strike: bestOpp.strike,
+                        expiration: bestOpp.expiration,
+                        dte: bestOpp.dte,
+                        delta: bestOpp.delta,
+                        bid: bestOpp.bid,
+                        ask: bestOpp.ask,
+                        mid: bestOpp.mid,
+                        quantity: bestOpp.maxContracts,
+                        premiumPerContract: bestOpp.mid * 100,
+                        totalPremium,
+                        returnPct: bestOpp.returnPct,
+                        weeklyReturn: bestOpp.weeklyReturn,
+                        currentPrice: bestOpp.currentPrice,
+                        action: 'WOULD_SELL_CC' as const,
+                      });
+                      totalPremiumCollected += totalPremium;
+                      console.log(`[Automation CC] ${bestOpp.symbol}: Best CC = $${bestOpp.strike} exp ${bestOpp.expiration} (DTE ${bestOpp.dte}, delta ${bestOpp.delta.toFixed(2)}, mid $${bestOpp.mid.toFixed(2)})`);
                     }
                   }
                 }
@@ -1081,7 +1100,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               const today = new Date();
               const targetMinDte = 21;
               const targetMaxDte = 42;
-              for (const result of itmCCs) {
+              // Parallel roll suggestion fetch — all ITM CCs at once
+              await Promise.all(itmCCs.map(async (result) => {
                 try {
                   const expirations = await tradierApi.getExpirations(result.symbol);
                   // Find expiration in 21-42 DTE range
@@ -1090,13 +1110,13 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                     const dte = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
                     return dte >= targetMinDte && dte <= targetMaxDte;
                   });
-                  if (!targetExp) continue;
+                  if (!targetExp) return;
                   const expDate = new Date(targetExp);
                   const newDte = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
                   // Fetch call chain for that expiration
                   const chain = await tradierApi.getOptionChain(result.symbol, targetExp, false);
                   const calls = chain.filter(c => c.option_type === 'call' && c.strike > 0);
-                  if (calls.length === 0) continue;
+                  if (calls.length === 0) return;
                   // Find the nearest OTM call (strike >= underlying price)
                   const underlyingPx = result.underlyingPrice ?? 0;
                   const otmCalls = calls
@@ -1104,7 +1124,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                     .sort((a, b) => a.strike - b.strike);
                   // Pick 1-2 strikes OTM for a roll with some credit
                   const rollTarget = otmCalls[1] ?? otmCalls[0];
-                  if (!rollTarget) continue;
+                  if (!rollTarget) return;
                   const rollBid = rollTarget.bid ?? 0;
                   const estimatedCredit = Math.round(rollBid * result.quantity * 100 * 100) / 100;
                   result.rollSuggestion = {
@@ -1117,7 +1137,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 } catch (rollErr) {
                   console.warn(`[Automation Roll] Failed to fetch roll suggestion for ${result.symbol}:`, rollErr);
                 }
-              }
+              }));
             }
           }
         } catch (rollErr) {
@@ -1125,9 +1145,16 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           // Non-fatal — scan results still valid without roll suggestions
         }
 
-        // Save pending orders to database
+        // Save pending orders to database — wrapped in try/catch so a transient DB
+        // hiccup (e.g. TiDB schema cache miss) does not abort the whole scan.
         if (pendingOrders.length > 0) {
-          await createPendingOrders(pendingOrders);
+          try {
+            await createPendingOrders(pendingOrders);
+            console.log(`[Automation] Saved ${pendingOrders.length} pending orders to DB (runId: ${runId})`);
+          } catch (dbErr: any) {
+            console.error('[Automation] Failed to save pending orders to DB — scan results still returned:', dbErr.message);
+            // Non-fatal: the scan results are still returned to the UI; user can re-run to persist.
+          }
         }
 
         // Update automation log — store scanResults as JSON in DB so the response stays small

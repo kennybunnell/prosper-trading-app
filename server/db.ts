@@ -63,6 +63,9 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     return;
   }
 
+  // Retry up to 3 times for transient TiDB schema cache errors
+  const MAX_RETRIES = 3;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   try {
     // Check if user already exists BEFORE upsert to detect new users correctly
     const { eq } = await import('drizzle-orm');
@@ -141,10 +144,19 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     } else {
       console.log(`[Database] Existing user logged in (openId: ${user.openId.substring(0, 10)}...), skipping onboarding`);
     }
-  } catch (error) {
+  } catch (error: any) {
+    const isSchemaError = error?.message?.includes('Information schema is out of date') ||
+      error?.cause?.message?.includes('Information schema is out of date');
+    if (isSchemaError && attempt < MAX_RETRIES) {
+      console.warn(`[Database] TiDB schema cache error on attempt ${attempt}/${MAX_RETRIES}, retrying in 2s...`);
+      await new Promise(r => setTimeout(r, 2000));
+      continue;
+    }
     console.error("[Database] Failed to upsert user:", error);
     throw error;
   }
+  break; // success — exit retry loop
+  } // end retry loop
 }
 
 export async function getUserByOpenId(openId: string) {
