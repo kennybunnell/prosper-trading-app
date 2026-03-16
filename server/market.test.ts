@@ -31,8 +31,8 @@ describe('Market Status', () => {
     if (status.isOpen) {
       expect(status.description.toLowerCase()).toContain('open');
     } else {
-      // When closed, description may say "closed", "premarket", "after hours", "weekend", etc.
-      const closedKeywords = ['closed', 'premarket', 'pre-market', 'after hours', 'weekend', 'holiday'];
+      // When closed, description may say "closed", "premarket", "after hours", "postmarket", "weekend", etc.
+      const closedKeywords = ['closed', 'premarket', 'pre-market', 'after hours', 'postmarket', 'post-market', 'weekend', 'holiday'];
       const hasClosedKeyword = closedKeywords.some(kw =>
         status.description.toLowerCase().includes(kw)
       );

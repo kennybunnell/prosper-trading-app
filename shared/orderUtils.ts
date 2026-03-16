@@ -300,3 +300,114 @@ const MINI_INDEX_SYMBOLS = new Set(['MRUT', 'XSP', 'XND', 'DJX']);
 export function getContractMultiplier(symbol: string): number {
   return MINI_INDEX_SYMBOLS.has(symbol.toUpperCase()) ? 10 : 100;
 }
+
+/**
+ * Exchange classification for index options.
+ * CBOE-listed: SPX, SPXW, SPXPM, XSP, RUT, MRUT, DJX, VIX, VIXW, OEX, XEO
+ * Nasdaq-listed: NDX, NDXP, XND
+ *
+ * IMPORTANT: CBOE Multi-Class Spread Orders (Rule 5.6(c)) only allow combining
+ * index classes that are BOTH listed on CBOE. NDXP/NDX/XND are Nasdaq-listed
+ * and CANNOT be combined with CBOE-listed products in a single multi-class spread.
+ * Each must be submitted as a completely separate, independent order.
+ */
+const NASDAQ_INDEX_SYMBOLS = new Set(['NDX', 'NDXP', 'XND']);
+const CBOE_INDEX_SYMBOLS = new Set([
+  'SPX', 'SPXW', 'SPXPM', 'XSP', 'NANOS',
+  'RUT', 'RUTW', 'MRUT',
+  'DJX',
+  'VIX', 'VIXW',
+  'OEX', 'XEO',
+]);
+
+export type IndexExchange = 'CBOE' | 'Nasdaq' | 'Equity';
+
+/**
+ * Returns the primary exchange for an index option symbol.
+ * Returns 'Equity' for non-index symbols.
+ */
+export function getIndexExchange(symbol: string): IndexExchange {
+  const upper = symbol.toUpperCase();
+  if (NASDAQ_INDEX_SYMBOLS.has(upper)) return 'Nasdaq';
+  if (CBOE_INDEX_SYMBOLS.has(upper)) return 'CBOE';
+  return 'Equity';
+}
+
+/**
+ * Minimum recommended spread width (in points) for each index.
+ * These are exchange-standard intervals and the minimum that makes
+ * economic sense given the contract multiplier.
+ *
+ * - MRUT: 5 pts (10x multiplier → $50/pt → $250 min collateral per contract)
+ * - XSP:  1 pt  (100x multiplier → $100/pt → $100 min collateral per contract)
+ * - SPX/SPXW: 5 pts (100x → $500/pt → $2,500 min collateral per contract)
+ * - NDX/NDXP: 25 pts (100x → $2,500/pt → $62,500 min collateral per contract)
+ * - RUT/RUTW: 5 pts (100x → $500/pt → $2,500 min collateral per contract)
+ * - DJX: 1 pt (100x → $100/pt → $100 min collateral per contract)
+ * - VIX: 1 pt (100x → $100/pt → $100 min collateral per contract)
+ */
+const MIN_SPREAD_WIDTH_MAP: Record<string, number> = {
+  MRUT: 5,
+  XSP: 1,
+  XND: 5,
+  SPX: 5,
+  SPXW: 5,
+  SPXPM: 5,
+  NDX: 25,
+  NDXP: 25,
+  RUT: 5,
+  RUTW: 5,
+  DJX: 1,
+  VIX: 1,
+  VIXW: 1,
+  OEX: 5,
+  XEO: 5,
+};
+
+/**
+ * Returns the minimum recommended spread width in points for a given symbol.
+ * Returns 1 for equity options (no meaningful minimum).
+ */
+export function getMinSpreadWidth(symbol: string): number {
+  return MIN_SPREAD_WIDTH_MAP[symbol.toUpperCase()] ?? 1;
+}
+
+/**
+ * Validates a set of selected symbols for multi-index order submission.
+ * Returns an array of warning/info messages to display to the user.
+ *
+ * Key rules enforced:
+ * 1. NDXP/NDX/XND (Nasdaq) cannot be in the same "batch" as CBOE index products
+ *    without explicit acknowledgment — they are submitted as completely separate orders
+ *    on different exchanges.
+ * 2. Each order is always submitted individually regardless of how many are selected.
+ */
+export function validateMultiIndexSelection(symbols: string[]): Array<{
+  severity: 'warning' | 'info';
+  message: string;
+}> {
+  const warnings: Array<{ severity: 'warning' | 'info'; message: string }> = [];
+  const cboeSymbols = symbols.filter(s => getIndexExchange(s) === 'CBOE');
+  const nasdaqSymbols = symbols.filter(s => getIndexExchange(s) === 'Nasdaq');
+
+  if (cboeSymbols.length > 0 && nasdaqSymbols.length > 0) {
+    warnings.push({
+      severity: 'warning',
+      message:
+        `Mixed exchanges: ${cboeSymbols.join(', ')} trade on CBOE; ` +
+        `${nasdaqSymbols.join(', ')} trade on Nasdaq. ` +
+        `These cannot be combined into a single spread — each is submitted as a separate independent order.`,
+    });
+  }
+
+  if (nasdaqSymbols.length > 0) {
+    warnings.push({
+      severity: 'info',
+      message:
+        `${nasdaqSymbols.join(', ')} order(s) route to Nasdaq exchanges (PHLX/ISE). ` +
+        `Each index order is submitted independently.`,
+    });
+  }
+
+  return warnings;
+}

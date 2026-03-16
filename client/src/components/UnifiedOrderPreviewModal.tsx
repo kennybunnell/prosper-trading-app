@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { snapToTick, isTrueIndexOption, getTickSize } from "../../../shared/orderUtils";
+import { snapToTick, isTrueIndexOption, getTickSize, getIndexExchange, getMinSpreadWidth, validateMultiIndexSelection, getContractMultiplier } from "../../../shared/orderUtils";
 import {
   Dialog,
   DialogContent,
@@ -428,7 +428,8 @@ export function UnifiedOrderPreviewModal({
         // Cash-secured puts: limited by buying power
         // If no account connected, allow up to 99 contracts (no real limit enforced)
         if (availableBuyingPower <= 0) return 99;
-        const collateralPerContract = order.strike * 100;
+        const cspMaxMult = getContractMultiplier(order.symbol);
+        const collateralPerContract = order.strike * cspMaxMult;
         const currentTotalCollateral = calculateTotalCollateral();
         const thisOrderCollateral = getQuantity(order) * collateralPerContract;
         const remainingBP = availableBuyingPower - (currentTotalCollateral - thisOrderCollateral);
@@ -443,7 +444,8 @@ export function UnifiedOrderPreviewModal({
         if (availableBuyingPower <= 0) return 99;
         if (!order.longStrike) return 0;
         const spreadWidth = Math.abs(order.strike - order.longStrike);
-        const collateralPerContract = spreadWidth * 100;
+        const bpsMaxMult = getContractMultiplier(order.symbol);
+        const collateralPerContract = spreadWidth * bpsMaxMult;
         const currentTotalCollateral = calculateTotalCollateral();
         const thisOrderCollateral = getQuantity(order) * collateralPerContract;
         const remainingBP = availableBuyingPower - (currentTotalCollateral - thisOrderCollateral);
@@ -495,34 +497,40 @@ export function UnifiedOrderPreviewModal({
       const qty = getQuantity(order);
       
       switch (strategy) {
-        case "csp":
-          return sum + (order.strike * 100 * qty);
+        case "csp": {
+          const cspMult = getContractMultiplier(order.symbol);
+          return sum + (order.strike * cspMult * qty);
+        }
         
         case "bcs":
-        case "bps":
+        case "bps": {
           // If strike is 0 (data issue), fall back to capitalAtRisk or collateral
           if (!order.strike) {
             return sum + (((order as any).capitalAtRisk || (order as any).collateral || 0) * qty);
           }
           if (order.longStrike) {
             const spreadWidth = Math.abs(order.strike - order.longStrike);
-            return sum + (spreadWidth * 100 * qty);
+            const bpsMult = getContractMultiplier(order.symbol);
+            return sum + (spreadWidth * bpsMult * qty);
           }
           return sum;
+        }
         
         case "pmcc":
           // PMCC buying LEAPs - cost is the premium
           return sum + (order.premium * 100 * qty);
         
-        case "iron_condor":
-          // Iron Condor: 4-leg strategy, collateral = max(put spread width, call spread width) × 100
+        case "iron_condor": {
+          // Iron Condor: 4-leg strategy, collateral = max(put spread width, call spread width) × multiplier
           if (order.longStrike && order.callShortStrike && order.callLongStrike) {
             const putSpreadWidth = Math.abs(order.strike - order.longStrike);
             const callSpreadWidth = Math.abs(order.callShortStrike - order.callLongStrike);
             const maxSpreadWidth = Math.max(putSpreadWidth, callSpreadWidth);
-            return sum + (maxSpreadWidth * 100 * qty);
+            const icMult = getContractMultiplier(order.symbol);
+            return sum + (maxSpreadWidth * icMult * qty);
           }
           return sum;
+        }
         
         case "btc": {
           // Buying to close - cost is the ask price (or adjusted price)
@@ -571,6 +579,50 @@ export function UnifiedOrderPreviewModal({
       }
     }
     
+    // ── Multi-index exchange validation ─────────────────────────────────────
+    // Warn when CBOE-listed (SPX/MRUT) and Nasdaq-listed (NDXP/NDX) index
+    // options are selected together. They are submitted as separate orders
+    // on different exchanges and cannot be combined into a single spread.
+    const indexSymbols = orders
+      .map(o => o.symbol)
+      .filter(s => isTrueIndexOption(s));
+    if (indexSymbols.length > 1) {
+      const multiIndexWarnings = validateMultiIndexSelection(indexSymbols);
+      multiIndexWarnings.forEach(w => {
+        errors.push({
+          symbol: 'ALL',
+          message: w.message,
+          severity: 'warning',
+        });
+      });
+    }
+
+    // ── Spread width validation per index symbol ──────────────────────────────
+    // Each index has a minimum meaningful spread width. Submitting a spread
+    // that is too narrow will be rejected or produce near-zero credit.
+    if (strategy === 'bps' || strategy === 'bcs' || strategy === 'iron_condor') {
+      orders.forEach(order => {
+        if (!isTrueIndexOption(order.symbol)) return;
+        const minWidth = getMinSpreadWidth(order.symbol);
+        const putWidth = order.longStrike ? Math.abs(order.strike - order.longStrike) : 0;
+        const callWidth = (order.callShortStrike && order.callLongStrike)
+          ? Math.abs(order.callShortStrike - order.callLongStrike)
+          : 0;
+        const widthToCheck = strategy === 'iron_condor'
+          ? Math.min(putWidth || Infinity, callWidth || Infinity)
+          : putWidth;
+        if (widthToCheck > 0 && widthToCheck < minWidth) {
+          const multiplier = getContractMultiplier(order.symbol);
+          errors.push({
+            symbol: order.symbol,
+            message: `${order.symbol} spread width is ${widthToCheck} pts — minimum recommended is ${minWidth} pts. ` +
+              `A ${minWidth}-pt spread has $${(minWidth * multiplier).toLocaleString()} collateral per contract.`,
+            severity: 'warning',
+          });
+        }
+      });
+    }
+
     // Strategy-specific validation
     if (strategy === "cc" && holdings && holdings.length > 0) {
       // Validate stock ownership only when holdings data is explicitly provided.
@@ -1334,6 +1386,19 @@ export function UnifiedOrderPreviewModal({
                               4-leg condor
                             </span>
                           )}
+                          {/* Exchange badge for index options */}
+                          {isTrueIndexOption(order.symbol) && (() => {
+                            const exch = getIndexExchange(order.symbol);
+                            return (
+                              <span className={`text-[9px] font-semibold px-1 py-0.5 rounded mt-0.5 w-fit ${
+                                exch === 'Nasdaq'
+                                  ? 'bg-blue-900 text-blue-200'
+                                  : 'bg-amber-900 text-amber-200'
+                              }`}>
+                                {exch === 'Nasdaq' ? 'NASDAQ' : 'CBOE'}
+                              </span>
+                            );
+                          })()}
                           {/* Underlying stock price */}
                           {order.currentPrice != null && order.currentPrice > 0 && (
                             <span className="text-[10px] text-blue-300 font-normal mt-0.5">
