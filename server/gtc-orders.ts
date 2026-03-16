@@ -38,7 +38,7 @@ export interface GtcLeg {
   symbol: string;          // OCC option symbol
   action: 'Buy to Close' | 'Sell to Close';
   quantity: number;
-  instrumentType: 'Equity Option';
+  instrumentType: 'Equity Option' | 'Index Option';
 }
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────

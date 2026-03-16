@@ -48,6 +48,9 @@ export function calculateBullPutSpread(
   const shortStrike = cspOpp.strike;
   const longStrike = shortStrike - spreadWidth;
   
+  // Use the correct contract multiplier (10 for MRUT/XSP/XND/DJX, 100 for everything else)
+  const mult = cspOpp.multiplier ?? 100;
+
   // Net credit = premium received from short put - premium paid for long put
   // Use mid prices for both legs for accurate, consistent net credit (matches BCS and market convention)
   const shortMid = (cspOpp.bid + cspOpp.ask) / 2;
@@ -56,11 +59,11 @@ export function calculateBullPutSpread(
   const longPremium = longMid;   // Mid price for long put
   const netCredit = shortPremium - longPremium;
   
-  // Capital at risk = spread width - net credit received
-  const capitalAtRisk = (spreadWidth - netCredit) * 100; // Per contract
+  // Capital at risk = spread width - net credit received (per contract)
+  const capitalAtRisk = (spreadWidth - netCredit) * mult;
   
-  // Max profit = net credit received
-  const maxProfit = netCredit * 100;
+  // Max profit = net credit received (per contract)
+  const maxProfit = netCredit * mult;
   
   // Max loss = spread width - net credit
   const maxLoss = capitalAtRisk;
@@ -74,9 +77,9 @@ export function calculateBullPutSpread(
   // Profit zone width = distance from current price to breakeven
   const profitZoneWidth = cspOpp.currentPrice - breakeven;
   
-  // CSP comparison
-  const cspCollateral = shortStrike * 100; // Full collateral for CSP
-  const cspPremium = shortPremium * 100;
+  // CSP comparison — use same multiplier for apples-to-apples comparison
+  const cspCollateral = shortStrike * mult; // Full collateral for CSP
+  const cspPremium = shortPremium * mult;
   const cspROC = (cspPremium / cspCollateral) * 100;
   const capitalSavings = cspCollateral - capitalAtRisk;
   const capitalSavingsPct = (capitalSavings / cspCollateral) * 100;
@@ -128,10 +131,11 @@ export function calculateBullPutSpread(
       capitalSavingsPct,
     },
     // Recalculate percentages based on capital at risk
-    premiumPct: (netCredit / (capitalAtRisk / 100)) * 100,
-    weeklyPct: ((netCredit / (capitalAtRisk / 100)) * 100 * 7) / cspOpp.dte,
-    monthlyPct: ((netCredit / (capitalAtRisk / 100)) * 100 * 30) / cspOpp.dte,
-    annualPct: ((netCredit / (capitalAtRisk / 100)) * 100 * 365) / cspOpp.dte,
+    // capitalAtRisk / mult gives us the per-point capital, so ROC % = netCredit / (capitalAtRisk / mult) * 100
+    premiumPct: (netCredit / (capitalAtRisk / mult)) * 100,
+    weeklyPct: ((netCredit / (capitalAtRisk / mult)) * 100 * 7) / cspOpp.dte,
+    monthlyPct: ((netCredit / (capitalAtRisk / mult)) * 100 * 30) / cspOpp.dte,
+    annualPct: ((netCredit / (capitalAtRisk / mult)) * 100 * 365) / cspOpp.dte,
   };
 }
 
@@ -165,6 +169,7 @@ export interface BearCallSpreadOpportunity extends CCOpportunity {
  * @param ccOpp - The short call (sold) opportunity
  * @param spreadWidth - Width of the spread in points (2, 5, or 10)
  * @param longCallQuote - Quote data for the long (protective) call
+ * @param multiplier - Contract multiplier (default 100; use 10 for mini-index like MRUT)
  */
 export function calculateBearCallSpread(
   ccOpp: CCOpportunity,
@@ -173,7 +178,8 @@ export function calculateBearCallSpread(
     bid: number;
     ask: number;
     delta: number;
-  }
+  },
+  multiplier: number = 100
 ): BearCallSpreadOpportunity {
   const shortStrike = ccOpp.strike;
   const longStrike = shortStrike + spreadWidth;
@@ -186,11 +192,11 @@ export function calculateBearCallSpread(
   const longPremium = longMid;   // Mid price for long call
   const netCredit = shortPremium - longPremium;
   
-  // Capital at risk = spread width - net credit received
-  const capitalAtRisk = (spreadWidth - netCredit) * 100; // Per contract
+  // Capital at risk = spread width - net credit received (per contract)
+  const capitalAtRisk = (spreadWidth - netCredit) * multiplier;
   
-  // Max profit = net credit received
-  const maxProfit = netCredit * 100;
+  // Max profit = net credit received (per contract)
+  const maxProfit = netCredit * multiplier;
   
   // Max loss = spread width - net credit
   const maxLoss = capitalAtRisk;

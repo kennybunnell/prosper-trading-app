@@ -4,6 +4,7 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
+import { getContractMultiplier } from '../shared/orderUtils';
 
 const TRADIER_API_BASE = 'https://api.tradier.com/v1';
 const TRADIER_SANDBOX_BASE = 'https://sandbox.tradier.com/v1';
@@ -151,6 +152,7 @@ export interface CSPOpportunity {
   collateral: number;
   roc: number;
   riskBadges?: any[]; // RiskBadge[] - using any[] to avoid circular import
+  multiplier?: number; // Contract multiplier: 100 for standard, 10 for mini-index (MRUT, XSP, XND, DJX)
 }
 
 export class TradierAPI {
@@ -810,8 +812,9 @@ export class TradierAPI {
             const weeklyPct = (premiumPct / dte) * 7;
             const monthlyPct = (premiumPct / dte) * 30;
             const annualPct = (premiumPct / dte) * 365;
-            const collateral = strike * 100; // Per contract
-            const roc = (bid * 100 / collateral) * 100; // Return on collateral %
+            const contractMultiplier = getContractMultiplier(tradierOptionRoot);
+            const collateral = strike * contractMultiplier; // Per contract
+            const roc = (bid * contractMultiplier / collateral) * 100; // Return on collateral %
 
             // Calculate IV Rank for this option
             let ivRank: number | null = null;
@@ -851,6 +854,7 @@ export class TradierAPI {
               spreadPct: Math.round(spreadPct * 10) / 10,
               collateral,
               roc: Math.round(roc * 100) / 100,
+              multiplier: contractMultiplier,
             });
           }
         }

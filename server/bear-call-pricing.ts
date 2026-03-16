@@ -26,6 +26,7 @@ export type CCOpportunity = {
   maxContracts: number;
   distanceOtm: number;
   score: number;
+  multiplier?: number; // Contract multiplier: 100 for standard, 10 for mini-index (MRUT, XSP, XND, DJX)
 };
 
 export interface BearCallSpreadOpportunity extends CCOpportunity {
@@ -58,6 +59,7 @@ export interface BearCallSpreadOpportunity extends CCOpportunity {
  * @param ccOpp - The short call (sold) opportunity
  * @param spreadWidth - Width of the spread in points (2, 5, or 10)
  * @param longCallQuote - Quote data for the long (protective) call
+ * @param multiplier - Contract multiplier (default 100; use 10 for mini-index like MRUT)
  */
 export function calculateBearCallSpread(
   ccOpp: CCOpportunity,
@@ -66,8 +68,12 @@ export function calculateBearCallSpread(
     bid: number;
     ask: number;
     delta: number;
-  }
+  },
+  multiplier: number = 100
 ): BearCallSpreadOpportunity {
+  // Use multiplier from ccOpp if provided, otherwise fall back to parameter
+  const mult = ccOpp.multiplier ?? multiplier;
+
   const shortStrike = ccOpp.strike;
   const longStrike = shortStrike + spreadWidth;
   
@@ -80,11 +86,11 @@ export function calculateBearCallSpread(
   const longPremium = longMid;   // Mid of long call
   const netCredit = shortPremium - longPremium;
   
-  // Capital at risk = spread width - net credit received
-  const capitalAtRisk = (spreadWidth - netCredit) * 100; // Per contract
+  // Capital at risk = spread width - net credit received (per contract)
+  const capitalAtRisk = (spreadWidth - netCredit) * mult;
   
-  // Max profit = net credit received
-  const maxProfit = netCredit * 100;
+  // Max profit = net credit received (per contract)
+  const maxProfit = netCredit * mult;
   
   // Max loss = spread width - net credit
   const maxLoss = capitalAtRisk;
@@ -98,9 +104,9 @@ export function calculateBearCallSpread(
   // Profit zone width = distance from breakeven to current price
   const profitZoneWidth = breakeven - ccOpp.currentPrice;
   
-  // CC comparison (for covered calls, collateral is the stock value)
-  const ccCollateral = ccOpp.currentPrice * 100; // Stock value for 100 shares
-  const ccPremium = shortPremium * 100;
+  // CC comparison (for covered calls, collateral is the stock value for mult shares)
+  const ccCollateral = ccOpp.currentPrice * mult; // Stock value for mult shares
+  const ccPremium = shortPremium * mult;
   const ccROC = (ccPremium / ccCollateral) * 100;
   const capitalSavings = ccCollateral - capitalAtRisk;
   const capitalSavingsPct = (capitalSavings / ccCollateral) * 100;
@@ -152,7 +158,8 @@ export function calculateBearCallSpread(
       capitalSavingsPct,
     },
     // Recalculate percentages based on capital at risk
-    returnPct: (netCredit / (capitalAtRisk / 100)) * 100,
-    weeklyReturn: ((netCredit / (capitalAtRisk / 100)) * 100 * 7) / ccOpp.dte,
+    // capitalAtRisk / mult gives us the per-point capital
+    returnPct: (netCredit / (capitalAtRisk / mult)) * 100,
+    weeklyReturn: ((netCredit / (capitalAtRisk / mult)) * 100 * 7) / ccOpp.dte,
   };
 }

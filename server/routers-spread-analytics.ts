@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from './_core/trpc';
 import { getTastytradeAPI, authenticateTastytrade } from './tastytrade';
 import { getApiCredentials } from './db';
+import { getContractMultiplier } from '../shared/orderUtils';
 
 // Types for spread classification
 export type SpreadType = 'Iron Condor' | 'Bear Call Spread' | 'Bull Put Spread' | 'Unknown';
@@ -259,7 +260,8 @@ export function groupIntoClosedPositions(transactions: any[]): ClosedSpreadPosit
       
       const spreadWidth = calculateSpreadWidthFromLegs(spreadLegs);
       const contracts = Math.min(...spreadLegs.map(l => l.quantity));
-      const maxRisk = spreadWidth * contracts * 100;
+      const spreadMultiplier = spreadLegs.length > 0 ? getContractMultiplier(spreadLegs[0].symbol) : 100;
+      const maxRisk = spreadWidth * contracts * spreadMultiplier;
       
       // Calculate premium collected (opening trades)
       const premiumCollected = matchedPairs.reduce((sum, p) => {

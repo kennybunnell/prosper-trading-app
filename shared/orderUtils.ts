@@ -285,3 +285,18 @@ export function validateOrderPrice(
     message: 'Price is valid'
   };
 }
+
+/**
+ * Mini-index options that have a contract multiplier of 10 (not the standard 100).
+ * MRUT = Mini-RUT (Russell 2000 mini), XSP = Mini-SPX, XND = Mini-NDX, DJX = Dow Jones mini.
+ */
+const MINI_INDEX_SYMBOLS = new Set(['MRUT', 'XSP', 'XND', 'DJX']);
+
+/**
+ * Returns the contract multiplier for an option on the given underlying symbol.
+ * Standard options: 100 (each contract controls 100 shares / $100 per point).
+ * Mini-index options (MRUT, XSP, XND, DJX): 10 ($10 per point).
+ */
+export function getContractMultiplier(symbol: string): number {
+  return MINI_INDEX_SYMBOLS.has(symbol.toUpperCase()) ? 10 : 100;
+}

@@ -2951,12 +2951,13 @@ Summary: [One sentence overall assessment]`;
           // Calculate combined metrics
           const totalNetCredit = bps.netCredit + bcs.netCredit;
           
-          // For Iron Condors, collateral = max(put spread width, call spread width) × 100
+          // For Iron Condors, collateral = max(put spread width, call spread width) × multiplier
           // This is because you only need to cover the wider spread
-          const totalCollateral = Math.max(bps.spreadWidth, bcs.spreadWidth) * 100;
+          const icMultiplier = bps.multiplier ?? 100;
+          const totalCollateral = Math.max(bps.spreadWidth, bcs.spreadWidth) * icMultiplier;
           
-          // ROC = (total net credit × 100) / total collateral × 100
-          const combinedROC = totalCollateral > 0 ? ((totalNetCredit * 100) / totalCollateral) * 100 : 0;
+          // ROC = (total net credit × multiplier) / total collateral × 100
+          const combinedROC = totalCollateral > 0 ? ((totalNetCredit * icMultiplier) / totalCollateral) * 100 : 0;
 
           // Breakevens
           const lowerBreakeven = bps.strike - totalNetCredit;
