@@ -430,6 +430,21 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             //   currentCost     = close-price × qty × multiplier
             //   realizedPercent = (premiumReceived - currentCost) / premiumReceived × 100
             const positions = runBTCScan ? await tt.getPositions(account.accountNumber) : [];
+
+            // ── Stock shares map: underlying → long share count ────────────────────────
+            // Used to distinguish covered calls (short call backed by shares) from naked calls.
+            // A short call remainder is a CC if the underlying has >= remainder × 100 shares.
+            const stockSharesMap = new Map<string, number>();
+            if (runBTCScan) {
+              for (const pos of positions) {
+                if (pos['instrument-type'] === 'Equity' && pos['quantity-direction']?.toLowerCase() === 'long') {
+                  const sym = (pos['underlying-symbol'] || pos.symbol || '').toUpperCase();
+                  const qty = Math.abs(parseInt(String(pos.quantity || '0')));
+                  stockSharesMap.set(sym, (stockSharesMap.get(sym) || 0) + qty);
+                }
+              }
+              console.log(`[Automation] Stock shares map: ${stockSharesMap.size} underlying(s) with long shares`);
+            }
             
             // ── Order-ID-based spread leg linkage ──────────────────────────────────────
             // Tastytrade positions API does NOT include order IDs, so we fetch the filled
@@ -772,8 +787,19 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                   wouldCloseEntry.spreadLongStrike = longStrikeMatch2 ? (parseFloat(longStrikeMatch2[1]) / 1000).toFixed(2) : undefined;
                   wouldCloseEntry.spreadLongPrice = String(Math.abs(parseFloat(String(matchedLongLeg['close-price'] || '0'))));
                   if (singleLegRemainder > 0) {
-                    wouldCloseEntry.hasMismatch = true;
-                    wouldCloseEntry.standaloneRemainder = singleLegRemainder;
+                    // Check if the remainder is covered by long shares (i.e., covered calls).
+                    // If the underlying has >= singleLegRemainder × 100 shares, these are CCs
+                    // — not naked/standalone — so suppress the mismatch warning badge.
+                    const underlyingUpper = underlyingSymbol.toUpperCase();
+                    const sharesHeld = stockSharesMap.get(underlyingUpper) || 0;
+                    const sharesNeeded = singleLegRemainder * 100;
+                    const remainderIsCovered = sharesHeld >= sharesNeeded;
+                    if (!remainderIsCovered) {
+                      wouldCloseEntry.hasMismatch = true;
+                      wouldCloseEntry.standaloneRemainder = singleLegRemainder;
+                    } else {
+                      console.log(`[Automation] ${underlyingSymbol}: ${singleLegRemainder} remainder contract(s) are covered by ${sharesHeld} shares — no mismatch badge`);
+                    }
                   }
                 }
                 scanResults.push(wouldCloseEntry);

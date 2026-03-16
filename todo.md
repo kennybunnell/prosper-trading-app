@@ -8172,3 +8172,8 @@
 - [x] Handle edge cases: index options, multi-account, partial fills, legacy positions without order IDs
 - [x] Fix "+N standalone" warnings for SPX, APLD, and other multi-leg strategies
 - [x] Run tests and save checkpoint
+
+## APLD "+15 Standalone" Fix (Mar 16, 2026)
+- [x] Diagnose why APLD still shows +15 standalone after order-ID fix
+- [x] Fix root cause: remainder short calls are covered calls backed by shares — suppress badge when shares >= remainder × 100
+- [x] Run tests and save checkpoint
