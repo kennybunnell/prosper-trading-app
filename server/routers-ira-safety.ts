@@ -289,8 +289,16 @@ export const iraSafetyRouter = router({
         }
 
         // ── 4. ITM SHORT CALL — assignment risk warning ───────────────────────
+        // Cash-settled index symbols: assignment creates a cash payment, NOT short stock.
+        // These are defined-risk spreads (BCS) — no shares are deliverable.
+        // We still warn if the short leg is unprotected (no matching long call),
+        // but we NEVER flag a spread-protected index call as an assignment risk.
+        const CASH_SETTLED_INDEX = new Set(['SPX', 'SPXW', 'SPXPM', 'XSP', 'NDX', 'NDXP', 'XND', 'RUT', 'MRUT', 'DJX', 'VIX', 'VIXW']);
         for (const [underlying, calls] of Array.from(shortCalls.entries())) {
           const sharesOwned = stockMap.get(underlying) || 0;
+          const isCashSettledIndex = CASH_SETTLED_INDEX.has(underlying.toUpperCase());
+          // Get all long calls for this underlying to check spread protection
+          const longCallsForUnderlying = longCalls.get(underlying) || [];
 
           for (const sc of calls) {
             const strike = parseStrikeFromSymbol(sc.symbol);
@@ -300,19 +308,45 @@ export const iraSafetyRouter = router({
             if (dte <= 5 && strike > 0) {
               const qty = Math.abs(parseInt(String(sc.quantity || '1')));
               const sharesNeeded = qty * 100;
-              const isCovered = sharesOwned >= sharesNeeded;
+              const isCoveredByShares = sharesOwned >= sharesNeeded;
 
-              if (!isCovered) {
+              // Check if this short call is protected by a long call at a higher strike
+              // (same expiration = Bear Call Spread / BCS)
+              const scExpiry = sc['expires-at'] || expiration;
+              const isSpreadProtected = longCallsForUnderlying.some((lc: any) => {
+                const lcExpiry = lc['expires-at'] || parseExpirationFromSymbol(lc.symbol);
+                const lcStrike = parseStrikeFromSymbol(lc.symbol);
+                // Long call must be at a HIGHER strike (bear call spread protection)
+                // and same expiration (or within 1 day for AM/PM settlement quirks)
+                const sameExpiry = lcExpiry && scExpiry &&
+                  (lcExpiry.split('T')[0] === scExpiry.split('T')[0]);
+                return sameExpiry && lcStrike > strike;
+              });
+
+              // For cash-settled indexes: assignment creates cash settlement, not short stock.
+              // Only warn if the call is ALSO unprotected (no long call hedge).
+              // For equity options: warn if not covered by shares AND not spread-protected.
+              const shouldWarn = isCashSettledIndex
+                ? !isSpreadProtected  // index: only warn if naked (no long call)
+                : !isCoveredByShares && !isSpreadProtected; // equity: warn if uncovered AND unhedged
+
+              if (shouldWarn) {
+                const isIndex = isCashSettledIndex;
                 violations.push({
                   violationType: 'ITM_ASSIGNMENT_RISK',
                   severity: 'warning',
                   accountNumber: account.accountNumber,
                   accountType,
                   symbol: underlying,
-                  description: `Short call on ${underlying} ($${strike} strike) expires in ${dte} day${dte !== 1 ? 's' : ''} ` +
-                    `and you own ${sharesOwned} of ${sharesNeeded} shares needed for coverage. ` +
-                    `If this call is in-the-money, assignment overnight will create short stock — ` +
-                    `triggering an SL call like the ADBE incident.`,
+                  description: isIndex
+                    ? `Short call on ${underlying} ($${strike} strike) expires in ${dte} day${dte !== 1 ? 's' : ''} ` +
+                      `with no long call protection. ${underlying} is cash-settled — assignment pays cash, not stock — ` +
+                      `but an unprotected short call in an IRA has unlimited risk. ` +
+                      `Add a long call at a higher strike to convert to a Bear Call Spread.`
+                    : `Short call on ${underlying} ($${strike} strike) expires in ${dte} day${dte !== 1 ? 's' : ''} ` +
+                      `and you own ${sharesOwned} of ${sharesNeeded} shares needed for coverage. ` +
+                      `If this call is in-the-money, assignment overnight will create short stock — ` +
+                      `triggering an SL call like the ADBE incident.`,
                   action: `Close (BTC) this short call before market close, or roll it out to a later expiration. ` +
                     `Do NOT let an uncovered ITM short call expire in an IRA account.`,
                   optionSymbol: sc.symbol,

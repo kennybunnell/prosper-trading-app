@@ -434,7 +434,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 const qty = parseInt(String(pos.quantity || '0'));
                 const direction = pos['quantity-direction']?.toLowerCase();
                 const isLong = direction === 'long' || qty > 0;
-                if (isLong && pos['instrument-type'] === 'Equity Option') {
+                // Include both 'Equity Option' and 'Index Option' (SPX/NDX/RUT long legs)
+                if (isLong && (pos['instrument-type'] === 'Equity Option' || pos['instrument-type'] === 'Index Option')) {
                   longPositionMap.set(pos.symbol, pos);
                 }
               }
@@ -463,8 +464,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             }
 
             for (const position of positions) {
-              // Only process short equity options (CSPs and CCs)
-              if (position['instrument-type'] !== 'Equity Option') continue;
+              // Process short equity options AND index options (CSPs, CCs, BCS, BPS on SPX/NDX/RUT)
+              if (position['instrument-type'] !== 'Equity Option' && position['instrument-type'] !== 'Index Option') continue;
               const qty = parseInt(String(position.quantity || '0'));
               const direction = position['quantity-direction']?.toLowerCase();
               const isShort = direction === 'short' || qty < 0;
@@ -719,7 +720,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 console.log(`[Automation CC] Scanning account ${account.accountNumber} for CC opportunities`);
                 const allPositions = await tt.getPositions(account.accountNumber);
                 const stockPositions = allPositions.filter((p: any) => p['instrument-type'] === 'Equity' && parseFloat(p.quantity) > 0);
-                const optionPositions = allPositions.filter((p: any) => p['instrument-type'] === 'Equity Option');
+                const optionPositions = allPositions.filter((p: any) => p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option');
                 // Identify existing NAKED short calls to avoid over-covering.
                 // IC/BCS short calls are protected by a long call at a higher strike on the same
                 // expiration — they do NOT consume CC coverage capacity.
