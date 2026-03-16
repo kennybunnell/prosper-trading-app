@@ -3064,6 +3064,7 @@ Summary: [One sentence overall assessment]`;
           minVolume: z.number().optional(),
           minOI: z.number().optional(),
           spreadWidth: z.number(), // 2, 5, 10 (equity) or 25, 50, 100 (index)
+          symbolWidths: z.record(z.string(), z.number()).optional(), // per-symbol overrides e.g. { NDXP: 25, MRUT: 5, SPXW: 5 }
           isIndexMode: z.boolean().optional(), // true when scanning index products (SPXW, NDXP, MRUT)
         })
       )
@@ -3158,6 +3159,11 @@ Summary: [One sentence overall assessment]`;
           if (!symbolPriceMapSpread.has(opp.symbol)) symbolPriceMapSpread.set(opp.symbol, opp.currentPrice);
         }
         const getEffectiveSpreadWidth = (sym: string): number => {
+          // Check per-symbol override first (from UI per-symbol width controls)
+          const symUpper = sym.toUpperCase();
+          if (input.symbolWidths && input.symbolWidths[symUpper] !== undefined) {
+            return input.symbolWidths[symUpper];
+          }
           const price = symbolPriceMapSpread.get(sym) || 0;
           if (price < 500) return input.spreadWidth; // small-price equities: use user input as-is
           const autoWidth = Math.max(input.spreadWidth, Math.round((price * 0.004) / 5) * 5);

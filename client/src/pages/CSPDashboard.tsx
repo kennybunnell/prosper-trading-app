@@ -190,6 +190,7 @@ import { OrderStatusModal, OrderSubmissionStatus } from "@/components/OrderStatu
 import { HelpBadge } from "@/components/HelpBadge";
 import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
+import { getIndexExchange, getMinSpreadWidth, validateMultiIndexSelection } from "@shared/orderUtils";
 
 type ScoredOpportunity = {
   symbol: string;
@@ -296,6 +297,8 @@ export default function CSPDashboard() {
     return (saved === 'spread' ? 'spread' : 'csp') as StrategyType;
   });
   const [spreadWidth, setSpreadWidth] = useState<SpreadWidth>(5);
+  // Per-symbol spread width overrides for index mode (e.g. { NDXP: 25, MRUT: 5, SPXW: 5 })
+  const [symbolWidths, setSymbolWidths] = useState<Record<string, number>>({});
   const [strategyPanelCollapsed, setStrategyPanelCollapsed] = useState(false);
   const [showSpreadHelp, setShowSpreadHelp] = useState(false);
   // Live range filters
@@ -320,6 +323,7 @@ export default function CSPDashboard() {
       setSpreadWidth(prev => (prev <= 10 ? 25 : prev as SpreadWidth));
     } else if (!isIndexMode && strategyType === 'spread') {
       setSpreadWidth(prev => (prev >= 25 ? 5 : prev as SpreadWidth));
+      setSymbolWidths({});
     }
   }, [isIndexMode, strategyType]);
   const [sortColumn, setSortColumn] = useState<string>('score');
@@ -542,6 +546,7 @@ export default function CSPDashboard() {
       minDte,
       maxDte,
       spreadWidth,
+      symbolWidths: Object.keys(symbolWidths).length > 0 ? symbolWidths : undefined,
       isIndexMode, // Pass index mode flag so server uses index-appropriate scoring
     },
     { enabled: false } // Disabled by default, only fetch when user clicks button
@@ -1328,68 +1333,111 @@ export default function CSPDashboard() {
             </div>
 
             {/* Spread Width Selector (only show when spread selected) */}
-            {strategyType === 'spread' && (
-              <div className="space-y-3 p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-                <Label className="text-sm font-semibold">
-                  Spread Width
-                  {isIndexMode && <span className="ml-2 text-xs text-amber-400 font-normal">(Index mode — wider spreads recommended)</span>}
-                </Label>
-                {isIndexMode ? (
-                  <div className="flex gap-3">
-                    {([25, 50, 100] as SpreadWidth[]).map(w => (
-                      <Button
-                        key={w}
-                        variant={spreadWidth === w ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setSpreadWidth(w)}
-                        className={cn(
-                          "flex-1",
-                          spreadWidth === w
-                            ? "bg-amber-600 hover:bg-amber-700"
-                            : "hover:bg-amber-500/10 hover:border-amber-500/50"
-                        )}
-                      >
-                        {w} points
-                      </Button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex gap-3">
-                    {([2, 5, 10] as SpreadWidth[]).map(w => (
-                      <Button
-                        key={w}
-                        variant={spreadWidth === w ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setSpreadWidth(w)}
-                        className={cn(
-                          "flex-1",
-                          spreadWidth === w
-                            ? "bg-blue-600 hover:bg-blue-700"
-                            : "hover:bg-blue-500/10 hover:border-blue-500/50"
-                        )}
-                      >
-                        {w} points
-                      </Button>
-                    ))}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  {isIndexMode ? (
-                    <>
-                      {spreadWidth === 25 && "25pt — ~$2,500 collateral (SPX/SPXW). For NDXP/MRUT, nearest 100pt strike used automatically."}
-                      {spreadWidth === 50 && "50pt — ~$5,000 collateral (SPX/SPXW). For NDXP/MRUT, nearest 100pt strike used automatically."}
-                      {spreadWidth === 100 && "100pt — ~$10,000 collateral (SPX/SPXW) / ~$10,000 (NDXP) / ~$1,000 (MRUT)."}
-                    </>
-                  ) : (
-                    <>
-                      {spreadWidth === 2 && "Narrow spread — Lower capital efficiency, higher win rate"}
-                      {spreadWidth === 5 && "Balanced spread — Good capital efficiency and win rate"}
-                      {spreadWidth === 10 && "Wide spread — Maximum capital efficiency, lower win rate"}
-                    </>
+            {strategyType === 'spread' && (() => {
+              // Compute selected index symbols from filteredWatchlist
+              const selectedIndexSymbols = filteredWatchlist
+                .map((w: any) => w.symbol as string)
+                .filter((s: string) => getIndexExchange(s) !== 'Equity');
+              const multiIndexWarnings = isIndexMode && selectedIndexSymbols.length > 1
+                ? validateMultiIndexSelection(selectedIndexSymbols)
+                : [];
+              const hasNasdaqAndCboe = multiIndexWarnings.some(w => w.severity === 'warning');
+
+              return (
+                <div className="space-y-3">
+                  {/* NDXP + CBOE mixed-exchange warning */}
+                  {hasNasdaqAndCboe && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/40 rounded-lg flex gap-2">
+                      <span className="text-amber-400 text-lg leading-none mt-0.5">⚠️</span>
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-amber-400">Mixed exchanges selected</p>
+                        {multiIndexWarnings.map((w, i) => (
+                          <p key={i} className="text-xs text-amber-300/80">{w.message}</p>
+                        ))}
+                        <p className="text-xs text-muted-foreground mt-1">Submit each exchange group in a separate session for best results.</p>
+                      </div>
+                    </div>
                   )}
-                </p>
-              </div>
-            )}
+
+                  {/* Per-symbol spread width controls in index mode */}
+                  {isIndexMode && selectedIndexSymbols.length > 0 ? (
+                    <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg space-y-3">
+                      <Label className="text-sm font-semibold">
+                        Spread Width per Index
+                        <span className="ml-2 text-xs text-amber-400 font-normal">(each index has its own minimum)</span>
+                      </Label>
+                      {selectedIndexSymbols.map((sym: string) => {
+                        const minW = getMinSpreadWidth(sym);
+                        const exchange = getIndexExchange(sym);
+                        const exchangeColor = exchange === 'CBOE' ? 'text-blue-400' : 'text-purple-400';
+                        // Available widths: min, 2×min, 4×min (capped at 200)
+                        const widths = [minW, minW * 2, minW * 4].filter(w => w <= 200);
+                        const currentW = symbolWidths[sym] ?? minW;
+                        return (
+                          <div key={sym} className="space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">{sym}</span>
+                              <span className={`text-xs ${exchangeColor}`}>{exchange}</span>
+                              <span className="text-xs text-muted-foreground">min {minW}pt</span>
+                            </div>
+                            <div className="flex gap-2">
+                              {widths.map(w => (
+                                <Button
+                                  key={w}
+                                  variant={currentW === w ? 'default' : 'outline'}
+                                  size="sm"
+                                  onClick={() => setSymbolWidths(prev => ({ ...prev, [sym]: w }))}
+                                  className={cn(
+                                    "flex-1 text-xs",
+                                    currentW === w
+                                      ? exchange === 'CBOE' ? "bg-blue-600 hover:bg-blue-700" : "bg-purple-600 hover:bg-purple-700"
+                                      : exchange === 'CBOE' ? "hover:bg-blue-500/10 hover:border-blue-500/50" : "hover:bg-purple-500/10 hover:border-purple-500/50"
+                                  )}
+                                >
+                                  {w}pt
+                                </Button>
+                              ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {sym}: {currentW}pt width → ~${(currentW * (sym === 'MRUT' || sym === 'XSP' || sym === 'DJX' ? 10 : 100)).toLocaleString()} max risk/contract
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg space-y-3">
+                      <Label className="text-sm font-semibold">
+                        Spread Width
+                      </Label>
+                      <div className="flex gap-3">
+                        {([2, 5, 10] as SpreadWidth[]).map(w => (
+                          <Button
+                            key={w}
+                            variant={spreadWidth === w ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setSpreadWidth(w)}
+                            className={cn(
+                              "flex-1",
+                              spreadWidth === w
+                                ? "bg-blue-600 hover:bg-blue-700"
+                                : "hover:bg-blue-500/10 hover:border-blue-500/50"
+                            )}
+                          >
+                            {w} points
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {spreadWidth === 2 && "Narrow spread — Lower capital efficiency, higher win rate"}
+                        {spreadWidth === 5 && "Balanced spread — Good capital efficiency and win rate"}
+                        {spreadWidth === 10 && "Wide spread — Maximum capital efficiency, lower win rate"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Info banner */}
             <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
@@ -2576,6 +2624,7 @@ export default function CSPDashboard() {
                   {(strategyType === 'spread' ? [
                     { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
                     { key: 'symbol', label: 'Symbol', help: null, technical: false },
+                    ...(isIndexMode ? [{ key: 'exchange', label: 'Exchange', help: null, technical: false }] : []),
                     { key: 'strike', label: 'Strikes', help: null, technical: false },
                     { key: 'currentPrice', label: 'Current', help: null, technical: false },
                     { key: 'netCredit', label: 'Net Credit', help: HELP_CONTENT.NET_CREDIT, technical: false },
@@ -2594,6 +2643,7 @@ export default function CSPDashboard() {
                   ] : [
                     { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
                     { key: 'symbol', label: 'Symbol', help: null, technical: false },
+                    ...(isIndexMode ? [{ key: 'exchange', label: 'Exchange', help: null, technical: false }] : []),
                     { key: 'currentPrice', label: 'Current', help: null, technical: false },
                     { key: 'strike', label: 'Strike', help: null, technical: false },
                     { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE, technical: false },
@@ -2747,6 +2797,19 @@ export default function CSPDashboard() {
                                 </button>
                               </div>
                             </TableCell>
+                            {isIndexMode && (() => {
+                              const exch = getIndexExchange(opp.symbol);
+                              return (
+                                <TableCell>
+                                  <Badge className={cn(
+                                    "text-xs font-semibold",
+                                    exch === 'CBOE' ? "bg-blue-500/20 text-blue-400 border-blue-500/40" :
+                                    exch === 'Nasdaq' ? "bg-purple-500/20 text-purple-400 border-purple-500/40" :
+                                    "bg-gray-500/20 text-gray-400 border-gray-500/40"
+                                  )}>{exch}</Badge>
+                                </TableCell>
+                              );
+                            })()}
                             <TableCell>
                               <div className="flex flex-col text-xs">
                                 <span className="text-blue-400 font-semibold">${opp.strike.toFixed(2)}</span>
@@ -2823,6 +2886,20 @@ export default function CSPDashboard() {
                                 </button>
                               </div>
                             </TableCell>
+                            {/* Exchange (index mode only) */}
+                            {isIndexMode && (() => {
+                              const exch = getIndexExchange(opp.symbol);
+                              return (
+                                <TableCell>
+                                  <Badge className={cn(
+                                    "text-xs font-semibold",
+                                    exch === 'CBOE' ? "bg-blue-500/20 text-blue-400 border-blue-500/40" :
+                                    exch === 'Nasdaq' ? "bg-purple-500/20 text-purple-400 border-purple-500/40" :
+                                    "bg-gray-500/20 text-gray-400 border-gray-500/40"
+                                  )}>{exch}</Badge>
+                                </TableCell>
+                              );
+                            })()}
                             {/* Current */}
                             <TableCell>${opp.currentPrice.toFixed(2)}</TableCell>
                             {/* Strike */}
