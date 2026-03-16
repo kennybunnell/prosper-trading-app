@@ -38,10 +38,15 @@ import {
   ChevronDown,
   ChevronsUpDown,
   ScanLine,
+  FileText,
+  RotateCcw,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useLocation } from 'wouter';
 import { cn } from '@/lib/utils';
+import { useTradingMode } from '@/contexts/TradingModeContext';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 // --- Types ---
 type ViewMode = 'delta' | 'theta';
@@ -1508,6 +1513,127 @@ function TickerAnalysisPanel({
   );
 }
 
+// --- Paper Orders Tab ---
+function PaperOrdersTab() {
+  const { mode } = useTradingMode();
+  const utils = trpc.useUtils();
+  const { data: orders, isLoading } = trpc.paperTrading.getOrders.useQuery(
+    { limit: 100, status: 'all' },
+    { enabled: mode === 'paper' }
+  );
+  const resetMutation = trpc.paperTrading.resetAll.useMutation({
+    onSuccess: () => {
+      utils.paperTrading.getOrders.invalidate();
+      utils.paperTrading.getBalance.invalidate();
+    },
+  });
+
+  if (mode !== 'paper') {
+    return (
+      <Card className="bg-card/50 backdrop-blur border-border/50">
+        <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
+          <FileText className="w-12 h-12 text-muted-foreground/40" />
+          <div className="text-center">
+            <p className="text-lg font-medium text-foreground">Paper Orders</p>
+            <p className="text-sm text-muted-foreground mt-1">Switch to Paper Trading mode to view simulated order history.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="bg-card/50 backdrop-blur border-border/50">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="w-4 h-4 text-blue-400" />
+                Paper Trading Order History
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Simulated orders — no real money involved</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-red-400 border-red-400/30 hover:bg-red-500/10"
+              onClick={() => {
+                if (confirm('Reset your paper account? This will clear all simulated orders and restore your $100,000 balance.')) {
+                  resetMutation.mutate();
+                }
+              }}
+              disabled={resetMutation.isPending}
+            >
+              {resetMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+              Reset Paper Account
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : !orders || orders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <FileText className="w-10 h-10 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">No paper orders yet. Use the strategy pages to simulate trades.</p>
+            </div>
+          ) : (
+            <ScrollArea className="h-[500px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Symbol</TableHead>
+                    <TableHead>Strategy</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>Price</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orders.map((order: any) => (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-mono font-medium">{order.symbol}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">{order.strategy || '—'}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={cn('text-xs', order.action === 'BUY' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30')} variant="outline">
+                          {order.action}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{order.quantity}</TableCell>
+                      <TableCell>${Number(order.fillPrice || order.limitPrice || 0).toFixed(2)}</TableCell>
+                      <TableCell>${(Number(order.fillPrice || order.limitPrice || 0) * Number(order.quantity) * 100).toFixed(2)}</TableCell>
+                      <TableCell>
+                        <Badge className={cn('text-xs',
+                          order.status === 'filled' ? 'bg-green-500/20 text-green-400' :
+                          order.status === 'cancelled' ? 'bg-gray-500/20 text-gray-400' :
+                          'bg-yellow-500/20 text-yellow-400'
+                        )} variant="outline">
+                          {order.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {new Date(order.createdAt).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // --- Main Page ---
 export default function PortfolioCommandCenter() {
   // Read ?tab= from URL on mount — supports 'analyzer', 'position-analyzer', 'positions', 'orders', 'safety', 'advisor', 'heatmap'
@@ -1630,7 +1756,7 @@ export default function PortfolioCommandCenter() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="screener" className="flex items-center gap-1.5 text-xs">
             <ScanLine className="w-3.5 h-3.5" />
             Screener
@@ -1658,6 +1784,10 @@ export default function PortfolioCommandCenter() {
           <TabsTrigger value="advisor" className="flex items-center gap-1.5 text-xs">
             <BookOpen className="w-3.5 h-3.5" />
             Portfolio Advisor
+          </TabsTrigger>
+          <TabsTrigger value="paper-orders" className="flex items-center gap-1.5 text-xs">
+            <FileText className="w-3.5 h-3.5" />
+            Paper Orders
           </TabsTrigger>
         </TabsList>
 
@@ -1888,6 +2018,9 @@ export default function PortfolioCommandCenter() {
 
         <TabsContent value="advisor">
           <PortfolioAdvisor />
+        </TabsContent>
+        <TabsContent value="paper-orders">
+          <PaperOrdersTab />
         </TabsContent>
       </Tabs>
 

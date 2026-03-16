@@ -1,12 +1,13 @@
 /**
  * Paper Trading Router
- * Backend procedures for paper trading simulation: mock positions, balance management, sample data
+ * Backend procedures for paper trading simulation: mock positions, balance management, sample data,
+ * simulated order submission, and order history.
  */
 
 import { protectedProcedure, router } from "./_core/trpc";
 import { TRPCError } from '@trpc/server';
 import { z } from "zod";
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 
 export const paperTradingRouter = router({
   /**
@@ -135,6 +136,164 @@ export const paperTradingRouter = router({
   }),
 
   /**
+   * Submit a simulated paper trading order (records to paperTradingOrders table)
+   */
+  submitOrder: protectedProcedure
+    .input(z.object({
+      symbol: z.string().min(1).max(20),
+      strategy: z.string().min(1).max(30),
+      action: z.string().default('STO'),
+      optionType: z.string().optional(),
+      strike: z.string().optional(),
+      expiration: z.string().optional(),
+      dte: z.number().optional(),
+      premiumCents: z.number().optional(),
+      contracts: z.number().min(1).default(1),
+      delta: z.string().optional(),
+      orderSnapshot: z.record(z.string(), z.any()).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+      // Verify user is in paper mode
+      const { users, paperTradingOrders } = await import('../drizzle/schema.js');
+      const [user] = await db.select().from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+      if (user.tradingMode !== 'paper') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'submitOrder is only available in paper trading mode' });
+      }
+
+      const totalPremiumCents = input.premiumCents
+        ? input.premiumCents * input.contracts * 100
+        : undefined;
+
+      const [result] = await db.insert(paperTradingOrders).values({
+        userId: ctx.user.id,
+        symbol: input.symbol.toUpperCase(),
+        strategy: input.strategy,
+        action: input.action,
+        optionType: input.optionType,
+        strike: input.strike,
+        expiration: input.expiration,
+        dte: input.dte,
+        premiumCents: input.premiumCents,
+        contracts: input.contracts,
+        totalPremiumCents,
+        delta: input.delta,
+        status: 'open',
+        orderSnapshot: input.orderSnapshot ? JSON.stringify(input.orderSnapshot) : undefined,
+      });
+
+      return {
+        success: true,
+        orderId: result.insertId,
+        message: `Paper order recorded: ${input.action} ${input.contracts}x ${input.symbol} ${input.strike} ${input.expiration}`,
+        totalPremiumCents,
+      };
+    }),
+
+  /**
+   * Get all paper trading orders for the current user
+   */
+  getOrders: protectedProcedure
+    .input(z.object({
+      status: z.enum(['open', 'closed', 'expired', 'all']).default('all'),
+      limit: z.number().min(1).max(200).default(50),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+      const { paperTradingOrders } = await import('../drizzle/schema.js');
+      const status = input?.status ?? 'all';
+      const limit = input?.limit ?? 50;
+
+      let query = db.select().from(paperTradingOrders)
+        .where(eq(paperTradingOrders.userId, ctx.user.id))
+        .orderBy(desc(paperTradingOrders.createdAt))
+        .limit(limit);
+
+      if (status !== 'all') {
+        query = db.select().from(paperTradingOrders)
+          .where(and(
+            eq(paperTradingOrders.userId, ctx.user.id),
+            eq(paperTradingOrders.status, status as 'open' | 'closed' | 'expired'),
+          ))
+          .orderBy(desc(paperTradingOrders.createdAt))
+          .limit(limit);
+      }
+
+      const orders = await query;
+      return orders.map(o => ({
+        ...o,
+        orderSnapshot: o.orderSnapshot ? JSON.parse(o.orderSnapshot) : null,
+        premiumDollars: o.premiumCents ? o.premiumCents / 100 : null,
+        totalPremiumDollars: o.totalPremiumCents ? o.totalPremiumCents / 100 : null,
+        pnlDollars: o.pnlCents ? o.pnlCents / 100 : null,
+      }));
+    }),
+
+  /**
+   * Close a paper trading order (mark as closed with P&L)
+   */
+  closeOrder: protectedProcedure
+    .input(z.object({
+      orderId: z.number(),
+      closePremiumCents: z.number().optional(), // Premium paid to close (BTC)
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+      const { paperTradingOrders } = await import('../drizzle/schema.js');
+      const [order] = await db.select().from(paperTradingOrders)
+        .where(and(
+          eq(paperTradingOrders.id, input.orderId),
+          eq(paperTradingOrders.userId, ctx.user.id),
+        )).limit(1);
+
+      if (!order) throw new TRPCError({ code: 'NOT_FOUND', message: 'Order not found' });
+
+      // P&L = premium collected (STO) - premium paid to close (BTC)
+      const pnlCents = order.totalPremiumCents != null && input.closePremiumCents != null
+        ? order.totalPremiumCents - (input.closePremiumCents * (order.contracts ?? 1) * 100)
+        : order.totalPremiumCents ?? 0; // If expired worthless, full premium is profit
+
+      await db.update(paperTradingOrders)
+        .set({ status: 'closed', pnlCents, updatedAt: new Date() })
+        .where(eq(paperTradingOrders.id, input.orderId));
+
+      return { success: true, pnlCents, pnlDollars: pnlCents / 100 };
+    }),
+
+  /**
+   * Full reset: clear all paper trading data and restore $100K balance
+   */
+  resetAll: protectedProcedure.mutation(async ({ ctx }) => {
+    const { getDb } = await import('./db');
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+    const { users, paperTradingPositions, paperTradingPerformance, paperTradingOrders } = await import('../drizzle/schema.js');
+
+    // Clear all paper trading data
+    await db.delete(paperTradingPositions).where(eq(paperTradingPositions.userId, ctx.user.id));
+    await db.delete(paperTradingPerformance).where(eq(paperTradingPerformance.userId, ctx.user.id));
+    await db.delete(paperTradingOrders).where(eq(paperTradingOrders.userId, ctx.user.id));
+
+    // Reset balance to $100K
+    await db.update(users)
+      .set({ paperTradingBalance: 100000 })
+      .where(eq(users.id, ctx.user.id));
+
+    return { success: true, message: 'Paper trading account reset to $100,000' };
+  }),
+
+  /**
    * Seed mock performance data for paper trading (6-12 months of premium earnings)
    */
   seedPerformanceData: protectedProcedure.mutation(async ({ ctx }) => {
@@ -163,9 +322,8 @@ export const paperTradingRouter = router({
       const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       
       // Generate realistic monthly premium: $1,500 - $4,500 (in cents)
-      // With some variation and occasional losses
       const baseAmount = 250000; // $2,500 base
-      const variation = Math.random() * 200000 - 50000; // +/- $500 to $1,500
+      const variation = Math.random() * 200000 - 50000;
       const netPremium = Math.round(baseAmount + variation);
       
       cumulativeTotal += netPremium;

@@ -974,3 +974,33 @@ export const dailyScanCache = mysqlTable('daily_scan_cache', {
 export type DailyScanCache = typeof dailyScanCache.$inferSelect;
 export type InsertDailyScanCache = typeof dailyScanCache.$inferInsert;
 
+
+/**
+ * Paper trading simulated orders
+ * Records every dry-run / paper order submission for history and P&L tracking
+ */
+export const paperTradingOrders = mysqlTable('paperTradingOrders', {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  symbol: varchar("symbol", { length: 20 }).notNull(),
+  strategy: varchar("strategy", { length: 30 }).notNull(),
+  action: varchar("action", { length: 10 }).notNull().default('STO'),
+  optionType: varchar("optionType", { length: 10 }),
+  strike: varchar("strike", { length: 20 }),
+  expiration: varchar("expiration", { length: 10 }),
+  dte: int("dte"),
+  premiumCents: int("premiumCents"),
+  contracts: int("contracts").notNull().default(1),
+  totalPremiumCents: int("totalPremiumCents"),
+  delta: varchar("delta", { length: 10 }),
+  status: mysqlEnum("status", ["open", "closed", "expired"]).notNull().default("open"),
+  pnlCents: int("pnlCents"),
+  orderSnapshot: text("orderSnapshot"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("paperTradingOrders_userId_idx").on(table.userId),
+  statusIdx: index("paperTradingOrders_status_idx").on(table.status),
+}));
+export type PaperTradingOrder = typeof paperTradingOrders.$inferSelect;
+export type InsertPaperTradingOrder = typeof paperTradingOrders.$inferInsert;

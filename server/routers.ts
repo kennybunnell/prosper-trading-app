@@ -1777,12 +1777,12 @@ Answer concisely and specifically. Stay conservative — capital preservation fi
 
         const credentials = await getApiCredentials(ctx.user.id);
         
-        // Determine if user can use system API key (only free trial users)
-        const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
-        const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
+        // Paper mode and free trial users can use the system Tradier key for market data scanning
+        const isPaperOrFreeTrial = ctx.user.subscriptionTier === 'free_trial' || ctx.user.tradingMode === 'paper';
+        const tradierApiKey = credentials?.tradierApiKey || (isPaperOrFreeTrial ? process.env.TRADIER_API_KEY : null);
         
         if (!tradierApiKey) {
-          if (isFreeTrialUser) {
+          if (isPaperOrFreeTrial) {
             throw new Error('System Tradier API key not configured. Please contact support.');
           } else {
             throw new Error('Please configure your Tradier API key in Settings to access live market data.');
@@ -2709,12 +2709,12 @@ Summary: [One sentence overall assessment]`;
 
         const credentials = await getApiCredentials(ctx.user.id);
         
-        // Determine if user can use system API key (only free trial users)
-        const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
-        const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
+        // Paper mode and free trial users can use the system Tradier key for market data scanning
+        const isPaperOrFreeTrial = ctx.user.subscriptionTier === 'free_trial' || ctx.user.tradingMode === 'paper';
+        const tradierApiKey = credentials?.tradierApiKey || (isPaperOrFreeTrial ? process.env.TRADIER_API_KEY : null);
         
         if (!tradierApiKey) {
-          if (isFreeTrialUser) {
+          if (isPaperOrFreeTrial) {
             throw new Error('System Tradier API key not configured. Please contact support.');
           } else {
             throw new Error('Please configure your Tradier API key in Settings to access live market data.');
@@ -3080,12 +3080,12 @@ Summary: [One sentence overall assessment]`;
 
         const credentials = await getApiCredentials(ctx.user.id);
         
-        // Determine if user can use system API key (only free trial users)
-        const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
-        const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
+        // Paper mode and free trial users can use the system Tradier key for market data scanning
+        const isPaperOrFreeTrial = ctx.user.subscriptionTier === 'free_trial' || ctx.user.tradingMode === 'paper';
+        const tradierApiKey = credentials?.tradierApiKey || (isPaperOrFreeTrial ? process.env.TRADIER_API_KEY : null);
         
         if (!tradierApiKey) {
-          if (isFreeTrialUser) {
+          if (isPaperOrFreeTrial) {
             throw new Error('System Tradier API key not configured. Please contact support.');
           } else {
             throw new Error('Please configure your Tradier API key in Settings to access live market data.');

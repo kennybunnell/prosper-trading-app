@@ -445,7 +445,7 @@ function TradingModeToggle() {
         />
       </div>
       <div className="text-xs text-muted-foreground px-1">
-        {mode === 'live' ? 'Using Tastytrade API' : 'Using Tradier sandbox'}
+        {mode === 'live' ? 'Using Tastytrade API' : 'Simulated trading • No real orders'}
       </div>
     </div>
   );

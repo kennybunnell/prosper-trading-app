@@ -456,6 +456,13 @@
       "when": 1773197218671,
       "tag": "0065_wooden_monster_badoon",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "5",
+      "when": 1773623327874,
+      "tag": "0066_powerful_risque",
+      "breakpoints": true
     }
   ]
 }
