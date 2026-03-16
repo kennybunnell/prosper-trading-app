@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { snapToTick, isTrueIndexOption } from "../../../shared/orderUtils";
+import { snapToTick, isTrueIndexOption, getTickSize } from "../../../shared/orderUtils";
 import {
   Dialog,
   DialogContent,
@@ -1630,27 +1630,36 @@ export function UnifiedOrderPreviewModal({
                               {/* Current Price and Position Indicator */}
                               <div className="flex justify-between items-center mt-2">
                                 <div className="flex items-center gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-6 w-6 p-0"
-                                    onClick={() => adjustPrice(orderWithLive, price >= 3.00 ? -0.05 : -0.01)}
-                                    disabled={isSubmitting}
-                                  >
-                                    <Minus className="h-3 w-3" />
-                                  </Button>
-                                  <span className="text-xs font-mono font-bold text-blue-400">
-                                    ${price.toFixed(2)}
-                                  </span>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-6 w-6 p-0"
-                                    onClick={() => adjustPrice(orderWithLive, price >= 3.00 ? 0.05 : 0.01)}
-                                    disabled={isSubmitting}
-                                  >
-                                    <Plus className="h-3 w-3" />
-                                  </Button>
+                                  {(() => {
+                                    const tick = getTickSize(price, order.symbol);
+                                    return (
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-6 w-6 p-0"
+                                          onClick={() => adjustPrice(orderWithLive, -tick)}
+                                          disabled={isSubmitting}
+                                          title={`-$${tick.toFixed(2)}`}
+                                        >
+                                          <Minus className="h-3 w-3" />
+                                        </Button>
+                                        <span className="text-xs font-mono font-bold text-blue-400">
+                                          ${price.toFixed(2)}
+                                        </span>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-6 w-6 p-0"
+                                          onClick={() => adjustPrice(orderWithLive, tick)}
+                                          disabled={isSubmitting}
+                                          title={`+$${tick.toFixed(2)}`}
+                                        >
+                                          <Plus className="h-3 w-3" />
+                                        </Button>
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
                                   {(() => {

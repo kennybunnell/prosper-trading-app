@@ -47,6 +47,16 @@ export const TRUE_INDEX_OPTION_SYMBOLS = new Set([
 ]);
 
 /**
+ * Large-cap index options that require $0.10 increments when price >= $3.00.
+ * Tastytrade rejects prices not in $0.10 steps for these high-priced index options.
+ * Below $3.00 they use $0.05 increments.
+ *
+ * Tastytrade rule: SPX/SPXW/NDX/RUT options >= $3.00 → $0.10 increments
+ *                  SPX/SPXW/NDX/RUT options < $3.00  → $0.05 increments
+ */
+const DIME_INDEX_SYMBOLS = new Set(['SPX', 'SPXW', 'SPXPM', 'NDX', 'NDXP', 'RUT', 'MRUT', 'DJX']);
+
+/**
  * Returns true if the symbol is a true cash-settled index option.
  * NOTE: Tastytrade's order submission API only accepts 'Equity Option' as the instrument type
  * for ALL options (including index options like SPXW, NDXP, MRUT). The 'Index Option' type
@@ -60,14 +70,22 @@ export function isTrueIndexOption(symbol: string): boolean {
 
 /**
  * Returns the correct tick size for a given price and optional symbol.
- * - True index options (SPX, SPXW, NDX, NDXP, RUT, MRUT, etc.) → always $0.05
- * - SPY, QQQ, IWM (penny pilot ETFs) → always $0.01
+ * - SPX/SPXW/NDX/RUT family >= $3.00 → $0.10 (Tastytrade dime rule for large index options)
+ * - SPX/SPXW/NDX/RUT family < $3.00  → $0.05
+ * - Other true index options (XSP, VIX, OEX, etc.) → $0.05
+ * - SPY, QQQ, IWM (penny pilot ETFs) → $0.01
  * - Price >= $3.00 → $0.05
  * - Price < $3.00  → $0.01
  */
-export function getTickSize(price: number, symbol?: string): 0.01 | 0.05 {
-  if (symbol && isTrueIndexOption(symbol)) return 0.05;
-  if (symbol && PENNY_PILOT_SYMBOLS.has(symbol.toUpperCase())) return 0.01;
+export function getTickSize(price: number, symbol?: string): 0.01 | 0.05 | 0.10 {
+  if (symbol) {
+    const sym = symbol.toUpperCase();
+    if (PENNY_PILOT_SYMBOLS.has(sym)) return 0.01;
+    // Large-cap index options: $0.10 when >= $3, $0.05 when < $3
+    if (DIME_INDEX_SYMBOLS.has(sym)) return price >= 3.00 ? 0.10 : 0.05;
+    // Other true index options: always $0.05
+    if (isTrueIndexOption(sym)) return 0.05;
+  }
   return price >= 3.00 ? 0.05 : 0.01;
 }
 
@@ -88,8 +106,15 @@ export function getTickSize(price: number, symbol?: string): 0.01 | 0.05 {
 export function snapToTick(price: number, symbol?: string): number {
   const safe = Math.max(0.01, price);
   const tick = getTickSize(safe, symbol);
-  if (tick === 0.05) {
-    // Integer arithmetic: work in units of $0.01, snap to nearest 5 cents
+  if (tick === 0.10) {
+    // Dime: work in units of $0.01, snap to nearest 10 cents
+    // e.g. 6.95 → 695 cents → round to nearest 10 → 700 → $7.00
+    // e.g. 6.94 → 694 cents → round to nearest 10 → 690 → $6.90
+    const cents = Math.round(safe * 100);
+    const snapped = Math.round(cents / 10) * 10;
+    return snapped / 100;
+  } else if (tick === 0.05) {
+    // Nickel: work in units of $0.01, snap to nearest 5 cents
     const cents = Math.round(safe * 100); // e.g. 3.15 → 315 (exact integer)
     const snapped = Math.round(cents / 5) * 5;  // nearest multiple of 5
     return snapped / 100;
@@ -246,7 +271,7 @@ export function validateOrderPrice(
   const snapped = snapToTick(price, symbol);
   if (Math.abs(price - snapped) > 0.001) {
     const tick = getTickSize(price, symbol);
-    const increment = tick === 0.05 ? '$0.05' : '$0.01';
+    const increment = tick === 0.10 ? '$0.10' : tick === 0.05 ? '$0.05' : '$0.01';
     return {
       isValid: false,
       message: `Price must be in ${increment} increments (suggested: $${snapped.toFixed(2)})`
