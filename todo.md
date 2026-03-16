@@ -8152,3 +8152,16 @@
 - [x] Auto-trigger onboarding on first paper mode entry via TradingModeContext
 - [x] Mount onboarding modal in DashboardLayout
 - [x] Write vitest tests for paper trading onboarding and order submission (8 tests pass)
+
+## SPX/Index Option Instrument Type Fix (Mar 16, 2026)
+- [x] Fixed SPX/SPXW/NDX/NDXP/RUT/MRUT close-for-profit order rejection (Order_disallowed_by_exchange_rules)
+- [x] Added isTrueIndexOption() usage in routers-automation.ts BTC close order path
+- [x] Added isTrueIndexOption() usage in tastytrade.ts buyToCloseOption function
+- [x] Added isTrueIndexOption() usage in tastytrade.ts rollOption function
+- [x] Added isTrueIndexOption() usage in tastytrade.ts submitCloseOrder function
+- [x] Updated GTC legs Zod schema to accept both 'Equity Option' and 'Index Option'
+- [x] Updated transaction history filters to include 'Index Option' for SPX/NDX/RUT
+- [x] Fixed misleading comment in orderUtils.ts (was incorrectly saying TT only accepts Equity Option)
+- [x] Updated dog-forced-exit.test.ts to reflect correct instrument type behavior
+- [x] Updated orderUtils.test.ts to reflect $0.10 dime rule for large index options >= $3.00
+- [x] All 1,238 tests passing (87 test files, 9 skipped)

@@ -58,11 +58,13 @@ const DIME_INDEX_SYMBOLS = new Set(['SPX', 'SPXW', 'SPXPM', 'NDX', 'NDXP', 'RUT'
 
 /**
  * Returns true if the symbol is a true cash-settled index option.
- * NOTE: Tastytrade's order submission API only accepts 'Equity Option' as the instrument type
- * for ALL options (including index options like SPXW, NDXP, MRUT). The 'Index Option' type
- * is NOT a valid order submission type per official TT docs.
- * This function is used for tick-size calculation ($0.05 for index options) and
- * position filtering (TT positions API returns 'Index Option' for these symbols).
+ * Tastytrade REQUIRES 'Index Option' as the instrument type for these symbols in order submission.
+ * Using 'Equity Option' for SPX/SPXW/NDX/NDXP/RUT/MRUT/DJX causes
+ * Order_disallowed_by_exchange_rules rejection from CBOE.
+ * This function is used for:
+ * - Instrument type selection in order submission ('Index Option' vs 'Equity Option')
+ * - Tick-size calculation ($0.10 for index options >= $3.00, $0.05 otherwise)
+ * - Position filtering (TT positions API returns 'Index Option' for these symbols)
  */
 export function isTrueIndexOption(symbol: string): boolean {
   return TRUE_INDEX_OPTION_SYMBOLS.has(symbol.toUpperCase());

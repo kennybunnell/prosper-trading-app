@@ -417,8 +417,12 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         // Determine which steps to run
         const runBTCScan = !input.scanSteps || input.scanSteps.includes('btc') || input.scanSteps.includes('all');
 
-        // Process each account
-        for (const account of accountsWithBalances) {
+        // Process each account — run all accounts in parallel for speed
+        const accountResults = await Promise.all(accountsWithBalances.map(async (account) => {
+          const acctScanResults: typeof scanResults = [];
+          const acctPendingOrders: typeof pendingOrders = [];
+          const acctCCScanResults: typeof ccScanResults = [];
+          let acctTotalPremium = 0;
           try {
             // Step 1: Close profitable positions
             // Uses same formula as Active Positions page:
@@ -900,10 +904,19 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               }
             }
 
-          } catch (accountError) {
+           } catch (accountError) {
             console.error(`[Automation] Error processing account ${account.accountNumber}:`, accountError);
-            // Continue to next account
+            // Continue to next account — return empty results for this account
           }
+          return { acctScanResults, acctPendingOrders, acctCCScanResults, acctTotalPremium };
+        }));
+
+        // Merge per-account results into the shared arrays
+        for (const r of accountResults) {
+          scanResults.push(...r.acctScanResults);
+          pendingOrders.push(...r.acctPendingOrders);
+          ccScanResults.push(...r.acctCCScanResults);
+          totalPremiumCollected += r.acctTotalPremium;
         }
 
         // ── Enrich scan results with live option marks + underlying stock prices ──
@@ -1488,9 +1501,10 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           }
 
           // Build order legs
-          // Tastytrade order submission API only accepts 'Equity Option' for all options
-          // (including cash-settled index options like SPXW, NDXP, MRUT).
-          const closeInstrumentType = 'Equity Option' as const;
+          // Tastytrade requires 'Index Option' for cash-settled index options (SPX, SPXW, NDX, NDXP, RUT, MRUT, DJX, VIX, XSP, OEX).
+          // Using 'Equity Option' for these symbols causes Order_disallowed_by_exchange_rules rejection from CBOE.
+          const { isTrueIndexOption: isIdxOpt } = await import('../shared/orderUtils');
+          const closeInstrumentType: 'Equity Option' | 'Index Option' = isIdxOpt(order.symbol) ? 'Index Option' : 'Equity Option';
 
           const legs: import('./tastytrade').OrderLeg[] = [
             {

@@ -49,16 +49,21 @@ describe('getTickSize', () => {
     expect(getTickSize(4.00, 'IWM')).toBe(0.01);
   });
 
-  it('returns $0.05 for true index options regardless of price (SPXW, NDX, NDXP, RUT, MRUT)', () => {
-    // Index options always require $0.05 increments — even for sub-$3 net credits
+  it('returns $0.05 for true index options below $3.00, $0.10 for large index options >= $3.00', () => {
+    // Sub-$3 index options: $0.05 increments
     expect(getTickSize(1.50, 'SPXW')).toBe(0.05);  // sub-$3 index spread
     expect(getTickSize(2.80, 'NDXP')).toBe(0.05);  // sub-$3 index spread
-    expect(getTickSize(59.00, 'NDXP')).toBe(0.05); // high-value index spread
     expect(getTickSize(1.00, 'RUT')).toBe(0.05);
     expect(getTickSize(2.50, 'MRUT')).toBe(0.05);
     expect(getTickSize(0.50, 'SPX')).toBe(0.05);
-    expect(getTickSize(100.00, 'NDX')).toBe(0.05);
+    // Large-cap index options >= $3.00: $0.10 dime rule (Tastytrade requirement)
+    expect(getTickSize(59.00, 'NDXP')).toBe(0.10); // high-value index spread → dime rule
+    expect(getTickSize(100.00, 'NDX')).toBe(0.10);  // NDX always high-value → dime rule
+    expect(getTickSize(3.00, 'SPX')).toBe(0.10);    // SPX at exactly $3.00 → dime rule
+    expect(getTickSize(5.00, 'RUT')).toBe(0.10);    // RUT >= $3.00 → dime rule
+    // Non-dime index options (VIX, XSP, OEX): always $0.05
     expect(getTickSize(5.00, 'VIX')).toBe(0.05);
+    expect(getTickSize(10.00, 'XSP')).toBe(0.05);
   });
 
   it('does NOT treat ETF proxies as true index options', () => {

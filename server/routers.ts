@@ -2138,6 +2138,7 @@ Summary: [One sentence overall assessment]`;
         if (input.dryRun) {
           // Client-side dry run - just validate structure and return success
           console.log('[DRY RUN Debug] Received orders:', input.orders.length);
+          const { isTrueIndexOption: isIndexOpt } = await import('../shared/orderUtils');
           
           const results = input.orders.map(order => {
             // Log each order's spread data
@@ -2153,7 +2154,7 @@ Summary: [One sentence overall assessment]`;
             });
             
             // Build legs to see what would be submitted
-            const dryRunInstrumentType = 'Equity Option'; // Tastytrade only accepts 'Equity Option' for all options including index options (SPX/SPXW)
+            const dryRunInstrumentType = isIndexOpt(order.symbol) ? 'Index Option' : 'Equity Option';
             const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
               ? [
                   { symbol: order.putShortLeg.optionSymbol, action: order.putShortLeg.action, instrumentType: dryRunInstrumentType },
@@ -2324,10 +2325,10 @@ Summary: [One sentence overall assessment]`;
               }
               
               // Build legs based on order type
-              // Tastytrade order submission API only accepts 'Equity Option' for all options
-              // (including cash-settled index options like SPXW, NDXP, MRUT).
-              // 'Index Option' is only returned by TT in positions/balances responses, NOT accepted in orders.
-              const legInstrumentType = 'Equity Option' as const;
+              // Tastytrade requires 'Index Option' for cash-settled index options (SPX, SPXW, NDX, NDXP, RUT, MRUT, DJX, VIX, XSP, OEX).
+              // Using 'Equity Option' for these symbols causes Order_disallowed_by_exchange_rules rejection from CBOE.
+              const { isTrueIndexOption } = await import('../shared/orderUtils');
+              const legInstrumentType: 'Equity Option' | 'Index Option' = isTrueIndexOption(order.symbol) ? 'Index Option' : 'Equity Option';
               const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
               ? [
                     // Iron Condor: Leg 1 - Sell Put (short put)
@@ -2427,7 +2428,7 @@ Summary: [One sentence overall assessment]`;
                 symbol: leg.symbol,
                 action: (leg.action === 'Sell to Open' ? 'Buy to Close' : 'Sell to Close') as 'Buy to Close' | 'Sell to Close',
                 quantity: Number(leg.quantity),
-                instrumentType: 'Equity Option' as const, // Tastytrade only accepts 'Equity Option' in order submission
+                instrumentType: legInstrumentType, // Use same instrument type as the opening order
               }));
 
               return {
@@ -3729,18 +3730,15 @@ Summary: [One sentence overall assessment]`;
             const instrumentType = txn['instrument-type'];
             const value = parseFloat(txn.value || '0');
 
-            // Only process Trade transactions with Sell to Open sub-type
+             // Only process Trade transactions with Sell to Open sub-type
             if (txnType !== 'Trade' || txnSubType !== 'Sell to Open') continue;
-
-            // Only process Equity Options
-            if (instrumentType !== 'Equity Option') continue;
-
+            // Process both Equity Options and Index Options (SPX/NDX/RUT)
+            if (instrumentType !== 'Equity Option' && instrumentType !== 'Index Option') continue;
             // Parse option symbol to get underlying and option type
             // Format: SYMBOL YYMMDD C/P STRIKE (e.g., AAPL 260117C00150000)
             const cleanSymbol = symbol.replace(/\s+/g, '');
             const match = cleanSymbol.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);
             if (!match) continue;
-
             const underlying = match[1];
             const optionType = match[3]; // 'C' for CALL, 'P' for PUT
 
@@ -3926,7 +3924,7 @@ Summary: [One sentence overall assessment]`;
           symbol: z.string(),
           action: z.enum(['Buy to Close', 'Sell to Close']),
           quantity: z.number(),
-          instrumentType: z.enum(['Equity Option']), // Tastytrade only accepts 'Equity Option' in order submission
+          instrumentType: z.enum(['Equity Option', 'Index Option']), // Tastytrade requires 'Index Option' for SPX/NDX/RUT index options
         })),
       }))
       .mutation(async ({ ctx, input }) => {
