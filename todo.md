@@ -8177,3 +8177,8 @@
 - [x] Diagnose why APLD still shows +15 standalone after order-ID fix
 - [x] Fix root cause: remainder short calls are covered calls backed by shares — suppress badge when shares >= remainder × 100
 - [x] Run tests and save checkpoint
+
+## SPX Cannot Be CC Fix (Mar 16, 2026)
+- [x] Guard remainder type logic: index underlyings (SPX/NDX/RUT etc.) cannot be CC
+- [x] Fix stockSharesMap CC check to exclude index underlyings
+- [x] Run tests and save checkpoint

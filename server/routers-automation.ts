@@ -539,8 +539,11 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               // to avoid false positives from underlyings that contain 'P' (e.g., APLD, SPY, PLTR)
               const occTypeMatch = optionSymbol.match(/([CP])(\d{8})$/);
               const isPut = occTypeMatch ? occTypeMatch[1] === 'P' : optionSymbol.includes('P');
-              // Will be refined to BPS/BCS/IC after spread detection below
-              let optionType: string = isPut ? 'CSP' : 'CC';
+              // Will be refined to BPS/BCS/IC after spread detection below.
+              // Index underlyings (SPX/NDX/RUT etc.) cannot be CC/CSP — they are cash-settled
+              // and cannot be assigned or covered by shares. Default to BCS/BPS for index options.
+              const isIndexUnderlying = position['instrument-type'] === 'Index Option';
+              let optionType: string = isPut ? (isIndexUnderlying ? 'BPS' : 'CSP') : (isIndexUnderlying ? 'BCS' : 'CC');
 
               // Premium received = what we collected when we sold
               const openPrice = Math.abs(parseFloat(String(position['average-open-price'] || '0')));
@@ -736,8 +739,10 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                     createdAt: new Date(),
                   });
                   // ── Remainder: unmatched short contracts are standalone CCs/CSPs ──
+                  // For index options (SPX/NDX/RUT etc.), remainder short calls cannot be CCs
+                  // since you cannot own or be assigned index shares. Use BCS/BPS instead.
                   if (singleLegRemainder > 0) {
-                    const remainderType = isPut ? 'CSP' : 'CC';
+                    const remainderType = isPut ? (isIndexUnderlying ? 'BPS' : 'CSP') : (isIndexUnderlying ? 'BCS' : 'CC');
                     const remainderCost = closePrice * singleLegRemainder * multiplier;
                     const remainderProfit = (openPrice * singleLegRemainder * multiplier) - remainderCost;
                     console.log(`[Automation] ${underlyingSymbol}: ${singleLegRemainder} unmatched short ${remainderType} contracts → emitting separate single-leg BTC order`);
@@ -787,13 +792,14 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                   wouldCloseEntry.spreadLongStrike = longStrikeMatch2 ? (parseFloat(longStrikeMatch2[1]) / 1000).toFixed(2) : undefined;
                   wouldCloseEntry.spreadLongPrice = String(Math.abs(parseFloat(String(matchedLongLeg['close-price'] || '0'))));
                   if (singleLegRemainder > 0) {
-                    // Check if the remainder is covered by long shares (i.e., covered calls).
-                    // If the underlying has >= singleLegRemainder × 100 shares, these are CCs
-                    // — not naked/standalone — so suppress the mismatch warning badge.
+                    // Index underlyings (SPX/NDX/RUT etc.) are cash-settled — you cannot own
+                    // or be assigned index shares, so the remainder can never be a covered call.
+                    // For equity underlyings, check if long shares cover the remainder contracts.
+                    // If shares >= remainder × 100, these are CCs — suppress the mismatch badge.
                     const underlyingUpper = underlyingSymbol.toUpperCase();
-                    const sharesHeld = stockSharesMap.get(underlyingUpper) || 0;
+                    const sharesHeld = isIndexUnderlying ? 0 : (stockSharesMap.get(underlyingUpper) || 0);
                     const sharesNeeded = singleLegRemainder * 100;
-                    const remainderIsCovered = sharesHeld >= sharesNeeded;
+                    const remainderIsCovered = !isIndexUnderlying && sharesHeld >= sharesNeeded;
                     if (!remainderIsCovered) {
                       wouldCloseEntry.hasMismatch = true;
                       wouldCloseEntry.standaloneRemainder = singleLegRemainder;
