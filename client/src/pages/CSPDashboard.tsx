@@ -297,8 +297,19 @@ export default function CSPDashboard() {
     return (saved === 'spread' ? 'spread' : 'csp') as StrategyType;
   });
   const [spreadWidth, setSpreadWidth] = useState<SpreadWidth>(5);
-  // Per-symbol spread width overrides for index mode (e.g. { NDXP: 25, MRUT: 5, SPXW: 5 })
-  const [symbolWidths, setSymbolWidths] = useState<Record<string, number>>({});
+  // Per-symbol spread width overrides for index mode — persisted in localStorage
+  const [symbolWidths, setSymbolWidths] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem('csp-symbol-widths');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+  // Persist symbolWidths to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('csp-symbol-widths', JSON.stringify(symbolWidths));
+    } catch { /* ignore */ }
+  }, [symbolWidths]);
   const [strategyPanelCollapsed, setStrategyPanelCollapsed] = useState(false);
   const [showSpreadHelp, setShowSpreadHelp] = useState(false);
   // Live range filters
@@ -323,7 +334,7 @@ export default function CSPDashboard() {
       setSpreadWidth(prev => (prev <= 10 ? 25 : prev as SpreadWidth));
     } else if (!isIndexMode && strategyType === 'spread') {
       setSpreadWidth(prev => (prev >= 25 ? 5 : prev as SpreadWidth));
-      setSymbolWidths({});
+      // Don't clear symbolWidths on equity mode — preserve for when user returns to index mode
     }
   }, [isIndexMode, strategyType]);
   const [sortColumn, setSortColumn] = useState<string>('score');
@@ -680,8 +691,28 @@ export default function CSPDashboard() {
       if (aVal === null || aVal === undefined) return 1;
       if (bVal === null || bVal === undefined) return -1;
       
-      const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-      return sortDirection === 'asc' ? comparison : -comparison;
+      const primaryComparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      const primaryResult = sortDirection === 'asc' ? primaryComparison : -primaryComparison;
+      
+      // Secondary sort by exchange in index mode: CBOE first, then Nasdaq
+      if (primaryResult === 0 && isIndexMode) {
+        const exchA = getIndexExchange((a as any).symbol);
+        const exchB = getIndexExchange((b as any).symbol);
+        const exchOrder: Record<string, number> = { CBOE: 0, Nasdaq: 1, Equity: 2 };
+        return (exchOrder[exchA] ?? 2) - (exchOrder[exchB] ?? 2);
+      }
+      
+      // When primary columns differ but we're in index mode, still group by exchange
+      if (isIndexMode && sortColumn !== 'exchange') {
+        const exchA = getIndexExchange((a as any).symbol);
+        const exchB = getIndexExchange((b as any).symbol);
+        if (exchA !== exchB) {
+          const exchOrder: Record<string, number> = { CBOE: 0, Nasdaq: 1, Equity: 2 };
+          return (exchOrder[exchA] ?? 2) - (exchOrder[exchB] ?? 2);
+        }
+      }
+      
+      return primaryResult;
     });
 
     return filtered;
@@ -1735,6 +1766,64 @@ export default function CSPDashboard() {
               />
             </div>
           </div>
+
+          {/* Scan-by-Exchange Shortcut Buttons (index mode only) */}
+          {isIndexMode && (() => {
+            const allIndexSymbols = filteredWatchlist.map((w: any) => w.symbol as string);
+            const cboeOnly = allIndexSymbols.filter((s: string) => getIndexExchange(s) === 'CBOE');
+            const nasdaqOnly = allIndexSymbols.filter((s: string) => getIndexExchange(s) === 'Nasdaq');
+            const hasMixed = cboeOnly.length > 0 && nasdaqOnly.length > 0;
+            if (!hasMixed) return null;
+            return (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium">Scan by exchange group:</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={loadingOpportunities || !selectedAccountId}
+                    onClick={() => {
+                      if (!selectedAccountId) return;
+                      selectAll.mutate({ symbols: cboeOnly }, {
+                        onSuccess: () => {
+                          toast.info(`Scanning CBOE only: ${cboeOnly.join(', ')}`, { duration: 3000 });
+                          setTimeout(() => {
+                            setFetchProgress({ isOpen: true, current: 0, total: cboeOnly.length, completed: 0, startTime: Date.now(), endTime: null });
+                            refetchOpportunities();
+                          }, 300);
+                        }
+                      });
+                    }}
+                    className="text-xs hover:bg-blue-500/10 hover:border-blue-500/50 hover:text-blue-400"
+                  >
+                    <span className="mr-1.5 text-blue-400">●</span>
+                    CBOE only ({cboeOnly.length})
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={loadingOpportunities || !selectedAccountId}
+                    onClick={() => {
+                      if (!selectedAccountId) return;
+                      selectAll.mutate({ symbols: nasdaqOnly }, {
+                        onSuccess: () => {
+                          toast.info(`Scanning Nasdaq only: ${nasdaqOnly.join(', ')}`, { duration: 3000 });
+                          setTimeout(() => {
+                            setFetchProgress({ isOpen: true, current: 0, total: nasdaqOnly.length, completed: 0, startTime: Date.now(), endTime: null });
+                            refetchOpportunities();
+                          }, 300);
+                        }
+                      });
+                    }}
+                    className="text-xs hover:bg-purple-500/10 hover:border-purple-500/50 hover:text-purple-400"
+                  >
+                    <span className="mr-1.5 text-purple-400">●</span>
+                    Nasdaq only ({nasdaqOnly.length})
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Fetch Button */}
           <Button 
