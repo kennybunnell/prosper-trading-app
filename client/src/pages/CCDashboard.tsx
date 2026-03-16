@@ -326,7 +326,7 @@ export default function CCDashboard() {
   // AI Analysis Modal state
   const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
   const [showAIAdvisor, setShowAIAdvisor] = useState(false);
-  const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number } | null>(null);
+  const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number; currentPrice?: number } | null>(null);
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{
     symbol: string;
     shortStrike: number;
@@ -3034,7 +3034,7 @@ export default function CCDashboard() {
                             <span>{opp.symbol}</span>
                             <button
                               title={`View ${opp.symbol} chart`}
-                              onClick={() => setChartSymbol({ symbol: opp.symbol, strike: opp.strike })}
+                              onClick={() => setChartSymbol({ symbol: opp.symbol, strike: opp.strike, currentPrice: opp.currentPrice })}
                               className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-700/50 transition-colors"
                             >
                               <BarChart2 className="h-3.5 w-3.5" />
@@ -3349,6 +3349,7 @@ export default function CCDashboard() {
         <BollingerChartPanel
           symbol={chartSymbol.symbol}
           strikePrice={chartSymbol.strike}
+          currentPrice={chartSymbol.currentPrice}
           onClose={() => setChartSymbol(null)}
         />
       )}

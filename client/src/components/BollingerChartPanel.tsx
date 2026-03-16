@@ -6,6 +6,8 @@ interface BollingerChartPanelProps {
   symbol: string;
   /** Optional current strike price — shown in the header as a reference label */
   strikePrice?: number;
+  /** Optional current market price of the underlying — shown as a badge next to the strike */
+  currentPrice?: number;
   onClose: () => void;
 }
 
@@ -94,7 +96,7 @@ const TradingViewChart = memo(function TradingViewChart({ tvSymbol }: { tvSymbol
   );
 });
 
-export function BollingerChartPanel({ symbol, strikePrice, onClose }: BollingerChartPanelProps) {
+export function BollingerChartPanel({ symbol, strikePrice, currentPrice, onClose }: BollingerChartPanelProps) {
   const tvSymbol = resolveSymbol(symbol);
 
   return (
@@ -110,9 +112,26 @@ export function BollingerChartPanel({ symbol, strikePrice, onClose }: BollingerC
           <span className="text-slate-500 text-xs hidden sm:inline">
             · Bollinger Bands · RSI · Volume
           </span>
+          {currentPrice && (
+            <span className="text-xs bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded px-1.5 py-0.5 ml-1">
+              Price ${currentPrice.toFixed(2)}
+            </span>
+          )}
           {strikePrice && (
             <span className="text-xs bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded px-1.5 py-0.5 ml-1">
               Strike ${strikePrice.toFixed(2)}
+            </span>
+          )}
+          {currentPrice && strikePrice && (
+            <span className={`text-xs rounded px-1.5 py-0.5 ml-1 ${
+              currentPrice < strikePrice
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+            }`}>
+              {currentPrice < strikePrice
+                ? `${((strikePrice - currentPrice) / currentPrice * 100).toFixed(1)}% OTM`
+                : `${((currentPrice - strikePrice) / currentPrice * 100).toFixed(1)}% ITM`
+            }
             </span>
           )}
         </div>

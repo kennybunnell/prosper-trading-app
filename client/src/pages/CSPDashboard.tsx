@@ -344,7 +344,7 @@ export default function CSPDashboard() {
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
   const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
   const [showAIAdvisor, setShowAIAdvisor] = useState(false);
-  const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number } | null>(null);
+  const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number; currentPrice?: number } | null>(null);
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{ symbol: string; strike: number; score: number; explanation: string | any[] } | null>(null);
   const [aiMode, setAiMode] = useState<'conservative' | 'aggressive'>('conservative');
   const [showTechnicalColumns, setShowTechnicalColumns] = useState(false);
@@ -2740,7 +2740,7 @@ export default function CSPDashboard() {
                                 <span>{opp.symbol}</span>
                                 <button
                                   title={`View ${opp.symbol} chart`}
-                                  onClick={() => setChartSymbol({ symbol: opp.symbol, strike: opp.strike })}
+                                  onClick={() => setChartSymbol({ symbol: opp.symbol, strike: opp.strike, currentPrice: opp.currentPrice })}
                                   className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-700/50 transition-colors"
                                 >
                                   <BarChart2 className="h-3.5 w-3.5" />
@@ -2816,7 +2816,7 @@ export default function CSPDashboard() {
                                 <span>{opp.symbol}</span>
                                 <button
                                   title={`View ${opp.symbol} chart`}
-                                  onClick={() => setChartSymbol({ symbol: opp.symbol, strike: opp.strike })}
+                                  onClick={() => setChartSymbol({ symbol: opp.symbol, strike: opp.strike, currentPrice: opp.currentPrice })}
                                   className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-700/50 transition-colors"
                                 >
                                   <BarChart2 className="h-3.5 w-3.5" />
@@ -3162,6 +3162,7 @@ export default function CSPDashboard() {
         <BollingerChartPanel
           symbol={chartSymbol.symbol}
           strikePrice={chartSymbol.strike}
+          currentPrice={chartSymbol.currentPrice}
           onClose={() => setChartSymbol(null)}
         />
       )}

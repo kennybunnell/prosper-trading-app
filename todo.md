@@ -8182,3 +8182,13 @@
 - [x] Guard remainder type logic: index underlyings (SPX/NDX/RUT etc.) cannot be CC
 - [x] Fix stockSharesMap CC check to exclude index underlyings
 - [x] Run tests and save checkpoint
+
+## Chart Current Price Line (Mar 16, 2026)
+- [ ] Add horizontal current price line to TradingView chart alongside strike line
+- [ ] Style as dashed white/cyan line with price label
+- [ ] Run tests and save checkpoint
+
+## Chart Current Price Badge (Mar 16, 2026)
+- [x] Add current price badge to chart header (cyan badge, alongside Strike badge)
+- [x] Add OTM/ITM distance badge showing % between current price and strike (green=OTM, amber=ITM)
+- [x] Thread currentPrice through all 4 dashboards (CSP, CC, Iron Condor, PMCC)

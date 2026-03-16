@@ -227,7 +227,7 @@ export default function IronCondorDashboard() {
   // Selection state
   const [selectedOpportunities, setSelectedOpportunities] = useState<Set<string>>(new Set());
   const [showAIAdvisor, setShowAIAdvisor] = useState(false);
-  const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number } | null>(null);
+  const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number; currentPrice?: number } | null>(null);
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
 
   // Order preview modal
@@ -1454,7 +1454,7 @@ export default function IronCondorDashboard() {
                                 <span>{opp.symbol}</span>
                                 <button
                                   title={`View ${opp.symbol} chart`}
-                                  onClick={() => setChartSymbol({ symbol: opp.symbol, strike: opp.putShortStrike })}
+                                  onClick={() => setChartSymbol({ symbol: opp.symbol, strike: opp.putShortStrike, currentPrice: opp.currentPrice })}
                                   className="p-0.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-700/50 transition-colors"
                                 >
                                   <BarChart2 className="h-3.5 w-3.5" />
@@ -1662,6 +1662,7 @@ export default function IronCondorDashboard() {
         <BollingerChartPanel
           symbol={chartSymbol.symbol}
           strikePrice={chartSymbol.strike}
+          currentPrice={chartSymbol.currentPrice}
           onClose={() => setChartSymbol(null)}
         />
       )}
