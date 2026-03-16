@@ -597,24 +597,24 @@ export default function IronCondorDashboard() {
         action: "sell_to_open" as const,
         strike: opp.putShortStrike,           // PUT short strike
         expiration: opp.expiration,
-        premium: opp.totalNetCredit * 100,    // Total net credit for all 4 legs
+        premium: opp.totalNetCredit,         // Total net credit per share (modal multiplies by 100)
         bid: opp.putShortBid,
         ask: opp.putShortAsk,
         optionType: "PUT" as const,
         
         // PUT spread (legs 1 & 2)
         longStrike: opp.putLongStrike,        // PUT long strike
-        longPremium: opp.putLongAsk * 100,    // PUT long cost
+        longPremium: opp.putLongAsk,          // PUT long cost per share
         longBid: opp.putLongBid,
         longAsk: opp.putLongAsk,
         
         // CALL spread (legs 3 & 4)
         callShortStrike: opp.callShortStrike, // CALL short strike
-        callShortPremium: opp.callNetCredit * 100, // CALL short credit
+        callShortPremium: opp.callNetCredit,  // CALL short credit per share
         callShortBid: opp.callShortBid,
         callShortAsk: opp.callShortAsk,
         callLongStrike: opp.callLongStrike,   // CALL long strike
-        callLongPremium: opp.callLongAsk * 100, // CALL long cost
+        callLongPremium: opp.callLongAsk,     // CALL long cost per share
         callLongBid: opp.callLongBid,
         callLongAsk: opp.callLongAsk,
         // Underlying stock price shown in Order Preview dialog

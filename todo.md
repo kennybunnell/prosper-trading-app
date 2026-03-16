@@ -8192,3 +8192,14 @@
 - [x] Add current price badge to chart header (cyan badge, alongside Strike badge)
 - [x] Add OTM/ITM distance badge showing % between current price and strike (green=OTM, amber=ITM)
 - [x] Thread currentPrice through all 4 dashboards (CSP, CC, Iron Condor, PMCC)
+
+## Iron Condor Order Preview Premium Bug (Mar 16, 2026)
+- [ ] Fix wildly inflated Total/Premium in Iron Condor order preview (double ×100 multiplication bug)
+- [ ] Fix Summary Total Premium and Return on Capital calculations
+- [ ] Run tests and save checkpoint
+
+## Iron Condor Order Preview Premium Fix (Mar 16, 2026)
+- [x] Diagnosed double ×100 multiplication bug: order.premium was pre-multiplied by 100 before being passed to modal, then modal multiplied by 100 again
+- [x] Fixed IronCondorDashboard.tsx: removed ×100 from premium, longPremium, callShortPremium, callLongPremium fields
+- [x] Verified server-side submission uses freshNetCredit (live quotes) not order.premium — unaffected
+- [x] All 1,238 tests pass, server running cleanly
