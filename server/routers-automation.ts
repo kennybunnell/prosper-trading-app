@@ -1145,6 +1145,36 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           // Non-fatal — scan results still valid without roll suggestions
         }
 
+        // ── Save scan results to DB FIRST so they always persist even if pending orders fail ──
+        // Retry up to 3 times for TiDB schema cache hiccups.
+        const saveAutomationLog = async (attempt = 1): Promise<void> => {
+          try {
+            await updateAutomationLog(runId, {
+              status: 'completed',
+              positionsClosedCount: totalPositionsClosed,
+              coveredCallsOpenedCount: totalCoveredCallsOpened,
+              totalProfitRealized: totalProfitRealized.toFixed(2),
+              totalPremiumCollected: totalPremiumCollected.toFixed(2),
+              accountsProcessed: accountsWithBalances.length,
+              scanResultsJson: JSON.stringify(scanResults),
+              ccScanResultsJson: JSON.stringify(ccScanResults),
+              completedAt: new Date(),
+            });
+            console.log(`[Automation] Scan results saved to DB log (runId: ${runId})`);
+          } catch (logErr: any) {
+            const msg = logErr?.message ?? logErr?.cause?.message ?? '';
+            const isSchemaErr = msg.includes('Information schema') || msg.includes('schema is out of date');
+            if (isSchemaErr && attempt < 4) {
+              console.warn(`[Automation] TiDB schema cache miss on log save (attempt ${attempt}/3), retrying in 2s...`);
+              await new Promise(r => setTimeout(r, 2000));
+              return saveAutomationLog(attempt + 1);
+            }
+            // Non-fatal: log the error but don't crash — results are still returned to UI
+            console.error('[Automation] Failed to save scan results to DB log (non-fatal):', msg);
+          }
+        };
+        await saveAutomationLog();
+
         // Save pending orders to database — wrapped in try/catch so a transient DB
         // hiccup (e.g. TiDB schema cache miss) does not abort the whole scan.
         if (pendingOrders.length > 0) {
@@ -1156,19 +1186,6 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             // Non-fatal: the scan results are still returned to the UI; user can re-run to persist.
           }
         }
-
-        // Update automation log — store scanResults as JSON in DB so the response stays small
-        await updateAutomationLog(runId, {
-          status: 'completed',
-          positionsClosedCount: totalPositionsClosed,
-          coveredCallsOpenedCount: totalCoveredCallsOpened,
-          totalProfitRealized: totalProfitRealized.toFixed(2),
-          totalPremiumCollected: totalPremiumCollected.toFixed(2),
-          accountsProcessed: accountsWithBalances.length,
-          scanResultsJson: JSON.stringify(scanResults),
-          ccScanResultsJson: JSON.stringify(ccScanResults),
-          completedAt: new Date(),
-        });
 
         // Send email notification if enabled
         if (settings.emailNotificationsEnabled && !settings.dryRunMode) {

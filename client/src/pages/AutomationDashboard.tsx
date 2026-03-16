@@ -2022,7 +2022,13 @@ export default function AutomationDashboard() {
               {visibleScanResults.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   <TrendingDown className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                  {lastRunResult.scanResults.length === 0 ? (
+                  {lastRunResult.scanResults.length === 0 && (lastRunResult.summary?.wouldClose ?? 0) > 0 ? (
+                    // Scan found positions but scanResultsJson wasn't saved to DB yet (transient TiDB delay)
+                    <>
+                      <p className="text-amber-400 font-medium">Scan found {lastRunResult.summary.wouldClose} position{lastRunResult.summary.wouldClose !== 1 ? 's' : ''} — results loading...</p>
+                      <p className="text-sm mt-1">If this persists after a few seconds, click <strong>Re-scan Now</strong> to refresh.</p>
+                    </>
+                  ) : lastRunResult.scanResults.length === 0 ? (
                     <>
                       <p>No short option positions found in any account</p>
                       <p className="text-sm mt-1">Make sure your Tastytrade account has open CSP or CC positions</p>

@@ -1,0 +1,79 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'automationPendingOrders' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'automationPendingOrders' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "runId"
+    },
+    {
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "COLUMN_NAME": "accountNumber"
+    },
+    {
+      "COLUMN_NAME": "orderType"
+    },
+    {
+      "COLUMN_NAME": "symbol"
+    },
+    {
+      "COLUMN_NAME": "strike"
+    },
+    {
+      "COLUMN_NAME": "expiration"
+    },
+    {
+      "COLUMN_NAME": "quantity"
+    },
+    {
+      "COLUMN_NAME": "price"
+    },
+    {
+      "COLUMN_NAME": "profitPercent"
+    },
+    {
+      "COLUMN_NAME": "score"
+    },
+    {
+      "COLUMN_NAME": "estimatedProfit"
+    },
+    {
+      "COLUMN_NAME": "estimatedPremium"
+    },
+    {
+      "COLUMN_NAME": "status"
+    },
+    {
+      "COLUMN_NAME": "orderId"
+    },
+    {
+      "COLUMN_NAME": "errorMessage"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "approvedAt"
+    },
+    {
+      "COLUMN_NAME": "submittedAt"
+    },
+    {
+      "COLUMN_NAME": "spreadLongSymbol"
+    },
+    {
+      "COLUMN_NAME": "spreadLongStrike"
+    },
+    {
+      "COLUMN_NAME": "spreadLongPrice"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nrunId\nuserId\naccountNumber\norderType\nsymbol\nstrike\nexpiration\nquantity\nprice\nprofitPercent\nscore\nestimatedProfit\nestimatedPremium\nstatus\norderId\nerrorMessage\ncreatedAt\napprovedAt\nsubmittedAt\nspreadLongSymbol\nspreadLongStrike\nspreadLongPrice\n",
+  "stderr": "",
+  "execution_time_ms": 46
+}

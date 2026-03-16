@@ -1,0 +1,90 @@
+{
+  "query": "SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'automationLogs' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'automationLogs' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "userId",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "runId",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "status",
+      "DATA_TYPE": "enum",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "triggerType",
+      "DATA_TYPE": "enum",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "dryRun",
+      "DATA_TYPE": "tinyint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "positionsClosedCount",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "coveredCallsOpenedCount",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "totalProfitRealized",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "totalPremiumCollected",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "accountsProcessed",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "errorMessage",
+      "DATA_TYPE": "text",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "COLUMN_NAME": "scanResultsJson",
+      "DATA_TYPE": "longtext",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "COLUMN_NAME": "startedAt",
+      "DATA_TYPE": "timestamp",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "completedAt",
+      "DATA_TYPE": "timestamp",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "COLUMN_NAME": "ccScanResultsJson",
+      "DATA_TYPE": "longtext",
+      "IS_NULLABLE": "YES"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\tDATA_TYPE\tIS_NULLABLE\nid\tint\tNO\nuserId\tint\tNO\nrunId\tvarchar\tNO\nstatus\tenum\tNO\ntriggerType\tenum\tNO\ndryRun\ttinyint\tNO\npositionsClosedCount\tint\tNO\ncoveredCallsOpenedCount\tint\tNO\ntotalProfitRealized\tvarchar\tNO\ntotalPremiumCollected\tvarchar\tNO\naccountsProcessed\tint\tNO\nerrorMessage\ttext\tYES\nscanResultsJson\tlongtext\tYES\nstartedAt\ttimestamp\tNO\ncompletedAt\ttimestamp\tYES\nccScanResultsJson\tlongtext\tYES\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}

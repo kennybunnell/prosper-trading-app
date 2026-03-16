@@ -1,0 +1,58 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'automationLogs' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'automationLogs' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "COLUMN_NAME": "runId"
+    },
+    {
+      "COLUMN_NAME": "status"
+    },
+    {
+      "COLUMN_NAME": "triggerType"
+    },
+    {
+      "COLUMN_NAME": "dryRun"
+    },
+    {
+      "COLUMN_NAME": "positionsClosedCount"
+    },
+    {
+      "COLUMN_NAME": "coveredCallsOpenedCount"
+    },
+    {
+      "COLUMN_NAME": "totalProfitRealized"
+    },
+    {
+      "COLUMN_NAME": "totalPremiumCollected"
+    },
+    {
+      "COLUMN_NAME": "accountsProcessed"
+    },
+    {
+      "COLUMN_NAME": "errorMessage"
+    },
+    {
+      "COLUMN_NAME": "scanResultsJson"
+    },
+    {
+      "COLUMN_NAME": "startedAt"
+    },
+    {
+      "COLUMN_NAME": "completedAt"
+    },
+    {
+      "COLUMN_NAME": "ccScanResultsJson"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nuserId\nrunId\nstatus\ntriggerType\ndryRun\npositionsClosedCount\ncoveredCallsOpenedCount\ntotalProfitRealized\ntotalPremiumCollected\naccountsProcessed\nerrorMessage\nscanResultsJson\nstartedAt\ncompletedAt\nccScanResultsJson\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}
