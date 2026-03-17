@@ -270,8 +270,14 @@ export default function IronCondorDashboard() {
         const status = statusMap[orderId];
         const order = ordersForPreview[index];
         
-        // Map Unknown status to Rejected for UI display
-        const mappedStatus = status?.status === 'Unknown' ? 'Rejected' as const : status?.status || 'Rejected' as const;
+        // 'Unknown' means API couldn't confirm yet — keep as Working so client keeps polling
+        const rawStatus = status?.status;
+        const mappedStatus =
+          rawStatus === 'Filled' ? 'Filled' as const
+          : rawStatus === 'Rejected' ? 'Rejected' as const
+          : rawStatus === 'Cancelled' ? 'Cancelled' as const
+          : rawStatus === 'MarketClosed' ? 'MarketClosed' as const
+          : 'Working' as const;
         
         return {
           orderId,
@@ -285,17 +291,16 @@ export default function IronCondorDashboard() {
             ? status.marketClosedMessage || 'Market is closed'
             : status?.status === 'Working'
             ? 'Order is working'
-            : 'Status unknown',
+            : 'Checking order status...',
         };
       });
     } catch (error: any) {
       console.error('[IronCondorDashboard] Error polling order statuses:', error);
-      // Return unknown status for all orders on error
       return orderIds.map((orderId, index) => ({
         orderId,
         symbol: ordersForPreview[index]?.symbol || 'Unknown',
-        status: 'Rejected' as const,
-        message: `Failed to check status: ${error.message}`,
+        status: 'Working' as const,
+        message: 'Retrying status check...',
       }));
     }
   };

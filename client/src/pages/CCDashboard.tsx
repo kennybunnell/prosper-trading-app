@@ -1098,16 +1098,34 @@ export default function CCDashboard() {
       
       const statuses = await Promise.all(statusPromises);
       
-      // Map OrderStatus to OrderSubmissionStatus
-      return statuses.map((status, index) => ({
-        orderId: orderIds[index],
-        symbol: '', // Symbol not available from polling endpoint
-        status: status.status as any,
-        message: (status as any).marketClosedMessage || (status as any).rejectedReason || (status as any).message || 'Status unknown',
-      }));
+      // Map OrderStatus to OrderSubmissionStatus.
+      // 'Unknown' means the API couldn't confirm yet — return 'Working' so the
+      // client keeps polling instead of showing a false 'Rejected' badge.
+      return statuses.map((s: any, index) => {
+        const rawStatus = s?.status;
+        const mappedStatus =
+          rawStatus === 'Filled' ? 'Filled' as const
+          : rawStatus === 'Rejected' ? 'Rejected' as const
+          : rawStatus === 'Cancelled' ? 'Cancelled' as const
+          : rawStatus === 'MarketClosed' ? 'MarketClosed' as const
+          : 'Working' as const;
+        return {
+          orderId: orderIds[index],
+          symbol: '',
+          status: mappedStatus,
+          message: s?.marketClosedMessage || s?.rejectedReason || s?.message
+            || (rawStatus === 'Unknown' ? 'Checking order status...' : 'Status unknown'),
+        };
+      });
     } catch (error: any) {
       console.error('[CC Dashboard] Polling error:', error);
-      return [];
+      // Return Working on error so the interval keeps retrying
+      return orderIds.map(id => ({
+        orderId: id,
+        symbol: '',
+        status: 'Working' as const,
+        message: 'Retrying status check...',
+      }));
     }
   };
 

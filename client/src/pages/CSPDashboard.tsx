@@ -1017,16 +1017,33 @@ export default function CSPDashboard() {
       
       const statuses = await Promise.all(statusPromises);
       
-      // Map to expected format
-      return statuses.map((s: any) => ({
-        orderId: s.orderId || '',
-        symbol: s.symbol || 'Unknown',
-        status: s.status as any,
-        message: s.message || 'Status unknown'
-      }));
+      // Map to expected format.
+      // 'Unknown' means the API couldn't confirm yet — return 'Working' so the
+      // client keeps polling instead of showing a false 'Rejected' badge.
+      return statuses.map((s: any) => {
+        const rawStatus = s.status;
+        const mappedStatus =
+          rawStatus === 'Filled' ? 'Filled' as const
+          : rawStatus === 'Rejected' ? 'Rejected' as const
+          : rawStatus === 'Cancelled' ? 'Cancelled' as const
+          : rawStatus === 'MarketClosed' ? 'MarketClosed' as const
+          : 'Working' as const; // Unknown, undefined, or Working all keep polling
+        return {
+          orderId: s.orderId || '',
+          symbol: s.symbol || 'Unknown',
+          status: mappedStatus,
+          message: s.message || (rawStatus === 'Unknown' ? 'Checking order status...' : 'Status unknown'),
+        };
+      });
     } catch (error: any) {
       console.error('[handlePollStatuses] Error:', error);
-      return [];
+      // Return Working on error so the interval keeps retrying
+      return orderIds.map(id => ({
+        orderId: id,
+        symbol: 'Unknown',
+        status: 'Working' as const,
+        message: 'Retrying status check...',
+      }));
     }
   };
   

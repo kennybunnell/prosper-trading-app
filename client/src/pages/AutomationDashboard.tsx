@@ -704,7 +704,14 @@ export default function AutomationDashboard() {
       const statusMap = await utils.orders.checkStatusBatch.fetch({ accountId, orderIds });
       return orderIds.map((orderId, idx) => {
         const s = statusMap[orderId];
-        const mappedStatus = s?.status === 'Unknown' ? 'Rejected' as const : (s?.status ?? 'Rejected' as const);
+        // 'Unknown' means API couldn't confirm yet — keep as Working so client keeps polling
+        const rawStatus = s?.status;
+        const mappedStatus =
+          rawStatus === 'Filled' ? 'Filled' as const
+          : rawStatus === 'Rejected' ? 'Rejected' as const
+          : rawStatus === 'Cancelled' ? 'Cancelled' as const
+          : rawStatus === 'MarketClosed' ? 'MarketClosed' as const
+          : 'Working' as const;
         return {
           orderId,
           symbol: unifiedOrders[idx]?.symbol ?? 'Unknown',
@@ -717,15 +724,15 @@ export default function AutomationDashboard() {
             ? (s as any).marketClosedMessage ?? 'Market is closed'
             : s?.status === 'Working'
             ? 'Order is working'
-            : 'Status unknown',
+            : 'Checking order status...',
         };
       });
     } catch (error: any) {
       return orderIds.map((orderId, idx) => ({
         orderId,
         symbol: unifiedOrders[idx]?.symbol ?? 'Unknown',
-        status: 'Rejected' as const,
-        message: `Failed to check status: ${error.message}`,
+        status: 'Working' as const,
+        message: 'Retrying status check...',
       }));
     }
   };

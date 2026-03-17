@@ -8203,3 +8203,9 @@
 - [x] Fixed IronCondorDashboard.tsx: removed ×100 from premium, longPremium, callShortPremium, callLongPremium fields
 - [x] Verified server-side submission uses freshNetCredit (live quotes) not order.premium — unaffected
 - [x] All 1,238 tests pass, server running cleanly
+
+## Bug Fix: Order Status Polling Shows "Rejected" for Filled Orders
+- [ ] Diagnose why BTC orders that filled in Tastytrade show as "Rejected / Status unknown" in Order Preview modal
+- [ ] Fix status mapping/polling logic so filled orders correctly show "Filled"
+- [ ] Ensure "Status unknown" fallback is replaced with proper status lookup
+- [x] Fix order status polling: BTC orders that filled in Tastytrade show as 'Rejected / Status unknown' in Order Preview modal

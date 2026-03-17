@@ -856,30 +856,39 @@ function ActiveSpreadsTab({
       
       return orderIds.map((orderId) => {
         const status = statusMap[orderId];
-        const mappedStatus = status?.status === 'Unknown' ? 'Rejected' as const : status?.status || 'Rejected' as const;
-        
+        // 'Unknown' means the API couldn't confirm yet — keep polling as 'Working'
+        // rather than showing a false 'Rejected' badge.
+        const rawStatus = status?.status;
+        const mappedStatus: 'Filled' | 'Working' | 'Cancelled' | 'Rejected' | 'MarketClosed' | 'Pending' =
+          rawStatus === 'Filled' ? 'Filled'
+          : rawStatus === 'Rejected' ? 'Rejected'
+          : rawStatus === 'Cancelled' ? 'Cancelled'
+          : rawStatus === 'MarketClosed' ? 'MarketClosed'
+          : 'Working'; // Unknown, undefined, or Working all keep polling
+
         return {
           orderId,
           symbol: selectedSpread?.symbol || 'Unknown',
           status: mappedStatus,
-          message: status?.status === 'Filled' 
-            ? `Order filled successfully`
-            : status?.status === 'Rejected'
-            ? `Order rejected: ${status.rejectedReason || 'Unknown reason'}`
-            : status?.status === 'MarketClosed'
-            ? status.marketClosedMessage || 'Market is closed'
-            : status?.status === 'Working'
+          message: rawStatus === 'Filled'
+            ? 'Order filled successfully'
+            : rawStatus === 'Rejected'
+            ? `Order rejected: ${status?.rejectedReason || 'Unknown reason'}`
+            : rawStatus === 'MarketClosed'
+            ? status?.marketClosedMessage || 'Market is closed'
+            : rawStatus === 'Working'
             ? 'Order is working'
-            : 'Status unknown',
+            : 'Checking order status...',
         };
       });
     } catch (error: any) {
       console.error('[ActiveSpreadsTab] Error polling order statuses:', error);
+      // On error, return Working so the client retries rather than showing false Rejected
       return orderIds.map((orderId) => ({
         orderId,
         symbol: selectedSpread?.symbol || 'Unknown',
-        status: 'Rejected' as const,
-        message: `Failed to check status: ${error.message}`,
+        status: 'Working' as const,
+        message: 'Retrying status check...',
       }));
     }
   };

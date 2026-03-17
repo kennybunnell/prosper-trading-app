@@ -521,32 +521,37 @@ export function ActivePositionsTab() {
         const status = statusMap[orderId];
         const position = selectedPositionsData[index];
         
-        // Map Unknown status to Rejected for UI display
-        const mappedStatus = status?.status === 'Unknown' ? 'Rejected' as const : status?.status || 'Rejected' as const;
-        
+        // 'Unknown' means API couldn't confirm yet — keep as Working so client keeps polling
+        const rawStatus = status?.status;
+        const mappedStatus =
+          rawStatus === 'Filled' ? 'Filled' as const
+          : rawStatus === 'Rejected' ? 'Rejected' as const
+          : rawStatus === 'Cancelled' ? 'Cancelled' as const
+          : rawStatus === 'MarketClosed' ? 'MarketClosed' as const
+          : 'Working' as const;
+
         return {
           orderId,
           symbol: position?.symbol || 'Unknown',
           status: mappedStatus,
-          message: status?.status === 'Filled' 
-            ? `Order filled successfully`
-            : status?.status === 'Rejected'
-            ? `Order rejected: ${status.rejectedReason || 'Unknown reason'}`
-            : status?.status === 'MarketClosed'
-            ? status.marketClosedMessage || 'Market is closed'
-            : status?.status === 'Working'
+          message: rawStatus === 'Filled'
+            ? 'Order filled successfully'
+            : rawStatus === 'Rejected'
+            ? `Order rejected: ${status?.rejectedReason || 'Unknown reason'}`
+            : rawStatus === 'MarketClosed'
+            ? status?.marketClosedMessage || 'Market is closed'
+            : rawStatus === 'Working'
             ? 'Order is working'
-            : 'Status unknown',
+            : 'Checking order status...',
         };
       });
     } catch (error: any) {
       console.error('[Performance] Error polling order statuses:', error);
-      // Return unknown status for all orders on error
       return orderIds.map((orderId, index) => ({
         orderId,
         symbol: selectedPositionsData[index]?.symbol || 'Unknown',
-        status: 'Rejected' as const,
-        message: `Failed to check status: ${error.message}`,
+        status: 'Working' as const,
+        message: 'Retrying status check...',
       }));
     }
   };
