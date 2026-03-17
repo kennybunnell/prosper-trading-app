@@ -893,9 +893,12 @@ export const ccRouter = router({
           const strikeStr = (order.strike * 1000).toFixed(0).padStart(8, '0');
           const optionSymbol = `${order.symbol.padEnd(6)}${expStr}C${strikeStr}`;
 
-          // Tastytrade order submission API only accepts 'Equity Option' for all options
-          // (including cash-settled index options like SPXW, NDXP, MRUT).
-          const ccInstrumentType = 'Equity Option' as const;
+          // CRITICAL: Cash-settled index options (SPX, SPXW, NDX, NDXP, RUT, MRUT, etc.)
+          // require 'Index Option' as the instrument type. Sending 'Equity Option' causes
+          // Order_disallowed_by_exchange_rules rejection from CBOE/Nasdaq.
+          const { isTrueIndexOption: isCCIndexOpt } = await import('../shared/orderUtils');
+          const ccInstrumentType: 'Index Option' | 'Equity Option' =
+            isCCIndexOpt(order.symbol) ? 'Index Option' : 'Equity Option';
 
           console.log('[CC submitOrders] Submitting order to Tastytrade API:', {
             symbol: order.symbol,
@@ -1072,9 +1075,11 @@ export const ccRouter = router({
             const rawLimitPrice = Math.max(order.netCredit - buffer, 0.01);
             const limitPrice = snapToTick(rawLimitPrice, order.symbol); // Snap to $0.05 (or $0.01 for penny-pilot)
 
-            // Tastytrade order submission API only accepts 'Equity Option' for all options
-            // (including cash-settled index options like SPXW, NDXP, MRUT).
-            const legInstrumentType = 'Equity Option' as const;
+            // CRITICAL: Cash-settled index options (SPX, SPXW, NDX, NDXP, RUT, MRUT, etc.)
+            // require 'Index Option' as the instrument type. Sending 'Equity Option' causes
+            // Order_disallowed_by_exchange_rules rejection from CBOE/Nasdaq.
+            const legInstrumentType: 'Index Option' | 'Equity Option' =
+              isTrueIndexOption(order.symbol) ? 'Index Option' : 'Equity Option';
 
             // Submit two-leg spread order
             const result = await api.submitOrder({

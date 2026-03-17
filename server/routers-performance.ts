@@ -800,9 +800,15 @@ export const performanceRouter = router({
           console.log(`[Performance] Detected ${pos.spreadType} spread: ${pos.strike}/${pos.longStrike}`);
           
           try {
-            // Import price formatting utility
-            const { formatPriceForSubmission } = await import('../shared/orderUtils');
+            // Import price formatting utility and index-option classifier
+            const { formatPriceForSubmission, isTrueIndexOption, snapToTick } = await import('../shared/orderUtils');
             
+            // Determine instrument type: CBOE/Nasdaq cash-settled index options require
+            // 'Index Option'; equity options use 'Equity Option'.
+            // Sending the wrong type causes Order_disallowed_by_exchange_rules rejection.
+            const instrumentType: 'Index Option' | 'Equity Option' =
+              isTrueIndexOption(pos.underlying) ? 'Index Option' : 'Equity Option';
+
             // Construct option symbols for both legs
             // Parse the short leg symbol to extract components
             const shortSymbol = pos.optionSymbol;
@@ -822,31 +828,35 @@ export const performanceRouter = router({
             const longSymbol = `${ticker.padEnd(6, ' ')}${dateStr}${optionType}${longStrikeStr}`;
             const formattedShortSymbol = `${ticker.padEnd(6, ' ')}${dateStr}${optionType}${shortStrikeStr}`;
             
-            // Calculate aggressive close price (10% above current or +$0.05 min)
-            // For spreads, current price represents the net credit/debit
+            // Use the user-adjusted price from the modal (pos.currentPrice) with a small
+            // aggressive buffer so the order fills quickly. For BTC spreads we pay a net
+            // debit, so we add a buffer (10% or $0.05 min) above the current mark.
             const pricePremium = Math.max(pos.currentPrice * 0.10, 0.05);
-            const netDebitPrice = pos.currentPrice + pricePremium;
-            const formattedPrice = formatPriceForSubmission(netDebitPrice);
+            const rawDebitPrice = pos.currentPrice + pricePremium;
+            // Snap to the correct tick size for this symbol (index options use $0.10 ticks)
+            const snappedDebitPrice = snapToTick(rawDebitPrice, pos.underlying);
+            const formattedPrice = formatPriceForSubmission(snappedDebitPrice);
             
-            console.log(`[Performance] Closing spread: Short=${formattedShortSymbol}, Long=${longSymbol}`);
+            console.log(`[Performance] Closing ${instrumentType} spread: Short=${formattedShortSymbol}, Long=${longSymbol}`);
             console.log(`[Performance] Net debit price: $${formattedPrice} (mark=$${pos.currentPrice.toFixed(2)} + $${pricePremium.toFixed(2)})`);
             
             // Build two-leg order payload
+            // price-effect is always 'Debit' for BTC spread closes (we pay to close)
             const orderPayload = {
               'time-in-force': 'Day',
               'order-type': 'Limit',
               'underlying-symbol': pos.underlying,
               price: formattedPrice,
-              'price-effect': 'Debit', // We pay to close the spread
+              'price-effect': 'Debit', // We pay a net debit to buy back the spread
               legs: [
                 {
-                  'instrument-type': 'Equity Option',
+                  'instrument-type': instrumentType,
                   symbol: formattedShortSymbol,
                   quantity: pos.quantity.toString(),
                   action: 'Buy to Close',
                 },
                 {
-                  'instrument-type': 'Equity Option',
+                  'instrument-type': instrumentType,
                   symbol: longSymbol,
                   quantity: pos.quantity.toString(),
                   action: 'Sell to Close', // We sell back the long leg
