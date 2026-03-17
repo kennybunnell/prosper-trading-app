@@ -8209,3 +8209,6 @@
 - [ ] Fix status mapping/polling logic so filled orders correctly show "Filled"
 - [ ] Ensure "Status unknown" fallback is replaced with proper status lookup
 - [x] Fix order status polling: BTC orders that filled in Tastytrade show as 'Rejected / Status unknown' in Order Preview modal
+
+## TradingView Index Symbol Fix (Mar 17, 2026)
+- [x] Fix resolveSymbol procedure: add static INDEX_TV_MAP so SPXW/SPX/NDX/NDXP/MRUT/RUT/VIX/DJX/XSP/XND bypass TradingView search API (which filters out 'index' type) and return correct exchange-prefixed symbol (CBOE:SPX, NASDAQ:NDX, CBOE:RUT, etc.)

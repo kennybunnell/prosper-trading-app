@@ -1715,6 +1715,30 @@ Answer concisely and specifically. Stay conservative — capital preservation fi
       .input(z.object({ symbol: z.string().min(1).max(20) }))
       .query(async ({ input }) => {
         const clean = input.symbol.trim().toUpperCase().replace(/^[A-Z]+:/, '');
+        // Static map for index option roots — TradingView search API filters out 'index' type,
+        // so these must be resolved locally before hitting the search endpoint.
+        const INDEX_TV_MAP: Record<string, { symbol: string; exchange: string; description: string }> = {
+          SPXW: { symbol: 'SPX',  exchange: 'CBOE',   description: 'S&P 500 Index (Weekly options)' },
+          SPX:  { symbol: 'SPX',  exchange: 'CBOE',   description: 'S&P 500 Index' },
+          NDXP: { symbol: 'NDX',  exchange: 'NASDAQ', description: 'Nasdaq 100 Index (PM-settled)' },
+          NDX:  { symbol: 'NDX',  exchange: 'NASDAQ', description: 'Nasdaq 100 Index' },
+          MRUT: { symbol: 'RUT',  exchange: 'CBOE',   description: 'Russell 2000 Index (Mini)' },
+          RUT:  { symbol: 'RUT',  exchange: 'CBOE',   description: 'Russell 2000 Index' },
+          VIX:  { symbol: 'VIX',  exchange: 'CBOE',   description: 'CBOE Volatility Index' },
+          DJX:  { symbol: 'DJX',  exchange: 'CBOE',   description: 'Dow Jones Index (1/100)' },
+          XSP:  { symbol: 'XSP',  exchange: 'CBOE',   description: 'Mini-SPX Index' },
+          XND:  { symbol: 'XND',  exchange: 'NASDAQ', description: 'Mini-NDX Index' },
+        };
+        if (INDEX_TV_MAP[clean]) {
+          const entry = INDEX_TV_MAP[clean];
+          return {
+            symbol: entry.symbol,
+            exchange: entry.exchange,
+            fullSymbol: `${entry.exchange}:${entry.symbol}`,
+            description: entry.description,
+            type: 'index',
+          };
+        }
         // Only request options-relevant types: stocks, ETFs/funds, depositary receipts
         // Excludes futures, indices, crypto, forex, structured products
         const url = `https://symbol-search.tradingview.com/symbol_search/?text=${encodeURIComponent(clean)}&type=stock,fund,dr&exchange=&lang=en&domain=production`;
