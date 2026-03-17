@@ -1291,7 +1291,49 @@ export default function IronCondorDashboard() {
                         ROC % {sortConfig?.key === 'roc' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
                       
-                      {/* 11. Net Δ (technical) */}
+                      {/* 11a. Put Δ */}
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'putShortDelta' && prev.direction === 'asc' 
+                          ? { key: 'putShortDelta', direction: 'desc' } 
+                          : { key: 'putShortDelta', direction: 'asc' });
+                      }}>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger className="flex items-center gap-1">
+                              Put Δ {sortConfig?.key === 'putShortDelta' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                              <HelpCircle className="h-3 w-3" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Short put delta (negative)</p>
+                              <p>≈ probability put side expires ITM</p>
+                              <p>Ideal: -0.15 to -0.25</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableHead>
+
+                      {/* 11b. Call Δ */}
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
+                        setSortConfig(prev => prev?.key === 'callShortDelta' && prev.direction === 'asc' 
+                          ? { key: 'callShortDelta', direction: 'desc' } 
+                          : { key: 'callShortDelta', direction: 'asc' });
+                      }}>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger className="flex items-center gap-1">
+                              Call Δ {sortConfig?.key === 'callShortDelta' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                              <HelpCircle className="h-3 w-3" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Short call delta (positive)</p>
+                              <p>≈ probability call side expires ITM</p>
+                              <p>Ideal: +0.15 to +0.25</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableHead>
+
+                      {/* 11c. Net Δ */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
                         setSortConfig(prev => prev?.key === 'netDelta' && prev.direction === 'asc' 
                           ? { key: 'netDelta', direction: 'desc' } 
@@ -1305,7 +1347,8 @@ export default function IronCondorDashboard() {
                             </TooltipTrigger>
                             <TooltipContent>
                               <p>Sum of all 4 leg deltas</p>
-                              <p>Closer to 0 = more delta-neutral</p>
+                              <p>Ideal: near 0.00 (balanced)</p>
+                              <p>High value = directional skew</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -1349,7 +1392,7 @@ export default function IronCondorDashboard() {
                   <TableBody>
                     {displayedOpportunities.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={spxwInWatchlist ? 17 : 16} className="text-center text-muted-foreground">
+                        <TableCell colSpan={spxwInWatchlist ? 19 : 18} className="text-center text-muted-foreground">
                           No opportunities found
                         </TableCell>
                       </TableRow>
@@ -1393,10 +1436,10 @@ export default function IronCondorDashboard() {
                                         <>
                                           <div className="flex justify-between gap-4"><span className="text-muted-foreground">ROC</span><span className="font-mono">{(opp as any).scoreBreakdown.roc}/20</span></div>
                                           <div className="flex justify-between gap-4"><span className="text-muted-foreground">Credit/Width</span><span className="font-mono">{(opp as any).scoreBreakdown.creditWidth}/15</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Profit Zone</span><span className="font-mono">{(opp as any).scoreBreakdown.profitZone}/20</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Profit Zone</span><span className="font-mono">{(opp as any).scoreBreakdown.profitZone}/15</span></div>
                                           <div className="flex justify-between gap-4"><span className="text-muted-foreground">IV Rank (idx)</span><span className="font-mono">{(opp as any).scoreBreakdown.ivRank}/15</span></div>
                                           <div className="flex justify-between gap-4"><span className="text-muted-foreground">DTE</span><span className="font-mono">{(opp as any).scoreBreakdown.dte}/20</span></div>
-                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Delta Neutral</span><span className="font-mono">{(opp as any).scoreBreakdown.deltaNeutrality}/10</span></div>
+                                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Delta Balance</span><span className="font-mono">{(opp as any).scoreBreakdown.deltaBalance}/20</span></div>
                                         </>
                                       ) : (
                                         <>
@@ -1407,6 +1450,7 @@ export default function IronCondorDashboard() {
                                           <div className="flex justify-between gap-4"><span className="text-muted-foreground">DTE</span><span className="font-mono">{(opp as any).scoreBreakdown.dte}/15</span></div>
                                           <div className="flex justify-between gap-4"><span className="text-muted-foreground">RSI</span><span className="font-mono">{(opp as any).scoreBreakdown.rsi}/10</span></div>
                                           <div className="flex justify-between gap-4"><span className="text-muted-foreground">BB %B</span><span className="font-mono">{(opp as any).scoreBreakdown.bb}/10</span></div>
+                          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Delta Balance</span><span className="font-mono">{(opp as any).scoreBreakdown.deltaBalance}/10</span></div>
                                         </>
                                       )}
                                     </div>
@@ -1516,15 +1560,71 @@ export default function IronCondorDashboard() {
                               </Badge>
                             </TableCell>
                             
-                            {/* 11. Net Δ (technical) */}
+                            {/* 11a. Put Δ */}
                             <TableCell>
-                              <Badge className={`${
-                                Math.abs(opp.netDelta || 0) <= 0.05 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
-                                Math.abs(opp.netDelta || 0) <= 0.10 ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
-                                'bg-red-500/20 text-red-500 border-red-500/50'
-                              }`}>
-                                {(opp.netDelta || 0).toFixed(3)}
-                              </Badge>
+                              {opp.putShortDelta != null ? (
+                                <Badge className={`${
+                                  Math.abs(opp.putShortDelta) >= 0.15 && Math.abs(opp.putShortDelta) <= 0.25
+                                    ? 'bg-green-500/20 text-green-500 border-green-500/50'
+                                    : Math.abs(opp.putShortDelta) <= 0.30
+                                    ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50'
+                                    : 'bg-red-500/20 text-red-500 border-red-500/50'
+                                }`}>
+                                  {opp.putShortDelta.toFixed(3)}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">N/A</span>
+                              )}
+                            </TableCell>
+
+                            {/* 11b. Call Δ */}
+                            <TableCell>
+                              {opp.callShortDelta != null ? (
+                                <Badge className={`${
+                                  opp.callShortDelta >= 0.15 && opp.callShortDelta <= 0.25
+                                    ? 'bg-green-500/20 text-green-500 border-green-500/50'
+                                    : opp.callShortDelta <= 0.30
+                                    ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50'
+                                    : 'bg-red-500/20 text-red-500 border-red-500/50'
+                                }`}>
+                                  {opp.callShortDelta.toFixed(3)}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">N/A</span>
+                              )}
+                            </TableCell>
+
+                            {/* 11c. Net Δ — balance indicator */}
+                            <TableCell>
+                              {(() => {
+                                const putAbs = Math.abs(opp.putShortDelta || 0);
+                                const callAbs = Math.abs(opp.callShortDelta || 0);
+                                const lo = Math.min(putAbs, callAbs);
+                                const hi = Math.max(putAbs, callAbs);
+                                const balanceRatio = hi > 0 ? lo / hi : 1;
+                                const isBalanced = balanceRatio >= 0.75;
+                                const isModerate = balanceRatio >= 0.50;
+                                return (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Badge className={`cursor-help ${
+                                          isBalanced ? 'bg-green-500/20 text-green-500 border-green-500/50' :
+                                          isModerate ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
+                                          'bg-red-500/20 text-red-500 border-red-500/50'
+                                        }`}>
+                                          {(opp.netDelta || 0).toFixed(3)}
+                                        </Badge>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="left" className="text-xs">
+                                        <p>Balance ratio: {(balanceRatio * 100).toFixed(0)}%</p>
+                                        <p>{isBalanced ? '✅ Well balanced' : isModerate ? '⚠️ Moderate skew' : '❌ Skewed — one wing much closer'}</p>
+                                        <p className="text-muted-foreground mt-1">Put Δ: {(opp.putShortDelta || 0).toFixed(3)} | Call Δ: {(opp.callShortDelta || 0).toFixed(3)}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                );
+                              })()}
                             </TableCell>
                             
                             {/* 12. IV Rank (technical) */}
