@@ -104,7 +104,8 @@ export const ccRouter = router({
           const sym = (opt as any).symbol as string;
           const isCall = sym.replace(/\s+/, '').match(/^[A-Z]+\d{6}C/);
           if (!isCall) continue;
-          const underlying = (opt as any)['underlying-symbol'] as string;
+          // Trim underlying-symbol — Tastytrade may pad it with spaces for short tickers
+          const underlying = ((opt as any)['underlying-symbol'] as string || '').trim();
           const expiry = (opt as any)['expiration-date'] as string || sym.slice(6, 12);
           const qty = Math.abs(parseFloat((opt as any).quantity));
           const dir = (opt as any)['quantity-direction'];
@@ -141,8 +142,8 @@ export const ccRouter = router({
         for (const leg of legs) {
           // Short calls: action = "Sell to Open" and instrument type = "Equity Option" and symbol contains 'C'
           if (leg.action === 'Sell to Open' && (leg['instrument-type'] === 'Equity Option' || leg['instrument-type'] === 'Index Option') && leg.symbol.includes('C')) {
-            const underlying = (order as any)['underlying-symbol'];
-            if (!workingShortCalls[underlying]) {
+              const underlying = ((order as any)['underlying-symbol'] as string || '').trim();
+              if (!workingShortCalls[underlying]) {
               workingShortCalls[underlying] = { contracts: 0, details: [] };
             }
             const qty = Math.abs(parseFloat(leg.quantity));
@@ -321,7 +322,8 @@ export const ccRouter = router({
           // OCC symbol format: "TSLA  260313C00402500" — call if 'C' appears after the date
           const isCall = sym.replace(/\s+/, '').match(/^[A-Z]+\d{6}C/);
           if (!isCall) continue;
-          const underlying = (opt as any)['underlying-symbol'] as string;
+          // Trim underlying-symbol — Tastytrade may pad it with spaces for short tickers
+          const underlying = ((opt as any)['underlying-symbol'] as string || '').trim();
           const expiry = (opt as any)['expiration-date'] as string || sym.slice(6, 12);
           const qty = Math.abs(parseFloat((opt as any).quantity));
           const dir = (opt as any)['quantity-direction'];
@@ -363,7 +365,7 @@ export const ccRouter = router({
             if (leg.action === 'Sell to Open' &&
                 (leg['instrument-type'] === 'Equity Option' || leg['instrument-type'] === 'Index Option') &&
                 leg.symbol.includes('C')) {
-              const underlying = (order as any)['underlying-symbol'];
+              const underlying = ((order as any)['underlying-symbol'] as string || '').trim();
               if (!workingShortCallsAll[underlying]) workingShortCallsAll[underlying] = { contracts: 0, details: [] };
               const qty = Math.abs(parseFloat(leg.quantity));
               workingShortCallsAll[underlying].contracts += qty;

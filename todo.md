@@ -8269,3 +8269,9 @@
 ## Replace Order Price Increment Bug (Mar 18, 2026)
 - [ ] Fix: replaceOrders sends raw suggestedPrice (e.g. $3.28) which Tastytrade rejects with "Price must be in increments of $0.05"
 - [ ] Fix: round all order prices to nearest $0.05 before submission in replaceOrders, CC submitOrders, and CSP submitOrders
+
+## AVGO Missing from CC Dashboard Fix (Mar 18, 2026)
+
+- [ ] Fix underlying-symbol .trim() in automation CC scan (routers-automation.ts)
+- [ ] Fix underlying-symbol .trim() in getEligiblePositionsAllAccounts (routers-cc.ts)
+- [ ] Add working orders subtraction to automation CC scan maxContracts calculation

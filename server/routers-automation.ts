@@ -832,12 +832,28 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             if (runCCScan && settings.ccAutomationEnabled) {
               try {
                 console.log(`[Automation CC] Scanning account ${account.accountNumber} for CC opportunities`);
-                const allPositions = await tt.getPositions(account.accountNumber);
+                const [allPositions, workingOrdersCC] = await Promise.all([
+                  tt.getPositions(account.accountNumber),
+                  tt.getWorkingOrders(account.accountNumber).catch(() => [] as any[]),
+                ]);
                 const stockPositions = allPositions
                   .filter((p: any) => p['instrument-type'] === 'Equity' && parseFloat(p.quantity) > 0)
                   // ⛔ Exclude cash-settled indexes — European-style, no stock assignment, cannot write CCs
                   .filter((p: any) => !CASH_SETTLED_INDEXES_AUTO.has((p.symbol as string).toUpperCase()));
                 const optionPositions = allPositions.filter((p: any) => p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option');
+                // Identify pending STO working orders to avoid double-selling
+                const workingShortCallsCC: Record<string, number> = {};
+                for (const order of workingOrdersCC) {
+                  for (const leg of ((order as any).legs || [])) {
+                    if (leg.action === 'Sell to Open' &&
+                        (leg['instrument-type'] === 'Equity Option' || leg['instrument-type'] === 'Index Option') &&
+                        leg.symbol.includes('C')) {
+                      const underlying = ((order as any)['underlying-symbol'] as string || '').trim();
+                      const qty = Math.abs(parseFloat(leg.quantity));
+                      workingShortCallsCC[underlying] = (workingShortCallsCC[underlying] || 0) + qty;
+                    }
+                  }
+                }
                 // Identify existing NAKED short calls to avoid over-covering.
                 // IC/BCS short calls are protected by a long call at a higher strike on the same
                 // expiration — they do NOT consume CC coverage capacity.
@@ -850,7 +866,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                   // OCC symbol format: "TSLA  260313C00402500" — option_type is at position after spaces
                   const isCall = sym.replace(/\s+/, '').match(/^[A-Z]+\d{6}C/);
                   if (!isCall) continue;
-                  const underlying = (opt as any)['underlying-symbol'] as string;
+                  // Trim underlying-symbol — Tastytrade may pad it with spaces for short tickers
+                  const underlying = ((opt as any)['underlying-symbol'] as string || '').trim();
                   const expiry = (opt as any)['expiration-date'] as string || sym.slice(6, 12);
                   const qty = Math.abs(parseFloat((opt as any).quantity));
                   const dir = (opt as any)['quantity-direction'];
@@ -897,12 +914,13 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                   : null;
                 const eligibleStocks = stockPositions
                   .map((p: any) => ({
-                    symbol: p.symbol,
+                    symbol: (p.symbol as string).trim(),
                     quantity: parseFloat(p.quantity),
                     currentPrice: parseFloat(p['close-price'] || p['mark'] || '0'),
-                    existingContracts: shortCalls[p.symbol] || 0,
+                    existingContracts: shortCalls[(p.symbol as string).trim()] || 0,
+                    workingContracts: workingShortCallsCC[(p.symbol as string).trim()] || 0,
                   }))
-                  .map((s: any) => ({ ...s, maxContracts: Math.floor((s.quantity - s.existingContracts * 100) / 100) }))
+                  .map((s: any) => ({ ...s, maxContracts: Math.floor((s.quantity - (s.existingContracts + s.workingContracts) * 100) / 100) }))
                   .filter((s: any) => s.maxContracts > 0 && s.currentPrice > 0)
                   // ⛔ Skip symbols flagged for liquidation — no new CCs on exit positions
                   .filter((s: any) => !flaggedSymbolsSet.has(s.symbol.toUpperCase()))
