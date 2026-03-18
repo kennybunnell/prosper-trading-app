@@ -93,25 +93,43 @@ export const ccRouter = router({
       const optionPositions = positions.filter((p: any) =>
         p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
       );
-      // Identify short calls (covered calls already sold) from POSITIONS
+      // Identify NAKED short calls (covered calls) from POSITIONS using SPREAD-AWARE logic.
+      // Bear Call Spreads have a short call + long call on the same expiry — the long leg
+      // protects the short and does NOT consume CC coverage capacity. We net per expiry.
       const shortCalls: Record<string, { contracts: number; details: any[] }> = {};
-      
-      for (const opt of optionPositions) {
-        // Short calls have negative quantity and are calls
-        const quantityDirection = (opt as any)['quantity-direction'];
-        if (quantityDirection === 'Short' && (opt as any).symbol.includes('C')) {
-          const underlying = (opt as any)['underlying-symbol'];
-          if (!shortCalls[underlying]) {
-            shortCalls[underlying] = { contracts: 0, details: [] };
-          }
+      {
+        const shortByExpiry: Record<string, Record<string, number>> = {}; // underlying -> expiry -> qty
+        const longByExpiry: Record<string, Record<string, number>> = {};
+        for (const opt of optionPositions) {
+          const sym = (opt as any).symbol as string;
+          const isCall = sym.replace(/\s+/, '').match(/^[A-Z]+\d{6}C/);
+          if (!isCall) continue;
+          const underlying = (opt as any)['underlying-symbol'] as string;
+          const expiry = (opt as any)['expiration-date'] as string || sym.slice(6, 12);
           const qty = Math.abs(parseFloat((opt as any).quantity));
-          shortCalls[underlying].contracts += qty;
-          shortCalls[underlying].details.push({
-            symbol: (opt as any).symbol,
-            quantity: qty,
-            strike: parseFloat((opt as any).symbol.match(/(\d+)C/)?.[1] || '0'),
-            expiration: (opt as any)['expires-at'],
-          });
+          const dir = (opt as any)['quantity-direction'];
+          if (dir === 'Short') {
+            if (!shortByExpiry[underlying]) shortByExpiry[underlying] = {};
+            shortByExpiry[underlying][expiry] = (shortByExpiry[underlying][expiry] || 0) + qty;
+          } else if (dir === 'Long') {
+            if (!longByExpiry[underlying]) longByExpiry[underlying] = {};
+            longByExpiry[underlying][expiry] = (longByExpiry[underlying][expiry] || 0) + qty;
+          }
+        }
+        for (const underlying of Object.keys(shortByExpiry)) {
+          const sExp = shortByExpiry[underlying];
+          const lExp = longByExpiry[underlying] || {};
+          let nakedCount = 0;
+          const details: any[] = [];
+          for (const expiry of Object.keys(sExp)) {
+            const naked = Math.max(0, sExp[expiry] - (lExp[expiry] || 0));
+            nakedCount += naked;
+            if (naked > 0) details.push({ expiry, quantity: naked });
+          }
+          if (nakedCount > 0) {
+            shortCalls[underlying] = { contracts: nakedCount, details };
+          }
+          console.log(`[CC getEligible single] ${underlying}: short=${JSON.stringify(sExp)}, long=${JSON.stringify(lExp)}, nakedCCs=${nakedCount}`);
         }
       }
 
@@ -282,20 +300,48 @@ export const ccRouter = router({
         const optionPositions = positions.filter((p: any) =>
           p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
         );
-        // Accumulate short calls from filled positions
+        // Accumulate short calls from filled positions using SPREAD-AWARE logic.
+        // Bear Call Spreads have a short call + long call on the same expiry — the long
+        // leg protects the short leg and does NOT consume CC coverage capacity.
+        // We net short vs long calls per expiry to get only NAKED short calls.
+        const shortCallsByExpiry: Record<string, Record<string, number>> = {}; // underlying -> expiry -> qty
+        const longCallsByExpiry: Record<string, Record<string, number>> = {};  // underlying -> expiry -> qty
         for (const opt of optionPositions) {
+          const sym = (opt as any).symbol as string;
+          // OCC symbol format: "TSLA  260313C00402500" — call if 'C' appears after the date
+          const isCall = sym.replace(/\s+/, '').match(/^[A-Z]+\d{6}C/);
+          if (!isCall) continue;
+          const underlying = (opt as any)['underlying-symbol'] as string;
+          const expiry = (opt as any)['expiration-date'] as string || sym.slice(6, 12);
+          const qty = Math.abs(parseFloat((opt as any).quantity));
           const dir = (opt as any)['quantity-direction'];
-          if (dir === 'Short' && (opt as any).symbol.includes('C')) {
-            const underlying = (opt as any)['underlying-symbol'];
-            if (!shortCallsAll[underlying]) shortCallsAll[underlying] = { contracts: 0, details: [] };
-            const qty = Math.abs(parseFloat((opt as any).quantity));
-            shortCallsAll[underlying].contracts += qty;
-            shortCallsAll[underlying].details.push({
-              symbol: (opt as any).symbol, quantity: qty, account: acctNum,
-              strike: parseFloat((opt as any).symbol.match(/(\d+)C/)?.[1] || '0'),
-              expiration: (opt as any)['expires-at'],
-            });
+          if (dir === 'Short') {
+            if (!shortCallsByExpiry[underlying]) shortCallsByExpiry[underlying] = {};
+            shortCallsByExpiry[underlying][expiry] = (shortCallsByExpiry[underlying][expiry] || 0) + qty;
+          } else if (dir === 'Long') {
+            if (!longCallsByExpiry[underlying]) longCallsByExpiry[underlying] = {};
+            longCallsByExpiry[underlying][expiry] = (longCallsByExpiry[underlying][expiry] || 0) + qty;
           }
+        }
+        // For each underlying, naked short calls = max(0, short - long) per expiry
+        for (const underlying of Object.keys(shortCallsByExpiry)) {
+          const shortByExpiry = shortCallsByExpiry[underlying];
+          const longByExpiry = longCallsByExpiry[underlying] || {};
+          let nakedCount = 0;
+          const details: any[] = [];
+          for (const expiry of Object.keys(shortByExpiry)) {
+            const shortQty = shortByExpiry[expiry];
+            const longQty = longByExpiry[expiry] || 0;
+            const naked = Math.max(0, shortQty - longQty);
+            nakedCount += naked;
+            if (naked > 0) details.push({ expiry, quantity: naked, account: acctNum });
+          }
+          if (nakedCount > 0) {
+            if (!shortCallsAll[underlying]) shortCallsAll[underlying] = { contracts: 0, details: [] };
+            shortCallsAll[underlying].contracts += nakedCount;
+            shortCallsAll[underlying].details.push(...details);
+          }
+          console.log(`[CC getEligible] ${acctNum}:${underlying}: short=${JSON.stringify(shortByExpiry)}, long=${JSON.stringify(longByExpiry)}, nakedCCs=${nakedCount}`);
         }
 
         // Accumulate short calls from working orders

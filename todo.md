@@ -8236,3 +8236,8 @@
 - [x] handleSubmitOrders: passes opp.accountNumber per order in UnifiedOrder array for safeguard checks
 - [x] executeOrderSubmission: passes order.accountNumber per CC order to cc.submitOrders
 - [x] TypeScript: 0 errors
+## CC Dashboard Returns 0 Positions Bug (Mar 18, 2026)
+- [x] Diagnosed root cause: getEligiblePositionsAllAccounts used simple symbol.includes('C') to detect short calls, which counted Bear Call Spread short legs as CC coverage — making maxContracts=0 for all symbols with BCS positions
+- [x] Fixed getEligiblePositionsAllAccounts: replaced with spread-aware per-expiry netting (same logic as automation scan) — naked short calls = max(0, short - long) per expiry
+- [x] Fixed single-account getEligiblePositions with same spread-aware logic
+- [x] TypeScript: 0 errors
