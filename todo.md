@@ -8285,3 +8285,9 @@
 - [x] ccExcludedStocks parsed from log JSON and stored in RunResult state alongside ccScanResults
 - [x] Deduplication by symbol: multiple accounts for same symbol are merged, accounts listed in tooltip
 - [x] TypeScript: 0 errors, working orders tests: 8/8 passing
+
+## ROC Bug in Order Preview Modal (Mar 18, 2026)
+- [ ] Fix ROC calculation for Bear Call Spreads: currently shows Premium / Collateral (e.g., $6700 / $2000 = 335%) — should be Premium / Max Risk where Max Risk = (Spread Width × Contracts × 100) − Premium received
+- [ ] Fix Total Collateral display: for spreads, collateral = spread width × contracts × 100 (the max risk), not just the net credit
+- [ ] Verify ROC formula for single-leg CSP/CC: Premium / (Strike × Contracts × 100) or Premium / Collateral depending on strategy
+ROC Fix Mar 18 2026

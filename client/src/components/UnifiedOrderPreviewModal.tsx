@@ -485,9 +485,12 @@ export function UnifiedOrderPreviewModal({
       // For debit strategies (BTC, PMCC), premium is negative (you pay)
       // For credit strategies (CSP, CC, BCS, BPS, IC), premium is positive (you receive)
       const isDebit = strategy === 'btc' || strategy === 'pmcc' || strategy === 'roll';
-      const multiplier = isDebit ? -1 : 1;
+      const directionMultiplier = isDebit ? -1 : 1;
       
-      return sum + (price * 100 * qty * multiplier);
+      // Use the correct contract multiplier (10 for mini-index options like DJX, XSP, MRUT, XND; 100 for everything else)
+      const contractMult = getContractMultiplier(order.symbol);
+      
+      return sum + (price * contractMult * qty * directionMultiplier);
     }, 0);
   };
   
@@ -1345,7 +1348,8 @@ export function UnifiedOrderPreviewModal({
                     ? (longLegLiveBid ?? order.spreadLongPrice ?? order.longPremium ?? 0)
                     : 0;
                   const netPrice = isSpreadBTC ? (price - longLegCredit) : price;
-                  const totalPremium = netPrice * 100 * qty;
+                  const rowContractMult = getContractMultiplier(order.symbol);
+                  const totalPremium = netPrice * rowContractMult * qty;
                   // Check if we have live quotes for this order
                   const liveQ = order.optionSymbol ? liveQuotes[order.optionSymbol] : undefined;
                   const hasLiveQuote = !!(liveQ && liveQ.bid > 0 && liveQ.ask > 0);
@@ -1914,14 +1918,25 @@ export function UnifiedOrderPreviewModal({
                     </span>
                   </div>
                   {/* ROC % - Only show for spread strategies (BPS, BCS, IC) */}
-                  {(strategy === 'bps' || strategy === 'bcs' || strategy === 'iron_condor') && calculateTotalCollateral() > 0 && (
-                    <div className="flex justify-between col-span-2 pt-2 border-t border-border/50">
-                      <span className="text-muted-foreground font-medium">Return on Capital:</span>
-                      <span className="font-semibold text-blue-400">
-                        {((calculateTotalPremium() / calculateTotalCollateral()) * 100).toFixed(2)}%
-                      </span>
-                    </div>
-                  )}
+                  {(strategy === 'bps' || strategy === 'bcs' || strategy === 'iron_condor') && calculateTotalCollateral() > 0 && (() => {
+                    const totalPrem = calculateTotalPremium();
+                    const totalColl = calculateTotalCollateral();
+                    // Max Risk = Gross Collateral (spread width × mult × qty) − Premium received
+                    // ROC = Premium / MaxRisk (not Premium / GrossCollateral)
+                    const maxRisk = totalColl - totalPrem;
+                    const roc = maxRisk > 0 ? (totalPrem / maxRisk) * 100 : 0;
+                    return (
+                      <div className="flex justify-between col-span-2 pt-2 border-t border-border/50">
+                        <span className="text-muted-foreground font-medium">Return on Capital:</span>
+                        <span className="font-semibold text-blue-400">
+                          {roc.toFixed(2)}%
+                          <span className="text-xs text-muted-foreground ml-1">
+                            (${totalPrem.toFixed(2)} / ${maxRisk.toFixed(2)} max risk)
+                          </span>
+                        </span>
+                      </div>
+                    );
+                  })()}
                   {/* Profit Target Selector */}
                   <div className="col-span-2 pt-3 border-t border-border/50 space-y-2">
                     <div className="flex items-center justify-between">
