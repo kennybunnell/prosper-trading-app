@@ -1,0 +1,136 @@
+{
+  "query": "DESCRIBE watchlists; SELECT symbol, COUNT(*) as cnt FROM watchlists GROUP BY symbol HAVING cnt > 1 ORDER BY cnt DESC LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute DESCRIBE watchlists; SELECT symbol, COUNT(*) as cnt FROM watchlists GROUP BY symbol HAVING cnt > 1 ORDER BY cnt DESC LIMIT 20;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "userId",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "symbol",
+      "Type": "varchar(10)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "strategy",
+      "Type": "enum('csp','cc','pmcc','bps','bcs')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "company",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "type",
+      "Type": "varchar(20)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "sector",
+      "Type": "varchar(100)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "reason",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "rank",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "portfolioSize",
+      "Type": "enum('small','medium','large')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "price",
+      "Type": "varchar(20)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "isIndex",
+      "Type": "tinyint(1)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    }
+  ],
+  "messages": [
+    "symbol\tcnt",
+    "GS\t5",
+    "BA\t5",
+    "CAT\t5",
+    "NFLX\t5",
+    "TSLA\t5",
+    "NVDA\t5",
+    "JPM\t5",
+    "GOOGL\t5",
+    "ADBE\t5",
+    "AMZN\t5",
+    "META\t5",
+    "AAPL\t5",
+    "CRM\t4",
+    "MSFT\t4",
+    "INTC\t4",
+    "PYPL\t4",
+    "MMM\t4",
+    "MRUT\t3",
+    "DIS\t3",
+    "AMD\t3"
+  ],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\nuserId\tint\tNO\tMUL\tNULL\t\nsymbol\tvarchar(10)\tNO\t\tNULL\t\nstrategy\tenum('csp','cc','pmcc','bps','bcs')\tNO\t\tNULL\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\ncompany\ttext\tYES\t\tNULL\t\ntype\tvarchar(20)\tYES\t\tNULL\t\nsector\tvarchar(100)\tYES\t\tNULL\t\nreason\ttext\tYES\t\tNULL\t\nrank\tint\tYES\t\tNULL\t\nportfolioSize\tenum('small','medium','large')\tYES\t\tNULL\t\nprice\tvarchar(20)\tYES\t\tNULL\t\nisIndex\ttinyint(1)\tNO\t\t0\t\nsymbol\tcnt\nGS\t5\nBA\t5\nCAT\t5\nNFLX\t5\nTSLA\t5\nNVDA\t5\nJPM\t5\nGOOGL\t5\nADBE\t5\nAMZN\t5\nMETA\t5\nAAPL\t5\nCRM\t4\nMSFT\t4\nINTC\t4\nPYPL\t4\nMMM\t4\nMRUT\t3\nDIS\t3\nAMD\t3\n",
+  "stderr": "",
+  "execution_time_ms": 67
+}

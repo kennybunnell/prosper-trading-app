@@ -194,7 +194,9 @@ export async function addToWatchlist(userId: number, symbol: string, strategy: '
   const db = await getDb();
   if (!db) return;
   const { watchlists } = await import('../drizzle/schema');
-  await db.insert(watchlists).values({ userId, symbol, strategy });
+  // Use onDuplicateKeyUpdate as a no-op so duplicate inserts are silently ignored
+  await db.insert(watchlists).values({ userId, symbol, strategy })
+    .onDuplicateKeyUpdate({ set: { symbol } });
 }
 
 export async function addToWatchlistWithMetadata(
@@ -216,6 +218,7 @@ export async function addToWatchlistWithMetadata(
   const { isIndexSymbol } = await import('../shared/index-symbols');
   // Auto-detect index symbols if not explicitly provided
   const resolvedIsIndex = data.isIndex !== undefined ? data.isIndex : isIndexSymbol(data.symbol);
+  // Use onDuplicateKeyUpdate as a no-op so duplicate inserts are silently ignored
   await db.insert(watchlists).values({
     userId,
     symbol: data.symbol,
@@ -226,7 +229,7 @@ export async function addToWatchlistWithMetadata(
     reason: data.reason,
     rank: data.rank,
     isIndex: resolvedIsIndex,
-  });
+  }).onDuplicateKeyUpdate({ set: { symbol: data.symbol } });
 }
 
 export async function importWatchlistFromCSV(

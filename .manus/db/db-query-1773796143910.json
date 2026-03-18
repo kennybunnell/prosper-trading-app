@@ -1,0 +1,55 @@
+{
+  "query": "SELECT symbol, isIndex, COUNT(*) as cnt FROM watchlists WHERE userId = 1 GROUP BY symbol, isIndex HAVING cnt > 1 ORDER BY cnt DESC LIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute SELECT symbol, isIndex, COUNT(*) as cnt FROM watchlists WHERE userId = 1 GROUP BY symbol, isIndex HAVING cnt > 1 ORDER BY cnt DESC LIMIT 30;",
+  "rows": [
+    {
+      "symbol": "MRUT",
+      "isIndex": "1",
+      "cnt": "3"
+    },
+    {
+      "symbol": "VIX",
+      "isIndex": "1",
+      "cnt": "2"
+    },
+    {
+      "symbol": "SPXW",
+      "isIndex": "1",
+      "cnt": "2"
+    },
+    {
+      "symbol": "NDXP",
+      "isIndex": "1",
+      "cnt": "2"
+    },
+    {
+      "symbol": "SPX",
+      "isIndex": "1",
+      "cnt": "2"
+    },
+    {
+      "symbol": "NDX",
+      "isIndex": "1",
+      "cnt": "2"
+    },
+    {
+      "symbol": "RUT",
+      "isIndex": "1",
+      "cnt": "2"
+    },
+    {
+      "symbol": "DJX",
+      "isIndex": "1",
+      "cnt": "2"
+    },
+    {
+      "symbol": "XSP",
+      "isIndex": "1",
+      "cnt": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "symbol\tisIndex\tcnt\nMRUT\t1\t3\nVIX\t1\t2\nSPXW\t1\t2\nNDXP\t1\t2\nSPX\t1\t2\nNDX\t1\t2\nRUT\t1\t2\nDJX\t1\t2\nXSP\t1\t2\n",
+  "stderr": "",
+  "execution_time_ms": 54
+}
