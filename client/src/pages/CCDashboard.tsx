@@ -166,6 +166,7 @@ type Holding = {
   hasExistingCalls: boolean;
   hasWorkingOrders: boolean;
   accounts?: string[];
+  accountBreakdown?: Record<string, number>; // per-account available contracts
 };
 
 type PositionBreakdown = {
@@ -704,15 +705,29 @@ export default function CCDashboard() {
           maxDelta: 0.99,
         });
 
-        // Attach the source account to each opportunity for multi-account order routing
+        // Attach the source account to each opportunity for multi-account order routing.
+        // Use accountBreakdown to pick the account that actually has available contracts.
+        // This prevents Coverage Ratio Violations when a symbol is held in multiple accounts
+        // but only one account has uncovered shares.
         finalOpportunities = rawOpportunities.map((opp: CCOpportunity) => {
           const holding = holdings.find(h => h.symbol === opp.symbol);
+          let bestAccount: string | undefined = selectedAccountId ?? undefined;
+          if (holding?.accountBreakdown) {
+            // Pick the first account with available contracts (maxContracts > 0)
+            const accountWithContracts = Object.entries(holding.accountBreakdown)
+              .find(([, available]) => available > 0);
+            if (accountWithContracts) {
+              bestAccount = accountWithContracts[0];
+            } else {
+              // All accounts fully covered — fall back to first account in list
+              bestAccount = holding.accounts?.[0] ?? selectedAccountId ?? undefined;
+            }
+          } else if (holding?.accounts?.[0]) {
+            bestAccount = holding.accounts[0];
+          }
           return {
             ...opp,
-            // Use the first account from the holding's accounts array
-            // (for single-account holdings this is just that account;
-            //  for multi-account holdings the user should pick the primary account)
-            accountNumber: holding?.accounts?.[0] ?? selectedAccountId ?? undefined,
+            accountNumber: bestAccount,
           };
         });
       }

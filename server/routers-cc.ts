@@ -292,6 +292,11 @@ export const ccRouter = router({
       const shortCallsAll: Record<string, { contracts: number; details: any[] }> = {};
       const workingShortCallsAll: Record<string, { contracts: number; details: any[] }> = {};
       const stockMap: Record<string, { quantity: number; currentPrice: number; accounts: string[] }> = {};
+      // Per-account tracking for correct order routing
+      // perAccountStock[acct][symbol] = qty
+      const perAccountStock: Record<string, Record<string, number>> = {};
+      // perAccountNakedCalls[acct][symbol] = nakedCallContracts
+      const perAccountNakedCalls: Record<string, Record<string, number>> = {};
       let totalRawPositions = 0;
 
       for (const result of perAccountResults) {
@@ -346,6 +351,9 @@ export const ccRouter = router({
             shortCallsAll[underlying].contracts += nakedCount;
             shortCallsAll[underlying].details.push(...details);
           }
+          // Track per-account naked calls for correct order routing
+          if (!perAccountNakedCalls[acctNum]) perAccountNakedCalls[acctNum] = {};
+          perAccountNakedCalls[acctNum][underlying] = (perAccountNakedCalls[acctNum][underlying] || 0) + nakedCount;
           console.log(`[CC getEligible] ${acctNum}:${underlying}: short=${JSON.stringify(shortByExpiry)}, long=${JSON.stringify(longByExpiry)}, nakedCCs=${nakedCount}`);
         }
 
@@ -380,6 +388,9 @@ export const ccRouter = router({
           stockMap[sym].quantity += qty;
           if (price > 0 && stockMap[sym].currentPrice === 0) stockMap[sym].currentPrice = price;
           if (!stockMap[sym].accounts.includes(acctNum)) stockMap[sym].accounts.push(acctNum);
+          // Track per-account stock quantity for correct order routing
+          if (!perAccountStock[acctNum]) perAccountStock[acctNum] = {};
+          perAccountStock[acctNum][sym] = (perAccountStock[acctNum][sym] || 0) + qty;
         }
       }
 
@@ -392,6 +403,19 @@ export const ccRouter = router({
         const sharesCovered = totalUsedContracts * 100;
         const availableShares = Math.max(0, quantity - sharesCovered);
         const maxContracts = Math.floor(availableShares / 100);
+
+        // Build per-account breakdown: for each account that holds this symbol,
+        // compute how many contracts are available in that specific account.
+        // This lets the frontend pick the correct account for order routing.
+        const accountBreakdown: Record<string, number> = {};
+        for (const acct of accounts) {
+          const acctShares = perAccountStock[acct]?.[symbol] || 0;
+          const acctNakedCalls = perAccountNakedCalls[acct]?.[symbol] || 0;
+          const acctCovered = acctNakedCalls * 100;
+          const acctAvailable = Math.max(0, acctShares - acctCovered);
+          accountBreakdown[acct] = Math.floor(acctAvailable / 100);
+        }
+
         return {
           symbol,
           quantity,
@@ -405,6 +429,7 @@ export const ccRouter = router({
           hasExistingCalls: existingContracts > 0,
           hasWorkingOrders: workingContracts > 0,
           accounts,
+          accountBreakdown,
         };
       });
 

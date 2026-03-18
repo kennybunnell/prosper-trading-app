@@ -8246,3 +8246,9 @@
 - [x] Verified: server logs confirm 47 stock positions found (5WZ80418: 12, 5WZ77313: 33)
 - [x] Verified spread-aware netting: MSTR/AXP/SPX/NDX/PG all show nakedCCs=0 (fully spread-protected, correctly blocked)
 - [x] Removed verbose diagnostic logging, kept clean production code
+
+## Coverage Ratio Violation Bug in CC Order Submission (Mar 18, 2026)
+- [x] Root cause: accounts[0] was used as order account, but for multi-account holdings the first account may be fully covered while another has available contracts
+- [x] Fix: server now computes per-account accountBreakdown (available contracts per account per symbol)
+- [x] Fix: frontend picks the account with available contracts from accountBreakdown instead of blindly using accounts[0]
+- [x] TypeScript: 0 errors
