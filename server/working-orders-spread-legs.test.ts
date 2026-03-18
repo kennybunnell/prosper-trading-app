@@ -34,6 +34,10 @@ vi.mock('./db', () => ({
   ]),
   recordOrderSubmission: vi.fn(),
   getOrderReplacementCount: vi.fn(() => 0),
+  getReplacementCounts: vi.fn(() => new Map<string, number>()),
+  getFillRateAnalytics: vi.fn(() => ({ totalOrders: 0, filledOrders: 0, fillRate: 0, avgFillTime: 0 })),
+  recordOrderCanceled: vi.fn(),
+  getStuckOrders: vi.fn(() => []),
 }));
 
 vi.mock('./lib/working-orders-utils', () => ({

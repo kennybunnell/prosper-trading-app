@@ -497,6 +497,12 @@ export default function AutomationDashboard() {
     setShowOrderPreview(true);
   }, [lastRunResult, selectedPositions]);
 
+  const submitSellCCOrders = trpc.automation.submitSellCCOrders.useMutation({
+    onError: (err) => {
+      toast.error(`CC order submission failed: ${err.message}`);
+    },
+  });
+
   const submitCloseOrders = trpc.automation.submitCloseOrders.useMutation({
     onSuccess: (data) => {
       setIsSubmitting(false);
@@ -666,26 +672,38 @@ export default function AutomationDashboard() {
     }
 
     try {
-      const response = await submitCloseOrders.mutateAsync({ orders: selected, dryRun: isDryRun });
-      // Record which positions were submitted in a live run so we can clear them on modal close
-      if (!isDryRun) {
-        if (previewStrategy === 'cc') {
-          // CC STO: track by `${optionSymbol}|${account}` key
-          const ccKeys = new Set(selected.map(s => `${s.optionSymbol}|${s.accountNumber}`));
-          setSubmittedCCKeys(ccKeys);
-        } else {
-          // BTC close: use 3-part key to match posKey format (optionSymbol|account|type)
-          const scanMap = new Map((lastRunResult?.scanResults ?? []).map(r => [`${r.optionSymbol}|${r.account}`, r]));
-          const keys = new Set(selected.map(s => {
-            const r = scanMap.get(`${s.optionSymbol}|${s.accountNumber}`);
-            return r ? posKey(r) : `${s.optionSymbol}|${s.accountNumber}|unknown`;
+      if (previewStrategy === 'cc') {
+        // CC STO: route to submitSellCCOrders so orders are sent as Sell to Open
+        const ccOrders = orders
+          .filter(o => o.accountNumber)
+          .map(o => ({
+            accountNumber: o.accountNumber!,
+            symbol: o.symbol,
+            strike: o.strike,
+            expiration: o.expiration,
+            quantity: quantities.get(`${o.symbol}-${o.strike}-${o.expiration}`) ?? o.quantity ?? 1,
+            price: o.premium ?? 0,
           }));
-          setSubmittedPositionKeys(keys);
+        const response = await submitSellCCOrders.mutateAsync({ orders: ccOrders, dryRun: isDryRun });
+        if (!isDryRun) {
+          const ccKeys = new Set(ccOrders.map(s => `${s.symbol}-${s.strike}-${s.expiration}|${s.accountNumber}`));
+          setSubmittedCCKeys(ccKeys);
         }
+        return { results: response.results ?? [] };
+      }
+      // BTC close orders
+      const response = await submitCloseOrders.mutateAsync({ orders: selected, dryRun: isDryRun });
+      if (!isDryRun) {
+        const scanMap = new Map((lastRunResult?.scanResults ?? []).map(r => [`${r.optionSymbol}|${r.account}`, r]));
+        const keys = new Set(selected.map(s => {
+          const r = scanMap.get(`${s.optionSymbol}|${s.accountNumber}`);
+          return r ? posKey(r) : `${s.optionSymbol}|${s.accountNumber}|unknown`;
+        }));
+        setSubmittedPositionKeys(keys);
       }
       return { results: response.results ?? [] };
     } catch (err: any) {
-      console.error('[handleUnifiedSubmit] submitCloseOrders error:', err);
+      console.error('[handleUnifiedSubmit] error:', err);
       return { results: [] };
     }
   };

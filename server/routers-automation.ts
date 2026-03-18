@@ -2660,4 +2660,79 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       const reply = response.choices?.[0]?.message?.content ?? 'Unable to generate response.';
       return { reply };
     }),
+
+  /**
+   * Submit Sell-to-Open CC orders from the automation scan.
+   * Routes to Tastytrade via the same logic as cc.submitOrders but called
+   * from the automation dashboard so CC STO orders are not sent as BTC.
+   */
+  submitSellCCOrders: protectedProcedure
+    .input(
+      z.object({
+        orders: z.array(
+          z.object({
+            accountNumber: z.string(),
+            symbol: z.string(),
+            strike: z.number(),
+            expiration: z.string(),
+            quantity: z.number(),
+            price: z.number(),
+          })
+        ),
+        dryRun: z.boolean().optional().default(false),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      {
+        const { getDb: _getDbP } = await import('./db');
+        const _pdbP = await _getDbP();
+        if (_pdbP) {
+          const { users: _uP } = await import('../drizzle/schema.js');
+          const { eq: _eqP } = await import('drizzle-orm');
+          const [_puP] = await _pdbP.select().from(_uP).where(_eqP(_uP.id, ctx.user.id)).limit(1);
+          if (_puP?.tradingMode === 'paper') {
+            throw new TRPCError({ code: 'FORBIDDEN', message: 'Order submission is disabled in Paper Trading mode.' });
+          }
+        }
+      }
+      const { getApiCredentials } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeRefreshToken && !credentials?.tastytradePassword) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tastytrade API not connected.' });
+      }
+      const tt = await authenticateTastytrade(credentials, ctx.user.id);
+      if (!tt) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Failed to authenticate with Tastytrade API' });
+      const { isTrueIndexOption } = await import('../shared/orderUtils');
+      const results: Array<{ success: boolean; symbol: string; strike: number; quantity: number; orderId?: string; message: string }> = [];
+      if (input.dryRun) {
+        for (const order of input.orders) {
+          results.push({ success: true, symbol: order.symbol, strike: order.strike, quantity: order.quantity, orderId: 'DRY_RUN', message: 'Dry run — order not submitted' });
+        }
+        return { results, successCount: results.length, failCount: 0, totalOrders: results.length };
+      }
+      for (const order of input.orders) {
+        try {
+          const expDate = new Date(order.expiration);
+          const expStr = expDate.toISOString().slice(2, 10).replace(/-/g, '');
+          const strikeStr = (order.strike * 1000).toFixed(0).padStart(8, '0');
+          const optionSymbol = `${order.symbol.padEnd(6)}${expStr}C${strikeStr}`;
+          const instrumentType: 'Index Option' | 'Equity Option' = isTrueIndexOption(order.symbol) ? 'Index Option' : 'Equity Option';
+          console.log('[submitSellCCOrders] Submitting STO:', { symbol: order.symbol, strike: order.strike, expiration: order.expiration, quantity: order.quantity, price: order.price, optionSymbol, accountNumber: order.accountNumber });
+          const result = await tt.submitOrder({
+            accountNumber: order.accountNumber,
+            timeInForce: 'Day',
+            orderType: 'Limit',
+            price: order.price.toFixed(2),
+            priceEffect: 'Credit',
+            legs: [{ instrumentType, symbol: optionSymbol, quantity: order.quantity.toString(), action: 'Sell to Open' }],
+          });
+          results.push({ success: true, symbol: order.symbol, strike: order.strike, quantity: order.quantity, orderId: result.id, message: 'Order submitted successfully' });
+        } catch (err: any) {
+          results.push({ success: false, symbol: order.symbol, strike: order.strike, quantity: order.quantity, message: err.message ?? 'Unknown error' });
+        }
+      }
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.filter(r => !r.success).length;
+      return { results, successCount, failCount, totalOrders: results.length };
+    }),
 });

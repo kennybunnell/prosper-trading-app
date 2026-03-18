@@ -24,6 +24,11 @@ vi.mock('./db', () => ({
   getTastytradeAccounts: vi.fn(() => [
     { accountId: '5WZ77313', accountNumber: '5WZ77313', nickname: 'Main Cash Account' },
   ]),
+  getReplacementCounts: vi.fn(() => new Map<string, number>()),
+  getFillRateAnalytics: vi.fn(() => ({ totalOrders: 0, filledOrders: 0, fillRate: 0, avgFillTime: 0 })),
+  recordOrderSubmission: vi.fn(),
+  recordOrderCanceled: vi.fn(),
+  getStuckOrders: vi.fn(() => []),
 }));
 
 // Mock pricing utils

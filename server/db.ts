@@ -1344,3 +1344,27 @@ export async function setAllWatchlistSelections(userId: number, symbols: string[
     console.error("[Database] Failed to set all watchlist selections:", error);
   }
 }
+
+/**
+ * Fetch replacement counts for a list of Tastytrade order IDs.
+ * Returns a Map<orderId, replacementCount> for quick lookup.
+ */
+export async function getReplacementCounts(orderIds: string[]): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (orderIds.length === 0) return result;
+  try {
+    const db = await getDb();
+    if (!db) return result;
+    const { inArray } = await import('drizzle-orm');
+    const rows = await db
+      .select({ orderId: orderHistory.orderId, replacementCount: orderHistory.replacementCount })
+      .from(orderHistory)
+      .where(inArray(orderHistory.orderId, orderIds));
+    for (const row of rows) {
+      if (row.orderId) result.set(row.orderId, row.replacementCount);
+    }
+  } catch (err) {
+    console.warn('[Database] getReplacementCounts failed:', err);
+  }
+  return result;
+}

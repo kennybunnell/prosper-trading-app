@@ -296,6 +296,11 @@ export const workingOrdersRouter = router({
         const quotes = await api.getOptionQuotesBatch(optionSymbols);
         console.log(`[WorkingOrders] Quote data sample:`, JSON.stringify(Object.entries(quotes).slice(0, 2), null, 2));
 
+        // Fetch replacement counts from DB for all working orders
+        const { getReplacementCounts } = await import('./db');
+        const allOrderIds = allOrders.map((o: any) => String(o.id)).filter(Boolean);
+        const replacementCountMap = await getReplacementCounts(allOrderIds);
+
         // Process orders with smart pricing
         const processedOrders: ProcessedWorkingOrder[] = [];
         let totalMinutesWorking = 0;
@@ -485,8 +490,8 @@ export const workingOrdersRouter = router({
             underlyingSymbol  // Pass symbol for correct tick size rounding
           );
 
-          // Track replacement count (would need to be stored in DB for persistence)
-          const replacementCount = 0; // TODO: Implement replacement tracking in DB
+          // Look up replacement count from DB (persisted via recordOrderReplacement)
+          const replacementCount = replacementCountMap.get(String(order.id)) ?? 0;
           const needsReview = replacementCount >= 5;
 
           processedOrders.push({

@@ -233,6 +233,8 @@ export default function CCDashboard() {
   const { mode: tradingMode } = useTradingMode();
   const utils = trpc.useUtils();
   const [isLoadingPositions, setIsLoadingPositions] = useState(false);
+  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
+  const [, setTimeTick] = useState(0);
   const [scanStartTime, setScanStartTime] = useState<number | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
   const [holdings, setHoldings] = useState<Holding[]>([]);
@@ -484,6 +486,17 @@ export default function CCDashboard() {
   const overLimit = totalCollateral > availableBuyingPower ? totalCollateral - availableBuyingPower : 0;
 
   // Fetch eligible positions across ALL accounts
+  const formatRelativeTime = (date: Date | null): string => {
+    if (!date) return '';
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin === 1) return '1 min ago';
+    if (diffMin < 60) return `${diffMin} min ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    return diffHr === 1 ? '1 hr ago' : `${diffHr} hr ago`;
+  };
+
   const fetchPositions = async () => {
     setIsLoadingPositions(true);
     try {
@@ -491,6 +504,7 @@ export default function CCDashboard() {
       setHoldings(result.holdings as Holding[]);
       setBreakdown(result.breakdown);
       setSelectedStocks([]);
+      setLastFetchedAt(new Date());
       const acctCount = result.accountsScanned.filter((a: string) => a !== 'paper').length;
       const acctLabel = acctCount > 1 ? `${acctCount} accounts` : (result.accountsScanned[0] || 'account');
       toast.success(`Found ${result.breakdown.eligiblePositions} eligible positions across ${acctLabel}`);
@@ -557,13 +571,28 @@ export default function CCDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
 
-  // Also re-fetch when trading mode changes
+   // Also re-fetch when trading mode changes
   useEffect(() => {
     if (holdings.length === 0 && !isLoadingPositions) {
       fetchPositions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tradingMode]);
+
+  // Auto-refresh positions every 5 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!isLoadingPositions) fetchPositions();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingPositions]);
+
+  // Tick every 30 seconds to update the relative time display
+  useEffect(() => {
+    const interval = setInterval(() => setTimeTick(t => t + 1), 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Handle stock selection
   const toggleStockSelection = (symbol: string) => {
@@ -1400,19 +1429,26 @@ export default function CCDashboard() {
             </h2>
           </div>
           {isPositionsSectionCollapsed && (
-            <Button
-              onClick={fetchPositions}
-              disabled={isLoadingPositions}
-              size="sm"
-              variant="outline"
-            >
-              {isLoadingPositions ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
+            <div className="flex items-center gap-2">
+              {lastFetchedAt && (
+                <span className="text-xs text-muted-foreground hidden sm:inline">
+                  Fetched {formatRelativeTime(lastFetchedAt)}
+                </span>
               )}
-              Refresh
-            </Button>
+              <Button
+                onClick={fetchPositions}
+                disabled={isLoadingPositions}
+                size="sm"
+                variant="outline"
+              >
+                {isLoadingPositions ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Refresh
+              </Button>
+            </div>
           )}
         </div>
 
@@ -1446,6 +1482,28 @@ export default function CCDashboard() {
               </Card>
             )}
 
+            {/* Last fetched timestamp + refresh in expanded view */}
+            {breakdown && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  {lastFetchedAt ? `Fetched ${formatRelativeTime(lastFetchedAt)}` : 'Positions loaded'}
+                </span>
+                <Button
+                  onClick={fetchPositions}
+                  disabled={isLoadingPositions}
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs gap-1.5"
+                >
+                  {isLoadingPositions ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3 h-3" />
+                  )}
+                  Refresh
+                </Button>
+              </div>
+            )}
             {/* Position Summary Cards */}
             {breakdown && isPositionsSectionExpanded && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
