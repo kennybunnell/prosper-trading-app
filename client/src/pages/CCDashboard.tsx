@@ -549,11 +549,20 @@ export default function CCDashboard() {
     }
   }, []); // Run once on mount
 
-  // Auto-fetch positions when in paper mode
+  // Auto-fetch positions on mount (both live and paper modes)
   useEffect(() => {
-    if (tradingMode === 'paper' && holdings.length === 0 && !isLoadingPositions) {
+    if (holdings.length === 0 && !isLoadingPositions) {
       fetchPositions();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
+
+  // Also re-fetch when trading mode changes
+  useEffect(() => {
+    if (holdings.length === 0 && !isLoadingPositions) {
+      fetchPositions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tradingMode]);
 
   // Handle stock selection

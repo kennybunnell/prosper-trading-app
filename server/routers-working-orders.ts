@@ -11,7 +11,8 @@ import {
   calculateMinutesWorking, 
   formatTimeWorking,
   getMarketStatus,
-  isSafeToReplaceOrders 
+  isSafeToReplaceOrders,
+  roundToTickSize
 } from './working-orders-utils';
 
 export interface ProcessedWorkingOrder {
@@ -480,7 +481,8 @@ export const workingOrdersRouter = router({
             currentPrice,
             minutesWorking,
             aggressiveFillMode,
-            effectiveAction // Use effective action (not raw leg action for spreads)
+            effectiveAction, // Use effective action (not raw leg action for spreads)
+            underlyingSymbol  // Pass symbol for correct tick size rounding
           );
 
           // Track replacement count (would need to be stored in DB for persistence)
@@ -630,10 +632,21 @@ export const workingOrdersRouter = router({
 
       for (const order of orders) {
         try {
+          // Extract underlying symbol from the option symbol for tick size determination
+          // Option symbol format: "AVGO  250117C00185000" → underlying = "AVGO"
+          const underlyingMatch = order.symbol.match(/^([A-Z]+)/);
+          const underlyingSymbol = underlyingMatch ? underlyingMatch[1] : '';
+          
+          // Snap price to correct Tastytrade tick increment:
+          // - Penny Pilot symbols (AAPL, TSLA, SPY, etc.): $0.01 increments
+          // - All other equity options: $0.05 increments
+          const snappedPrice = roundToTickSize(order.suggestedPrice, underlyingSymbol);
+          console.log(`[WorkingOrders] Replace ${order.symbol}: suggestedPrice=$${order.suggestedPrice} → snappedPrice=$${snappedPrice} (underlying=${underlyingSymbol})`);
+          
           const result = await api.cancelReplaceOrder(
             order.accountNumber,
             order.orderId,
-            order.suggestedPrice,
+            snappedPrice,
             order.rawOrder
           );
 
@@ -641,7 +654,7 @@ export const workingOrdersRouter = router({
             orderId: order.orderId,
             symbol: order.symbol,
             oldPrice: parseFloat(order.rawOrder.price || '0'),
-            newPrice: order.suggestedPrice,
+            newPrice: snappedPrice,
             success: result.success,
             message: result.message,
             newOrderId: result.orderId,

@@ -18,12 +18,57 @@ export interface PriceSuggestion {
 }
 
 /**
+ * Symbols in the Penny Pilot Program — these use $0.01 tick increments.
+ * All other equity options use $0.05 increments.
+ * Source: CBOE Penny Pilot Program list (major ETFs + large-cap equities)
+ */
+const PENNY_PILOT_SYMBOLS = new Set([
+  // Major ETFs
+  'SPY', 'QQQ', 'IWM', 'GLD', 'SLV', 'EEM', 'XLF', 'XLE', 'XLK', 'XLV',
+  'XLU', 'XLI', 'XLB', 'XLP', 'XLY', 'XLRE', 'XLC', 'VXX', 'UVXY', 'SQQQ',
+  'TQQQ', 'SPXU', 'SPXL', 'TLT', 'HYG', 'LQD', 'EFA', 'FXI', 'GDX', 'GDXJ',
+  'USO', 'UNG', 'SLV', 'IAU', 'ARKK', 'ARKG', 'ARKW', 'ARKF', 'ARKQ',
+  // Large-cap equities in penny pilot
+  'AAPL', 'AMZN', 'GOOG', 'GOOGL', 'MSFT', 'META', 'TSLA', 'NVDA', 'NFLX',
+  'BABA', 'BAC', 'C', 'JPM', 'WFC', 'GS', 'MS', 'V', 'MA', 'PYPL',
+  'INTC', 'AMD', 'MU', 'QCOM', 'TXN', 'AMAT', 'LRCX', 'KLAC', 'ASML',
+  'DIS', 'CMCSA', 'T', 'VZ', 'TMUS', 'CHTR',
+  'AMGN', 'GILD', 'BIIB', 'MRNA', 'PFE', 'JNJ', 'UNH', 'CVS', 'ABBV',
+  'XOM', 'CVX', 'COP', 'OXY', 'SLB', 'HAL',
+  'BA', 'CAT', 'DE', 'HON', 'LMT', 'RTX', 'GE', 'MMM',
+  'COST', 'WMT', 'TGT', 'HD', 'LOW', 'AMZN',
+  'UBER', 'LYFT', 'ABNB', 'DASH', 'SNAP', 'PINS', 'TWTR', 'SPOT',
+  'CRM', 'ORCL', 'SAP', 'NOW', 'WDAY', 'ADBE', 'INTU',
+  'HOOD', 'COIN', 'MSTR', 'RIOT', 'MARA', 'IREN',
+  // Index options (always penny)
+  'SPX', 'NDX', 'RUT', 'VIX',
+]);
+
+/**
+ * Round a price to the correct Tastytrade tick increment.
+ * Standard equity options: $0.05 increments.
+ * Penny Pilot Program symbols: $0.01 increments.
+ */
+export function roundToTickSize(price: number, symbol?: string): number {
+  const underlyingSymbol = symbol ? symbol.trim().split(/\s+/)[0].toUpperCase() : '';
+  const isPennyPilot = PENNY_PILOT_SYMBOLS.has(underlyingSymbol);
+  if (isPennyPilot) {
+    // $0.01 increments
+    return Math.round(price * 100) / 100;
+  } else {
+    // $0.05 increments (standard equity options)
+    return Math.round(price * 20) / 20;
+  }
+}
+
+/**
  * Calculate smart fill price based on spread width, time working, and order action
  * @param quote - Current quote data (bid, ask, mid)
  * @param currentPrice - Current order price
  * @param minutesWorking - How long the order has been working
  * @param aggressiveFillMode - If true, prioritize fills over best price
  * @param orderAction - Order action type (e.g., 'Buy to Close', 'Sell to Open')
+ * @param symbol - Option symbol (used to determine tick size)
  * @returns Price suggestion with strategy explanation
  */
 export function calculateSmartFillPrice(
@@ -31,7 +76,8 @@ export function calculateSmartFillPrice(
   currentPrice: number,
   minutesWorking: number,
   aggressiveFillMode: boolean = false,
-  orderAction: string = ''
+  orderAction: string = '',
+  symbol: string = ''
 ): PriceSuggestion {
   const bid = quote.bid || 0;
   const ask = quote.ask || 0;
@@ -163,16 +209,10 @@ export function calculateSmartFillPrice(
     strategy = 'Unknown action type: Using mid price';
   }
 
-  // Round to appropriate tick size based on Tastytrade rules:
-  // - Options < $3: $0.05 increments
-  // - Options ≥ $3: $0.01 increments
-  if (suggestedPrice < 3) {
-    // Round to nearest $0.05
-    suggestedPrice = Math.round(suggestedPrice * 20) / 20;
-  } else {
-    // Round to nearest $0.01
-    suggestedPrice = Math.round(suggestedPrice * 100) / 100;
-  }
+  // Round to correct Tastytrade tick size:
+  // - Penny Pilot Program symbols (AAPL, MSFT, TSLA, SPY, etc.): $0.01 increments
+  // - All other equity options: $0.05 increments
+  suggestedPrice = roundToTickSize(suggestedPrice, symbol);
 
   // Ensure suggested price is within bid-ask spread
   suggestedPrice = Math.max(bid, Math.min(ask, suggestedPrice));

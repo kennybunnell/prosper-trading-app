@@ -36,6 +36,8 @@ vi.mock('./working-orders-utils', () => ({
       needsReplacement: Math.abs(currentPrice - mid) > 0.05,
     };
   }),
+  // Pass-through in unit tests (tick snapping is tested separately in working-orders-utils tests)
+  roundToTickSize: vi.fn((price: number) => price),
   calculateMinutesWorking: vi.fn(() => 60),
   formatTimeWorking: vi.fn((m) => m + " min"),
   isMarketOpen: vi.fn(() => true),

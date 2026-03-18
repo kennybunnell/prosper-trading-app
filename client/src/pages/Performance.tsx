@@ -125,13 +125,13 @@ export function ActivePositionsTab() {
     audio.play().catch(() => {});
   };
 
-  // Fetch active positions — always fetch ALL positions; frontend handles profit filter
+  // Fetch active positions — always fetch ALL accounts regardless of sidebar selection
   const { data, isLoading, refetch, error } = trpc.performance.getActivePositions.useQuery(
     {
-      accountId: selectedAccountId || '',
+      accountId: 'ALL_ACCOUNTS',
     },
     {
-      enabled: !!selectedAccountId,
+      enabled: true,
       refetchOnWindowFocus: false,
       retry: false,
     }
@@ -171,10 +171,6 @@ export function ActivePositionsTab() {
   }
 
   const handleRefresh = async () => {
-    if (!selectedAccountId) {
-      toast.error('Please select an account first');
-      return;
-    }
     try {
       await refetch();
       toast.success('Positions refreshed');
@@ -592,22 +588,6 @@ export function ActivePositionsTab() {
     };
   }, [data?.positions, positionType]);
 
-  // Show account selection prompt if no account selected
-  if (!selectedAccountId) {
-    return (
-      <Card className="p-8 text-center">
-        <div className="space-y-4">
-          <div className="text-lg font-medium text-muted-foreground">
-            Please select a Tastytrade account from the sidebar to view active positions
-          </div>
-          <p className="text-sm text-muted-foreground">
-            If you don't see any accounts, make sure you've configured your Tastytrade credentials in Settings.
-          </p>
-        </div>
-      </Card>
-    );
-  }
-
   // Show error message if API call failed
   if (error) {
     return (
@@ -916,7 +896,7 @@ export function ActivePositionsTab() {
           }}
           orders={unifiedOrders}
           strategy="btc"
-          accountId={selectedAccountId || ''}
+          accountId={selectedAccountId || 'ALL_ACCOUNTS'}
           availableBuyingPower={data?.summary?.totalPremiumAtRisk || 0}
           onSubmit={handleConfirmClose}
           onPollStatuses={handlePollOrderStatuses}

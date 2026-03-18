@@ -8265,3 +8265,7 @@
 - [x] pollStatus procedure updated to handle ALL_ACCOUNTS and suppress "Couldn't find Order" errors
 - [x] handlePollStatuses in CCDashboard now passes ALL_ACCOUNTS so order status polling works regardless of sidebar account
 - [x] TypeScript: 0 errors
+
+## Replace Order Price Increment Bug (Mar 18, 2026)
+- [ ] Fix: replaceOrders sends raw suggestedPrice (e.g. $3.28) which Tastytrade rejects with "Price must be in increments of $0.05"
+- [ ] Fix: round all order prices to nearest $0.05 before submission in replaceOrders, CC submitOrders, and CSP submitOrders
