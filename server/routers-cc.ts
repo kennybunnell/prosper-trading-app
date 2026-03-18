@@ -10,6 +10,9 @@ import { z } from "zod";
 import * as schema from '../drizzle/schema';
 import { eq } from 'drizzle-orm';
 
+// Cash-settled European-style indexes — cannot be used for covered calls (no stock assignment possible)
+const CASH_SETTLED_INDEXES = new Set(['SPX', 'SPXW', 'NDXP', 'NDX', 'MRUT', 'RUT', 'VIX', 'DJX', 'XSP', 'XND']);
+
 export const ccRouter = router({
   /**
    * Fetch stock positions eligible for covered calls (≥100 shares)
@@ -82,12 +85,14 @@ export const ccRouter = router({
 
       // Separate stock positions and option positions
       // Tastytrade API returns hyphenated field names like 'instrument-type', not camelCase
-      const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
+      // ⛔ Exclude cash-settled European-style indexes — no stock assignment, cannot write covered calls
+      const stockPositions = positions
+        .filter((p: any) => p['instrument-type'] === 'Equity')
+        .filter((p: any) => !CASH_SETTLED_INDEXES.has((p.symbol as string).toUpperCase()));
       // Include both 'Equity Option' and 'Index Option' (e.g., SPXW, NDXP, MRUT)
       const optionPositions = positions.filter((p: any) =>
         p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
       );
-
       // Identify short calls (covered calls already sold) from POSITIONS
       const shortCalls: Record<string, { contracts: number; details: any[] }> = {};
       
@@ -269,13 +274,14 @@ export const ccRouter = router({
       for (const result of perAccountResults) {
         if (result.status === 'rejected') continue;
         const { acctNum, positions, workingOrders } = result.value;
-        totalRawPositions += positions.length;
-
-        const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
+         totalRawPositions += positions.length;
+        // ⛔ Exclude cash-settled European-style indexes — no stock assignment, cannot write covered calls
+        const stockPositions = positions
+          .filter((p: any) => p['instrument-type'] === 'Equity')
+          .filter((p: any) => !CASH_SETTLED_INDEXES.has((p.symbol as string).toUpperCase()));
         const optionPositions = positions.filter((p: any) =>
           p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
         );
-
         // Accumulate short calls from filled positions
         for (const opt of optionPositions) {
           const dir = (opt as any)['quantity-direction'];
@@ -953,12 +959,14 @@ export const ccRouter = router({
 
       // Fetch current positions to get maxContracts for each symbol
       const positions = await api.getPositions(input.accountNumber);
-      const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
+      // ⛔ Exclude cash-settled European-style indexes — no stock assignment, cannot write covered calls
+      const stockPositions = positions
+        .filter((p: any) => p['instrument-type'] === 'Equity')
+        .filter((p: any) => !CASH_SETTLED_INDEXES.has((p.symbol as string).toUpperCase()));
       // Include both 'Equity Option' and 'Index Option' (e.g., SPXW, NDXP, MRUT)
       const optionPositions = positions.filter((p: any) =>
         p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
       );
-
       // Identify short calls (covered calls already sold)
       const shortCalls: Record<string, number> = {};
       for (const opt of optionPositions) {

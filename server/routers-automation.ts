@@ -24,6 +24,9 @@ import {
 } from './db-automation';
 import { authenticateTastytrade } from './tastytrade';
 
+// Cash-settled European-style indexes — cannot be used for covered calls (no stock assignment possible)
+const CASH_SETTLED_INDEXES_AUTO = new Set(['SPX', 'SPXW', 'NDXP', 'NDX', 'MRUT', 'RUT', 'VIX', 'DJX', 'XSP', 'XND']);
+
 export const automationRouter = router({
   /**
    * Get automation settings for the current user
@@ -830,7 +833,10 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               try {
                 console.log(`[Automation CC] Scanning account ${account.accountNumber} for CC opportunities`);
                 const allPositions = await tt.getPositions(account.accountNumber);
-                const stockPositions = allPositions.filter((p: any) => p['instrument-type'] === 'Equity' && parseFloat(p.quantity) > 0);
+                const stockPositions = allPositions
+                  .filter((p: any) => p['instrument-type'] === 'Equity' && parseFloat(p.quantity) > 0)
+                  // ⛔ Exclude cash-settled indexes — European-style, no stock assignment, cannot write CCs
+                  .filter((p: any) => !CASH_SETTLED_INDEXES_AUTO.has((p.symbol as string).toUpperCase()));
                 const optionPositions = allPositions.filter((p: any) => p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option');
                 // Identify existing NAKED short calls to avoid over-covering.
                 // IC/BCS short calls are protected by a long call at a higher strike on the same

@@ -8215,3 +8215,7 @@
 
 ## Index Chart Fallback (Mar 17, 2026)
 - [x] Replace broken TradingView advanced-chart for index symbols with Symbol Overview widget (SP:SPX, NASDAQ:NDX, TVC:RUT, TVC:VIX, TVC:DJI, CBOE:XSP, NASDAQ:XND). Equities keep full advanced-chart with BB/RSI/Volume.
+
+## CC Index Exclusion (Mar 18, 2026)
+- [x] Exclude cash-settled index symbols (SPX, SPXW, NDX, NDXP, RUT, MRUT, VIX, DJX, XSP, XND) from CC eligibility scan — European-style cash-settled, no stock assignment possible
+- [x] Apply exclusion in getEligiblePositions, getEligiblePositionsAllAccounts, and automation CC scan
