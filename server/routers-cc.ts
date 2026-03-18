@@ -896,6 +896,8 @@ export const ccRouter = router({
             expiration: z.string(),
             quantity: z.number(),
             price: z.number(),
+            // Optional per-order account override (multi-account CC scans)
+            accountNumber: z.string().optional(),
           })
         ),
         dryRun: z.boolean().default(false),
@@ -957,58 +959,63 @@ export const ccRouter = router({
       const { authenticateTastytrade } = await import('./tastytrade');
       const api = await authenticateTastytrade(credentials);
 
-      // Fetch current positions to get maxContracts for each symbol
-      const positions = await api.getPositions(input.accountNumber);
-      // ⛔ Exclude cash-settled European-style indexes — no stock assignment, cannot write covered calls
-      const stockPositions = positions
-        .filter((p: any) => p['instrument-type'] === 'Equity')
-        .filter((p: any) => !CASH_SETTLED_INDEXES.has((p.symbol as string).toUpperCase()));
-      // Include both 'Equity Option' and 'Index Option' (e.g., SPXW, NDXP, MRUT)
-      const optionPositions = positions.filter((p: any) =>
-        p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
-      );
-      // Identify short calls (covered calls already sold)
-      const shortCalls: Record<string, number> = {};
-      for (const opt of optionPositions) {
-        const quantityDirection = (opt as any)['quantity-direction'];
-        if (quantityDirection === 'Short' && (opt as any).symbol.includes('C')) {
-          const underlying = (opt as any)['underlying-symbol'];
-          const qty = Math.abs(parseFloat((opt as any).quantity));
-          shortCalls[underlying] = (shortCalls[underlying] || 0) + qty;
-        }
-      }
+      // ── Multi-account position validation ──────────────────────────────────
+      // Each order may target a different account (multi-account CC scans).
+      // Resolve the effective account for each order, then fetch positions
+      // per unique account and build a per-account maxContracts map.
+      const resolvedOrders = input.orders.map(order => ({
+        ...order,
+        effectiveAccount: order.accountNumber ?? input.accountNumber,
+      }));
 
-      // Calculate maxContracts for each stock position
+      // Collect unique accounts that need position validation
+      const uniqueAccounts = Array.from(new Set(resolvedOrders.map(o => o.effectiveAccount)));
+      console.log('[CC submitOrders] Accounts to validate:', uniqueAccounts);
+
+      // maxContractsMap keyed by `${account}:${symbol}` for per-account accuracy
       const maxContractsMap: Record<string, number> = {};
-      console.log('[CC submitOrders] Position analysis:');
-      console.log('[CC submitOrders] Stock positions:', stockPositions.map((p: any) => ({ symbol: p.symbol, quantity: p.quantity })));
-      console.log('[CC submitOrders] Existing short calls:', shortCalls);
-      
-      for (const pos of stockPositions) {
-        const symbol = (pos as any).symbol;
-        const quantity = parseFloat((pos as any).quantity);
-        if (quantity > 0) {
-          const existingContracts = shortCalls[symbol] || 0;
-          const sharesCovered = existingContracts * 100;
-          const availableShares = Math.max(0, quantity - sharesCovered);
-          const maxContracts = Math.floor(availableShares / 100);
-          maxContractsMap[symbol] = maxContracts;
-          
-          console.log(`[CC submitOrders] ${symbol}: ${quantity} shares, ${existingContracts} existing contracts, ${availableShares} available shares, ${maxContracts} max contracts`);
+
+      for (const acctNum of uniqueAccounts) {
+        const positions = await api.getPositions(acctNum);
+        const stockPositions = positions
+          .filter((p: any) => p['instrument-type'] === 'Equity')
+          .filter((p: any) => !CASH_SETTLED_INDEXES.has((p.symbol as string).toUpperCase()));
+        const optionPositions = positions.filter((p: any) =>
+          p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
+        );
+        const shortCalls: Record<string, number> = {};
+        for (const opt of optionPositions) {
+          const quantityDirection = (opt as any)['quantity-direction'];
+          if (quantityDirection === 'Short' && (opt as any).symbol.includes('C')) {
+            const underlying = (opt as any)['underlying-symbol'];
+            const qty = Math.abs(parseFloat((opt as any).quantity));
+            shortCalls[underlying] = (shortCalls[underlying] || 0) + qty;
+          }
+        }
+        console.log(`[CC submitOrders] Account ${acctNum} position analysis:`);
+        console.log(`[CC submitOrders] Stock positions:`, stockPositions.map((p: any) => ({ symbol: p.symbol, quantity: p.quantity })));
+        console.log(`[CC submitOrders] Existing short calls:`, shortCalls);
+        for (const pos of stockPositions) {
+          const symbol = (pos as any).symbol;
+          const quantity = parseFloat((pos as any).quantity);
+          if (quantity > 0) {
+            const existingContracts = shortCalls[symbol] || 0;
+            const sharesCovered = existingContracts * 100;
+            const availableShares = Math.max(0, quantity - sharesCovered);
+            const maxContracts = Math.floor(availableShares / 100);
+            maxContractsMap[`${acctNum}:${symbol}`] = maxContracts;
+            console.log(`[CC submitOrders] ${acctNum}:${symbol}: ${quantity} shares, ${existingContracts} existing, ${maxContracts} max contracts`);
+          }
         }
       }
-
-      // Group orders by symbol and count contracts
-      const contractsPerSymbol: Record<string, number> = {};
-      for (const order of input.orders) {
-        contractsPerSymbol[order.symbol] = (contractsPerSymbol[order.symbol] || 0) + order.quantity;
-      }
+      // ──────────────────────────────────────────────────────────────────────
 
       // Filter out orders where maxContracts is insufficient (prevents uncovered options)
-      const filteredOrders = input.orders.filter(order => {
-        const maxContracts = maxContractsMap[order.symbol] || 0;
+      const filteredOrders = resolvedOrders.filter(order => {
+        const key = `${order.effectiveAccount}:${order.symbol}`;
+        const maxContracts = maxContractsMap[key] ?? 0;
         if (order.quantity > maxContracts) {
-          console.log(`[CC submitOrders] FILTERED OUT ${order.symbol}: Requested ${order.quantity} contracts but only ${maxContracts} available (would be uncovered)`);
+          console.log(`[CC submitOrders] FILTERED OUT ${order.effectiveAccount}:${order.symbol}: Requested ${order.quantity} contracts but only ${maxContracts} available (would be uncovered)`);
           return false;
         }
         return true;
@@ -1019,15 +1026,16 @@ export const ccRouter = router({
         throw new Error('All orders filtered out: insufficient shares to cover requested contracts. Please ensure you have at least 100 shares per contract.');
       }
 
-      // Validate each symbol doesn't exceed maxContracts
+      // Validate each order doesn't exceed maxContracts for its account
       const validationErrors: string[] = [];
       console.log('[CC submitOrders] Validating contract limits:');
-      for (const [symbol, requestedContracts] of Object.entries(contractsPerSymbol)) {
-        const maxContracts = maxContractsMap[symbol] || 0;
-        console.log(`[CC submitOrders] ${symbol}: Requesting ${requestedContracts} contracts, max available: ${maxContracts}`);
-        if (requestedContracts > maxContracts) {
+      for (const order of resolvedOrders) {
+        const key = `${order.effectiveAccount}:${order.symbol}`;
+        const maxContracts = maxContractsMap[key] ?? 0;
+        console.log(`[CC submitOrders] ${key}: Requesting ${order.quantity} contracts, max available: ${maxContracts}`);
+        if (order.quantity > maxContracts) {
           validationErrors.push(
-            `${symbol}: Requested ${requestedContracts} contracts but only ${maxContracts} available`
+            `${order.symbol} (acct ${order.effectiveAccount}): Requested ${order.quantity} contracts but only ${maxContracts} available`
           );
         }
       }
@@ -1095,9 +1103,9 @@ export const ccRouter = router({
             instrumentType: ccInstrumentType,
           });
 
-          // Submit sell-to-open order
+          // Submit sell-to-open order (use per-order effectiveAccount for multi-account support)
           const result = await api.submitOrder({
-            accountNumber: input.accountNumber,
+            accountNumber: order.effectiveAccount,
             timeInForce: 'Day',
             orderType: 'Limit',
             price: order.price.toFixed(2),

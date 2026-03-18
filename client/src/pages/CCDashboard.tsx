@@ -223,6 +223,8 @@ type CCOpportunity = {
     capitalSavings: number;
     capitalSavingsPct: number;
   };
+  // Source account for this opportunity (used for multi-account order routing)
+  accountNumber?: string;
 };
 
 export default function CCDashboard() {
@@ -259,6 +261,7 @@ export default function CCDashboard() {
   const [sortColumn, setSortColumn] = useState<keyof CCOpportunity | null>('score');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+  const [showAllHoldings, setShowAllHoldings] = useState(false);
   // Strategy type and spread width
   // Load strategy type from localStorage on page load
   const [strategyType, setStrategyType] = useState<StrategyType>(() => {
@@ -562,9 +565,9 @@ export default function CCDashboard() {
   };
 
   const selectAllStocks = () => {
-    // Use availableHoldings which already filters for maxContracts > 0
-    const eligibleSymbols = holdings
-      .filter(h => h.maxContracts > 0)
+    // Use availableHoldings which respects the showAllHoldings toggle
+    const eligibleSymbols = availableHoldings
+      .filter(h => !flaggedSymbols.has(h.symbol.toUpperCase()))
       .map(h => h.symbol);
     setSelectedStocks(eligibleSymbols);
   };
@@ -671,24 +674,18 @@ export default function CCDashboard() {
         });
         finalOpportunities = spreadResult;
       } else {
-        // CC mode: scan stock positions
-        const eligibleStocks = selectedStocks.filter(symbol => {
-          const holding = holdings.find(h => h.symbol === symbol);
-          return holding && holding.maxContracts > 0;
-        });
-
+         // CC mode: scan stock positions
+        // Allow scanning all selected stocks regardless of maxContracts
+        // (Tastytrade API may lag after buying back CCs — user can force-scan via "All Holdings" toggle)
+        const eligibleStocks = selectedStocks.filter(symbol =>
+          holdings.some(h => h.symbol === symbol)
+        );
         if (eligibleStocks.length === 0) {
-          toast.error("No eligible stocks selected. Selected stocks are fully covered by existing calls.");
+          toast.error("No stocks selected. Please select stocks to scan.");
           setIsScanning(false);
           return;
         }
-
-        const skippedCount = selectedStocks.length - eligibleStocks.length;
-        if (skippedCount > 0) {
-          toast.info(`Skipping ${skippedCount} stock(s) with existing covered calls`);
-        }
-
-        // Build holdings data for eligible stocks only
+        // Build holdings data for selected stocks
         const selectedHoldings = holdings
           .filter(h => eligibleStocks.includes(h.symbol))
           .map(h => ({
@@ -698,13 +695,25 @@ export default function CCDashboard() {
             maxContracts: h.maxContracts,
           }));
 
-        finalOpportunities = await utils.client.cc.scanOpportunities.mutate({
+        const rawOpportunities = await utils.client.cc.scanOpportunities.mutate({
           symbols: eligibleStocks,
           holdings: selectedHoldings,
           minDte: 7,
           maxDte: 45,
           minDelta: 0.05,
           maxDelta: 0.99,
+        });
+
+        // Attach the source account to each opportunity for multi-account order routing
+        finalOpportunities = rawOpportunities.map((opp: CCOpportunity) => {
+          const holding = holdings.find(h => h.symbol === opp.symbol);
+          return {
+            ...opp,
+            // Use the first account from the holding's accounts array
+            // (for single-account holdings this is just that account;
+            //  for multi-account holdings the user should pick the primary account)
+            accountNumber: holding?.accounts?.[0] ?? selectedAccountId ?? undefined,
+          };
         });
       }
 
@@ -880,6 +889,8 @@ export default function CCDashboard() {
       bid: strategyType === 'spread' ? opp.bid : opp.bid,
       ask: strategyType === 'spread' ? opp.ask : opp.ask,
       currentPrice: opp.currentPrice,
+      // Pass per-order account for multi-account CC routing and safeguard checks
+      accountNumber: opp.accountNumber,
     }));
 
      // Set orders for preview dialog
@@ -987,6 +998,8 @@ export default function CCDashboard() {
             expiration: order.expiration,
             quantity,
             price: roundedPrice,
+            // Pass per-order account for multi-account routing
+            accountNumber: order.accountNumber,
           };
         });
 
@@ -1121,7 +1134,10 @@ export default function CCDashboard() {
   };
 
   // Filter holdings to only show those with available contracts
-  const availableHoldings = holdings.filter(h => h.maxContracts > 0);
+  // Show all holdings when toggled (e.g. after buying back CCs, Tastytrade API may lag)
+  const availableHoldings = showAllHoldings
+    ? holdings
+    : holdings.filter(h => h.maxContracts > 0);
 
   // Load liquidation flags so flagged-for-exit positions are visually marked and non-selectable
   const { data: flagsData } = trpc.positionAnalyzer.getLiquidationFlags.useQuery(
@@ -1476,7 +1492,7 @@ export default function CCDashboard() {
             )}
 
             {/* Stock Selection Table */}
-            {availableHoldings.length > 0 && isPositionsSectionExpanded && (
+            {holdings.length > 0 && isPositionsSectionExpanded && (
               <Card className="bg-card/50 backdrop-blur border-amber-500/20">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -1486,7 +1502,15 @@ export default function CCDashboard() {
                         Choose which positions to scan for covered call opportunities
                       </CardDescription>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
+                      <Button
+                        variant={showAllHoldings ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setShowAllHoldings(v => !v)}
+                        title={showAllHoldings ? "Showing all stock positions (including fully covered)" : "Only showing positions with available contracts"}
+                      >
+                        {showAllHoldings ? "All Holdings" : "Eligible Only"}
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -1511,11 +1535,11 @@ export default function CCDashboard() {
                         <TableHead className="w-12">
                           <Checkbox
                             checked={availableHoldings.length > 0 && availableHoldings
-                              .filter(h => h.maxContracts > 0 && !flaggedSymbols.has(h.symbol.toUpperCase()))
+                              .filter(h => (showAllHoldings || h.maxContracts > 0) && !flaggedSymbols.has(h.symbol.toUpperCase()))
                               .every(h => selectedStocks.includes(h.symbol))}
                             onCheckedChange={(checked) => {
                               const eligible = availableHoldings
-                                .filter(h => h.maxContracts > 0 && !flaggedSymbols.has(h.symbol.toUpperCase()))
+                                .filter(h => (showAllHoldings || h.maxContracts > 0) && !flaggedSymbols.has(h.symbol.toUpperCase()))
                                 .map(h => h.symbol);
                               if (checked) {
                                 const next = new Set(selectedStocks);
@@ -1543,10 +1567,10 @@ export default function CCDashboard() {
                         return (
                         <TableRow key={holding.symbol} className={isFlaggedForExit ? 'opacity-60' : ''}>
                           <TableCell>
-                    <Checkbox
-                      checked={selectedStocks.includes(holding.symbol)}
+                          <Checkbox
+                    checked={selectedStocks.includes(holding.symbol)}
                       onCheckedChange={() => !isFlaggedForExit && toggleStockSelection(holding.symbol)}
-                      disabled={holding.maxContracts === 0 || isFlaggedForExit}
+                      disabled={(!showAllHoldings && holding.maxContracts === 0) || isFlaggedForExit}
                       className="border-2 border-amber-500/50 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed"
                     />
                           </TableCell>
@@ -1672,12 +1696,15 @@ export default function CCDashboard() {
             </Dialog>
 
             {/* No eligible positions message */}
-            {breakdown && availableHoldings.length === 0 && isPositionsSectionExpanded && (
+            {breakdown && holdings.length === 0 && isPositionsSectionExpanded && (
               <Card className="bg-card/50 backdrop-blur border-amber-500/20">
                 <CardContent className="pt-6 text-center">
                   <p className="text-muted-foreground">
                     No eligible positions found. You need stock positions with at least 100
                     shares and available contracts (not already covered by calls).
+                  </p>
+                  <p className="text-sm text-amber-400 mt-2">
+                    If you recently bought back covered calls, click <strong>"All Holdings"</strong> above to show all positions and force-scan them.
                   </p>
                 </CardContent>
               </Card>

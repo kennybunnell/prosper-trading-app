@@ -765,10 +765,13 @@ export function UnifiedOrderPreviewModal({
         const strikeFormatted = String(Math.round((order.strike || 0) * 1000)).padStart(8, '0');
         const optionSymbol = expFormatted ? `${order.symbol}${expFormatted}${optChar}${strikeFormatted}` : undefined;
 
+        // Use per-order accountNumber when available (multi-account CC/CSP scans).
+        // The modal-level accountId is only a fallback for single-account flows.
+        const orderAccountId = order.accountNumber ?? accountId;
         const params = new URLSearchParams({
           input: JSON.stringify({
             json: {
-              accountNumber: accountId,
+              accountNumber: orderAccountId,
               orderType,
               symbol: order.symbol,
               ...(optionSymbol ? { optionSymbol } : {}),

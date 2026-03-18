@@ -8219,3 +8219,20 @@
 ## CC Index Exclusion (Mar 18, 2026)
 - [x] Exclude cash-settled index symbols (SPX, SPXW, NDX, NDXP, RUT, MRUT, VIX, DJX, XSP, XND) from CC eligibility scan — European-style cash-settled, no stock assignment possible
 - [x] Apply exclusion in getEligiblePositions, getEligiblePositionsAllAccounts, and automation CC scan
+
+## CC Submit Orders Multi-Account Fix (Mar 18, 2026)
+- [ ] Fix submitOrders coverage validation — currently uses single accountNumber but orders come from multi-account scan, causing false "Coverage Ratio Violation" for positions in other accounts
+- [ ] Fix order preview modal in Automation page to pass per-order account numbers to submitOrders
+## CC Dashboard Multi-Account Fixes (Mar 18, 2026) - Session 2
+- [x] Show All Holdings toggle: table now shows all stock positions (not just maxContracts > 0) when toggled, with disabled checkboxes for fully-covered positions
+- [x] selectAllStocks respects showAllHoldings toggle (uses availableHoldings filtered by flaggedSymbols)
+- [x] Header checkbox in holdings table respects showAllHoldings mode
+- [x] Empty state message updated to guide user to "All Holdings" toggle after buying back CCs
+- [x] Stock selection table shows when holdings.length > 0 (not just availableHoldings.length > 0) so toggle is always accessible
+- [x] submitOrders schema: added optional per-order accountNumber field
+- [x] submitOrders validation: refactored to fetch positions per unique account and validate each order against its correct account's maxContracts (keyed by account:symbol)
+- [x] submitOrders live submission: uses order.effectiveAccount (per-order accountNumber ?? top-level accountNumber) when submitting to Tastytrade API
+- [x] scanOpportunities: attaches accountNumber (from holding.accounts[0]) to each returned opportunity
+- [x] handleSubmitOrders: passes opp.accountNumber per order in UnifiedOrder array for safeguard checks
+- [x] executeOrderSubmission: passes order.accountNumber per CC order to cc.submitOrders
+- [x] TypeScript: 0 errors
