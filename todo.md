@@ -8212,3 +8212,6 @@
 
 ## TradingView Index Symbol Fix (Mar 17, 2026)
 - [x] Fix resolveSymbol procedure: add static INDEX_TV_MAP so SPXW/SPX/NDX/NDXP/MRUT/RUT/VIX/DJX/XSP/XND bypass TradingView search API (which filters out 'index' type) and return correct exchange-prefixed symbol (CBOE:SPX, NASDAQ:NDX, CBOE:RUT, etc.)
+
+## Index Chart Fallback (Mar 17, 2026)
+- [x] Replace broken TradingView advanced-chart for index symbols with Symbol Overview widget (SP:SPX, NASDAQ:NDX, TVC:RUT, TVC:VIX, TVC:DJI, CBOE:XSP, NASDAQ:XND). Equities keep full advanced-chart with BB/RSI/Volume.

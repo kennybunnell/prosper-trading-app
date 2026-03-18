@@ -11,32 +11,106 @@ interface BollingerChartPanelProps {
   onClose: () => void;
 }
 
+// Index roots that the TradingView advanced-chart widget cannot display
+// (CBOE/NASDAQ index data is not included in the free widget data licence).
+// These symbols use the Symbol Overview widget instead.
+const INDEX_ROOTS = new Set([
+  'SPXW', 'SPX', 'NDXP', 'NDX', 'MRUT', 'RUT', 'VIX', 'DJX', 'XSP', 'XND',
+]);
+
 /**
  * Maps internal option-root symbols to their underlying TradingView ticker.
- * TradingView uses the exchange-qualified format, e.g. "CBOE:SPX".
+ * Used by both the advanced-chart (equities) and symbol-overview (indexes).
  */
 function resolveSymbol(raw: string): string {
   const map: Record<string, string> = {
-    SPXW: 'CBOE:SPX',
-    SPX: 'CBOE:SPX',
+    SPXW: 'SP:SPX',
+    SPX:  'SP:SPX',
     NDXP: 'NASDAQ:NDX',
-    NDX: 'NASDAQ:NDX',
-    MRUT: 'CBOE:RUT',
-    RUT: 'CBOE:RUT',
+    NDX:  'NASDAQ:NDX',
+    MRUT: 'TVC:RUT',
+    RUT:  'TVC:RUT',
+    VIX:  'TVC:VIX',
+    DJX:  'TVC:DJI',
+    XSP:  'CBOE:XSP',
+    XND:  'NASDAQ:XND',
   };
-  if (map[raw.toUpperCase()]) return map[raw.toUpperCase()];
-  // Default: assume NYSE/NASDAQ — TradingView auto-resolves plain tickers
-  return raw.toUpperCase();
+  const upper = raw.toUpperCase();
+  if (map[upper]) return map[upper];
+  // Default: plain ticker — TradingView auto-resolves NYSE/NASDAQ equities
+  return upper;
 }
 
-// Inner widget component — memoized so it only re-mounts when symbol changes
-const TradingViewChart = memo(function TradingViewChart({ tvSymbol }: { tvSymbol: string }) {
+// ─── Symbol Overview widget (for index symbols) ──────────────────────────────
+const IndexSymbolOverview = memo(function IndexSymbolOverview({ tvSymbol }: { tvSymbol: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
+    containerRef.current.innerHTML = '';
 
-    // Remove any previous widget script to avoid duplicates on symbol change
+    const script = document.createElement('script');
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js';
+    script.type = 'text/javascript';
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      symbols: [[`${tvSymbol}|1D`]],
+      chartOnly: false,
+      autosize: true,
+      locale: 'en',
+      colorTheme: 'dark',
+      showVolume: true,
+      showMA: true,
+      hideDateRanges: false,
+      hideMarketStatus: false,
+      hideSymbolLogo: false,
+      scalePosition: 'right',
+      scaleMode: 'Normal',
+      fontFamily: '-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif',
+      fontSize: '10',
+      noTimeScale: false,
+      valuesTracking: '1',
+      changeMode: 'price-and-percent',
+      chartType: 'candlesticks',
+      lineWidth: 2,
+      lineType: 0,
+      dateRanges: ['1d|1', '5d|5', '1m|1D', '3m|1D', '12m|1W', '60m|1W', 'all|1M'],
+    });
+
+    containerRef.current.appendChild(script);
+  }, [tvSymbol]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="tradingview-widget-container w-full h-full"
+      style={{ height: '100%', width: '100%' }}
+    >
+      <div
+        className="tradingview-widget-container__widget"
+        style={{ height: 'calc(100% - 32px)', width: '100%' }}
+      />
+      <div className="tradingview-widget-copyright text-xs text-slate-600 px-2 py-1">
+        <a
+          href={`https://www.tradingview.com/symbols/${tvSymbol}/`}
+          rel="noopener nofollow"
+          target="_blank"
+          className="text-slate-500 hover:text-slate-300 transition-colors"
+        >
+          {tvSymbol}
+        </a>
+        <span className="text-slate-700"> by TradingView</span>
+      </div>
+    </div>
+  );
+});
+
+// ─── Advanced Chart widget (for equities) ────────────────────────────────────
+const EquityAdvancedChart = memo(function EquityAdvancedChart({ tvSymbol }: { tvSymbol: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
     containerRef.current.innerHTML = '';
 
     const script = document.createElement('script');
@@ -96,8 +170,10 @@ const TradingViewChart = memo(function TradingViewChart({ tvSymbol }: { tvSymbol
   );
 });
 
+// ─── Main panel ──────────────────────────────────────────────────────────────
 export function BollingerChartPanel({ symbol, strikePrice, currentPrice, onClose }: BollingerChartPanelProps) {
   const tvSymbol = resolveSymbol(symbol);
+  const isIndex = INDEX_ROOTS.has(symbol.toUpperCase());
 
   return (
     <div className="fixed inset-y-0 right-0 z-50 flex flex-col w-[75vw] max-w-[95vw] min-w-[600px] bg-[#0d1117] border-l border-slate-700/60 shadow-2xl">
@@ -109,9 +185,15 @@ export function BollingerChartPanel({ symbol, strikePrice, currentPrice, onClose
           {tvSymbol !== symbol.toUpperCase() && (
             <span className="text-slate-500 text-xs">→ {tvSymbol}</span>
           )}
-          <span className="text-slate-500 text-xs hidden sm:inline">
-            · Bollinger Bands · RSI · Volume
-          </span>
+          {isIndex ? (
+            <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded px-1.5 py-0.5 ml-1">
+              Index · Overview Chart
+            </span>
+          ) : (
+            <span className="text-slate-500 text-xs hidden sm:inline">
+              · Bollinger Bands · RSI · Volume
+            </span>
+          )}
           {currentPrice && (
             <span className="text-xs bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded px-1.5 py-0.5 ml-1">
               Price ${currentPrice.toFixed(2)}
@@ -131,7 +213,7 @@ export function BollingerChartPanel({ symbol, strikePrice, currentPrice, onClose
               {currentPrice < strikePrice
                 ? `${((strikePrice - currentPrice) / currentPrice * 100).toFixed(1)}% OTM`
                 : `${((currentPrice - strikePrice) / currentPrice * 100).toFixed(1)}% ITM`
-            }
+              }
             </span>
           )}
         </div>
@@ -159,7 +241,10 @@ export function BollingerChartPanel({ symbol, strikePrice, currentPrice, onClose
 
       {/* Chart — fills remaining height */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        <TradingViewChart tvSymbol={tvSymbol} />
+        {isIndex
+          ? <IndexSymbolOverview tvSymbol={tvSymbol} />
+          : <EquityAdvancedChart tvSymbol={tvSymbol} />
+        }
       </div>
     </div>
   );
