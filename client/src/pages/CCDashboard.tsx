@@ -165,6 +165,7 @@ type Holding = {
   maxContracts: number;
   hasExistingCalls: boolean;
   hasWorkingOrders: boolean;
+  accounts?: string[];
 };
 
 type PositionBreakdown = {
@@ -478,27 +479,17 @@ export default function CCDashboard() {
   const buyingPowerUsedPct = availableBuyingPower > 0 ? (totalCollateral / availableBuyingPower) * 100 : 0;
   const overLimit = totalCollateral > availableBuyingPower ? totalCollateral - availableBuyingPower : 0;
 
-  // Fetch eligible positions
+  // Fetch eligible positions across ALL accounts
   const fetchPositions = async () => {
-    // In paper mode, bypass account selection requirement
-    if (!tradingMode || tradingMode === 'live') {
-      if (!selectedAccountId) {
-        toast.error("Please select an account first");
-        return;
-      }
-    }
-
     setIsLoadingPositions(true);
     try {
-      const result = await utils.client.cc.getEligiblePositions.query({
-        accountNumber: selectedAccountId || 'paper',
-      });
-      
-      setHoldings(result.holdings);
+      const result = await utils.client.cc.getEligiblePositionsAllAccounts.query();
+      setHoldings(result.holdings as Holding[]);
       setBreakdown(result.breakdown);
       setSelectedStocks([]);
-      
-      toast.success(`Found ${result.breakdown.eligiblePositions} eligible positions`);
+      const acctCount = result.accountsScanned.filter((a: string) => a !== 'paper').length;
+      const acctLabel = acctCount > 1 ? `${acctCount} accounts` : (result.accountsScanned[0] || 'account');
+      toast.success(`Found ${result.breakdown.eligiblePositions} eligible positions across ${acctLabel}`);
     } catch (error: any) {
       toast.error(error.message || "Failed to fetch positions");
     } finally {
@@ -1392,7 +1383,7 @@ export default function CCDashboard() {
                 <CardContent className="pt-6">
                   <Button
                     onClick={fetchPositions}
-                    disabled={isLoadingPositions || !selectedAccountId}
+                    disabled={isLoadingPositions}
                     className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700"
                   >
                     {isLoadingPositions ? (
@@ -1407,11 +1398,9 @@ export default function CCDashboard() {
                       </>
                     )}
                   </Button>
-                  {!selectedAccountId && tradingMode !== 'paper' && (
-                    <p className="text-sm text-muted-foreground text-center mt-2">
-                      Please select an account from the sidebar
-                    </p>
-                  )}
+                  <p className="text-sm text-muted-foreground text-center mt-2">
+                    Scans all connected Tastytrade accounts automatically
+                  </p>
                 </CardContent>
               </Card>
             )}
@@ -1541,6 +1530,7 @@ export default function CCDashboard() {
                           />
                         </TableHead>
                         <TableHead>Symbol</TableHead>
+                        <TableHead>Accounts</TableHead>
                         <TableHead className="text-right">Shares</TableHead>
                         <TableHead className="text-right">Price</TableHead>
                         <TableHead className="text-right">Market Value</TableHead>
@@ -1572,6 +1562,15 @@ export default function CCDashboard() {
                                 Has Calls
                               </Badge>
                             )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {(holding.accounts ?? [selectedAccountId ?? 'N/A']).map((acct: string) => (
+                                <Badge key={acct} variant="outline" className="text-[10px] px-1.5 py-0 font-mono border-amber-500/30 text-amber-300/80">
+                                  {acct}
+                                </Badge>
+                              ))}
+                            </div>
                           </TableCell>
                           <TableCell className="text-right">
                             {holding.quantity.toLocaleString()}

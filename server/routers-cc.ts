@@ -141,7 +141,8 @@ export const ccRouter = router({
         .map((p: any) => {
           const symbol = p.symbol;
           const quantity = parseFloat(p.quantity);
-          const currentPrice = parseFloat(p['close-price']);
+          // Fallback: close-price is null for positions opened today; use mark or last instead
+          const currentPrice = parseFloat(p['close-price'] ?? p['mark'] ?? p['last'] ?? '0') || 0;
           const marketValue = quantity * currentPrice;
 
           // Calculate contracts covered by existing short calls (filled positions)
@@ -185,6 +186,182 @@ export const ccRouter = router({
       };
 
       return { holdings, breakdown };
+    }),
+
+  /**
+   * Fetch eligible CC positions across ALL Tastytrade accounts in parallel.
+   * Merges holdings by symbol — shares and covered contracts are summed across accounts.
+   * Each holding retains an `accounts` array listing which account(s) hold the shares.
+   */
+  getEligiblePositionsAllAccounts: protectedProcedure
+    .query(async ({ ctx }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) throw new Error('Database not available');
+
+      const [user] = await db.select().from(schema.users).where(eq(schema.users.id, ctx.user.id)).limit(1);
+      const tradingMode = user?.tradingMode || 'live';
+
+      // Paper mode — return mock positions (same as single-account)
+      if (tradingMode === 'paper') {
+        const mockPositions = await db.select().from(schema.paperTradingPositions).where(eq(schema.paperTradingPositions.userId, ctx.user.id));
+        const holdings = mockPositions.map(p => {
+          const qty = Number(p.quantity) || 0;
+          const price = Number(p.currentPrice) || 0;
+          return {
+            symbol: p.symbol || '',
+            quantity: qty,
+            currentPrice: price,
+            marketValue: qty * price,
+            existingContracts: 0,
+            workingContracts: 0,
+            sharesCovered: 0,
+            availableShares: qty,
+            maxContracts: Math.floor(qty / 100),
+            hasExistingCalls: false,
+            hasWorkingOrders: false,
+            accounts: ['paper'] as string[],
+          };
+        });
+        return {
+          holdings,
+          accountsScanned: ['paper'] as string[],
+          breakdown: {
+            totalPositions: holdings.length,
+            stockPositions: holdings.length,
+            existingShortCalls: 0,
+            eligiblePositions: holdings.filter(h => h.maxContracts > 0).length,
+            eligibleContracts: holdings.reduce((sum, h) => sum + h.maxContracts, 0),
+            coveredSymbols: [] as string[],
+            shortCallDetails: {} as Record<string, { contracts: number; details: any[] }>,
+          },
+        };
+      }
+
+      // Live mode — fetch all accounts then scan in parallel
+      const { getApiCredentials } = await import('./db');
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new Error('Tastytrade OAuth2 credentials not configured. Please add them in Settings.');
+      }
+      const api = await authenticateTastytrade(credentials);
+      const allAccounts = await api.getAccounts();
+      const accountNumbers: string[] = allAccounts.map((a: any) => a.accountNumber || a['account-number']);
+
+      // Per-account: fetch positions + working orders in parallel
+      const perAccountResults = await Promise.allSettled(
+        accountNumbers.map(async (acctNum: string) => {
+          const [positions, workingOrders] = await Promise.all([
+            api.getPositions(acctNum),
+            api.getWorkingOrders(acctNum).catch(() => [] as any[]),
+          ]);
+          return { acctNum, positions, workingOrders };
+        })
+      );
+
+      // Merged maps across all accounts
+      const shortCallsAll: Record<string, { contracts: number; details: any[] }> = {};
+      const workingShortCallsAll: Record<string, { contracts: number; details: any[] }> = {};
+      const stockMap: Record<string, { quantity: number; currentPrice: number; accounts: string[] }> = {};
+      let totalRawPositions = 0;
+
+      for (const result of perAccountResults) {
+        if (result.status === 'rejected') continue;
+        const { acctNum, positions, workingOrders } = result.value;
+        totalRawPositions += positions.length;
+
+        const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
+        const optionPositions = positions.filter((p: any) =>
+          p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
+        );
+
+        // Accumulate short calls from filled positions
+        for (const opt of optionPositions) {
+          const dir = (opt as any)['quantity-direction'];
+          if (dir === 'Short' && (opt as any).symbol.includes('C')) {
+            const underlying = (opt as any)['underlying-symbol'];
+            if (!shortCallsAll[underlying]) shortCallsAll[underlying] = { contracts: 0, details: [] };
+            const qty = Math.abs(parseFloat((opt as any).quantity));
+            shortCallsAll[underlying].contracts += qty;
+            shortCallsAll[underlying].details.push({
+              symbol: (opt as any).symbol, quantity: qty, account: acctNum,
+              strike: parseFloat((opt as any).symbol.match(/(\d+)C/)?.[1] || '0'),
+              expiration: (opt as any)['expires-at'],
+            });
+          }
+        }
+
+        // Accumulate short calls from working orders
+        for (const order of workingOrders) {
+          for (const leg of ((order as any).legs || [])) {
+            if (leg.action === 'Sell to Open' &&
+                (leg['instrument-type'] === 'Equity Option' || leg['instrument-type'] === 'Index Option') &&
+                leg.symbol.includes('C')) {
+              const underlying = (order as any)['underlying-symbol'];
+              if (!workingShortCallsAll[underlying]) workingShortCallsAll[underlying] = { contracts: 0, details: [] };
+              const qty = Math.abs(parseFloat(leg.quantity));
+              workingShortCallsAll[underlying].contracts += qty;
+              workingShortCallsAll[underlying].details.push({
+                symbol: leg.symbol, quantity: qty, orderId: (order as any).id,
+                status: (order as any).status, account: acctNum,
+              });
+            }
+          }
+        }
+
+        // Merge stock positions by symbol
+        for (const p of stockPositions) {
+          if (parseFloat(String(p.quantity)) <= 0) continue;
+          const sym = p.symbol;
+          const qty = parseFloat(String(p.quantity));
+          const pAny = p as any;
+          const price = parseFloat(p['close-price'] ?? pAny['mark'] ?? pAny['last'] ?? '0') || 0;
+          if (!stockMap[sym]) {
+            stockMap[sym] = { quantity: 0, currentPrice: 0, accounts: [] };
+          }
+          stockMap[sym].quantity += qty;
+          if (price > 0 && stockMap[sym].currentPrice === 0) stockMap[sym].currentPrice = price;
+          if (!stockMap[sym].accounts.includes(acctNum)) stockMap[sym].accounts.push(acctNum);
+        }
+      }
+
+      // Build merged holdings
+      const holdings = Object.entries(stockMap).map(([symbol, data]) => {
+        const { quantity, currentPrice, accounts } = data;
+        const existingContracts = shortCallsAll[symbol]?.contracts || 0;
+        const workingContracts = workingShortCallsAll[symbol]?.contracts || 0;
+        const totalUsedContracts = existingContracts + workingContracts;
+        const sharesCovered = totalUsedContracts * 100;
+        const availableShares = Math.max(0, quantity - sharesCovered);
+        const maxContracts = Math.floor(availableShares / 100);
+        return {
+          symbol,
+          quantity,
+          currentPrice,
+          marketValue: quantity * currentPrice,
+          existingContracts,
+          workingContracts,
+          sharesCovered,
+          availableShares,
+          maxContracts,
+          hasExistingCalls: existingContracts > 0,
+          hasWorkingOrders: workingContracts > 0,
+          accounts,
+        };
+      });
+
+      const breakdown = {
+        totalPositions: totalRawPositions,
+        stockPositions: Object.keys(stockMap).length,
+        existingShortCalls: Object.keys(shortCallsAll).length,
+        eligiblePositions: holdings.filter(h => h.maxContracts > 0).length,
+        eligibleContracts: holdings.reduce((sum, h) => sum + h.maxContracts, 0),
+        coveredSymbols: Object.keys(shortCallsAll),
+        shortCallDetails: shortCallsAll,
+      };
+
+      return { holdings, accountsScanned: accountNumbers, breakdown };
     }),
 
   /**
