@@ -270,7 +270,12 @@ export const ccRouter = router({
       }
       const api = await authenticateTastytrade(credentials);
       const allAccounts = await api.getAccounts();
-      const accountNumbers: string[] = allAccounts.map((a: any) => a.accountNumber || a['account-number']);
+      // Tastytrade API returns accounts as { account: { 'account-number': '...' } }
+      // Must handle nested structure same as automation scan
+      const accountNumbers: string[] = allAccounts
+        .map((a: any) => a.account?.['account-number'] || a['account-number'] || a.accountNumber)
+        .filter(Boolean);
+      console.log(`[CC getEligible] Resolved account numbers:`, accountNumbers);
 
       // Per-account: fetch positions + working orders in parallel
       const perAccountResults = await Promise.allSettled(

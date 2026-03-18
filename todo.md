@@ -8241,3 +8241,8 @@
 - [x] Fixed getEligiblePositionsAllAccounts: replaced with spread-aware per-expiry netting (same logic as automation scan) — naked short calls = max(0, short - long) per expiry
 - [x] Fixed single-account getEligiblePositions with same spread-aware logic
 - [x] TypeScript: 0 errors
+- [x] Diagnosed primary root cause: account number extraction used a.accountNumber || a['account-number'] — both undefined for nested Tastytrade API structure { account: { 'account-number': '...' } } — causing getPositions(undefined) calls returning 0 positions
+- [x] Fixed: now uses a.account?.['account-number'] || a['account-number'] || a.accountNumber (matches automation scan pattern)
+- [x] Verified: server logs confirm 47 stock positions found (5WZ80418: 12, 5WZ77313: 33)
+- [x] Verified spread-aware netting: MSTR/AXP/SPX/NDX/PG all show nakedCCs=0 (fully spread-protected, correctly blocked)
+- [x] Removed verbose diagnostic logging, kept clean production code
