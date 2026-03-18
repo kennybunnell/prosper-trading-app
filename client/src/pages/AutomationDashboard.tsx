@@ -41,6 +41,8 @@ import { Separator } from '@/components/ui/separator';
 import InboxPage from './Inbox';
 import { skipToken } from '@tanstack/react-query';
 import { AIStrategyReviewPanel, ReviewPosition, StrategyType } from '@/components/AIStrategyReviewPanel';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 type ScanResult = {
   account: string;
@@ -183,12 +185,22 @@ type RollCandidate = {
   description: string;
 };
 
+type CCExcludedStock = {
+  account: string;
+  symbol: string;
+  quantity: number;
+  existingContracts: number;
+  workingContracts: number;
+  reason: string;
+};
+
 type RunResult = {
   success: boolean;
   runId: string;
   summary: RunSummary;
   scanResults: ScanResult[]; // populated after fetching the log
   ccScanResults: CCScanResult[]; // populated after fetching the log
+  ccExcludedStocks: CCExcludedStock[]; // populated after fetching the log
 };
 
 export default function AutomationDashboard() {
@@ -924,7 +936,8 @@ export default function AutomationDashboard() {
     if (!latestLog || !lastRunResult) return;
     const parsed: ScanResult[] = latestLog.scanResultsJson ? JSON.parse(latestLog.scanResultsJson as string) : [];
     const ccParsed: CCScanResult[] = (latestLog as any).ccScanResultsJson ? JSON.parse((latestLog as any).ccScanResultsJson as string) : [];
-    if (parsed.length === 0 && ccParsed.length === 0) return;
+    const ccExcludedParsed: CCExcludedStock[] = (latestLog as any).ccExcludedStocksJson ? JSON.parse((latestLog as any).ccExcludedStocksJson as string) : [];
+    if (parsed.length === 0 && ccParsed.length === 0 && ccExcludedParsed.length === 0) return;
 
     setLastRunResult(prev => {
       if (!prev) return prev;
@@ -933,6 +946,7 @@ export default function AutomationDashboard() {
         ...prev,
         scanResults: prev.scanResults.length === 0 ? parsed : prev.scanResults,
         ccScanResults: prev.ccScanResults.length === 0 ? ccParsed : prev.ccScanResults,
+        ccExcludedStocks: prev.ccExcludedStocks.length === 0 ? ccExcludedParsed : prev.ccExcludedStocks,
       };
     });
 
@@ -968,6 +982,7 @@ export default function AutomationDashboard() {
           summary: data.summary as RunSummary,
           scanResults: prev?.scanResults ?? [],
           ccScanResults: [],
+          ccExcludedStocks: [],
         }));
       } else {
         // Full scan or BTC-only: reset everything
@@ -977,6 +992,7 @@ export default function AutomationDashboard() {
           summary: data.summary as RunSummary,
           scanResults: [],
           ccScanResults: [],
+          ccExcludedStocks: [],
         });
       }
       setLastRunId(data.runId);
@@ -1010,7 +1026,7 @@ export default function AutomationDashboard() {
     setIsRunning(true);
     setActiveScanStep('cc');
     // Preserve existing BTC scan results, only clear CC results
-    setLastRunResult(prev => prev ? { ...prev, ccScanResults: [] } : null);
+    setLastRunResult(prev => prev ? { ...prev, ccScanResults: [], ccExcludedStocks: [] } : null);
     runAutomation.mutate({ triggerType: 'manual', scanSteps: ['cc'] });
   };
 
@@ -1030,7 +1046,7 @@ export default function AutomationDashboard() {
     setIsRunning(true);
     setActiveScanStep('cc');
     // Preserve existing BTC scan results, only clear CC results
-    setLastRunResult(prev => prev ? { ...prev, ccScanResults: [] } : null);
+    setLastRunResult(prev => prev ? { ...prev, ccScanResults: [], ccExcludedStocks: [] } : null);
     setTranche2Pending([]); // Clear pending state — new results will replace
     toast.info(`Rescanning ${symbols.length} Tranche 2 symbol${symbols.length !== 1 ? 's' : ''} with DTE ${dteMin}–${dteMax}…`);
     runAutomation.mutate({
@@ -3072,6 +3088,95 @@ export default function AutomationDashboard() {
               <p>Run the automation scan to find covered call opportunities.</p>
             </div>
           )}
+
+          {/* Excluded Symbols — collapsible section shown when there are excluded stocks */}
+          {lastRunResult && lastRunResult.ccExcludedStocks && lastRunResult.ccExcludedStocks.length > 0 && (() => {
+            // Deduplicate by symbol (merge accounts for same symbol)
+            const bySymbol = lastRunResult.ccExcludedStocks.reduce<Record<string, CCExcludedStock & { accounts: string[] }>>((acc, s) => {
+              if (!acc[s.symbol]) {
+                acc[s.symbol] = { ...s, accounts: [s.account] };
+              } else {
+                if (!acc[s.symbol].accounts.includes(s.account)) acc[s.symbol].accounts.push(s.account);
+              }
+              return acc;
+            }, {});
+            const deduped = Object.values(bySymbol);
+            return (
+              <Collapsible className="mt-4">
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs text-muted-foreground hover:text-foreground border border-dashed border-muted-foreground/30 rounded-md hover:bg-muted/20"
+                  >
+                    <span className="flex items-center gap-2">
+                      <XCircle className="h-3.5 w-3.5 text-muted-foreground/60" />
+                      <span>{deduped.length} symbol{deduped.length !== 1 ? 's' : ''} excluded from scan</span>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground">
+                        {deduped.length}
+                      </Badge>
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-2 rounded-md border border-muted-foreground/20 bg-muted/10 overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-muted-foreground/20 bg-muted/20">
+                          <th className="text-left px-3 py-2 font-medium text-muted-foreground">Symbol</th>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">Shares</th>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">Coverage</th>
+                          <th className="text-left px-3 py-2 font-medium text-muted-foreground">Reason Excluded</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deduped.map((s) => {
+                          const totalContracts = Math.floor(s.quantity / 100);
+                          const usedContracts = s.existingContracts + s.workingContracts;
+                          const isPending = s.workingContracts > 0;
+                          const isFullyCovered = s.existingContracts > 0 && s.existingContracts >= totalContracts;
+                          return (
+                            <tr key={s.symbol} className="border-b border-muted-foreground/10 last:border-0 hover:bg-muted/10">
+                              <td className="px-3 py-2 font-semibold text-foreground/80">{s.symbol}</td>
+                              <td className="px-3 py-2 text-right text-muted-foreground">{s.quantity.toLocaleString()}</td>
+                              <td className="px-3 py-2 text-right">
+                                <span className={`font-mono ${
+                                  isFullyCovered ? 'text-orange-400' : isPending ? 'text-yellow-400' : 'text-muted-foreground'
+                                }`}>
+                                  {usedContracts}/{totalContracts}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className={`cursor-help inline-flex items-center gap-1 ${
+                                        isPending ? 'text-yellow-400/80' : isFullyCovered ? 'text-orange-400/80' : 'text-muted-foreground'
+                                      }`}>
+                                        {isPending ? <Clock className="h-3 w-3" /> : isFullyCovered ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                                        {s.reason}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left" className="max-w-xs text-xs">
+                                      <p>{s.reason}</p>
+                                      {s.accounts.length > 1 && (
+                                        <p className="mt-1 text-muted-foreground">Accounts: {s.accounts.join(', ')}</p>
+                                      )}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })()}
         </TabsContent>
 
         {/* ─────────────────────────────────────────────────────────────────

@@ -8275,3 +8275,13 @@
 - [ ] Fix underlying-symbol .trim() in automation CC scan (routers-automation.ts)
 - [ ] Fix underlying-symbol .trim() in getEligiblePositionsAllAccounts (routers-cc.ts)
 - [ ] Add working orders subtraction to automation CC scan maxContracts calculation
+
+## Three CC Dashboard/Automation Enhancements (Mar 18, 2026)
+- [x] Coverage Ratio column: CC Dashboard stock table shows "X/Y" format (e.g., "2/4") with orange for fully covered, yellow for partially covered
+- [x] Pending STO badge: CC Dashboard shows "⏳ Pending STO" badge when hasWorkingOrders is true for a symbol
+- [x] Excluded Symbols section: Automation scan CC tab shows collapsible "X symbols excluded from scan" section with Symbol, Shares, Coverage, and Reason columns
+- [x] ccExcludedStocks built during automation scan: stocks with maxContracts=0 are categorized with reasons (Fully covered, Pending working order, No price data, Flagged for exit)
+- [x] ccExcludedStocksJson persisted to automationLogs DB table (new column added via ALTER TABLE)
+- [x] ccExcludedStocks parsed from log JSON and stored in RunResult state alongside ccScanResults
+- [x] Deduplication by symbol: multiple accounts for same symbol are merged, accounts listed in tooltip
+- [x] TypeScript: 0 errors, working orders tests: 8/8 passing

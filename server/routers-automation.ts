@@ -378,6 +378,15 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           currentPrice: number;
           action: 'WOULD_SELL_CC';
         }> = [];
+        // Excluded CC stocks — symbols with shares but filtered out (maxContracts=0, flagged, etc.)
+        const ccExcludedStocks: Array<{
+          account: string;
+          symbol: string;
+          quantity: number;
+          existingContracts: number;
+          workingContracts: number;
+          reason: string;
+        }> = [];
         // Detailed scan results for dry-run visibility
         const scanResults: Array<{
           account: string;
@@ -425,6 +434,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           const acctScanResults: typeof scanResults = [];
           const acctPendingOrders: typeof pendingOrders = [];
           const acctCCScanResults: typeof ccScanResults = [];
+          const acctCCExcludedStocks: typeof ccExcludedStocks = [];
           let acctTotalPremium = 0;
           try {
             // Step 1: Close profitable positions
@@ -912,7 +922,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 const ccSymbolFilterSet = input.ccSymbolFilter && input.ccSymbolFilter.length > 0
                   ? new Set(input.ccSymbolFilter.map((s: string) => s.toUpperCase()))
                   : null;
-                const eligibleStocks = stockPositions
+                const allCandidateStocks = stockPositions
                   .map((p: any) => ({
                     symbol: (p.symbol as string).trim(),
                     quantity: parseFloat(p.quantity),
@@ -920,7 +930,20 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                     existingContracts: shortCalls[(p.symbol as string).trim()] || 0,
                     workingContracts: workingShortCallsCC[(p.symbol as string).trim()] || 0,
                   }))
-                  .map((s: any) => ({ ...s, maxContracts: Math.floor((s.quantity - (s.existingContracts + s.workingContracts) * 100) / 100) }))
+                  .map((s: any) => ({ ...s, maxContracts: Math.floor((s.quantity - (s.existingContracts + s.workingContracts) * 100) / 100) }));
+                // Track excluded stocks with reasons for UI visibility
+                for (const s of allCandidateStocks) {
+                  if (s.currentPrice <= 0) {
+                    acctCCExcludedStocks.push({ account: account.accountNumber, symbol: s.symbol, quantity: s.quantity, existingContracts: s.existingContracts, workingContracts: s.workingContracts, reason: 'No price data available' });
+                  } else if (flaggedSymbolsSet.has(s.symbol.toUpperCase())) {
+                    acctCCExcludedStocks.push({ account: account.accountNumber, symbol: s.symbol, quantity: s.quantity, existingContracts: s.existingContracts, workingContracts: s.workingContracts, reason: 'Flagged for exit — no new CCs' });
+                  } else if (s.workingContracts > 0 && s.maxContracts <= 0) {
+                    acctCCExcludedStocks.push({ account: account.accountNumber, symbol: s.symbol, quantity: s.quantity, existingContracts: s.existingContracts, workingContracts: s.workingContracts, reason: `Pending working order (${s.workingContracts} contract${s.workingContracts !== 1 ? 's' : ''})` });
+                  } else if (s.maxContracts <= 0) {
+                    acctCCExcludedStocks.push({ account: account.accountNumber, symbol: s.symbol, quantity: s.quantity, existingContracts: s.existingContracts, workingContracts: s.workingContracts, reason: `Fully covered (${s.existingContracts} contract${s.existingContracts !== 1 ? 's' : ''} vs ${Math.floor(s.quantity / 100)} available)` });
+                  }
+                }
+                const eligibleStocks = allCandidateStocks
                   .filter((s: any) => s.maxContracts > 0 && s.currentPrice > 0)
                   // ⛔ Skip symbols flagged for liquidation — no new CCs on exit positions
                   .filter((s: any) => !flaggedSymbolsSet.has(s.symbol.toUpperCase()))
@@ -1039,7 +1062,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             console.error(`[Automation] Error processing account ${account.accountNumber}:`, accountError);
             // Continue to next account — return empty results for this account
           }
-          return { acctScanResults, acctPendingOrders, acctCCScanResults, acctTotalPremium };
+          return { acctScanResults, acctPendingOrders, acctCCScanResults, acctCCExcludedStocks, acctTotalPremium };
         }));
 
         // Merge per-account results into the shared arrays
@@ -1047,6 +1070,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           scanResults.push(...r.acctScanResults);
           pendingOrders.push(...r.acctPendingOrders);
           ccScanResults.push(...r.acctCCScanResults);
+          ccExcludedStocks.push(...r.acctCCExcludedStocks);
           totalPremiumCollected += r.acctTotalPremium;
         }
 
@@ -1303,6 +1327,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               accountsProcessed: accountsWithBalances.length,
               scanResultsJson: JSON.stringify(scanResults),
               ccScanResultsJson: JSON.stringify(ccScanResults),
+              ccExcludedStocksJson: JSON.stringify(ccExcludedStocks),
               completedAt: new Date(),
             });
             console.log(`[Automation] Scan results saved to DB log (runId: ${runId})`);
@@ -1359,6 +1384,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             wouldClose: scanResults.filter(r => r.action === 'WOULD_CLOSE').length,
             belowThreshold: scanResults.filter(r => r.action === 'BELOW_THRESHOLD').length,
             wouldSellCC: ccScanResults.length,
+            excludedFromCC: ccExcludedStocks.length,
           },
         };
       } catch (error) {

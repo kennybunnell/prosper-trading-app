@@ -1641,6 +1641,7 @@ export default function CCDashboard() {
                         <TableHead className="text-right">Shares</TableHead>
                         <TableHead className="text-right">Price</TableHead>
                         <TableHead className="text-right">Market Value</TableHead>
+                        <TableHead className="text-right">Coverage</TableHead>
                         <TableHead className="text-right">Available Contracts</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1665,8 +1666,13 @@ export default function CCDashboard() {
                               </Badge>
                             )}
                             {!isFlaggedForExit && holding.hasExistingCalls && (
-                              <Badge variant="outline" className="ml-2 text-xs">
+                              <Badge variant="outline" className="ml-2 text-[10px] px-1.5 py-0 border-blue-500/40 bg-blue-950/30 text-blue-300">
                                 Has Calls
+                              </Badge>
+                            )}
+                            {!isFlaggedForExit && holding.hasWorkingOrders && (
+                              <Badge variant="outline" className="ml-2 text-[10px] px-1.5 py-0 border-yellow-500/60 bg-yellow-950/40 text-yellow-400">
+                                ⏳ Pending STO
                               </Badge>
                             )}
                           </TableCell>
@@ -1690,6 +1696,28 @@ export default function CCDashboard() {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {(() => {
+                              const totalContracts = Math.floor(holding.quantity / 100);
+                              const usedContracts = holding.existingContracts + holding.workingContracts;
+                              if (totalContracts === 0) return <span className="text-xs text-muted-foreground">—</span>;
+                              const isFullyCovered = usedContracts >= totalContracts;
+                              const label = isFullyCovered
+                                ? `${usedContracts}/${totalContracts} Fully Covered`
+                                : usedContracts > 0
+                                  ? `${usedContracts}/${totalContracts}`
+                                  : `0/${totalContracts}`;
+                              return (
+                                <span className={`text-xs font-mono ${
+                                  isFullyCovered
+                                    ? 'text-orange-400 font-semibold'
+                                    : usedContracts > 0
+                                      ? 'text-yellow-400'
+                                      : 'text-muted-foreground'
+                                }`}>{label}</span>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="text-right">
                             <Badge

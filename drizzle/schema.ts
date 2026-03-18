@@ -727,6 +727,7 @@ export const automationLogs = mysqlTable("automationLogs", {
   errorMessage: text("errorMessage"),
   scanResultsJson: text("scanResultsJson"), // JSON array of BTC scan results for dry-run display
   ccScanResultsJson: text("ccScanResultsJson"), // JSON array of CC scan results (covered calls to open)
+  ccExcludedStocksJson: text("ccExcludedStocksJson"), // JSON array of excluded stocks with reasons (maxContracts=0)
   startedAt: timestamp("startedAt").defaultNow().notNull(),
   completedAt: timestamp("completedAt"),
 }, (table) => ({
