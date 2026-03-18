@@ -1274,11 +1274,11 @@ export function WorkingOrdersTab() {
 
   const { data: orderStatusData } = trpc.workingOrders.checkOrderStatus.useQuery(
     {
-      accountId: selectedAccountId || '',
+      accountId: 'ALL_ACCOUNTS',
       orderIds,
     },
     {
-      enabled: !!selectedAccountId && orderIds.length > 0,
+      enabled: orderIds.length > 0,
       refetchInterval: 10000, // Poll every 10 seconds
       refetchOnWindowFocus: false,
     }
@@ -1355,14 +1355,14 @@ export function WorkingOrdersTab() {
     }
   }, [orderStatusData]);
 
-  // Fetch working orders
+  // Fetch working orders across ALL accounts (sidebar account selector is ignored here)
   const { data, isLoading, refetch, error } = trpc.workingOrders.getWorkingOrders.useQuery(
     {
-      accountId: selectedAccountId || '',
+      accountId: 'ALL_ACCOUNTS',
       aggressiveFillMode,
     },
     {
-      enabled: !!selectedAccountId,
+      enabled: true,
       refetchOnWindowFocus: false,
       retry: false,
     }
@@ -1657,16 +1657,7 @@ export function WorkingOrdersTab() {
     setShowReplaceDialog(false);
   };
 
-  // Loading state
-  if (!selectedAccountId) {
-    return (
-      <Card className="p-8 text-center">
-        <p className="text-muted-foreground">
-          Please select a Tastytrade account from the sidebar to view working orders
-        </p>
-      </Card>
-    );
-  }
+  // Note: Working Orders always shows ALL accounts — no account guard needed
 
   if (isLoading) {
     return (

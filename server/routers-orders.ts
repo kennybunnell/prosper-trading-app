@@ -74,18 +74,37 @@ export const ordersRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      try {
-        const status = await checkOrderStatus(input.accountId, input.orderId, 1);
-        return { ...status, orderId: input.orderId };
-      } catch (error: any) {
-        // Surface a clean error instead of letting the server crash
-        const msg: string = error.message || 'Unknown error';
-        if (msg.includes('Rate exceeded') || msg.includes('not valid JSON') || msg.includes('Unexpected token')) {
-          return { status: 'Working' as const, orderId: input.orderId, message: 'Rate limited — will retry' };
-        }
-        console.error(`[pollStatus] Error for order ${input.orderId}:`, msg);
-        return { status: 'Unknown' as const, orderId: input.orderId, message: msg };
+      const { getTastytradeAPI } = await import('./tastytrade.js');
+      const api = getTastytradeAPI();
+      // Resolve account list — support ALL_ACCOUNTS
+      let accountsToTry: string[] = [];
+      if (input.accountId === 'ALL_ACCOUNTS') {
+        const accounts = await api.getAccounts();
+        accountsToTry = accounts.map((acc: any) => acc.account?.['account-number'] || acc['account-number']);
+      } else {
+        accountsToTry = [input.accountId];
       }
+
+      for (const accNum of accountsToTry) {
+        try {
+          const status = await checkOrderStatus(accNum, input.orderId, 1);
+          return { ...status, orderId: input.orderId };
+        } catch (error: any) {
+          const msg: string = error.message || 'Unknown error';
+          // "Couldn't find Order" means the order is not in this account — try next
+          if (msg.includes("Couldn't find Order") || msg.includes('not found') || msg.includes('404')) {
+            continue;
+          }
+          if (msg.includes('Rate exceeded') || msg.includes('not valid JSON') || msg.includes('Unexpected token')) {
+            return { status: 'Working' as const, orderId: input.orderId, message: 'Rate limited — will retry' };
+          }
+          console.error(`[pollStatus] Error for order ${input.orderId} in account ${accNum}:`, msg);
+          // Don't propagate — return Working so client keeps polling
+          return { status: 'Working' as const, orderId: input.orderId, message: 'Checking order status...' };
+        }
+      }
+      // Order not found in any account yet — it may still be propagating
+      return { status: 'Working' as const, orderId: input.orderId, message: 'Order submitted — awaiting confirmation' };
     }),
 
   /**

@@ -1107,10 +1107,11 @@ export default function CCDashboard() {
   // Handle order status polling after live submission
   const handlePollStatuses = async (orderIds: string[], accountId: string): Promise<OrderSubmissionStatus[]> => {
     try {
-      // Poll each order status
+      // Poll each order status — always use ALL_ACCOUNTS so orders submitted
+      // to any account are found regardless of the sidebar account selection
       const statusPromises = orderIds.map(orderId => 
         utils.client.orders.pollStatus.mutate({ 
-          accountId,
+          accountId: 'ALL_ACCOUNTS',
           orderId: orderId.toString() // Ensure orderId is string
         })
       );

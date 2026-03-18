@@ -718,21 +718,55 @@ export const workingOrdersRouter = router({
     .query(async ({ input }) => {
       const { accountId, orderIds } = input;
       const { checkOrderStatusBatch } = await import('./tastytrade-order-status');
+      const api = getTastytradeAPI();
 
       try {
-        // Use enhanced order status checking with individual order lookups
-        const statusMap = await checkOrderStatusBatch(accountId, orderIds);
-        
-        // Convert to expected format (status string + optional filledAt)
+        // Resolve account list
+        let accountsToCheck: string[] = [];
+        if (accountId === 'ALL_ACCOUNTS') {
+          const accounts = await api.getAccounts();
+          accountsToCheck = accounts.map((acc: any) => acc.account?.['account-number'] || acc['account-number']);
+        } else {
+          accountsToCheck = [accountId];
+        }
+
+        // For each orderId, try each account until we find the order
         const result: Record<string, { status: string; filledAt?: string; cancelledAt?: string; rejectedReason?: string }> = {};
-        
-        for (const [orderId, orderStatus] of Object.entries(statusMap)) {
-          result[orderId] = {
-            status: orderStatus.status,
-            filledAt: orderStatus.filledAt,
-            cancelledAt: orderStatus.cancelledAt,
-            rejectedReason: orderStatus.rejectedReason,
-          };
+
+        for (const orderId of orderIds) {
+          let found = false;
+          for (const accNum of accountsToCheck) {
+            try {
+              const statusMap = await checkOrderStatusBatch(accNum, [orderId]);
+              const orderStatus = statusMap[orderId];
+              if (orderStatus && orderStatus.status !== 'Working') {
+                // Found a definitive status
+                result[orderId] = {
+                  status: orderStatus.status,
+                  filledAt: orderStatus.filledAt,
+                  cancelledAt: orderStatus.cancelledAt,
+                  rejectedReason: orderStatus.rejectedReason,
+                };
+                found = true;
+                break;
+              } else if (orderStatus) {
+                // Working status — record it but keep trying other accounts
+                result[orderId] = {
+                  status: orderStatus.status,
+                  filledAt: orderStatus.filledAt,
+                  cancelledAt: orderStatus.cancelledAt,
+                  rejectedReason: orderStatus.rejectedReason,
+                };
+                found = true;
+                // Don't break — a definitive status from another account would override
+              }
+            } catch {
+              // Order not found in this account, try next
+            }
+          }
+          if (!found) {
+            result[orderId] = { status: 'Working' };
+          }
         }
 
         return result;

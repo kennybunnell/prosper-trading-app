@@ -8252,3 +8252,16 @@
 - [x] Fix: server now computes per-account accountBreakdown (available contracts per account per symbol)
 - [x] Fix: frontend picks the account with available contracts from accountBreakdown instead of blindly using accounts[0]
 - [x] TypeScript: 0 errors
+
+## Portfolio Command Center - Show All Accounts (Mar 18, 2026)
+- [ ] Working Orders tab: show orders from ALL accounts, ignore sidebar account selector
+- [ ] Open Positions tab: show positions from ALL accounts, ignore sidebar account selector
+- [ ] All other portfolio tabs (Heat Map, Risk Monitor, etc.): confirm they also use all accounts
+- [ ] Suppress false "Failed to check order status" error after successful order submission (order was submitted but status poll ran too fast)
+
+## Portfolio Command Center - Working Orders All Accounts (Mar 18, 2026)
+- [x] Working Orders tab now always passes ALL_ACCOUNTS to getWorkingOrders (server already supported this)
+- [x] checkOrderStatus procedure updated to handle ALL_ACCOUNTS: tries each account until order found
+- [x] pollStatus procedure updated to handle ALL_ACCOUNTS and suppress "Couldn't find Order" errors
+- [x] handlePollStatuses in CCDashboard now passes ALL_ACCOUNTS so order status polling works regardless of sidebar account
+- [x] TypeScript: 0 errors
