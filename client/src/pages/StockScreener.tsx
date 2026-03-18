@@ -9,6 +9,7 @@ import {
   Loader2, AlertCircle, BookMarked, ArrowUpDown, ArrowDownAZ, ArrowUpAZ
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { IndexChart } from '@/components/IndexChart';
 
 // Symbol resolution is handled server-side via trpc.watchlist.resolveSymbol
 // to avoid CORS restrictions on TradingView's symbol search API.
@@ -89,7 +90,7 @@ function TradingViewAdvancedChart({ symbol }: { symbol: string }) {
 
   // For index symbols render Symbol Overview immediately — no server resolution needed
   if (isIndex && tvIndexSymbol) {
-    return <IndexSymbolOverviewScreener tvSymbol={tvIndexSymbol} />;
+    return <IndexChart symbol={upper} />;
   }
 
   // Use the server-side resolver (avoids CORS). Skip if already exchange-qualified.

@@ -1,6 +1,7 @@
 import { useEffect, useRef, memo } from 'react';
 import { X, BarChart2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { IndexChart } from '@/components/IndexChart';
 
 interface BollingerChartPanelProps {
   symbol: string;
@@ -242,7 +243,7 @@ export function BollingerChartPanel({ symbol, strikePrice, currentPrice, onClose
       {/* Chart — fills remaining height */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {isIndex
-          ? <IndexSymbolOverview tvSymbol={tvSymbol} />
+          ? <IndexChart symbol={symbol} />
           : <EquityAdvancedChart tvSymbol={tvSymbol} />
         }
       </div>
