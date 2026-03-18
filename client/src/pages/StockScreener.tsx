@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { trpc } from '@/lib/trpc';
 import { TradingViewStockScreener } from '@/components/TradingViewStockScreener';
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,84 @@ import { useToast } from '@/hooks/use-toast';
 // Symbol resolution is handled server-side via trpc.watchlist.resolveSymbol
 // to avoid CORS restrictions on TradingView's symbol search API.
 
+// Index roots that the TradingView advanced-chart widget cannot display
+// (CBOE/NASDAQ index data not in free widget licence). Use Symbol Overview instead.
+const INDEX_ROOTS_SCREENER = new Set([
+  'SPXW', 'SPX', 'NDXP', 'NDX', 'MRUT', 'RUT', 'VIX', 'DJX', 'XSP', 'XND',
+]);
+
+const INDEX_TV_MAP_SCREENER: Record<string, string> = {
+  SPXW: 'SP:SPX',
+  SPX:  'SP:SPX',
+  NDXP: 'NASDAQ:NDX',
+  NDX:  'NASDAQ:NDX',
+  MRUT: 'TVC:RUT',
+  RUT:  'TVC:RUT',
+  VIX:  'TVC:VIX',
+  DJX:  'TVC:DJI',
+  XSP:  'CBOE:XSP',
+  XND:  'NASDAQ:XND',
+};
+
+// Symbol Overview widget — works for index symbols on the free TradingView tier
+const IndexSymbolOverviewScreener = memo(function IndexSymbolOverviewScreener({ tvSymbol }: { tvSymbol: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!containerRef.current) return;
+    containerRef.current.innerHTML = '';
+    const script = document.createElement('script');
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js';
+    script.type = 'text/javascript';
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      symbols: [[`${tvSymbol}|1D`]],
+      chartOnly: false,
+      autosize: true,
+      locale: 'en',
+      colorTheme: 'dark',
+      showVolume: true,
+      showMA: true,
+      hideDateRanges: false,
+      hideMarketStatus: false,
+      hideSymbolLogo: false,
+      scalePosition: 'right',
+      scaleMode: 'Normal',
+      fontFamily: '-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif',
+      fontSize: '10',
+      noTimeScale: false,
+      valuesTracking: '1',
+      changeMode: 'price-and-percent',
+      chartType: 'candlesticks',
+      lineWidth: 2,
+      lineType: 0,
+      dateRanges: ['1d|1', '5d|5', '1m|1D', '3m|1D', '12m|1W', '60m|1W', 'all|1M'],
+    });
+    containerRef.current.appendChild(script);
+  }, [tvSymbol]);
+  return (
+    <div ref={containerRef} className="tradingview-widget-container w-full h-full" style={{ height: '100%', width: '100%' }}>
+      <div className="tradingview-widget-container__widget" style={{ height: 'calc(100% - 32px)', width: '100%' }} />
+      <div className="tradingview-widget-copyright text-xs text-slate-600 px-2 py-1">
+        <a href={`https://www.tradingview.com/symbols/${tvSymbol}/`} rel="noopener nofollow" target="_blank"
+          className="text-slate-500 hover:text-slate-300 transition-colors">{tvSymbol}</a>
+        <span className="text-slate-700"> by TradingView</span>
+      </div>
+    </div>
+  );
+});
+
 // ─── TradingView Advanced Chart Panel (slide-out) ────────────────────────────
 
 function TradingViewAdvancedChart({ symbol }: { symbol: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const upper = symbol.toUpperCase();
+  const isIndex = INDEX_ROOTS_SCREENER.has(upper);
+  const tvIndexSymbol = isIndex ? INDEX_TV_MAP_SCREENER[upper] : null;
+
+  // For index symbols render Symbol Overview immediately — no server resolution needed
+  if (isIndex && tvIndexSymbol) {
+    return <IndexSymbolOverviewScreener tvSymbol={tvIndexSymbol} />;
+  }
 
   // Use the server-side resolver (avoids CORS). Skip if already exchange-qualified.
   const alreadyQualified = symbol.includes(':');
@@ -142,14 +216,22 @@ function ChartSlideOut({
                 {symbol ?? '—'}
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Advanced Chart · BB · RSI · Volume
+                {symbol && INDEX_ROOTS_SCREENER.has(symbol.toUpperCase())
+                  ? 'Index · Overview Chart'
+                  : 'Advanced Chart · BB · RSI · Volume'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs text-emerald-400 border-emerald-400/30 bg-emerald-400/5">
-              TradingView
-            </Badge>
+            {symbol && INDEX_ROOTS_SCREENER.has(symbol.toUpperCase()) ? (
+              <Badge variant="outline" className="text-xs text-amber-400 border-amber-400/30 bg-amber-400/5">
+                Index
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs text-emerald-400 border-emerald-400/30 bg-emerald-400/5">
+                TradingView
+              </Badge>
+            )}
             <Button
               variant="ghost"
               size="icon"
