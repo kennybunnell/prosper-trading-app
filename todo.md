@@ -8291,3 +8291,4 @@
 - [ ] Fix Total Collateral display: for spreads, collateral = spread width × contracts × 100 (the max risk), not just the net credit
 - [ ] Verify ROC formula for single-leg CSP/CC: Premium / (Strike × Contracts × 100) or Premium / Collateral depending on strategy
 ROC Fix Mar 18 2026
+- [x] Fix CC Dashboard 'Sell Covered Call' panel — show success state with Close button after live order submission (currently stays open with no confirmation indicator)

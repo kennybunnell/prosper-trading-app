@@ -240,6 +240,8 @@ function SellCCDialog({
   const [selectedStrike, setSelectedStrike] = useState<ChainStrike | null>(null);
   // Two-step confirm: 'pick' → user selects strike, 'confirm' → shows OCC + final price before submit
   const [step, setStep] = useState<'pick' | 'confirm'>('pick');
+  // Success state: shown after a live order is submitted successfully
+  const [submittedOrder, setSubmittedOrder] = useState<{ symbol: string; strike: number; quantity: number; credit: number; orderId?: string } | null>(null);
 
   const pos = state.position;
 
@@ -269,10 +271,18 @@ function SellCCDialog({
   const sellMutation = trpc.positionAnalyzer.sellCoveredCall.useMutation({
     onSuccess: (data) => {
       setLastResult(data.message);
-      setStep('pick'); // reset to pick step after result
       if (!dryRun) {
-        toast.success(`Order submitted: ${data.symbol} $${data.strike}C — ${data.quantity} contract(s)`);
+        // Live order success — switch to success screen
+        setSubmittedOrder({
+          symbol: data.symbol,
+          strike: data.strike,
+          quantity: data.quantity,
+          credit: (activeStrike?.mid ?? 0) * data.quantity * 100,
+          orderId: data.orderId,
+        });
+        toast.success(`✅ Order submitted: ${data.symbol} $${data.strike}C — ${data.quantity} contract(s)`);
       } else {
+        setStep('pick'); // reset to pick step after dry run
         toast.info('Dry run complete — no real order placed');
       }
     },
@@ -324,6 +334,7 @@ function SellCCDialog({
     setLastResult(null);
     setSelectedStrike(null);
     setStep('pick');
+    setSubmittedOrder(null);
   };
 
   return (
@@ -331,19 +342,51 @@ function SellCCDialog({
       <DialogContent className="max-w-lg bg-card" style={{ border: '2px solid #374151', boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 25px 50px rgba(0,0,0,0.8)' }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <TrendingUp className={`h-5 w-5 ${isForcedExit ? 'text-red-400' : 'text-emerald-400'}`} />
-            {isForcedExit ? '⛔ Force Exit' : 'Sell'} Covered Call — {pos.symbol}
+            <TrendingUp className={`h-5 w-5 ${submittedOrder ? 'text-emerald-400' : isForcedExit ? 'text-red-400' : 'text-emerald-400'}`} />
+            {submittedOrder ? `✅ Order Submitted — ${submittedOrder.symbol}` : `${isForcedExit ? '⛔ Force Exit' : 'Sell'} Covered Call — ${pos.symbol}`}
           </DialogTitle>
           <DialogDescription>
-            {step === 'pick'
+            {submittedOrder
+              ? 'Your order has been sent to Tastytrade successfully.'
+              : step === 'pick'
               ? 'Select a strike from the live option chain below, then confirm.'
               : 'Review the final order details and OCC contract before submitting.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
+          {/* ── Success State (after live submission) ── */}
+          {submittedOrder && (
+            <div className="rounded-lg bg-emerald-950/40 border border-emerald-700/50 p-5 space-y-3 text-sm">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="h-10 w-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5 text-emerald-400" />
+                </div>
+                <div>
+                  <div className="font-semibold text-emerald-300 text-base">Order filled successfully</div>
+                  <div className="text-xs text-muted-foreground">Sell to Open — {submittedOrder.symbol} ${submittedOrder.strike}C</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-muted/20 rounded px-3 py-2">
+                  <div className="text-muted-foreground">Contracts</div>
+                  <div className="font-bold text-white text-sm">{submittedOrder.quantity}</div>
+                </div>
+                <div className="bg-muted/20 rounded px-3 py-2">
+                  <div className="text-muted-foreground">Estimated Credit</div>
+                  <div className="font-bold text-emerald-400 text-sm">${submittedOrder.credit.toFixed(2)}</div>
+                </div>
+              </div>
+              {submittedOrder.orderId && submittedOrder.orderId !== 'DRY_RUN' && (
+                <div className="text-xs text-muted-foreground bg-muted/10 rounded px-3 py-1.5">
+                  Tastytrade Order ID: <span className="font-mono text-white">{submittedOrder.orderId}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Step 1: Strike Picker ── */}
-          {step === 'pick' && (
+          {!submittedOrder && step === 'pick' && (
             <>
               {/* Position context */}
               <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/10 rounded-lg px-3 py-2 border border-border">
@@ -497,7 +540,7 @@ function SellCCDialog({
           )}
 
           {/* ── Step 2: Confirm + OCC Display ── */}
-          {step === 'confirm' && activeStrike && (
+          {!submittedOrder && step === 'confirm' && activeStrike && (
             <>
               <div className="rounded-lg bg-muted/20 border border-border p-3 space-y-2 text-sm">
                 <div className="grid grid-cols-2 gap-2">
@@ -572,7 +615,7 @@ function SellCCDialog({
             </>
           )}
 
-          {contracts === 0 && !isForcedExit && (
+          {!submittedOrder && contracts === 0 && !isForcedExit && (
             <Alert className="border-amber-800/40 bg-amber-950/20">
               <AlertTriangle className="h-4 w-4 text-amber-400" />
               <AlertDescription className="text-amber-300 text-xs">
@@ -583,7 +626,11 @@ function SellCCDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          {step === 'pick' ? (
+          {submittedOrder ? (
+            <Button onClick={handleClose} className="bg-emerald-600 hover:bg-emerald-700 w-full">
+              ✓ Close
+            </Button>
+          ) : step === 'pick' ? (
             <>
               <Button variant="outline" onClick={handleClose}>Cancel</Button>
               <Button
