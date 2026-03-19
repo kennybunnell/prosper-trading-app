@@ -659,33 +659,12 @@ export default function AutomationDashboard() {
     quantities: Map<string, number>,
     isDryRun: boolean
   ): Promise<{ results: any[] }> => {
-    // Use the orders array directly — it carries optionSymbol, accountNumber, spreadLongSymbol
-    // from the scan result (embedded in handleOpenOrderPreview). This avoids the selectedPositions
-    // re-filter that was returning an empty array.
-    const selected = orders
-      .filter(o => o.optionSymbol && o.accountNumber)
-      .map(o => {
-        const qty = quantities.get(`${o.symbol}-${o.strike}-${o.expiration}`) ?? o.quantity ?? 1;
-        return {
-          accountNumber: o.accountNumber!,
-          optionSymbol: o.optionSymbol!,
-          symbol: o.symbol,
-          quantity: qty,
-          buyBackCost: (o.premium ?? 0) * qty * 100,
-          isEstimated: o.isEstimated ?? false,
-          spreadLongSymbol: o.spreadLongSymbol,
-          spreadLongPrice: o.spreadLongPrice !== undefined ? String(o.spreadLongPrice) : undefined,
-        };
-      });
-
-    if (selected.length === 0) {
-      console.warn('[handleUnifiedSubmit] No orders with optionSymbol/accountNumber — cannot submit');
-      return { results: [] };
-    }
+    console.log('[handleUnifiedSubmit] strategy:', previewStrategy, 'isDryRun:', isDryRun, 'orders:', orders.length);
 
     try {
+      // ── CC STO path ── must be checked FIRST before the optionSymbol guard below,
+      // because CC STO orders are new orders (no optionSymbol yet — they haven't been placed).
       if (previewStrategy === 'cc') {
-        // CC STO: route to submitSellCCOrders so orders are sent as Sell to Open
         const ccOrders = orders
           .filter(o => o.accountNumber)
           .map(o => ({
@@ -696,6 +675,11 @@ export default function AutomationDashboard() {
             quantity: quantities.get(`${o.symbol}-${o.strike}-${o.expiration}`) ?? o.quantity ?? 1,
             price: o.premium ?? 0,
           }));
+        if (ccOrders.length === 0) {
+          console.warn('[handleUnifiedSubmit] CC path: no orders with accountNumber — cannot submit');
+          return { results: [] };
+        }
+        console.log('[handleUnifiedSubmit] CC STO submitting', ccOrders.length, 'orders, dryRun:', isDryRun);
         const response = await submitSellCCOrders.mutateAsync({ orders: ccOrders, dryRun: isDryRun });
         if (!isDryRun) {
           const ccKeys = new Set(ccOrders.map(s => `${s.symbol}-${s.strike}-${s.expiration}|${s.accountNumber}`));
@@ -703,6 +687,31 @@ export default function AutomationDashboard() {
         }
         return { results: response.results ?? [] };
       }
+
+      // ── BTC / close path ── requires optionSymbol (existing position identity)
+      // Use the orders array directly — it carries optionSymbol, accountNumber, spreadLongSymbol
+      // from the scan result (embedded in handleOpenOrderPreview).
+      const selected = orders
+        .filter(o => o.optionSymbol && o.accountNumber)
+        .map(o => {
+          const qty = quantities.get(`${o.symbol}-${o.strike}-${o.expiration}`) ?? o.quantity ?? 1;
+          return {
+            accountNumber: o.accountNumber!,
+            optionSymbol: o.optionSymbol!,
+            symbol: o.symbol,
+            quantity: qty,
+            buyBackCost: (o.premium ?? 0) * qty * 100,
+            isEstimated: o.isEstimated ?? false,
+            spreadLongSymbol: o.spreadLongSymbol,
+            spreadLongPrice: o.spreadLongPrice !== undefined ? String(o.spreadLongPrice) : undefined,
+          };
+        });
+
+      if (selected.length === 0) {
+        console.warn('[handleUnifiedSubmit] BTC path: no orders with optionSymbol/accountNumber — cannot submit');
+        return { results: [] };
+      }
+
       // BTC close orders
       const response = await submitCloseOrders.mutateAsync({ orders: selected, dryRun: isDryRun });
       if (!isDryRun) {
