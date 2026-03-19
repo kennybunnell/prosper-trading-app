@@ -520,10 +520,14 @@ function SellCCDialog({
               })()}
 
               {/* Dry Run toggle */}
-              <div className="flex items-center justify-between rounded-lg bg-muted/10 border border-border px-3 py-2">
+              <div className={`flex items-center justify-between rounded-lg border px-3 py-2 ${dryRun ? 'bg-muted/10 border-border' : 'bg-red-950/30 border-red-800/60'}`}>
                 <div>
-                  <Label htmlFor="sell-dry-run" className="text-sm font-medium">Dry Run Mode</Label>
-                  <p className="text-xs text-muted-foreground">Preview only — no real order placed</p>
+                  <Label htmlFor="sell-dry-run" className={`text-sm font-medium ${dryRun ? '' : 'text-red-400'}`}>
+                    {dryRun ? 'Dry Run Mode' : '⚡ Live Order Mode'}
+                  </Label>
+                  <p className={`text-xs ${dryRun ? 'text-muted-foreground' : 'text-red-400/80'}`}>
+                    {dryRun ? 'Preview only — no real order placed' : 'Real order will be submitted to Tastytrade'}
+                  </p>
                 </div>
                 <Switch id="sell-dry-run" checked={dryRun} onCheckedChange={setDryRun} />
               </div>
@@ -636,9 +640,9 @@ function SellCCDialog({
               <Button
                 onClick={handleConfirmStep}
                 disabled={!activeStrike || contracts === 0 || chainQuery.isLoading}
-                className="bg-blue-600 hover:bg-blue-700"
+                className={dryRun ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}
               >
-                Review Order →
+                {dryRun ? 'Review Order →' : '⚡ Submit Live Order →'}
               </Button>
             </>
           ) : (
