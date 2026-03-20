@@ -1346,11 +1346,12 @@ export const ccRouter = router({
             const rawLimitPrice = Math.max(order.netCredit - buffer, 0.01);
             const limitPrice = snapToTick(rawLimitPrice, order.symbol); // Snap to $0.05 (or $0.01 for penny-pilot)
 
-            // CRITICAL: Cash-settled index options (SPX, SPXW, NDX, NDXP, RUT, MRUT, etc.)
-            // require 'Index Option' as the instrument type. Sending 'Equity Option' causes
-            // Order_disallowed_by_exchange_rules rejection from CBOE/Nasdaq.
-            const legInstrumentType: 'Index Option' | 'Equity Option' =
-              isTrueIndexOption(order.symbol) ? 'Index Option' : 'Equity Option';
+            // IMPORTANT: For multi-leg SPREAD orders, Tastytrade requires 'Equity Option'
+            // for ALL symbols including cash-settled indexes (SPX, SPXW, NDX, NDXP, etc.).
+            // Using 'Index Option' in spread legs causes a validation_error: "does not have a valid value".
+            // 'Index Option' is only valid for SINGLE-LEG orders (closes, rolls, BTCs).
+            // Reference: confirmed via live rejection on 2026-03-20 for SPX BCS order.
+            const legInstrumentType: 'Equity Option' = 'Equity Option';
 
             // Submit two-leg spread order
             const result = await api.submitOrder({

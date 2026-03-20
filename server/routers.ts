@@ -2349,10 +2349,16 @@ Summary: [One sentence overall assessment]`;
               }
               
               // Build legs based on order type
-              // Tastytrade requires 'Index Option' for cash-settled index options (SPX, SPXW, NDX, NDXP, RUT, MRUT, DJX, VIX, XSP, OEX).
-              // Using 'Equity Option' for these symbols causes Order_disallowed_by_exchange_rules rejection from CBOE.
+              // IMPORTANT: For multi-leg SPREAD orders (BPS, BCS, IC), Tastytrade requires 'Equity Option'
+              // for ALL symbols including cash-settled indexes (SPX, SPXW, NDX, NDXP, RUT, MRUT, etc.).
+              // Using 'Index Option' in spread legs causes validation_error: "does not have a valid value".
+              // 'Index Option' is only valid for SINGLE-LEG orders (closes, rolls, BTCs).
+              // For single-leg CSP, we still use isTrueIndexOption to determine the correct type.
               const { isTrueIndexOption } = await import('../shared/orderUtils');
-              const legInstrumentType: 'Equity Option' | 'Index Option' = isTrueIndexOption(order.symbol) ? 'Index Option' : 'Equity Option';
+              const isMultiLeg = (order.isSpread && order.shortLeg && order.longLeg) || (order.isIronCondor && order.putShortLeg);
+              const legInstrumentType: 'Equity Option' | 'Index Option' = isMultiLeg
+                ? 'Equity Option'
+                : (isTrueIndexOption(order.symbol) ? 'Index Option' : 'Equity Option');
               const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
               ? [
                     // Iron Condor: Leg 1 - Sell Put (short put)

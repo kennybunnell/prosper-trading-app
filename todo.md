@@ -8312,3 +8312,8 @@ ROC Fix Mar 18 2026
 - [x] Remove Evaluation tab content section from AutomationDashboard
 - [x] Update activeTopTab type to remove 'evaluation'
 - [x] Final tab order: Automation → Working Orders → Open Positions → Inbox
+
+## Fix SPX BCS Order Submission (Mar 20, 2026)
+- [x] Revert BCS spread legs to 'Equity Option' (Tastytrade rejects 'Index Option' for multi-leg spread orders)
+- [x] Keep 'Index Option' only for single-leg orders (closes, rolls, BTCs)
+- [x] Verify CSP/BPS/IC spread paths are not affected (also fixed in routers.ts for BPS/IC)
