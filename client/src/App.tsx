@@ -16,7 +16,9 @@ import GtcOrders from "./pages/GtcOrders";
 import Performance from "./pages/Performance";
 import StrategyAdvisorPage from "./pages/StrategyAdvisorPage";
 import PortfolioAdvisor from "./pages/PortfolioAdvisor";
-import AutomationDashboard from "./pages/AutomationDashboard";
+import AutomationDashboard from './pages/AutomationDashboard';
+import WorkingOrdersPage from './pages/WorkingOrdersPage';
+import OpenPositionsPage from './pages/OpenPositionsPage';
 import PortfolioCommandCenter from "./pages/PortfolioCommandCenter";
 import StockScreener from "./pages/StockScreener";
 
@@ -160,6 +162,8 @@ function Router() {
           <Route path="/portfolio-advisor"><Redirect to="/portfolio" /></Route>
           <Route path="/strategy-advisor" component={StrategyAdvisorPage} />
           <Route path="/automation" component={AutomationDashboard} />
+          <Route path="/working-orders" component={WorkingOrdersPage} />
+          <Route path="/open-positions" component={OpenPositionsPage} />
           <Route path={"/csp"} component={CSPDashboard} />
           <Route path={"/cc"} component={CCDashboard} />
           <Route path={"/iron-condor"} component={IronCondorDashboard} />

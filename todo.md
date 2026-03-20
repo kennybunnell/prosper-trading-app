@@ -8292,3 +8292,11 @@
 - [ ] Verify ROC formula for single-leg CSP/CC: Premium / (Strike × Contracts × 100) or Premium / Collateral depending on strategy
 ROC Fix Mar 18 2026
 - [x] Fix CC Dashboard 'Sell Covered Call' panel — show success state with Close button after live order submission (currently stays open with no confirmation indicator)
+
+## Sidebar Navigation Restructure (Mar 19, 2026)
+- [x] Move Working Orders from Portfolio Command Center tabs to Daily Actions sub-menu
+- [x] Move Open Positions from Portfolio Command Center tabs to Daily Actions sub-menu
+- [x] Daily Actions sub-menu order: Automation → Working Orders → Open Positions → Evaluation → Inbox
+- [x] Remove Working Orders and Open Positions tabs from Portfolio Command Center
+- [x] Add dedicated routes /working-orders and /open-positions that render those tabs
+- [x] Update Sidebar.tsx to show Daily Actions as a collapsible group with 5 sub-items

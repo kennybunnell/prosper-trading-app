@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { ActivePositionsTab, WorkingOrdersTab } from './Performance';
+// ActivePositionsTab and WorkingOrdersTab moved to Daily Actions → /working-orders and /open-positions
 import { IraSafetyTab } from '@/components/IraSafetyTab';
 import { PositionAnalyzerTab } from '@/components/PositionAnalyzerTab';
 import PortfolioAdvisor from '@/pages/PortfolioAdvisor';
@@ -14,7 +14,6 @@ import {
   Grid3X3,
   Activity,
   ShieldCheck,
-  ListOrdered,
   TrendingUp,
   TrendingDown,
   AlertTriangle,
@@ -1642,8 +1641,6 @@ export default function PortfolioCommandCenter() {
       const params = new URLSearchParams(window.location.search);
       const t = params.get('tab');
       if (t === 'position-analyzer' || t === 'analyzer') return 'analyzer';
-      if (t === 'positions') return 'positions';
-      if (t === 'orders') return 'orders';
       if (t === 'safety') return 'safety';
       if (t === 'advisor') return 'advisor';
       if (t === 'heatmap') return 'heatmap';
@@ -1660,8 +1657,6 @@ export default function PortfolioCommandCenter() {
     const t = params.get('tab');
     if (!t) return;
     if (t === 'position-analyzer' || t === 'analyzer') setActiveTab('analyzer');
-    else if (t === 'positions') setActiveTab('positions');
-    else if (t === 'orders') setActiveTab('orders');
     else if (t === 'safety') setActiveTab('safety');
     else if (t === 'advisor') setActiveTab('advisor');
     else if (t === 'heatmap') setActiveTab('heatmap');
@@ -1756,7 +1751,7 @@ export default function PortfolioCommandCenter() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="screener" className="flex items-center gap-1.5 text-xs">
             <ScanLine className="w-3.5 h-3.5" />
             Screener
@@ -1764,14 +1759,6 @@ export default function PortfolioCommandCenter() {
           <TabsTrigger value="heatmap" className="flex items-center gap-1.5 text-xs">
             <Grid3X3 className="w-3.5 h-3.5" />
             Heat Map
-          </TabsTrigger>
-          <TabsTrigger value="positions" className="flex items-center gap-1.5 text-xs">
-            <ListOrdered className="w-3.5 h-3.5" />
-            Open Positions
-          </TabsTrigger>
-          <TabsTrigger value="orders" className="flex items-center gap-1.5 text-xs">
-            <Activity className="w-3.5 h-3.5" />
-            Working Orders
           </TabsTrigger>
           <TabsTrigger value="safety" className="flex items-center gap-1.5 text-xs">
             <ShieldCheck className="w-3.5 h-3.5" />
@@ -1998,14 +1985,6 @@ export default function PortfolioCommandCenter() {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
-
-        <TabsContent value="positions">
-          <ActivePositionsTab />
-        </TabsContent>
-
-        <TabsContent value="orders">
-          <WorkingOrdersTab />
         </TabsContent>
 
         <TabsContent value="safety">
