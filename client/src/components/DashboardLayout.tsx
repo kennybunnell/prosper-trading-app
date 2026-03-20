@@ -16,32 +16,45 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, BarChart2, Zap, ShieldCheck, TrendingDown, TrendingUp, Activity, ListChecks, Settings, Repeat2, Target } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, BarChart2, Zap, ShieldCheck, TrendingDown, TrendingUp, Activity, ListChecks, Settings, Repeat2, Target, ChevronDown, ChevronRight, Layers, BrainCircuit } from "lucide-react";
 import { useTradingMode } from "@/contexts/TradingModeContext";
 import { Switch } from "@/components/ui/switch";
-import { CSSProperties, useEffect, useRef, useState } from "react";
+import { CSSProperties, useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { AuthStatusIndicator } from './AuthStatusIndicator';
 import { Button } from "./ui/button";
 import { PaperTradingOnboardingModal } from './PaperTradingOnboardingModal';
 
-const menuItems = [
+const topMenuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: BarChart2, label: "Portfolio", path: "/portfolio" },
   { icon: Zap, label: "Daily Actions", path: "/automation" },
-  { icon: ShieldCheck, label: "CSP Scanner", path: "/csp" },
-  { icon: TrendingDown, label: "Bear Call Spreads", path: "/cc" },
-  { icon: Target, label: "Iron Condors", path: "/iron-condor" },
-  { icon: Repeat2, label: "PMCC", path: "/pmcc" },
-  { icon: ListChecks, label: "GTC Orders", path: "/gtc-orders" },
+  { icon: BarChart2, label: "Portfolio", path: "/portfolio" },
+  { icon: BrainCircuit, label: "Spread Advisor", path: "/strategy-advisor" },
+];
+
+const tradingStrategyItems = [
+  { icon: TrendingUp, label: "Covered Calls", path: "/cc" },
+  { icon: ShieldCheck, label: "Cash-Secured Puts", path: "/csp" },
+  { icon: Layers, label: "Spreads / Condors", path: "/iron-condor" },
+  { icon: Repeat2, label: "PMCC Dashboard", path: "/pmcc" },
+];
+
+const bottomMenuItems = [
   { icon: Activity, label: "Performance", path: "/performance" },
+  { icon: ListChecks, label: "GTC Orders", path: "/gtc-orders" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
@@ -124,8 +137,10 @@ function DashboardLayoutContent({
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
+  const [tradingStrategiesOpen, setTradingStrategiesOpen] = useState(true);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
+  const allMenuItems = [...topMenuItems, ...tradingStrategyItems, ...bottomMenuItems];
+  const activeMenuItem = allMenuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
   const { showOnboarding, setShowOnboarding } = useTradingMode();
   
@@ -247,26 +262,88 @@ function DashboardLayoutContent({
           </SidebarHeader>
 
           <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
-              {menuItems.map(item => {
-                const isActive = location === item.path;
-                return (
-                  <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton
-                      isActive={isActive}
-                      onClick={() => setLocation(item.path)}
-                      tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
-                    >
-                      <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                      />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+            {/* Top nav items */}
+            <SidebarGroup className="py-1">
+              <SidebarGroupContent>
+                <SidebarMenu className="px-2">
+                  {topMenuItems.map(item => {
+                    const isActive = location === item.path;
+                    return (
+                      <SidebarMenuItem key={item.path}>
+                        <SidebarMenuButton
+                          isActive={isActive}
+                          onClick={() => setLocation(item.path)}
+                          tooltip={item.label}
+                          className="h-10 transition-all font-normal"
+                        >
+                          <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            {/* Trading Strategies collapsible group */}
+            <SidebarGroup className="py-0">
+              <SidebarGroupLabel
+                className="flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors select-none group-data-[collapsible=icon]:hidden"
+                onClick={() => setTradingStrategiesOpen(o => !o)}
+              >
+                <span>Trading Strategies</span>
+                {tradingStrategiesOpen
+                  ? <ChevronDown className="h-3 w-3" />
+                  : <ChevronRight className="h-3 w-3" />}
+              </SidebarGroupLabel>
+              {tradingStrategiesOpen && (
+                <SidebarGroupContent>
+                  <SidebarMenu className="px-2">
+                    {tradingStrategyItems.map(item => {
+                      const isActive = location === item.path;
+                      return (
+                        <SidebarMenuItem key={item.path}>
+                          <SidebarMenuButton
+                            isActive={isActive}
+                            onClick={() => setLocation(item.path)}
+                            tooltip={item.label}
+                            className="h-9 transition-all font-normal pl-4"
+                          >
+                            <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
+                            <span>{item.label}</span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              )}
+            </SidebarGroup>
+
+            {/* Bottom nav items */}
+            <SidebarGroup className="py-1">
+              <SidebarGroupContent>
+                <SidebarMenu className="px-2">
+                  {bottomMenuItems.map(item => {
+                    const isActive = location === item.path;
+                    return (
+                      <SidebarMenuItem key={item.path}>
+                        <SidebarMenuButton
+                          isActive={isActive}
+                          onClick={() => setLocation(item.path)}
+                          tooltip={item.label}
+                          className="h-10 transition-all font-normal"
+                        >
+                          <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
           </SidebarContent>
 
           {/* Trading Mode Toggle */}
