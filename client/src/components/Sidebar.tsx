@@ -96,6 +96,12 @@ export function Sidebar({ className }: SidebarProps) {
       description: 'Overview & analytics',
     },
     {
+      name: 'Daily Actions',
+      path: '/automation',
+      icon: Zap,
+      description: 'Automation · Evaluation',
+    },
+    {
       name: 'Portfolio',
       path: '/portfolio',
       icon: Grid3X3,
@@ -104,10 +110,10 @@ export function Sidebar({ className }: SidebarProps) {
       description: 'Command Center',
     },
     {
-      name: 'Daily Actions',
-      path: '/automation',
-      icon: Zap,
-      description: 'Automation · Evaluation',
+      name: 'Spread Advisor',
+      path: '/strategy-advisor',
+      icon: Sparkles,
+      description: 'Strategy analysis',
     },
   ];
 
@@ -119,9 +125,8 @@ export function Sidebar({ className }: SidebarProps) {
     { name: 'PMCC Dashboard', path: '/pmcc', icon: Activity },
   ];
 
-  // Secondary nav items
+  // Secondary nav items (below Trading Strategies)
   const secondaryNavItems = [
-    { name: 'Spread Advisor', path: '/strategy-advisor', icon: Sparkles },
     { name: 'Performance', path: '/performance', icon: BarChart3 },
   ];
 
