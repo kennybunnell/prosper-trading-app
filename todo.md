@@ -8306,3 +8306,9 @@ ROC Fix Mar 18 2026
 - [x] Add Working Orders and Open Positions as tabs on the Daily Actions page tab bar
 - [x] Tab order on Daily Actions page: Automation → Working Orders → Open Positions → Evaluation → Inbox
 - [x] Remove standalone /working-orders and /open-positions routes (or redirect to /automation)
+
+## Remove Evaluation Tab from Daily Actions (Mar 19, 2026)
+- [x] Remove Evaluation tab button from Daily Actions page tab bar
+- [x] Remove Evaluation tab content section from AutomationDashboard
+- [x] Update activeTopTab type to remove 'evaluation'
+- [x] Final tab order: Automation → Working Orders → Open Positions → Inbox

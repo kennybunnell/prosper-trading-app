@@ -217,11 +217,10 @@ export default function AutomationDashboard() {
   const [hideExpiringToday, setHideExpiringToday] = useState(true); // Hide DTE=0 by default
   const search = useSearch();
   const urlTab = new URLSearchParams(search).get('tab');
-  const [activeTopTab, setActiveTopTab] = useState<'automation' | 'working-orders' | 'open-positions' | 'evaluation' | 'inbox'>(
+  const [activeTopTab, setActiveTopTab] = useState<'automation' | 'working-orders' | 'open-positions' | 'inbox'>(
     urlTab === 'working-orders' ? 'working-orders' :
     urlTab === 'open-positions' ? 'open-positions' :
-    urlTab === 'inbox' ? 'inbox' :
-    urlTab === 'evaluation' ? 'evaluation' : 'automation'
+    urlTab === 'inbox' ? 'inbox' : 'automation'
   );
   const [activeTab, setActiveTab] = useState('step1-close');
   const [killSwitchActive, setKillSwitchActive] = useState(false);
@@ -1268,16 +1267,6 @@ export default function AutomationDashboard() {
           <span className="flex items-center gap-1.5"><ListOrdered className="w-3.5 h-3.5" />Open Positions</span>
         </button>
         <button
-          onClick={() => setActiveTopTab('evaluation')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTopTab === 'evaluation'
-              ? 'border-purple-400 text-purple-300'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <span className="flex items-center gap-1.5"><BarChart3 className="w-3.5 h-3.5" />Evaluation</span>
-        </button>
-        <button
           onClick={() => setActiveTopTab('inbox')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTopTab === 'inbox'
@@ -1298,13 +1287,6 @@ export default function AutomationDashboard() {
 
       {/* Open Positions Section */}
       {activeTopTab === 'open-positions' && (
-        <div className="mt-2">
-          <ActivePositionsTab />
-        </div>
-      )}
-
-      {/* Evaluation Section */}
-      {activeTopTab === 'evaluation' && (
         <div className="mt-2">
           <ActivePositionsTab />
         </div>
