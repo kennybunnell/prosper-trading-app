@@ -1333,15 +1333,22 @@ export const ccRouter = router({
             
             const shortStrikeStr = (order.shortStrike * 1000).toFixed(0).padStart(8, '0');
             const longStrikeStr = (order.longStrike * 1000).toFixed(0).padStart(8, '0');
-            
-            const shortCallSymbol = `${order.symbol.padEnd(6)}${expStr}C${shortStrikeStr}`;
-            const longCallSymbol = `${order.symbol.padEnd(6)}${expStr}C${longStrikeStr}`;
 
             // Calculate limit price (subtract 5% from net credit or -$0.05, whichever is greater, to encourage fills)
             // IMPORTANT: Use snapToTick with integer arithmetic to avoid IEEE 754 floating-point drift.
             // Raw arithmetic like (netCredit - buffer).toFixed(2) can produce values that fail
             // Tastytrade's server-side `price % 0.05` check (e.g. 9.253 → "9.25" but stored as 9.249999...).
-            const { snapToTick, isTrueIndexOption } = await import('../shared/orderUtils');
+            const { snapToTick, isTrueIndexOption, getOccRoot } = await import('../shared/orderUtils');
+            // Resolve the correct OCC root ticker for this expiration.
+            // SPX weekly expirations (non-3rd-Friday) must use 'SPXW' as the OCC root.
+            // Submitting 'SPX' for a weekly causes: instrument_validation_failed
+            const occRoot = getOccRoot(order.symbol, order.expiration);
+
+            // Use occRoot (not order.symbol) for the OCC symbol — critical for SPX weekly options
+            // which must use 'SPXW' not 'SPX' as the OCC root ticker.
+            const shortCallSymbol = `${occRoot.padEnd(6)}${expStr}C${shortStrikeStr}`;
+            const longCallSymbol = `${occRoot.padEnd(6)}${expStr}C${longStrikeStr}`;
+            console.log(`[BearCallSpread] OCC symbols: ${shortCallSymbol} / ${longCallSymbol} (root: ${occRoot}, watchlist: ${order.symbol})`);
             const buffer = Math.max(order.netCredit * 0.05, 0.05);
             const rawLimitPrice = Math.max(order.netCredit - buffer, 0.01);
             const limitPrice = snapToTick(rawLimitPrice, order.symbol); // Snap to $0.05 (or $0.01 for penny-pilot)

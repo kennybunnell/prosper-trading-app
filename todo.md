@@ -8317,3 +8317,18 @@ ROC Fix Mar 18 2026
 - [x] Revert BCS spread legs to 'Equity Option' (Tastytrade rejects 'Index Option' for multi-leg spread orders)
 - [x] Keep 'Index Option' only for single-leg orders (closes, rolls, BTCs)
 - [x] Verify CSP/BPS/IC spread paths are not affected (also fixed in routers.ts for BPS/IC)
+
+## Order Submission Error Improvements (Mar 20, 2026)
+- [ ] Check logs for latest SPX order failure root cause
+- [ ] Surface Tastytrade error message/code in Order Submission Results modal
+- [ ] Show per-order failure reason (not just "Status unknown")
+- [ ] Distinguish between failed/rejected vs working/submitted in results UI
+
+## Order Submission Error Improvements & Index OCC Root Fix (Mar 20, 2026)
+- [x] Show actual Tastytrade error message in Order Submission Results modal for rejected orders
+- [x] Fix CCDashboard result mapping to show Rejected status instead of Working/Status unknown
+- [x] Fix dry run path in routers.ts to use Equity Option for multi-leg spreads
+- [x] Update getOccRoot to handle RUT→RUTW mapping and fix SPX Wednesday weekly bug
+- [x] Add complete OCC root mapping for all 9 indexes: DJX, MRUT, NDXP, NDX, RUT, SPXW, SPX, XND, XSP
+- [x] Fix BCS spread legs to use Equity Option (Tastytrade rejects Index Option for multi-leg spreads)
+- [x] Fix CSP/BPS/IC spread legs in routers.ts to use Equity Option for multi-leg spreads

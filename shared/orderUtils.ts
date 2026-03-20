@@ -214,6 +214,73 @@ export function calculateSuggestedPrice(
 }
 
 /**
+ * Helper: returns true if the given UTC date is the 3rd Friday of its month.
+ * The 3rd Friday always falls between the 15th and 21st.
+ */
+function isThirdFriday(expDate: Date): boolean {
+  return expDate.getUTCDay() === 5 && expDate.getUTCDate() >= 15 && expDate.getUTCDate() <= 21;
+}
+
+/**
+ * Determine the correct OCC root ticker for an option symbol when submitting to Tastytrade.
+ *
+ * Several major indexes use DIFFERENT root tickers depending on expiration type:
+ *
+ *   SPX  → monthly (3rd Friday AM-settled) = 'SPX'
+ *          weekly/daily/EOM (all other expirations, PM-settled) = 'SPXW'
+ *
+ *   NDX  → monthly (3rd Friday AM-settled) = 'NDX'
+ *          weekly/daily/quarterly (PM-settled) = 'NDXP'
+ *
+ *   RUT  → monthly (3rd Friday AM-settled) = 'RUT'
+ *          weekly (PM-settled) = 'RUTW'
+ *
+ *   MRUT → single root 'MRUT' for all expirations (no weekly variant)
+ *   DJX  → single root 'DJX' for all expirations (weeklys are AM-settled)
+ *   XSP  → single root 'XSP' for all expirations
+ *   XND  → single root 'XND' for all expirations
+ *   SPXW → already the weekly root, use as-is
+ *   NDXP → already the weekly root, use as-is
+ *
+ * @param symbol     - Watchlist symbol (e.g., 'SPX', 'NDX', 'RUT', 'AAPL')
+ * @param expiration - Expiration date in YYYY-MM-DD format
+ * @returns The correct OCC root ticker to use in the option symbol string
+ */
+export function getOccRoot(symbol: string, expiration: string): string {
+  const sym = symbol.toUpperCase();
+  const expDate = new Date(expiration + 'T12:00:00Z');
+  const dow = expDate.getUTCDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+
+  switch (sym) {
+    case 'SPX':
+      // Monthly AM-settled: 3rd Friday only → 'SPX'
+      // All other expirations (Mon/Wed/Thu/non-3rd-Fri) → 'SPXW'
+      return isThirdFriday(expDate) ? 'SPX' : 'SPXW';
+
+    case 'NDX':
+      // Monthly AM-settled: 3rd Friday only → 'NDX'
+      // All other expirations (weekly/daily/quarterly PM-settled) → 'NDXP'
+      return isThirdFriday(expDate) ? 'NDX' : 'NDXP';
+
+    case 'RUT':
+      // Monthly AM-settled: 3rd Friday only → 'RUT'
+      // Weekly PM-settled (all other Fridays) → 'RUTW'
+      return isThirdFriday(expDate) ? 'RUT' : 'RUTW';
+
+    // These are already the correct OCC roots — use as-is
+    case 'SPXW':
+    case 'NDXP':
+    case 'RUTW':
+    case 'MRUT':  // Single root, no weekly variant
+    case 'DJX':   // Single root, AM-settled weeklys use same DJX root
+    case 'XSP':   // Mini-SPX, single root for all expirations
+    case 'XND':   // Micro-NDX, single root for all expirations
+    default:
+      return sym;
+  }
+}
+
+/**
  * Build Tastytrade option symbol in OCC format
  * Format: TICKER(6)YYMMDD(6)P/C(1)STRIKE(8)
  *

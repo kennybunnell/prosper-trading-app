@@ -1108,15 +1108,25 @@ export default function CCDashboard() {
         // Map results to OrderSubmissionStatus format
         const statuses: OrderSubmissionStatus[] = results.map((result: any, index: number) => {
           const order = orders[index];
+          // If the submission failed (success === false), show Rejected immediately
+          // with the actual Tastytrade error message — do NOT poll for status.
+          if (result.success === false) {
+            return {
+              orderId: 'FAILED',
+              symbol: result.symbol || order?.symbol || 'Unknown',
+              status: 'Rejected' as const,
+              message: result.message || 'Order rejected by Tastytrade',
+            };
+          }
           return {
             orderId: result.orderId || result.id || '',
-            symbol: order.symbol,
-            status: result.status === 'Received' ? 'Working' : 
-                   result.status === 'Filled' ? 'Filled' :
-                   result.status === 'Rejected' ? 'Rejected' :
-                   result.message?.includes('market') || result.message?.includes('closed') ? 'MarketClosed' :
-                   'Pending',
-            message: result.message || `${order.strike} strike ${order.expiration} - ${result.status || 'Submitted'}`,
+            symbol: result.symbol || order?.symbol || 'Unknown',
+            status: result.status === 'Received' ? 'Working' as const : 
+                   result.status === 'Filled' ? 'Filled' as const :
+                   result.status === 'Rejected' ? 'Rejected' as const :
+                   result.message?.includes('market') || result.message?.includes('closed') ? 'MarketClosed' as const :
+                   'Pending' as const,
+            message: result.message || `${order?.strike} strike ${order?.expiration} - ${result.status || 'Submitted'}`,
           };
         });
         

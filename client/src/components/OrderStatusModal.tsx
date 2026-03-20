@@ -207,12 +207,19 @@ export function OrderStatusModal({
               >
                 <div className={`mt-0.5 ${display.color}`}>{display.icon}</div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold">{status.symbol}</span>
-                    <span className={`text-sm ${display.color}`}>{status.status}</span>
+                    <span className={`text-sm font-medium px-2 py-0.5 rounded-full ${display.bg} ${display.color}`}>{status.status}</span>
                   </div>
-                  <div className="text-sm text-muted-foreground mt-1">{status.message}</div>
-                  {status.orderId && (
+                  {status.status === 'Rejected' && status.message ? (
+                    <div className="mt-2 p-2 bg-red-950/40 border border-red-500/30 rounded text-sm text-red-300 font-mono break-all">
+                      <span className="text-red-400 font-semibold text-xs uppercase tracking-wide block mb-1">Rejection Reason</span>
+                      {status.message}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground mt-1">{status.message}</div>
+                  )}
+                  {status.orderId && status.orderId !== 'FAILED' && (
                     <div className="text-xs text-muted-foreground mt-1">
                       Order ID: {status.orderId}
                     </div>

@@ -2178,7 +2178,13 @@ Summary: [One sentence overall assessment]`;
             });
             
             // Build legs to see what would be submitted
-            const dryRunInstrumentType = isIndexOpt(order.symbol) ? 'Index Option' : 'Equity Option';
+            // IMPORTANT: Multi-leg spreads MUST use 'Equity Option' even for index symbols.
+            // Tastytrade rejects 'Index Option' for spread legs with validation_error.
+            // Only single-leg orders use 'Index Option' for true index symbols.
+            const isMultiLeg = (order.isIronCondor && order.putShortLeg) || (order.isSpread && order.shortLeg);
+            const dryRunInstrumentType: 'Index Option' | 'Equity Option' = isMultiLeg
+              ? 'Equity Option'
+              : (isIndexOpt(order.symbol) ? 'Index Option' : 'Equity Option');
             const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
               ? [
                   { symbol: order.putShortLeg.optionSymbol, action: order.putShortLeg.action, instrumentType: dryRunInstrumentType },
