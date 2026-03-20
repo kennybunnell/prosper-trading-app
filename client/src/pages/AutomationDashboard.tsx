@@ -18,7 +18,7 @@ import {
   Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle,
   TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2, Square, CheckSquare, Send, ShoppingCart,
   Power, Settings2, RefreshCw, BarChart3, GitMerge, Zap, Lock, Unlock, Download, Timer, ExternalLink, Activity, Mail,
-  Sparkles
+  Sparkles, ListOrdered
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterPill } from '@/components/FilterPill';
@@ -217,11 +217,12 @@ export default function AutomationDashboard() {
   const [hideExpiringToday, setHideExpiringToday] = useState(true); // Hide DTE=0 by default
   const search = useSearch();
   const urlTab = new URLSearchParams(search).get('tab');
-  const [activeTopTab, setActiveTopTab] = useState<'automation' | 'evaluation' | 'inbox'>(
-    urlTab === 'working-orders' || urlTab === 'open-positions' ? 'evaluation' :
-    urlTab === 'inbox' ? 'inbox' : 'automation'
+  const [activeTopTab, setActiveTopTab] = useState<'automation' | 'working-orders' | 'open-positions' | 'evaluation' | 'inbox'>(
+    urlTab === 'working-orders' ? 'working-orders' :
+    urlTab === 'open-positions' ? 'open-positions' :
+    urlTab === 'inbox' ? 'inbox' :
+    urlTab === 'evaluation' ? 'evaluation' : 'automation'
   );
-  const [activeEvalTab, setActiveEvalTab] = useState<'working-orders' | 'open-positions'>(urlTab === 'open-positions' ? 'open-positions' : 'working-orders');
   const [activeTab, setActiveTab] = useState('step1-close');
   const [killSwitchActive, setKillSwitchActive] = useState(false);
   const [isSweeping, setIsSweeping] = useState(false);
@@ -1234,7 +1235,7 @@ export default function AutomationDashboard() {
         </div>
       )}
 
-      {/* Top-level section switcher: Automation | Evaluation | Inbox */}
+      {/* Top-level section switcher: Automation | Working Orders | Open Positions | Evaluation | Inbox */}
       <div className="flex gap-2 border-b border-border/50 pb-0">
         <button
           onClick={() => setActiveTopTab('automation')}
@@ -1247,20 +1248,40 @@ export default function AutomationDashboard() {
           <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" />Automation</span>
         </button>
         <button
-          onClick={() => setActiveTopTab('evaluation')}
+          onClick={() => setActiveTopTab('working-orders')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTopTab === 'evaluation'
+            activeTopTab === 'working-orders'
               ? 'border-blue-400 text-blue-300'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           }`}
         >
-          <span className="flex items-center gap-1.5"><Activity className="w-3.5 h-3.5" />Evaluation</span>
+          <span className="flex items-center gap-1.5"><Activity className="w-3.5 h-3.5" />Working Orders</span>
+        </button>
+        <button
+          onClick={() => setActiveTopTab('open-positions')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTopTab === 'open-positions'
+              ? 'border-green-400 text-green-300'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <span className="flex items-center gap-1.5"><ListOrdered className="w-3.5 h-3.5" />Open Positions</span>
+        </button>
+        <button
+          onClick={() => setActiveTopTab('evaluation')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTopTab === 'evaluation'
+              ? 'border-purple-400 text-purple-300'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <span className="flex items-center gap-1.5"><BarChart3 className="w-3.5 h-3.5" />Evaluation</span>
         </button>
         <button
           onClick={() => setActiveTopTab('inbox')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTopTab === 'inbox'
-              ? 'border-purple-400 text-purple-300'
+              ? 'border-orange-400 text-orange-300'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           }`}
         >
@@ -1268,33 +1289,24 @@ export default function AutomationDashboard() {
         </button>
       </div>
 
-      {/* Evaluation Section: Working Orders + Open Positions */}
+      {/* Working Orders Section */}
+      {activeTopTab === 'working-orders' && (
+        <div className="mt-2">
+          <WorkingOrdersTab />
+        </div>
+      )}
+
+      {/* Open Positions Section */}
+      {activeTopTab === 'open-positions' && (
+        <div className="mt-2">
+          <ActivePositionsTab />
+        </div>
+      )}
+
+      {/* Evaluation Section */}
       {activeTopTab === 'evaluation' && (
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setActiveEvalTab('working-orders')}
-              className={`px-4 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                activeEvalTab === 'working-orders'
-                  ? 'bg-blue-600/20 border-blue-500/40 text-blue-300'
-                  : 'border-border/50 text-muted-foreground hover:text-foreground hover:bg-accent/30'
-              }`}
-            >
-              Working Orders
-            </button>
-            <button
-              onClick={() => setActiveEvalTab('open-positions')}
-              className={`px-4 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                activeEvalTab === 'open-positions'
-                  ? 'bg-blue-600/20 border-blue-500/40 text-blue-300'
-                  : 'border-border/50 text-muted-foreground hover:text-foreground hover:bg-accent/30'
-              }`}
-            >
-              Open Positions
-            </button>
-          </div>
-          {activeEvalTab === 'working-orders' && <WorkingOrdersTab />}
-          {activeEvalTab === 'open-positions' && <ActivePositionsTab />}
+        <div className="mt-2">
+          <ActivePositionsTab />
         </div>
       )}
 

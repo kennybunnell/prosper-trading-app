@@ -8300,3 +8300,9 @@ ROC Fix Mar 18 2026
 - [x] Remove Working Orders and Open Positions tabs from Portfolio Command Center
 - [x] Add dedicated routes /working-orders and /open-positions that render those tabs
 - [x] Update Sidebar.tsx to show Daily Actions as a collapsible group with 5 sub-items
+
+## Daily Actions Tab Restructure Correction (Mar 19, 2026)
+- [x] Revert Daily Actions sidebar to single flat link (no sub-items in sidebar)
+- [x] Add Working Orders and Open Positions as tabs on the Daily Actions page tab bar
+- [x] Tab order on Daily Actions page: Automation → Working Orders → Open Positions → Evaluation → Inbox
+- [x] Remove standalone /working-orders and /open-positions routes (or redirect to /automation)

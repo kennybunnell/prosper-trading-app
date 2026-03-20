@@ -99,13 +99,19 @@ export function Sidebar({ className }: SidebarProps) {
 
   const selectedAccount = accounts?.find((acc: any) => acc.accountId === selectedAccountId);
 
-  // Primary nav items — flat single links (Dashboard, Portfolio, Spread Advisor)
+  // Primary nav items — flat single links
   const primaryNavItems = [
     {
       name: 'Dashboard',
       path: '/',
       icon: LayoutDashboard,
       description: 'Overview & analytics',
+    },
+    {
+      name: 'Daily Actions',
+      path: '/automation',
+      icon: Zap,
+      description: 'Automation · Orders · Positions',
     },
     {
       name: 'Portfolio',
@@ -122,22 +128,6 @@ export function Sidebar({ className }: SidebarProps) {
       description: 'Strategy analysis',
     },
   ];
-
-  // Daily Actions sub-items
-  const dailyActionItems = [
-    { name: 'Automation', path: '/automation', icon: Zap },
-    { name: 'Working Orders', path: '/working-orders', icon: Activity },
-    { name: 'Open Positions', path: '/open-positions', icon: ListOrdered },
-    { name: 'Evaluation', path: '/automation?tab=evaluation', icon: BarChart2 },
-    { name: 'Inbox', path: '/automation?tab=inbox', icon: Mail },
-  ];
-
-  const isDailyActionsActive = dailyActionItems.some(i => {
-    if (i.path.includes('?')) {
-      return location === i.path.split('?')[0] && window.location.search.includes(i.path.split('?')[1]);
-    }
-    return location.startsWith(i.path);
-  });
 
   // Trading Strategies — the ONLY group with sidebar sub-menus
   const incomeStrategyItems = [
@@ -163,7 +153,7 @@ export function Sidebar({ className }: SidebarProps) {
       : queryPart
         ? location === basePath && window.location.search.includes(queryPart)
         : item.path === '/automation'
-          ? location === '/automation' && !window.location.search
+          ? location.startsWith('/automation') || location === '/working-orders' || location === '/open-positions'
           : location === item.path || location.startsWith(item.path + '/');
     return (
       <Link
@@ -311,55 +301,8 @@ export function Sidebar({ className }: SidebarProps) {
       )}
 
       <nav className="flex-1 px-2 space-y-1 overflow-y-auto">
-        {/* Dashboard — always first */}
-        {renderNavLink(primaryNavItems[0])}
-
-        {/* Daily Actions — collapsible group */}
-        <div>
-          {!collapsed ? (
-            <button
-              onClick={() => setDailyActionsExpanded(!dailyActionsExpanded)}
-              className={cn(
-                'w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300',
-                isDailyActionsActive
-                  ? 'text-amber-300 bg-amber-900/20 border border-amber-500/20'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/30'
-              )}
-            >
-              <div className={cn(
-                'flex items-center justify-center w-10 h-10 rounded-lg',
-                isDailyActionsActive ? 'bg-gradient-to-br from-amber-600/60 to-yellow-700/60' : 'bg-accent/50'
-              )}>
-                <Zap className={cn('w-5 h-5', isDailyActionsActive ? 'text-amber-200' : 'text-muted-foreground')} />
-              </div>
-              <div className="flex-1 text-left">
-                <span className="text-sm font-medium block">Daily Actions</span>
-                <span className="text-[10px] text-muted-foreground">Automation · Orders · Positions</span>
-              </div>
-              {dailyActionsExpanded ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
-            </button>
-          ) : (
-            <button
-              onClick={() => setDailyActionsExpanded(!dailyActionsExpanded)}
-              className={cn(
-                'w-full flex items-center justify-center p-3 rounded-xl transition-all duration-300',
-                isDailyActionsActive ? 'bg-amber-900/30 text-amber-300' : 'text-muted-foreground hover:bg-accent/30'
-              )}
-            >
-              <Zap className="w-5 h-5" />
-            </button>
-          )}
-
-          {/* Daily Actions sub-items */}
-          {dailyActionsExpanded && (
-            <div className={cn('space-y-0.5 mt-0.5', !collapsed && 'pl-2')}>
-              {dailyActionItems.map(item => renderNavLink(item, !collapsed))}
-            </div>
-          )}
-        </div>
-
-        {/* Portfolio, Spread Advisor */}
-        {primaryNavItems.slice(1).map(item => (
+        {/* Flat primary items: Dashboard, Daily Actions, Portfolio, Spread Advisor */}
+        {primaryNavItems.map(item => (
           <div key={item.path}>
             {renderNavLink(item)}
           </div>
