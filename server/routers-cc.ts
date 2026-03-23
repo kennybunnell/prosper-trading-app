@@ -807,6 +807,32 @@ export const ccRouter = router({
       const api = createTradierAPI(tradierApiKey);
       const spreadOpportunities: any[] = [];
 
+      // Fetch 14-day historical trend for each unique symbol
+      const uniqueSymbolsForTrend = Array.from(new Set(input.ccOpportunities.map((o: any) => o.symbol as string)));
+      const trend14dMap = new Map<string, number>();
+      const today = new Date();
+      const trendStart = new Date(today);
+      trendStart.setDate(trendStart.getDate() - 16); // 16 days back to ensure 14 trading days
+      const fmt = (d: Date) => d.toISOString().split('T')[0];
+      await Promise.all(uniqueSymbolsForTrend.map(async (sym) => {
+        try {
+          // Map index symbols to Tradier-recognised roots for historical data
+          const BCS_HIST_ROOT_MAP: Record<string, string> = {
+            SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX',
+          };
+          const histSym = BCS_HIST_ROOT_MAP[sym.toUpperCase()] || sym;
+          const history = await api.getHistoricalData(histSym, 'daily', fmt(trendStart), fmt(today));
+          if (history && history.length >= 2) {
+            const oldest = history[0].close;
+            const newest = history[history.length - 1].close;
+            const pctChange = oldest > 0 ? ((newest - oldest) / oldest) * 100 : 0;
+            trend14dMap.set(sym, pctChange);
+          }
+        } catch {
+          // trend14d will be undefined for this symbol — scoring uses neutral credit
+        }
+      }));
+
       // OPTIMIZATION: Group opportunities by symbol+expiration to batch API calls
       // Instead of fetching option chain for each opportunity (485 calls),
       // fetch once per unique symbol+expiration combo (~30 calls)
@@ -916,9 +942,16 @@ export const ccRouter = router({
                 if (spreadOpp.netCredit > 0 && bcsCreditRatio <= 0.80) {
                   // Use BCS-specific scoring (not CC scoring)
                   const { calculateBCSScore } = await import('./bcs-scoring');
-                  const { score, breakdown } = calculateBCSScore(spreadOpp, { isIndexMode: input.isIndexMode ?? false });
+                  // Inject 14-day trend data into the spread opportunity for direction scoring
+                  const trend14d = trend14dMap.get(ccOpp.symbol);
+                  (spreadOpp as any).trend14d = trend14d;
+                  const { score, breakdown } = calculateBCSScore(
+                    { ...spreadOpp, trend14d } as any,
+                    { isIndexMode: input.isIndexMode ?? false }
+                  );
                   spreadOpp.score = score;
                   (spreadOpp as any).scoreBreakdown = breakdown;
+                  (spreadOpp as any).trendBias = breakdown.trendBias;
                   spreadOpportunities.push(spreadOpp);
                 } else if (bcsCreditRatio > 0.80) {
                   console.log(`[BCS] Rejecting ${ccOpp.symbol} strike ${ccOpp.strike}: credit/width ${(bcsCreditRatio*100).toFixed(0)}% > 80% (ITM or stale prices)`);

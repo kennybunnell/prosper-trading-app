@@ -2729,6 +2729,7 @@ export default function CSPDashboard() {
                   </TableHead>
                   {(strategyType === 'spread' ? [
                     { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
+                    { key: 'trend14d', label: 'Trend 14d', help: null, technical: false },
                     { key: 'symbol', label: 'Symbol', help: null, technical: false },
                     ...(isIndexMode ? [{ key: 'exchange', label: 'Exchange', help: null, technical: false }] : []),
                     { key: 'strike', label: 'Strikes', help: null, technical: false },
@@ -2844,6 +2845,16 @@ export default function CSPDashboard() {
                                         <>
                                           {(opp as any).scoreBreakdown.spreadEfficiency !== undefined ? (
                                             <>
+                                              {(opp as any).scoreBreakdown.direction !== undefined && (
+                                                <div className="flex justify-between">
+                                                  <span className="text-gray-400">Direction (14d):</span>
+                                                  <span className={`font-medium ${
+                                                    (opp as any).scoreBreakdown.direction >= 28 ? 'text-green-400' :
+                                                    (opp as any).scoreBreakdown.direction >= 15 ? 'text-yellow-400' :
+                                                    'text-red-400'
+                                                  }`}>{(opp as any).scoreBreakdown.direction}/35</span>
+                                                </div>
+                                              )}
                                               <div className="flex justify-between">
                                                 <span className="text-gray-400">Spread Efficiency:</span>
                                                 <span className="font-medium text-white">{(opp as any).scoreBreakdown.spreadEfficiency}/35</span>
@@ -2891,6 +2902,31 @@ export default function CSPDashboard() {
                                 </Tooltip>
                               </TooltipProvider>
                             </TableCell>
+                            {/* Trend 14d cell for BPS */}
+                            {(() => {
+                              const t = (opp as any).trend14d;
+                              const bias = (opp as any).trendBias;
+                              if (t === undefined || t === null) return <TableCell className="text-center"><span className="text-muted-foreground text-xs">—</span></TableCell>;
+                              const isStrongBullish = t >= 3;
+                              const isMildBullish = t > 1.5;
+                              const isStrongBearish = t <= -3;
+                              const isMildBearish = t < -1.5;
+                              const color = isStrongBullish ? 'text-green-400 bg-green-500/10 border-green-500/30' :
+                                isMildBullish ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' :
+                                isStrongBearish ? 'text-red-400 bg-red-500/10 border-red-500/30' :
+                                isMildBearish ? 'text-orange-400 bg-orange-500/10 border-orange-500/30' :
+                                'text-slate-400 bg-slate-500/10 border-slate-500/30';
+                              const arrow = t >= 1.5 ? '▲' : t <= -1.5 ? '▼' : '→';
+                              const label = bias || (isStrongBullish ? 'Bullish' : isMildBullish ? 'Mild Bull' : isStrongBearish ? 'Bearish' : isMildBearish ? 'Mild Bear' : 'Neutral');
+                              return (
+                                <TableCell className="text-center">
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${color}`}>
+                                    {arrow} {t.toFixed(1)}%
+                                  </span>
+                                  <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+                                </TableCell>
+                              );
+                            })()}
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-1.5">
                                 <span>{opp.symbol}</span>

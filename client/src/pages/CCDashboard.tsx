@@ -3002,6 +3002,15 @@ export default function CCDashboard() {
                         </div>
                       </TableHead>
                       
+                      {/* 2b. Trend 14d (spread only) */}
+                      {strategyType === 'spread' && (
+                        <TableHead className="text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            Trend 14d
+                          </div>
+                        </TableHead>
+                      )}
+                      
                       {/* 3. Symbol */}
                       <TableHead>Symbol</TableHead>
                       
@@ -3193,6 +3202,32 @@ export default function CCDashboard() {
                           </Badge>
                         </TableCell>
                         
+                        {/* 2b. Trend 14d (spread only) */}
+                        {strategyType === 'spread' && (() => {
+                          const t = (opp as any).trend14d;
+                          const bias = (opp as any).trendBias;
+                          if (t === undefined || t === null) return <TableCell className="text-center"><span className="text-muted-foreground text-xs">—</span></TableCell>;
+                          const isStrongBearish = t <= -3;
+                          const isMildBearish = t < -1.5;
+                          const isStrongBullish = t >= 3;
+                          const isMildBullish = t > 1.5;
+                          const color = isStrongBearish ? 'text-red-400 bg-red-500/10 border-red-500/30' :
+                            isMildBearish ? 'text-orange-400 bg-orange-500/10 border-orange-500/30' :
+                            isStrongBullish ? 'text-green-400 bg-green-500/10 border-green-500/30' :
+                            isMildBullish ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' :
+                            'text-slate-400 bg-slate-500/10 border-slate-500/30';
+                          const arrow = t <= -1.5 ? '▼' : t >= 1.5 ? '▲' : '→';
+                          const label = bias || (isStrongBearish ? 'Bearish' : isMildBearish ? 'Mild Bear' : isStrongBullish ? 'Bullish' : isMildBullish ? 'Mild Bull' : 'Neutral');
+                          return (
+                            <TableCell className="text-center">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${color}`}>
+                                {arrow} {t.toFixed(1)}%
+                              </span>
+                              <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+                            </TableCell>
+                          );
+                        })()}
+
                         {/* 3. Symbol */}
                         <TableCell className="font-semibold">
                           <div className="flex items-center gap-1.5">

@@ -3138,6 +3138,30 @@ Summary: [One sentence overall assessment]`;
           return [];
         }
 
+        // Fetch 14-day historical trend for each unique symbol (BPS direction scoring)
+        const trend14dMap = new Map<string, number>();
+        const today = new Date();
+        const trendStart = new Date(today);
+        trendStart.setDate(trendStart.getDate() - 16);
+        const fmtDate = (d: Date) => d.toISOString().split('T')[0];
+        const BPS_HIST_ROOT_MAP: Record<string, string> = {
+          SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX',
+        };
+        await Promise.all(symbols.map(async (sym) => {
+          try {
+            const histSym = BPS_HIST_ROOT_MAP[sym.toUpperCase()] || sym;
+            const history = await api.getHistoricalData(histSym, 'daily', fmtDate(trendStart), fmtDate(today));
+            if (history && history.length >= 2) {
+              const oldest = history[0].close;
+              const newest = history[history.length - 1].close;
+              const pctChange = oldest > 0 ? ((newest - oldest) / oldest) * 100 : 0;
+              trend14dMap.set(sym, pctChange);
+            }
+          } catch {
+            // trend14d will be undefined for this symbol — scoring uses neutral credit
+          }
+        }));
+
         // Fetch CSP opportunities first (these are the short puts)
         const cspOpportunities = await api.fetchCSPOpportunities(
           symbols,
@@ -3305,8 +3329,14 @@ Summary: [One sentence overall assessment]`;
         const dedupedCount = spreadOpportunities.length - dedupedSpreads.length;
         console.log(`[Spread Dedup] ${dedupedSpreads.length} spreads after deduplication (removed ${dedupedCount})`);
         
+        // Attach 14-day trend data to each spread before scoring
+        const spreadsWithTrend = dedupedSpreads.map((spread: any) => ({
+          ...spread,
+          trend14d: trend14dMap.get(spread.symbol),
+        }));
+
         // Score spread opportunities using BPS-specific scoring logic
-        const scored = scoreBPSOpportunities(dedupedSpreads, { isIndexMode: input.isIndexMode ?? false }) as any;
+        const scored = scoreBPSOpportunities(spreadsWithTrend, { isIndexMode: input.isIndexMode ?? false }) as any;
         console.log(`[Spread Router] Scored ${scored.length} opportunities, preparing to calculate risk badges...`);
 
         // Calculate risk badges for all opportunities
