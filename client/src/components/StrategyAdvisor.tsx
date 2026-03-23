@@ -561,7 +561,13 @@ export function StrategyAdvisor() {
               <div>
                 <CardTitle className="text-lg">Market: {recommendation.marketCondition}</CardTitle>
                 <CardDescription className="text-xs mt-0.5">
-                  SPY {data.marketData?.SPY?.change >= 0 ? '+' : ''}{data.marketData?.SPY?.change.toFixed(2)}% | VIX {data.marketData?.VIX?.last.toFixed(1)}
+                  SPY today: {data.marketData?.SPY?.change >= 0 ? '+' : ''}{data.marketData?.SPY?.change.toFixed(2)}%
+                  {recommendation.spyTrend14d !== null && recommendation.spyTrend14d !== undefined && (
+                    <span className={`ml-2 font-semibold ${recommendation.spyTrend14d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      | SPY 14d: {recommendation.spyTrend14d >= 0 ? '+' : ''}{recommendation.spyTrend14d.toFixed(1)}% ({recommendation.spyTrendBias})
+                    </span>
+                  )}
+                  {' '}| VIX {data.marketData?.VIX?.last.toFixed(1)}
                 </CardDescription>
               </div>
             </div>
@@ -784,6 +790,20 @@ export function StrategyAdvisor() {
                         <Badge variant="outline" className="text-xs">
                           {ticker.momentum}
                         </Badge>
+                        {ticker.trend14d !== null && ticker.trend14d !== undefined && (
+                          <Badge
+                            variant="outline"
+                            className={`text-xs font-semibold ${
+                              ticker.trendBias === 'Bullish' ? 'border-green-500/50 text-green-700 bg-green-500/10' :
+                              ticker.trendBias === 'Bearish' ? 'border-red-500/50 text-red-700 bg-red-500/10' :
+                              'border-blue-500/50 text-blue-700 bg-blue-500/10'
+                            }`}
+                            title="14-day price change trend"
+                          >
+                            {ticker.trendBias === 'Bullish' ? '▲' : ticker.trendBias === 'Bearish' ? '▼' : '→'}
+                            {' '}{ticker.trend14d >= 0 ? '+' : ''}{ticker.trend14d.toFixed(1)}% 14d
+                          </Badge>
+                        )}
                       </div>
 
                       {/* Strategy Badges - Show which strategies this ticker is good for */}

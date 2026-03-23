@@ -8332,3 +8332,21 @@ ROC Fix Mar 18 2026
 - [x] Add complete OCC root mapping for all 9 indexes: DJX, MRUT, NDXP, NDX, RUT, SPXW, SPX, XND, XSP
 - [x] Fix BCS spread legs to use Equity Option (Tastytrade rejects Index Option for multi-leg spreads)
 - [x] Fix CSP/BPS/IC spread legs in routers.ts to use Equity Option for multi-leg spreads
+
+## Pre-Submission Expiration Validator & MRUT Fix (Mar 20, 2026)
+- [ ] Research MRUT correct OCC symbol root on Tastytrade (currently 'MRUT' is rejected)
+- [ ] Fix MRUT OCC root in getOccRoot / shared index rules
+- [ ] Build Option A: client-side pre-submission expiration validator for all 9 indexes
+- [ ] Integrate validator into order preview modal with clear warnings UI
+- [ ] Encode confirmed index rules: SPX/NDX/RUT monthly-only, SPXW/NDXP Mon-Wed-Fri, RUTW Fri-only, MRUT/XSP/XND all-same-root
+
+## Spread Advisor Directional Trend Filter (completed Mar 23, 2026)
+- [x] Fetch 14-day historical prices from Tradier for each ticker in Strategy Advisor
+- [x] Compute 14-day price change percentage as primary trend signal
+- [x] Classify trend: >+1.5% = Bullish, <-1.5% = Bearish, ±1.5% = Neutral
+- [x] Replace single-day momentum with 14-day trend for market condition and per-ticker scoring
+- [x] Hard-penalize strategies that fight the trend (BPS penalized in bearish market, BCS penalized in bullish)
+- [x] Show 14-day trend badge per ticker (▲/▼/→ + % change + bias label)
+- [x] Show SPY 14d trend in market overview card header
+- [x] spyTrend14d and spyTrendBias added to recommendation response
+- [x] trend14d and trendBias added to each ticker result
