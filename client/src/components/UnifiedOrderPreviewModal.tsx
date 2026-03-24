@@ -194,7 +194,35 @@ export function UnifiedOrderPreviewModal({
     { enabled: open && strategy === 'btc' && optionSymbolsForQuotes.length > 0, staleTime: 30_000 }
   );
   const liveQuotes = liveQuotesData ?? {};
-  
+
+  // ── Pre-submission close order validator ─────────────────────────────────
+  // Fetches live Tastytrade position quantities and validates index expiration rules.
+  // Runs whenever the modal opens for BTC or roll strategies.
+  const closeValidationInput = useMemo(() => {
+    if (!open || (strategy !== 'btc' && strategy !== 'roll')) return null;
+    const validOrders = orders.filter(o => o.optionSymbol || (o.symbol && o.expiration));
+    if (validOrders.length === 0) return null;
+    return {
+      accountId: accountId || 'ALL_ACCOUNTS',
+      orders: validOrders.map(o => ({
+        optionSymbol: o.optionSymbol || '',
+        underlying: o.symbol,
+        requestedQuantity: o.quantity ?? 1,
+        expiration: o.expiration,
+        optionType: o.optionType as 'PUT' | 'CALL',
+      })),
+    };
+  }, [open, strategy, accountId, orders]);
+
+  const { data: closeValidationData } = trpc.orders.validateCloseOrders.useQuery(
+    closeValidationInput ?? { accountId: 'ALL_ACCOUNTS', orders: [] },
+    {
+      enabled: !!closeValidationInput,
+      staleTime: 60_000,
+      retry: false,
+    }
+  );
+
   // Use external state if provided, otherwise use internal state (for backward compatibility)
   const submissionComplete = externalSubmissionComplete ?? false;
   const finalOrderStatus = externalFinalOrderStatus ?? null;
@@ -364,13 +392,13 @@ export function UnifiedOrderPreviewModal({
     })();
   }, [pollCount]);
   
-  // Real-time validation whenever quantities change
+  // Real-time validation whenever quantities or live close-validation data changes
   useEffect(() => {
     if (open) {
       const errors = validateOrders();
       setValidationErrors(errors);
     }
-  }, [orderQuantities, open]);
+  }, [orderQuantities, open, closeValidationData]);
   
   // Helper: Generate unique key for each order.
   // Include accountNumber so multi-account CC orders for the same symbol/strike/expiry
@@ -621,6 +649,37 @@ export function UnifiedOrderPreviewModal({
             message: `${order.symbol} spread width is ${widthToCheck} pts — minimum recommended is ${minWidth} pts. ` +
               `A ${minWidth}-pt spread has $${(minWidth * multiplier).toLocaleString()} collateral per contract.`,
             severity: 'warning',
+          });
+        }
+      });
+    }
+
+    // ── Close order quantity & index expiration validation (BTC / roll) ─────────
+    // Uses live data fetched from Tastytrade via validateCloseOrders query.
+    if ((strategy === 'btc' || strategy === 'roll') && closeValidationData?.results) {
+      closeValidationData.results.forEach(result => {
+        // Quantity error: trying to close more than held
+        if (result.quantityError) {
+          errors.push({
+            symbol: result.underlying,
+            message: result.quantityError,
+            severity: 'error',
+          });
+        }
+        // Quantity warning (soft)
+        if (result.quantityWarning) {
+          errors.push({
+            symbol: result.underlying,
+            message: result.quantityWarning,
+            severity: 'warning',
+          });
+        }
+        // Index expiration rule violation
+        if (result.expirationWarning) {
+          errors.push({
+            symbol: result.underlying,
+            message: result.expirationWarning.message,
+            severity: result.expirationWarning.isError ? 'error' : 'warning',
           });
         }
       });
@@ -1834,6 +1893,14 @@ export function UnifiedOrderPreviewModal({
             </Table>
           </div>
           
+          {/* Live position check loading indicator */}
+          {(strategy === 'btc' || strategy === 'roll') && closeValidationInput && !closeValidationData && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Checking live position quantities from Tastytrade…</span>
+            </div>
+          )}
+
           {/* Validation Errors */}
           {validationErrors.length > 0 && (
             <div className="space-y-2">

@@ -122,6 +122,118 @@ export const ordersRouter = router({
     }),
 
   /**
+   * Pre-submission validator: check actual open position quantity from Tastytrade.
+   * Returns the actual held quantity for each option symbol so the UI can warn
+   * the user if the requested close quantity exceeds what is actually held.
+   *
+   * Also validates index expiration rules:
+   *   - SPX: only 3rd Friday (monthly AM-settled)
+   *   - SPXW: any expiration that is NOT the 3rd Friday
+   *   - NDX: only 3rd Friday
+   *   - NDXP: any non-3rd-Friday expiration
+   *   - RUT: only 3rd Friday
+   *   - RUTW: any non-3rd-Friday expiration
+   */
+  validateCloseOrders: protectedProcedure
+    .input(
+      z.object({
+        accountId: z.string(),
+        orders: z.array(
+          z.object({
+            optionSymbol: z.string(),   // Full OCC symbol (e.g. "SPXW  260402C06725000")
+            underlying: z.string(),     // Underlying (e.g. "SPXW")
+            requestedQuantity: z.number(),
+            expiration: z.string(),     // YYYY-MM-DD
+            optionType: z.enum(['PUT', 'CALL']).optional(),
+          })
+        ),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      const { getDb } = await import('./db');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+      const { apiCredentials } = await import('../drizzle/schema.js');
+      const { eq } = await import('drizzle-orm');
+      const [creds] = await db.select().from(apiCredentials).where(eq(apiCredentials.userId, ctx.user.id));
+      if (!creds?.tastytradeClientSecret) {
+        // No credentials — skip quantity check, just run expiration validation
+        return buildExpirationOnlyResult(input.orders);
+      }
+
+      let positions: any[] = [];
+      try {
+        const api = await authenticateTastytrade(creds, ctx.user.id);
+        // Resolve account list
+        let accountsToCheck: string[] = [];
+        if (input.accountId === 'ALL_ACCOUNTS') {
+          const accounts = await api.getAccounts();
+          accountsToCheck = accounts.map((acc: any) => acc.account?.['account-number'] || acc['account-number']).filter(Boolean);
+        } else {
+          accountsToCheck = [input.accountId];
+        }
+        // Fetch positions from all accounts
+        for (const accNum of accountsToCheck) {
+          try {
+            const acctPositions = await api.getPositions(accNum);
+            positions.push(...acctPositions);
+          } catch (e: any) {
+            console.warn(`[validateCloseOrders] Could not fetch positions for ${accNum}:`, e.message);
+          }
+        }
+      } catch (e: any) {
+        console.warn('[validateCloseOrders] Auth failed, skipping quantity check:', e.message);
+        return buildExpirationOnlyResult(input.orders);
+      }
+
+      // Build a map: normalised OCC symbol (no spaces) → actual held quantity
+      const heldQuantityMap = new Map<string, number>();
+      for (const pos of positions) {
+        const normSym = (pos.symbol || '').replace(/\s+/g, '');
+        const qty = Math.abs(Number(pos.quantity) || 0);
+        const dir = (pos['quantity-direction'] || '').toLowerCase();
+        // We're closing SHORT positions (BTC) or LONG positions (STC)
+        // Add to map regardless of direction — the caller decides which action to use
+        heldQuantityMap.set(normSym, (heldQuantityMap.get(normSym) || 0) + qty);
+      }
+
+      const { getOccRoot } = await import('../shared/orderUtils.js');
+
+      const results = input.orders.map(order => {
+        const normSym = order.optionSymbol.replace(/\s+/g, '');
+        const heldQty = heldQuantityMap.get(normSym) ?? null; // null = symbol not found in positions
+
+        // Quantity check
+        let quantityWarning: string | null = null;
+        let quantityError: string | null = null;
+        if (heldQty !== null) {
+          if (order.requestedQuantity > heldQty) {
+            quantityError = `You hold ${heldQty} contract${heldQty !== 1 ? 's' : ''} of ${order.underlying} but are trying to close ${order.requestedQuantity}. Tastytrade will reject this order.`;
+          } else if (order.requestedQuantity === heldQty) {
+            // Exact match — fine, no warning
+          }
+        }
+
+        // Index expiration rule check
+        const expirationWarning = validateIndexExpiration(order.underlying, order.expiration);
+
+        return {
+          optionSymbol: order.optionSymbol,
+          underlying: order.underlying,
+          requestedQuantity: order.requestedQuantity,
+          heldQuantity: heldQty,
+          quantityError,
+          quantityWarning,
+          expirationWarning,
+          isValid: !quantityError && !expirationWarning?.isError,
+        };
+      });
+
+      return { results };
+    }),
+
+  /**
    * Submit a roll order (2-leg: close existing + open new)
    */
   submitRoll: protectedProcedure
@@ -233,3 +345,117 @@ export const ordersRouter = router({
       }
     }),
 });
+
+// ─── Helper: expiration-only validation (no Tastytrade auth required) ─────────
+
+function buildExpirationOnlyResult(orders: Array<{ optionSymbol: string; underlying: string; requestedQuantity: number; expiration: string }>) {
+  return {
+    results: orders.map(order => ({
+      optionSymbol: order.optionSymbol,
+      underlying: order.underlying,
+      requestedQuantity: order.requestedQuantity,
+      heldQuantity: null as number | null,
+      quantityError: null as string | null,
+      quantityWarning: null as string | null,
+      expirationWarning: validateIndexExpiration(order.underlying, order.expiration),
+      isValid: !validateIndexExpiration(order.underlying, order.expiration)?.isError,
+    })),
+  };
+}
+
+/**
+ * Validate that the expiration date is consistent with the index symbol's rules.
+ *
+ * Rules:
+ *   SPX   → MUST be 3rd Friday (AM-settled monthly). Any other date should use SPXW.
+ *   SPXW  → Must NOT be 3rd Friday (those belong to SPX root).
+ *   NDX   → MUST be 3rd Friday. Any other date should use NDXP.
+ *   NDXP  → Must NOT be 3rd Friday.
+ *   RUT   → MUST be 3rd Friday. Any other date should use RUTW.
+ *   RUTW  → Must NOT be 3rd Friday.
+ *
+ * Returns null if no issue, or an object with { message, isError } if there's a problem.
+ */
+function validateIndexExpiration(
+  symbol: string,
+  expiration: string
+): { message: string; isError: boolean } | null {
+  const sym = symbol.toUpperCase();
+  const expDate = new Date(expiration + 'T12:00:00Z');
+  const thirdFriday = isThirdFriday(expDate);
+  const dayOfWeek = expDate.getUTCDay(); // 0=Sun, 5=Fri
+  const isFriday = dayOfWeek === 5;
+
+  switch (sym) {
+    case 'SPX':
+      if (!thirdFriday) {
+        return {
+          message: `SPX options only trade on the 3rd Friday of each month (AM-settled). ` +
+            `This expiration (${expiration}) is not the 3rd Friday — use SPXW instead for weekly/other expirations.`,
+          isError: true,
+        };
+      }
+      break;
+
+    case 'SPXW':
+      if (thirdFriday) {
+        return {
+          message: `SPXW is the weekly root. The 3rd Friday expiration belongs to the SPX root (AM-settled). ` +
+            `Consider using SPX for this expiration (${expiration}) if you intend the monthly AM-settled contract.`,
+          isError: false, // Warning only — SPXW on 3rd Friday may still be valid for PM-settled
+        };
+      }
+      break;
+
+    case 'NDX':
+      if (!thirdFriday) {
+        return {
+          message: `NDX options only trade on the 3rd Friday of each month (AM-settled). ` +
+            `This expiration (${expiration}) is not the 3rd Friday — use NDXP instead for weekly/other expirations.`,
+          isError: true,
+        };
+      }
+      break;
+
+    case 'NDXP':
+      if (thirdFriday) {
+        return {
+          message: `NDXP is the weekly root. The 3rd Friday expiration belongs to the NDX root (AM-settled). ` +
+            `Consider using NDX for this expiration (${expiration}) if you intend the monthly AM-settled contract.`,
+          isError: false,
+        };
+      }
+      break;
+
+    case 'RUT':
+      if (!thirdFriday) {
+        return {
+          message: `RUT options only trade on the 3rd Friday of each month (AM-settled). ` +
+            `This expiration (${expiration}) is not the 3rd Friday — use RUTW instead for weekly expirations.`,
+          isError: true,
+        };
+      }
+      break;
+
+    case 'RUTW':
+      if (thirdFriday) {
+        return {
+          message: `RUTW is the weekly root. The 3rd Friday expiration belongs to the RUT root (AM-settled). ` +
+            `Consider using RUT for this expiration (${expiration}) if you intend the monthly AM-settled contract.`,
+          isError: false,
+        };
+      }
+      break;
+
+    default:
+      // Equity options and other indexes: no expiration rule restriction
+      break;
+  }
+
+  return null;
+}
+
+/** The 3rd Friday of a month always falls between the 15th and 21st. */
+function isThirdFriday(expDate: Date): boolean {
+  return expDate.getUTCDay() === 5 && expDate.getUTCDate() >= 15 && expDate.getUTCDate() <= 21;
+}

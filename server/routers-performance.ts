@@ -789,9 +789,49 @@ export const performanceRouter = router({
         console.log(`[Performance] Excluded ${excludedPositions.length} position(s) with existing working orders`);
       }
 
+      // ── Server-side quantity guard ────────────────────────────────────────────
+      // Fetch live positions from Tastytrade and cap every close quantity to what
+      // is actually held.  This prevents the "You cannot close more than X"
+      // rejection that occurs when our stored quantity diverges from reality.
+      const liveHeldQtyMap = new Map<string, number>();
+      for (const accountId of accountIds) {
+        try {
+          const livePositions = await api.getPositions(accountId);
+          for (const lp of livePositions) {
+            const normSym = (lp.symbol || '').replace(/\s+/g, '');
+            const qty = Math.abs(Number(lp.quantity) || 0);
+            liveHeldQtyMap.set(normSym, (liveHeldQtyMap.get(normSym) || 0) + qty);
+          }
+        } catch (e: any) {
+          console.warn(`[Performance] Could not fetch live positions for ${accountId} (quantity guard skipped):`, e.message);
+        }
+      }
+      console.log(`[Performance] Live position map built: ${liveHeldQtyMap.size} symbols`);
+
       // Submit orders for each valid position
       const results = [];
-      for (const pos of validPositions) {
+      for (let pos of validPositions) {
+        // ── Quantity cap: never close more than Tastytrade says we hold ──────────
+        const normPosSymbol = (pos.optionSymbol || '').replace(/\s+/g, '');
+        const liveQty = liveHeldQtyMap.get(normPosSymbol);
+        if (liveQty !== undefined && pos.quantity > liveQty) {
+          console.warn(
+            `[Performance] Quantity cap applied for ${pos.underlying} $${pos.strike}: ` +
+            `requested=${pos.quantity} but live position=${liveQty}. Capping to ${liveQty}.`
+          );
+          pos = { ...pos, quantity: liveQty };
+        }
+        if (pos.quantity <= 0) {
+          console.warn(`[Performance] Skipping ${pos.underlying} $${pos.strike} — live position is 0 (already closed?).`);
+          results.push({
+            success: false,
+            message: `Position for ${pos.underlying} $${pos.strike} appears to be already closed (0 contracts held).`,
+            underlying: pos.underlying,
+            strike: pos.strike,
+            quantity: 0,
+          });
+          continue;
+        }
         console.log(`[Performance] Processing ${pos.underlying} $${pos.strike} (${pos.quantity} contracts)`);
         
         // Check if this is a spread position

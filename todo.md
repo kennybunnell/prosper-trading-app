@@ -8350,3 +8350,10 @@ ROC Fix Mar 18 2026
 - [x] Show SPY 14d trend in market overview card header
 - [x] spyTrend14d and spyTrendBias added to recommendation response
 - [x] trend14d and trendBias added to each ticker result
+
+## Pre-Order Validation (Session: Mar 24 2026)
+- [x] Add pre-submission position quantity check: fetch actual open quantity from Tastytrade before close order, cap to actual held quantity
+- [x] Show warning on pre-order screen when close quantity exceeds held quantity
+- [x] Add index expiration rule validation (SPX 3rd Friday only, SPXW all others, NDX/NDXP, RUT/RUTW)
+- [x] Show pre-order warning for invalid index/expiration combinations
+- [x] Add validateCloseOrders tRPC procedure to fetch live position sizes and validate index expiration rules
