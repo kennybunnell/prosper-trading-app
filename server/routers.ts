@@ -3317,17 +3317,26 @@ Summary: [One sentence overall assessment]`;
         // Deduplicate spread opportunities by unique spread identifier (symbol-shortStrike-longStrike-expiration)
         console.log(`[Spread Dedup] ${spreadOpportunities.length} spreads before deduplication`);
         const uniqueSpreads = new Map<string, any>();
+        const spreadDuplicateReport: string[] = [];
         for (const spread of spreadOpportunities) {
           const key = `${spread.symbol}-${spread.strike}-${spread.longStrike}-${spread.expiration}`;
           if (!uniqueSpreads.has(key)) {
             uniqueSpreads.set(key, spread);
           } else {
-            console.log(`[Spread Dedup] Duplicate found: ${key}`);
+            const existing = uniqueSpreads.get(key)!;
+            const detail = `key=${key} shortStrike=${spread.strike} longStrike=${spread.longStrike} exp=${spread.expiration} netCredit=${spread.netCredit} (existing netCredit=${existing.netCredit})`;
+            spreadDuplicateReport.push(detail);
+            console.warn(`[Spread Dedup] ⚠️  DUPLICATE spread detected: ${detail}`);
           }
         }
         const dedupedSpreads = Array.from(uniqueSpreads.values());
         const dedupedCount = spreadOpportunities.length - dedupedSpreads.length;
-        console.log(`[Spread Dedup] ${dedupedSpreads.length} spreads after deduplication (removed ${dedupedCount})`);
+        if (dedupedCount > 0) {
+          console.warn(`[Spread Dedup] ⚠️  Removed ${dedupedCount} duplicate spread(s) from ${spreadOpportunities.length} raw results.`);
+          console.warn(`[Spread Dedup] Root cause hint: same CSP opportunity may be processed multiple times, or two CSP opps have the same strike/expiration but different deltas.`);
+        } else {
+          console.log(`[Spread Dedup] No duplicates (${dedupedSpreads.length} unique spreads).`);
+        }
         
         // Attach 14-day trend data to each spread before scoring
         const spreadsWithTrend = dedupedSpreads.map((spread: any) => ({

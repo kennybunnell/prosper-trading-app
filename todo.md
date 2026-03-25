@@ -8367,3 +8367,8 @@ ROC Fix Mar 18 2026
 - [x] Fix duplicate React key errors on /csp page (same symbol-strike-expiration rows)
 - [x] Add client-side dedup in filteredOpportunities useMemo using optionSymbol as unique key
 - [x] Use optionSymbol as row key in TableRow to guarantee uniqueness
+
+## Audio & Duplicate Chain Logging (Session: Mar 25 2026)
+- [x] Fix OrderStatusModal audio error: replace missing /cha-ching.mp3 with Web Audio API synthesized sound
+- [x] Add enhanced server-side duplicate optionSymbol logging in CSP scanner (tradier.ts) with full context
+- [x] Add enhanced server-side duplicate spread logging in spread scanner (routers.ts) with root cause hint

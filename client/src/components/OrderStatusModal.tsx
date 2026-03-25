@@ -53,10 +53,30 @@ export function OrderStatusModal({
           origin: { y: 0.6 },
         });
 
-        // Play cha-ching sound
-        const audio = new Audio("/cha-ching.mp3");
-        audio.volume = 0.5;
-        audio.play().catch((err) => console.log("[OrderStatusModal] Audio play failed:", err));
+        // Play cha-ching sound using Web Audio API (no external file needed)
+        try {
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const playTone = (freq: number, startTime: number, duration: number, gainPeak: number) => {
+            const osc = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, startTime);
+            gainNode.gain.setValueAtTime(0, startTime);
+            gainNode.gain.linearRampToValueAtTime(gainPeak, startTime + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+            osc.start(startTime);
+            osc.stop(startTime + duration + 0.05);
+          };
+          const now = ctx.currentTime;
+          // Cha-ching: two quick ascending tones with shimmer
+          playTone(880,  now,        0.15, 0.4);  // 'cha'  — A5
+          playTone(1320, now + 0.12, 0.30, 0.35); // 'ching' — E6
+          playTone(1760, now + 0.22, 0.40, 0.20); // shimmer — A6
+        } catch (err) {
+          console.log("[OrderStatusModal] Audio play failed:", err);
+        }
 
         setHasPlayedCelebration(true);
       }

@@ -874,17 +874,26 @@ export class TradierAPI {
     
     // Deduplicate opportunities by option symbol before returning
     const uniqueOpportunities = new Map<string, CSPOpportunity>();
+    const duplicateReport: string[] = [];
     for (const opp of opportunities) {
       const key = opp.optionSymbol;
       if (!uniqueOpportunities.has(key)) {
         uniqueOpportunities.set(key, opp);
       } else {
-        console.log(`[CSP Dedup] ${symbol}: Duplicate found: ${key} at strike ${opp.strike}`);
+        const existing = uniqueOpportunities.get(key)!;
+        const detail = `optionSymbol=${key} strike=${opp.strike} exp=${opp.expiration} bid=${opp.bid} ask=${opp.ask} (existing: bid=${existing.bid} ask=${existing.ask})`;
+        duplicateReport.push(detail);
+        console.warn(`[CSP Dedup] ⚠️  DUPLICATE optionSymbol for ${symbol}: ${detail}`);
       }
     }
     
     const dedupedCount = opportunities.length - uniqueOpportunities.size;
-    console.log(`[CSP Dedup] ${symbol}: ${uniqueOpportunities.size} opportunities after dedup (removed ${dedupedCount})`);
+    if (dedupedCount > 0) {
+      console.warn(`[CSP Dedup] ⚠️  ${symbol}: Removed ${dedupedCount} duplicate(s) from ${opportunities.length} raw results.`);
+      console.warn(`[CSP Dedup] Root cause hint: check if fetchCSPOpportunities is called multiple times for ${symbol}, or if the option chain API returned the same contract across multiple expirations.`);
+    } else {
+      console.log(`[CSP Dedup] ${symbol}: No duplicates (${uniqueOpportunities.size} unique contracts).`);
+    }
 
     return Array.from(uniqueOpportunities.values());
   }
