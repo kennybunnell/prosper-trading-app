@@ -289,6 +289,8 @@ export default function CSPDashboard() {
   const [minScore, setMinScore] = useState<number | undefined>(undefined);
   const [presetFilter, setPresetFilter] = useState<PresetFilter>(null);
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+  // Exchange-group filter: null = show all, 'CBOE' = show only CBOE, 'Nasdaq' = show only Nasdaq
+  const [activeExchangeFilter, setActiveExchangeFilter] = useState<string | null>(null);
   const [minDte, setMinDte] = useState<number>(7);
   // Strategy type and spread width (Phase 1: UI only)
   // Load strategy type from localStorage on page load
@@ -677,6 +679,14 @@ export default function CSPDashboard() {
       return true;
     });
 
+    // Apply exchange-group filter (from clickable index cards)
+    if (activeExchangeFilter) {
+      filtered = filtered.filter(opp => {
+        const exch = getIndexExchange((opp as any).symbol);
+        return exch === activeExchangeFilter;
+      });
+    }
+
     // Apply "Selected Only" filter
     if (showSelectedOnly) {
       filtered = filtered.filter(opp => 
@@ -727,7 +737,7 @@ export default function CSPDashboard() {
       }
     }
     return Array.from(dedupMap.values());
-  }, [opportunities, presetFilter, presets, minScore, showSelectedOnly, sortColumn, sortDirection, deltaRange, dteRange, scoreRange, selectedOpportunities]);
+  }, [opportunities, presetFilter, presets, minScore, showSelectedOnly, sortColumn, sortDirection, deltaRange, dteRange, scoreRange, selectedOpportunities, activeExchangeFilter]);
 
   // Calculate summary metrics
   const selectedOppsList = opportunities.filter((opp: any) =>
@@ -781,6 +791,8 @@ export default function CSPDashboard() {
       }));
       
       setUnifiedOrders(orders);
+      // Reset submission state so the modal always opens in dry-run mode for a new batch
+      setModalSubmissionComplete(false);
       setShowPreviewDialog(true);
     },
     onError: (error) => {
@@ -1421,25 +1433,75 @@ export default function CSPDashboard() {
                   {/* Per-symbol spread width controls in index mode */}
                   {isIndexMode && selectedIndexSymbols.length > 0 ? (
                     <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg space-y-3">
-                      <Label className="text-sm font-semibold">
-                        Spread Width per Index
-                        <span className="ml-2 text-xs text-amber-400 font-normal">(each index has its own minimum)</span>
-                      </Label>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-semibold">
+                          Spread Width per Index
+                          <span className="ml-2 text-xs text-amber-400 font-normal">(each index has its own minimum)</span>
+                        </Label>
+                        {activeExchangeFilter && (
+                          <button
+                            onClick={() => setActiveExchangeFilter(null)}
+                            className="text-xs text-muted-foreground hover:text-foreground underline"
+                          >
+                            Show all exchanges
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        💡 <strong>Click an index card</strong> to filter the opportunity table to that exchange group — submit one group at a time.
+                      </p>
                       {selectedIndexSymbols.map((sym: string) => {
                         const minW = getMinSpreadWidth(sym);
                         const exchange = getIndexExchange(sym);
                         const exchangeColor = exchange === 'CBOE' ? 'text-blue-400' : 'text-purple-400';
+                        const exchangeBorder = exchange === 'CBOE' ? 'border-blue-500/40' : 'border-purple-500/40';
+                        const exchangeBg = exchange === 'CBOE' ? 'bg-blue-500/10' : 'bg-purple-500/10';
+                        const isActiveFilter = activeExchangeFilter === exchange;
+                        const isBlockedByFilter = activeExchangeFilter !== null && activeExchangeFilter !== exchange;
                         // Available widths: min, 2×min, 4×min (capped at 200)
                         const widths = [minW, minW * 2, minW * 4].filter(w => w <= 200);
                         const currentW = symbolWidths[sym] ?? minW;
                         return (
-                          <div key={sym} className="space-y-1.5">
+                          <div
+                            key={sym}
+                            className={cn(
+                              "space-y-1.5 rounded-lg border p-3 cursor-pointer transition-all duration-200",
+                              isActiveFilter ? `${exchangeBorder} ${exchangeBg} ring-1 ring-offset-0 ${exchange === 'CBOE' ? 'ring-blue-500/50' : 'ring-purple-500/50'}` : 'border-transparent hover:border-muted',
+                              isBlockedByFilter ? 'opacity-40 cursor-not-allowed' : ''
+                            )}
+                            onClick={() => {
+                              if (isBlockedByFilter) {
+                                // Show tooltip hint — different exchange group already active
+                                return;
+                              }
+                              const newFilter = isActiveFilter ? null : exchange;
+                              setActiveExchangeFilter(newFilter);
+                              // Reset submission state when switching exchange groups
+                              setModalSubmissionComplete(false);
+                              // Clear selections from other exchange groups
+                              if (newFilter) {
+                                setSelectedOpportunities(prev => {
+                                  const next = new Set<string>();
+                                  opportunities.forEach((opp: any) => {
+                                    const key = `${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`;
+                                    if (prev.has(key) && getIndexExchange(opp.symbol) === newFilter) {
+                                      next.add(key);
+                                    }
+                                  });
+                                  return next;
+                                });
+                              }
+                            }}
+                            title={isBlockedByFilter ? `${exchange} is a different exchange — submit ${activeExchangeFilter} group first, then click here to switch` : isActiveFilter ? `Click to remove ${exchange} filter` : `Click to show only ${exchange} opportunities`}
+                          >
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium">{sym}</span>
                               <span className={`text-xs ${exchangeColor}`}>{exchange}</span>
                               <span className="text-xs text-muted-foreground">min {minW}pt</span>
+                              {isActiveFilter && <span className="ml-auto text-xs bg-green-500/20 text-green-400 border border-green-500/30 rounded px-1.5 py-0.5">Active Filter ✓</span>}
+                              {isBlockedByFilter && <span className="ml-auto text-xs text-amber-400/60">⚠ Different exchange</span>}
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                               {widths.map(w => (
                                 <Button
                                   key={w}

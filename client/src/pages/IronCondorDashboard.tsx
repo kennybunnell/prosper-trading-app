@@ -233,9 +233,13 @@ export default function IronCondorDashboard() {
   const [showAIAdvisor, setShowAIAdvisor] = useState(false);
   const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number; currentPrice?: number } | null>(null);
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+  // Exchange-group filter: null = show all, 'CBOE' = show only CBOE, 'Nasdaq' = show only Nasdaq
+  const [activeExchangeFilter, setActiveExchangeFilter] = useState<string | null>(null);
 
   // Order preview modal
   const [orderPreviewOpen, setOrderPreviewOpen] = useState(false);
+  const [modalSubmissionComplete, setModalSubmissionComplete] = useState(false);
+  const [modalFinalOrderStatus, setModalFinalOrderStatus] = useState<string | null>(null);
   
   // Order Status Modal state
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -461,6 +465,14 @@ export default function IronCondorDashboard() {
       return opp.dte >= dteRange[0] && opp.dte <= dteRange[1];
     });
     
+    // Apply exchange-group filter (from clickable index cards)
+    if (activeExchangeFilter) {
+      filtered = filtered.filter((opp: any) => {
+        const exch = getIndexExchange((opp as any).symbol);
+        return exch === activeExchangeFilter;
+      });
+    }
+
     // Apply "Show Selected Only" filter
     if (showSelectedOnly) {
       filtered = filtered.filter((opp: any) => 
@@ -497,7 +509,7 @@ export default function IronCondorDashboard() {
     }
     
     return filtered;
-  }, [opportunities, showSelectedOnly, selectedOpportunities, scoreRange, deltaRange, dteRange, sortConfig]);
+  }, [opportunities, showSelectedOnly, selectedOpportunities, scoreRange, deltaRange, dteRange, sortConfig, activeExchangeFilter]);
 
   // Calculate summary metrics
   const summaryMetrics = useMemo(() => {
@@ -589,6 +601,9 @@ export default function IronCondorDashboard() {
       toast.error("No opportunities selected");
       return;
     }
+    // Reset submission state so the modal always opens in dry-run mode for a new batch
+    setModalSubmissionComplete(false);
+    setModalFinalOrderStatus(null);
     setOrderPreviewOpen(true);
   };
 
@@ -734,24 +749,57 @@ export default function IronCondorDashboard() {
                         )}
                         {isIndexMode && selectedIndexSymbols.length > 0 ? (
                           <div className="space-y-3">
-                            <Label className="text-sm font-semibold">
-                              Spread Width per Index
-                              <span className="ml-2 text-xs text-amber-400 font-normal">(each index has its own minimum)</span>
-                            </Label>
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm font-semibold">
+                                Spread Width per Index
+                                <span className="ml-2 text-xs text-amber-400 font-normal">(each index has its own minimum)</span>
+                              </Label>
+                              {activeExchangeFilter && (
+                                <button
+                                  onClick={() => setActiveExchangeFilter(null)}
+                                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                                >
+                                  Show all exchanges
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              💡 <strong>Click an index card</strong> to filter the opportunity table to that exchange group — submit one group at a time.
+                            </p>
                             {selectedIndexSymbols.map((sym: string) => {
                               const minW = getMinSpreadWidth(sym);
                               const exchange = getIndexExchange(sym);
                               const exchangeColor = exchange === 'CBOE' ? 'text-blue-400' : 'text-purple-400';
+                              const exchangeBorder = exchange === 'CBOE' ? 'border-orange-500/40' : 'border-purple-500/40';
+                              const exchangeBg = exchange === 'CBOE' ? 'bg-orange-500/10' : 'bg-purple-500/10';
+                              const isActiveFilter = activeExchangeFilter === exchange;
+                              const isBlockedByFilter = activeExchangeFilter !== null && activeExchangeFilter !== exchange;
                               const widths = [minW, minW * 2, minW * 4].filter((w: number) => w <= 200);
                               const currentW = symbolWidths[sym] ?? minW;
                               return (
-                                <div key={sym} className="space-y-1.5">
+                                <div
+                                  key={sym}
+                                  className={cn(
+                                    "space-y-1.5 rounded-lg border p-3 cursor-pointer transition-all duration-200",
+                                    isActiveFilter ? `${exchangeBorder} ${exchangeBg} ring-1 ring-offset-0 ${exchange === 'CBOE' ? 'ring-orange-500/50' : 'ring-purple-500/50'}` : 'border-transparent hover:border-muted',
+                                    isBlockedByFilter ? 'opacity-40 cursor-not-allowed' : ''
+                                  )}
+                                  onClick={() => {
+                                    if (isBlockedByFilter) return;
+                                    const newFilter = isActiveFilter ? null : exchange;
+                                    setActiveExchangeFilter(newFilter);
+                                    setModalSubmissionComplete(false);
+                                  }}
+                                  title={isBlockedByFilter ? `${exchange} is a different exchange — submit ${activeExchangeFilter} group first` : isActiveFilter ? `Click to remove ${exchange} filter` : `Click to show only ${exchange} opportunities`}
+                                >
                                   <div className="flex items-center gap-2">
                                     <span className="text-sm font-medium">{sym}</span>
                                     <span className={`text-xs ${exchangeColor}`}>{exchange}</span>
                                     <span className="text-xs text-muted-foreground">min {minW}pt</span>
+                                    {isActiveFilter && <span className="ml-auto text-xs bg-green-500/20 text-green-400 border border-green-500/30 rounded px-1.5 py-0.5">Active Filter ✓</span>}
+                                    {isBlockedByFilter && <span className="ml-auto text-xs text-amber-400/60">⚠ Different exchange</span>}
                                   </div>
-                                  <div className="flex gap-2">
+                                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                                     {widths.map((w: number) => (
                                       <Button
                                         key={w}
@@ -1778,6 +1826,12 @@ export default function IronCondorDashboard() {
         onSubmit={executeOrderSubmission}
         onPollStatuses={handlePollOrderStatuses}
         tradingMode={tradingMode}
+        submissionComplete={modalSubmissionComplete}
+        finalOrderStatus={modalFinalOrderStatus}
+        onSubmissionStateChange={(complete, status) => {
+          setModalSubmissionComplete(complete);
+          setModalFinalOrderStatus(status);
+        }}
       />
 
       {/* Fetch Progress Dialog */}

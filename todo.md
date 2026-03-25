@@ -8389,3 +8389,20 @@ ROC Fix Mar 18 2026
 - [x] Add per-symbol index breakdown panel to BCS (CCDashboard) - same as CSP
 - [x] Add per-symbol index breakdown panel to Iron Condor (IronCondorDashboard)
 - [x] Add mixed-exchange warning to BCS and Iron Condor pages
+
+## Exchange-Group Filter Cards & Session Reset (Session: Mar 25 2026)
+- [ ] Fix UnifiedOrderPreviewModal: scope submission state to selection session ID so re-opening with new rows always shows dry-run mode
+- [ ] Add "Submit Another Batch" / "Reset & Select New" button on preview modal success screen
+- [ ] Add clickable exchange-group filter cards to CCDashboard (BCS mode) - filter table by exchange group
+- [ ] Add clickable exchange-group filter cards to CSPDashboard (BPS mode) - filter table by exchange group
+- [ ] Add clickable exchange-group filter cards to IronCondorDashboard - filter table by exchange group
+- [ ] Enforce single-exchange-group selection: clicking Nasdaq card when CBOE rows selected shows tooltip warning
+- [ ] Auto-clear submission state when exchange-group card is clicked (new batch session starts)
+
+## Exchange-Group Filter Cards & Session Reset (Session: Mar 25 2026)
+- [x] Add clickable exchange-group filter cards to CSP (Bull Put Spread) page
+- [x] Add clickable exchange-group filter cards to CC (Bear Call Spread) page
+- [x] Add clickable exchange-group filter cards to Iron Condor page
+- [x] Fix submission state reset: setModalSubmissionComplete(false) when new orders are selected
+- [x] Add "Submit Another Batch" button to UnifiedOrderPreviewModal success screen
+- [x] Blocked exchange cards show dimmed/disabled state with tooltip when different exchange is active

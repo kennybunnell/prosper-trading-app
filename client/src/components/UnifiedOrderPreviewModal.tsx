@@ -2134,13 +2134,31 @@ export function UnifiedOrderPreviewModal({
               Cancel
             </Button>
           {submissionComplete ? (
-            <Button
-              onClick={() => onOpenChange(false)}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              <CheckCircle2 className="mr-2 h-4 w-4" />
-              Close
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // Reset all submission state so the modal can be reused for a new batch
+                  setDryRunSuccess(false);
+                  setOrderStatuses([]);
+                  setIsPolling(false);
+                  submittedOrderIdsRef.current = [];
+                  setSubmissionState(false, null);
+                  onOpenChange(false);
+                }}
+                className="border-orange-500/50 text-orange-400 hover:bg-orange-500/10"
+              >
+                <span className="mr-2">🔄</span>
+                Submit Another Batch
+              </Button>
+              <Button
+                onClick={() => onOpenChange(false)}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Close
+              </Button>
+            </>
           ) : tradingMode === "paper" ? (
             /* Paper mode: show Simulate Trade button instead of live buttons */
             <Button
