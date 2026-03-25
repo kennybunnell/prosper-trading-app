@@ -405,21 +405,24 @@ export function getIndexExchange(symbol: string): IndexExchange {
  * These are exchange-standard intervals and the minimum that makes
  * economic sense given the contract multiplier.
  *
+ * - SPX/SPXW: 50 pts (100x → $5,000/pt → $5,000 min collateral per contract)
+ *   SPX trades in 5pt increments but the minimum MEANINGFUL spread is 50pt
+ *   (a 5pt SPX spread = $500 max risk, which is uneconomical given bid-ask costs)
+ * - XSP: 5 pts (mini-SPX, 100x → $500/pt → $500 min collateral per contract)
+ *   XSP is 1/10th of SPX so 5pt XSP ≈ 50pt SPX in dollar terms
+ * - NDX/NDXP: 25 pts (100x → $2,500/pt → $2,500 min collateral per contract)
+ * - RUT/RUTW: 5 pts (100x → $500/pt → $500 min collateral per contract)
  * - MRUT: 5 pts (10x multiplier → $50/pt → $250 min collateral per contract)
- * - XSP:  1 pt  (100x multiplier → $100/pt → $100 min collateral per contract)
- * - SPX/SPXW: 5 pts (100x → $500/pt → $2,500 min collateral per contract)
- * - NDX/NDXP: 25 pts (100x → $2,500/pt → $62,500 min collateral per contract)
- * - RUT/RUTW: 5 pts (100x → $500/pt → $2,500 min collateral per contract)
  * - DJX: 1 pt (100x → $100/pt → $100 min collateral per contract)
  * - VIX: 1 pt (100x → $100/pt → $100 min collateral per contract)
  */
 const MIN_SPREAD_WIDTH_MAP: Record<string, number> = {
   MRUT: 5,
-  XSP: 1,
-  XND: 5,
-  SPX: 5,
-  SPXW: 5,
-  SPXPM: 5,
+  XSP: 5,   // Mini-SPX: 5pt = ~$500 collateral (equivalent to 50pt SPX)
+  XND: 25,
+  SPX: 50,  // Full SPX: 50pt minimum meaningful spread (~$5,000 collateral)
+  SPXW: 50, // Weekly SPX: same 50pt minimum as SPX
+  SPXPM: 50,
   NDX: 25,
   NDXP: 25,
   RUT: 5,

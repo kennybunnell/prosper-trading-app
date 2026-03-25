@@ -1,5 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
+import { Label } from "@/components/ui/label";
+import { getIndexExchange, getMinSpreadWidth, validateMultiIndexSelection } from "@shared/orderUtils";
 import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
 import { BollingerChartPanel } from "@/components/BollingerChartPanel";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
@@ -41,7 +43,7 @@ import {
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
-import { exportToCSV } from "@/lib/utils";
+import { cn, exportToCSV } from "@/lib/utils";
 import { UnifiedOrderPreviewModal } from "@/components/UnifiedOrderPreviewModal";
 import { OrderStatusModal, OrderSubmissionStatus } from "@/components/OrderStatusModal";
 import {
@@ -147,6 +149,8 @@ export default function IronCondorDashboard() {
   const [minDte, setMinDte] = useState(7);
   const [maxDte, setMaxDte] = useState(45);
   const [spreadWidth, setSpreadWidth] = useState(5);
+  // Per-symbol spread width overrides for index mode
+  const [symbolWidths, setSymbolWidths] = useState<Record<string, number>>({});
   
   // Range filter state (for UI sliders)
   const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
@@ -704,17 +708,91 @@ export default function IronCondorDashboard() {
                     className="w-full mt-1 px-3 py-2 border rounded-md"
                   />
                 </div>
-                <div>
-                  <label className="text-sm font-medium">Spread Width</label>
-                  <select
-                    value={spreadWidth}
-                    onChange={(e) => setSpreadWidth(Number(e.target.value))}
-                    className="w-full mt-1 px-3 py-2 border rounded-md"
-                  >
-                    <option value={2}>2 points</option>
-                    <option value={5}>5 points</option>
-                    <option value={10}>10 points</option>
-                  </select>
+                <div className="col-span-2">
+                  {/* Per-symbol spread width panel for index mode */}
+                  {(() => {
+                    const selectedIndexSymbols = filteredWatchlist
+                      .map((w: any) => w.symbol as string)
+                      .filter((s: string) => getIndexExchange(s) !== 'Equity');
+                    const multiIndexWarnings = isIndexMode && selectedIndexSymbols.length > 1
+                      ? validateMultiIndexSelection(selectedIndexSymbols)
+                      : [];
+                    const hasNasdaqAndCboe = multiIndexWarnings.some((w: any) => w.severity === 'warning');
+                    return (
+                      <div className="space-y-3">
+                        {hasNasdaqAndCboe && (
+                          <div className="p-3 bg-amber-500/10 border border-amber-500/40 rounded-lg flex gap-2">
+                            <span className="text-amber-400 text-lg leading-none mt-0.5">⚠️</span>
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold text-amber-400">Mixed exchanges selected</p>
+                              {multiIndexWarnings.map((w: any, i: number) => (
+                                <p key={i} className="text-xs text-amber-300/80">{w.message}</p>
+                              ))}
+                              <p className="text-xs text-muted-foreground mt-1">Submit each exchange group in a separate session for best results.</p>
+                            </div>
+                          </div>
+                        )}
+                        {isIndexMode && selectedIndexSymbols.length > 0 ? (
+                          <div className="space-y-3">
+                            <Label className="text-sm font-semibold">
+                              Spread Width per Index
+                              <span className="ml-2 text-xs text-amber-400 font-normal">(each index has its own minimum)</span>
+                            </Label>
+                            {selectedIndexSymbols.map((sym: string) => {
+                              const minW = getMinSpreadWidth(sym);
+                              const exchange = getIndexExchange(sym);
+                              const exchangeColor = exchange === 'CBOE' ? 'text-blue-400' : 'text-purple-400';
+                              const widths = [minW, minW * 2, minW * 4].filter((w: number) => w <= 200);
+                              const currentW = symbolWidths[sym] ?? minW;
+                              return (
+                                <div key={sym} className="space-y-1.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium">{sym}</span>
+                                    <span className={`text-xs ${exchangeColor}`}>{exchange}</span>
+                                    <span className="text-xs text-muted-foreground">min {minW}pt</span>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    {widths.map((w: number) => (
+                                      <Button
+                                        key={w}
+                                        variant={currentW === w ? 'default' : 'outline'}
+                                        size="sm"
+                                        onClick={() => setSymbolWidths((prev: Record<string, number>) => ({ ...prev, [sym]: w }))}
+                                        className={cn(
+                                          "flex-1 text-xs",
+                                          currentW === w
+                                            ? exchange === 'CBOE' ? "bg-orange-600 hover:bg-orange-700" : "bg-purple-600 hover:bg-purple-700"
+                                            : exchange === 'CBOE' ? "hover:bg-orange-500/10 hover:border-orange-500/50" : "hover:bg-purple-500/10 hover:border-purple-500/50"
+                                        )}
+                                      >
+                                        {w}pt
+                                      </Button>
+                                    ))}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    {sym}: {currentW}pt width → ~${(currentW * (['MRUT', 'XSP', 'DJX'].includes(sym) ? 10 : 100)).toLocaleString()} max risk/contract
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div>
+                            <Label className="text-sm font-medium">Spread Width</Label>
+                            <select
+                              value={spreadWidth}
+                              onChange={(e) => setSpreadWidth(Number(e.target.value))}
+                              className="w-full mt-1 px-3 py-2 border rounded-md bg-background"
+                            >
+                              <option value={2}>2 points</option>
+                              <option value={5}>5 points</option>
+                              <option value={10}>10 points</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

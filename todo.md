@@ -8382,3 +8382,10 @@ ROC Fix Mar 18 2026
 - [x] Fix index delta scoring: recalibrate from 0.02-0.06 range (wrong) to 0.15-0.35 range (matches scanner)
 - [x] Fix index weekly return scoring: add index-adjusted thresholds (SPX avg 0.44% vs equity avg 1.0%+)
 - [x] Verified fix via simulation: SPX scores now 67-89 (avg 77.3), 73 opportunities score 85+
+
+## Index Spread Width & Consistency (Session: Mar 25 2026)
+- [x] Fix SPX/SPXW minimum spread width from 5pt to 50pt in orderUtils.ts
+- [x] Fix XSP minimum spread width from 1pt to 5pt in orderUtils.ts
+- [x] Add per-symbol index breakdown panel to BCS (CCDashboard) - same as CSP
+- [x] Add per-symbol index breakdown panel to Iron Condor (IronCondorDashboard)
+- [x] Add mixed-exchange warning to BCS and Iron Condor pages
