@@ -8377,3 +8377,8 @@ ROC Fix Mar 18 2026
 - [x] Fix SPXW opportunities showing as SPX in CSP scanner results (tradier.ts: use original symbol not tradierOptionRoot)
 - [x] Fix BPS spread scanner chain fetch for SPXW: map SPXW→SPX for getOptionChain API call but cache under SPXW key
 - [x] Fix Iron Condor scanner chain fetch for SPXW: same root map fix
+
+## Scoring Recalibration (Session: Mar 25 2026)
+- [x] Fix index delta scoring: recalibrate from 0.02-0.06 range (wrong) to 0.15-0.35 range (matches scanner)
+- [x] Fix index weekly return scoring: add index-adjusted thresholds (SPX avg 0.44% vs equity avg 1.0%+)
+- [x] Verified fix via simulation: SPX scores now 67-89 (avg 77.3), 73 opportunities score 85+

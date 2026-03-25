@@ -95,19 +95,28 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
   // Delta - Probability Sweet Spot (15 points)
   const delta = Math.abs(opp.delta || 0);
   if (isIndex) {
-    // Index CSPs trade at much lower absolute deltas (0.02–0.06 OTM is the ideal range)
-    if (delta >= 0.02 && delta <= 0.06) {
-      greeksScore += 15; // Perfect range for index
-    } else if ((delta > 0.06 && delta <= 0.10) || (delta >= 0.01 && delta < 0.02)) {
-      greeksScore += 12; // Good range
-    } else if (delta > 0.10 && delta <= 0.15) {
-      greeksScore += 8; // Acceptable — slightly elevated risk
-    } else if (delta > 0.15 && delta <= 0.20) {
-      greeksScore += 5; // Higher risk for index
-    } else if (delta > 0.20) {
+    // Index CSPs (SPX, SPXW, NDX, RUT, etc.) — scanner fetches 0.15–0.35 delta range.
+    // Sweet spot is 0.15–0.25 (safer, ~75-85% OTM probability for cash-settled index).
+    if (delta >= 0.15 && delta <= 0.20) {
+      greeksScore += 15; // Ideal: conservative OTM, high probability of expiring worthless
+    } else if (delta > 0.20 && delta <= 0.25) {
+      greeksScore += 13; // Very good: slight more premium, still safe
+    } else if (delta > 0.25 && delta <= 0.30) {
+      greeksScore += 10; // Good: standard range
+    } else if (delta > 0.30 && delta <= 0.35) {
+      greeksScore += 7; // Acceptable: elevated risk but more premium
+    } else if (delta > 0.10 && delta < 0.15) {
+      greeksScore += 8; // Slightly below scanner range — very safe but thin premium
+    } else if (delta > 0.35 && delta <= 0.40) {
+      greeksScore += 4; // Higher risk
+    } else if (delta > 0.40) {
       greeksScore += 2; // Too close ITM for index
-    } else if (delta > 0 && delta < 0.01) {
-      greeksScore += 3; // Too far OTM — negligible premium
+    } else if (delta > 0.06 && delta < 0.10) {
+      greeksScore += 5; // Deep OTM — negligible premium
+    } else if (delta >= 0.02 && delta <= 0.06) {
+      greeksScore += 3; // Very deep OTM — almost no premium
+    } else if (delta > 0 && delta < 0.02) {
+      greeksScore += 1; // Essentially zero premium
     }
   } else {
     // Equity CSPs: 0.20-0.29 = ideal (~70-80% OTM probability)
@@ -163,20 +172,43 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
   // ===== PREMIUM QUALITY (20 points) =====
   
   // Weekly Return % (15 points)
-  // Target: 0.75-1.25% for conservative (3-5% monthly)
+  // Index products (SPX, SPXW, NDX, RUT) have much larger collateral denominators
+  // ($640,000+ for SPX vs $15,000 for a $150 equity strike), so their weekly %
+  // is structurally lower. Use index-adjusted thresholds to avoid penalizing them.
   const weekly = opp.weeklyPct || 0;
-  if (weekly >= 1.5) {
-    premiumScore += 15; // Excellent - exceeds 6%/month
-  } else if (weekly >= 1.0) {
-    premiumScore += 12; // Very good - 4-6%/month range
-  } else if (weekly >= 0.75) {
-    premiumScore += 10; // Good - meets 3%/month minimum
-  } else if (weekly >= 0.50) {
-    premiumScore += 6; // Acceptable - below target
-  } else if (weekly >= 0.30) {
-    premiumScore += 3; // Thin - only if other factors strong
+  if (isIndex) {
+    // Index weekly return thresholds (adjusted for large collateral base)
+    // SPX avg weekly: ~0.44%, top tier: ~1.0%+
+    if (weekly >= 0.80) {
+      premiumScore += 15; // Excellent for index (3.2%+/month)
+    } else if (weekly >= 0.60) {
+      premiumScore += 12; // Very good (2.4-3.2%/month)
+    } else if (weekly >= 0.45) {
+      premiumScore += 10; // Good (1.8-2.4%/month)
+    } else if (weekly >= 0.30) {
+      premiumScore += 7; // Acceptable (1.2-1.8%/month)
+    } else if (weekly >= 0.20) {
+      premiumScore += 4; // Thin but still meaningful for index
+    } else if (weekly >= 0.10) {
+      premiumScore += 2; // Very thin
+    }
+    // < 0.10% = 0 points
+  } else {
+    // Equity weekly return thresholds
+    // Target: 0.75-1.25% for conservative (3-5% monthly)
+    if (weekly >= 1.5) {
+      premiumScore += 15; // Excellent - exceeds 6%/month
+    } else if (weekly >= 1.0) {
+      premiumScore += 12; // Very good - 4-6%/month range
+    } else if (weekly >= 0.75) {
+      premiumScore += 10; // Good - meets 3%/month minimum
+    } else if (weekly >= 0.50) {
+      premiumScore += 6; // Acceptable - below target
+    } else if (weekly >= 0.30) {
+      premiumScore += 3; // Thin - only if other factors strong
+    }
+    // < 0.30% = 0 points (not worth the risk)
   }
-  // < 0.30% = 0 points (not worth the risk)
 
   // Bid-Ask Spread % (5 points)
   // Lower is better (easier to fill at mid)
