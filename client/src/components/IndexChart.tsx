@@ -134,7 +134,13 @@ export function IndexChart({ symbol }: IndexChartProps) {
       wickDownColor: THEME.down,
     });
     candleSeries.setData(
-      candles.map(c => ({ time: c.time as any, open: c.open, high: c.high, low: c.low, close: c.close }))
+      candles.map(c => ({
+        time:  c.time as any,
+        open:  Number(c.open),
+        high:  Number(c.high),
+        low:   Number(c.low),
+        close: Number(c.close),
+      }))
     );
 
     // BB upper

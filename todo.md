@@ -8357,3 +8357,8 @@ ROC Fix Mar 18 2026
 - [x] Add index expiration rule validation (SPX 3rd Friday only, SPXW all others, NDX/NDXP, RUT/RUTW)
 - [x] Show pre-order warning for invalid index/expiration combinations
 - [x] Add validateCloseOrders tRPC procedure to fetch live position sizes and validate index expiration rules
+
+## IndexChart Candlestick Crash Fix (Mar 25 2026)
+- [x] Fix Tradier OHLC string-to-number coercion in routers-charts.ts (Lightweight Charts assertion error)
+- [x] Add client-side Number() coercion in IndexChart.tsx as safety net
+- [x] Filter out NaN candles before passing to chart series

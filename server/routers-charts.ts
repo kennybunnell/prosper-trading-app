@@ -118,20 +118,27 @@ export const chartsRouter = router({
       // Sort ascending by date
       history.sort((a, b) => a.date.localeCompare(b.date));
 
-      const closes = history.map(d => d.close);
+      // Tradier returns OHLC values as strings in the raw JSON even though the
+      // TypeScript interface declares them as numbers. Coerce explicitly so that
+      // Lightweight Charts never receives a string and throws an assertion error.
+      // Also coerce closes before passing to indicator helpers to avoid NaN math.
+      const closes = history.map(d => Number(d.close));
       const bb = calcBollingerBands(closes);
       const rsi = calcRSI(closes);
 
-      const candles = history.map((d, i) => ({
-        time: d.date,  // 'YYYY-MM-DD' — Lightweight Charts accepts this directly
-        open: d.open,
-        high: d.high,
-        low: d.low,
-        close: d.close,
-        volume: d.volume,
-        bb: bb[i],
-        rsi: rsi[i] !== null ? Math.round(rsi[i]! * 100) / 100 : null,
-      }));
+      const candles = history
+        .map((d, i) => ({
+          time:   d.date,  // 'YYYY-MM-DD' — Lightweight Charts accepts this directly
+          open:   Number(d.open),
+          high:   Number(d.high),
+          low:    Number(d.low),
+          close:  Number(d.close),
+          volume: Number(d.volume),
+          bb: bb[i],
+          rsi: rsi[i] !== null ? Math.round(rsi[i]! * 100) / 100 : null,
+        }))
+        // Drop any candle where a required OHLC field came back as NaN (bad API data)
+        .filter(c => !isNaN(c.open) && !isNaN(c.high) && !isNaN(c.low) && !isNaN(c.close));
 
       return { symbol: upper, tradierSymbol, candles };
     }),
