@@ -829,9 +829,10 @@ export class TradierAPI {
             }
 
             opportunities.push({
-              // Use the Tradier-recognised option root as the symbol so chain cache keys
-              // in the IC router (which also calls getOptionChain) stay consistent.
-              symbol: tradierOptionRoot,
+              // Use the original input symbol (e.g. SPXW, NDXP) so opportunities are
+              // correctly labelled in the UI. The tradierOptionRoot (SPX, NDX) is only
+              // needed for API calls, not for display.
+              symbol: symbol,
               optionSymbol: put.symbol, // Use actual option symbol from Tradier
               strike,
               currentPrice: underlyingPrice,

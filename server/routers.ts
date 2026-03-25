@@ -2793,14 +2793,19 @@ Summary: [One sentence overall assessment]`;
         
         console.log(`[Iron Condor] Fetching ${uniqueChains.size} unique option chains...`);
         
+        // Tradier option root map: SPXW/NDXP/MRUT chains are listed under SPX/NDX/RUT.
+        const IC_CHAIN_ROOT_MAP: Record<string, string> = {
+          SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX',
+        };
         // Fetch ALL chains fully in parallel — no sequential batching
         const chainEntries = Array.from(uniqueChains.entries());
         await Promise.allSettled(
           chainEntries.map(async ([key, { symbol, expiration }]) => {
             try {
-              const options = await withRateLimit(() => api.getOptionChain(symbol, expiration, true));
+              const chainRoot = IC_CHAIN_ROOT_MAP[symbol.toUpperCase()] || symbol;
+              const options = await withRateLimit(() => api.getOptionChain(chainRoot, expiration, true));
               chainCache.set(key, options);
-              console.log(`[Iron Condor] Cached chain for ${symbol} ${expiration} (${options.length} contracts)`);
+              console.log(`[Iron Condor] Cached chain for ${symbol} (root: ${chainRoot}) ${expiration} (${options.length} contracts)`);
             } catch (error) {
               console.error(`[Iron Condor] Failed to fetch chain for ${symbol} ${expiration}:`, error);
               chainCache.set(key, []); // Cache empty array to avoid retry
@@ -3188,14 +3193,22 @@ Summary: [One sentence overall assessment]`;
         
         console.log(`[Spread] Fetching ${uniqueChains.size} unique option chains for ${cspOpportunities.length} opportunities`);
         
+        // Tradier option root map: some symbols (SPXW, NDXP, MRUT) are listed under
+        // a different root on Tradier's chain endpoint (SPX, NDX, RUT).
+        const SPREAD_CHAIN_ROOT_MAP: Record<string, string> = {
+          SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX',
+        };
         // Fetch ALL chains fully in parallel — no sequential batching
         const chainEntries2 = Array.from(uniqueChains.entries());
         await Promise.allSettled(
           chainEntries2.map(async ([key, { symbol, expiration }]) => {
             try {
-              const options = await withRateLimit(() => api.getOptionChain(symbol, expiration, true));
+              // Use Tradier-recognised chain root (e.g. SPX for SPXW) for the API call,
+              // but cache under the original display symbol key so lookups stay consistent.
+              const chainRoot = SPREAD_CHAIN_ROOT_MAP[symbol.toUpperCase()] || symbol;
+              const options = await withRateLimit(() => api.getOptionChain(chainRoot, expiration, true));
               chainCache.set(key, options);
-              console.log(`[Spread] Cached chain for ${symbol} ${expiration} (${options.length} contracts)`);
+              console.log(`[Spread] Cached chain for ${symbol} (root: ${chainRoot}) ${expiration} (${options.length} contracts)`);
 
             } catch (error) {
               console.error(`[Spread] Failed to fetch chain for ${symbol} ${expiration}:`, error);

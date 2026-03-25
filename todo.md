@@ -8372,3 +8372,8 @@ ROC Fix Mar 18 2026
 - [x] Fix OrderStatusModal audio error: replace missing /cha-ching.mp3 with Web Audio API synthesized sound
 - [x] Add enhanced server-side duplicate optionSymbol logging in CSP scanner (tradier.ts) with full context
 - [x] Add enhanced server-side duplicate spread logging in spread scanner (routers.ts) with root cause hint
+
+## SPXW Symbol Label Fix (Session: Mar 25 2026)
+- [x] Fix SPXW opportunities showing as SPX in CSP scanner results (tradier.ts: use original symbol not tradierOptionRoot)
+- [x] Fix BPS spread scanner chain fetch for SPXW: map SPXW→SPX for getOptionChain API call but cache under SPXW key
+- [x] Fix Iron Condor scanner chain fetch for SPXW: same root map fix
