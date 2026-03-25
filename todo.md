@@ -8362,3 +8362,8 @@ ROC Fix Mar 18 2026
 - [x] Fix Tradier OHLC string-to-number coercion in routers-charts.ts (Lightweight Charts assertion error)
 - [x] Add client-side Number() coercion in IndexChart.tsx as safety net
 - [x] Filter out NaN candles before passing to chart series
+
+## CSP Page Duplicate Key Fix (Session: Mar 25 2026)
+- [x] Fix duplicate React key errors on /csp page (same symbol-strike-expiration rows)
+- [x] Add client-side dedup in filteredOpportunities useMemo using optionSymbol as unique key
+- [x] Use optionSymbol as row key in TableRow to guarantee uniqueness

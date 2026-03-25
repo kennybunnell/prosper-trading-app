@@ -715,7 +715,18 @@ export default function CSPDashboard() {
       return primaryResult;
     });
 
-    return filtered;
+    // Deduplicate by optionSymbol (unique per contract) to prevent React duplicate key warnings.
+    // When two rows share the same optionSymbol (can happen if the same chain is processed twice),
+    // keep the one with the higher score.
+    const dedupMap = new Map<string, typeof filtered[0]>();
+    for (const opp of filtered) {
+      const dedupKey = (opp as any).optionSymbol || `${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`;
+      const existing = dedupMap.get(dedupKey);
+      if (!existing || opp.score > existing.score) {
+        dedupMap.set(dedupKey, opp);
+      }
+    }
+    return Array.from(dedupMap.values());
   }, [opportunities, presetFilter, presets, minScore, showSelectedOnly, sortColumn, sortDirection, deltaRange, dteRange, scoreRange, selectedOpportunities]);
 
   // Calculate summary metrics
@@ -2808,11 +2819,12 @@ export default function CSPDashboard() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredOpportunities.map((opp) => {
+                  filteredOpportunities.map((opp, rowIdx) => {
                     const key = `${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`;
+                    const rowKey = (opp as any).optionSymbol || `${key}-${rowIdx}`;
                     const isSelected = selectedOpportunities.has(key);
                     return (
-                      <TableRow key={key} className={isSelected ? "bg-primary/10" : ""}>
+                      <TableRow key={rowKey} className={isSelected ? "bg-primary/10" : ""}>
                         <TableCell>
                           <Checkbox
                             checked={isSelected}
