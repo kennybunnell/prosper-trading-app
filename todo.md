@@ -8475,3 +8475,6 @@ ROC Fix Mar 18 2026
 - [x] Persist fetchOptionsOpen state in localStorage for CSPDashboard and CCDashboard
 - [x] Move Fetch Opportunities button outside the collapsible Fetch Options section (CSP + CC)
 - [x] Add collapsible Filters section (Score, Delta, DTE sliders) collapsed by default (CSP + CC)
+
+## Column Visibility Checkbox Highlight (Mar 25, 2026)
+- [x] Add visible border/highlight around each checkbox row in ColumnVisibilityToggle popover

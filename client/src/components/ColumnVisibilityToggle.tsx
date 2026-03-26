@@ -130,7 +130,7 @@ export function ColumnVisibilityToggle({
               <div className={cn("text-[10px] font-semibold uppercase tracking-wider mb-1.5", GROUP_COLORS[group as ColumnDef["group"]])}>
                 {group}
               </div>
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {cols.map((col) => {
                   const isVisible = visibleColumns.has(col.key);
                   return (
@@ -138,10 +138,10 @@ export function ColumnVisibilityToggle({
                       key={col.key}
                       onClick={() => onVisibilityChange(col.key, !isVisible)}
                       className={cn(
-                        "w-full flex items-center gap-2.5 px-2 py-1.5 rounded text-sm transition-colors text-left",
+                        "w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-all text-left border",
                         isVisible
-                          ? "text-foreground hover:bg-accent/50"
-                          : "text-muted-foreground hover:bg-accent/30"
+                          ? "text-foreground bg-accent/20 border-border/50 hover:bg-accent/40 hover:border-primary/40"
+                          : "text-muted-foreground bg-transparent border-border/20 hover:bg-accent/20 hover:border-border/50"
                       )}
                     >
                       <div className={cn(
