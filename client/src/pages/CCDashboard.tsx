@@ -1422,8 +1422,8 @@ export default function CCDashboard() {
               className={cn(
                 "flex-1 relative overflow-hidden transition-all duration-300",
                 strategyType === 'spread'
-                  ? "bg-gradient-to-r from-orange-600 to-red-700 hover:from-orange-700 hover:to-red-800 text-white shadow-lg"
-                  : "hover:bg-orange-500/10 hover:border-orange-500/50"
+                  ? "bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 text-white shadow-lg shadow-emerald-500/30"
+                  : "hover:bg-emerald-500/10 hover:border-emerald-500/50"
               )}
             >
               <span className="relative z-10 flex items-center gap-2">
@@ -2168,7 +2168,7 @@ export default function CCDashboard() {
                     setWatchlistCollapsed(true);
                   }} 
                   disabled={isScanning}
-                  className="w-full bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
+                  className="w-full bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
                   data-fetch-button="true"
                 >
                   {isScanning ? (
@@ -2673,7 +2673,7 @@ export default function CCDashboard() {
                 ✓ Select All Filtered ({filteredOpportunities.length})
               </Button>
               <Button
-                className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 flex-1"
+                className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 flex-1"
                 size="default"
                 onClick={() => {
                   setSelectedOpportunities(new Set());

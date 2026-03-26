@@ -844,7 +844,7 @@ export default function IronCondorDashboard() {
               <Button
                 onClick={handleFetchOpportunities}
                 disabled={loadingOpportunities || filteredWatchlist.length === 0}
-                className="w-full"
+                className="w-full bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
                 data-fetch-button="true"
               >
                 {loadingOpportunities ? (
@@ -1067,7 +1067,7 @@ export default function IronCondorDashboard() {
               <Button
                 onClick={clearSelection}
                 variant="outline"
-                className="flex-1 bg-gradient-to-r from-red-500/10 to-red-600/10 hover:from-red-500/20 hover:to-red-600/20"
+                className="flex-1 bg-gradient-to-r from-emerald-500/10 to-green-600/10 hover:from-emerald-500/20 hover:to-green-600/20"
               >
                 ✕ Clear Selection ({selectedOpportunities.size})
               </Button>
@@ -1261,7 +1261,7 @@ export default function IronCondorDashboard() {
               onClick={clearSelection}
               variant="outline"
               size="sm"
-              className="bg-gradient-to-r from-red-500/10 to-red-600/10 hover:from-red-500/20 hover:to-red-600/20"
+              className="bg-gradient-to-r from-emerald-500/10 to-green-600/10 hover:from-emerald-500/20 hover:to-green-600/20"
             >
               Clear Selection
             </Button>

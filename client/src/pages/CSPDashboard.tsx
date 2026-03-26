@@ -1935,7 +1935,7 @@ export default function CSPDashboard() {
               refetchOpportunities();
             }} 
             disabled={loadingOpportunities || filteredWatchlist.length === 0 || !selectedAccountId}
-            className="w-full bg-gradient-to-r from-amber-600 to-yellow-700 hover:from-amber-700 hover:to-yellow-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
+            className="w-full bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
             data-fetch-button="true"
           >
             {loadingOpportunities ? (
@@ -2497,7 +2497,7 @@ export default function CSPDashboard() {
                 ✓ Select All Filtered ({filteredOpportunities.length})
               </Button>
               <Button
-                className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+                className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
                 size="default"
                 onClick={() => {
                   setSelectedOpportunities(new Set());

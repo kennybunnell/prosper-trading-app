@@ -8478,3 +8478,10 @@ ROC Fix Mar 18 2026
 
 ## Column Visibility Checkbox Highlight (Mar 25, 2026)
 - [x] Add visible border/highlight around each checkbox row in ColumnVisibilityToggle popover
+
+## Button Color: Green instead of Red/Orange (Mar 25, 2026)
+- [x] Change Bear Call Spread toggle button from red/orange to green in CCDashboard
+- [x] Change Fetch Opportunities button from red/orange to green in CCDashboard
+- [x] Change Fetch Opportunities button from amber/yellow to green in CSPDashboard
+- [x] Change Scan for Iron Condors button from default to green in IronCondorDashboard
+- [x] Change Clear Selection buttons from red to green across all three pages
