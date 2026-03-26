@@ -8453,3 +8453,12 @@ ROC Fix Mar 18 2026
 - [x] Apply unified column schema to IronCondorDashboard table (add Width col, reorder, set default visibility)
 - [x] Ensure all column labels are consistent across pages (Net Credit, ROC %, Weekly %, etc.)
 - [x] Ensure all sortable columns are consistently sortable across pages
+
+## Sortable Columns, Export CSV, Reset Columns (Mar 25, 2026)
+- [x] Add Reset Columns button to ColumnVisibilityToggle component (with disabled state when already at defaults)
+- [x] Add sortable columns (Score, DTE, Net Credit, ROC, Width) to CSPDashboard BPS mode (virtual key handling for width/spreadROC)
+- [x] Add sortable columns to CSPDashboard CSP mode
+- [x] Add sortable columns to CCDashboard BCS mode (Width column now sortable)
+- [x] Add sortable columns to IronCondorDashboard (Width column now sortable)
+- [x] Export CSV already present in CSPDashboard (confirmed)
+- [x] Export CSV already present in CCDashboard (confirmed)

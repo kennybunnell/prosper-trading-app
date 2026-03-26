@@ -345,10 +345,11 @@ export default function CCDashboard() {
   }, [symbolWidths]);
 
   // Column visibility (BCS vs CC mode)
-  const [bcsVisibleCols, setBcsColVisible, setBcsAllCols] = useColumnVisibility(BCS_COLUMNS, 'prosper_col_vis_bcs');
-  const [ccVisibleCols, setCcColVisible, setCcAllCols] = useColumnVisibility(CC_COLUMNS, 'prosper_col_vis_cc');
+  const [bcsVisibleCols, setBcsColVisible, setBcsAllCols, resetBcsCols] = useColumnVisibility(BCS_COLUMNS, 'prosper_col_vis_bcs');
+  const [ccVisibleCols, setCcColVisible, setCcAllCols, resetCcCols] = useColumnVisibility(CC_COLUMNS, 'prosper_col_vis_cc');
   const visibleCols = strategyType === 'spread' ? bcsVisibleCols : ccVisibleCols;
   const setColVisible = strategyType === 'spread' ? setBcsColVisible : setCcColVisible;
+  const resetCols = strategyType === 'spread' ? resetBcsCols : resetCcCols;
   const currentColDefs = strategyType === 'spread' ? BCS_COLUMNS : CC_COLUMNS;
 
   const [strategyPanelCollapsed, setStrategyPanelCollapsed] = useState(false);
@@ -980,8 +981,15 @@ export default function CCDashboard() {
     if (!sortColumn) return opps;
 
     return [...opps].sort((a, b) => {
-      const aVal = a[sortColumn];
-      const bVal = b[sortColumn];
+      // Virtual sort keys that don't map 1:1 to object fields
+      const col = sortColumn as string;
+      const getVal = (opp: CCOpportunity) => {
+        if (col === 'width') return symbolWidths[(opp as any).symbol] ?? getMinSpreadWidth((opp as any).symbol);
+        if (col === 'spreadROC') return (opp as any).spreadROC ?? (opp as any).roc ?? 0;
+        return (opp as any)[col];
+      };
+      const aVal = getVal(a);
+      const bVal = getVal(b);
 
       // Handle null/undefined values
       if (aVal === null && bVal === null) return 0;
@@ -3030,6 +3038,7 @@ export default function CCDashboard() {
                     columns={currentColDefs}
                     visibleColumns={visibleCols}
                     onVisibilityChange={setColVisible}
+                    onReset={resetCols}
                   />
                   <Button
                     variant="outline"
@@ -3181,7 +3190,12 @@ export default function CCDashboard() {
                       </TableHead>
                       {/* 5b. Width (spread only) */}
                       {strategyType === 'spread' && visibleCols.has('width') && (
-                        <TableHead className="text-right">Width</TableHead>
+                        <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('width' as keyof CCOpportunity)}>
+                          <div className="flex items-center justify-end gap-1">
+                            Width
+                            {sortColumn === ('width' as any) && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                          </div>
+                        </TableHead>
                       )}
                       {/* 6. DTE — pinned */}
                       <TableHead className="text-right cursor-pointer hover:text-amber-400 transition-colors" onClick={() => handleSort('dte')}>

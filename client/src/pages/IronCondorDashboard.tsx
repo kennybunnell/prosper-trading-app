@@ -190,7 +190,7 @@ export default function IronCondorDashboard() {
     localStorage.setItem('prosper_ic_symbol_widths', JSON.stringify(symbolWidths));
   }, [symbolWidths]);
   // Column visibility
-  const [icVisibleCols, setIcColVisible] = useColumnVisibility(IC_COLUMNS, 'prosper_col_vis_ic');
+  const [icVisibleCols, setIcColVisible, , resetIcCols] = useColumnVisibility(IC_COLUMNS, 'prosper_col_vis_ic');
   
   // Range filter state (for UI sliders)
   const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
@@ -525,8 +525,13 @@ export default function IronCondorDashboard() {
     // Apply sorting
     if (sortConfig) {
       filtered.sort((a: any, b: any) => {
-        let aValue = a[sortConfig.key];
-        let bValue = b[sortConfig.key];
+        // Virtual sort keys
+        const getVal = (opp: any) => {
+          if (sortConfig.key === 'width') return symbolWidths[opp.symbol] ?? getMinSpreadWidth(opp.symbol);
+          return opp[sortConfig.key];
+        };
+        let aValue = getVal(a);
+        let bValue = getVal(b);
         
         // Handle null/undefined values
         if (aValue === null || aValue === undefined) aValue = -Infinity;
@@ -1293,6 +1298,7 @@ export default function IronCondorDashboard() {
                   columns={IC_COLUMNS}
                   visibleColumns={icVisibleCols}
                   onVisibilityChange={setIcColVisible}
+                  onReset={resetIcCols}
                 />
                 <Button
                   variant="outline"
@@ -1391,7 +1397,11 @@ export default function IronCondorDashboard() {
                         Call Strikes {sortConfig?.key === 'callShortStrike' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
                       {/* Width */}
-                      {icVisibleCols.has('width') && <TableHead>Width</TableHead>}
+                      {icVisibleCols.has('width') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'width' && prev.direction === 'asc' ? { key: 'width', direction: 'desc' } : { key: 'width', direction: 'asc' })}>
+                          Width {sortConfig?.key === 'width' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </TableHead>
+                      )}
                       {/* DTE — always shown */}
                       <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'dte' && prev.direction === 'asc' ? { key: 'dte', direction: 'desc' } : { key: 'dte', direction: 'asc' })}>
                         DTE {sortConfig?.key === 'dte' && (sortConfig.direction === 'asc' ? '↑' : '↓')}

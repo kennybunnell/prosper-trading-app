@@ -421,10 +421,11 @@ export default function CSPDashboard() {
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{ symbol: string; strike: number; score: number; explanation: string | any[] } | null>(null);
   const [aiMode, setAiMode] = useState<'conservative' | 'aggressive'>('conservative');
   // Column visibility (BPS vs CSP mode)
-  const [bpsVisibleCols, setBpsColVisible] = useColumnVisibility(BPS_COLUMNS, 'prosper_col_vis_bps');
-  const [cspVisibleCols, setCspColVisible] = useColumnVisibility(CSP_COLUMNS, 'prosper_col_vis_csp');
+  const [bpsVisibleCols, setBpsColVisible, , resetBpsCols] = useColumnVisibility(BPS_COLUMNS, 'prosper_col_vis_bps');
+  const [cspVisibleCols, setCspColVisible, , resetCspCols] = useColumnVisibility(CSP_COLUMNS, 'prosper_col_vis_csp');
   const visibleCols = strategyType === 'spread' ? bpsVisibleCols : cspVisibleCols;
   const setColVisible = strategyType === 'spread' ? setBpsColVisible : setCspColVisible;
+  const resetCols = strategyType === 'spread' ? resetBpsCols : resetCspCols;
   const currentColDefs = strategyType === 'spread' ? BPS_COLUMNS : CSP_COLUMNS;
   // Legacy shim: showTechnicalColumns drives the old column array filter below
   const showTechnicalColumns = visibleCols.has('delta') || visibleCols.has('rsi') || visibleCols.has('ivRank');
@@ -758,8 +759,15 @@ export default function CSPDashboard() {
     }
 
     filtered.sort((a, b) => {
-      const aVal = (a as any)[sortColumn];
-      const bVal = (b as any)[sortColumn];
+      // Virtual sort keys that don't map 1:1 to object fields
+      const getVal = (opp: any) => {
+        if (sortColumn === 'width') return symbolWidths[opp.symbol] ?? getMinSpreadWidth(opp.symbol);
+        if (sortColumn === 'netCredit') return (opp.netCredit ?? 0) * 100; // display in dollars
+        if (sortColumn === 'spreadROC') return opp.spreadROC ?? opp.roc ?? 0;
+        return opp[sortColumn];
+      };
+      const aVal = getVal(a as any);
+      const bVal = getVal(b as any);
       
       if (aVal === null || aVal === undefined) return 1;
       if (bVal === null || bVal === undefined) return -1;
@@ -2738,6 +2746,7 @@ export default function CSPDashboard() {
               columns={currentColDefs}
               visibleColumns={visibleCols}
               onVisibilityChange={setColVisible}
+              onReset={resetCols}
             />
           </div>
         </CardHeader>

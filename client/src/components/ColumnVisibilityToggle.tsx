@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Columns3, Check } from "lucide-react";
+import { Columns3, Check, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -22,8 +22,8 @@ interface ColumnVisibilityToggleProps {
   columns: ColumnDef[];
   visibleColumns: Set<string>;
   onVisibilityChange: (key: string, visible: boolean) => void;
-  /** Compact label shown in badge when some columns are hidden */
-  hiddenCount?: number;
+  /** Called when user clicks "Reset to defaults" */
+  onReset?: () => void;
 }
 
 const GROUP_ORDER: ColumnDef["group"][] = [
@@ -50,6 +50,7 @@ export function ColumnVisibilityToggle({
   columns,
   visibleColumns,
   onVisibilityChange,
+  onReset,
 }: ColumnVisibilityToggleProps) {
   const [open, setOpen] = useState(false);
 
@@ -58,6 +59,12 @@ export function ColumnVisibilityToggle({
   ).length;
 
   const toggleableColumns = columns.filter((c) => !c.pinned);
+
+  // Check if current state matches defaults (for Reset button disabled state)
+  const defaultKeys = new Set(columns.filter((c) => c.pinned || c.defaultVisible).map((c) => c.key));
+  const isAtDefault =
+    defaultKeys.size === visibleColumns.size &&
+    Array.from(defaultKeys).every((k) => visibleColumns.has(k));
 
   // Group columns
   const grouped = GROUP_ORDER.reduce<Record<string, ColumnDef[]>>((acc, g) => {
@@ -154,10 +161,27 @@ export function ColumnVisibilityToggle({
           ))}
         </div>
 
-        {/* Footer hint */}
-        <div className="mt-3 pt-2 border-t border-border/40 text-[10px] text-muted-foreground/60">
-          Pinned columns (Score, Symbol, Strikes, DTE, Net Credit) are always visible.
-          Settings saved automatically.
+        {/* Footer: Reset to defaults */}
+        <div className="mt-3 pt-2 border-t border-border/40 flex items-center justify-between">
+          <span className="text-[10px] text-muted-foreground/60">
+            Pinned columns always visible. Saved automatically.
+          </span>
+          {onReset && (
+            <button
+              onClick={() => { onReset(); }}
+              disabled={isAtDefault}
+              className={cn(
+                "flex items-center gap-1 text-[11px] px-2 py-1 rounded transition-colors",
+                isAtDefault
+                  ? "text-muted-foreground/30 cursor-not-allowed"
+                  : "text-amber-400 hover:text-amber-300 hover:bg-amber-400/10"
+              )}
+              title="Reset to default column visibility"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Reset
+            </button>
+          )}
         </div>
       </PopoverContent>
     </Popover>
@@ -170,7 +194,9 @@ export function ColumnVisibilityToggle({
 export function useColumnVisibility(
   columns: ColumnDef[],
   storageKey: string
-): [Set<string>, (key: string, visible: boolean) => void, (keys: Set<string>) => void] {
+): [Set<string>, (key: string, visible: boolean) => void, (keys: Set<string>) => void, () => void] {
+  const defaultKeys = new Set(columns.filter((c) => c.pinned || c.defaultVisible).map((c) => c.key));
+
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem(storageKey);
@@ -181,8 +207,7 @@ export function useColumnVisibility(
     } catch {
       // ignore
     }
-    // Default: all columns with defaultVisible=true or pinned=true
-    return new Set(columns.filter((c) => c.pinned || c.defaultVisible).map((c) => c.key));
+    return new Set(defaultKeys);
   });
 
   const setVisibility = (key: string, visible: boolean) => {
@@ -211,5 +236,14 @@ export function useColumnVisibility(
     }
   };
 
-  return [visibleColumns, setVisibility, setAll];
+  const resetToDefaults = () => {
+    setVisibleColumns(new Set(defaultKeys));
+    try {
+      localStorage.removeItem(storageKey);
+    } catch {
+      // ignore
+    }
+  };
+
+  return [visibleColumns, setVisibility, setAll, resetToDefaults];
 }
