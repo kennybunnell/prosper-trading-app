@@ -2693,7 +2693,7 @@ export default function CCDashboard() {
                 disabled={opportunities.length === 0}
               >
                 <Sparkles className="w-4 h-4 mr-2" />
-                {showAIAdvisor ? 'Hide AI Advisor' : `AI Advisor — Analyze ${opportunities.length} Opportunities`}
+                {showAIAdvisor ? 'Hide AI Advisor' : `AI Advisor — Analyze ${activeExchangeFilter ? `${filteredOpportunities.length} ${activeExchangeFilter}` : `${opportunities.length}`} Opportunities`}
               </Button>
               {opportunities.length === 0 && (
                 <p className="text-xs text-slate-500 text-center mt-1">Run a scan first to enable AI Advisor</p>
@@ -2703,7 +2703,10 @@ export default function CCDashboard() {
             {/* AI Advisor Panel - inline below button */}
             {showAIAdvisor && (
               <AIAdvisorPanel
-                opportunities={opportunities.map((opp: any) => ({
+                opportunities={(activeExchangeFilter
+                  ? opportunities.filter((opp: any) => getIndexExchange((opp as any).symbol) === activeExchangeFilter)
+                  : opportunities
+                ).map((opp: any) => ({
                   score: opp.score ?? 0,
                   symbol: opp.symbol,
                   strategy: strategyType === 'spread' ? 'BCS' : 'CC',

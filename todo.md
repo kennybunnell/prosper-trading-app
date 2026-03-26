@@ -8462,3 +8462,8 @@ ROC Fix Mar 18 2026
 - [x] Add sortable columns to IronCondorDashboard (Width column now sortable)
 - [x] Export CSV already present in CSPDashboard (confirmed)
 - [x] Export CSV already present in CCDashboard (confirmed)
+
+## AI Advisor Exchange-Scoped Analysis (Mar 25, 2026)
+- [x] Update CSPDashboard AI Advisor to scope analysis to active exchange filter (CBOE/Nasdaq/All)
+- [x] Update CCDashboard AI Advisor to scope analysis to active exchange filter (CBOE/Nasdaq/All)
+- [x] Update IronCondorDashboard AI Advisor to scope analysis to active exchange filter (CBOE/Nasdaq/All)
