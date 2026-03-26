@@ -8467,3 +8467,6 @@ ROC Fix Mar 18 2026
 - [x] Update CSPDashboard AI Advisor to scope analysis to active exchange filter (CBOE/Nasdaq/All)
 - [x] Update CCDashboard AI Advisor to scope analysis to active exchange filter (CBOE/Nasdaq/All)
 - [x] Update IronCondorDashboard AI Advisor to scope analysis to active exchange filter (CBOE/Nasdaq/All)
+
+## Fetch Options Collapse by Default (Mar 25, 2026)
+- [x] Collapse "Fetch Options" section (Portfolio Size + DTE Range) by default in CSPDashboard and CCDashboard (collapsed by default, click header to expand)

@@ -364,6 +364,7 @@ export default function CCDashboard() {
   // Fetch Options state variables
   const [portfolioSizeFilter, setPortfolioSizeFilter] = useState<Array<'small' | 'medium' | 'large'>>(['small', 'medium', 'large']);
   const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
+  const [fetchOptionsOpen, setFetchOptionsOpen] = useState(false);
   const [minDte, setMinDte] = useState<number>(7);
   const [maxDte, setMaxDte] = useState<number>(30);
   // Watchlist context mode: read from Strategy Advisor passthrough if present
@@ -1958,11 +1959,17 @@ export default function CCDashboard() {
           {/* Fetch Options Section - Only show when watchlist is not collapsed */}
           {!watchlistCollapsed && (
             <Card className="bg-card/50 backdrop-blur border-border/50">
-              <CardHeader>
-                <CardTitle>Fetch Options</CardTitle>
-                <CardDescription>Configure and fetch Bear Call Spread opportunities</CardDescription>
+              <CardHeader
+                className="cursor-pointer select-none flex flex-row items-center justify-between py-3"
+                onClick={() => setFetchOptionsOpen(o => !o)}
+              >
+                <div>
+                  <CardTitle className="text-sm">Fetch Options</CardTitle>
+                  {!fetchOptionsOpen && <CardDescription className="text-xs">Portfolio size, DTE range &amp; scan</CardDescription>}
+                </div>
+                <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", fetchOptionsOpen && "rotate-180")} />
               </CardHeader>
-              <CardContent className="space-y-4">
+              {fetchOptionsOpen && <CardContent className="space-y-4">
                 {/* Portfolio Size Filter */}
                 <div>
                   <Label className="mb-2 block flex items-center gap-1">
@@ -2180,7 +2187,7 @@ export default function CCDashboard() {
                     </div>
                   );
                 })()}
-              </CardContent>
+              </CardContent>}
             </Card>
           )}
           
