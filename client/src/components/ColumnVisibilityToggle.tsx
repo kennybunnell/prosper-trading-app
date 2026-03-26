@@ -97,12 +97,12 @@ export function ColumnVisibilityToggle({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-72 p-3 bg-card border-border/60 shadow-xl"
+        className="w-72 p-3 bg-card/95 backdrop-blur-sm border border-border shadow-2xl"
         align="end"
         sideOffset={6}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-3 pb-2 border-b border-border/40">
+        <div className="flex items-center justify-between mb-3 pb-2 border-b border-border/60">
           <span className="text-sm font-semibold text-foreground">Column Visibility</span>
           <div className="flex gap-1.5">
             <button
@@ -140,15 +140,15 @@ export function ColumnVisibilityToggle({
                       className={cn(
                         "w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-all text-left border",
                         isVisible
-                          ? "text-foreground bg-accent/20 border-border/50 hover:bg-accent/40 hover:border-primary/40"
-                          : "text-muted-foreground bg-transparent border-border/20 hover:bg-accent/20 hover:border-border/50"
+                          ? "text-foreground bg-accent/30 border-border/70 hover:bg-accent/50 hover:border-primary/50"
+                          : "text-muted-foreground bg-transparent border-border/50 hover:bg-accent/20 hover:border-border/80 hover:text-foreground"
                       )}
                     >
                       <div className={cn(
                         "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors",
                         isVisible
                           ? "bg-primary border-primary"
-                          : "border-border/60"
+                          : "border-border/70 bg-background/50"
                       )}>
                         {isVisible && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
                       </div>
@@ -162,7 +162,7 @@ export function ColumnVisibilityToggle({
         </div>
 
         {/* Footer: Reset to defaults */}
-        <div className="mt-3 pt-2 border-t border-border/40 flex items-center justify-between">
+        <div className="mt-3 pt-2 border-t border-border/60 flex items-center justify-between">
           <span className="text-[10px] text-muted-foreground/60">
             Pinned columns always visible. Saved automatically.
           </span>

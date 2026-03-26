@@ -8485,3 +8485,7 @@ ROC Fix Mar 18 2026
 - [x] Change Fetch Opportunities button from amber/yellow to green in CSPDashboard
 - [x] Change Scan for Iron Condors button from default to green in IronCondorDashboard
 - [x] Change Clear Selection buttons from red to green across all three pages
+
+## Column Visibility Popover Fixes (Mar 26, 2026)
+- [x] Fix all checkbox rows (checked and unchecked) to have consistent visible borders in ColumnVisibilityToggle
+- [x] Improve popover background: more opaque (bg-card/95), stronger border, shadow-2xl for readability
