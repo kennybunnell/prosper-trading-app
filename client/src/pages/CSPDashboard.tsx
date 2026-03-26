@@ -378,7 +378,8 @@ export default function CSPDashboard() {
   const [portfolioSizeFilter, setPortfolioSizeFilter] = useState<Array<'small' | 'medium' | 'large'>>(['small', 'medium', 'large']);
   const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
   const [isFullyCollapsed, setIsFullyCollapsed] = useState(false);
-  const [fetchOptionsOpen, setFetchOptionsOpen] = useState(false);
+  const [fetchOptionsOpen, setFetchOptionsOpen] = useState(() => localStorage.getItem('prosper_fetchOptions_csp') === 'true');
+  const [filtersOpen, setFiltersOpen] = useState(() => localStorage.getItem('prosper_filters_csp') === 'true');
   // Watchlist context mode: read from Strategy Advisor passthrough if present
   const [watchlistContextMode, setWatchlistContextMode] = useState<'equity' | 'index'>(() => {
     const advisorScanType = localStorage.getItem('strategyAdvisorScanType');
@@ -1635,11 +1636,11 @@ export default function CSPDashboard() {
           <Card className="bg-card/50 backdrop-blur border-border/50">
         <CardHeader
           className="cursor-pointer select-none flex flex-row items-center justify-between py-3"
-          onClick={() => setFetchOptionsOpen(o => !o)}
+          onClick={() => setFetchOptionsOpen(o => { const next = !o; localStorage.setItem('prosper_fetchOptions_csp', String(next)); return next; })}
         >
           <div>
             <CardTitle className="text-sm">Fetch Options</CardTitle>
-            {!fetchOptionsOpen && <CardDescription className="text-xs">Portfolio size, DTE range &amp; scan</CardDescription>}
+            {!fetchOptionsOpen && <CardDescription className="text-xs">Portfolio size &amp; DTE range</CardDescription>}
           </div>
           <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", fetchOptionsOpen && "rotate-180")} />
         </CardHeader>
@@ -1909,7 +1910,10 @@ export default function CSPDashboard() {
             );
           })()}
 
-          {/* Fetch Button */}
+        </CardContent>}
+      </Card>
+
+          {/* Fetch Button - always visible outside collapsible section */}
           <Button 
             onClick={() => {
               if (!selectedAccountId) {
@@ -1951,8 +1955,6 @@ export default function CSPDashboard() {
               </>
             )}
           </Button>
-        </CardContent>}
-      </Card>
         </>
       )}
 
@@ -2138,13 +2140,18 @@ export default function CSPDashboard() {
 
       {/* Filters */}
       <Card className="bg-card/50 backdrop-blur border-border/50" data-section="filters">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="w-5 h-5" />
+        <CardHeader
+          className="cursor-pointer select-none flex flex-row items-center justify-between py-3"
+          onClick={() => setFiltersOpen(o => { const next = !o; localStorage.setItem('prosper_filters_csp', String(next)); return next; })}
+        >
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Filter className="w-4 h-4" />
             Filters
+            {!filtersOpen && <span className="text-xs font-normal text-muted-foreground ml-1">Score · Delta · DTE · IV · RSI</span>}
           </CardTitle>
+          <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", filtersOpen && "rotate-180")} />
         </CardHeader>
-        <CardContent className="space-y-4">
+        {filtersOpen && <CardContent className="space-y-4">
           {/* Range Filters - Redesigned with larger sliders */}
           <div className="space-y-6">
             <div className="flex items-center gap-2 mb-4">
@@ -2618,7 +2625,7 @@ export default function CSPDashboard() {
                 onClose={() => setShowAIAdvisor(false)}
               />
             )}
-        </CardContent>
+        </CardContent>}
       </Card>
       {/* Summary Cards - Enhanced with gradients and glassmorphism */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">

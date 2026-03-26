@@ -8470,3 +8470,8 @@ ROC Fix Mar 18 2026
 
 ## Fetch Options Collapse by Default (Mar 25, 2026)
 - [x] Collapse "Fetch Options" section (Portfolio Size + DTE Range) by default in CSPDashboard and CCDashboard (collapsed by default, click header to expand)
+
+## Collapsible UX Improvements (Mar 25, 2026)
+- [x] Persist fetchOptionsOpen state in localStorage for CSPDashboard and CCDashboard
+- [x] Move Fetch Opportunities button outside the collapsible Fetch Options section (CSP + CC)
+- [x] Add collapsible Filters section (Score, Delta, DTE sliders) collapsed by default (CSP + CC)

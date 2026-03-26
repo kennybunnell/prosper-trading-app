@@ -364,7 +364,8 @@ export default function CCDashboard() {
   // Fetch Options state variables
   const [portfolioSizeFilter, setPortfolioSizeFilter] = useState<Array<'small' | 'medium' | 'large'>>(['small', 'medium', 'large']);
   const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
-  const [fetchOptionsOpen, setFetchOptionsOpen] = useState(false);
+  const [fetchOptionsOpen, setFetchOptionsOpen] = useState(() => localStorage.getItem('prosper_fetchOptions_bcs') === 'true');
+  const [filtersOpen, setFiltersOpen] = useState(() => localStorage.getItem('prosper_filters_bcs') === 'true');
   const [minDte, setMinDte] = useState<number>(7);
   const [maxDte, setMaxDte] = useState<number>(30);
   // Watchlist context mode: read from Strategy Advisor passthrough if present
@@ -1961,11 +1962,11 @@ export default function CCDashboard() {
             <Card className="bg-card/50 backdrop-blur border-border/50">
               <CardHeader
                 className="cursor-pointer select-none flex flex-row items-center justify-between py-3"
-                onClick={() => setFetchOptionsOpen(o => !o)}
-              >
-                <div>
-                  <CardTitle className="text-sm">Fetch Options</CardTitle>
-                  {!fetchOptionsOpen && <CardDescription className="text-xs">Portfolio size, DTE range &amp; scan</CardDescription>}
+          onClick={() => setFetchOptionsOpen(o => { const next = !o; localStorage.setItem('prosper_fetchOptions_bcs', String(next)); return next; })}
+        >
+          <div>
+            <CardTitle className="text-sm">Fetch Options</CardTitle>
+            {!fetchOptionsOpen && <CardDescription className="text-xs">Portfolio size &amp; DTE range</CardDescription>}
                 </div>
                 <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", fetchOptionsOpen && "rotate-180")} />
               </CardHeader>
@@ -2149,47 +2150,47 @@ export default function CCDashboard() {
                   </div>
                 </div>
 
-                {/* Fetch Button */}
-                {(() => {
-                  // Width-changed badge: show if any symbol has a non-default width
-                  const hasCustomWidths = isIndexMode && strategyType === 'spread' && Object.keys(symbolWidths).some(sym => {
-                    const minW = getMinSpreadWidth(sym);
-                    return symbolWidths[sym] !== minW;
-                  });
-                  return (
-                    <div className="relative">
-                      <Button 
-                        onClick={() => {
-                          scanOpportunities();
-                          setWatchlistCollapsed(true);
-                        }} 
-                        disabled={isScanning}
-                        className="w-full bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
-                        data-fetch-button="true"
-                      >
-                        {isScanning ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Fetching Opportunities...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            Fetch Opportunities
-                          </>
-                        )}
-                      </Button>
-                      {hasCustomWidths && (
-                        <span className="absolute -top-2 -right-2 bg-amber-500 text-black text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none pointer-events-none z-10">
-                          Custom widths
-                        </span>
-                      )}
-                    </div>
-                  );
-                })()}
               </CardContent>}
             </Card>
           )}
+
+          {/* Fetch Button - always visible outside collapsible section */}
+          {(() => {
+            const hasCustomWidths = isIndexMode && strategyType === 'spread' && Object.keys(symbolWidths).some(sym => {
+              const minW = getMinSpreadWidth(sym);
+              return symbolWidths[sym] !== minW;
+            });
+            return (
+              <div className="relative">
+                <Button 
+                  onClick={() => {
+                    scanOpportunities();
+                    setWatchlistCollapsed(true);
+                  }} 
+                  disabled={isScanning}
+                  className="w-full bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]"
+                  data-fetch-button="true"
+                >
+                  {isScanning ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Fetching Opportunities...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Fetch Opportunities
+                    </>
+                  )}
+                </Button>
+                {hasCustomWidths && (
+                  <span className="absolute -top-2 -right-2 bg-amber-500 text-black text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none pointer-events-none z-10">
+                    Custom widths
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           
           {/* Scanning Progress Dialog */}
           <Dialog open={isScanning} onOpenChange={(open) => {
@@ -2315,13 +2316,18 @@ export default function CCDashboard() {
             </div>
 
       <Card className="bg-card/50 backdrop-blur border-amber-500/20" data-section="filters">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="w-5 h-5" />
+        <CardHeader
+          className="cursor-pointer select-none flex flex-row items-center justify-between py-3"
+          onClick={() => setFiltersOpen(o => { const next = !o; localStorage.setItem('prosper_filters_bcs', String(next)); return next; })}
+        >
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Filter className="w-4 h-4" />
             Filters
+            {!filtersOpen && <span className="text-xs font-normal text-muted-foreground ml-1">Score · Delta · DTE · IV · RSI</span>}
           </CardTitle>
+          <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", filtersOpen && "rotate-180")} />
         </CardHeader>
-        <CardContent className="space-y-4">
+        {filtersOpen && <CardContent className="space-y-4">
           {/* Range Filters - Redesigned with larger sliders */}
           <div className="space-y-6">
             <div className="flex items-center gap-2 mb-4">
@@ -2780,7 +2786,7 @@ export default function CCDashboard() {
                 onClose={() => setShowAIAdvisor(false)}
               />
             )}
-        </CardContent>
+        </CardContent>}
       </Card>
       {/* Summary Cards - Enhanced with gradients and glassmorphism */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
