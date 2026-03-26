@@ -8442,3 +8442,14 @@ ROC Fix Mar 18 2026
 - [x] Update CSPDashboard fetch call to pass symbolWidths (was already done)
 - [x] Update CCDashboard fetch call to pass symbolWidths
 - [x] Update IronCondorDashboard fetch call to pass symbolWidths and isIndexMode
+
+## Column Visibility, Consistency & Width Persistence (Mar 25, 2026)
+- [x] Build reusable ColumnVisibilityToggle component (popover with grouped checkboxes, persists to localStorage)
+- [x] Add width-changed badge to Scan button when symbolWidths differs from defaults
+- [x] Persist symbolWidths to localStorage per strategy (prosper_widths_bps, prosper_widths_bcs, prosper_widths_ic)
+- [x] Apply unified column schema to CSPDashboard BPS table (add Width col, reorder, set default visibility)
+- [x] Apply unified column schema to CSPDashboard CSP table (align with BPS where applicable)
+- [x] Apply unified column schema to CCDashboard BCS table (add Width col, reorder, set default visibility)
+- [x] Apply unified column schema to IronCondorDashboard table (add Width col, reorder, set default visibility)
+- [x] Ensure all column labels are consistent across pages (Net Credit, ROC %, Weekly %, etc.)
+- [x] Ensure all sortable columns are consistently sortable across pages

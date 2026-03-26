@@ -2,6 +2,35 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { Label } from "@/components/ui/label";
 import { getIndexExchange, getMinSpreadWidth, validateMultiIndexSelection } from "@shared/orderUtils";
+import { ColumnVisibilityToggle, useColumnVisibility, type ColumnDef } from "@/components/ColumnVisibilityToggle";
+
+// Iron Condor unified column definitions
+const IC_COLUMNS: ColumnDef[] = [
+  { key: 'score',       label: 'Score',        group: 'Core',     pinned: true,  defaultVisible: true  },
+  { key: 'spxwScore',  label: 'SPXW Score',   group: 'Core',                    defaultVisible: true  },
+  { key: 'symbol',     label: 'Symbol',       group: 'Core',     pinned: true,  defaultVisible: true  },
+  { key: 'exchange',   label: 'Exchange',     group: 'Core',                    defaultVisible: true  },
+  { key: 'currentPrice', label: 'Current',    group: 'Position',                defaultVisible: true  },
+  { key: 'putStrikes', label: 'Put Strikes',  group: 'Position', pinned: true,  defaultVisible: true  },
+  { key: 'callStrikes', label: 'Call Strikes', group: 'Position', pinned: true, defaultVisible: true  },
+  { key: 'width',      label: 'Width',        group: 'Position',                defaultVisible: true  },
+  { key: 'dte',        label: 'DTE',          group: 'Position', pinned: true,  defaultVisible: true  },
+  { key: 'netCredit',  label: 'Net Credit',   group: 'Returns',  pinned: true,  defaultVisible: true  },
+  { key: 'collateral', label: 'Collateral',   group: 'Returns',                 defaultVisible: false },
+  { key: 'roc',        label: 'ROC %',        group: 'Returns',  pinned: true,  defaultVisible: true  },
+  { key: 'putDelta',   label: 'Put Δ',        group: 'Greeks',                  defaultVisible: true  },
+  { key: 'callDelta',  label: 'Call Δ',       group: 'Greeks',                  defaultVisible: true  },
+  { key: 'netDelta',   label: 'Net Δ',        group: 'Greeks',                  defaultVisible: false },
+  { key: 'ivRank',     label: 'IV Rank',      group: 'Greeks',                  defaultVisible: false },
+  { key: 'rsi',        label: 'RSI',          group: 'Technical',               defaultVisible: false },
+  { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
+  { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
+  { key: 'volume',     label: 'Vol',          group: 'Liquidity',               defaultVisible: false },
+  { key: 'profitZone', label: 'Profit Zone',  group: 'Position',                defaultVisible: true  },
+  { key: 'breakevens', label: 'Breakevens',   group: 'Position',                defaultVisible: false },
+  { key: 'riskBadges', label: 'Risk',         group: 'Core',                    defaultVisible: true  },
+  { key: 'expiration', label: 'Expiration',   group: 'Position',                defaultVisible: false },
+];
 import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
 import { BollingerChartPanel } from "@/components/BollingerChartPanel";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
@@ -149,8 +178,19 @@ export default function IronCondorDashboard() {
   const [minDte, setMinDte] = useState(7);
   const [maxDte, setMaxDte] = useState(45);
   const [spreadWidth, setSpreadWidth] = useState(5);
-  // Per-symbol spread width overrides for index mode
-  const [symbolWidths, setSymbolWidths] = useState<Record<string, number>>({});
+  // Per-symbol spread width overrides for index mode (persisted in localStorage)
+  const [symbolWidths, setSymbolWidths] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem('prosper_ic_symbol_widths');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+  // Persist symbolWidths changes
+  useEffect(() => {
+    localStorage.setItem('prosper_ic_symbol_widths', JSON.stringify(symbolWidths));
+  }, [symbolWidths]);
+  // Column visibility
+  const [icVisibleCols, setIcColVisible] = useColumnVisibility(IC_COLUMNS, 'prosper_col_vis_ic');
   
   // Range filter state (for UI sliders)
   const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
@@ -811,6 +851,11 @@ export default function IronCondorDashboard() {
                   <>
                     <Sparkles className="mr-2 h-4 w-4" />
                     Scan for Iron Condors
+                    {isIndexMode && Object.entries(symbolWidths).some(([sym, w]) => w !== getMinSpreadWidth(sym)) && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                        Custom Width
+                      </span>
+                    )}
                   </>
                 )}
               </Button>
@@ -1243,6 +1288,12 @@ export default function IronCondorDashboard() {
                     4-leg neutral income strategy - profit if stock stays between short strikes
                   </CardDescription>
                 </div>
+                <div className="flex items-center gap-2">
+                <ColumnVisibilityToggle
+                  columns={IC_COLUMNS}
+                  visibleColumns={icVisibleCols}
+                  onVisibilityChange={setIcColVisible}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -1285,6 +1336,7 @@ export default function IronCondorDashboard() {
                   <Download className="w-4 h-4 mr-2" />
                   Export CSV ({displayedOpportunities.length})
                 </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -1308,204 +1360,112 @@ export default function IronCondorDashboard() {
                         />
                       </TableHead>
                       
-                      {/* 2. Score */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'score' && prev.direction === 'desc' 
-                          ? { key: 'score', direction: 'asc' } 
-                          : { key: 'score', direction: 'desc' });
-                      }}>
+                      {/* Score — always shown */}
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'score' && prev.direction === 'desc' ? { key: 'score', direction: 'asc' } : { key: 'score', direction: 'desc' })}>
                         Score {sortConfig?.key === 'score' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
-                      
-                      {/* 2b. SPXW Score column — only visible when SPXW is in watchlist */}
-                      {spxwInWatchlist && (
-                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                          setSortConfig(prev => prev?.key === 'spxwScore' && prev.direction === 'desc'
-                            ? { key: 'spxwScore', direction: 'asc' }
-                            : { key: 'spxwScore', direction: 'desc' });
-                        }}>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="flex items-center gap-1 text-amber-400 cursor-help">
-                                  SPXW Score {sortConfig?.key === 'spxwScore' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs text-xs">
-                                Index-calibrated score using profit zone width, delta neutrality, and index IV rank thresholds (15–45 range). Replaces RSI/BB components used for equity scoring.
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                      {/* SPXW Score — only if visible and SPXW in watchlist */}
+                      {spxwInWatchlist && icVisibleCols.has('spxwScore') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'spxwScore' && prev.direction === 'desc' ? { key: 'spxwScore', direction: 'asc' } : { key: 'spxwScore', direction: 'desc' })}>
+                          <span className="flex items-center gap-1 text-amber-400">SPXW Score {sortConfig?.key === 'spxwScore' && (sortConfig.direction === 'asc' ? '↑' : '↓')}</span>
                         </TableHead>
                       )}
-
-                      {/* 3. Symbol */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'symbol' && prev.direction === 'asc' 
-                          ? { key: 'symbol', direction: 'desc' } 
-                          : { key: 'symbol', direction: 'asc' });
-                      }}>
+                      {/* Symbol — always shown */}
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'symbol' && prev.direction === 'asc' ? { key: 'symbol', direction: 'desc' } : { key: 'symbol', direction: 'asc' })}>
                         Symbol {sortConfig?.key === 'symbol' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
-                      
-                      {/* 4. Current */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'currentPrice' && prev.direction === 'desc' 
-                          ? { key: 'currentPrice', direction: 'asc' } 
-                          : { key: 'currentPrice', direction: 'desc' });
-                      }}>
-                        Current {sortConfig?.key === 'currentPrice' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </TableHead>
-                      
-                      {/* 5. Put Strikes */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'putShortStrike' && prev.direction === 'desc' 
-                          ? { key: 'putShortStrike', direction: 'asc' } 
-                          : { key: 'putShortStrike', direction: 'desc' });
-                      }}>
+                      {/* Exchange */}
+                      {isIndexMode && icVisibleCols.has('exchange') && <TableHead>Exchange</TableHead>}
+                      {/* Current */}
+                      {icVisibleCols.has('currentPrice') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'currentPrice' && prev.direction === 'desc' ? { key: 'currentPrice', direction: 'asc' } : { key: 'currentPrice', direction: 'desc' })}>
+                          Current {sortConfig?.key === 'currentPrice' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </TableHead>
+                      )}
+                      {/* Put Strikes — always shown */}
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'putShortStrike' && prev.direction === 'desc' ? { key: 'putShortStrike', direction: 'asc' } : { key: 'putShortStrike', direction: 'desc' })}>
                         Put Strikes {sortConfig?.key === 'putShortStrike' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
-                      
-                      {/* 6. Call Strikes */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'callShortStrike' && prev.direction === 'desc' 
-                          ? { key: 'callShortStrike', direction: 'asc' } 
-                          : { key: 'callShortStrike', direction: 'desc' });
-                      }}>
+                      {/* Call Strikes — always shown */}
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'callShortStrike' && prev.direction === 'desc' ? { key: 'callShortStrike', direction: 'asc' } : { key: 'callShortStrike', direction: 'desc' })}>
                         Call Strikes {sortConfig?.key === 'callShortStrike' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
-                      
-                      {/* 7. DTE */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'dte' && prev.direction === 'asc' 
-                          ? { key: 'dte', direction: 'desc' } 
-                          : { key: 'dte', direction: 'asc' });
-                      }}>
+                      {/* Width */}
+                      {icVisibleCols.has('width') && <TableHead>Width</TableHead>}
+                      {/* DTE — always shown */}
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'dte' && prev.direction === 'asc' ? { key: 'dte', direction: 'desc' } : { key: 'dte', direction: 'asc' })}>
                         DTE {sortConfig?.key === 'dte' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
-                      
-                      {/* 8. Net Credit */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'totalNetCredit' && prev.direction === 'desc' 
-                          ? { key: 'totalNetCredit', direction: 'asc' } 
-                          : { key: 'totalNetCredit', direction: 'desc' });
-                      }}>
+                      {/* Net Credit — always shown */}
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'totalNetCredit' && prev.direction === 'desc' ? { key: 'totalNetCredit', direction: 'asc' } : { key: 'totalNetCredit', direction: 'desc' })}>
                         Net Credit {sortConfig?.key === 'totalNetCredit' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
-                      
-                      {/* 9. Collateral */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'totalCollateral' && prev.direction === 'desc' 
-                          ? { key: 'totalCollateral', direction: 'asc' } 
-                          : { key: 'totalCollateral', direction: 'desc' });
-                      }}>
-                        Collateral {sortConfig?.key === 'totalCollateral' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </TableHead>
-                      
-                      {/* 10. ROC % */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'roc' && prev.direction === 'desc' 
-                          ? { key: 'roc', direction: 'asc' } 
-                          : { key: 'roc', direction: 'desc' });
-                      }}>
+                      {/* Collateral */}
+                      {icVisibleCols.has('collateral') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'totalCollateral' && prev.direction === 'desc' ? { key: 'totalCollateral', direction: 'asc' } : { key: 'totalCollateral', direction: 'desc' })}>
+                          Collateral {sortConfig?.key === 'totalCollateral' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </TableHead>
+                      )}
+                      {/* ROC % — always shown */}
+                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'roc' && prev.direction === 'desc' ? { key: 'roc', direction: 'asc' } : { key: 'roc', direction: 'desc' })}>
                         ROC % {sortConfig?.key === 'roc' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                       </TableHead>
-                      
-                      {/* 11a. Put Δ */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'putShortDelta' && prev.direction === 'asc' 
-                          ? { key: 'putShortDelta', direction: 'desc' } 
-                          : { key: 'putShortDelta', direction: 'asc' });
-                      }}>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger className="flex items-center gap-1">
-                              Put Δ {sortConfig?.key === 'putShortDelta' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                              <HelpCircle className="h-3 w-3" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Short put delta (negative)</p>
-                              <p>≈ probability put side expires ITM</p>
-                              <p>Ideal: -0.15 to -0.25</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </TableHead>
-
-                      {/* 11b. Call Δ */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'callShortDelta' && prev.direction === 'asc' 
-                          ? { key: 'callShortDelta', direction: 'desc' } 
-                          : { key: 'callShortDelta', direction: 'asc' });
-                      }}>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger className="flex items-center gap-1">
-                              Call Δ {sortConfig?.key === 'callShortDelta' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                              <HelpCircle className="h-3 w-3" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Short call delta (positive)</p>
-                              <p>≈ probability call side expires ITM</p>
-                              <p>Ideal: +0.15 to +0.25</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </TableHead>
-
-                      {/* 11c. Net Δ */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'netDelta' && prev.direction === 'asc' 
-                          ? { key: 'netDelta', direction: 'desc' } 
-                          : { key: 'netDelta', direction: 'asc' });
-                      }}>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger className="flex items-center gap-1">
-                              Net Δ {sortConfig?.key === 'netDelta' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                              <HelpCircle className="h-3 w-3" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Sum of all 4 leg deltas</p>
-                              <p>Ideal: near 0.00 (balanced)</p>
-                              <p>High value = directional skew</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </TableHead>
-                      
-                      {/* 12. IV Rank (technical) */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'ivRank' && prev.direction === 'desc' 
-                          ? { key: 'ivRank', direction: 'asc' } 
-                          : { key: 'ivRank', direction: 'desc' });
-                      }}>
-                        IV Rank {sortConfig?.key === 'ivRank' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </TableHead>
-                      
-                      {/* 13. RSI (technical) */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'rsi' && prev.direction === 'desc' 
-                          ? { key: 'rsi', direction: 'asc' } 
-                          : { key: 'rsi', direction: 'desc' });
-                      }}>
-                        RSI {sortConfig?.key === 'rsi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </TableHead>
-                      
-                      {/* 14. BB %B (technical) */}
-                      <TableHead className="cursor-pointer hover:bg-accent" onClick={() => {
-                        setSortConfig(prev => prev?.key === 'bbPctB' && prev.direction === 'desc' 
-                          ? { key: 'bbPctB', direction: 'asc' } 
-                          : { key: 'bbPctB', direction: 'desc' });
-                      }}>
-                        BB %B {sortConfig?.key === 'bbPctB' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </TableHead>
-                      
-                      {/* 15. Profit Zone */}
-                      <TableHead>Profit Zone</TableHead>
-                      
-                      {/* 16. Breakevens */}
-                      <TableHead>Breakevens</TableHead>
+                      {/* Put Δ */}
+                      {icVisibleCols.has('putDelta') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'putShortDelta' && prev.direction === 'asc' ? { key: 'putShortDelta', direction: 'desc' } : { key: 'putShortDelta', direction: 'asc' })}>
+                          Put Δ {sortConfig?.key === 'putShortDelta' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </TableHead>
+                      )}
+                      {/* Call Δ */}
+                      {icVisibleCols.has('callDelta') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'callShortDelta' && prev.direction === 'asc' ? { key: 'callShortDelta', direction: 'desc' } : { key: 'callShortDelta', direction: 'asc' })}>
+                          Call Δ {sortConfig?.key === 'callShortDelta' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </TableHead>
+                      )}
+                      {/* Net Δ */}
+                      {icVisibleCols.has('netDelta') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'netDelta' && prev.direction === 'asc' ? { key: 'netDelta', direction: 'desc' } : { key: 'netDelta', direction: 'asc' })}>
+                          Net Δ {sortConfig?.key === 'netDelta' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </TableHead>
+                      )}
+                      {/* IV Rank */}
+                      {icVisibleCols.has('ivRank') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'ivRank' && prev.direction === 'desc' ? { key: 'ivRank', direction: 'asc' } : { key: 'ivRank', direction: 'desc' })}>
+                          IV Rank {sortConfig?.key === 'ivRank' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </TableHead>
+                      )}
+                      {/* RSI */}
+                      {icVisibleCols.has('rsi') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'rsi' && prev.direction === 'desc' ? { key: 'rsi', direction: 'asc' } : { key: 'rsi', direction: 'desc' })}>
+                          RSI {sortConfig?.key === 'rsi' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </TableHead>
+                      )}
+                      {/* BB %B */}
+                      {icVisibleCols.has('bbPctB') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'bbPctB' && prev.direction === 'desc' ? { key: 'bbPctB', direction: 'asc' } : { key: 'bbPctB', direction: 'desc' })}>
+                          BB %B {sortConfig?.key === 'bbPctB' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </TableHead>
+                      )}
+                      {/* OI */}
+                      {icVisibleCols.has('openInterest') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'openInterest' && prev.direction === 'desc' ? { key: 'openInterest', direction: 'asc' } : { key: 'openInterest', direction: 'desc' })}>
+                          OI {sortConfig?.key === 'openInterest' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </TableHead>
+                      )}
+                      {/* Volume */}
+                      {icVisibleCols.has('volume') && (
+                        <TableHead className="cursor-pointer hover:bg-accent" onClick={() => setSortConfig(prev => prev?.key === 'volume' && prev.direction === 'desc' ? { key: 'volume', direction: 'asc' } : { key: 'volume', direction: 'desc' })}>
+                          Vol {sortConfig?.key === 'volume' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                        </TableHead>
+                      )}
+                      {/* Profit Zone */}
+                      {icVisibleCols.has('profitZone') && <TableHead>Profit Zone</TableHead>}
+                      {/* Breakevens */}
+                      {icVisibleCols.has('breakevens') && <TableHead>Breakevens</TableHead>}
+                      {/* Risk — always shown */}
+                      <TableHead>Risk</TableHead>
+                      {/* Expiration */}
+                      {icVisibleCols.has('expiration') && <TableHead>Expiration</TableHead>}
                     </TableRow>
 
                   </TableHeader>
@@ -1581,8 +1541,8 @@ export default function IronCondorDashboard() {
                               </Tooltip>
                             </TableCell>
                             
-                            {/* 2b. SPXW Score cell — conditional */}
-                            {spxwInWatchlist && (() => {
+                            {/* 2b. SPXW Score cell — conditional on both spxwInWatchlist and visibility */}
+                            {spxwInWatchlist && icVisibleCols.has('spxwScore') && (() => {
                               const isIndex = opp.symbol === 'SPXW' || opp.symbol === 'SPX';
                               const spxwScore = isIndex
                                 ? (opp.score || 0)  // already index-scored
@@ -1636,10 +1596,25 @@ export default function IronCondorDashboard() {
                               </div>
                             </TableCell>
                             
-                            {/* 4. Current */}
-                            <TableCell>${(opp.currentPrice || 0).toFixed(2)}</TableCell>
-                            
-                            {/* 5. Put Strikes */}
+                            {/* Exchange — index mode only */}
+                            {isIndexMode && icVisibleCols.has('exchange') && (() => {
+                              const exch = getIndexExchange(opp.symbol);
+                              return (
+                                <TableCell>
+                                  <Badge className={cn(
+                                    "text-xs font-semibold",
+                                    exch === 'CBOE' ? "bg-blue-500/20 text-blue-400 border-blue-500/40" :
+                                    exch === 'Nasdaq' ? "bg-purple-500/20 text-purple-400 border-purple-500/40" :
+                                    "bg-gray-500/20 text-gray-400 border-gray-500/40"
+                                  )}>{exch}</Badge>
+                                </TableCell>
+                              );
+                            })()}
+                            {/* Current */}
+                            {icVisibleCols.has('currentPrice') && (
+                              <TableCell>${(opp.currentPrice || 0).toFixed(2)}</TableCell>
+                            )}
+                            {/* Put Strikes */}
                             <TableCell>
                               <div className="text-sm">
                                 <div>Short: ${opp.putShortStrike}</div>
@@ -1655,147 +1630,168 @@ export default function IronCondorDashboard() {
                               </div>
                             </TableCell>
                             
-                            {/* 7. DTE */}
+                            {/* Width */}
+                            {icVisibleCols.has('width') && (
+                              <TableCell>
+                                <span className="text-xs font-mono text-amber-300">
+                                  {(() => {
+                                    const w = symbolWidths[(opp as any).symbol] ?? getMinSpreadWidth((opp as any).symbol);
+                                    return `${w}pt`;
+                                  })()}
+                                </span>
+                              </TableCell>
+                            )}
+                            {/* DTE */}
                             <TableCell>{opp.dte}</TableCell>
-                            
-                            {/* 8. Net Credit */}
+                            {/* Net Credit */}
                             <TableCell className="text-green-500 font-medium">
                               ${((opp.totalNetCredit || 0) * 100).toFixed(2)}
                             </TableCell>
-                            
-                            {/* 9. Collateral */}
-                            <TableCell>
-                              <div className="flex flex-col">
-                                <span>${(opp.totalCollateral || 0).toFixed(2)}</span>
-                                {(opp.symbol === 'SPXW' || opp.symbol === 'SPX') && (
-                                  <span className="text-[10px] text-amber-400/80">100× notional</span>
-                                )}
-                              </div>
-                            </TableCell>
-                            
-                            {/* 10. ROC % */}
+                            {/* Collateral */}
+                            {icVisibleCols.has('collateral') && (
+                              <TableCell>
+                                <div className="flex flex-col">
+                                  <span>${(opp.totalCollateral || 0).toFixed(2)}</span>
+                                  {(opp.symbol === 'SPXW' || opp.symbol === 'SPX') && (
+                                    <span className="text-[10px] text-amber-400/80">100× notional</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                            )}
+                            {/* ROC % */}
                             <TableCell>
                               <Badge className={getROCColor(opp.roc)}>
                                 {(opp.roc || 0).toFixed(2)}%
                               </Badge>
                             </TableCell>
-                            
-                            {/* 11a. Put Δ */}
-                            <TableCell>
-                              {opp.putShortDelta != null ? (
-                                <Badge className={`${
-                                  Math.abs(opp.putShortDelta) >= 0.15 && Math.abs(opp.putShortDelta) <= 0.25
-                                    ? 'bg-green-500/20 text-green-500 border-green-500/50'
-                                    : Math.abs(opp.putShortDelta) <= 0.30
-                                    ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50'
-                                    : 'bg-red-500/20 text-red-500 border-red-500/50'
-                                }`}>
-                                  {opp.putShortDelta.toFixed(3)}
+                            {/* Put Δ */}
+                            {icVisibleCols.has('putDelta') && (
+                              <TableCell>
+                                {opp.putShortDelta != null ? (
+                                  <Badge className={`${
+                                    Math.abs(opp.putShortDelta) >= 0.15 && Math.abs(opp.putShortDelta) <= 0.25
+                                      ? 'bg-green-500/20 text-green-500 border-green-500/50'
+                                      : Math.abs(opp.putShortDelta) <= 0.30
+                                      ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50'
+                                      : 'bg-red-500/20 text-red-500 border-red-500/50'
+                                  }`}>
+                                    {opp.putShortDelta.toFixed(3)}
+                                  </Badge>
+                                ) : <span className="text-muted-foreground text-sm">N/A</span>}
+                              </TableCell>
+                            )}
+                            {/* Call Δ */}
+                            {icVisibleCols.has('callDelta') && (
+                              <TableCell>
+                                {opp.callShortDelta != null ? (
+                                  <Badge className={`${
+                                    opp.callShortDelta >= 0.15 && opp.callShortDelta <= 0.25
+                                      ? 'bg-green-500/20 text-green-500 border-green-500/50'
+                                      : opp.callShortDelta <= 0.30
+                                      ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50'
+                                      : 'bg-red-500/20 text-red-500 border-red-500/50'
+                                  }`}>
+                                    {opp.callShortDelta.toFixed(3)}
+                                  </Badge>
+                                ) : <span className="text-muted-foreground text-sm">N/A</span>}
+                              </TableCell>
+                            )}
+                            {/* Net Δ */}
+                            {icVisibleCols.has('netDelta') && (
+                              <TableCell>
+                                {(() => {
+                                  const putAbs = Math.abs(opp.putShortDelta || 0);
+                                  const callAbs = Math.abs(opp.callShortDelta || 0);
+                                  const lo = Math.min(putAbs, callAbs);
+                                  const hi = Math.max(putAbs, callAbs);
+                                  const balanceRatio = hi > 0 ? lo / hi : 1;
+                                  const isBalanced = balanceRatio >= 0.75;
+                                  const isModerate = balanceRatio >= 0.50;
+                                  return (
+                                    <Badge className={`${
+                                      isBalanced ? 'bg-green-500/20 text-green-500 border-green-500/50' :
+                                      isModerate ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
+                                      'bg-red-500/20 text-red-500 border-red-500/50'
+                                    }`}>
+                                      {(opp.netDelta || 0).toFixed(3)}
+                                    </Badge>
+                                  );
+                                })()}
+                              </TableCell>
+                            )}
+                            {/* IV Rank */}
+                            {icVisibleCols.has('ivRank') && (
+                              <TableCell>
+                                <Badge className={getIVRankColor(opp.ivRank)}>
+                                  {opp.ivRank?.toFixed(0) ?? "N/A"}
                                 </Badge>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">N/A</span>
-                              )}
-                            </TableCell>
-
-                            {/* 11b. Call Δ */}
+                              </TableCell>
+                            )}
+                            {/* RSI */}
+                            {icVisibleCols.has('rsi') && (
+                              <TableCell>
+                                {opp.rsi !== null && opp.rsi !== undefined ? (
+                                  <Badge className={`${
+                                    opp.rsi >= 40 && opp.rsi <= 60 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
+                                    opp.rsi >= 35 && opp.rsi <= 65 ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
+                                    'bg-red-500/20 text-red-500 border-red-500/50'
+                                  }`}>
+                                    {opp.rsi.toFixed(1)}
+                                  </Badge>
+                                ) : <span className="text-muted-foreground text-sm">N/A</span>}
+                              </TableCell>
+                            )}
+                            {/* BB %B */}
+                            {icVisibleCols.has('bbPctB') && (
+                              <TableCell>
+                                {opp.bbPctB !== null && opp.bbPctB !== undefined ? (
+                                  <Badge className={`${
+                                    opp.bbPctB >= 0.3 && opp.bbPctB <= 0.7 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
+                                    opp.bbPctB >= 0.2 && opp.bbPctB <= 0.8 ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
+                                    'bg-red-500/20 text-red-500 border-red-500/50'
+                                  }`}>
+                                    {opp.bbPctB.toFixed(2)}
+                                  </Badge>
+                                ) : <span className="text-muted-foreground text-sm">N/A</span>}
+                              </TableCell>
+                            )}
+                            {/* OI */}
+                            {icVisibleCols.has('openInterest') && (
+                              <TableCell>{(opp as any).openInterest ?? '—'}</TableCell>
+                            )}
+                            {/* Volume */}
+                            {icVisibleCols.has('volume') && (
+                              <TableCell>{(opp as any).volume ?? '—'}</TableCell>
+                            )}
+                            {/* Profit Zone */}
+                            {icVisibleCols.has('profitZone') && (
+                              <TableCell>${opp.putShortStrike} - ${opp.callShortStrike}</TableCell>
+                            )}
+                            {/* Breakevens */}
+                            {icVisibleCols.has('breakevens') && (
+                              <TableCell>
+                                <div className="text-sm">
+                                  <div>${(opp.lowerBreakeven || 0).toFixed(2)}</div>
+                                  <div>${(opp.upperBreakeven || 0).toFixed(2)}</div>
+                                </div>
+                              </TableCell>
+                            )}
+                            {/* Risk — always shown */}
                             <TableCell>
-                              {opp.callShortDelta != null ? (
-                                <Badge className={`${
-                                  opp.callShortDelta >= 0.15 && opp.callShortDelta <= 0.25
-                                    ? 'bg-green-500/20 text-green-500 border-green-500/50'
-                                    : opp.callShortDelta <= 0.30
-                                    ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50'
-                                    : 'bg-red-500/20 text-red-500 border-red-500/50'
-                                }`}>
-                                  {opp.callShortDelta.toFixed(3)}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">N/A</span>
-                              )}
+                              {(opp as any).riskBadges && (opp as any).riskBadges.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {(opp as any).riskBadges.slice(0, 3).map((b: any, i: number) => (
+                                    <Badge key={i} variant="outline" className="text-[10px] px-1 py-0">
+                                      {b.label ?? b}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : <span className="text-muted-foreground text-xs">—</span>}
                             </TableCell>
-
-                            {/* 11c. Net Δ — balance indicator */}
-                            <TableCell>
-                              {(() => {
-                                const putAbs = Math.abs(opp.putShortDelta || 0);
-                                const callAbs = Math.abs(opp.callShortDelta || 0);
-                                const lo = Math.min(putAbs, callAbs);
-                                const hi = Math.max(putAbs, callAbs);
-                                const balanceRatio = hi > 0 ? lo / hi : 1;
-                                const isBalanced = balanceRatio >= 0.75;
-                                const isModerate = balanceRatio >= 0.50;
-                                return (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Badge className={`cursor-help ${
-                                          isBalanced ? 'bg-green-500/20 text-green-500 border-green-500/50' :
-                                          isModerate ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
-                                          'bg-red-500/20 text-red-500 border-red-500/50'
-                                        }`}>
-                                          {(opp.netDelta || 0).toFixed(3)}
-                                        </Badge>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="left" className="text-xs">
-                                        <p>Balance ratio: {(balanceRatio * 100).toFixed(0)}%</p>
-                                        <p>{isBalanced ? '✅ Well balanced' : isModerate ? '⚠️ Moderate skew' : '❌ Skewed — one wing much closer'}</p>
-                                        <p className="text-muted-foreground mt-1">Put Δ: {(opp.putShortDelta || 0).toFixed(3)} | Call Δ: {(opp.callShortDelta || 0).toFixed(3)}</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                );
-                              })()}
-                            </TableCell>
-                            
-                            {/* 12. IV Rank (technical) */}
-                            <TableCell>
-                              <Badge className={getIVRankColor(opp.ivRank)}>
-                                {opp.ivRank?.toFixed(0) ?? "N/A"}
-                              </Badge>
-                            </TableCell>
-                            
-                            {/* 13. RSI (technical) */}
-                            <TableCell>
-                              {opp.rsi !== null && opp.rsi !== undefined ? (
-                                <Badge className={`${
-                                  opp.rsi >= 40 && opp.rsi <= 60 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
-                                  opp.rsi >= 35 && opp.rsi <= 65 ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
-                                  'bg-red-500/20 text-red-500 border-red-500/50'
-                                }`}>
-                                  {opp.rsi.toFixed(1)}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">N/A</span>
-                              )}
-                            </TableCell>
-                            
-                            {/* 14. BB %B (technical) */}
-                            <TableCell>
-                              {opp.bbPctB !== null && opp.bbPctB !== undefined ? (
-                                <Badge className={`${
-                                  opp.bbPctB >= 0.3 && opp.bbPctB <= 0.7 ? 'bg-green-500/20 text-green-500 border-green-500/50' :
-                                  opp.bbPctB >= 0.2 && opp.bbPctB <= 0.8 ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50' :
-                                  'bg-red-500/20 text-red-500 border-red-500/50'
-                                }`}>
-                                  {opp.bbPctB.toFixed(2)}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">N/A</span>
-                              )}
-                            </TableCell>
-                            
-                            {/* 15. Profit Zone */}
-                            <TableCell>
-                              ${opp.putShortStrike} - ${opp.callShortStrike}
-                            </TableCell>
-                            
-                            {/* 16. Breakevens */}
-                            <TableCell>
-                              <div className="text-sm">
-                                <div>${(opp.lowerBreakeven || 0).toFixed(2)}</div>
-                                <div>${(opp.upperBreakeven || 0).toFixed(2)}</div>
-                              </div>
-                            </TableCell>
+                            {/* Expiration */}
+                            {icVisibleCols.has('expiration') && (
+                              <TableCell className="text-xs text-muted-foreground">{opp.expiration}</TableCell>
+                            )}
                           </TableRow>
 
                         );

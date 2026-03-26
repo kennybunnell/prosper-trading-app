@@ -191,6 +191,62 @@ import { HelpBadge } from "@/components/HelpBadge";
 import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
 import { getIndexExchange, getMinSpreadWidth, validateMultiIndexSelection } from "@shared/orderUtils";
+import { ColumnVisibilityToggle, useColumnVisibility, type ColumnDef } from "@/components/ColumnVisibilityToggle";
+
+// BPS column definitions (unified schema)
+const BPS_COLUMNS: ColumnDef[] = [
+  { key: 'score',       label: 'Score',        group: 'Core',     pinned: true,  defaultVisible: true  },
+  { key: 'trend14d',   label: 'Trend 14d',    group: 'Core',                    defaultVisible: true  },
+  { key: 'symbol',     label: 'Symbol',       group: 'Core',     pinned: true,  defaultVisible: true  },
+  { key: 'exchange',   label: 'Exchange',     group: 'Core',                    defaultVisible: true  },
+  { key: 'currentPrice', label: 'Current',    group: 'Position',                defaultVisible: true  },
+  { key: 'strikes',    label: 'Strikes',      group: 'Position', pinned: true,  defaultVisible: true  },
+  { key: 'width',      label: 'Width',        group: 'Position',                defaultVisible: true  },
+  { key: 'dte',        label: 'DTE',          group: 'Position', pinned: true,  defaultVisible: true  },
+  { key: 'netCredit',  label: 'Net Credit',   group: 'Returns',  pinned: true,  defaultVisible: true  },
+  { key: 'capitalAtRisk', label: 'Capital Risk', group: 'Returns',              defaultVisible: false },
+  { key: 'weeklyPct',  label: 'Weekly %',     group: 'Returns',                 defaultVisible: true  },
+  { key: 'roc',        label: 'ROC %',        group: 'Returns',                 defaultVisible: true  },
+  { key: 'delta',      label: 'Delta (Δ)',    group: 'Greeks',                  defaultVisible: false },
+  { key: 'ivRank',     label: 'IV Rank',      group: 'Greeks',                  defaultVisible: false },
+  { key: 'rsi',        label: 'RSI',          group: 'Technical',               defaultVisible: false },
+  { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
+  { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
+  { key: 'volume',     label: 'Vol',          group: 'Liquidity',               defaultVisible: false },
+  { key: 'bid',        label: 'Bid',          group: 'Quote',                   defaultVisible: false },
+  { key: 'ask',        label: 'Ask',          group: 'Quote',                   defaultVisible: false },
+  { key: 'mid',        label: 'Mid',          group: 'Quote',                   defaultVisible: false },
+  { key: 'distanceOtm', label: 'Dist OTM',   group: 'Position',                defaultVisible: false },
+  { key: 'spreadPct',  label: 'Spread %',     group: 'Quote',                   defaultVisible: false },
+  { key: 'expiration', label: 'Expiration',   group: 'Position',                defaultVisible: false },
+  { key: 'riskBadges', label: 'Risk',         group: 'Core',                    defaultVisible: true  },
+];
+
+// CSP column definitions
+const CSP_COLUMNS: ColumnDef[] = [
+  { key: 'score',       label: 'Score',        group: 'Core',     pinned: true,  defaultVisible: true  },
+  { key: 'symbol',     label: 'Symbol',       group: 'Core',     pinned: true,  defaultVisible: true  },
+  { key: 'currentPrice', label: 'Current',    group: 'Position',                defaultVisible: true  },
+  { key: 'strikes',    label: 'Strike',       group: 'Position', pinned: true,  defaultVisible: true  },
+  { key: 'dte',        label: 'DTE',          group: 'Position', pinned: true,  defaultVisible: true  },
+  { key: 'netCredit',  label: 'Premium',      group: 'Returns',  pinned: true,  defaultVisible: true  },
+  { key: 'weeklyPct',  label: 'Weekly %',     group: 'Returns',                 defaultVisible: true  },
+  { key: 'roc',        label: 'ROC %',        group: 'Returns',                 defaultVisible: true  },
+  { key: 'delta',      label: 'Delta (Δ)',    group: 'Greeks',                  defaultVisible: false },
+  { key: 'theta',      label: 'Theta (θ)',    group: 'Greeks',                  defaultVisible: false },
+  { key: 'ivRank',     label: 'IV Rank',      group: 'Greeks',                  defaultVisible: false },
+  { key: 'rsi',        label: 'RSI',          group: 'Technical',               defaultVisible: false },
+  { key: 'bbPctB',     label: 'BB %B',        group: 'Technical',               defaultVisible: false },
+  { key: 'openInterest', label: 'OI',         group: 'Liquidity',               defaultVisible: false },
+  { key: 'volume',     label: 'Vol',          group: 'Liquidity',               defaultVisible: false },
+  { key: 'bid',        label: 'Bid',          group: 'Quote',                   defaultVisible: false },
+  { key: 'ask',        label: 'Ask',          group: 'Quote',                   defaultVisible: false },
+  { key: 'mid',        label: 'Mid',          group: 'Quote',                   defaultVisible: false },
+  { key: 'distanceOtm', label: 'Dist OTM',   group: 'Position',                defaultVisible: false },
+  { key: 'spreadPct',  label: 'Spread %',     group: 'Quote',                   defaultVisible: false },
+  { key: 'expiration', label: 'Expiration',   group: 'Position',                defaultVisible: false },
+  { key: 'riskBadges', label: 'Risk',         group: 'Core',                    defaultVisible: true  },
+];
 
 type ScoredOpportunity = {
   symbol: string;
@@ -364,7 +420,14 @@ export default function CSPDashboard() {
   const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number; currentPrice?: number } | null>(null);
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<{ symbol: string; strike: number; score: number; explanation: string | any[] } | null>(null);
   const [aiMode, setAiMode] = useState<'conservative' | 'aggressive'>('conservative');
-  const [showTechnicalColumns, setShowTechnicalColumns] = useState(false);
+  // Column visibility (BPS vs CSP mode)
+  const [bpsVisibleCols, setBpsColVisible] = useColumnVisibility(BPS_COLUMNS, 'prosper_col_vis_bps');
+  const [cspVisibleCols, setCspColVisible] = useColumnVisibility(CSP_COLUMNS, 'prosper_col_vis_csp');
+  const visibleCols = strategyType === 'spread' ? bpsVisibleCols : cspVisibleCols;
+  const setColVisible = strategyType === 'spread' ? setBpsColVisible : setCspColVisible;
+  const currentColDefs = strategyType === 'spread' ? BPS_COLUMNS : CSP_COLUMNS;
+  // Legacy shim: showTechnicalColumns drives the old column array filter below
+  const showTechnicalColumns = visibleCols.has('delta') || visibleCols.has('rsi') || visibleCols.has('ivRank');
   const [analyzingRowKey, setAnalyzingRowKey] = useState<string | null>(null);
   
   // Lifted state for modal persistence (prevents reset on parent re-render)
@@ -1865,6 +1928,11 @@ export default function CSPDashboard() {
               <>
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Fetch Opportunities
+                {strategyType === 'spread' && isIndexMode && Object.entries(symbolWidths).some(([sym, w]) => w !== getMinSpreadWidth(sym)) && (
+                  <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                    Custom Width
+                  </span>
+                )}
               </>
             )}
           </Button>
@@ -2666,24 +2734,11 @@ export default function CSPDashboard() {
                 {selectedOppsList.length > 0 && `${selectedOppsList.length} selected`}
               </CardDescription>
             </div>
-            <Button
-              onClick={() => setShowTechnicalColumns(!showTechnicalColumns)}
-              variant="outline"
-              size="sm"
-              className="border-border/50 hover:border-border"
-            >
-              {showTechnicalColumns ? (
-                <>
-                  <ChevronDown className="w-4 h-4 mr-1" />
-                  Hide Technical Columns
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="w-4 h-4 mr-1 rotate-180" />
-                  Show Technical Columns
-                </>
-              )}
-            </Button>
+            <ColumnVisibilityToggle
+              columns={currentColDefs}
+              visibleColumns={visibleCols}
+              onVisibilityChange={setColVisible}
+            />
           </div>
         </CardHeader>
         <CardContent>
@@ -2759,47 +2814,53 @@ export default function CSPDashboard() {
                     />
                   </TableHead>
                   {(strategyType === 'spread' ? [
-                    { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
-                    { key: 'trend14d', label: 'Trend 14d', help: null, technical: false },
-                    { key: 'symbol', label: 'Symbol', help: null, technical: false },
-                    ...(isIndexMode ? [{ key: 'exchange', label: 'Exchange', help: null, technical: false }] : []),
-                    { key: 'strike', label: 'Strikes', help: null, technical: false },
-                    { key: 'currentPrice', label: 'Current', help: null, technical: false },
-                    { key: 'netCredit', label: 'Net Credit', help: HELP_CONTENT.NET_CREDIT, technical: false },
-                    { key: 'capitalAtRisk', label: 'Capital Risk', help: HELP_CONTENT.CAPITAL_AT_RISK, technical: false },
-                    { key: 'spreadROC', label: 'ROC %', help: HELP_CONTENT.SPREAD_ROC, technical: false },
-                    { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE, technical: false },
-                    { key: 'weeklyPct', label: 'Weekly %', help: HELP_CONTENT.WEEKLY_RETURN, technical: false },
-                    { key: 'breakeven', label: 'Breakeven', help: HELP_CONTENT.BREAKEVEN_BULL_PUT, technical: false },
-                    { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP, technical: true },
-                    { key: 'openInterest', label: 'OI', help: 'dialog-oi-vol', technical: true },
-                    { key: 'volume', label: 'Vol', help: 'dialog-oi-vol', technical: true },
-                    { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, technical: true },
-                    { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, technical: true },
-                    { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
-                    { key: 'riskBadges', label: 'Risk', help: null, technical: false },
+                    { key: 'score', label: 'Score', help: 'dialog-score', pinned: true },
+                    ...(visibleCols.has('trend14d') ? [{ key: 'trend14d', label: 'Trend 14d', help: null, pinned: false }] : []),
+                    { key: 'symbol', label: 'Symbol', help: null, pinned: true },
+                    ...(isIndexMode && visibleCols.has('exchange') ? [{ key: 'exchange', label: 'Exchange', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('currentPrice') ? [{ key: 'currentPrice', label: 'Current', help: null, pinned: false }] : []),
+                    { key: 'strike', label: 'Strikes', help: null, pinned: true },
+                    ...(visibleCols.has('width') ? [{ key: 'width', label: 'Width', help: null, pinned: false }] : []),
+                    { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE, pinned: true },
+                    { key: 'netCredit', label: 'Net Credit', help: HELP_CONTENT.NET_CREDIT, pinned: true },
+                    ...(visibleCols.has('capitalAtRisk') ? [{ key: 'capitalAtRisk', label: 'Capital Risk', help: HELP_CONTENT.CAPITAL_AT_RISK, pinned: false }] : []),
+                    ...(visibleCols.has('weeklyPct') ? [{ key: 'weeklyPct', label: 'Weekly %', help: HELP_CONTENT.WEEKLY_RETURN, pinned: false }] : []),
+                    ...(visibleCols.has('roc') ? [{ key: 'spreadROC', label: 'ROC %', help: HELP_CONTENT.SPREAD_ROC, pinned: false }] : []),
+                    ...(visibleCols.has('delta') ? [{ key: 'delta', label: 'Delta (Δ)', help: HELP_CONTENT.DELTA_CSP, pinned: false }] : []),
+                    ...(visibleCols.has('ivRank') ? [{ key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, pinned: false }] : []),
+                    ...(visibleCols.has('rsi') ? [{ key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, pinned: false }] : []),
+                    ...(visibleCols.has('bbPctB') ? [{ key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, pinned: false }] : []),
+                    ...(visibleCols.has('openInterest') ? [{ key: 'openInterest', label: 'OI', help: 'dialog-oi-vol', pinned: false }] : []),
+                    ...(visibleCols.has('volume') ? [{ key: 'volume', label: 'Vol', help: 'dialog-oi-vol', pinned: false }] : []),
+                    { key: 'riskBadges', label: 'Risk', help: null, pinned: true },
+                    ...(visibleCols.has('bid') ? [{ key: 'bid', label: 'Bid', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('ask') ? [{ key: 'ask', label: 'Ask', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('spreadPct') ? [{ key: 'spreadPct', label: 'Spread %', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('expiration') ? [{ key: 'expiration', label: 'Expiration', help: null, pinned: false }] : []),
                   ] : [
-                    { key: 'score', label: 'Score', help: 'dialog-score', technical: false },
-                    { key: 'symbol', label: 'Symbol', help: null, technical: false },
-                    ...(isIndexMode ? [{ key: 'exchange', label: 'Exchange', help: null, technical: false }] : []),
-                    { key: 'currentPrice', label: 'Current', help: null, technical: false },
-                    { key: 'strike', label: 'Strike', help: null, technical: false },
-                    { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE, technical: false },
-                    { key: 'premium', label: 'Premium', help: null, technical: false },
-                    { key: 'collateral', label: 'Collateral', help: null, technical: false },
-                    { key: 'roc', label: 'ROC %', help: null, technical: false },
-                    { key: 'weeklyPct', label: 'Weekly %', help: HELP_CONTENT.WEEKLY_RETURN, technical: false },
-                    { key: 'delta', label: 'Delta', help: HELP_CONTENT.DELTA_CSP, technical: true },
-                    { key: 'openInterest', label: 'OI', help: 'dialog-oi-vol', technical: true },
-                    { key: 'volume', label: 'Vol', help: 'dialog-oi-vol', technical: true },
-                    { key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, technical: true },
-                    { key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, technical: true },
-                    { key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, technical: true },
-                    { key: 'riskBadges', label: 'Risk', help: null, technical: false },
-                    { key: 'bid', label: 'Bid', help: null, technical: false },
-                    { key: 'ask', label: 'Ask', help: null, technical: false },
-                    { key: 'spreadPct', label: 'Spread %', help: null, technical: false },
-                  ]).filter(({ technical }) => !technical || showTechnicalColumns).map(({ key, label, help }) => (
+                    { key: 'score', label: 'Score', help: 'dialog-score', pinned: true },
+                    { key: 'symbol', label: 'Symbol', help: null, pinned: true },
+                    ...(isIndexMode && visibleCols.has('exchange') ? [{ key: 'exchange', label: 'Exchange', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('currentPrice') ? [{ key: 'currentPrice', label: 'Current', help: null, pinned: false }] : []),
+                    { key: 'strike', label: 'Strike', help: null, pinned: true },
+                    { key: 'dte', label: 'DTE', help: HELP_CONTENT.DTE, pinned: true },
+                    { key: 'premium', label: 'Premium', help: null, pinned: true },
+                    ...(visibleCols.has('capitalAtRisk') ? [{ key: 'collateral', label: 'Collateral', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('roc') ? [{ key: 'roc', label: 'ROC %', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('weeklyPct') ? [{ key: 'weeklyPct', label: 'Weekly %', help: HELP_CONTENT.WEEKLY_RETURN, pinned: false }] : []),
+                    ...(visibleCols.has('delta') ? [{ key: 'delta', label: 'Delta (Δ)', help: HELP_CONTENT.DELTA_CSP, pinned: false }] : []),
+                    ...(visibleCols.has('theta') ? [{ key: 'theta', label: 'Theta (θ)', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('ivRank') ? [{ key: 'ivRank', label: 'IV Rank', help: HELP_CONTENT.IV_RANK, pinned: false }] : []),
+                    ...(visibleCols.has('rsi') ? [{ key: 'rsi', label: 'RSI', help: HELP_CONTENT.RSI_CSP, pinned: false }] : []),
+                    ...(visibleCols.has('bbPctB') ? [{ key: 'bbPctB', label: 'BB %B', help: HELP_CONTENT.BB_PCTB_CSP, pinned: false }] : []),
+                    ...(visibleCols.has('openInterest') ? [{ key: 'openInterest', label: 'OI', help: 'dialog-oi-vol', pinned: false }] : []),
+                    ...(visibleCols.has('volume') ? [{ key: 'volume', label: 'Vol', help: 'dialog-oi-vol', pinned: false }] : []),
+                    { key: 'riskBadges', label: 'Risk', help: null, pinned: true },
+                    ...(visibleCols.has('bid') ? [{ key: 'bid', label: 'Bid', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('ask') ? [{ key: 'ask', label: 'Ask', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('spreadPct') ? [{ key: 'spreadPct', label: 'Spread %', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('expiration') ? [{ key: 'expiration', label: 'Expiration', help: null, pinned: false }] : []),
+                  ]).map(({ key, label, help }) => (
                     <TableHead 
                       key={key}
                       className="cursor-pointer hover:bg-accent/50 transition-colors"
@@ -2934,8 +2995,8 @@ export default function CSPDashboard() {
                                 </Tooltip>
                               </TooltipProvider>
                             </TableCell>
-                            {/* Trend 14d cell for BPS */}
-                            {(() => {
+                            {/* Trend 14d cell for BPS - only if visible */}
+                            {visibleCols.has('trend14d') && (() => {
                               const t = (opp as any).trend14d;
                               const bias = (opp as any).trendBias;
                               if (t === undefined || t === null) return <TableCell className="text-center"><span className="text-muted-foreground text-xs">—</span></TableCell>;
@@ -2971,7 +3032,7 @@ export default function CSPDashboard() {
                                 </button>
                               </div>
                             </TableCell>
-                            {isIndexMode && (() => {
+                            {isIndexMode && visibleCols.has('exchange') && (() => {
                               const exch = getIndexExchange(opp.symbol);
                               return (
                                 <TableCell>
@@ -2984,52 +3045,70 @@ export default function CSPDashboard() {
                                 </TableCell>
                               );
                             })()}
+                            {visibleCols.has('currentPrice') && (
+                              <TableCell>${opp.currentPrice.toFixed(2)}</TableCell>
+                            )}
                             <TableCell>
                               <div className="flex flex-col text-xs">
                                 <span className="text-blue-400 font-semibold">${opp.strike.toFixed(2)}</span>
                                 <span className="text-muted-foreground">${(opp as any).longStrike?.toFixed(2)}</span>
                               </div>
                             </TableCell>
-                            <TableCell>${opp.currentPrice.toFixed(2)}</TableCell>
-                            <TableCell className="font-medium text-green-500">${(opp as any).netCredit?.toFixed(2)}</TableCell>
-                            <TableCell className="text-amber-400">${(opp as any).capitalAtRisk?.toFixed(2)}</TableCell>
-                            <TableCell>
-                              <Badge className={cn("font-bold", getROCColor((opp as any).spreadROC || 0))}>
-                                {((opp as any).spreadROC || 0).toFixed(2)}%
-                              </Badge>
-                            </TableCell>
+                            {visibleCols.has('width') && (
+                              <TableCell className="text-right text-xs text-muted-foreground">
+                                {(opp as any).spreadWidth != null ? `${(opp as any).spreadWidth}pt` : '—'}
+                              </TableCell>
+                            )}
                             <TableCell>{opp.dte}</TableCell>
-                            <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
-                            <TableCell className="text-blue-300">${(opp as any).breakeven?.toFixed(2)}</TableCell>
-                            {showTechnicalColumns && <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>}
-                            {showTechnicalColumns && (
-                              <>
-                                <TableCell>
-                                  <Badge className={cn("font-bold", getLiquidityColor(opp.openInterest, 'oi'))}>
-                                    {opp.openInterest}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge className={cn("font-bold", getLiquidityColor(opp.volume, 'vol'))}>
-                                    {opp.volume}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'csp'))}>
-                                    {opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge className={cn("font-bold", getBBColor(opp.bbPctB, 'csp'))}>
-                                    {opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge className={cn("font-bold", getIVRankColor(opp.ivRank))}>
-                                    {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
-                                  </Badge>
-                                </TableCell>
-                              </>
+                            <TableCell className="font-medium text-green-500">${(opp as any).netCredit?.toFixed(2)}</TableCell>
+                            {visibleCols.has('capitalAtRisk') && (
+                              <TableCell className="text-amber-400">${(opp as any).capitalAtRisk?.toFixed(2)}</TableCell>
+                            )}
+                            {visibleCols.has('weeklyPct') && (
+                              <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
+                            )}
+                            {visibleCols.has('roc') && (
+                              <TableCell>
+                                <Badge className={cn("font-bold", getROCColor((opp as any).spreadROC || 0))}>
+                                  {((opp as any).spreadROC || 0).toFixed(2)}%
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {visibleCols.has('delta') && <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>}
+                            {visibleCols.has('ivRank') && (
+                              <TableCell>
+                                <Badge className={cn("font-bold", getIVRankColor(opp.ivRank))}>
+                                  {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {visibleCols.has('rsi') && (
+                              <TableCell>
+                                <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'csp'))}>
+                                  {opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {visibleCols.has('bbPctB') && (
+                              <TableCell>
+                                <Badge className={cn("font-bold", getBBColor(opp.bbPctB, 'csp'))}>
+                                  {opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {visibleCols.has('openInterest') && (
+                              <TableCell>
+                                <Badge className={cn("font-bold", getLiquidityColor(opp.openInterest, 'oi'))}>
+                                  {opp.openInterest}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {visibleCols.has('volume') && (
+                              <TableCell>
+                                <Badge className={cn("font-bold", getLiquidityColor(opp.volume, 'vol'))}>
+                                  {opp.volume}
+                                </Badge>
+                              </TableCell>
                             )}
                           </>
                         ) : (
@@ -3060,8 +3139,8 @@ export default function CSPDashboard() {
                                 </button>
                               </div>
                             </TableCell>
-                            {/* Exchange (index mode only) */}
-                            {isIndexMode && (() => {
+                            {/* Exchange (index mode, CSP) */}
+                            {isIndexMode && visibleCols.has('exchange') && (() => {
                               const exch = getIndexExchange(opp.symbol);
                               return (
                                 <TableCell>
@@ -3074,8 +3153,9 @@ export default function CSPDashboard() {
                                 </TableCell>
                               );
                             })()}
-                            {/* Current */}
-                            <TableCell>${opp.currentPrice.toFixed(2)}</TableCell>
+                            {visibleCols.has('currentPrice') && (
+                              <TableCell>${opp.currentPrice.toFixed(2)}</TableCell>
+                            )}
                             {/* Strike */}
                             <TableCell>${opp.strike.toFixed(2)}</TableCell>
                             {/* DTE */}
@@ -3083,63 +3163,80 @@ export default function CSPDashboard() {
                             {/* Premium */}
                             <TableCell className="font-medium text-green-500">${opp.premium.toFixed(2)}</TableCell>
                             {/* Collateral */}
-                            <TableCell>${opp.collateral.toFixed(2)}</TableCell>
+                            {visibleCols.has('capitalAtRisk') && (
+                              <TableCell>${opp.collateral.toFixed(2)}</TableCell>
+                            )}
                             {/* ROC % */}
-                            <TableCell>
-                              <Badge className={cn("font-bold", getROCColor(opp.roc))}>
-                                {opp.roc.toFixed(2)}%
-                              </Badge>
-                            </TableCell>
+                            {visibleCols.has('roc') && (
+                              <TableCell>
+                                <Badge className={cn("font-bold", getROCColor(opp.roc))}>
+                                  {opp.roc.toFixed(2)}%
+                                </Badge>
+                              </TableCell>
+                            )}
                             {/* Weekly % */}
-                            <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
-                            {/* Delta (technical) */}
-                            {showTechnicalColumns && <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>}
+                            {visibleCols.has('weeklyPct') && (
+                              <TableCell>{opp.weeklyPct.toFixed(2)}%</TableCell>
+                            )}
+                            {visibleCols.has('delta') && <TableCell>{Math.abs(opp.delta).toFixed(3)}</TableCell>}
+                            {visibleCols.has('theta') && <TableCell>{opp.theta?.toFixed(3) ?? '—'}</TableCell>}
+                            {visibleCols.has('ivRank') && (
+                              <TableCell>
+                                <Badge className={cn("font-bold", getIVRankColor(opp.ivRank))}>
+                                  {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {visibleCols.has('rsi') && (
+                              <TableCell>
+                                <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'csp'))}>
+                                  {opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {visibleCols.has('bbPctB') && (
+                              <TableCell>
+                                <Badge className={cn("font-bold", getBBColor(opp.bbPctB, 'csp'))}>
+                                  {opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {visibleCols.has('openInterest') && (
+                              <TableCell>
+                                <Badge className={cn("font-bold", getLiquidityColor(opp.openInterest, 'oi'))}>
+                                  {opp.openInterest}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {visibleCols.has('volume') && (
+                              <TableCell>
+                                <Badge className={cn("font-bold", getLiquidityColor(opp.volume, 'vol'))}>
+                                  {opp.volume}
+                                </Badge>
+                              </TableCell>
+                            )}
                           </>
                         )}
-                        {showTechnicalColumns && (
-                          <>
-                            <TableCell>
-                              <Badge className={cn("font-bold", getLiquidityColor(opp.openInterest, 'oi'))}>
-                                {opp.openInterest}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={cn("font-bold", getLiquidityColor(opp.volume, 'vol'))}>
-                                {opp.volume}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={cn("font-bold", getRSIColor(opp.rsi, 'csp'))}>
-                                {opp.rsi !== null ? opp.rsi.toFixed(1) : 'N/A'}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={cn("font-bold", getBBColor(opp.bbPctB, 'csp'))}>
-                                {opp.bbPctB !== null ? opp.bbPctB.toFixed(2) : 'N/A'}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={cn("font-bold", getIVRankColor(opp.ivRank))}>
-                                {opp.ivRank !== null ? opp.ivRank.toFixed(1) : 'N/A'}
-                              </Badge>
-                            </TableCell>
-                          </>
-                        )}
+                        {/* Risk — always shown */}
                         <TableCell>
                           {(() => {
                             const badges = (opp as any).riskBadges || [];
-                            console.log('[CSP Table] Rendering risk badges for', (opp as any).symbol, 'badges:', badges);
                             return <RiskBadgeList badges={badges} size="sm" maxDisplay={3} />;
                           })()}
                         </TableCell>
-                        {/* CSP-specific columns: Bid, Ask, Spread% */}
-                        {!strategyType || strategyType === 'csp' ? (
-                          <>
-                            <TableCell>${opp.bid.toFixed(2)}</TableCell>
-                            <TableCell>${opp.ask.toFixed(2)}</TableCell>
-                            <TableCell>{opp.spreadPct.toFixed(1)}%</TableCell>
-                          </>
-                        ) : null}
+                        {/* Bid, Ask, Spread% — controlled by visibleCols */}
+                        {strategyType === 'csp' && visibleCols.has('bid') && (
+                          <TableCell>${opp.bid.toFixed(2)}</TableCell>
+                        )}
+                        {strategyType === 'csp' && visibleCols.has('ask') && (
+                          <TableCell>${opp.ask.toFixed(2)}</TableCell>
+                        )}
+                        {visibleCols.has('spreadPct') && (
+                          <TableCell>{opp.spreadPct.toFixed(1)}%</TableCell>
+                        )}
+                        {visibleCols.has('expiration') && (
+                          <TableCell>{opp.expiration}</TableCell>
+                        )}
 
                       </TableRow>
                     );
