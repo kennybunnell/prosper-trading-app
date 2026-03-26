@@ -782,6 +782,7 @@ export const ccRouter = router({
       z.object({
         ccOpportunities: z.array(z.any()), // CC opportunities from scanOpportunities
         spreadWidth: z.number(), // 2, 5, 10 (equity) or 25, 50, 100 (index)
+        symbolWidths: z.record(z.string(), z.number()).optional(), // per-symbol overrides e.g. { SPX: 50, NDX: 25 }
         isIndexMode: z.boolean().optional(), // true when scanning index products
       })
     )
@@ -853,7 +854,13 @@ export const ccRouter = router({
       // Auto-scale spread width for index symbols (mirrors IC scanner getEffectiveWidth logic)
       // Rule: effective width = max(user input, round(price * 0.004 / 5) * 5)
       // Gives ~25 pts for SPX (~6700), ~100 pts for NDX (~21000), ~10 pts for MRUT (~2100)
-      const getEffectiveSpreadWidth = (price: number): number => {
+      // Per-symbol overrides from the UI take highest priority.
+      const getEffectiveSpreadWidth = (sym: string, price: number): number => {
+        // Check per-symbol override first (from UI per-symbol width controls)
+        const symUpper = sym.toUpperCase();
+        if (input.symbolWidths && input.symbolWidths[symUpper] !== undefined) {
+          return input.symbolWidths[symUpper];
+        }
         if (price < 500) return input.spreadWidth; // equity: use user input
         const autoWidth = Math.max(input.spreadWidth, Math.round((price * 0.004) / 5) * 5);
         return autoWidth;
@@ -893,8 +900,8 @@ export const ccRouter = router({
             // Process all opportunities for this expiration
             for (const ccOpp of opps) {
               try {
-                // Auto-scale spread width for index symbols
-                const effectiveWidth = getEffectiveSpreadWidth(ccOpp.currentPrice || 0);
+                // Auto-scale spread width for index symbols (per-symbol override takes priority)
+                const effectiveWidth = getEffectiveSpreadWidth(symbol, ccOpp.currentPrice || 0);
                 const targetLongStrike = ccOpp.strike + effectiveWidth;
                 
                 // Find the long call — first try exact match, then nearest available strike

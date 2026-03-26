@@ -206,6 +206,8 @@ export default function IronCondorDashboard() {
       minDte,
       maxDte,
       spreadWidth,
+      symbolWidths: Object.keys(symbolWidths).length > 0 ? symbolWidths : undefined,
+      isIndexMode,
     },
     { enabled: false }
   );

@@ -725,6 +725,7 @@ export default function CCDashboard() {
         const spreadResult = await utils.client.cc.bearCallSpreadOpportunities.mutate({
           ccOpportunities,
           spreadWidth,
+          symbolWidths: Object.keys(symbolWidths).length > 0 ? symbolWidths : undefined,
           isIndexMode, // Pass index mode flag for index-appropriate scoring
         });
         finalOpportunities = spreadResult;

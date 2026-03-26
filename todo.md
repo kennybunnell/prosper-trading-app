@@ -8428,3 +8428,17 @@ ROC Fix Mar 18 2026
 - [x] Port Exchange filter chip to CCDashboard
 - [x] Port same compact width selector to IronCondorDashboard
 - [x] Port Exchange filter chip to IronCondorDashboard
+
+## Wire symbolWidths into Scan Calls (Mar 25, 2026)
+- [x] Trace BPS scan call chain: CSPDashboard → tRPC procedure → server scanner
+- [x] Trace BCS scan call chain: CCDashboard → tRPC procedure → server scanner
+- [x] Trace Iron Condor scan call chain: IronCondorDashboard → tRPC procedure → server scanner
+- [x] Update BPS tRPC procedure input schema to accept symbolWidths map (was already done)
+- [x] Update BPS server scanner to use per-symbol spread width from symbolWidths (was already done)
+- [x] Update BCS tRPC procedure input schema to accept symbolWidths map
+- [x] Update BCS server scanner to use per-symbol spread width from symbolWidths
+- [x] Update Iron Condor tRPC procedure input schema to accept symbolWidths map
+- [x] Update Iron Condor server scanner to use per-symbol spread width from symbolWidths
+- [x] Update CSPDashboard fetch call to pass symbolWidths (was already done)
+- [x] Update CCDashboard fetch call to pass symbolWidths
+- [x] Update IronCondorDashboard fetch call to pass symbolWidths and isIndexMode

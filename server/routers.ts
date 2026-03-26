@@ -2729,6 +2729,8 @@ Summary: [One sentence overall assessment]`;
           minVolume: z.number().optional(),
           minOI: z.number().optional(),
           spreadWidth: z.number(), // 2, 5, or 10 (same width for both sides)
+          symbolWidths: z.record(z.string(), z.number()).optional(), // per-symbol overrides e.g. { SPX: 50, NDX: 25 }
+          isIndexMode: z.boolean().optional(), // true when scanning index products
         })
       )
       .query(async ({ ctx, input }) => {
@@ -2824,6 +2826,11 @@ Summary: [One sentence overall assessment]`;
           if (!symbolPriceMap.has(opp.symbol)) symbolPriceMap.set(opp.symbol, opp.currentPrice);
         }
         const getEffectiveWidth = (sym: string): number => {
+          // Check per-symbol override first (from UI per-symbol width controls)
+          const symUpper = sym.toUpperCase();
+          if (input.symbolWidths && input.symbolWidths[symUpper] !== undefined) {
+            return input.symbolWidths[symUpper];
+          }
           const price = symbolPriceMap.get(sym) || 0;
           if (price < 500) return input.spreadWidth; // small-price symbols: use user input
           const autoWidth = Math.max(input.spreadWidth, Math.round((price * 0.004) / 5) * 5);
