@@ -8406,3 +8406,25 @@ ROC Fix Mar 18 2026
 - [x] Fix submission state reset: setModalSubmissionComplete(false) when new orders are selected
 - [x] Add "Submit Another Batch" button to UnifiedOrderPreviewModal success screen
 - [x] Blocked exchange cards show dimmed/disabled state with tooltip when different exchange is active
+
+## UI Redesign: Remove Spread Width Panel, Add Exchange Filter Chip (Session: Mar 25 2026)
+- [ ] Remove "Spread Width per Index" panel from CSP/BPS page
+- [ ] Add compact Exchange filter chip (All / CBOE / Nasdaq) to CSP Filters section
+- [ ] Add compact pre-fetch spread width row to CSP (shows only when index symbols selected, before fetch)
+- [ ] Replace mixed-exchange warning card with compact inline warning text
+- [ ] Remove "Spread Width per Index" panel from CCDashboard (BCS)
+- [ ] Add compact Exchange filter chip to CCDashboard Filters section
+- [ ] Add compact pre-fetch spread width row to CCDashboard
+- [ ] Remove "Spread Width per Index" panel from IronCondorDashboard
+- [ ] Add compact Exchange filter chip to IronCondorDashboard Filters section
+- [ ] Add compact pre-fetch spread width row to IronCondorDashboard
+
+## UI Redesign: Spread Strategy Pages (Mar 25, 2026)
+- [x] Remove bloated "Spread Width per Index" panel from CSPDashboard (was ~150 lines)
+- [x] Replace with compact inline width selector row (2 lines) in CSPDashboard
+- [x] Add Exchange filter chip (All / CBOE / Nasdaq) to CSPDashboard Filters section
+- [x] Simplify mixed-exchange warning to a single inline text line in CSPDashboard
+- [x] Port same compact width selector to CCDashboard (BCS page)
+- [x] Port Exchange filter chip to CCDashboard
+- [x] Port same compact width selector to IronCondorDashboard
+- [x] Port Exchange filter chip to IronCondorDashboard

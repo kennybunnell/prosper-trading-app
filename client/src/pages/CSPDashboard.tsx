@@ -1415,145 +1415,61 @@ export default function CSPDashboard() {
               const hasNasdaqAndCboe = multiIndexWarnings.some(w => w.severity === 'warning');
 
               return (
-                <div className="space-y-3">
-                  {/* NDXP + CBOE mixed-exchange warning */}
+                <div className="space-y-2">
+                  {/* Compact mixed-exchange inline warning */}
                   {hasNasdaqAndCboe && (
-                    <div className="p-3 bg-amber-500/10 border border-amber-500/40 rounded-lg flex gap-2">
-                      <span className="text-amber-400 text-lg leading-none mt-0.5">⚠️</span>
-                      <div className="space-y-1">
-                        <p className="text-xs font-semibold text-amber-400">Mixed exchanges selected</p>
-                        {multiIndexWarnings.map((w, i) => (
-                          <p key={i} className="text-xs text-amber-300/80">{w.message}</p>
-                        ))}
-                        <p className="text-xs text-muted-foreground mt-1">Submit each exchange group in a separate session for best results.</p>
-                      </div>
-                    </div>
+                    <p className="text-xs text-amber-400 flex items-center gap-1.5">
+                      <span>⚠️</span>
+                      <span>Mixed exchanges — use the Exchange filter below to submit one group at a time.</span>
+                    </p>
                   )}
 
-                  {/* Per-symbol spread width controls in index mode */}
+                  {/* Compact pre-fetch spread width row */}
                   {isIndexMode && selectedIndexSymbols.length > 0 ? (
-                    <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-semibold">
-                          Spread Width per Index
-                          <span className="ml-2 text-xs text-amber-400 font-normal">(each index has its own minimum)</span>
-                        </Label>
-                        {activeExchangeFilter && (
-                          <button
-                            onClick={() => setActiveExchangeFilter(null)}
-                            className="text-xs text-muted-foreground hover:text-foreground underline"
-                          >
-                            Show all exchanges
-                          </button>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        💡 <strong>Click an index card</strong> to filter the opportunity table to that exchange group — submit one group at a time.
-                      </p>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <span className="text-xs text-muted-foreground font-medium">Spread width per index:</span>
                       {selectedIndexSymbols.map((sym: string) => {
                         const minW = getMinSpreadWidth(sym);
-                        const exchange = getIndexExchange(sym);
-                        const exchangeColor = exchange === 'CBOE' ? 'text-blue-400' : 'text-purple-400';
-                        const exchangeBorder = exchange === 'CBOE' ? 'border-blue-500/40' : 'border-purple-500/40';
-                        const exchangeBg = exchange === 'CBOE' ? 'bg-blue-500/10' : 'bg-purple-500/10';
-                        const isActiveFilter = activeExchangeFilter === exchange;
-                        const isBlockedByFilter = activeExchangeFilter !== null && activeExchangeFilter !== exchange;
-                        // Available widths: min, 2×min, 4×min (capped at 200)
                         const widths = [minW, minW * 2, minW * 4].filter(w => w <= 200);
                         const currentW = symbolWidths[sym] ?? minW;
                         return (
-                          <div
-                            key={sym}
-                            className={cn(
-                              "space-y-1.5 rounded-lg border p-3 cursor-pointer transition-all duration-200",
-                              isActiveFilter ? `${exchangeBorder} ${exchangeBg} ring-1 ring-offset-0 ${exchange === 'CBOE' ? 'ring-blue-500/50' : 'ring-purple-500/50'}` : 'border-transparent hover:border-muted',
-                              isBlockedByFilter ? 'opacity-40 cursor-not-allowed' : ''
-                            )}
-                            onClick={() => {
-                              if (isBlockedByFilter) {
-                                // Show tooltip hint — different exchange group already active
-                                return;
-                              }
-                              const newFilter = isActiveFilter ? null : exchange;
-                              setActiveExchangeFilter(newFilter);
-                              // Reset submission state when switching exchange groups
-                              setModalSubmissionComplete(false);
-                              // Clear selections from other exchange groups
-                              if (newFilter) {
-                                setSelectedOpportunities(prev => {
-                                  const next = new Set<string>();
-                                  opportunities.forEach((opp: any) => {
-                                    const key = `${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`;
-                                    if (prev.has(key) && getIndexExchange(opp.symbol) === newFilter) {
-                                      next.add(key);
-                                    }
-                                  });
-                                  return next;
-                                });
-                              }
-                            }}
-                            title={isBlockedByFilter ? `${exchange} is a different exchange — submit ${activeExchangeFilter} group first, then click here to switch` : isActiveFilter ? `Click to remove ${exchange} filter` : `Click to show only ${exchange} opportunities`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium">{sym}</span>
-                              <span className={`text-xs ${exchangeColor}`}>{exchange}</span>
-                              <span className="text-xs text-muted-foreground">min {minW}pt</span>
-                              {isActiveFilter && <span className="ml-auto text-xs bg-green-500/20 text-green-400 border border-green-500/30 rounded px-1.5 py-0.5">Active Filter ✓</span>}
-                              {isBlockedByFilter && <span className="ml-auto text-xs text-amber-400/60">⚠ Different exchange</span>}
-                            </div>
-                            <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                              {widths.map(w => (
-                                <Button
-                                  key={w}
-                                  variant={currentW === w ? 'default' : 'outline'}
-                                  size="sm"
-                                  onClick={() => setSymbolWidths(prev => ({ ...prev, [sym]: w }))}
-                                  className={cn(
-                                    "flex-1 text-xs",
-                                    currentW === w
-                                      ? exchange === 'CBOE' ? "bg-blue-600 hover:bg-blue-700" : "bg-purple-600 hover:bg-purple-700"
-                                      : exchange === 'CBOE' ? "hover:bg-blue-500/10 hover:border-blue-500/50" : "hover:bg-purple-500/10 hover:border-purple-500/50"
-                                  )}
-                                >
-                                  {w}pt
-                                </Button>
-                              ))}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {sym}: {currentW}pt width → ~${(currentW * (sym === 'MRUT' || sym === 'XSP' || sym === 'DJX' ? 10 : 100)).toLocaleString()} max risk/contract
-                            </p>
+                          <div key={sym} className="flex items-center gap-1.5">
+                            <span className="text-xs font-medium">{sym}:</span>
+                            {widths.map(w => (
+                              <button
+                                key={w}
+                                onClick={() => setSymbolWidths(prev => ({ ...prev, [sym]: w }))}
+                                className={cn(
+                                  "text-xs px-2 py-0.5 rounded border transition-colors",
+                                  currentW === w
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                                )}
+                              >
+                                {w}pt
+                              </button>
+                            ))}
                           </div>
                         );
                       })}
                     </div>
                   ) : (
-                    <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg space-y-3">
-                      <Label className="text-sm font-semibold">
-                        Spread Width
-                      </Label>
-                      <div className="flex gap-3">
-                        {([2, 5, 10] as SpreadWidth[]).map(w => (
-                          <Button
-                            key={w}
-                            variant={spreadWidth === w ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => setSpreadWidth(w)}
-                            className={cn(
-                              "flex-1",
-                              spreadWidth === w
-                                ? "bg-blue-600 hover:bg-blue-700"
-                                : "hover:bg-blue-500/10 hover:border-blue-500/50"
-                            )}
-                          >
-                            {w} points
-                          </Button>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {spreadWidth === 2 && "Narrow spread — Lower capital efficiency, higher win rate"}
-                        {spreadWidth === 5 && "Balanced spread — Good capital efficiency and win rate"}
-                        {spreadWidth === 10 && "Wide spread — Maximum capital efficiency, lower win rate"}
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground font-medium">Spread width:</span>
+                      {([2, 5, 10] as SpreadWidth[]).map(w => (
+                        <button
+                          key={w}
+                          onClick={() => setSpreadWidth(w)}
+                          className={cn(
+                            "text-xs px-2 py-0.5 rounded border transition-colors",
+                            spreadWidth === w
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                          )}
+                        >
+                          {w}pt
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -2427,6 +2343,48 @@ export default function CSPDashboard() {
               </div>
             </div>
           </div>
+
+          {/* Exchange Filter Chip — index mode only */}
+          {isIndexMode && (
+            <div className="flex items-center gap-3 pt-1">
+              <span className="text-sm font-medium text-muted-foreground">Exchange:</span>
+              {(['All', 'CBOE', 'Nasdaq'] as const).map(exch => (
+                <button
+                  key={exch}
+                  onClick={() => {
+                    const newFilter = exch === 'All' ? null : exch;
+                    setActiveExchangeFilter(newFilter);
+                    setModalSubmissionComplete(false);
+                    if (newFilter) {
+                      setSelectedOpportunities(prev => {
+                        const next = new Set<string>();
+                        opportunities.forEach((opp: any) => {
+                          const key = `${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`;
+                          if (prev.has(key) && getIndexExchange(opp.symbol) === newFilter) next.add(key);
+                        });
+                        return next;
+                      });
+                    }
+                  }}
+                  className={cn(
+                    "text-sm px-3 py-1 rounded-full border transition-colors",
+                    (exch === 'All' && activeExchangeFilter === null) || activeExchangeFilter === exch
+                      ? exch === 'CBOE' ? "bg-blue-600 text-white border-blue-600"
+                        : exch === 'Nasdaq' ? "bg-purple-600 text-white border-purple-600"
+                        : "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                  )}
+                >
+                  {exch}
+                </button>
+              ))}
+              {activeExchangeFilter && (
+                <span className="text-xs text-muted-foreground">
+                  Showing {filteredOpportunities.length} {activeExchangeFilter} opportunities
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Selection Controls */}
           <div className="space-y-3">
