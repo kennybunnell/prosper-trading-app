@@ -27,14 +27,14 @@ import { Badge } from '@/components/ui/badge';
 
 // ── Index symbol → display name ──────────────────────────────────────────────
 const INDEX_DISPLAY_NAMES: Record<string, string> = {
-  SPXW: 'S&P 500 (SPX)',
-  SPX:  'S&P 500',
-  NDXP: 'Nasdaq-100 (NDX)',
-  NDX:  'Nasdaq-100',
-  MRUT: 'Russell 2000 (RUT)',
-  RUT:  'Russell 2000',
+  SPXW: 'S&P 500 Weekly (SPXW)',
+  SPX:  'S&P 500 (SPX)',
+  NDXP: 'Nasdaq-100 Weekly (NDXP)',
+  NDX:  'Nasdaq-100 (NDX)',
+  MRUT: 'Russell 2000 Mini (MRUT)',
+  RUT:  'Russell 2000 (RUT)',
   VIX:  'CBOE VIX',
-  DJX:  'Dow Jones (DJI)',
+  DJX:  'Dow Jones (DJX)',
   XSP:  'Mini-SPX (XSP)',
   XND:  'Mini-NDX (XND)',
 };
@@ -74,7 +74,7 @@ export function IndexChart({ symbol }: IndexChartProps) {
 
   const { data, isLoading, isError, error, refetch } = trpc.charts.getIndexOHLC.useQuery(
     { symbol: symbol.toUpperCase(), interval: range.interval, days: range.days },
-    { staleTime: 5 * 60 * 1000, retry: 1 },
+    { staleTime: 2 * 60 * 1000, retry: 2, retryDelay: 1000 },
   );
 
   const mainRef = useRef<HTMLDivElement>(null);

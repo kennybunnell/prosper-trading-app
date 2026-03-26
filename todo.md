@@ -8489,3 +8489,6 @@ ROC Fix Mar 18 2026
 ## Column Visibility Popover Fixes (Mar 26, 2026)
 - [x] Fix all checkbox rows (checked and unchecked) to have consistent visible borders in ColumnVisibilityToggle
 - [x] Improve popover background: more opaque (bg-card/95), stronger border, shadow-2xl for readability
+
+## SPXW Chart Fix (Mar 26, 2026)
+- [x] Fix SPXW chart modal: charts router now uses DB API key (same as all other routers), improved display names for SPXW/NDXP/MRUT, increased retry count to 2

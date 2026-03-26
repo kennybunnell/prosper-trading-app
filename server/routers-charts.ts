@@ -12,6 +12,7 @@
 import { z } from 'zod';
 import { router, protectedProcedure } from './_core/trpc';
 import { TradierAPI } from './tradier';
+import { getApiCredentials } from './db';
 
 // Map from option root / display symbol → Tradier-quotable underlying
 const INDEX_UNDERLYING_MAP: Record<string, string> = {
@@ -87,15 +88,17 @@ export const chartsRouter = router({
       interval: z.enum(['daily', 'weekly', 'monthly']).default('daily'),
       days: z.number().int().min(30).max(730).default(365),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const upper = input.symbol.toUpperCase();
       const tradierSymbol = INDEX_UNDERLYING_MAP[upper];
       if (!tradierSymbol) {
         throw new Error(`${input.symbol} is not a supported index symbol`);
       }
 
-      const apiKey = process.env.TRADIER_API_KEY || '';
-      if (!apiKey) throw new Error('Tradier API key not configured');
+      // Use the user's DB-stored Tradier key (same pattern as all other routers)
+      const credentials = await getApiCredentials(ctx.user.id);
+      const apiKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+      if (!apiKey) throw new Error('Tradier API key not configured — please add your key in Settings');
 
       const tradier = new TradierAPI(apiKey, false);
 
