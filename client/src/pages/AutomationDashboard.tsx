@@ -3618,23 +3618,117 @@ function RollCandidateExpander({
           <span>Width: <span className="font-mono text-amber-400">${pos.spreadDetails.spreadWidth.toFixed(0)}</span></span>
         )}
       </div>
-      {/* Spread legs breakdown */}
-      {isSpread && pos.spreadDetails && (
-        <div className="mb-3 p-2 rounded-lg bg-muted/20 border border-border/30">
-          <div className="text-xs font-medium text-muted-foreground mb-1.5">{pos.strategy} Legs — atomic roll ({pos.spreadDetails.legs.length * 2} total legs)</div>
-          <div className="flex flex-wrap gap-2">
-            {pos.spreadDetails.legs.map((leg, i) => (
-              <div key={i} className={`text-xs px-2 py-1 rounded border ${
-                leg.role === 'short' ? 'border-red-400/30 bg-red-500/10 text-red-300' : 'border-green-400/30 bg-green-500/10 text-green-300'
-              }`}>
-                <span className="font-bold">{leg.role === 'short' ? 'Short' : 'Long'}</span>{' '}
-                {leg.optionType === 'PUT' ? 'Put' : 'Call'}{' '}
-                <span className="font-mono">${leg.strike.toFixed(0)}</span>
+      {/* Spread legs breakdown + payoff diagram */}
+      {isSpread && pos.spreadDetails && (() => {
+        const sd = pos.spreadDetails!;
+        const shortLeg = sd.legs.find(l => l.role === 'short');
+        const longLeg  = sd.legs.find(l => l.role === 'long');
+        const shortStrike = shortLeg?.strike || sd.shortStrike || sd.putShortStrike || sd.callShortStrike || 0;
+        const longStrike  = longLeg?.strike  || sd.longStrike  || sd.putLongStrike  || sd.callLongStrike  || 0;
+        const stockPrice  = underlyingPrice || pos.metrics.currentPrice || 0;
+        const isPutSpread = pos.strategy === 'BPS';
+        // Payoff diagram: show price axis from (lower strike - 10%) to (higher strike + 10%)
+        const lo = Math.min(shortStrike, longStrike) * 0.90;
+        const hi = Math.max(shortStrike, longStrike) * 1.10;
+        const range = hi - lo;
+        const toX = (price: number) => ((price - lo) / range) * 100; // 0-100%
+        const stockX = toX(stockPrice);
+        const shortX = toX(shortStrike);
+        const longX  = toX(longStrike);
+        // For BPS: profit zone is above short put; loss zone is between long put and short put
+        // For BCS: profit zone is below short call; loss zone is between short call and long call
+        const profitLeft  = isPutSpread ? shortX : 0;
+        const profitRight = isPutSpread ? 100    : shortX;
+        const lossLeft    = isPutSpread ? longX  : shortX;
+        const lossRight   = isPutSpread ? shortX : longX;
+        return (
+          <div className="mb-3 p-3 rounded-lg bg-muted/20 border border-border/30">
+            {/* Header row: leg pills */}
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-semibold text-muted-foreground">{pos.strategy} Position — {sd.legs.length * 2}-leg atomic roll</div>
+              <div className="flex gap-2">
+                {sd.legs.map((leg, i) => (
+                  <div key={i} className={`text-xs px-2 py-0.5 rounded border font-medium ${
+                    leg.role === 'short' ? 'border-red-400/40 bg-red-500/10 text-red-300' : 'border-green-400/40 bg-green-500/10 text-green-300'
+                  }`}>
+                    {leg.role === 'short' ? '▼ Short' : '▲ Long'} {leg.optionType === 'PUT' ? 'Put' : 'Call'} <span className="font-mono">${leg.strike.toFixed(0)}</span>
+                    {leg.markPrice > 0 && <span className="opacity-60 ml-1">(${leg.markPrice.toFixed(2)})</span>}
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+            {/* Payoff diagram */}
+            <div className="relative h-14 rounded overflow-hidden bg-background/40 border border-border/20">
+              {/* Profit zone */}
+              <div
+                className="absolute top-0 bottom-0 bg-green-500/15"
+                style={{ left: `${profitLeft}%`, width: `${profitRight - profitLeft}%` }}
+              />
+              {/* Loss zone */}
+              <div
+                className="absolute top-0 bottom-0 bg-red-500/15"
+                style={{ left: `${lossLeft}%`, width: `${lossRight - lossLeft}%` }}
+              />
+              {/* Profit label */}
+              <div
+                className="absolute top-1 text-[9px] font-bold text-green-400/80 pointer-events-none"
+                style={{ left: `${profitLeft + (profitRight - profitLeft) / 2}%`, transform: 'translateX(-50%)' }}
+              >PROFIT</div>
+              {/* Loss label */}
+              <div
+                className="absolute top-1 text-[9px] font-bold text-red-400/80 pointer-events-none"
+                style={{ left: `${lossLeft + (lossRight - lossLeft) / 2}%`, transform: 'translateX(-50%)' }}
+              >LOSS</div>
+              {/* Short strike line */}
+              {shortStrike > 0 && (
+                <>
+                  <div
+                    className="absolute top-0 bottom-0 w-px bg-red-400/70"
+                    style={{ left: `${shortX}%` }}
+                  />
+                  <div
+                    className="absolute bottom-1 text-[9px] font-mono text-red-300 pointer-events-none"
+                    style={{ left: `${shortX}%`, transform: 'translateX(-50%)' }}
+                  >Short ${shortStrike.toFixed(0)}</div>
+                </>
+              )}
+              {/* Long strike line */}
+              {longStrike > 0 && (
+                <>
+                  <div
+                    className="absolute top-0 bottom-0 w-px bg-green-400/70"
+                    style={{ left: `${longX}%` }}
+                  />
+                  <div
+                    className="absolute bottom-1 text-[9px] font-mono text-green-300 pointer-events-none"
+                    style={{ left: `${longX}%`, transform: 'translateX(-50%)' }}
+                  >Long ${longStrike.toFixed(0)}</div>
+                </>
+              )}
+              {/* Current stock price marker */}
+              {stockPrice > 0 && stockX >= 0 && stockX <= 100 && (
+                <>
+                  <div
+                    className="absolute top-0 bottom-0 w-0.5 bg-sky-400/90"
+                    style={{ left: `${stockX}%` }}
+                  />
+                  <div
+                    className="absolute top-1 text-[9px] font-mono font-bold text-sky-300 pointer-events-none"
+                    style={{ left: `${stockX}%`, transform: 'translateX(-50%)' }}
+                  >${stockPrice.toFixed(0)}</div>
+                </>
+              )}
+            </div>
+            {/* Legend */}
+            <div className="flex gap-4 mt-1.5 text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-sky-400/80"/> Stock price</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-red-400/70"/> Short strike (obligation)</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-green-400/70"/> Long strike (protection)</span>
+              {sd.spreadWidth && <span className="ml-auto font-medium text-amber-400">Max loss: ${sd.spreadWidth.toFixed(0)} × 100 = ${(sd.spreadWidth * 100).toFixed(0)}/contract</span>}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
       <div className="grid gap-2">
         {candidates.map((c, i) => {
           const isSelected = selectedCandidate === c ||
@@ -3664,12 +3758,25 @@ function RollCandidateExpander({
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-500/10 border border-green-500/30 text-green-400 text-[10px] font-semibold cursor-help">
-                            <ShieldCheck className="h-3 w-3" /> Atomic
+                            <ShieldCheck className="h-3 w-3" /> Atomic {isSpread ? '4-leg' : '2-leg'}
                           </span>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs text-xs p-3">
-                          <p className="font-semibold text-foreground mb-1">Atomic Multi-Leg Order</p>
-                          <p className="text-muted-foreground">This roll submits as a single combo order — both the Buy-to-Close of the existing leg and the Sell-to-Open of the new leg execute simultaneously. You will never be left with a naked position between legs.</p>
+                          <p className="font-semibold text-foreground mb-1">Atomic {isSpread ? '4-Leg' : '2-Leg'} Combo Order</p>
+                          {isSpread ? (
+                            <>
+                              <p className="text-muted-foreground mb-1">This {pos.strategy} spread roll submits as a single 4-leg combo order:</p>
+                              <ol className="text-muted-foreground space-y-0.5 list-decimal list-inside">
+                                <li>BTC existing short leg (close obligation)</li>
+                                <li>BTC existing long leg (close protection)</li>
+                                <li>STO new short leg (new obligation)</li>
+                                <li>STO new long leg (new protection)</li>
+                              </ol>
+                              <p className="text-muted-foreground mt-1">All 4 legs execute simultaneously — you are never exposed to a naked leg at any point.</p>
+                            </>
+                          ) : (
+                            <p className="text-muted-foreground">This roll submits as a single 2-leg combo order — the Buy-to-Close of the existing leg and the Sell-to-Open of the new leg execute simultaneously. You will never be left with a naked position between legs.</p>
+                          )}
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>

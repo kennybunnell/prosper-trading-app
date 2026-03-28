@@ -8503,3 +8503,10 @@ ROC Fix Mar 18 2026
 - [x] Add Expand All / Collapse All button to Roll Positions toolbar
 - [x] Add Score explanation tooltip on each roll candidate (hover the Score badge to see 5-factor breakdown)
 - [x] Add Atomic action confirmation badge on every ROLL candidate (hover to confirm BTC+STO execute simultaneously)
+
+## Roll Positions Strategy Detection Fix (Mar 28, 2026)
+- [ ] Fix server-side strategy detection: group all legs by symbol+expiry, detect BPS (short put + long put at lower strike), BCS (short call + long call at higher strike)
+- [ ] Show both legs in expanded row (short leg strike, long leg strike, spread width, current stock price)
+- [ ] Add inline payoff diagram SVG showing stock price vs. profit/loss zones for the spread
+- [ ] Fix roll candidate generation for spreads: generate 4-leg combo orders (BTC short + STO new short + STO new long + BTC old long)
+- [ ] Update strategy badge in main row to show correct label (BPS/BCS instead of CSP/CC)
