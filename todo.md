@@ -8492,3 +8492,14 @@ ROC Fix Mar 18 2026
 
 ## SPXW Chart Fix (Mar 26, 2026)
 - [x] Fix SPXW chart modal: charts router now uses DB API key (same as all other routers), improved display names for SPXW/NDXP/MRUT, increased retry count to 2
+
+## Roll Positions Enhancements (Mar 26, 2026)
+- [ ] Add Expand All / Collapse All button to Roll Positions page
+- [ ] Add roll score explanation tooltip/panel (how 0-100 score is calculated)
+- [ ] Add atomic action confirmation badge on roll options (shows both legs close together)
+- [ ] Add ETF/Index preference guidance panel and preference setting in Roll Positions
+
+## Roll Positions Enhancements (Mar 28, 2026)
+- [x] Add Expand All / Collapse All button to Roll Positions toolbar
+- [x] Add Score explanation tooltip on each roll candidate (hover the Score badge to see 5-factor breakdown)
+- [x] Add Atomic action confirmation badge on every ROLL candidate (hover to confirm BTC+STO execute simultaneously)

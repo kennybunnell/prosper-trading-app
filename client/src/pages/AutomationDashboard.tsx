@@ -18,7 +18,7 @@ import {
   Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle,
   TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2, Square, CheckSquare, Send, ShoppingCart,
   Power, Settings2, RefreshCw, BarChart3, GitMerge, Zap, Lock, Unlock, Download, Timer, ExternalLink, Activity, Mail,
-  Sparkles, ListOrdered
+  Sparkles, ListOrdered, ChevronsDownUp, ChevronsUpDown, Info, ShieldCheck
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterPill } from '@/components/FilterPill';
@@ -3659,6 +3659,21 @@ function RollCandidateExpander({
                   <span className="font-medium">{c.description}</span>
                 </div>
                 <div className="flex items-center gap-4 text-xs">
+                  {c.action === 'roll' && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-500/10 border border-green-500/30 text-green-400 text-[10px] font-semibold cursor-help">
+                            <ShieldCheck className="h-3 w-3" /> Atomic
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs text-xs p-3">
+                          <p className="font-semibold text-foreground mb-1">Atomic Multi-Leg Order</p>
+                          <p className="text-muted-foreground">This roll submits as a single combo order — both the Buy-to-Close of the existing leg and the Sell-to-Open of the new leg execute simultaneously. You will never be left with a naked position between legs.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                   {c.action === 'roll' && c.netCredit !== undefined && (
                     <span className={c.netCredit >= 0 ? 'text-green-400' : 'text-red-400'}>
                       {c.netCredit >= 0 ? '+' : ''}{c.netCredit.toFixed(2)} {c.netCredit >= 0 ? 'credit' : 'debit'}
@@ -3673,9 +3688,26 @@ function RollCandidateExpander({
                   {c.meets3XRule && (
                     <Badge variant="outline" className="text-green-400 border-green-400/40 text-xs py-0">3X ✓</Badge>
                   )}
-                  <span className={`font-semibold ${isSelected ? 'text-orange-400' : 'text-muted-foreground'}`}>
-                    Score: {c.score}
-                  </span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className={`font-semibold cursor-help inline-flex items-center gap-1 ${isSelected ? 'text-orange-400' : 'text-muted-foreground'}`}>
+                          Score: {c.score} <Info className="h-3 w-3 opacity-50" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="max-w-xs text-xs space-y-2 p-3">
+                        <p className="font-semibold text-foreground">Roll Score (0–100)</p>
+                        <div className="space-y-1">
+                          <div><span className="text-orange-400 font-medium">Net Credit (30 pts)</span> — credits score highest; large debits penalized</div>
+                          <div><span className="text-orange-400 font-medium">Annualized Return (25 pts)</span> — higher annualized yield = better</div>
+                          <div><span className="text-orange-400 font-medium">3X Rule (15 pts)</span> — bonus if new premium ≥ 3× the buyback cost</div>
+                          <div><span className="text-orange-400 font-medium">DTE (15 pts)</span> — 7–14 days is ideal sweet spot</div>
+                          <div><span className="text-orange-400 font-medium">Delta (15 pts)</span> — lower delta (further OTM) = safer = higher score</div>
+                        </div>
+                        <p className="text-muted-foreground border-t border-border/40 pt-2">"Close" always scores 50 (neutral). Higher = better candidate.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
             </button>
