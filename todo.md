@@ -8510,3 +8510,7 @@ ROC Fix Mar 18 2026
 - [ ] Add inline payoff diagram SVG showing stock price vs. profit/loss zones for the spread
 - [ ] Fix roll candidate generation for spreads: generate 4-leg combo orders (BTC short + STO new short + STO new long + BTC old long)
 - [ ] Update strategy badge in main row to show correct label (BPS/BCS instead of CSP/CC)
+
+## Auto-Fix Order Validation (Mar 30, 2026)
+- [ ] Auto-correct SPX/NDX/RUT to SPXW/NDXP/RUTW when expiration is not the 3rd Friday (fix silently before preview)
+- [ ] Auto-cap close quantity to actual held quantity instead of showing a warning

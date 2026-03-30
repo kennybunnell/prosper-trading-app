@@ -178,6 +178,9 @@ export function UnifiedOrderPreviewModal({
   const [safeguardWarnings, setSafeguardWarnings] = useState<Array<{ title: string; description: string; requiredAction: string; severity: string }>>([]);
   const [showSafeguardWarning, setShowSafeguardWarning] = useState(false);
   const [safeguardBlocked, setSafeguardBlocked] = useState(false);
+  // Auto-corrected OCC symbols: key = original optionSymbol, value = corrected symbol
+  // Used when SPX is on a non-3rd-Friday date → auto-swap to SPXW (and NDX→NDXP, RUT→RUTW)
+  const [correctedSymbols, setCorrectedSymbols] = useState<Map<string, string>>(new Map());
   // Live bid/ask quotes fetched at modal open time
   // Collect all option symbols from orders (for BTC strategy, use optionSymbol; for others use OCC symbol if available)
   const optionSymbolsForQuotes = useMemo(() => {
@@ -400,6 +403,62 @@ export function UnifiedOrderPreviewModal({
     })();
   }, [pollCount]);
   
+  // Auto-fix useEffect: fires when closeValidationData arrives
+  // 1. SPX/NDX/RUT on wrong expiration → silently swap to SPXW/NDXP/RUTW in the OCC symbol
+  // 2. Quantity > held → silently cap to held quantity
+  useEffect(() => {
+    if (!closeValidationData?.results) return;
+    const ROOT_SWAP: Record<string, string> = {
+      SPX: 'SPXW', NDX: 'NDXP', RUT: 'RUTW',
+    };
+    const newCorrected = new Map(correctedSymbols);
+    let didCorrect = false;
+    closeValidationData.results.forEach(result => {
+      // --- Symbol correction (SPX → SPXW etc.) ---
+      if (result.expirationWarning?.isError) {
+        const wrongRoot = result.underlying; // e.g. 'SPX'
+        const rightRoot = ROOT_SWAP[wrongRoot];
+        if (rightRoot) {
+          // Find the matching order by underlying symbol
+          orders.forEach(order => {
+            if (order.symbol === wrongRoot && order.optionSymbol) {
+              const orig = order.optionSymbol;
+              // OCC format: ROOT(padded) YYMMDDCP STRIKE8
+              // Replace the root prefix (first N chars matching wrongRoot) with rightRoot
+              const corrected = orig.replace(
+                new RegExp(`^${wrongRoot}\\s*`),
+                rightRoot + orig.slice(wrongRoot.length).replace(/^\s*/, '  ')
+              );
+              if (corrected !== orig && !newCorrected.has(orig)) {
+                newCorrected.set(orig, corrected);
+                didCorrect = true;
+                console.info(`[AutoFix] Symbol corrected: ${orig} → ${corrected}`);
+              }
+            }
+          });
+        }
+      }
+      // --- Quantity cap (held < requested) ---
+      if (result.heldQuantity !== null && result.heldQuantity !== undefined) {
+        const heldQty = result.heldQuantity as number;
+        if (heldQty > 0) {
+          orders.forEach(order => {
+            if (order.symbol === result.underlying) {
+              const key = getOrderKey(order);
+              const currentQty = orderQuantities.get(key) ?? order.quantity ?? 1;
+              if (currentQty > heldQty) {
+                setOrderQuantities(prev => new Map(prev).set(key, heldQty));
+                console.info(`[AutoFix] Quantity capped for ${order.symbol}: ${currentQty} → ${heldQty}`);
+              }
+            }
+          });
+        }
+      }
+    });
+    if (didCorrect) setCorrectedSymbols(newCorrected);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closeValidationData]);
+
   // Real-time validation whenever quantities or live close-validation data changes
   useEffect(() => {
     if (open) {
@@ -664,17 +723,12 @@ export function UnifiedOrderPreviewModal({
 
     // ── Close order quantity & index expiration validation (BTC / roll) ─────────
     // Uses live data fetched from Tastytrade via validateCloseOrders query.
+    // NOTE: quantityError and isError expirationWarning are auto-fixed silently by the
+    // auto-fix useEffect above — do NOT surface them as errors here.
     if ((strategy === 'btc' || strategy === 'roll') && closeValidationData?.results) {
       closeValidationData.results.forEach(result => {
-        // Quantity error: trying to close more than held
-        if (result.quantityError) {
-          errors.push({
-            symbol: result.underlying,
-            message: result.quantityError,
-            severity: 'error',
-          });
-        }
-        // Quantity warning (soft)
+        // Quantity error: auto-fixed (quantity capped to heldQuantity) — skip
+        // Quantity warning (soft) — still show as informational
         if (result.quantityWarning) {
           errors.push({
             symbol: result.underlying,
@@ -682,12 +736,14 @@ export function UnifiedOrderPreviewModal({
             severity: 'warning',
           });
         }
-        // Index expiration rule violation
-        if (result.expirationWarning) {
+        // Index expiration rule violation:
+        // isError = true means we auto-corrected SPX→SPXW etc. — suppress the error.
+        // isError = false (warning only, e.g. SPXW on 3rd Friday) — still show as info.
+        if (result.expirationWarning && !result.expirationWarning.isError) {
           errors.push({
             symbol: result.underlying,
             message: result.expirationWarning.message,
-            severity: result.expirationWarning.isError ? 'error' : 'warning',
+            severity: 'warning',
           });
         }
       });
@@ -970,16 +1026,26 @@ export function UnifiedOrderPreviewModal({
     try {
       let result: any;
       
-      // Inject adjusted prices into orders before submitting
-      // The modal slider/+/- buttons update adjustedPrices but not the original orders prop.
-      // We must merge them here so the parent's executeOrderSubmission uses the user-adjusted price.
+      // Inject adjusted prices AND auto-corrected symbols into orders before submitting.
+      // correctedSymbols holds SPX→SPXW / NDX→NDXP / RUT→RUTW swaps applied silently at validation time.
       const ordersWithAdjustedPrices = orders.map(order => {
         const key = getOrderKey(order);
         const adjustedPrice = adjustedPrices.get(key);
-        if (adjustedPrice !== undefined) {
-          return { ...order, premium: adjustedPrice };
-        }
-        return order;
+        // Apply symbol correction if one exists for this order's optionSymbol
+        const correctedOptSym = order.optionSymbol
+          ? (correctedSymbols.get(order.optionSymbol) ?? order.optionSymbol)
+          : order.optionSymbol;
+        // Also correct the underlying symbol (e.g. order.symbol 'SPX' → 'SPXW')
+        const ROOT_SWAP: Record<string, string> = { SPX: 'SPXW', NDX: 'NDXP', RUT: 'RUTW' };
+        const correctedUnderlying = ROOT_SWAP[order.symbol] !== undefined && correctedOptSym !== order.optionSymbol
+          ? ROOT_SWAP[order.symbol]
+          : order.symbol;
+        return {
+          ...order,
+          symbol: correctedUnderlying,
+          optionSymbol: correctedOptSym,
+          ...(adjustedPrice !== undefined ? { premium: adjustedPrice } : {}),
+        };
       });
 
       if (operationMode === "replace" && onReplaceSubmit) {
