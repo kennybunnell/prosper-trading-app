@@ -189,11 +189,19 @@ export function UnifiedOrderPreviewModal({
     });
     return Array.from(new Set(syms)); // deduplicate
   }, [open, strategy, orders]);
-  const { data: liveQuotesData, isFetching: isQuotesFetching } = trpc.orders.fetchOptionQuotes.useQuery(
-    { symbols: optionSymbolsForQuotes },
-    { enabled: open && strategy === 'btc' && optionSymbolsForQuotes.length > 0, staleTime: 30_000 }
-  );
-  const liveQuotes = liveQuotesData ?? {};
+  const [liveQuotesData, setLiveQuotesData] = useState<Record<string, { bid: number; ask: number }>>({});
+  const [isQuotesFetching, setIsQuotesFetching] = useState(false);
+  const fetchQuotesMutation = trpc.orders.fetchOptionQuotes.useMutation();
+  useEffect(() => {
+    if (!open || strategy !== 'btc' || optionSymbolsForQuotes.length === 0) return;
+    setIsQuotesFetching(true);
+    fetchQuotesMutation.mutateAsync({ symbols: optionSymbolsForQuotes })
+      .then(data => { setLiveQuotesData(data ?? {}); })
+      .catch(() => { setLiveQuotesData({}); })
+      .finally(() => { setIsQuotesFetching(false); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, strategy, optionSymbolsForQuotes.join('|')]);
+  const liveQuotes = liveQuotesData;
 
   // ── Pre-submission close order validator ─────────────────────────────────
   // Fetches live Tastytrade position quantities and validates index expiration rules.

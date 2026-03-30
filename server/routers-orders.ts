@@ -12,10 +12,10 @@ export const ordersRouter = router({
   fetchOptionQuotes: protectedProcedure
     .input(
       z.object({
-        symbols: z.array(z.string()).max(50),
+        symbols: z.array(z.string()).max(100),
       })
     )
-    .query(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
         const { getDb } = await import('./db');
         const db = await getDb();
