@@ -824,6 +824,17 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                   });
                 }
 
+                // ── ABSOLUTE SAFETY RULE ──────────────────────────────────────────────────────
+                // BCS / BPS / IC spreads MUST NEVER appear as standalone WOULD_CLOSE entries.
+                // Closing a spread requires a 4-leg atomic combo order — never a single-leg BTC.
+                // Only standalone CC (covered call) and CSP (cash-secured put) positions are
+                // eligible for the BTC sweep. This check runs AFTER the isSpread=false guard
+                // above, so it catches cases where isSpread=true AND optionType is a spread type.
+                if (optionType === 'BCS' || optionType === 'BPS' || optionType === 'IC') {
+                  console.log(`[Automation] SAFETY BLOCK (spread): ${underlyingSymbol} ${optionType} at ${realizedPercent.toFixed(1)}% profit — excluded from standalone BTC sweep. Must use 4-leg combo order.`);
+                  scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity: isSpread ? spreadQuantity : quantity, premiumCollected: effectivePremiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'SKIPPED' });
+                  continue;
+                }
                 // Use spreadQuantity for the spread entry (remainder already pushed above)
                 const wouldCloseEntry: typeof scanResults[number] = { account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity: isSpread ? spreadQuantity : quantity, premiumCollected: effectivePremiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'WOULD_CLOSE' };
                 if (isSpread && matchedLongLeg) {

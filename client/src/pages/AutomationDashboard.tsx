@@ -784,6 +784,11 @@ export default function AutomationDashboard() {
     if (scanTypeFilter !== 'all') {
       rows = rows.filter(r => r.type === scanTypeFilter);
     }
+    // ABSOLUTE SAFETY: When CC filter is active, never show BCS/BPS/IC spread legs.
+    // Spread legs require a 4-leg combo order and must NEVER appear in the CC BTC sweep.
+    if (scanTypeFilter === 'CC') {
+      rows = rows.filter(r => r.type !== 'BCS' && r.type !== 'BPS' && r.type !== 'IC');
+    }
     rows = [...rows].sort((a, b) => {
       let av: number | string = 0;
       let bv: number | string = 0;
@@ -810,7 +815,11 @@ export default function AutomationDashboard() {
   }, [lastRunResult?.scanResults, hideExpiringToday, scanTypeFilter, scanSortCol, scanSortDir]);
   // Keep ref in sync so handleOpenOrderPreview (declared before this useMemo) can access current value
   visibleScanResultsRef.current = visibleScanResults;
-  const wouldCloseResults = visibleScanResults.filter(r => r.action === 'WOULD_CLOSE');
+  // SAFETY: WOULD_CLOSE results must NEVER include BCS/BPS/IC spread legs.
+  // These require a 4-leg atomic combo order — a standalone BTC would leave a naked leg.
+  const wouldCloseResults = visibleScanResults.filter(r =>
+    r.action === 'WOULD_CLOSE' && r.type !== 'BCS' && r.type !== 'BPS' && r.type !== 'IC'
+  );
   // DTE=0 positions are NEVER auto-selected or included in select-all (let them expire naturally)
   const selectableResults = wouldCloseResults.filter(r => r.dte !== 0);
   // Use stable posKey for selection — survives sorting
