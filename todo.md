@@ -8514,3 +8514,6 @@ ROC Fix Mar 18 2026
 ## Auto-Fix Order Validation (Mar 30, 2026)
 - [ ] Auto-correct SPX/NDX/RUT to SPXW/NDXP/RUTW when expiration is not the 3rd Friday (fix silently before preview)
 - [ ] Auto-cap close quantity to actual held quantity instead of showing a warning
+
+## BTC Sweep Spread-Leg Exclusion Fix (Mar 30, 2026)
+- [ ] Fix Close for Profit scan: exclude any short option that has a paired long leg (BCS, BPS, IC, PMCC) — only standalone CC short calls and standalone CSP short puts are eligible

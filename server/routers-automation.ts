@@ -779,7 +779,34 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                     totalProfitRealized += remainderProfit;
                   }
                 } else {
-                  // Standalone CC or CSP — single-leg close
+                  // ── SAFETY GUARD: Never emit a standalone BTC for a known spread type ──────────
+                  // If optionType is BCS, BPS, or IC, this short option is part of a spread.
+                  // The spread detection (Pass 1 + Pass 2) failed to find the long leg — this can
+                  // happen when the long leg was already closed, order history is >90 days old, or
+                  // the position was opened manually.
+                  // RULE: Under NO circumstance may a BCS/BPS/IC short leg be closed standalone.
+                  // Doing so leaves a naked long call or uncovered short put — an uncontrolled risk.
+                  const isKnownSpreadType = optionType === 'BCS' || optionType === 'BPS' || optionType === 'IC';
+                  if (isKnownSpreadType) {
+                    console.warn(`[Automation] SAFETY BLOCK: ${underlyingSymbol} ${optionType} short leg ${optionSymbol} — long leg not found. Refusing standalone BTC to prevent naked position. Marking as SKIPPED.`);
+                    scanResults.push({
+                      account: account.accountNumber,
+                      symbol: underlyingSymbol,
+                      optionSymbol,
+                      type: optionType,
+                      quantity,
+                      premiumCollected: effectivePremiumReceived,
+                      buyBackCost,
+                      realizedPercent: Math.round(realizedPercent * 100) / 100,
+                      expiration: expiration || null,
+                      dte,
+                      isEstimated,
+                      action: 'SKIPPED',
+                      reason: `Long leg not found — cannot close ${optionType} short leg standalone (would create naked position). Close manually as a spread combo.`,
+                    });
+                    continue; // skip to next position — do NOT push WOULD_CLOSE or pendingOrder
+                  }
+                  // Standalone CC or CSP — safe to close single-leg
                   pendingOrders.push({
                     runId,
                     userId: ctx.user.id,
