@@ -379,7 +379,7 @@ export default function CSPDashboard() {
   const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
   const [isFullyCollapsed, setIsFullyCollapsed] = useState(false);
   const [fetchOptionsOpen, setFetchOptionsOpen] = useState(() => localStorage.getItem('prosper_fetchOptions_csp') === 'true');
-  const [filtersOpen, setFiltersOpen] = useState(() => localStorage.getItem('prosper_filters_csp') === 'true');
+  const [filtersOpen, setFiltersOpen] = useState(() => localStorage.getItem('prosper_filters_csp') !== 'false');
   // Watchlist context mode: read from Strategy Advisor passthrough if present
   const [watchlistContextMode, setWatchlistContextMode] = useState<'equity' | 'index'>(() => {
     const advisorScanType = localStorage.getItem('strategyAdvisorScanType');

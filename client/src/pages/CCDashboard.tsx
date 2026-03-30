@@ -365,7 +365,7 @@ export default function CCDashboard() {
   const [portfolioSizeFilter, setPortfolioSizeFilter] = useState<Array<'small' | 'medium' | 'large'>>(['small', 'medium', 'large']);
   const [watchlistCollapsed, setWatchlistCollapsed] = useState(false);
   const [fetchOptionsOpen, setFetchOptionsOpen] = useState(() => localStorage.getItem('prosper_fetchOptions_bcs') === 'true');
-  const [filtersOpen, setFiltersOpen] = useState(() => localStorage.getItem('prosper_filters_bcs') === 'true');
+  const [filtersOpen, setFiltersOpen] = useState(() => localStorage.getItem('prosper_filters_bcs') !== 'false');
   const [minDte, setMinDte] = useState<number>(7);
   const [maxDte, setMaxDte] = useState<number>(30);
   // Watchlist context mode: read from Strategy Advisor passthrough if present
