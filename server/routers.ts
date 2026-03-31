@@ -2825,11 +2825,20 @@ Summary: [One sentence overall assessment]`;
         for (const opp of cspOpportunities) {
           if (!symbolPriceMap.has(opp.symbol)) symbolPriceMap.set(opp.symbol, opp.currentPrice);
         }
+        // Alias map: OCC weekly/PM roots → canonical watchlist symbol used as symbolWidths key.
+        // e.g., user adds 'SPX' to watchlist → symbolWidths['SPX']=50; scan may encounter 'SPXW'.
+        const SYMBOL_WIDTH_ALIAS_IC: Record<string, string> = {
+          SPXW: 'SPX', SPXPM: 'SPX',
+          NDXP: 'NDX',
+          MRUT: 'RUT',
+          VIXW: 'VIX',
+        };
         const getEffectiveWidth = (sym: string): number => {
-          // Check per-symbol override first (from UI per-symbol width controls)
           const symUpper = sym.toUpperCase();
-          if (input.symbolWidths && input.symbolWidths[symUpper] !== undefined) {
-            return input.symbolWidths[symUpper];
+          if (input.symbolWidths) {
+            if (input.symbolWidths[symUpper] !== undefined) return input.symbolWidths[symUpper];
+            const alias = SYMBOL_WIDTH_ALIAS_IC[symUpper];
+            if (alias && input.symbolWidths[alias] !== undefined) return input.symbolWidths[alias];
           }
           const price = symbolPriceMap.get(sym) || 0;
           if (price < 500) return input.spreadWidth; // small-price symbols: use user input
@@ -3238,11 +3247,16 @@ Summary: [One sentence overall assessment]`;
         for (const opp of cspOpportunities) {
           if (!symbolPriceMapSpread.has(opp.symbol)) symbolPriceMapSpread.set(opp.symbol, opp.currentPrice);
         }
+        // Same alias map as IC scanner above — needed here because this is a separate scope
+        const SPREAD_WIDTH_ALIAS: Record<string, string> = {
+          SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX',
+        };
         const getEffectiveSpreadWidth = (sym: string): number => {
-          // Check per-symbol override first (from UI per-symbol width controls)
           const symUpper = sym.toUpperCase();
-          if (input.symbolWidths && input.symbolWidths[symUpper] !== undefined) {
-            return input.symbolWidths[symUpper];
+          if (input.symbolWidths) {
+            if (input.symbolWidths[symUpper] !== undefined) return input.symbolWidths[symUpper];
+            const alias = SPREAD_WIDTH_ALIAS[symUpper];
+            if (alias && input.symbolWidths[alias] !== undefined) return input.symbolWidths[alias];
           }
           const price = symbolPriceMapSpread.get(sym) || 0;
           if (price < 500) return input.spreadWidth; // small-price equities: use user input as-is
