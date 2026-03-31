@@ -553,9 +553,11 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               const occTypeMatch = optionSymbol.match(/([CP])(\d{8})$/);
               const isPut = occTypeMatch ? occTypeMatch[1] === 'P' : optionSymbol.includes('P');
               // Will be refined to BPS/BCS/IC after spread detection below.
-              // Index underlyings (SPX/NDX/RUT etc.) cannot be CC/CSP — they are cash-settled
-              // and cannot be assigned or covered by shares. Default to BCS/BPS for index options.
-              const isIndexUnderlying = position['instrument-type'] === 'Index Option';
+              // HARD BLOCK: Cash-settled indexes can NEVER be CC/CSP — they cannot be assigned
+              // or covered by shares. Use BOTH instrument-type AND symbol-based check because
+              // Tastytrade inconsistently returns 'Equity Option' for SPX in some accounts.
+              const isIndexUnderlying = position['instrument-type'] === 'Index Option' ||
+                CASH_SETTLED_INDEXES_AUTO.has(underlyingSymbol.toUpperCase());
               let optionType: string = isPut ? (isIndexUnderlying ? 'BPS' : 'CSP') : (isIndexUnderlying ? 'BCS' : 'CC');
 
               // Premium received = what we collected when we sold

@@ -8517,3 +8517,6 @@ ROC Fix Mar 18 2026
 
 ## BTC Sweep Spread-Leg Exclusion Fix (Mar 30, 2026)
 - [ ] Fix Close for Profit scan: exclude any short option that has a paired long leg (BCS, BPS, IC, PMCC) — only standalone CC short calls and standalone CSP short puts are eligible
+
+## Index Symbol CC Hard-Block (Mar 31, 2026)
+- [ ] Hard-block SPX/SPXW/NDX/NDXP/RUT/RUTW/XSP from ever being classified as CC in the scan
