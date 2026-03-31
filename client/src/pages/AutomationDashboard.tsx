@@ -786,8 +786,16 @@ export default function AutomationDashboard() {
     }
     // ABSOLUTE SAFETY: When CC filter is active, never show BCS/BPS/IC spread legs.
     // Spread legs require a 4-leg combo order and must NEVER appear in the CC BTC sweep.
+    // ALSO: Cash-settled European-style indexes (SPX/SPXW/NDX/NDXP/RUT/RUTW etc.) can NEVER
+    // be covered calls — there are no underlying shares to cover them. Hard-block them from
+    // the CC view regardless of what the server classified them as (guards against Tastytrade
+    // API instrument-type misreporting and heuristic edge-cases).
+    const CASH_SETTLED_INDEXES_FE = new Set(['SPX', 'SPXW', 'NDX', 'NDXP', 'RUT', 'RUTW', 'MRUT', 'VIX', 'DJX', 'XSP', 'XND']);
     if (scanTypeFilter === 'CC') {
-      rows = rows.filter(r => r.type !== 'BCS' && r.type !== 'BPS' && r.type !== 'IC');
+      rows = rows.filter(r =>
+        r.type !== 'BCS' && r.type !== 'BPS' && r.type !== 'IC' &&
+        !CASH_SETTLED_INDEXES_FE.has(r.symbol.toUpperCase())
+      );
     }
     rows = [...rows].sort((a, b) => {
       let av: number | string = 0;

@@ -496,9 +496,11 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             }
 
             // Build a map of long positions for spread detection (keyed by normalised OCC symbol)
-            // Track consumed long legs so each long is only matched to ONE short
+            // Track remaining quantity per long leg so multiple short legs at different strikes
+            // can share a single long leg (e.g. 5-lot BCS at 6690/6715 + 2-lot BCS at 6700/6715
+            // both paired against the same 7-lot long at 6715).
             const longPositionMap = new Map<string, any>();
-            const consumedLongSymbols = new Set<string>();
+            const remainingLongQty = new Map<string, number>(); // normSym -> remaining contracts
             if (runBTCScan) {
               for (const pos of positions) {
                 const qty = parseInt(String(pos.quantity || '0'));
@@ -509,9 +511,12 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                   // Key by normalised symbol (no spaces) for consistent lookup
                   const normSym = (pos.symbol || '').replace(/\s+/g, '');
                   longPositionMap.set(normSym, pos);
+                  remainingLongQty.set(normSym, Math.abs(qty));
                 }
               }
             }
+            // consumedLongSymbols shim: a symbol is "consumed" only when remaining qty reaches 0
+            const consumedLongSymbols = { has: (s: string) => (remainingLongQty.get(s) ?? 0) <= 0 };
 
             // Build a map of short puts and short calls per underlying+expiration for IC detection
             // key: `${underlying}|${expiration}` → { put?: position, call?: position }
@@ -605,7 +610,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 if (linkedLongSym && linkedLongSym !== normShortSym && !consumedLongSymbols.has(linkedLongSym)) {
                   const longPos = longPositionMap.get(linkedLongSym);
                   if (longPos) {
-                    const longQty = Math.abs(parseInt(String(longPos.quantity || '0')));
+                    // Use remaining qty (not original) so partial consumption is respected
+                    const longQty = remainingLongQty.get(linkedLongSym) ?? Math.abs(parseInt(String(longPos.quantity || '0')));
                     const matchedQty = Math.min(quantity, longQty);
                     const longClosePrice = Math.abs(parseFloat(String(longPos['close-price'] || '0')));
                     const longBuyBackCredit = longClosePrice * matchedQty * parseInt(String(longPos.multiplier || '100'));
@@ -618,7 +624,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                       singleLegRemainder = quantity - matchedQty;
                       buyBackCost = netCost;
                       optionType = isPut ? 'BPS' : 'BCS';
-                      consumedLongSymbols.add(linkedLongSym); // mark as used
+                      // Decrement remaining qty; mark fully consumed when it hits 0
+                      remainingLongQty.set(linkedLongSym, (remainingLongQty.get(linkedLongSym) ?? 0) - matchedQty);
                       console.log(`[Automation] Order-ID match: ${normShortSym} → order ${shortOrderId} → long ${linkedLongSym}`);
                     }
                   }
@@ -647,7 +654,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                         console.warn(`[Automation] Skipping same-strike match: ${optionSymbol} and ${longPos.symbol} have the same strike ${shortStrikeNum}`);
                         continue;
                       }
-                      const longQty = Math.abs(parseInt(String(longPos.quantity || '0')));
+                      // Use remaining qty (not original) so a partially-consumed long can still match
+                      const longQty = remainingLongQty.get(normLongSym) ?? Math.abs(parseInt(String(longPos.quantity || '0')));
                       const matchedQty = Math.min(quantity, longQty);
                       const longClosePrice = Math.abs(parseFloat(String(longPos['close-price'] || '0')));
                       const longBuyBackCredit = longClosePrice * matchedQty * parseInt(String(longPos.multiplier || '100'));
@@ -660,7 +668,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                         singleLegRemainder = quantity - matchedQty;
                         buyBackCost = netCost;
                         optionType = isPut ? 'BPS' : 'BCS';
-                        consumedLongSymbols.add(normLongSym); // mark as used
+                        // Decrement remaining qty; mark fully consumed when it hits 0
+                        remainingLongQty.set(normLongSym, (remainingLongQty.get(normLongSym) ?? 0) - matchedQty);
                         console.log(`[Automation] Heuristic match (fallback): ${normShortSym} → long ${normLongSym}`);
                       }
                       break;
