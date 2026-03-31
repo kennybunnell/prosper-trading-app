@@ -1511,7 +1511,9 @@ export default function CCDashboard() {
               {strategyType === 'cc' ? (
                 <>Covered calls generate income from stocks you own by selling call options above current price</>
               ) : (
-                <>Bear call spreads limit risk by buying a protective call at a higher strike ({spreadWidth} points above)</>  
+                isIndexMode && Object.keys(symbolWidths).length > 0
+                  ? <>Bear call spreads — per-index widths: {Object.entries(symbolWidths).map(([s, w]) => `${s}: ${w}pt`).join(', ')}</>
+                  : <>Bear call spreads limit risk by buying a protective call at a higher strike ({spreadWidth} points above)</>
               )}
             </p>
           </div>

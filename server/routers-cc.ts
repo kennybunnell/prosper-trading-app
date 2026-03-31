@@ -855,11 +855,25 @@ export const ccRouter = router({
       // Rule: effective width = max(user input, round(price * 0.004 / 5) * 5)
       // Gives ~25 pts for SPX (~6700), ~100 pts for NDX (~21000), ~10 pts for MRUT (~2100)
       // Per-symbol overrides from the UI take highest priority.
+      //
+      // IMPORTANT: The scan returns opportunities with symbol='SPXW' (weekly root) but the user
+      // selects widths against 'SPX' in the watchlist. We must resolve the alias so that
+      // symbolWidths['SPX']=50 is correctly applied to SPXW opportunities.
+      const SYMBOL_WIDTH_ALIAS: Record<string, string> = {
+        SPXW: 'SPX', SPXPM: 'SPX',   // Weekly/PM SPX → user selects 'SPX'
+        NDXP: 'NDX',                   // PM-settled NDX → user selects 'NDX'
+        MRUT: 'RUT',                   // Mini-RUT → user selects 'RUT'
+        VIXW: 'VIX',                   // Weekly VIX → user selects 'VIX'
+      };
       const getEffectiveSpreadWidth = (sym: string, price: number): number => {
-        // Check per-symbol override first (from UI per-symbol width controls)
         const symUpper = sym.toUpperCase();
-        if (input.symbolWidths && input.symbolWidths[symUpper] !== undefined) {
-          return input.symbolWidths[symUpper];
+        // Check per-symbol override first (from UI per-symbol width controls).
+        // Also check the canonical watchlist alias (e.g., SPXW → SPX) so that a user
+        // who sets SPX=50pt gets 50pt spreads on SPXW opportunities too.
+        if (input.symbolWidths) {
+          if (input.symbolWidths[symUpper] !== undefined) return input.symbolWidths[symUpper];
+          const alias = SYMBOL_WIDTH_ALIAS[symUpper];
+          if (alias && input.symbolWidths[alias] !== undefined) return input.symbolWidths[alias];
         }
         if (price < 500) return input.spreadWidth; // equity: use user input
         const autoWidth = Math.max(input.spreadWidth, Math.round((price * 0.004) / 5) * 5);
