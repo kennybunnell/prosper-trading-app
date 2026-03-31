@@ -343,7 +343,6 @@ export default function CCDashboard() {
       localStorage.setItem('cc-symbol-widths', JSON.stringify(symbolWidths));
     } catch { /* ignore */ }
   }, [symbolWidths]);
-
   // Column visibility (BCS vs CC mode)
   const [bcsVisibleCols, setBcsColVisible, setBcsAllCols, resetBcsCols] = useColumnVisibility(BCS_COLUMNS, 'prosper_col_vis_bcs');
   const [ccVisibleCols, setCcColVisible, setCcAllCols, resetCcCols] = useColumnVisibility(CC_COLUMNS, 'prosper_col_vis_cc');
@@ -435,7 +434,28 @@ export default function CCDashboard() {
 
   // Fetch watchlist for the index breakdown panel (BCS index mode)
   const { data: watchlistData = [] } = trpc.watchlist.get.useQuery();
-
+  // Pre-populate symbolWidths with minW defaults for any index symbol not yet explicitly set.
+  // This ensures the visual default (symbolWidths[sym] ?? minW) matches what is actually sent
+  // to the API — without this, a symbol that was never clicked stays undefined in state and
+  // falls through to the auto-scale formula (which returns 25pt for SPX instead of 50pt).
+  useEffect(() => {
+    if (!isIndexMode || strategyType !== 'spread' || (watchlistData as any[]).length === 0) return;
+    const indexSymbols = (watchlistData as any[])
+      .filter((w: any) => !!w.isIndex)
+      .map((w: any) => w.symbol as string)
+      .filter((s: string) => getIndexExchange(s) !== 'Equity');
+    setSymbolWidths(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const sym of indexSymbols) {
+        if (next[sym] === undefined) {
+          next[sym] = getMinSpreadWidth(sym);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [isIndexMode, strategyType, watchlistData]);
   // Fetch account balances for buying power
   const { data: balances } = trpc.account.getBalances.useQuery(
     { accountNumber: selectedAccountId || '' },
