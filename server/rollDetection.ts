@@ -47,6 +47,9 @@ export interface RollCandidate {
   expiration?: string;
   dte?: number;
   netCredit?: number; // positive = credit, negative = debit
+  closeCost?: number;  // absolute debit required to BTC (always positive, only on close action)
+  netPnl?: number;     // openPremium - closeCost (positive = profit, negative = loss)
+  openPremium?: number; // original credit received when position was opened
   newPremium?: number;
   annualizedReturn?: number;
   meets3XRule?: boolean;
@@ -448,11 +451,15 @@ export async function generateRollCandidates(
 
   // Option 1: Close without rolling
   const closeCost = Math.abs(position.current_value);
-  const realizedProfit = Math.abs(position.open_premium) - closeCost;
+  const openPremiumAbs = Math.abs(position.open_premium);
+  const netPnl = openPremiumAbs - closeCost; // positive = profit, negative = loss
   candidates.push({
     action: 'close',
     score: 50, // Neutral score
-    description: `Close for $${closeCost.toFixed(2)} debit (realize $${realizedProfit.toFixed(2)} profit)`,
+    closeCost,
+    netPnl,
+    openPremium: openPremiumAbs,
+    description: `Close — BTC $${closeCost.toFixed(2)} · net ${netPnl >= 0 ? '+' : ''}$${netPnl.toFixed(2)}`,
   });
 
   if (!expirations || expirations.length === 0) {

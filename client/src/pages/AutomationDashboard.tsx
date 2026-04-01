@@ -181,6 +181,9 @@ type RollCandidate = {
   expiration?: string;
   dte?: number;
   netCredit?: number;
+  closeCost?: number;    // absolute BTC debit (close action only, always positive)
+  netPnl?: number;      // openPremium - closeCost (positive = profit, negative = loss)
+  openPremium?: number; // original credit received when position was opened
   newPremium?: number;
   annualizedReturn?: number;
   meets3XRule?: boolean;
@@ -363,7 +366,7 @@ export default function AutomationDashboard() {
   // Multi-select Sets — empty Set means "show all" (same as Close for Profit pill behaviour)
   const [rollStrategyFilters, setRollStrategyFilters] = useState<Set<string>>(new Set());
   const [rollPnlFilters, setRollPnlFilters] = useState<Set<string>>(new Set());
-  const [rollCreditOnlyFilter, setRollCreditOnlyFilter] = useState(false);
+  const [rollCreditOnlyFilter, setRollCreditOnlyFilter] = useState(true); // default ON — show only credit rolls
   // Track positions where ALL roll candidates are debits (populated by RollCandidateExpander)
   const [debitOnlyPositions, setDebitOnlyPositions] = useState<Set<string>>(new Set());
   const [rollSortCol, setRollSortCol] = useState<string>('unrealizedPnl');
@@ -2428,13 +2431,15 @@ export default function AutomationDashboard() {
                 label="💰 Credit Rolls Only"
                 selected={rollCreditOnlyFilter}
                 variant="green"
-                title="Hide positions where a credit roll is unlikely (deep ITM > 5%)"
+                title={rollCreditOnlyFilter
+                  ? 'Showing only credit-roll candidates. Click to also show debit-only positions.'
+                  : 'Click to hide debit-only positions and show only credit roll candidates.'}
                 onClick={() => setRollCreditOnlyFilter(v => !v)}
               />
               {(rollStrategyFilters.size > 0 || rollPnlFilters.size > 0 || rollCreditOnlyFilter) && (
                 <button
                   className="text-[10px] text-orange-400/70 hover:text-orange-400 px-2 py-0.5 rounded border border-orange-500/20 hover:border-orange-500/40 transition-colors ml-1"
-                  onClick={() => { setRollStrategyFilters(new Set()); setRollPnlFilters(new Set()); setRollCreditOnlyFilter(false); }}
+                  onClick={() => { setRollStrategyFilters(new Set()); setRollPnlFilters(new Set()); setRollCreditOnlyFilter(true); }}
                   title="Reset all filters"
                 >Reset all filters</button>
               )}
@@ -2677,13 +2682,21 @@ export default function AutomationDashboard() {
                                           onClick={e => { e.stopPropagation(); setExpandedRollRow(isExpanded ? null : pos.positionId); }}
                                         >↩ ROLL</span>
                                       )}
-                                      {(pos as any).actionLabel === 'ROLL' && debitOnlyPositions.has(pos.positionId) && (
-                                        <span
-                                          title="No credit roll found — all candidates are debits. Click to review options."
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 text-[10px] font-bold tracking-wide cursor-pointer hover:bg-red-500/30"
-                                          onClick={e => { e.stopPropagation(); setExpandedRollRow(isExpanded ? null : pos.positionId); }}
-                                        >⚠ DEBIT ONLY</span>
-                                      )}
+                                      {(pos as any).actionLabel === 'ROLL' && debitOnlyPositions.has(pos.positionId) && (() => {
+                                        const cached = rollCandidatesCache[pos.positionId] || [];
+                                        const closeC = cached.find((c: RollCandidate) => c.action === 'close');
+                                        return (
+                                          <span
+                                            title={closeC?.closeCost !== undefined
+                                              ? `No credit roll — BTC $${closeC.closeCost.toFixed(2)} · net ${closeC.netPnl !== undefined ? (closeC.netPnl >= 0 ? '+' : '') + '$' + closeC.netPnl.toFixed(2) : 'n/a'}. Click to review.`
+                                              : 'No credit roll found — all candidates are debits. Click to review options.'}
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold tracking-wide cursor-pointer hover:bg-amber-500/30"
+                                            onClick={e => { e.stopPropagation(); setExpandedRollRow(isExpanded ? null : pos.positionId); }}
+                                          >
+                                            ✕ CLOSE{closeC?.closeCost !== undefined ? ` $${closeC.closeCost.toFixed(2)}` : ''}
+                                          </span>
+                                        );
+                                      })()}
                                       {(pos as any).actionLabel === 'CLOSE' && (
                                         <span
                                           title={
@@ -3739,15 +3752,36 @@ function RollCandidateExpander({
   return (
     <div className="space-y-2">
       {/* ITM Playbook guidance — shown when no credit roll is available */}
-      {allDebits && (
+      {allDebits && (() => {
+        const closeCandidate = candidates.find(c => c.action === 'close');
+        const closeCostAmt  = closeCandidate?.closeCost;
+        const openPremAmt   = closeCandidate?.openPremium;
+        const netPnlAmt     = closeCandidate?.netPnl;
+        return (
         <div className="mb-3 p-3 rounded-lg border border-red-500/30 bg-red-500/5">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className="text-red-400 font-bold text-xs">⚠ No Credit Roll Available</span>
             <span className="text-xs text-muted-foreground">— all roll candidates require paying a debit.</span>
             {isSpread && (
               <span className="text-xs text-red-300/80 font-medium">
                 This is a {pos.strategy} spread — your loss is already capped. Rolling at a debit only adds more cost.
               </span>
+            )}
+            {/* Inline P&L summary */}
+            {closeCostAmt !== undefined && (
+              <div className="ml-auto flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground">BTC cost:</span>
+                <span className="font-bold text-red-400">${closeCostAmt.toFixed(2)}</span>
+                {openPremAmt !== undefined && (
+                  <><span className="text-muted-foreground">orig. premium:</span>
+                  <span className="font-bold text-green-400">+${openPremAmt.toFixed(2)}</span></>
+                )}
+                {netPnlAmt !== undefined && (
+                  <span className={`font-bold px-1.5 py-0.5 rounded ${netPnlAmt >= 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    Net {netPnlAmt >= 0 ? '+' : ''}${netPnlAmt.toFixed(2)}
+                  </span>
+                )}
+              </div>
             )}
           </div>
           <div className={`grid gap-2 text-xs ${isSpread ? 'grid-cols-2' : 'grid-cols-3'}`}>
@@ -3791,7 +3825,8 @@ function RollCandidateExpander({
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
       <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
         <span className="font-medium text-foreground">{pos.symbol} Roll Options</span>
         {underlyingPrice && <span>Underlying: <span className="font-mono text-blue-400">${underlyingPrice.toFixed(2)}</span></span>}
@@ -3964,6 +3999,7 @@ function RollCandidateExpander({
                       </Tooltip>
                     </TooltipProvider>
                   )}
+                  {/* Roll candidate: credit/debit, delta, annualized return */}
                   {c.action === 'roll' && c.netCredit !== undefined && (
                     <span className={c.netCredit >= 0 ? 'text-green-400' : 'text-red-400'}>
                       {c.netCredit >= 0 ? '+' : ''}{c.netCredit.toFixed(2)} {c.netCredit >= 0 ? 'credit' : 'debit'}
@@ -3974,6 +4010,18 @@ function RollCandidateExpander({
                   )}
                   {c.action === 'roll' && c.annualizedReturn !== undefined && (
                     <span className="text-blue-400">{c.annualizedReturn.toFixed(0)}% ann.</span>
+                  )}
+                  {/* Close candidate: debit cost + net P&L breakdown */}
+                  {c.action === 'close' && c.closeCost !== undefined && (
+                    <span className="text-red-400 font-semibold">BTC ${c.closeCost.toFixed(2)}</span>
+                  )}
+                  {c.action === 'close' && c.openPremium !== undefined && (
+                    <span className="text-muted-foreground text-[11px]">orig. +${c.openPremium.toFixed(2)}</span>
+                  )}
+                  {c.action === 'close' && c.netPnl !== undefined && (
+                    <span className={`font-bold text-xs px-1.5 py-0.5 rounded ${c.netPnl >= 0 ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}`}>
+                      Net {c.netPnl >= 0 ? '+' : ''}${c.netPnl.toFixed(2)}
+                    </span>
                   )}
                   {c.meets3XRule && (
                     <Badge variant="outline" className="text-green-400 border-green-400/40 text-xs py-0">3X ✓</Badge>

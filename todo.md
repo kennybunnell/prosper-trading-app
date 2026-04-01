@@ -8573,3 +8573,13 @@ ROC Fix Mar 18 2026
 - [x] Added CopyButton helper component (Copy/Check icons, 2s feedback, hover-reveal)
 - [x] Inserted CopyButton next to rejection message in each rejected order row
 - [x] Copied text includes: symbol + message, all preflight error codes, HTTP status footer
+
+## Roll Dashboard — Debit-Only Close Panel (Apr 1, 2026)
+- [x] Default credit-only filter to ON (was OFF) for all strategies
+- [x] RollCandidate interface: added closeCost, netPnl, openPremium fields (server + client)
+- [x] rollDetection.ts: close candidate now carries closeCost, netPnl, openPremium values
+- [x] Debit-only warning banner: shows BTC cost, original premium, net P&L inline in header
+- [x] Candidate row: close action shows BTC $X.XX · orig. +$X.XX · Net +/-$X.XX badges
+- [x] Main table badge: debit-only ROLL rows now show amber "✕ CLOSE $X.XX" badge with tooltip
+- [x] Credit-only filter tooltip updated to reflect default-ON state
+- [x] Reset all filters restores credit-only to ON (not OFF)
