@@ -8620,3 +8620,18 @@ ROC Fix Mar 18 2026
 - [x] Add Scan All UI bar with Roll All + CC All / CSP All / BCS All / BPS All / IC All buttons
 - [x] Pre-select all best candidates into basket after Scan All completes
 - [x] Show progress indicator during Scan All
+
+## Roll Order Review Modal (Apr 1, 2026)
+- [x] Built RollOrderReviewModal component with per-position detail rows
+- [x] Each row shows: strategy badge, symbol, quantity, current strike/expiry, action badge (ROLL/CLOSE), net credit/P&L chip, editable limit price, swap candidate button, remove button, expand toggle
+- [x] Expanded row shows: contracts, open premium, BTC cost, current DTE, new strike/expiry/DTE, new STO premium, annualized return, delta, candidate score, account, spread legs breakdown
+- [x] Swap candidate panel lists all available candidates with credit/score for each — one click to swap
+- [x] Remove individual positions from queue without closing modal
+- [x] Editable limit price per order (overrides auto-calculated price)
+- [x] Header summary: roll count, close count, total net credit/debit
+- [x] Footer: total orders queued, estimated net, Cancel / Dry Run / Submit buttons
+- [x] Wired into AutomationDashboard: Submit bar now shows "Review & Submit N Orders" button
+- [x] Clicking opens review modal with full position details before any API call
+- [x] Dry Run and Live Submit both go through the review modal
+- [x] On success: modal closes, per-order rejection toasts shown, queue cleared
+- [x] TypeScript: 0 errors

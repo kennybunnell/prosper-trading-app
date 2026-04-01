@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearch } from 'wouter';
 import { ActivePositionsTab, WorkingOrdersTab } from './Performance';
 import { UnifiedOrderPreviewModal, UnifiedOrder } from '@/components/UnifiedOrderPreviewModal';
+import { RollOrderReviewModal, RollOrderItem } from '@/components/RollOrderReviewModal';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -372,6 +373,9 @@ export default function AutomationDashboard() {
   const [debitOnlyPositions, setDebitOnlyPositions] = useState<Set<string>>(new Set());
   const [rollSortCol, setRollSortCol] = useState<string>('unrealizedPnl');
   const [rollSortDir, setRollSortDir] = useState<'asc' | 'desc'>('asc');
+  // Roll Order Review Modal state
+  const [showRollReview, setShowRollReview] = useState(false);
+  const [rollReviewItems, setRollReviewItems] = useState<RollOrderItem[]>([]);
   // Scan results sort + type filter
   const [scanSortCol, setScanSortCol] = useState<string>('realizedPercent');
   const [scanSortDir, setScanSortDir] = useState<'asc' | 'desc'>('desc');
@@ -563,13 +567,24 @@ export default function AutomationDashboard() {
   const submitRollOrders = trpc.rolls.submitRollOrders.useMutation({
     onSuccess: (data) => {
       setIsSubmittingRolls(false);
+      setShowRollReview(false);
       if (data.summary.failed === 0) {
         toast.success(`${data.summary.success} roll order${data.summary.success !== 1 ? 's' : ''} submitted successfully!`);
       } else {
-        toast.warning(`${data.summary.success} submitted, ${data.summary.failed} failed.`);
+        toast.warning(`${data.summary.success} submitted, ${data.summary.failed} failed. Check the toast for details.`);
+      }
+      // Show per-order results if available
+      if (data.results && data.results.length > 0) {
+        const failed = data.results.filter((r: any) => r.status === 'failed' || r.status === 'rejected');
+        if (failed.length > 0) {
+          failed.forEach((r: any) => {
+            toast.error(`${r.symbol}: ${r.message || r.error || 'Rejected'}`, { duration: 8000 });
+          });
+        }
       }
       setSelectedRollPositions(new Set());
       setRollCandidateSelections({});
+      setRollReviewItems([]);
     },
     onError: (err) => {
       setIsSubmittingRolls(false);
@@ -640,6 +655,132 @@ export default function AutomationDashboard() {
     setIsScanningAll(true);
     setScanAllProgress({ done: 0, total: positions.length });
     scanAllRollCandidates.mutate({ positions });
+  };
+
+  // Build RollOrderItem[] from the current selection for the review modal
+  const buildRollReviewItems = (): RollOrderItem[] => {
+    if (!rollScanResults) return [];
+    const allPositions = rollScanResults.all;
+    const items: RollOrderItem[] = [];
+    for (const key of Array.from(selectedRollPositions)) {
+      const pos = allPositions.find(p => p.positionId === key);
+      if (!pos) continue;
+      const candidate = rollCandidateSelections[key] as RollCandidate | null | undefined;
+      if (!candidate) continue;
+      const allCandidates = (rollCandidatesCache[key] as RollCandidate[] | undefined) || [candidate];
+      const isSpread = ['BPS', 'BCS', 'IC'].includes(pos.strategy);
+      items.push({
+        positionId: pos.positionId,
+        symbol: pos.symbol,
+        strategy: pos.strategy as 'CC' | 'CSP' | 'BPS' | 'BCS' | 'IC',
+        accountNumber: pos.accountNumber || pos.accountId || '',
+        currentStrike: pos.metrics.strikePrice,
+        currentExpiration: pos.metrics.expiration,
+        currentDte: pos.metrics.dte,
+        currentValue: pos.metrics.currentValue,
+        openPremium: pos.metrics.openPremium,
+        quantity: pos.quantity || 1,
+        optionSymbol: pos.optionSymbol,
+        candidate: {
+          action: candidate.action,
+          strike: candidate.strike,
+          expiration: candidate.expiration,
+          dte: candidate.dte,
+          netCredit: candidate.netCredit,
+          closeCost: candidate.closeCost,
+          netPnl: candidate.netPnl,
+          openPremium: candidate.openPremium,
+          newPremium: candidate.newPremium,
+          annualizedReturn: candidate.annualizedReturn,
+          delta: candidate.delta,
+          score: candidate.score,
+          description: candidate.description,
+        },
+        allCandidates: allCandidates.map(c => ({
+          action: c.action,
+          strike: c.strike,
+          expiration: c.expiration,
+          dte: c.dte,
+          netCredit: c.netCredit,
+          closeCost: c.closeCost,
+          netPnl: c.netPnl,
+          openPremium: c.openPremium,
+          newPremium: c.newPremium,
+          annualizedReturn: c.annualizedReturn,
+          delta: c.delta,
+          score: c.score,
+          description: c.description,
+        })),
+        isSpread,
+        spreadDetails: isSpread && pos.spreadDetails ? {
+          legs: pos.spreadDetails.legs.map(l => ({
+            symbol: l.symbol || pos.optionSymbol,
+            action: l.role === 'short' ? 'BTC' : 'STC',
+            quantity: l.quantity,
+          })),
+          spreadWidth: pos.spreadDetails.spreadWidth || 0,
+        } : undefined,
+      });
+    }
+    return items;
+  };
+
+  const handleOpenRollReview = () => {
+    const items = buildRollReviewItems();
+    if (items.length === 0) {
+      toast.warning('No positions selected with a roll candidate chosen.');
+      return;
+    }
+    setRollReviewItems(items);
+    setShowRollReview(true);
+  };
+
+  const handleRollReviewSubmit = async (reviewedItems: RollOrderItem[], isDryRun: boolean) => {
+    if (!rollScanResults) return;
+    const allPositions = rollScanResults.all;
+    const orders: any[] = [];
+    for (const item of reviewedItems) {
+      const pos = allPositions.find(p => p.positionId === item.positionId);
+      if (!pos) continue;
+      const candidate = item.candidate;
+      const isSpread = ['BPS', 'BCS', 'IC'].includes(item.strategy);
+      const accountNumber = item.accountNumber;
+      if (isSpread && pos.spreadDetails) {
+        orders.push({
+          accountNumber,
+          symbol: item.symbol,
+          strategyType: item.strategy as 'BPS' | 'BCS' | 'IC',
+          action: candidate.action,
+          spreadLegs: pos.spreadDetails.legs,
+          spreadWidth: pos.spreadDetails.spreadWidth,
+          newExpiration: candidate.action === 'roll' ? candidate.expiration : undefined,
+          newShortStrike: candidate.action === 'roll' ? candidate.strike : undefined,
+          netCredit: candidate.action === 'roll' ? candidate.netCredit : undefined,
+          limitPrice: candidate.limitPrice,
+        });
+      } else {
+        orders.push({
+          accountNumber,
+          symbol: item.symbol,
+          strategyType: item.strategy as 'CSP' | 'CC',
+          currentOptionSymbol: item.optionSymbol,
+          currentQuantity: item.quantity,
+          currentValue: item.currentValue,
+          newStrike: candidate.action === 'roll' ? candidate.strike : undefined,
+          newExpiration: candidate.action === 'roll' ? candidate.expiration : undefined,
+          newPremium: candidate.action === 'roll' ? candidate.newPremium : undefined,
+          netCredit: candidate.action === 'roll' ? candidate.netCredit : undefined,
+          action: candidate.action,
+          limitPrice: candidate.limitPrice,
+        });
+      }
+    }
+    if (orders.length === 0) {
+      toast.warning('No valid orders to submit.');
+      return;
+    }
+    setIsSubmittingRolls(true);
+    submitRollOrders.mutate({ orders, dryRun: isDryRun });
   };
 
   const handleSubmitRolls = (dryRun = false) => {
@@ -3023,15 +3164,16 @@ export default function AutomationDashboard() {
                 </Card>
               )}
 
-              {/* Submit bar */}
+              {/* Submit bar — opens review modal before any submission */}
               {selectedRollPositions.size > 0 && (
                 <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-between">
                   <div>
-                    <span className="font-semibold text-orange-400">{selectedRollPositions.size} roll{selectedRollPositions.size !== 1 ? 's' : ''} selected</span>
+                    <span className="font-semibold text-orange-400">{selectedRollPositions.size} order{selectedRollPositions.size !== 1 ? 's' : ''} queued</span>
                     <span className="text-sm text-muted-foreground ml-2">
                       {Array.from(selectedRollPositions).filter(k => rollCandidateSelections[k]?.action === 'roll').length} rolls,{' '}
                       {Array.from(selectedRollPositions).filter(k => rollCandidateSelections[k]?.action === 'close').length} closes
                     </span>
+                    <span className="text-xs text-orange-300/70 ml-3">· Review all details before submission</span>
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -3042,22 +3184,13 @@ export default function AutomationDashboard() {
                       Clear
                     </Button>
                     <Button
-                      variant="outline"
                       size="sm"
-                      onClick={() => handleSubmitRolls(true)}
-                      disabled={isSubmittingRolls}
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      Dry Run
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="bg-orange-600 hover:bg-orange-700 text-white"
-                      onClick={() => handleSubmitRolls(false)}
+                      className="bg-orange-600 hover:bg-orange-700 text-white font-semibold"
+                      onClick={handleOpenRollReview}
                       disabled={isSubmittingRolls || killSwitchActive}
                     >
-                      {isSubmittingRolls ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
-                      Submit {selectedRollPositions.size} Roll{selectedRollPositions.size !== 1 ? 's' : ''}
+                      {isSubmittingRolls ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Eye className="h-4 w-4 mr-1" />}
+                      Review &amp; Submit {selectedRollPositions.size} Order{selectedRollPositions.size !== 1 ? 's' : ''}
                     </Button>
                   </div>
                 </div>
@@ -3663,6 +3796,20 @@ export default function AutomationDashboard() {
             setOrderSubmissionComplete(complete);
             setOrderFinalStatus(status);
           }}
+        />
+      )}
+
+      {/* Roll Order Review Modal */}
+      {showRollReview && (
+        <RollOrderReviewModal
+          open={showRollReview}
+          onClose={() => {
+            setShowRollReview(false);
+            setIsSubmittingRolls(false);
+          }}
+          items={rollReviewItems}
+          onSubmit={handleRollReviewSubmit}
+          isSubmitting={isSubmittingRolls}
         />
       )}
 
