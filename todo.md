@@ -8535,3 +8535,7 @@ ROC Fix Mar 18 2026
 ## Critical Bug Fix (Apr 1, 2026)
 
 - [x] Fix AutoFix symbol corruption bug: regex `^SPX\s*` was matching `SPXW...` prefix, corrupting OCC symbols for BTC close orders (e.g. SPXW  260402C06700000 → SPXW  W  260402C06700000W  260402C06700000), causing all SPXW/NDXP close order submissions to be rejected by Tastytrade. Fix: (1) skip AutoFix entirely for BTC/roll strategies, (2) use negative lookahead `(?![A-Z])` in regex so SPX does not match SPXW.
+
+## Premium Collected Calculation Fix (Apr 1, 2026)
+
+- [x] Fix BCS/BPS/IC Premium Collected: was using SHORT LEG trade price only (e.g. $8,010 for 6700/6725 x2), now uses NET CREDIT = (short - long) × qty × 100 (e.g. $1,540). This caused Realized % to be massively overstated (95.5% instead of 76.6%) and incorrectly flagged a losing -58.5% position (SPX 6550/6600) as 41.6% WOULD_CLOSE.

@@ -694,7 +694,14 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               // If this is a spread, premiumReceived should reflect only the spreadQuantity contracts;
               // the remainder will be handled separately below.
               const effectiveQty = isSpread ? spreadQuantity : quantity;
-              const effectivePremiumReceived = openPrice * effectiveQty * multiplier;
+              // FIX: For spreads (BCS/BPS/IC), Premium Collected = NET CREDIT = (short leg open price - long leg open price) × qty × multiplier.
+              // Using only the short leg open price overstates Premium Collected and inflates Realized %.
+              // Example: BCS sold for $40.05 short / $32.35 long → net credit = $7.70/share, NOT $40.05/share.
+              const longLegOpenPrice = isSpread && matchedLongLeg
+                ? Math.abs(parseFloat(String(matchedLongLeg['average-open-price'] || '0')))
+                : 0;
+              const netOpenPrice = isSpread ? Math.max(0.01, openPrice - longLegOpenPrice) : openPrice;
+              const effectivePremiumReceived = netOpenPrice * effectiveQty * multiplier;
 
               // Time-decay heuristic: MUST run AFTER spread detection so spread netting can't zero it out.
               // When buyBackCost is still 0 after spread netting (both legs have close-price=0),
