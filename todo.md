@@ -8560,3 +8560,11 @@ ROC Fix Mar 18 2026
 - [x] Fix: Added minimum spread width check ($2 for equities, $5 for indexes) to prevent narrow CC pairs from being misclassified as BCS
 - [x] Fix: Added fallback for net credit ≤ $0.05 in netOpenPrice calculation
 - [x] Result: HOOD/ORCL/AMD/MSTR short calls now correctly classified as CC (not BCS)
+
+## TT Rejection Reason Surface (Apr 1, 2026)
+- [x] Backend (tastytrade.ts): Changed submitOrder to join ALL preflight error messages (not just first), attach ttErrors/ttCode/ttStatus to thrown error
+- [x] Backend (routers-automation.ts): Extended results array type with ttErrors/ttCode/ttStatus; pass-through in catch block for submitCloseOrders
+- [x] Frontend (UnifiedOrderPreviewModal.tsx): Added ttErrors/ttCode/ttStatus to OrderSubmissionStatus interface
+- [x] Frontend: Map ttErrors/ttCode/ttStatus from result.results into Rejected status entries
+- [x] Frontend: Upgraded Rejected banner to show per-symbol rejection reason inline (not just generic "check below")
+- [x] Frontend: Upgraded per-order status row — Rejected rows now have red background, show message prominently, list all preflight errors, and show error code + HTTP status footer

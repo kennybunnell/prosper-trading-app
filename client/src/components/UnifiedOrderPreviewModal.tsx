@@ -84,6 +84,10 @@ export interface OrderSubmissionStatus {
   symbol: string;
   status: 'Filled' | 'Working' | 'Cancelled' | 'Rejected' | 'MarketClosed' | 'Pending';
   message?: string;
+  /** Structured Tastytrade preflight rejection details */
+  ttErrors?: Array<{ code: string; message: string }>;
+  ttCode?: string | null;
+  ttStatus?: number | null;
 }
 
 export interface UnifiedOrderPreviewModalProps {
@@ -1083,7 +1087,10 @@ export function UnifiedOrderPreviewModal({
             orderId: 'FAILED',
             symbol: r.symbol || 'Unknown',
             status: 'Rejected' as const,
-            message: r.message || 'Order submission failed'
+            message: r.message || 'Order submission failed',
+            ttErrors: r.ttErrors || [],
+            ttCode: r.ttCode || null,
+            ttStatus: r.ttStatus || null,
           };
         }
       });
@@ -1439,9 +1446,25 @@ export function UnifiedOrderPreviewModal({
           {finalOrderStatus === 'Rejected' && (
             <Alert className="border-red-500/50 bg-red-500/10">
               <AlertCircle className="h-4 w-4 text-red-500" />
-              <AlertTitle className="text-red-500">Order Rejected</AlertTitle>
-              <AlertDescription className="text-red-500/80">
-                Your order was rejected by the broker. Check the rejection reason in the order details below.
+              <AlertTitle className="text-red-500">Order Rejected by Tastytrade</AlertTitle>
+              <AlertDescription className="text-red-500/80 space-y-1 mt-1">
+                {orderStatuses.filter(s => s.status === 'Rejected').length > 0 ? (
+                  orderStatuses.filter(s => s.status === 'Rejected').map((s, i) => (
+                    <div key={i}>
+                      <span className="font-semibold text-red-400">{s.symbol}:</span>{' '}
+                      <span>{s.message || 'Order submission failed'}</span>
+                      {s.ttErrors && s.ttErrors.length > 1 && (
+                        <ul className="mt-1 ml-3 list-disc text-xs text-red-400/80 space-y-0.5">
+                          {s.ttErrors.map((e, j) => (
+                            <li key={j}><span className="font-mono text-red-300">[{e.code}]</span> {e.message}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <span>Your order was rejected by the broker. See details in the status panel below.</span>
+                )}
               </AlertDescription>
             </Alert>
           )}
@@ -2195,17 +2218,56 @@ export function UnifiedOrderPreviewModal({
               </div>
               <div className="space-y-2">
                 {orderStatuses.map((status, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2 rounded bg-background/50">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{status.symbol}</span>
-                      {status.status === 'Filled' && <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">Filled ✓</Badge>}
-                      {status.status === 'Working' && <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/30">Working</Badge>}
-                      {status.status === 'Cancelled' && <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30">Cancelled</Badge>}
-                      {status.status === 'Rejected' && <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30">Rejected</Badge>}
-                      {status.status === 'MarketClosed' && <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">Market Closed</Badge>}
-                      {status.status === 'Pending' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                  <div
+                    key={idx}
+                    className={`p-2 rounded ${
+                      status.status === 'Rejected'
+                        ? 'bg-red-500/10 border border-red-500/30'
+                        : 'bg-background/50'
+                    }`}
+                  >
+                    {/* Symbol + badge row */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{status.symbol}</span>
+                        {status.status === 'Filled' && <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">Filled ✓</Badge>}
+                        {status.status === 'Working' && <Badge variant="outline" className="bg-yellow-500/10 text-yellow-400 border-yellow-500/30">Working</Badge>}
+                        {status.status === 'Cancelled' && <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30">Cancelled</Badge>}
+                        {status.status === 'Rejected' && <Badge variant="outline" className="bg-red-500/20 text-red-400 border-red-500/50">Rejected ✗</Badge>}
+                        {status.status === 'MarketClosed' && <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">Market Closed</Badge>}
+                        {status.status === 'Pending' && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                      </div>
+                      {/* Show message on the right only for non-rejected statuses */}
+                      {status.status !== 'Rejected' && status.message && (
+                        <span className="text-sm text-muted-foreground">{status.message}</span>
+                      )}
                     </div>
-                    {status.message && <span className="text-sm text-muted-foreground">{status.message}</span>}
+                    {/* Rejection details — shown below the symbol row */}
+                    {status.status === 'Rejected' && (
+                      <div className="mt-1.5 space-y-1">
+                        <p className="text-sm font-medium text-red-400">
+                          {status.message || 'Order submission failed'}
+                        </p>
+                        {/* Additional preflight errors beyond the first */}
+                        {status.ttErrors && status.ttErrors.length > 1 && (
+                          <ul className="ml-2 list-disc text-xs text-red-400/70 space-y-0.5">
+                            {status.ttErrors.map((e, j) => (
+                              <li key={j}>
+                                <span className="font-mono text-red-300/80">[{e.code}]</span> {e.message}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {/* Error code + HTTP status footer */}
+                        {(status.ttCode || status.ttStatus) && (
+                          <p className="text-xs text-red-400/50 font-mono">
+                            {status.ttCode && <>Code: {status.ttCode}</>}
+                            {status.ttCode && status.ttStatus && ' · '}
+                            {status.ttStatus && <>HTTP {status.ttStatus}</>}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

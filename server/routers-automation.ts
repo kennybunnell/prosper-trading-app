@@ -1577,6 +1577,9 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         success: boolean;
         orderId?: string;
         message: string;
+        ttErrors?: Array<{ code: string; message: string }>;
+        ttCode?: string | null;
+        ttStatus?: number | null;
       }> = [];
 
       // ── Earnings Block Pre-flight ──────────────────────────────────────────────
@@ -1855,12 +1858,19 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           console.error('[Automation submitCloseOrders] Order failed:', {
             symbol: order.symbol,
             error: error.message,
+            ttErrors: error.ttErrors,
+            ttCode: error.ttCode,
+            ttStatus: error.ttStatus,
           });
           results.push({
             symbol: order.symbol,
             optionSymbol: order.optionSymbol,
             success: false,
             message: error.message,
+            // Structured TT rejection details for richer UI display
+            ttErrors: (error.ttErrors || []) as Array<{ code: string; message: string }>,
+            ttCode: (error.ttCode || null) as string | null,
+            ttStatus: (error.ttStatus || null) as number | null,
           });
         }
       }

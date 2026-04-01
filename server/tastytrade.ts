@@ -518,11 +518,13 @@ export class TastytradeAPI {
         let errorMessage = 'Failed to submit order';
         
         // Check for preflight check errors (most common)
+        // Tastytrade returns: { error: { code: "...", message: "...", errors: [{ code, message }, ...] } }
         if (error.response?.data?.error?.errors && Array.isArray(error.response.data.error.errors)) {
           const errors = error.response.data.error.errors;
           if (errors.length > 0) {
-            // Use the first error's message (usually the most relevant)
-            errorMessage = errors[0].message || errors[0].code || errorMessage;
+            // Join ALL error messages so nothing is lost
+            const parts = errors.map((e: any) => e.message || e.code).filter(Boolean);
+            errorMessage = parts.join(' | ');
           }
         } else if (error.response?.data?.error?.message) {
           errorMessage = error.response.data.error.message;
@@ -530,7 +532,12 @@ export class TastytradeAPI {
           errorMessage = error.message;
         }
         
-        throw new Error(errorMessage);
+        // Attach the full errors array to the thrown error for richer upstream handling
+        const richError: any = new Error(errorMessage);
+        richError.ttErrors = error.response?.data?.error?.errors || [];
+        richError.ttStatus = error.response?.status;
+        richError.ttCode = error.response?.data?.error?.code;
+        throw richError;
       }
     });
   }
