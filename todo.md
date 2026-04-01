@@ -8546,3 +8546,9 @@ ROC Fix Mar 18 2026
 - [x] Compute maxLoss in routers-automation.ts during spread detection (long strike − short strike for BCS, short − long for BPS)
 - [x] Add Max Loss column to scan results table (show dollar amount, null/dash for non-spreads)
 - [x] Add % of Max Loss risk gauge to scan results table (buyBackCost / maxLoss × 100, color-coded: green <50%, yellow 50-99%, red ≥100%)
+
+## Net-Credit BTC Spread Fix (Apr 1, 2026)
+- [x] Fix: BTC spread close orders where long leg > short leg (net credit) were submitting priceEffect='Debit' with price=$0.01 — Tastytrade rejected all such orders
+- [x] Fix: rawNetDebit was clamped to $0.01 instead of detecting the credit scenario
+- [x] Fix: Now dynamically sets priceEffect='Credit' when rawNet < 0, with correct absolute price
+- [x] Fix: Dry-run log and success message now correctly show "net credit" vs "net debit"

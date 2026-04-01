@@ -1701,12 +1701,17 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             const shortLegLivePrice = calcBtcLimitPrice(order.optionSymbol, shortLegCostPerShare);
             const longLegLiveQ = order.spreadLongSymbol ? liveQuoteMap.get(order.spreadLongSymbol) : null;
             const longLegLiveCredit = longLegLiveQ ? longLegLiveQ.bid : longLegCreditPerShare;
-            const rawNetDebit = Math.max(0.01, shortLegLivePrice - longLegLiveCredit);
+            // Net = short leg cost - long leg credit.
+            // If positive → net debit (we pay to close). If negative → net credit (we receive to close).
+            const rawNet = shortLegLivePrice - longLegLiveCredit;
             // IMPORTANT: Use snapToTick (integer arithmetic) to avoid IEEE 754 drift.
             // Spread prices >= $3.00 require $0.05 increments; raw Math.round can produce
             // values that fail Tastytrade's server-side `price % 0.05` check.
             const { snapToTick: snapTick } = await import('../shared/orderUtils');
-            limitPrice = snapTick(rawNetDebit, order.symbol);
+            // Clamp to minimum $0.01 for submission; priceEffect will be set dynamically below
+            limitPrice = snapTick(Math.max(0.01, Math.abs(rawNet)), order.symbol);
+            // Track whether this spread closes at a net credit (long leg > short leg)
+            (order as any)._netCreditSpread = rawNet < 0;
           } else {
             limitPrice = calcBtcLimitPrice(order.optionSymbol, shortLegCostPerShare);
           }
@@ -1714,17 +1719,19 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           // Dry run: skip actual order submission
           if (input.dryRun) {
             if (isSpreadOrder) {
+              const dryRunIsCredit = (order as any)._netCreditSpread;
               console.log('[Automation submitCloseOrders] DRY RUN — would submit SPREAD BTC order:', {
                 symbol: order.symbol, shortLeg: order.optionSymbol, longLeg: order.spreadLongSymbol,
                 accountNumber: order.accountNumber, quantity: order.quantity,
                 shortLegCostPerShare, longLegCreditPerShare, limitPrice,
+                priceEffect: dryRunIsCredit ? 'Credit' : 'Debit',
               });
               results.push({
                 symbol: order.symbol,
                 optionSymbol: order.optionSymbol,
                 success: true,
                 orderId: `dry-run-spread-${order.optionSymbol}`,
-                message: `[Dry Run] Would submit SPREAD BTC (2-leg atomic) net debit @ $${limitPrice.toFixed(2)} | Short: ${order.optionSymbol} | Long: ${order.spreadLongSymbol}`,
+                message: `[Dry Run] Would submit SPREAD BTC (2-leg atomic) net ${dryRunIsCredit ? 'credit' : 'debit'} @ $${limitPrice.toFixed(2)} | Short: ${order.optionSymbol} | Long: ${order.spreadLongSymbol}`,
               });
             } else {
               console.log('[Automation submitCloseOrders] DRY RUN — would submit BTC order:', {
@@ -1778,12 +1785,15 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             legs: legs.length,
           });
 
+          // For BTC spread closes: if long leg credit > short leg cost, the spread closes at a net credit.
+          // Tastytrade requires priceEffect: 'Credit' in this case, not 'Debit'.
+          const isNetCreditClose = !!(order as any)._netCreditSpread;
           const result = await tt.submitOrder({
             accountNumber: order.accountNumber,
             timeInForce: 'Day',
             orderType: 'Limit',
             price: limitPrice.toFixed(2),
-            priceEffect: 'Debit',
+            priceEffect: isNetCreditClose ? 'Credit' : 'Debit',
             legs,
           });
 
@@ -1799,7 +1809,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             success: true,
             orderId: result.id,
             message: isSpreadOrder
-              ? `Spread order submitted (net debit $${limitPrice.toFixed(2)}) — 2 legs atomic`
+              ? `Spread order submitted (net ${isNetCreditClose ? 'credit' : 'debit'} $${limitPrice.toFixed(2)}) — 2 legs atomic`
               : `Order submitted (limit $${limitPrice.toFixed(2)})`,
           });
         } catch (error: any) {
