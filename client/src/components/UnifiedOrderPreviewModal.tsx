@@ -1686,18 +1686,31 @@ export function UnifiedOrderPreviewModal({
                               </div>
                             );
                           }
-                          // For BTC spread orders, show the option type (Call/Put) alongside the strike
-                          // so users can immediately verify which leg type they are closing.
+                          // For BTC spread orders, show both short and long strikes with clear labels
                           if (isBTCSpread && order.optionSymbol) {
                             const typeMatch = order.optionSymbol.match(/([CP])(\d{8})$/);
                             const optType = typeMatch ? (typeMatch[1] === 'P' ? 'Put' : 'Call') : null;
+                            // Parse long leg strike from spreadLongSymbol OCC format
+                            let longLegStrike: number | undefined;
+                            if (order.spreadLongSymbol) {
+                              const lm = order.spreadLongSymbol.match(/[CP](\d{8})$/);
+                              if (lm) longLegStrike = parseInt(lm[1], 10) / 1000;
+                            }
                             return (
-                              <div className="flex flex-col items-end">
-                                <span>${displayStrike > 0 ? displayStrike.toFixed(2) : '—'}</span>
-                                {optType && (
-                                  <span className={`text-[10px] font-medium ${optType === 'Put' ? 'text-green-400' : 'text-red-400'}`}>
-                                    {optType}
+                              <div className="flex flex-col items-end gap-0.5">
+                                <div className="flex flex-col items-end">
+                                  <span className="text-[10px] text-muted-foreground">Short (BTC)</span>
+                                  <span className={`font-semibold ${optType === 'Put' ? 'text-green-400' : 'text-red-400'}`}>
+                                    ${displayStrike > 0 ? displayStrike.toFixed(0) : '—'}
                                   </span>
+                                </div>
+                                {longLegStrike !== undefined && (
+                                  <div className="flex flex-col items-end border-t border-white/10 pt-0.5">
+                                    <span className="text-[10px] text-muted-foreground">Long (STC)</span>
+                                    <span className="font-semibold text-blue-400">
+                                      ${longLegStrike.toFixed(0)}
+                                    </span>
+                                  </div>
                                 )}
                               </div>
                             );

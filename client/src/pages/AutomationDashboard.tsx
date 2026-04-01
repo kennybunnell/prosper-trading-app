@@ -1812,6 +1812,36 @@ export default function AutomationDashboard() {
                   );
                 })}
               </div>
+              {/* Select All Ready to Close shortcut -- selects ALL WOULD_CLOSE rows across all filters */}
+              {(() => {
+                const allReadyToClose = (lastRunResult?.scanResults ?? []).filter(
+                  r => r.action === 'WOULD_CLOSE' && r.dte !== 0 && !(hideExpiringToday && r.dte === 0)
+                );
+                const allReadyCount = allReadyToClose.length;
+                const allReadySelected = allReadyCount > 0 && allReadyToClose.every(r => selectedPositions.has(posKey(r)));
+                if (allReadyCount === 0) return null;
+                return (
+                  <div className="flex items-center gap-2 mb-2 py-1.5 px-2 rounded-md bg-green-500/5 border border-green-500/20">
+                    <span className="text-xs text-green-400 font-medium">
+                      {allReadyCount} position{allReadyCount !== 1 ? 's' : ''} ready to close across all strategies
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={`h-6 text-xs px-2 ${allReadySelected ? 'border-green-500 text-green-400 bg-green-500/10' : 'border-green-500/50 text-green-400 hover:bg-green-500/10'}`}
+                      onClick={() => {
+                        if (allReadySelected) {
+                          setSelectedPositions(new Set());
+                        } else {
+                          setSelectedPositions(new Set(allReadyToClose.map(r => posKey(r))));
+                        }
+                      }}
+                    >
+                      {allReadySelected ? 'All Selected' : 'Select All Ready to Close'}
+                    </Button>
+                  </div>
+                );
+              })()}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1967,15 +1997,25 @@ export default function AutomationDashboard() {
                             })()}
                           </td>
                           <td className="py-2.5 pr-4 text-right font-mono text-xs">
-                            {result.dte === null ? (
-                              <span className="text-muted-foreground">—</span>
-                            ) : result.dte === 0 ? (
-                              <span className="text-red-400 font-semibold">0</span>
-                            ) : result.dte <= 7 ? (
-                              <span className="text-amber-400 font-semibold">{result.dte}</span>
-                            ) : (
-                              <span className="text-muted-foreground">{result.dte}</span>
-                            )}
+                            <div className="flex flex-col items-end gap-0.5">
+                              {result.dte === null ? (
+                                <span className="text-muted-foreground">—</span>
+                              ) : result.dte === 0 ? (
+                                <span className="text-red-400 font-semibold">0</span>
+                              ) : result.dte <= 7 ? (
+                                <span className="text-amber-400 font-semibold">{result.dte}</span>
+                              ) : (
+                                <span className="text-muted-foreground">{result.dte}</span>
+                              )}
+                              {result.dte === 1 && (
+                                <span
+                                  title="Expires tomorrow — consider closing today to avoid assignment risk"
+                                  className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[9px] font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 cursor-help"
+                                >
+                                  ⚠ 1 DTE
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-2.5 pr-4 text-right font-mono text-green-400">
                             ${result.premiumCollected.toFixed(2)}
