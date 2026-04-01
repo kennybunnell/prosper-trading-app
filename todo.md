@@ -8588,3 +8588,12 @@ ROC Fix Mar 18 2026
 - [x] One-click close from debit-only badge: clicking ✕ CLOSE $X.XX pre-selects position and opens submit modal with close order pre-filled
 - [x] Sort debit-only rows to bottom when credit-only filter is OFF
 - [x] Verify close cost and net P&L accuracy against live positions via scan log analysis
+
+## Index vs Equity Alignment Audit (Apr 2026)
+- [x] Audit all close/submit paths for index vs equity divergence
+- [x] Fix submitSellCCOrders: was using 'Index Option' for index symbols in STO orders — changed to always use 'Equity Option'
+- [x] Fix routers-rolls.ts position filter: was excluding 'Index Option' positions from roll scanner — now accepts both
+- [x] Fix misleading comment in routers-automation.ts that said single-leg BTC uses 'Index Option'
+- [x] Confirmed: buyToCloseOption, submitCloseOrder, submitRollOrder, submitCloseOrders all correctly use 'Equity Option'
+- [x] Confirmed: spreadDetection.ts all legs correctly use 'Equity Option'
+- [x] Rule documented: 'Index Option' = TT position data only; 'Equity Option' = all order submissions

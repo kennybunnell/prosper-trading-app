@@ -323,7 +323,10 @@ export const rollsRouter = router({
         if (!positions) continue;
 
         for (const pos of positions) {
-          if (pos['instrument-type'] !== 'Equity Option') continue;
+          // TT position data returns 'Index Option' for SPX/SPXW/NDX/NDXP/RUT/XSP/VIX etc.
+          // Accept BOTH types so index spreads/CCs appear in the roll scanner.
+          // NOTE: When SUBMITTING orders, always use 'Equity Option' — TT order API never accepts 'Index Option'.
+          if (pos['instrument-type'] !== 'Equity Option' && pos['instrument-type'] !== 'Index Option') continue;
 
           const symbol = pos.symbol || '';
           const parsed = parseOptionSymbol(symbol);

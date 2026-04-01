@@ -1788,12 +1788,11 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           }
 
           // Build order legs
-          // IMPORTANT: Tastytrade multi-leg spread orders require 'Equity Option' for ALL legs,
-          // even for cash-settled index options like SPX/SPXW/NDX/NDXP.
-          // Single-leg BTC orders use 'Index Option', but spread orders must use 'Equity Option'.
-          // Using 'Index Option' in a multi-leg spread causes validation_error: "does not have a valid value".
-          // NOTE: Tastytrade order submission API requires 'Equity Option' for ALL option legs.
-          // 'Index Option' is only used in position data from TT, never in order submissions.
+          // IMPORTANT: Tastytrade order submission API requires 'Equity Option' for ALL option legs
+          // in ALL order types (single-leg BTC, multi-leg spreads, rolls, STOs).
+          // This applies to both equity AND index options (SPX, SPXW, NDX, NDXP, RUT, XSP, VIX, etc.).
+          // 'Index Option' only appears in TT POSITION DATA responses — never in order submission requests.
+          // Using 'Index Option' in any order causes validation_error: "does not have a valid value".
           const closeInstrumentType: 'Equity Option' = 'Equity Option';
 
           const legs: import('./tastytrade').OrderLeg[] = [
@@ -2905,7 +2904,11 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
           const expStr = expDate.toISOString().slice(2, 10).replace(/-/g, '');
           const strikeStr = (order.strike * 1000).toFixed(0).padStart(8, '0');
           const optionSymbol = `${order.symbol.padEnd(6)}${expStr}C${strikeStr}`;
-          const instrumentType: 'Index Option' | 'Equity Option' = isTrueIndexOption(order.symbol) ? 'Index Option' : 'Equity Option';
+          // IMPORTANT: Tastytrade order submission API requires 'Equity Option' for ALL option legs,
+          // including true index options (SPX, SPXW, NDX, NDXP, RUT, XSP, VIX, etc.).
+          // 'Index Option' only appears in POSITION DATA responses from TT — never in order requests.
+          // Using 'Index Option' in an order causes validation_error: "does not have a valid value".
+          const instrumentType: 'Equity Option' = 'Equity Option';
           console.log('[submitSellCCOrders] Submitting STO:', { symbol: order.symbol, strike: order.strike, expiration: order.expiration, quantity: order.quantity, price: order.price, optionSymbol, accountNumber: order.accountNumber });
           const result = await tt.submitOrder({
             accountNumber: order.accountNumber,
