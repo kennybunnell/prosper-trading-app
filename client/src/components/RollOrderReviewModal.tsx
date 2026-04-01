@@ -1,6 +1,6 @@
 /**
  * RollOrderReviewModal — Full-screen overlay order management workspace.
- * Redesigned Apr 1 2026: replaces narrow dialog with full-viewport panel.
+ * Apr 1 2026: Added sortable columns (Symbol, Total, Score) + live Refresh Prices.
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
@@ -16,8 +16,10 @@ import {
 import {
   Loader2, Send, Eye, Trash2, ChevronUp, ChevronDown, RefreshCw,
   TrendingUp, TrendingDown, X, ChevronRight, ShieldCheck,
+  ArrowUpDown, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { trpc } from '@/lib/trpc';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,6 +62,9 @@ export type RollOrderItem = {
   };
 };
 
+type SortKey = 'none' | 'symbol' | 'total' | 'score';
+type SortDir = 'asc' | 'desc';
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -85,6 +90,10 @@ function fmtTotal(n: number | undefined): string {
   if (n === undefined || n === null || isNaN(n)) return '—';
   const sign = n >= 0 ? '+' : '−';
   return `${sign}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 const STRATEGY_COLORS: Record<string, string> = {
@@ -119,6 +128,35 @@ function CreditChip({ value }: { value: number | undefined }) {
       {isPos ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
       {fmtSigned(value)}
     </span>
+  );
+}
+
+// ─── Sort Header Button ───────────────────────────────────────────────────────
+
+function SortHeader({
+  label, sortKey, currentKey, currentDir, onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  currentKey: SortKey;
+  currentDir: SortDir;
+  onSort: (key: SortKey) => void;
+}) {
+  const active = currentKey === sortKey;
+  return (
+    <button
+      onClick={() => onSort(sortKey)}
+      className={`flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+        active ? 'text-orange-300' : 'text-muted-foreground/70 hover:text-muted-foreground'
+      }`}
+    >
+      {label}
+      {active ? (
+        currentDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+      ) : (
+        <ArrowUpDown className="h-3 w-3 opacity-40" />
+      )}
+    </button>
   );
 }
 
@@ -287,15 +325,17 @@ type RowProps = {
   index: number;
   total: number;
   isSelected: boolean;
+  isSorted: boolean;
   onSelect: () => void;
   onRemove: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onSwap: (idx: number) => void;
   onPriceChange: (price: number | undefined) => void;
+  refreshedCredit?: number | null;
 };
 
-function TableRow({ item, index, total, isSelected, onSelect, onRemove, onMoveUp, onMoveDown, onSwap, onPriceChange }: RowProps) {
+function TableRow({ item, index, total, isSelected, isSorted, onSelect, onRemove, onMoveUp, onMoveDown, onSwap, onPriceChange, refreshedCredit }: RowProps) {
   const [priceInput, setPriceInput] = useState(
     item.candidate.limitPrice !== undefined ? item.candidate.limitPrice.toFixed(2) : ''
   );
@@ -307,6 +347,10 @@ function TableRow({ item, index, total, isSelected, onSelect, onRemove, onMoveUp
   const netTotal = isRoll && c.netCredit !== undefined
     ? c.netCredit * item.quantity * 100
     : c.netPnl;
+
+  // If we have a refreshed price, show it alongside the original
+  const hasRefresh = refreshedCredit !== undefined && refreshedCredit !== null;
+  const refreshDiff = hasRefresh && netTotal !== undefined ? refreshedCredit! - netTotal : null;
 
   const handlePrice = (val: string) => {
     setPriceInput(val);
@@ -349,10 +393,25 @@ function TableRow({ item, index, total, isSelected, onSelect, onRemove, onMoveUp
       <td className="px-2 py-2.5 w-28 text-right">
         <CreditChip value={netPerContract} />
       </td>
-      <td className="px-2 py-2.5 w-32 text-right">
-        <span className={`text-xs font-bold font-mono ${(netTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-          {fmtSigned(netTotal)}
-        </span>
+      <td className="px-2 py-2.5 w-40 text-right">
+        <div className="flex flex-col items-end gap-0.5">
+          <span className={`text-xs font-bold font-mono ${(netTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {fmtSigned(netTotal)}
+          </span>
+          {hasRefresh && (
+            <span className={`text-[10px] font-mono ${(refreshedCredit ?? 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+              Live: {fmtSigned(refreshedCredit)}
+              {refreshDiff !== null && Math.abs(refreshDiff) > 0.01 && (
+                <span className={`ml-1 ${refreshDiff > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  ({refreshDiff > 0 ? '+' : ''}{refreshDiff.toFixed(2)})
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="px-2 py-2.5 w-20 text-center">
+        <span className="text-xs font-mono text-muted-foreground">{c.score}</span>
       </td>
       <td className="px-2 py-2.5 w-28" onClick={e => e.stopPropagation()}>
         <Input
@@ -367,22 +426,22 @@ function TableRow({ item, index, total, isSelected, onSelect, onRemove, onMoveUp
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground" onClick={onMoveUp} disabled={index === 0}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground" onClick={onMoveUp} disabled={index === 0 || isSorted}>
                   <ChevronUp className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Move up</TooltipContent>
+              <TooltipContent>{isSorted ? 'Clear sort to reorder' : 'Move up'}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
 
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground" onClick={onMoveDown} disabled={index === total - 1}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground" onClick={onMoveDown} disabled={index === total - 1 || isSorted}>
                   <ChevronDown className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Move down</TooltipContent>
+              <TooltipContent>{isSorted ? 'Clear sort to reorder' : 'Move down'}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
 
@@ -432,26 +491,96 @@ function TableRow({ item, index, total, isSelected, onSelect, onRemove, onMoveUp
 export function RollOrderReviewModal({ open, onClose, items: initialItems, onSubmit, isSubmitting }: Props) {
   const [items, setItems] = useState<RollOrderItem[]>(initialItems);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('none');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
+  // Map positionId -> refreshed net credit total
+  const [liveCredits, setLiveCredits] = useState<Map<string, number | null>>(new Map());
+
+  const refreshMutation = trpc.automation.refreshRollPrices.useMutation({
+    onSuccess: (data) => {
+      const map = new Map<string, number | null>();
+      for (const u of data.updates) {
+        map.set(u.positionId, u.netCreditTotal);
+      }
+      setLiveCredits(map);
+      setRefreshedAt(data.refreshedAt);
+      toast.success(`Prices refreshed at ${fmtTime(data.refreshedAt)}`);
+    },
+    onError: (err) => {
+      toast.error(`Refresh failed: ${err.message}`);
+    },
+  });
 
   React.useEffect(() => {
     setItems(initialItems);
     setSelectedId(null);
+    setSortKey('none');
+    setLiveCredits(new Map());
+    setRefreshedAt(null);
   }, [initialItems]);
 
   const selectedItem = useMemo(() => items.find(i => i.positionId === selectedId) ?? null, [items, selectedId]);
+
+  // ── Sorted view (does NOT mutate items order — only for display when sortKey != 'none') ──
+  const displayItems = useMemo(() => {
+    if (sortKey === 'none') return items;
+    return [...items].sort((a, b) => {
+      let va: number | string = 0;
+      let vb: number | string = 0;
+      if (sortKey === 'symbol') { va = a.symbol; vb = b.symbol; }
+      else if (sortKey === 'total') {
+        const getNet = (item: RollOrderItem) => {
+          const live = liveCredits.get(item.positionId);
+          if (live !== undefined && live !== null) return live;
+          const c = item.candidate;
+          if (c.action === 'roll' && c.netCredit !== undefined) return c.netCredit * item.quantity * 100;
+          return c.netPnl ?? 0;
+        };
+        va = getNet(a); vb = getNet(b);
+      } else if (sortKey === 'score') {
+        va = a.candidate.score; vb = b.candidate.score;
+      }
+      if (typeof va === 'string' && typeof vb === 'string') {
+        return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number);
+    });
+  }, [items, sortKey, sortDir, liveCredits]);
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else { setSortKey('none'); setSortDir('asc'); }
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'total' || key === 'score' ? 'desc' : 'asc');
+    }
+  };
+
+  // When sort is active, apply sorted order to items permanently
+  const applySort = () => {
+    if (sortKey === 'none') return;
+    setItems(displayItems);
+    setSortKey('none');
+    setSortDir('asc');
+    toast.info('Sort order applied to queue');
+  };
 
   const rollCount = items.filter(i => i.candidate.action === 'roll').length;
   const closeCount = items.filter(i => i.candidate.action === 'close').length;
 
   const totalNetCredit = useMemo(() => {
     return items.reduce((sum, item) => {
+      const live = liveCredits.get(item.positionId);
+      if (live !== undefined && live !== null) return sum + live;
       const c = item.candidate;
       const qty = item.quantity || 1;
       if (c.action === 'roll' && c.netCredit !== undefined) return sum + c.netCredit * qty * 100;
       if (c.action === 'close' && c.netPnl !== undefined) return sum + c.netPnl;
       return sum;
     }, 0);
-  }, [items]);
+  }, [items, liveCredits]);
 
   const handleRemove = useCallback((id: string) => {
     setItems(prev => prev.filter(i => i.positionId !== id));
@@ -493,6 +622,18 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
     }));
   }, []);
 
+  const handleRefresh = () => {
+    const payload = items.map(item => ({
+      positionId: item.positionId,
+      currentOptionSymbol: item.optionSymbol,
+      newOptionSymbol: item.candidate.action === 'roll' && item.candidate.strike && item.candidate.expiration
+        ? buildOptionSymbol(item.symbol, item.candidate.expiration, item.candidate.strike, item.strategy)
+        : undefined,
+      quantity: item.quantity,
+    }));
+    refreshMutation.mutate({ items: payload });
+  };
+
   const handleSubmit = async (isDryRun: boolean) => {
     if (items.length === 0) { toast.warning('No positions in queue'); return; }
     await onSubmit(items, isDryRun);
@@ -527,7 +668,7 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
               ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25'
               : 'bg-red-500/15 text-red-300 border-red-500/25'
           }`}>
-            Est. Net: {fmtTotal(totalNetCredit)}
+            {liveCredits.size > 0 ? 'Live' : 'Est.'} Net: {fmtTotal(totalNetCredit)}
           </span>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={onClose} disabled={isSubmitting}>
             <X className="h-4 w-4" />
@@ -538,45 +679,63 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
       {/* Body: table + optional detail panel */}
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          {/* Sort toolbar */}
+          {sortKey !== 'none' && (
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-orange-500/5 border-b border-orange-500/20 text-xs text-orange-300 shrink-0">
+              <ArrowUpDown className="h-3 w-3" />
+              <span>Sorted by <strong>{sortKey}</strong> ({sortDir}). Reorder arrows are disabled while sorted.</span>
+              <button onClick={applySort} className="underline hover:no-underline ml-1">Apply as permanent order</button>
+              <button onClick={() => { setSortKey('none'); setSortDir('asc'); }} className="underline hover:no-underline ml-2">Clear sort</button>
+            </div>
+          )}
           <ScrollArea className="flex-1">
-            <div className="min-w-[960px]">
+            <div className="min-w-[1020px]">
               <table className="w-full border-collapse">
                 <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur-sm">
                   <tr className="border-b border-border/50">
-                    <th className="px-2 py-2 text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-8">#</th>
-                    <th className="px-2 py-2 text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-14">Strat</th>
-                    <th className="px-2 py-2 text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-20">Symbol</th>
-                    <th className="px-2 py-2 text-center text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-10">Qty</th>
-                    <th className="px-2 py-2 text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-36">Current</th>
-                    <th className="px-2 py-2 text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-16">Action</th>
-                    <th className="px-2 py-2 text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-40">Roll Target</th>
-                    <th className="px-2 py-2 text-right text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-28">Per Contract</th>
-                    <th className="px-2 py-2 text-right text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-32">Total</th>
-                    <th className="px-2 py-2 text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-28">Limit $</th>
-                    <th className="px-2 py-2 text-left text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider w-36">Controls</th>
+                    <th className="px-2 py-2 text-left w-8"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">#</span></th>
+                    <th className="px-2 py-2 text-left w-14"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Strat</span></th>
+                    <th className="px-2 py-2 text-left w-20">
+                      <SortHeader label="Symbol" sortKey="symbol" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                    </th>
+                    <th className="px-2 py-2 text-center w-10"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Qty</span></th>
+                    <th className="px-2 py-2 text-left w-36"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Current</span></th>
+                    <th className="px-2 py-2 text-left w-16"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Action</span></th>
+                    <th className="px-2 py-2 text-left w-40"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Roll Target</span></th>
+                    <th className="px-2 py-2 text-right w-28"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Per Contract</span></th>
+                    <th className="px-2 py-2 text-right w-40">
+                      <SortHeader label="Total" sortKey="total" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                    </th>
+                    <th className="px-2 py-2 text-center w-20">
+                      <SortHeader label="Score" sortKey="score" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                    </th>
+                    <th className="px-2 py-2 text-left w-28"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Limit $</span></th>
+                    <th className="px-2 py-2 text-left w-36"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Controls</span></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.length === 0 ? (
+                  {displayItems.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="text-center py-16 text-muted-foreground text-sm">
+                      <td colSpan={12} className="text-center py-16 text-muted-foreground text-sm">
                         No positions in queue. Close this panel and select positions to roll.
                       </td>
                     </tr>
                   ) : (
-                    items.map((item, idx) => (
+                    displayItems.map((item, idx) => (
                       <TableRow
                         key={item.positionId}
                         item={item}
                         index={idx}
-                        total={items.length}
+                        total={displayItems.length}
                         isSelected={selectedId === item.positionId}
+                        isSorted={sortKey !== 'none'}
                         onSelect={() => setSelectedId(prev => prev === item.positionId ? null : item.positionId)}
                         onRemove={() => handleRemove(item.positionId)}
-                        onMoveUp={() => handleMoveUp(idx)}
-                        onMoveDown={() => handleMoveDown(idx)}
+                        onMoveUp={() => handleMoveUp(items.indexOf(item))}
+                        onMoveDown={() => handleMoveDown(items.indexOf(item))}
                         onSwap={(ci) => handleSwap(item.positionId, ci)}
                         onPriceChange={(p) => handlePriceChange(item.positionId, p)}
+                        refreshedCredit={liveCredits.get(item.positionId)}
                       />
                     ))
                   )}
@@ -594,22 +753,42 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
 
       {/* Footer */}
       <div className="px-5 py-3 border-t border-border/50 bg-card/80 shrink-0 flex items-center justify-between gap-3">
-        <div className="text-sm text-muted-foreground">
-          <span className="font-semibold text-foreground">{items.length}</span> order{items.length !== 1 ? 's' : ''} queued
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <span>
+            <span className="font-semibold text-foreground">{items.length}</span> order{items.length !== 1 ? 's' : ''} queued
+          </span>
           {items.length > 0 && (
-            <span className="ml-2">
-              · Est. net:{' '}
+            <span>
+              · {liveCredits.size > 0 ? 'Live' : 'Est.'} net:{' '}
               <span className={`font-semibold ${totalNetCredit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {fmtTotal(totalNetCredit)}
               </span>
             </span>
           )}
-          <span className="ml-3 text-xs text-muted-foreground/50">up/down arrows to reorder · swap icon to change candidate · trash to remove</span>
+          {refreshedAt && (
+            <span className="text-xs text-muted-foreground/50">· Prices as of {fmtTime(refreshedAt)}</span>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm"
+                  onClick={handleRefresh}
+                  disabled={refreshMutation.isPending || items.length === 0}
+                  className="border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
+                >
+                  {refreshMutation.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
+                  Refresh Prices
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Fetch live bid/ask from Tradier and recalculate net credits</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Button
             variant="outline" size="sm"
             onClick={() => handleSubmit(true)}
@@ -632,4 +811,20 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
       </div>
     </div>
   );
+}
+
+// ─── Option symbol builder (Tradier OCC format) ───────────────────────────────
+
+function buildOptionSymbol(underlying: string, expiration: string, strike: number, strategy: string): string {
+  try {
+    const d = new Date(expiration);
+    const yy = d.getFullYear().toString().slice(2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const type = (strategy === 'CC') ? 'C' : 'P';
+    const strikeStr = (strike * 1000).toFixed(0).padStart(8, '0');
+    return `${underlying.padEnd(6)}${yy}${mm}${dd}${type}${strikeStr}`;
+  } catch {
+    return '';
+  }
 }

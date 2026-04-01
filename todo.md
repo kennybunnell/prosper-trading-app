@@ -8643,3 +8643,10 @@ ROC Fix Mar 18 2026
 - [x] Keep inline remove, swap candidate, editable limit price
 - [x] Show expanded detail in a right-side detail panel per selected row
 - [x] Clean summary bar at top and action footer at bottom
+
+## Roll Order Review — Sortable Columns + Live Price Refresh (Apr 1, 2026)
+- [x] Sortable columns: Symbol (alpha), Total (net credit desc/asc), Score (desc/asc) with toggle indicators
+- [x] Refresh Prices button: calls tRPC procedure to fetch live bid/ask from Tradier for each queued option symbol
+- [x] Recalculate net credit per row after price refresh and update totals in footer/header
+- [x] Show last-refreshed timestamp next to the Refresh button
+- [x] Add tRPC procedure: automation.refreshRollPrices (accepts list of option symbols, returns live quotes)

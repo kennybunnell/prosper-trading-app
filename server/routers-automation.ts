@@ -2927,4 +2927,76 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       const failCount = results.filter(r => !r.success).length;
       return { results, successCount, failCount, totalOrders: results.length };
     }),
+
+  // ─── Refresh live bid/ask prices for queued roll order items ─────────────────
+  refreshRollPrices: protectedProcedure
+    .input(z.object({
+      items: z.array(z.object({
+        positionId: z.string(),
+        currentOptionSymbol: z.string(),
+        newOptionSymbol: z.string().optional(),
+        quantity: z.number(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+      const tradierApiKey = (credentials?.tradierApiKey && credentials.tradierApiKey.length > 15
+        ? credentials.tradierApiKey
+        : null) || process.env.TRADIER_API_KEY;
+
+      if (!tradierApiKey) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tradier API key not configured. Please add it in Settings.' });
+      }
+
+      const { createTradierAPI } = await import('./tradier');
+      const tradierApi = createTradierAPI(tradierApiKey);
+
+      // Collect unique option symbols
+      const symbolSet = new Set<string>();
+      for (const item of input.items) {
+        if (item.currentOptionSymbol) symbolSet.add(item.currentOptionSymbol);
+        if (item.newOptionSymbol) symbolSet.add(item.newOptionSymbol);
+      }
+      const symbols = Array.from(symbolSet).filter(Boolean);
+      if (symbols.length === 0) return { refreshedAt: Date.now(), updates: [] };
+
+      // Batch fetch all quotes
+      const quotes = await tradierApi.getQuotes(symbols);
+      const quoteMap = new Map<string, { bid: number; ask: number; last: number }>();
+      for (const q of quotes) {
+        if (q.symbol) quoteMap.set(q.symbol, { bid: q.bid ?? 0, ask: q.ask ?? 0, last: q.last ?? 0 });
+      }
+
+      const updates = input.items.map(item => {
+        const currentQ = quoteMap.get(item.currentOptionSymbol);
+        const newQ = item.newOptionSymbol ? quoteMap.get(item.newOptionSymbol) : undefined;
+
+        // BTC cost: use ask (worst case for buyer)
+        const btcCost = currentQ ? currentQ.ask : null;
+        // STO credit: use bid (worst case for seller)
+        const stoPremium = newQ ? newQ.bid : null;
+
+        let netCreditPerContract: number | null = null;
+        if (btcCost !== null && stoPremium !== null) {
+          netCreditPerContract = stoPremium - btcCost;
+        } else if (btcCost !== null && !item.newOptionSymbol) {
+          netCreditPerContract = -btcCost; // close-only
+        }
+
+        return {
+          positionId: item.positionId,
+          currentBid: currentQ?.bid ?? null,
+          currentAsk: currentQ?.ask ?? null,
+          newBid: newQ?.bid ?? null,
+          newAsk: newQ?.ask ?? null,
+          btcCost,
+          stoPremium,
+          netCreditPerContract,
+          netCreditTotal: netCreditPerContract !== null ? netCreditPerContract * item.quantity * 100 : null,
+        };
+      });
+
+      return { refreshedAt: Date.now(), updates };
+    }),
 });
