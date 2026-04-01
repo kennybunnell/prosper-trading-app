@@ -635,8 +635,9 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               // ── Pass 2: Heuristic fallback (only if Pass 1 did not match) ──
               if (!isSpread) {
                 for (const [normLongSym, longPos] of Array.from(longPositionMap.entries())) {
-                  // Skip already-consumed long legs
-                  if (consumedLongSymbols.has(normLongSym)) continue;
+                  // Skip fully-consumed long legs (remainingLongQty <= 0)
+                  const remainingForLong = remainingLongQty.get(normLongSym) ?? Math.abs(parseInt(String(longPos.quantity || '0')));
+                  if (remainingForLong <= 0) continue;
                   if (longPos['underlying-symbol'] === position['underlying-symbol'] &&
                       longPos['expires-at'] === position['expires-at']) {
                     const longOccMatch = longPos.symbol?.match(/([CP])(\d{8})$/);
@@ -654,9 +655,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                         console.warn(`[Automation] Skipping same-strike match: ${optionSymbol} and ${longPos.symbol} have the same strike ${shortStrikeNum}`);
                         continue;
                       }
-                      // Use remaining qty (not original) so a partially-consumed long can still match
-                      const longQty = remainingLongQty.get(normLongSym) ?? Math.abs(parseInt(String(longPos.quantity || '0')));
-                      const matchedQty = Math.min(quantity, longQty);
+                      // Use remaining qty so a partially-consumed long can still match
+                      const matchedQty = Math.min(quantity, remainingForLong);
                       const longClosePrice = Math.abs(parseFloat(String(longPos['close-price'] || '0')));
                       const longBuyBackCredit = longClosePrice * matchedQty * parseInt(String(longPos.multiplier || '100'));
                       const shortCostForMatched = closePrice * matchedQty * multiplier;
@@ -668,11 +668,13 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                         singleLegRemainder = quantity - matchedQty;
                         buyBackCost = netCost;
                         optionType = isPut ? 'BPS' : 'BCS';
-                        // Decrement remaining qty; mark fully consumed when it hits 0
-                        remainingLongQty.set(normLongSym, (remainingLongQty.get(normLongSym) ?? 0) - matchedQty);
-                        console.log(`[Automation] Heuristic match (fallback): ${normShortSym} → long ${normLongSym}`);
+                        // Decrement remaining qty
+                        remainingLongQty.set(normLongSym, remainingForLong - matchedQty);
+                        console.log(`[Automation] Heuristic match (fallback): ${normShortSym} → long ${normLongSym} (${matchedQty} contracts, ${remainingForLong - matchedQty} remaining on long)`);
+                        break; // Found a valid match — stop searching
                       }
-                      break;
+                      // netCost < 0 means this long is not a valid spread leg for this short
+                      // (e.g., long strike is below short strike for a call) — continue to next long
                     }
                   }
                 }
