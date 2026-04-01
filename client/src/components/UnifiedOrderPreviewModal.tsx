@@ -415,7 +415,13 @@ export function UnifiedOrderPreviewModal({
     let didCorrect = false;
     closeValidationData.results.forEach(result => {
       // --- Symbol correction (SPX → SPXW etc.) ---
-      if (result.expirationWarning?.isError) {
+      // CRITICAL: Skip symbol correction entirely for BTC/roll close orders.
+      // BTC orders carry OCC symbols from live positions (e.g. "SPXW  260402C06700000").
+      // The wrongRoot "SPX" is a prefix of "SPXW", so the regex ^SPX\s* matches and
+      // corrupts the symbol into "SPXW  W  260402C06700000W  260402C06700000".
+      // Symbol correction only applies to STO orders where we construct the OCC symbol
+      // from scratch using the underlying root (e.g. "SPX" → "SPXW").
+      if (result.expirationWarning?.isError && strategy !== 'btc' && strategy !== 'roll') {
         const wrongRoot = result.underlying; // e.g. 'SPX'
         const rightRoot = ROOT_SWAP[wrongRoot];
         if (rightRoot) {
@@ -424,10 +430,11 @@ export function UnifiedOrderPreviewModal({
             if (order.symbol === wrongRoot && order.optionSymbol) {
               const orig = order.optionSymbol;
               // OCC format: ROOT(padded) YYMMDDCP STRIKE8
-              // Replace the root prefix (first N chars matching wrongRoot) with rightRoot
+              // Use negative lookahead (?![A-Z]) so "SPX" does NOT match "SPXW..." prefix.
+              // e.g. "SPX  260321C..." matches, but "SPXW  260402C..." does NOT.
               const corrected = orig.replace(
-                new RegExp(`^${wrongRoot}\\s*`),
-                rightRoot + orig.slice(wrongRoot.length).replace(/^\s*/, '  ')
+                new RegExp(`^${wrongRoot}(?![A-Z])(\s*)`),
+                rightRoot + '  '
               );
               if (corrected !== orig && !newCorrected.has(orig)) {
                 newCorrected.set(orig, corrected);

@@ -8531,3 +8531,7 @@ ROC Fix Mar 18 2026
 - [x] Add "Index (EU)" and "Equity (AM)" filter pills to the scan results toolbar
 - [x] Show settlement-type badge on each row (small "IDX" or "EQ" tag near symbol)
 - [x] Ensure Select All Ready to Close respects the active settlement filter
+
+## Critical Bug Fix (Apr 1, 2026)
+
+- [x] Fix AutoFix symbol corruption bug: regex `^SPX\s*` was matching `SPXW...` prefix, corrupting OCC symbols for BTC close orders (e.g. SPXW  260402C06700000 → SPXW  W  260402C06700000W  260402C06700000), causing all SPXW/NDXP close order submissions to be rejected by Tastytrade. Fix: (1) skip AutoFix entirely for BTC/roll strategies, (2) use negative lookahead `(?![A-Z])` in regex so SPX does not match SPXW.
