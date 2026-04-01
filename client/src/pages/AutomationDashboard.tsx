@@ -823,11 +823,9 @@ export default function AutomationDashboard() {
   }, [lastRunResult?.scanResults, hideExpiringToday, scanTypeFilter, scanSortCol, scanSortDir]);
   // Keep ref in sync so handleOpenOrderPreview (declared before this useMemo) can access current value
   visibleScanResultsRef.current = visibleScanResults;
-  // SAFETY: WOULD_CLOSE results must NEVER include BCS/BPS/IC spread legs.
-  // These require a 4-leg atomic combo order — a standalone BTC would leave a naked leg.
-  const wouldCloseResults = visibleScanResults.filter(r =>
-    r.action === 'WOULD_CLOSE' && r.type !== 'BCS' && r.type !== 'BPS' && r.type !== 'IC'
-  );
+  // Include ALL WOULD_CLOSE results — BCS/BPS/IC spreads now produce proper 2-leg combo close orders
+  // and are safe to select and submit via the Review & Submit basket.
+  const wouldCloseResults = visibleScanResults.filter(r => r.action === 'WOULD_CLOSE');
   // DTE=0 positions are NEVER auto-selected or included in select-all (let them expire naturally)
   const selectableResults = wouldCloseResults.filter(r => r.dte !== 0);
   // Use stable posKey for selection — survives sorting
