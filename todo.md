@@ -8552,3 +8552,11 @@ ROC Fix Mar 18 2026
 - [x] Fix: rawNetDebit was clamped to $0.01 instead of detecting the credit scenario
 - [x] Fix: Now dynamically sets priceEffect='Credit' when rawNet < 0, with correct absolute price
 - [x] Fix: Dry-run log and success message now correctly show "net credit" vs "net debit"
+
+## Equity BCS False-Positive Fix (Apr 1, 2026)
+- [x] Root cause identified: `isLong = direction === 'long' || qty > 0` in longPositionMap builder was incorrectly adding ALL short positions (positive qty, direction='Short') to the long leg map
+- [x] Fix: Changed `isLong` to use direction-only check: `isLong = direction === 'long'`
+- [x] Fix: Added spread direction validation in Pass 2 heuristic (BCS: long call above short; BPS: long put below short)
+- [x] Fix: Added minimum spread width check ($2 for equities, $5 for indexes) to prevent narrow CC pairs from being misclassified as BCS
+- [x] Fix: Added fallback for net credit ≤ $0.05 in netOpenPrice calculation
+- [x] Result: HOOD/ORCL/AMD/MSTR short calls now correctly classified as CC (not BCS)

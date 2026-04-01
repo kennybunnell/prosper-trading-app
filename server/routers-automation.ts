@@ -509,7 +509,10 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               for (const pos of positions) {
                 const qty = parseInt(String(pos.quantity || '0'));
                 const direction = pos['quantity-direction']?.toLowerCase();
-                const isLong = direction === 'long' || qty > 0;
+                // Tastytrade uses positive quantity for BOTH long and short positions,
+                // with 'quantity-direction' = 'Long' or 'Short' as the discriminator.
+                // Do NOT use qty > 0 as a fallback — it would add short positions to longPositionMap.
+                const isLong = direction === 'long';
                 // Include both 'Equity Option' and 'Index Option' (SPX/NDX/RUT long legs)
                 if (isLong && (pos['instrument-type'] === 'Equity Option' || pos['instrument-type'] === 'Index Option')) {
                   // Key by normalised symbol (no spaces) for consistent lookup
@@ -659,6 +662,29 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                         console.warn(`[Automation] Skipping same-strike match: ${optionSymbol} and ${longPos.symbol} have the same strike ${shortStrikeNum}`);
                         continue;
                       }
+                      // SAFETY: validate spread direction and minimum width
+                      // For BCS (calls): long strike must be ABOVE short strike (long > short)
+                      // For BPS (puts):  long strike must be BELOW short strike (long < short)
+                      // OCC strike is stored as integer × 1000 (e.g., $70 = 70000, $71 = 71000)
+                      if (shortStrikeNum !== 0 && longStrikeNum !== 0) {
+                        const isCallSpread = !isPut;
+                        const validDirection = isCallSpread
+                          ? longStrikeNum > shortStrikeNum   // BCS: long call above short call
+                          : longStrikeNum < shortStrikeNum;  // BPS: long put below short put
+                        if (!validDirection) {
+                          console.warn(`[Automation] Skipping invalid spread direction: ${optionSymbol} (short) vs ${longPos.symbol} (long) — wrong side for ${isCallSpread ? 'BCS' : 'BPS'}`);
+                          continue;
+                        }
+                        // Minimum spread width: at least $2 wide (2000 in OCC units)
+                        // This prevents matching CCs with nearby protective calls as BCS spreads
+                        const spreadWidthOCC = Math.abs(longStrikeNum - shortStrikeNum);
+                        const spreadWidthDollars = spreadWidthOCC / 1000;
+                        const minWidthDollars = isIndexUnderlying ? 5 : 2; // $5 for indexes, $2 for equities
+                        if (spreadWidthDollars < minWidthDollars) {
+                          console.warn(`[Automation] Skipping narrow spread: ${optionSymbol} vs ${longPos.symbol} — width $${spreadWidthDollars} < minimum $${minWidthDollars}`);
+                          continue;
+                        }
+                      }
                       // Use remaining qty so a partially-consumed long can still match
                       const matchedQty = Math.min(quantity, remainingForLong);
                       const longClosePrice = Math.abs(parseFloat(String(longPos['close-price'] || '0')));
@@ -704,7 +730,15 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               const longLegOpenPrice = isSpread && matchedLongLeg
                 ? Math.abs(parseFloat(String(matchedLongLeg['average-open-price'] || '0')))
                 : 0;
-              const netOpenPrice = isSpread ? Math.max(0.01, openPrice - longLegOpenPrice) : openPrice;
+              // DEBUG: log open prices for spread diagnosis
+              if (isSpread && matchedLongLeg) {
+                console.log(`[SpreadDebug] ${underlyingSymbol} ${optionType}: shortOpenPrice=$${openPrice}, longOpenPrice=$${longLegOpenPrice}, net=$${(openPrice - longLegOpenPrice).toFixed(4)}, shortSym=${optionSymbol}, longSym=${matchedLongLeg.symbol}`);
+              }
+              // If net credit ≤ 0, the long leg open price is unreliable (data issue or legs opened separately).
+              // Fall back to short leg open price alone rather than clamping to $0.01.
+              const netOpenPrice = isSpread
+                ? (openPrice - longLegOpenPrice > 0.05 ? openPrice - longLegOpenPrice : openPrice)
+                : openPrice;
               const effectivePremiumReceived = netOpenPrice * effectiveQty * multiplier;
 
               // Time-decay heuristic: MUST run AFTER spread detection so spread netting can't zero it out.
