@@ -2068,10 +2068,36 @@ export default function AutomationDashboard() {
                                 Hold
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-amber-400 border-amber-400/50">
-                                <AlertCircle className="h-3 w-3 mr-1" />
-                                Skipped
-                              </Badge>
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge
+                                      variant="outline"
+                                      className={`cursor-help ${
+                                        result.reason?.toLowerCase().includes('long leg')
+                                          ? 'text-orange-400 border-orange-400/60'
+                                          : 'text-amber-400 border-amber-400/50'
+                                      }`}
+                                    >
+                                      <AlertCircle className="h-3 w-3 mr-1" />
+                                      {result.reason?.toLowerCase().includes('long leg')
+                                        ? '⚠ Orphaned'
+                                        : 'Skipped'}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  {result.reason && (
+                                    <TooltipContent side="left" className="max-w-xs p-3 bg-zinc-900 border border-zinc-700">
+                                      <p className="font-semibold text-orange-300 mb-1 text-xs">Why was this skipped?</p>
+                                      <p className="text-zinc-300 text-xs leading-relaxed">{result.reason}</p>
+                                      {result.reason?.toLowerCase().includes('long leg') && (
+                                        <p className="text-orange-400 mt-2 text-xs font-medium">
+                                          → Close this position manually in Tastytrade as a standalone BTC order.
+                                        </p>
+                                      )}
+                                    </TooltipContent>
+                                  )}
+                                </Tooltip>
+                              </TooltipProvider>
                             )}
                           </td>
                         </tr>

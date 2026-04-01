@@ -844,7 +844,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 // cases are already caught by the SAFETY GUARD in the else-branch above.
                 if ((optionType === 'BCS' || optionType === 'BPS' || optionType === 'IC') && !(isSpread && matchedLongLeg)) {
                   console.log(`[Automation] SAFETY BLOCK (spread, no long leg): ${underlyingSymbol} ${optionType} at ${realizedPercent.toFixed(1)}% profit — excluded from standalone BTC sweep. Must use combo order.`);
-                  scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity: isSpread ? spreadQuantity : quantity, premiumCollected: effectivePremiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'SKIPPED' });
+                  scanResults.push({ account: account.accountNumber, symbol: underlyingSymbol, optionSymbol, type: optionType, quantity: isSpread ? spreadQuantity : quantity, premiumCollected: effectivePremiumReceived, buyBackCost, realizedPercent: Math.round(realizedPercent * 100) / 100, expiration: expiration || null, dte, isEstimated, action: 'SKIPPED', reason: `Long leg not found in account — the original long leg for this ${optionType} may have been closed separately or expired. Close this short leg manually in Tastytrade as a standalone BTC order.` });
                   continue;
                 }
                 // Use spreadQuantity for the spread entry (remainder already pushed above)
