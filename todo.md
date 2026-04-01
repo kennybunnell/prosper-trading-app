@@ -8605,3 +8605,18 @@ ROC Fix Mar 18 2026
 - [x] Add quantity field to getRollCandidates input schema and pass actual contract count from frontend
 - [x] Add quantity to scanRollPositions return object (from short leg)
 - [x] Verify math against QQQ (1.12 cr) and META (2.74 cr) from screenshots — confirmed correct
+
+## Roll Dashboard — Scan All + Strike Improvement Rolls (Apr 1)
+- [ ] Add scanAllRollCandidates backend procedure: fires getRollCandidates for all positions in parallel, returns best credit candidate per position
+- [ ] Add "CC All", "CSP All", "BCS All", "BPS All", "IC All" scan buttons in Roll tab filter bar
+- [ ] Add master "Roll All" button that scans every strategy type at once
+- [ ] Pre-select all best-credit candidates into the submit basket after Scan All completes
+- [ ] Show per-strategy scan progress (spinner + count) while Scan All is running
+- [ ] Strike improvement roll candidates (future): Roll Up & Closer (CC/BCS) and Roll Down & Closer (CSP/BPS)
+- [ ] Strike improvement roll for IC: tighten one wing toward ATM while collecting a credit
+
+## Roll Dashboard — Scan All (Apr 1)
+- [x] Add scanAllRollCandidates backend procedure (parallel fetch, best credit candidate per position)
+- [x] Add Scan All UI bar with Roll All + CC All / CSP All / BCS All / BPS All / IC All buttons
+- [x] Pre-select all best candidates into basket after Scan All completes
+- [x] Show progress indicator during Scan All

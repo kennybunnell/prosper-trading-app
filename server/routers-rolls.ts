@@ -1017,4 +1017,167 @@ export const rollsRouter = router({
         },
       };
     }),
+
+  /**
+   * Scan ALL roll positions in parallel and return the best credit candidate
+   * for each position. Positions where no credit roll exists get a close candidate.
+   * Used by the "Scan All" / "CC All" / "CSP All" etc. buttons in the Roll tab.
+   */
+  scanAllRollCandidates: protectedProcedure
+    .input(z.object({
+      positions: z.array(z.object({
+        positionId: z.string(),
+        symbol: z.string(),
+        strategy: z.enum(['csp', 'cc', 'bps', 'bcs', 'ic']),
+        strikePrice: z.number(),
+        expirationDate: z.string(),
+        currentValue: z.number(),
+        openPremium: z.number(),
+        quantity: z.number().optional(),
+        spreadWidth: z.number().optional(),
+      })),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { getApiCredentials } = await import('./db');
+      const { TradierAPI } = await import('./tradier');
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials) throw new Error('Credentials not found');
+      const tradierApiKey = credentials.tradierApiKey || process.env.TRADIER_API_KEY;
+      if (!tradierApiKey) throw new Error('Tradier API key not configured');
+      const tradier = new TradierAPI(tradierApiKey, false);
+
+      // Process all positions in parallel batches (6 concurrent)
+      const CONCURRENCY = 6;
+      const allResults: Array<{
+        positionId: string;
+        symbol: string;
+        strategy: string;
+        bestCandidate: any | null;
+        underlyingPrice: number;
+        error?: string;
+      }> = [];
+
+      const queue = [...input.positions];
+      while (queue.length > 0) {
+        const batch = queue.splice(0, CONCURRENCY);
+        const batchResults = await Promise.all(batch.map(async (pos) => {
+          try {
+            const quote = await tradier.getQuote(pos.symbol);
+            const underlyingPrice = quote.last;
+            const expirations = await tradier.getExpirations(pos.symbol);
+            const currentDTE = Math.ceil(
+              (new Date(pos.expirationDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+            );
+            const baseStrategy: 'csp' | 'cc' = ['bps', 'csp', 'ic'].includes(pos.strategy) ? 'csp' : 'cc';
+            const mockPosition: PositionWithMetrics = {
+              id: parseInt(pos.positionId) || Math.floor(Math.random() * 1000000),
+              userId: ctx.user.id,
+              accountId: 'mock',
+              symbol: pos.symbol,
+              positionType: 'option',
+              strategy: baseStrategy,
+              strike: pos.strikePrice.toString(),
+              expiration: pos.expirationDate,
+              quantity: pos.quantity || 1,
+              costBasis: pos.openPremium.toString(),
+              currentValue: pos.currentValue.toString(),
+              unrealizedPnL: (pos.openPremium - pos.currentValue).toString(),
+              realizedPnL: '0',
+              status: 'open',
+              spreadType: null,
+              longStrike: null,
+              spreadWidth: null,
+              capitalAtRisk: null,
+              openedAt: new Date(),
+              closedAt: null,
+              updatedAt: new Date(),
+              option_symbol: buildOCCSymbol(
+                pos.symbol,
+                pos.expirationDate,
+                baseStrategy === 'csp' ? 'P' : 'C',
+                pos.strikePrice
+              ),
+              open_premium: pos.openPremium,
+              current_value: pos.currentValue,
+              expiration_date: pos.expirationDate,
+              strike_price: pos.strikePrice,
+              delta: 0,
+            };
+            const mockAnalysis = {
+              positionId: pos.positionId,
+              symbol: pos.symbol,
+              optionSymbol: mockPosition.option_symbol,
+              strategy: baseStrategy.toUpperCase() as 'CSP' | 'CC',
+              urgency: 'yellow' as const,
+              shouldRoll: true,
+              reasons: [],
+              metrics: {
+                dte: currentDTE,
+                profitCaptured: pos.openPremium > 0
+                  ? ((pos.openPremium - pos.currentValue) / pos.openPremium) * 100
+                  : 0,
+                itmDepth: 0,
+                delta: 0,
+                currentPrice: underlyingPrice,
+                strikePrice: pos.strikePrice,
+                currentValue: pos.currentValue,
+                openPremium: pos.openPremium,
+                expiration: pos.expirationDate,
+              },
+              score: 50,
+            };
+            const candidates = await generateRollCandidates(
+              mockPosition,
+              mockAnalysis,
+              expirations,
+              underlyingPrice,
+              tradier
+            );
+            const annotated = candidates.map(c => ({
+              ...c,
+              spreadWidth: pos.spreadWidth,
+              isSpread: ['bps', 'bcs', 'ic'].includes(pos.strategy),
+              strategyType: pos.strategy.toUpperCase() as StrategyType,
+            }));
+            // Pick the best credit candidate (highest score among netCredit > 0 rolls)
+            const creditCandidates = annotated.filter(
+              c => c.action !== 'close' && typeof c.netCredit === 'number' && c.netCredit > 0
+            );
+            creditCandidates.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+            const closeCandidates = annotated.filter(c => c.action === 'close');
+            const bestCandidate = creditCandidates[0] ?? closeCandidates[0] ?? annotated[0] ?? null;
+            return {
+              positionId: pos.positionId,
+              symbol: pos.symbol,
+              strategy: pos.strategy,
+              bestCandidate,
+              underlyingPrice,
+            };
+          } catch (error: any) {
+            return {
+              positionId: pos.positionId,
+              symbol: pos.symbol,
+              strategy: pos.strategy,
+              bestCandidate: null,
+              underlyingPrice: pos.strikePrice,
+              error: error.message,
+            };
+          }
+        }));
+        allResults.push(...batchResults);
+      }
+
+      const creditCount = allResults.filter(r => r.bestCandidate && r.bestCandidate.action !== 'close' && (r.bestCandidate.netCredit ?? 0) > 0).length;
+      const closeCount  = allResults.filter(r => r.bestCandidate && r.bestCandidate.action === 'close').length;
+      const errorCount  = allResults.filter(r => !!r.error).length;
+      return {
+        results: allResults,
+        summary: {
+          total: allResults.length,
+          creditRolls: creditCount,
+          closeOnly: closeCount,
+          errors: errorCount,
+        },
+      };
+    }),
 });

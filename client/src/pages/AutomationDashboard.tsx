@@ -586,6 +586,62 @@ export default function AutomationDashboard() {
     scanRollPositions.mutate({});
   };
 
+  // ── Scan All Roll Candidates ─────────────────────────────────────────────
+  const [isScanningAll, setIsScanningAll] = useState(false);
+  const [scanAllProgress, setScanAllProgress] = useState<{ done: number; total: number } | null>(null);
+  const scanAllRollCandidates = trpc.rolls.scanAllRollCandidates.useMutation({
+    onSuccess: (data) => {
+      setIsScanningAll(false);
+      setScanAllProgress(null);
+      const newSelections: Record<string, RollCandidate | null> = {};
+      const newSelected = new Set<string>();
+      for (const r of data.results) {
+        if (r.bestCandidate) {
+          newSelections[r.positionId] = r.bestCandidate as RollCandidate;
+          newSelected.add(r.positionId);
+        }
+      }
+      setRollCandidateSelections(prev => ({ ...prev, ...newSelections }));
+      setSelectedRollPositions(prev => {
+        const next = new Set(prev);
+        Array.from(newSelected).forEach(id => next.add(id));
+        return next;
+      });
+      const { creditRolls, closeOnly, errors } = data.summary;
+      if (errors > 0) {
+        toast.warning(`Scan All: ${creditRolls} credit roll${creditRolls !== 1 ? 's' : ''}, ${closeOnly} close-only, ${errors} errors`);
+      } else {
+        toast.success(`Scan All: ${creditRolls} credit roll${creditRolls !== 1 ? 's' : ''} + ${closeOnly} close-only — all queued in basket`);
+      }
+    },
+    onError: (err) => {
+      setIsScanningAll(false);
+      setScanAllProgress(null);
+      toast.error(`Scan All failed: ${err.message}`);
+    },
+  });
+
+  const handleScanAll = (strategyFilter?: string) => {
+    if (!rollScanResults) { toast.warning('Run a Roll Scan first to load positions'); return; }
+    const positions = rollScanResults.all
+      .filter(p => !strategyFilter || p.strategy === strategyFilter)
+      .map(p => ({
+        positionId: p.positionId,
+        symbol: p.symbol,
+        strategy: p.strategy.toLowerCase() as 'csp' | 'cc' | 'bps' | 'bcs' | 'ic',
+        strikePrice: p.metrics.strikePrice,
+        expirationDate: p.metrics.expiration,
+        currentValue: p.metrics.currentValue,
+        openPremium: p.metrics.openPremium,
+        quantity: p.quantity,
+        spreadWidth: p.spreadDetails?.spreadWidth,
+      }));
+    if (positions.length === 0) { toast.info('No positions match that filter'); return; }
+    setIsScanningAll(true);
+    setScanAllProgress({ done: 0, total: positions.length });
+    scanAllRollCandidates.mutate({ positions });
+  };
+
   const handleSubmitRolls = (dryRun = false) => {
     if (!rollScanResults) return;
     const allPositions = rollScanResults.all;
@@ -2356,6 +2412,61 @@ export default function AutomationDashboard() {
               </Button>
             </div>
           </div>
+
+          {/* Scan All buttons — appears after a roll scan has been run */}
+          {rollScanResults && rollScanResults.all.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 p-3 bg-orange-950/20 border border-orange-500/20 rounded-lg">
+              <span className="text-xs font-semibold text-orange-300 uppercase tracking-wider mr-1">Scan All:</span>
+              <TooltipProvider>
+                {/* Master Roll All */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isScanningAll || isRollScanning}
+                      onClick={() => handleScanAll()}
+                      className="border-orange-500/50 text-orange-300 hover:bg-orange-500/15 h-7 px-3 text-xs font-semibold"
+                    >
+                      {isScanningAll && !scanAllProgress ? (
+                        <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Scanning...</>
+                      ) : (
+                        <><Zap className="h-3 w-3 mr-1" />Roll All ({rollScanResults.all.length})</>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Find the best credit roll for every position and pre-select them all in the basket</p></TooltipContent>
+                </Tooltip>
+                {/* Per-strategy buttons */}
+                {(['CC', 'CSP', 'BCS', 'BPS', 'IC'] as const).map(s => {
+                  const count = rollScanResults.all.filter(p => p.strategy === s).length;
+                  if (count === 0) return null;
+                  return (
+                    <Tooltip key={s}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={isScanningAll || isRollScanning}
+                          onClick={() => handleScanAll(s)}
+                          className="border-orange-500/30 text-orange-200/80 hover:bg-orange-500/10 h-7 px-2.5 text-xs"
+                        >
+                          {s} All ({count})
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Find best credit roll for all {s} positions ({count})</p></TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+                {isScanningAll && scanAllProgress && (
+                  <span className="text-xs text-orange-300/70 ml-1">
+                    <Loader2 className="h-3 w-3 inline mr-1 animate-spin" />
+                    Scanning {scanAllProgress.total} positions...
+                  </span>
+                )}
+              </TooltipProvider>
+            </div>
+          )}
 
           {/* Filter bar — FilterPill components with badge counts */}
           {rollScanResults && (
