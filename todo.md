@@ -8583,3 +8583,8 @@ ROC Fix Mar 18 2026
 - [x] Main table badge: debit-only ROLL rows now show amber "✕ CLOSE $X.XX" badge with tooltip
 - [x] Credit-only filter tooltip updated to reflect default-ON state
 - [x] Reset all filters restores credit-only to ON (not OFF)
+
+## Roll Dashboard — One-Click Close + Sort Debit-Only to Bottom (Apr 1, 2026)
+- [x] One-click close from debit-only badge: clicking ✕ CLOSE $X.XX pre-selects position and opens submit modal with close order pre-filled
+- [x] Sort debit-only rows to bottom when credit-only filter is OFF
+- [x] Verify close cost and net P&L accuracy against live positions via scan log analysis

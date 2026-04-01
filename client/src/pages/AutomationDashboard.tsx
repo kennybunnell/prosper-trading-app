@@ -2605,6 +2605,12 @@ export default function AutomationDashboard() {
                             if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
                             return true;
                           }).sort((a, b) => {
+                            // When credit-only filter is OFF, push debit-only positions to the bottom
+                            if (!rollCreditOnlyFilter) {
+                              const aDebit = debitOnlyPositions.has(a.positionId) ? 1 : 0;
+                              const bDebit = debitOnlyPositions.has(b.positionId) ? 1 : 0;
+                              if (aDebit !== bDebit) return aDebit - bDebit;
+                            }
                             const dir = rollSortDir === 'asc' ? 1 : -1;
                             switch (rollSortCol) {
                               case 'unrealizedPnl': return ((a as any).unrealizedPnl - (b as any).unrealizedPnl) * dir;
@@ -2685,15 +2691,33 @@ export default function AutomationDashboard() {
                                       {(pos as any).actionLabel === 'ROLL' && debitOnlyPositions.has(pos.positionId) && (() => {
                                         const cached = rollCandidatesCache[pos.positionId] || [];
                                         const closeC = cached.find((c: RollCandidate) => c.action === 'close');
+                                        const alreadySelected = selectedRollPositions.has(pos.positionId) && rollCandidateSelections[pos.positionId]?.action === 'close';
                                         return (
                                           <span
-                                            title={closeC?.closeCost !== undefined
-                                              ? `No credit roll — BTC $${closeC.closeCost.toFixed(2)} · net ${closeC.netPnl !== undefined ? (closeC.netPnl >= 0 ? '+' : '') + '$' + closeC.netPnl.toFixed(2) : 'n/a'}. Click to review.`
-                                              : 'No credit roll found — all candidates are debits. Click to review options.'}
-                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold tracking-wide cursor-pointer hover:bg-amber-500/30"
-                                            onClick={e => { e.stopPropagation(); setExpandedRollRow(isExpanded ? null : pos.positionId); }}
+                                            title={alreadySelected
+                                              ? 'Close order queued — click Submit below to execute'
+                                              : closeC?.closeCost !== undefined
+                                                ? `Click to queue close: BTC $${closeC.closeCost.toFixed(2)} · net ${closeC.netPnl !== undefined ? (closeC.netPnl >= 0 ? '+' : '') + '$' + closeC.netPnl.toFixed(2) : 'n/a'}`
+                                                : 'No credit roll — expand row to review close options'}
+                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide cursor-pointer transition-colors ${
+                                              alreadySelected
+                                                ? 'bg-green-500/25 text-green-300 hover:bg-green-500/35'
+                                                : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/35'
+                                            }`}
+                                            onClick={e => {
+                                              e.stopPropagation();
+                                              if (closeC) {
+                                                // One-click: pre-select position with close candidate
+                                                setRollCandidateSelections(prev => ({ ...prev, [pos.positionId]: closeC }));
+                                                setSelectedRollPositions(prev => { const n = new Set(prev); n.add(pos.positionId); return n; });
+                                                toast.success(`${pos.symbol} close queued — review and submit below`);
+                                              } else {
+                                                // Candidates not loaded yet — expand row to load them
+                                                setExpandedRollRow(isExpanded ? null : pos.positionId);
+                                              }
+                                            }}
                                           >
-                                            ✕ CLOSE{closeC?.closeCost !== undefined ? ` $${closeC.closeCost.toFixed(2)}` : ''}
+                                            {alreadySelected ? '✓ QUEUED' : `✕ CLOSE${closeC?.closeCost !== undefined ? ` $${closeC.closeCost.toFixed(2)}` : ''}`}
                                           </span>
                                         );
                                       })()}
