@@ -411,6 +411,10 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           standaloneRemainder?: number; // Number of unmatched short contracts routed as single-leg BTC
           // Underlying stock price — enriched after scan via Tradier batch quote
           underlyingPrice?: number;
+          // Max loss for spread positions: (spread width × qty × 100) − net credit. Null for single-leg.
+          maxLoss?: number;
+          // % of max loss consumed: (buyBackCost / maxLoss) × 100. >100% means position has breached spread width.
+          pctOfMaxLoss?: number;
           // ITM demoted — set by safety guard when buyBackCost >= premiumCollected (position is at a loss)
           itmDemoted?: boolean;
           // Roll suggestion — populated for ITM CCs by the roll advisor step
@@ -863,6 +867,18 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                   wouldCloseEntry.spreadLongSymbol = matchedLongLeg.symbol;
                   wouldCloseEntry.spreadLongStrike = longStrikeMatch2 ? (parseFloat(longStrikeMatch2[1]) / 1000).toFixed(2) : undefined;
                   wouldCloseEntry.spreadLongPrice = String(Math.abs(parseFloat(String(matchedLongLeg['close-price'] || '0'))));
+                  // Max loss = (spread width × qty × multiplier) − net credit already received
+                  // Spread width = |long strike − short strike| per share
+                  const shortStrikeNum2 = parseFloat(strike || '0'); // strike is already parsed from OCC symbol
+                  const longStrikeNum2 = longStrikeMatch2 ? parseFloat(longStrikeMatch2[1]) / 1000 : 0;
+                  const spreadWidth2 = Math.abs(longStrikeNum2 - shortStrikeNum2);
+                  if (spreadWidth2 > 0) {
+                    const grossMaxLoss = spreadWidth2 * spreadQuantity * multiplier;
+                    wouldCloseEntry.maxLoss = Math.max(0, grossMaxLoss - effectivePremiumReceived);
+                    wouldCloseEntry.pctOfMaxLoss = wouldCloseEntry.maxLoss > 0
+                      ? Math.round((buyBackCost / wouldCloseEntry.maxLoss) * 100)
+                      : 0;
+                  }
                   if (singleLegRemainder > 0) {
                     // Index underlyings (SPX/NDX/RUT etc.) are cash-settled — you cannot own
                     // or be assigned index shares, so the remainder can never be a covered call.
@@ -891,6 +907,17 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                   belowThresholdEntry.spreadLongSymbol = matchedLongLeg.symbol;
                   belowThresholdEntry.spreadLongStrike = longStrikeMatch3 ? (parseFloat(longStrikeMatch3[1]) / 1000).toFixed(2) : undefined;
                   belowThresholdEntry.spreadLongPrice = String(Math.abs(parseFloat(String(matchedLongLeg['close-price'] || '0'))));
+                  // Max loss for below-threshold entries
+                  const shortStrikeNum3 = parseFloat(strike || '0'); // strike is already parsed from OCC symbol
+                  const longStrikeNum3 = longStrikeMatch3 ? parseFloat(longStrikeMatch3[1]) / 1000 : 0;
+                  const spreadWidth3 = Math.abs(longStrikeNum3 - shortStrikeNum3);
+                  if (spreadWidth3 > 0) {
+                    const grossMaxLoss3 = spreadWidth3 * spreadQuantity * multiplier;
+                    belowThresholdEntry.maxLoss = Math.max(0, grossMaxLoss3 - effectivePremiumReceived);
+                    belowThresholdEntry.pctOfMaxLoss = belowThresholdEntry.maxLoss > 0
+                      ? Math.round((buyBackCost / belowThresholdEntry.maxLoss) * 100)
+                      : 0;
+                  }
                 }
                 scanResults.push(belowThresholdEntry);
               }

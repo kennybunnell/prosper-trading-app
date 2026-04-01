@@ -8539,3 +8539,10 @@ ROC Fix Mar 18 2026
 ## Premium Collected Calculation Fix (Apr 1, 2026)
 
 - [x] Fix BCS/BPS/IC Premium Collected: was using SHORT LEG trade price only (e.g. $8,010 for 6700/6725 x2), now uses NET CREDIT = (short - long) × qty × 100 (e.g. $1,540). This caused Realized % to be massively overstated (95.5% instead of 76.6%) and incorrectly flagged a losing -58.5% position (SPX 6550/6600) as 41.6% WOULD_CLOSE.
+
+## Max Loss Risk Gauge (Apr 1, 2026)
+
+- [x] Add maxLoss field to ScanResult type (spread width × qty × 100 − net credit; null for single-leg)
+- [x] Compute maxLoss in routers-automation.ts during spread detection (long strike − short strike for BCS, short − long for BPS)
+- [x] Add Max Loss column to scan results table (show dollar amount, null/dash for non-spreads)
+- [x] Add % of Max Loss risk gauge to scan results table (buyBackCost / maxLoss × 100, color-coded: green <50%, yellow 50-99%, red ≥100%)

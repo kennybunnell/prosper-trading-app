@@ -67,6 +67,10 @@ type ScanResult = {
   standaloneRemainder?: number; // Number of unmatched short contracts routed as single-leg BTC
   // Underlying stock price — enriched via Tradier batch quote
   underlyingPrice?: number;
+  // Max loss for spread positions: (spread width × qty × 100) − net credit. Null for single-leg.
+  maxLoss?: number;
+  // % of max loss consumed: (buyBackCost / maxLoss) × 100. >100% means position has breached spread width.
+  pctOfMaxLoss?: number;
   // ITM demoted — set by safety guard when buyBackCost >= premiumCollected
   itmDemoted?: boolean;
   // Roll suggestion — populated for ITM CCs by the roll advisor step
@@ -1933,6 +1937,10 @@ export default function AutomationDashboard() {
                           <SortTh col="buyBack" label="Buy-Back Cost" align="right" />
                           <SortTh col="netProfit" label="Net Profit" align="right" />
                           <SortTh col="realizedPercent" label="Realized %" align="right" />
+                          <th className="text-right py-2 pr-4 font-medium text-xs text-muted-foreground whitespace-nowrap">
+                            Max Loss
+                            <span className="ml-1 text-[10px] text-muted-foreground/60" title="Maximum possible loss if spread goes to full loss = (spread width × qty × 100) − net credit received">ⓘ</span>
+                          </th>
                           <th className="text-center py-2 font-medium">Action</th>
                         </tr>
                       );
@@ -2126,6 +2134,38 @@ export default function AutomationDashboard() {
                             >
                               {result.realizedPercent.toFixed(1)}%
                             </span>
+                          </td>
+                          {/* Max Loss + % of Max Loss risk gauge — only for spread positions */}
+                          <td className="py-2.5 pr-4 text-right">
+                            {result.maxLoss != null ? (() => {
+                              const pct = result.pctOfMaxLoss ?? 0;
+                              const isBreached = pct >= 100;
+                              const isWarning = pct >= 50 && pct < 100;
+                              return (
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <span
+                                    className={`text-xs font-semibold ${isBreached ? 'text-red-400' : isWarning ? 'text-amber-400' : 'text-muted-foreground'}`}
+                                    title={`Max possible loss if spread goes to full loss: $${result.maxLoss.toFixed(2)}`}
+                                  >
+                                    ${result.maxLoss.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                  </span>
+                                  <div
+                                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                      isBreached
+                                        ? 'bg-red-600/20 text-red-400 border-red-500/40'
+                                        : isWarning
+                                        ? 'bg-amber-600/20 text-amber-400 border-amber-500/40'
+                                        : 'bg-muted/20 text-muted-foreground border-muted/30'
+                                    }`}
+                                    title={`Buy-back cost is ${pct}% of max loss. ${isBreached ? '⚠ Spread has been breached — position is at a loss beyond the long leg protection.' : isWarning ? 'Approaching max loss zone.' : 'Within safe range.'}`}
+                                  >
+                                    {pct}% of max
+                                  </div>
+                                </div>
+                              );
+                            })() : (
+                              <span className="text-muted-foreground/40 text-xs">—</span>
+                            )}
                           </td>
                           <td className="py-2.5 text-center">
                             {result.action === 'WOULD_CLOSE' ? (
