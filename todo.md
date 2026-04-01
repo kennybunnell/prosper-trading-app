@@ -8568,3 +8568,8 @@ ROC Fix Mar 18 2026
 - [x] Frontend: Map ttErrors/ttCode/ttStatus from result.results into Rejected status entries
 - [x] Frontend: Upgraded Rejected banner to show per-symbol rejection reason inline (not just generic "check below")
 - [x] Frontend: Upgraded per-order status row — Rejected rows now have red background, show message prominently, list all preflight errors, and show error code + HTTP status footer
+
+## Copy Rejection Reason to Clipboard (Apr 1, 2026)
+- [x] Added CopyButton helper component (Copy/Check icons, 2s feedback, hover-reveal)
+- [x] Inserted CopyButton next to rejection message in each rejected order row
+- [x] Copied text includes: symbol + message, all preflight error codes, HTTP status footer

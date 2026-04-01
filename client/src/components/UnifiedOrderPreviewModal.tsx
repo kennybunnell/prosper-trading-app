@@ -16,7 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Minus, Plus, AlertCircle, CheckCircle2, DollarSign, ShieldAlert } from "lucide-react";
+import { Loader2, Minus, Plus, AlertCircle, CheckCircle2, DollarSign, ShieldAlert, Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { trpc } from "@/lib/trpc";
 
@@ -128,6 +128,29 @@ export interface UnifiedOrderPreviewModalProps {
   submissionComplete?: boolean;
   finalOrderStatus?: string | null;
   onSubmissionStateChange?: (complete: boolean, status: string | null) => void;
+}
+
+/** Small inline copy-to-clipboard button used in rejection detail rows */
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = React.useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {/* ignore */});
+  };
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={copied ? 'Copied!' : 'Copy rejection reason'}
+      className="shrink-0 mt-0.5 p-0.5 rounded text-red-400/50 hover:text-red-300 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+    >
+      {copied
+        ? <Check className="h-3.5 w-3.5 text-green-400" />
+        : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
 }
 
 export function UnifiedOrderPreviewModal({
@@ -2245,9 +2268,22 @@ export function UnifiedOrderPreviewModal({
                     {/* Rejection details — shown below the symbol row */}
                     {status.status === 'Rejected' && (
                       <div className="mt-1.5 space-y-1">
-                        <p className="text-sm font-medium text-red-400">
-                          {status.message || 'Order submission failed'}
-                        </p>
+                        <div className="flex items-start gap-1.5 group">
+                          <p className="flex-1 text-sm font-medium text-red-400">
+                            {status.message || 'Order submission failed'}
+                          </p>
+                          <CopyButton
+                            text={[
+                              `${status.symbol}: ${status.message || 'Order submission failed'}`,
+                              ...(status.ttErrors && status.ttErrors.length > 1
+                                ? status.ttErrors.map(e => `  [${e.code}] ${e.message}`)
+                                : []),
+                              ...(status.ttCode
+                                ? [`Code: ${status.ttCode}${status.ttStatus ? ` · HTTP ${status.ttStatus}` : ''}`]
+                                : []),
+                            ].join('\n')}
+                          />
+                        </div>
                         {/* Additional preflight errors beyond the first */}
                         {status.ttErrors && status.ttErrors.length > 1 && (
                           <ul className="ml-2 list-disc text-xs text-red-400/70 space-y-0.5">
