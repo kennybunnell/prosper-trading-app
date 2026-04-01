@@ -8525,3 +8525,9 @@ ROC Fix Mar 18 2026
 - [x] BCS combo-order leg preview: basket modal Strike column now shows both Short (BTC) and Long (STC) strikes for BTC spread orders
 - [x] Select All Ready to Close button: green bar above scan table shows total ready-to-close count across all strategies with one-click select/deselect
 - [x] DTE=1 warning badge: yellow "⚠ 1 DTE" badge appears in DTE cell for positions expiring tomorrow, with tooltip advising to close today
+
+## Exchange/Settlement-Type Filter (Apr 1, 2026)
+- [x] Add Index vs Equity settlement-type classification to scan results (SPX/NDX/XSP/SPXW/NDXP/RUT/RUTW = Index/European/Cash-settled; all others = Equity/American/Assignable)
+- [x] Add "Index (EU)" and "Equity (AM)" filter pills to the scan results toolbar
+- [x] Show settlement-type badge on each row (small "IDX" or "EQ" tag near symbol)
+- [x] Ensure Select All Ready to Close respects the active settlement filter

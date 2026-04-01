@@ -368,6 +368,7 @@ export default function AutomationDashboard() {
   const [scanSortCol, setScanSortCol] = useState<string>('realizedPercent');
   const [scanSortDir, setScanSortDir] = useState<'asc' | 'desc'>('desc');
   const [scanTypeFilter, setScanTypeFilter] = useState<string>('all');
+  const [scanSettleFilter, setScanSettleFilter] = useState<'all' | 'index' | 'equity'>('all');
   // AI Strategy Review Panel state
   const [aiReviewStrategy, setAiReviewStrategy] = useState<StrategyType | null>(null);
   const [aiReviewPositions, setAiReviewPositions] = useState<ReviewPosition[]>([]);
@@ -777,6 +778,9 @@ export default function AutomationDashboard() {
   };
 
   // Apply hide-expiring-today + type filter, then sort
+  // Index symbols: European-style, cash-settled, no early assignment risk
+  const CASH_SETTLED_INDEXES_FE = new Set(['SPX', 'SPXW', 'NDX', 'NDXP', 'RUT', 'RUTW', 'MRUT', 'VIX', 'DJX', 'XSP', 'XND']);
+  const isIndexSymbol = (sym: string) => CASH_SETTLED_INDEXES_FE.has(sym.toUpperCase());
   const visibleScanResults = useMemo(() => {
     let rows = (lastRunResult?.scanResults ?? []).filter(
       r => !(hideExpiringToday && r.dte === 0)
@@ -784,13 +788,18 @@ export default function AutomationDashboard() {
     if (scanTypeFilter !== 'all') {
       rows = rows.filter(r => r.type === scanTypeFilter);
     }
+    // Settlement-type filter: index (European/cash-settled) vs equity (American/assignable)
+    if (scanSettleFilter === 'index') {
+      rows = rows.filter(r => CASH_SETTLED_INDEXES_FE.has(r.symbol.toUpperCase()));
+    } else if (scanSettleFilter === 'equity') {
+      rows = rows.filter(r => !CASH_SETTLED_INDEXES_FE.has(r.symbol.toUpperCase()));
+    }
     // ABSOLUTE SAFETY: When CC filter is active, never show BCS/BPS/IC spread legs.
     // Spread legs require a 4-leg combo order and must NEVER appear in the CC BTC sweep.
     // ALSO: Cash-settled European-style indexes (SPX/SPXW/NDX/NDXP/RUT/RUTW etc.) can NEVER
     // be covered calls — there are no underlying shares to cover them. Hard-block them from
     // the CC view regardless of what the server classified them as (guards against Tastytrade
     // API instrument-type misreporting and heuristic edge-cases).
-    const CASH_SETTLED_INDEXES_FE = new Set(['SPX', 'SPXW', 'NDX', 'NDXP', 'RUT', 'RUTW', 'MRUT', 'VIX', 'DJX', 'XSP', 'XND']);
     if (scanTypeFilter === 'CC') {
       rows = rows.filter(r =>
         r.type !== 'BCS' && r.type !== 'BPS' && r.type !== 'IC' &&
@@ -820,7 +829,7 @@ export default function AutomationDashboard() {
       return scanSortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
     return rows;
-  }, [lastRunResult?.scanResults, hideExpiringToday, scanTypeFilter, scanSortCol, scanSortDir]);
+  }, [lastRunResult?.scanResults, hideExpiringToday, scanTypeFilter, scanSettleFilter, scanSortCol, scanSortDir]);
   // Keep ref in sync so handleOpenOrderPreview (declared before this useMemo) can access current value
   visibleScanResultsRef.current = visibleScanResults;
   // Include ALL WOULD_CLOSE results — BCS/BPS/IC spreads now produce proper 2-leg combo close orders
@@ -1811,6 +1820,46 @@ export default function AutomationDashboard() {
                     </div>
                   );
                 })}
+                {/* Separator before settlement filter */}
+                <div className="w-px h-5 bg-border/60 mx-1" />
+                {/* Settlement-type filter pills */}
+                {(['all', 'index', 'equity'] as const).map(s => {
+                  const allResults = lastRunResult?.scanResults ?? [];
+                  const CASH_IDX = new Set(['SPX', 'SPXW', 'NDX', 'NDXP', 'RUT', 'RUTW', 'MRUT', 'VIX', 'DJX', 'XSP', 'XND']);
+                  const countOfType = s === 'all'
+                    ? allResults.filter(r => !(hideExpiringToday && r.dte === 0)).length
+                    : s === 'index'
+                    ? allResults.filter(r => !(hideExpiringToday && r.dte === 0) && CASH_IDX.has(r.symbol.toUpperCase())).length
+                    : allResults.filter(r => !(hideExpiringToday && r.dte === 0) && !CASH_IDX.has(r.symbol.toUpperCase())).length;
+                  const label = s === 'all' ? 'All Types' : s === 'index' ? 'Index (EU)' : 'Equity (AM)';
+                  const tooltip = s === 'index'
+                    ? 'European-style, cash-settled (SPX/NDX/XSP/RUT). No early assignment risk.'
+                    : s === 'equity'
+                    ? 'American-style, physically-settled (MSTR/HOOD/AMD etc.). Can be early-assigned.'
+                    : 'Show all settlement types';
+                  const isActive = scanSettleFilter === s;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      title={tooltip}
+                      onClick={() => setScanSettleFilter(s)}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-all ${
+                        isActive
+                          ? s === 'index'
+                            ? 'bg-violet-500/20 text-violet-300 border-violet-500/50'
+                            : s === 'equity'
+                            ? 'bg-orange-500/20 text-orange-300 border-orange-500/50'
+                            : 'bg-muted text-foreground border-border'
+                          : 'text-muted-foreground border-border/50 hover:border-border hover:text-foreground'
+                      }`}
+                    >
+                      {s === 'index' ? '🏛' : s === 'equity' ? '📈' : ''}
+                      {label}
+                      {countOfType > 0 && <span className="opacity-60">{countOfType}</span>}
+                    </button>
+                  );
+                })}
               </div>
               {/* Select All Ready to Close shortcut -- selects ALL WOULD_CLOSE rows across all filters */}
               {(() => {
@@ -1910,7 +1959,20 @@ export default function AutomationDashboard() {
                             ) : <span />}
                           </td>
                           <td className="py-2.5 pr-4">
-                            <span className="font-semibold">{result.symbol}</span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="font-semibold">{result.symbol}</span>
+                              {isIndexSymbol(result.symbol) ? (
+                                <span
+                                  title="Index option: European-style, cash-settled. No early assignment risk."
+                                  className="inline-flex items-center px-1 py-0 rounded text-[9px] font-bold bg-violet-500/15 text-violet-400 border border-violet-500/30 cursor-help"
+                                >IDX</span>
+                              ) : (
+                                <span
+                                  title="Equity option: American-style, physically-settled. Early assignment possible."
+                                  className="inline-flex items-center px-1 py-0 rounded text-[9px] font-bold bg-orange-500/15 text-orange-400 border border-orange-500/30 cursor-help"
+                                >EQ</span>
+                              )}
+                            </span>
                             {(() => {
                               // Parse OCC symbol: AAPL260307P00277500 → P $277.50
                               const parseStrike = (sym: string) => {
