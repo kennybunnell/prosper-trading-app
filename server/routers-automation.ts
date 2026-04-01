@@ -1751,10 +1751,13 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
           }
 
           // Build order legs
-          // Tastytrade requires 'Index Option' for cash-settled index options (SPX, SPXW, NDX, NDXP, RUT, MRUT, DJX, VIX, XSP, OEX).
-          // Using 'Equity Option' for these symbols causes Order_disallowed_by_exchange_rules rejection from CBOE.
-          const { isTrueIndexOption: isIdxOpt } = await import('../shared/orderUtils');
-          const closeInstrumentType: 'Equity Option' | 'Index Option' = isIdxOpt(order.symbol) ? 'Index Option' : 'Equity Option';
+          // IMPORTANT: Tastytrade multi-leg spread orders require 'Equity Option' for ALL legs,
+          // even for cash-settled index options like SPX/SPXW/NDX/NDXP.
+          // Single-leg BTC orders use 'Index Option', but spread orders must use 'Equity Option'.
+          // Using 'Index Option' in a multi-leg spread causes validation_error: "does not have a valid value".
+          // NOTE: Tastytrade order submission API requires 'Equity Option' for ALL option legs.
+          // 'Index Option' is only used in position data from TT, never in order submissions.
+          const closeInstrumentType: 'Equity Option' = 'Equity Option';
 
           const legs: import('./tastytrade').OrderLeg[] = [
             {
@@ -1783,6 +1786,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             limitPrice,
             isEstimated: order.isEstimated,
             legs: legs.length,
+            legsDetail: legs,
+            closeInstrumentType,
           });
 
           // For BTC spread closes: if long leg credit > short leg cost, the spread closes at a net credit.

@@ -2178,13 +2178,8 @@ Summary: [One sentence overall assessment]`;
             });
             
             // Build legs to see what would be submitted
-            // IMPORTANT: Multi-leg spreads MUST use 'Equity Option' even for index symbols.
-            // Tastytrade rejects 'Index Option' for spread legs with validation_error.
-            // Only single-leg orders use 'Index Option' for true index symbols.
-            const isMultiLeg = (order.isIronCondor && order.putShortLeg) || (order.isSpread && order.shortLeg);
-            const dryRunInstrumentType: 'Index Option' | 'Equity Option' = isMultiLeg
-              ? 'Equity Option'
-              : (isIndexOpt(order.symbol) ? 'Index Option' : 'Equity Option');
+            // NOTE: Tastytrade order submission API requires 'Equity Option' for ALL option legs.
+            const dryRunInstrumentType: 'Equity Option' = 'Equity Option';
             const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
               ? [
                   { symbol: order.putShortLeg.optionSymbol, action: order.putShortLeg.action, instrumentType: dryRunInstrumentType },
@@ -2355,16 +2350,8 @@ Summary: [One sentence overall assessment]`;
               }
               
               // Build legs based on order type
-              // IMPORTANT: For multi-leg SPREAD orders (BPS, BCS, IC), Tastytrade requires 'Equity Option'
-              // for ALL symbols including cash-settled indexes (SPX, SPXW, NDX, NDXP, RUT, MRUT, etc.).
-              // Using 'Index Option' in spread legs causes validation_error: "does not have a valid value".
-              // 'Index Option' is only valid for SINGLE-LEG orders (closes, rolls, BTCs).
-              // For single-leg CSP, we still use isTrueIndexOption to determine the correct type.
-              const { isTrueIndexOption } = await import('../shared/orderUtils');
-              const isMultiLeg = (order.isSpread && order.shortLeg && order.longLeg) || (order.isIronCondor && order.putShortLeg);
-              const legInstrumentType: 'Equity Option' | 'Index Option' = isMultiLeg
-                ? 'Equity Option'
-                : (isTrueIndexOption(order.symbol) ? 'Index Option' : 'Equity Option');
+              // NOTE: Tastytrade order submission API requires 'Equity Option' for ALL option legs.
+              const legInstrumentType: 'Equity Option' = 'Equity Option';
               const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
               ? [
                     // Iron Condor: Leg 1 - Sell Put (short put)
@@ -4040,7 +4027,7 @@ Summary: [One sentence overall assessment]`;
           symbol: z.string(),
           action: z.enum(['Buy to Close', 'Sell to Close']),
           quantity: z.number(),
-          instrumentType: z.enum(['Equity Option', 'Index Option']), // Tastytrade requires 'Index Option' for SPX/NDX/RUT index options
+          instrumentType: z.enum(['Equity Option', 'Index Option']), // Note: TT order API only uses 'Equity Option'; 'Index Option' appears in position data only
         })),
       }))
       .mutation(async ({ ctx, input }) => {
