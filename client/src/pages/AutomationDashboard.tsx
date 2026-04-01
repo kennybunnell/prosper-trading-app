@@ -167,6 +167,7 @@ type RollAnalysis = {
   score: number;
   accountId?: string;
   accountNumber?: string;
+  quantity?: number;       // Number of contracts (absolute value of short leg) — passed to getRollCandidates for per-contract math
   spreadDetails?: SpreadDetails;
   isLetExpire?: boolean;
   dogReason?: string | null;
@@ -3733,6 +3734,7 @@ function RollCandidateExpander({
     expirationDate: pos.metrics.expiration,
     currentValue: pos.metrics.currentValue,
     openPremium: pos.metrics.openPremium,
+    quantity: pos.quantity,         // Contract count for per-contract netCredit math
     spreadWidth: pos.spreadDetails?.spreadWidth,
   } : skipToken;
 

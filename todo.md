@@ -8597,3 +8597,11 @@ ROC Fix Mar 18 2026
 - [x] Confirmed: buyToCloseOption, submitCloseOrder, submitRollOrder, submitCloseOrders all correctly use 'Equity Option'
 - [x] Confirmed: spreadDetection.ts all legs correctly use 'Equity Option'
 - [x] Rule documented: 'Index Option' = TT position data only; 'Equity Option' = all order submissions
+
+## Roll Scanner — Credit Calculation Fix (Apr 1)
+- [x] Fix units mismatch bug: createRollCandidateFromTradier was comparing per-contract new premium vs total-dollar BTC cost
+- [x] Normalize to per-contract math: currentMarkPerContract = totalBtcCost / (qty * 100)
+- [x] Expand DTE range from 7-14 to currentDTE+1 through currentDTE+45 (matches TT Roll Expirations menu)
+- [x] Add quantity field to getRollCandidates input schema and pass actual contract count from frontend
+- [x] Add quantity to scanRollPositions return object (from short leg)
+- [x] Verify math against QQQ (1.12 cr) and META (2.74 cr) from screenshots — confirmed correct

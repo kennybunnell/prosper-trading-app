@@ -506,6 +506,8 @@ export const rollsRouter = router({
             openPremium: spread.openPremium,
             expiration: spread.expiration,
           },
+          // Number of contracts (absolute value of short leg quantity) — needed for per-contract netCredit math in getRollCandidates
+          quantity: Math.abs(shortLeg?.quantity ?? 1),
           // Spread-specific fields for the UI
           hasStaleMarks: spread.hasStaleMarks ?? false,
           spreadDetails: {
@@ -590,6 +592,7 @@ export const rollsRouter = router({
       expirationDate: z.string(),
       currentValue: z.number(),
       openPremium: z.number(),
+      quantity: z.number().optional(), // Number of contracts (absolute value); used for per-contract netCredit math
       spreadWidth: z.number().optional(),  // For spreads: width of the spread
     }))
     .query(async ({ input, ctx }) => {
@@ -625,7 +628,7 @@ export const rollsRouter = router({
           strategy: baseStrategy,
           strike: input.strikePrice.toString(),
           expiration: input.expirationDate,
-          quantity: 1,
+          quantity: input.quantity || 1, // Pass actual contract count for per-contract netCredit math
           costBasis: input.openPremium.toString(),
           currentValue: input.currentValue.toString(),
           unrealizedPnL: (input.openPremium - input.currentValue).toString(),

@@ -471,9 +471,11 @@ export async function generateRollCandidates(
   const currentStrike = analysis.metrics.strikePrice;
   const currentDTE = analysis.metrics.dte;
 
-  // Filter expirations to 7-14 DTE range (or 0-21 for 0 DTE positions)
-  const minDTE = currentDTE === 0 ? 0 : 7;
-  const maxDTE = currentDTE === 0 ? 21 : 14;
+  // Filter expirations: look 14-45 DTE out from today (or 0-21 for 0 DTE positions).
+  // This matches Tastytrade's Roll Expirations menu which shows credits at 6-37 DTE.
+  // We always look at least 1 DTE beyond the current expiry to avoid rolling into the same expiry.
+  const minDTE = currentDTE === 0 ? 0 : Math.max(1, currentDTE + 1);
+  const maxDTE = currentDTE === 0 ? 21 : Math.max(45, currentDTE + 45);
   
   const suitableExpirations = expirations.filter((expDate: string) => {
     const dte = calculateDTE(expDate);
@@ -585,25 +587,37 @@ async function createRollCandidateFromTradier(
   underlyingPrice: number,
   isPut: boolean
 ): Promise<RollCandidate | null> {
-  // Use mid-price for new premium (average of bid/ask)
+  // Use mid-price for new STO leg (per contract, not multiplied by qty/100)
   const bid = option.bid || 0;
   const ask = option.ask || 0;
-  const newPremium = (bid + ask) / 2;
+  const newPremiumPerContract = (bid + ask) / 2;
   
-  if (newPremium <= 0) {
-    console.warn('[createRollCandidateFromTradier] Invalid premium:', newPremium);
+  if (newPremiumPerContract <= 0) {
+    console.warn('[createRollCandidateFromTradier] Invalid premium:', newPremiumPerContract);
     return null;
   }
   
   const newStrike = option.strike;
-  const closeCost = Math.abs(position.current_value);
-  const netCredit = newPremium - closeCost;
-  const meets3XRule = newPremium >= (closeCost * 3);
+  const qty = Math.abs(position.quantity) || 1;
+
+  // CRITICAL FIX: position.current_value is in TOTAL DOLLARS (qty × 100 already applied).
+  // newPremiumPerContract is PER CONTRACT. We must normalise to the same unit.
+  // Per-contract current BTC cost = totalBtcCost / (qty × 100)
+  const totalBtcCost = Math.abs(position.current_value);
+  const currentMarkPerContract = totalBtcCost / (qty * 100);
+
+  // Net credit of the atomic roll (per contract) = new STO mid − current BTC mid
+  // Positive = credit roll (we receive more than we pay), Negative = debit roll
+  const netCreditPerContract = newPremiumPerContract - currentMarkPerContract;
+  const netCredit = netCreditPerContract * qty * 100; // Scale back to total dollars
+  const newPremium = newPremiumPerContract * qty * 100; // Total STO premium in dollars
+  const closeCost = totalBtcCost;
+  const meets3XRule = newPremiumPerContract >= (currentMarkPerContract * 3);
   
   // Calculate annualized return
-  // Return = (net credit / capital at risk) * (365 / DTE) * 100
+  // Return = (net credit per contract / capital at risk per contract) * (365 / DTE) * 100
   const capitalAtRisk = isPut ? newStrike * 100 : underlyingPrice * 100; // Per contract
-  const annualizedReturn = (netCredit / capitalAtRisk) * (365 / dte) * 100;
+  const annualizedReturn = (netCreditPerContract * 100 / capitalAtRisk) * (365 / dte) * 100;
 
   // Use real delta from Tradier greeks if available, otherwise approximate
   const delta = option.greeks?.delta || approximateDelta(newStrike, underlyingPrice, isPut ? 'put' : 'call');
