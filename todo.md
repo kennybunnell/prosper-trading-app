@@ -8635,3 +8635,11 @@ ROC Fix Mar 18 2026
 - [x] Dry Run and Live Submit both go through the review modal
 - [x] On success: modal closes, per-order rejection toasts shown, queue cleared
 - [x] TypeScript: 0 errors
+
+## Roll Order Review Modal Redesign (Apr 1, 2026)
+- [x] Replace narrow Dialog with full-screen overlay/drawer panel
+- [x] Use a proper table layout with fixed columns (no text overflow/overlap)
+- [x] Add move up/down row reordering controls
+- [x] Keep inline remove, swap candidate, editable limit price
+- [x] Show expanded detail in a right-side detail panel per selected row
+- [x] Clean summary bar at top and action footer at bottom
