@@ -1,6 +1,12 @@
 /**
  * RollOrderReviewModal — Full-screen overlay order management workspace.
- * Apr 1 2026: Added sortable columns (Symbol, Total, Score) + live Refresh Prices.
+ * Apr 2 2026:
+ *   - BUG FIX: Net credit total was incorrectly multiplied by 100. netCredit is already
+ *     the per-contract dollar value (premium × 100 shares). Total = netCredit × quantity.
+ *   - DTE selector in detail panel: click any available expiration to re-fetch the best
+ *     strike at that DTE, or type a custom DTE and hit Enter.
+ *   - Strike nudge buttons: CC → move strike UP (less assignment risk), CSP → move DOWN
+ *     (more cushion). Each nudge fetches live bid/ask and recalculates net credit.
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
@@ -16,7 +22,8 @@ import {
 import {
   Loader2, Send, Eye, Trash2, ChevronUp, ChevronDown, RefreshCw,
   TrendingUp, TrendingDown, X, ChevronRight, ShieldCheck,
-  ArrowUpDown, ArrowUp, ArrowDown,
+  ArrowUpDown, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown,
+  Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
@@ -75,18 +82,18 @@ type Props = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmt(n: number | undefined, decimals = 2): string {
+function fmt(n: number | undefined | null, decimals = 2): string {
   if (n === undefined || n === null || isNaN(n)) return '—';
   return `$${Math.abs(n).toFixed(decimals)}`;
 }
 
-function fmtSigned(n: number | undefined, decimals = 2): string {
+function fmtSigned(n: number | undefined | null, decimals = 2): string {
   if (n === undefined || n === null || isNaN(n)) return '—';
   const sign = n > 0 ? '+' : n < 0 ? '−' : '';
   return `${sign}$${Math.abs(n).toFixed(decimals)}`;
 }
 
-function fmtTotal(n: number | undefined): string {
+function fmtTotal(n: number | undefined | null): string {
   if (n === undefined || n === null || isNaN(n)) return '—';
   const sign = n >= 0 ? '+' : '−';
   return `${sign}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -94,6 +101,14 @@ function fmtTotal(n: number | undefined): string {
 
 function fmtTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+/** Net credit total: netCredit is already per-contract dollars (premium × 100 shares). Total = netCredit × quantity. */
+function calcNetTotal(item: RollOrderItem): number | undefined {
+  const c = item.candidate;
+  if (c.action === 'roll' && c.netCredit !== undefined) return c.netCredit * item.quantity;
+  if (c.action === 'close' && c.netPnl !== undefined) return c.netPnl;
+  return undefined;
 }
 
 const STRATEGY_COLORS: Record<string, string> = {
@@ -120,7 +135,7 @@ function ActionBadge({ a }: { a: 'roll' | 'close' }) {
   );
 }
 
-function CreditChip({ value }: { value: number | undefined }) {
+function CreditChip({ value }: { value: number | undefined | null }) {
   if (value === undefined || value === null || isNaN(value)) return <span className="text-muted-foreground text-xs">—</span>;
   const isPos = value >= 0;
   return (
@@ -162,12 +177,112 @@ function SortHeader({
 
 // ─── Detail Panel ─────────────────────────────────────────────────────────────
 
-function DetailPanel({ item, onClose: onClosePanel }: { item: RollOrderItem; onClose: () => void }) {
+type DetailPanelProps = {
+  item: RollOrderItem;
+  liveCredit?: number | null;
+  onClose: () => void;
+  onUpdateCandidate: (positionId: string, patch: Partial<RollCandidateItem>) => void;
+};
+
+function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPanelProps) {
   const c = item.candidate;
   const isRoll = c.action === 'roll';
-  const totalNetCredit = isRoll && c.netCredit !== undefined
-    ? c.netCredit * item.quantity * 100
-    : c.netPnl;
+  const optionType: 'call' | 'put' = (item.strategy === 'CC' || item.strategy === 'BCS') ? 'call' : 'put';
+
+  // DTE input state
+  const [dteInput, setDteInput] = useState('');
+  const [nearbyExps, setNearbyExps] = useState<Array<{ expiration: string; dte: number }>>([]);
+
+  // Strike nudge state
+  const [nudgeLoading, setNudgeLoading] = useState<'up' | 'down' | null>(null);
+  const [nudgeResult, setNudgeResult] = useState<{ strike: number; stoPremium: number | null; netCreditPerContract: number | null; netCreditTotal: number | null } | null>(null);
+
+  const fetchDteMutation = trpc.automation.fetchRollTargetForDTE.useMutation({
+    onSuccess: (data) => {
+      setNearbyExps(data.nearbyExps);
+      onUpdateCandidate(item.positionId, {
+        expiration: data.expiration,
+        dte: data.dte,
+        strike: data.strike,
+        newPremium: data.stoPremium ?? undefined,
+        netCredit: data.netCreditPerContract ?? undefined,
+        delta: data.delta ?? undefined,
+      });
+      toast.success(`Rolled to ${data.expiration} (${data.dte}d) @ $${data.strike}`);
+    },
+    onError: (err) => toast.error(`DTE fetch failed: ${err.message}`),
+  });
+
+  const fetchStrikeMutation = trpc.automation.fetchStrikeQuote.useMutation({
+    onSuccess: (data) => {
+      setNudgeLoading(null);
+      setNudgeResult({
+        strike: data.strike,
+        stoPremium: data.stoPremium,
+        netCreditPerContract: data.netCreditPerContract,
+        netCreditTotal: data.netCreditTotal,
+      });
+      onUpdateCandidate(item.positionId, {
+        strike: data.strike,
+        newPremium: data.stoPremium ?? undefined,
+        netCredit: data.netCreditPerContract ?? undefined,
+      });
+      toast.success(`Strike updated to $${data.strike}`);
+    },
+    onError: (err) => {
+      setNudgeLoading(null);
+      toast.error(`Strike fetch failed: ${err.message}`);
+    },
+  });
+
+  const handleDteFetch = (targetDte: number) => {
+    if (!isRoll) return;
+    fetchDteMutation.mutate({
+      positionId: item.positionId,
+      symbol: item.symbol,
+      currentExpiration: item.currentExpiration,
+      currentShortStrike: item.currentStrike,
+      optionType,
+      currentOptionSymbol: item.optionSymbol,
+      targetDte,
+      quantity: item.quantity,
+    });
+  };
+
+  const handleDteKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const n = parseInt(dteInput);
+      if (!isNaN(n) && n >= 1 && n <= 180) handleDteFetch(n);
+    }
+  };
+
+  const handleStrikeNudge = (direction: 'up' | 'down') => {
+    if (!isRoll || !c.strike || !c.expiration) return;
+    // Determine increment: use $1 for stocks under $50, $5 for $50-$500, $10 for $500+
+    const increment = item.currentStrike < 50 ? 1 : item.currentStrike < 500 ? 5 : 10;
+    const newStrike = direction === 'up' ? c.strike + increment : c.strike - increment;
+    if (newStrike <= 0) return;
+    setNudgeLoading(direction);
+    fetchStrikeMutation.mutate({
+      positionId: item.positionId,
+      symbol: item.symbol,
+      expiration: c.expiration,
+      strike: newStrike,
+      optionType,
+      currentOptionSymbol: item.optionSymbol,
+      quantity: item.quantity,
+    });
+  };
+
+  // Effective net total: use live credit if available, else calculated
+  const effectiveNetTotal = liveCredit !== undefined && liveCredit !== null
+    ? liveCredit
+    : calcNetTotal(item);
+
+  // Direction hint for strike nudge
+  const nudgeUpLabel = item.strategy === 'CC' ? 'Move strike UP (less assignment risk)' : 'Move strike UP';
+  const nudgeDownLabel = item.strategy === 'CSP' ? 'Move strike DOWN (more cushion)' : 'Move strike DOWN';
+  const primaryNudge: 'up' | 'down' = item.strategy === 'CC' ? 'up' : 'down';
 
   return (
     <div className="flex flex-col h-full bg-card border-l border-border/50 w-80 shrink-0">
@@ -177,20 +292,27 @@ function DetailPanel({ item, onClose: onClosePanel }: { item: RollOrderItem; onC
           <span className="font-semibold text-sm">{item.symbol}</span>
           <ActionBadge a={c.action} />
         </div>
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onClosePanel}>
+        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onClose}>
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
 
       <ScrollArea className="flex-1">
         <div className="px-4 py-3 space-y-4 text-xs">
+
+          {/* Current Position */}
           <section>
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">Current Position</p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               <div><span className="text-muted-foreground">Contracts</span><p className="font-mono font-semibold">{item.quantity}</p></div>
               <div><span className="text-muted-foreground">Strike</span><p className="font-mono font-semibold">${item.currentStrike.toFixed(0)}</p></div>
               <div><span className="text-muted-foreground">Expiry</span><p className="font-mono font-semibold">{item.currentExpiration}</p></div>
-              <div><span className="text-muted-foreground">DTE</span><p className={`font-mono font-semibold ${item.currentDte <= 7 ? 'text-red-400' : item.currentDte <= 14 ? 'text-yellow-400' : ''}`}>{item.currentDte}d</p></div>
+              <div>
+                <span className="text-muted-foreground">DTE</span>
+                <p className={`font-mono font-semibold ${item.currentDte <= 7 ? 'text-red-400' : item.currentDte <= 14 ? 'text-yellow-400' : ''}`}>
+                  {item.currentDte}d
+                </p>
+              </div>
               <div><span className="text-muted-foreground">Open Premium</span><p className="font-mono font-semibold text-emerald-400">{fmt(item.openPremium)}</p></div>
               <div><span className="text-muted-foreground">BTC Cost</span><p className="font-mono font-semibold text-red-400">{fmt(item.currentValue)}</p></div>
             </div>
@@ -198,42 +320,146 @@ function DetailPanel({ item, onClose: onClosePanel }: { item: RollOrderItem; onC
 
           <div className="border-t border-border/30" />
 
-          <section>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">
-              {isRoll ? 'Roll Target' : 'Close Details'}
-            </p>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-              {isRoll && (
-                <>
-                  <div><span className="text-muted-foreground">New Strike</span><p className="font-mono font-semibold text-orange-300">${c.strike?.toFixed(0) ?? '—'}</p></div>
-                  <div><span className="text-muted-foreground">New Expiry</span><p className="font-mono font-semibold text-orange-300">{c.expiration ?? '—'}</p></div>
-                  <div><span className="text-muted-foreground">New DTE</span><p className="font-mono font-semibold">{c.dte ?? '—'}d</p></div>
-                  <div><span className="text-muted-foreground">New STO Prem.</span><p className="font-mono font-semibold text-emerald-400">{fmt(c.newPremium)}</p></div>
-                  {c.annualizedReturn !== undefined && (
-                    <div><span className="text-muted-foreground">Ann. Return</span><p className={`font-mono font-semibold ${(c.annualizedReturn ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{c.annualizedReturn?.toFixed(1)}%</p></div>
+          {/* Roll Target */}
+          {isRoll && (
+            <section>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">Roll Target</p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                {/* Strike with nudge buttons */}
+                <div>
+                  <span className="text-muted-foreground">New Strike</span>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <p className="font-mono font-semibold text-orange-300">${c.strike?.toFixed(0) ?? '—'}</p>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost" size="sm"
+                            className={`h-5 w-5 p-0 ${primaryNudge === 'up' ? 'text-emerald-400 hover:text-emerald-300' : 'text-muted-foreground hover:text-foreground'}`}
+                            onClick={() => handleStrikeNudge('up')}
+                            disabled={nudgeLoading !== null || fetchDteMutation.isPending}
+                          >
+                            {nudgeLoading === 'up' ? <Loader2 className="h-3 w-3 animate-spin" /> : <ChevronsUp className="h-3 w-3" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{nudgeUpLabel}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost" size="sm"
+                            className={`h-5 w-5 p-0 ${primaryNudge === 'down' ? 'text-emerald-400 hover:text-emerald-300' : 'text-muted-foreground hover:text-foreground'}`}
+                            onClick={() => handleStrikeNudge('down')}
+                            disabled={nudgeLoading !== null || fetchDteMutation.isPending}
+                          >
+                            {nudgeLoading === 'down' ? <Loader2 className="h-3 w-3 animate-spin" /> : <ChevronsDown className="h-3 w-3" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{nudgeDownLabel}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/50 mt-0.5">
+                    {item.strategy === 'CC' ? '↑ up = less risk' : item.strategy === 'CSP' ? '↓ down = more cushion' : ''}
+                  </p>
+                </div>
+
+                {/* DTE with selector */}
+                <div>
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    <Calendar className="h-3 w-3" /> New DTE
+                  </span>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <p className="font-mono font-semibold text-orange-300">{c.dte ?? '—'}d</p>
+                    {fetchDteMutation.isPending && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                  </div>
+                  {/* DTE quick-select from nearby expirations */}
+                  {nearbyExps.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {nearbyExps.slice(0, 6).map(e => (
+                        <button
+                          key={e.expiration}
+                          onClick={() => handleDteFetch(e.dte)}
+                          disabled={fetchDteMutation.isPending}
+                          className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                            c.dte === e.dte
+                              ? 'bg-orange-500/20 text-orange-300 border-orange-500/30'
+                              : 'bg-muted/30 text-muted-foreground border-border/50 hover:bg-muted/60'
+                          }`}
+                        >
+                          {e.dte}d
+                        </button>
+                      ))}
+                    </div>
                   )}
-                  {c.delta !== undefined && (
-                    <div><span className="text-muted-foreground">New Delta</span><p className="font-mono font-semibold">{c.delta?.toFixed(2)}</p></div>
-                  )}
-                </>
-              )}
-              {!isRoll && (
-                <>
-                  <div><span className="text-muted-foreground">Close Cost</span><p className="font-mono font-semibold text-red-400">{fmt(c.closeCost)}</p></div>
-                  <div><span className="text-muted-foreground">Net P&L</span><p className={`font-mono font-semibold ${(c.netPnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtSigned(c.netPnl)}</p></div>
-                </>
-              )}
-              <div className="col-span-2">
-                <span className="text-muted-foreground">Net {isRoll ? 'Credit' : 'P&L'} (total)</span>
-                <p className={`font-mono font-bold text-sm ${(totalNetCredit ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {fmtSigned(totalNetCredit)}
-                </p>
+                  {/* Custom DTE input */}
+                  <div className="flex items-center gap-1 mt-1.5">
+                    <Input
+                      className="h-6 w-16 text-[10px] font-mono px-1.5 py-0 bg-background/50"
+                      placeholder="DTE"
+                      value={dteInput}
+                      onChange={e => setDteInput(e.target.value)}
+                      onKeyDown={handleDteKeyDown}
+                    />
+                    <Button
+                      variant="ghost" size="sm"
+                      className="h-6 px-2 text-[10px] text-sky-400 hover:text-sky-300"
+                      onClick={() => {
+                        const n = parseInt(dteInput);
+                        if (!isNaN(n) && n >= 1 && n <= 180) handleDteFetch(n);
+                      }}
+                      disabled={fetchDteMutation.isPending}
+                    >
+                      Fetch
+                    </Button>
+                  </div>
+                </div>
+
+                <div><span className="text-muted-foreground">New Expiry</span><p className="font-mono font-semibold text-orange-300">{c.expiration ?? '—'}</p></div>
+                <div><span className="text-muted-foreground">New STO Prem.</span><p className="font-mono font-semibold text-emerald-400">{fmt(c.newPremium)}</p></div>
+                {c.annualizedReturn !== undefined && (
+                  <div><span className="text-muted-foreground">Ann. Return</span><p className={`font-mono font-semibold ${(c.annualizedReturn ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{c.annualizedReturn?.toFixed(1)}%</p></div>
+                )}
+                {c.delta !== undefined && (
+                  <div><span className="text-muted-foreground">New Delta</span><p className="font-mono font-semibold">{c.delta?.toFixed(2)}</p></div>
+                )}
+                {nudgeResult && (
+                  <div className="col-span-2 p-1.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                    <p className="text-[10px] text-emerald-300 font-semibold">Live quote @ ${nudgeResult.strike}</p>
+                    <p className="font-mono text-[10px]">STO bid: {fmt(nudgeResult.stoPremium)} · Net/contract: {fmtSigned(nudgeResult.netCreditPerContract)}</p>
+                  </div>
+                )}
+                <div className="col-span-2">
+                  <span className="text-muted-foreground">Net Credit (total)</span>
+                  <p className={`font-mono font-bold text-sm ${(effectiveNetTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {fmtSigned(effectiveNetTotal)}
+                    {liveCredit !== undefined && liveCredit !== null && <span className="text-[10px] ml-1 text-sky-400">live</span>}
+                  </p>
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          )}
+
+          {/* Close Details */}
+          {!isRoll && (
+            <section>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">Close Details</p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                <div><span className="text-muted-foreground">Close Cost</span><p className="font-mono font-semibold text-red-400">{fmt(c.closeCost)}</p></div>
+                <div><span className="text-muted-foreground">Net P&L</span><p className={`font-mono font-semibold ${(c.netPnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtSigned(c.netPnl)}</p></div>
+                <div className="col-span-2">
+                  <span className="text-muted-foreground">Net P&L (total)</span>
+                  <p className={`font-mono font-bold text-sm ${(effectiveNetTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtSigned(effectiveNetTotal)}</p>
+                </div>
+              </div>
+            </section>
+          )}
 
           <div className="border-t border-border/30" />
 
+          {/* Candidate Info */}
           <section>
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">Candidate Info</p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
@@ -249,6 +475,7 @@ function DetailPanel({ item, onClose: onClosePanel }: { item: RollOrderItem; onC
             </div>
           </section>
 
+          {/* Spread Legs */}
           {item.isSpread && item.spreadDetails && (
             <>
               <div className="border-t border-border/30" />
@@ -290,7 +517,7 @@ function SwapPanel({ item, onSwap, onClose: onCloseSwap }: {
       </div>
       {item.allCandidates.map((ca, idx) => {
         const isCurrent = ca.description === current.description && ca.action === current.action;
-        const netVal = ca.action === 'roll' ? (ca.netCredit ?? 0) * item.quantity * 100 : ca.netPnl;
+        const netVal = ca.action === 'roll' ? (ca.netCredit !== undefined ? ca.netCredit * item.quantity : undefined) : ca.netPnl;
         return (
           <button
             key={idx}
@@ -344,11 +571,9 @@ function TableRow({ item, index, total, isSelected, isSorted, onSelect, onRemove
   const c = item.candidate;
   const isRoll = c.action === 'roll';
   const netPerContract = isRoll ? c.netCredit : c.netPnl;
-  const netTotal = isRoll && c.netCredit !== undefined
-    ? c.netCredit * item.quantity * 100
-    : c.netPnl;
+  // BUG FIX: netCredit is per-contract dollars (already includes 100-share multiplier)
+  const netTotal = calcNetTotal(item);
 
-  // If we have a refreshed price, show it alongside the original
   const hasRefresh = refreshedCredit !== undefined && refreshedCredit !== null;
   const refreshDiff = hasRefresh && netTotal !== undefined ? refreshedCredit! - netTotal : null;
 
@@ -494,7 +719,6 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
   const [sortKey, setSortKey] = useState<SortKey>('none');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
-  // Map positionId -> refreshed net credit total
   const [liveCredits, setLiveCredits] = useState<Map<string, number | null>>(new Map());
 
   const refreshMutation = trpc.automation.refreshRollPrices.useMutation({
@@ -522,7 +746,6 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
 
   const selectedItem = useMemo(() => items.find(i => i.positionId === selectedId) ?? null, [items, selectedId]);
 
-  // ── Sorted view (does NOT mutate items order — only for display when sortKey != 'none') ──
   const displayItems = useMemo(() => {
     if (sortKey === 'none') return items;
     return [...items].sort((a, b) => {
@@ -533,9 +756,7 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
         const getNet = (item: RollOrderItem) => {
           const live = liveCredits.get(item.positionId);
           if (live !== undefined && live !== null) return live;
-          const c = item.candidate;
-          if (c.action === 'roll' && c.netCredit !== undefined) return c.netCredit * item.quantity * 100;
-          return c.netPnl ?? 0;
+          return calcNetTotal(item) ?? 0;
         };
         va = getNet(a); vb = getNet(b);
       } else if (sortKey === 'score') {
@@ -558,7 +779,6 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
     }
   };
 
-  // When sort is active, apply sorted order to items permanently
   const applySort = () => {
     if (sortKey === 'none') return;
     setItems(displayItems);
@@ -574,11 +794,7 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
     return items.reduce((sum, item) => {
       const live = liveCredits.get(item.positionId);
       if (live !== undefined && live !== null) return sum + live;
-      const c = item.candidate;
-      const qty = item.quantity || 1;
-      if (c.action === 'roll' && c.netCredit !== undefined) return sum + c.netCredit * qty * 100;
-      if (c.action === 'close' && c.netPnl !== undefined) return sum + c.netPnl;
-      return sum;
+      return sum + (calcNetTotal(item) ?? 0);
     }, 0);
   }, [items, liveCredits]);
 
@@ -619,6 +835,14 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
     setItems(prev => prev.map(item => {
       if (item.positionId !== id) return item;
       return { ...item, candidate: { ...item.candidate, limitPrice: price } };
+    }));
+  }, []);
+
+  /** Called by DetailPanel when DTE re-fetch or strike nudge updates the candidate */
+  const handleUpdateCandidate = useCallback((positionId: string, patch: Partial<RollCandidateItem>) => {
+    setItems(prev => prev.map(item => {
+      if (item.positionId !== positionId) return item;
+      return { ...item, candidate: { ...item.candidate, ...patch } };
     }));
   }, []);
 
@@ -679,7 +903,6 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
       {/* Body: table + optional detail panel */}
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          {/* Sort toolbar */}
           {sortKey !== 'none' && (
             <div className="flex items-center gap-2 px-4 py-1.5 bg-orange-500/5 border-b border-orange-500/20 text-xs text-orange-300 shrink-0">
               <ArrowUpDown className="h-3 w-3" />
@@ -747,7 +970,12 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
 
         {/* Detail panel */}
         {selectedItem && (
-          <DetailPanel item={selectedItem} onClose={() => setSelectedId(null)} />
+          <DetailPanel
+            item={selectedItem}
+            liveCredit={liveCredits.get(selectedItem.positionId)}
+            onClose={() => setSelectedId(null)}
+            onUpdateCandidate={handleUpdateCandidate}
+          />
         )}
       </div>
 
@@ -821,7 +1049,7 @@ function buildOptionSymbol(underlying: string, expiration: string, strike: numbe
     const yy = d.getFullYear().toString().slice(2);
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
-    const type = (strategy === 'CC') ? 'C' : 'P';
+    const type = (strategy === 'CC' || strategy === 'BCS') ? 'C' : 'P';
     const strikeStr = (strike * 1000).toFixed(0).padStart(8, '0');
     return `${underlying.padEnd(6)}${yy}${mm}${dd}${type}${strikeStr}`;
   } catch {

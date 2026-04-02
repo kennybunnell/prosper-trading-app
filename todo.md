@@ -8650,3 +8650,10 @@ ROC Fix Mar 18 2026
 - [x] Recalculate net credit per row after price refresh and update totals in footer/header
 - [x] Show last-refreshed timestamp next to the Refresh button
 - [x] Add tRPC procedure: automation.refreshRollPrices (accepts list of option symbols, returns live quotes)
+
+## Roll Order Review — Bug Fix + DTE Selector + Strike Nudge (Apr 2, 2026)
+- [x] BUG FIX: Net credit total incorrectly multiplied by 100 — fix to netCredit * quantity only (netCredit already includes share multiplier)
+- [x] BUG FIX: Same fix in refreshRollPrices server procedure (netCreditTotal calculation)
+- [x] Add DTE selector in detail panel: show candidate DTEs as buttons, allow custom DTE input, swap to matching candidate or re-fetch
+- [x] Add strike nudge buttons in detail panel: CC → move strike UP, CSP → move strike DOWN, re-fetch bid/ask and recalculate net credit
+- [x] Add tRPC procedures: automation.fetchStrikeQuote + automation.fetchRollTargetForDTE

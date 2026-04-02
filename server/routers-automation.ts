@@ -2993,10 +2993,150 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
           btcCost,
           stoPremium,
           netCreditPerContract,
-          netCreditTotal: netCreditPerContract !== null ? netCreditPerContract * item.quantity * 100 : null,
+          // netCreditPerContract already incorporates the 100-share multiplier
+          // (it is the dollar P&L per contract, not per share). So total = per-contract × quantity.
+          netCreditTotal: netCreditPerContract !== null ? netCreditPerContract * item.quantity : null,
         };
       });
 
       return { refreshedAt: Date.now(), updates };
+    }),
+
+  // ─── Fetch a single option quote for strike nudge (CC up / CSP down) ────────────────
+  fetchStrikeQuote: protectedProcedure
+    .input(z.object({
+      positionId: z.string(),
+      symbol: z.string(),
+      expiration: z.string(),
+      strike: z.number(),
+      optionType: z.enum(['call', 'put']),
+      currentOptionSymbol: z.string(), // BTC leg — to calculate net credit
+      quantity: z.number(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+      const tradierApiKey = (credentials?.tradierApiKey && credentials.tradierApiKey.length > 15
+        ? credentials.tradierApiKey : null) || process.env.TRADIER_API_KEY;
+      if (!tradierApiKey) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tradier API key not configured.' });
+      const { createTradierAPI } = await import('./tradier');
+      const tradierApi = createTradierAPI(tradierApiKey);
+
+      // Build the OCC symbol for the new strike
+      const d = new Date(input.expiration);
+      const yy = d.getFullYear().toString().slice(2);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const typeChar = input.optionType === 'call' ? 'C' : 'P';
+      const strikeStr = (input.strike * 1000).toFixed(0).padStart(8, '0');
+      const newSymbol = `${input.symbol.padEnd(6)}${yy}${mm}${dd}${typeChar}${strikeStr}`;
+
+      const quotes = await tradierApi.getQuotes([input.currentOptionSymbol, newSymbol]);
+      const qMap = new Map(quotes.map(q => [q.symbol, q]));
+      const currentQ = qMap.get(input.currentOptionSymbol);
+      const newQ = qMap.get(newSymbol);
+
+      const btcCost = currentQ?.ask ?? null;   // cost to buy back current
+      const stoPremium = newQ?.bid ?? null;    // credit from new STO
+      const netCreditPerContract = btcCost !== null && stoPremium !== null ? stoPremium - btcCost : null;
+      const netCreditTotal = netCreditPerContract !== null ? netCreditPerContract * input.quantity : null;
+
+      return {
+        positionId: input.positionId,
+        newSymbol,
+        strike: input.strike,
+        bid: newQ?.bid ?? null,
+        ask: newQ?.ask ?? null,
+        mid: newQ ? (newQ.bid + newQ.ask) / 2 : null,
+        btcCost,
+        stoPremium,
+        netCreditPerContract,
+        netCreditTotal,
+      };
+    }),
+
+  // ─── Fetch available expirations + best strike for a target DTE ───────────────────
+  fetchRollTargetForDTE: protectedProcedure
+    .input(z.object({
+      positionId: z.string(),
+      symbol: z.string(),
+      currentExpiration: z.string(),
+      currentShortStrike: z.number(),
+      optionType: z.enum(['call', 'put']),
+      currentOptionSymbol: z.string(),
+      targetDte: z.number().min(1).max(180),
+      quantity: z.number(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+      const tradierApiKey = (credentials?.tradierApiKey && credentials.tradierApiKey.length > 15
+        ? credentials.tradierApiKey : null) || process.env.TRADIER_API_KEY;
+      if (!tradierApiKey) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tradier API key not configured.' });
+      const { createTradierAPI } = await import('./tradier');
+      const tradierApi = createTradierAPI(tradierApiKey);
+
+      // Get all expirations and find the one closest to targetDte
+      const allExps = await tradierApi.getExpirations(input.symbol);
+      const now = Date.now();
+      const expsWithDte = allExps.map(exp => ({
+        exp,
+        dte: Math.round((new Date(exp).getTime() - now) / (1000 * 60 * 60 * 24)),
+      })).filter(e => e.dte > 0);
+
+      if (expsWithDte.length === 0) throw new TRPCError({ code: 'NOT_FOUND', message: 'No future expirations found.' });
+
+      // Find closest expiration to the target DTE
+      const best = expsWithDte.reduce((prev, curr) =>
+        Math.abs(curr.dte - input.targetDte) < Math.abs(prev.dte - input.targetDte) ? curr : prev
+      );
+
+      // Fetch the option chain for that expiration
+      const chain = await tradierApi.getOptionChain(input.symbol, best.exp, true);
+      const filtered = chain.filter(o => o.type === input.optionType);
+      if (filtered.length === 0) throw new TRPCError({ code: 'NOT_FOUND', message: `No ${input.optionType} options for ${input.symbol} on ${best.exp}` });
+
+      // Find the strike closest to the current strike (same strike, different expiry)
+      const closestStrike = filtered.reduce((prev, curr) =>
+        Math.abs(curr.strike - input.currentShortStrike) < Math.abs(prev.strike - input.currentShortStrike) ? curr : prev
+      );
+
+      // Get BTC cost for current position
+      const currentQuotes = await tradierApi.getQuotes([input.currentOptionSymbol]);
+      const currentQ = currentQuotes.find(q => q.symbol === input.currentOptionSymbol);
+      const btcCost = currentQ?.ask ?? null;
+      const stoPremium = closestStrike.bid > 0 ? closestStrike.bid : (closestStrike.ask / 2);
+      const netCreditPerContract = btcCost !== null ? stoPremium - btcCost : null;
+
+      // Build OCC symbol for the new option
+      const d = new Date(best.exp);
+      const yy = d.getFullYear().toString().slice(2);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const typeChar = input.optionType === 'call' ? 'C' : 'P';
+      const strikeStr = (closestStrike.strike * 1000).toFixed(0).padStart(8, '0');
+      const newSymbol = `${input.symbol.padEnd(6)}${yy}${mm}${dd}${typeChar}${strikeStr}`;
+
+      // Return nearby expirations for the DTE picker UI
+      const nearbyExps = expsWithDte
+        .filter(e => e.dte >= 7 && e.dte <= 90)
+        .map(e => ({ expiration: e.exp, dte: e.dte }));
+
+      return {
+        positionId: input.positionId,
+        expiration: best.exp,
+        dte: best.dte,
+        strike: closestStrike.strike,
+        newSymbol,
+        bid: closestStrike.bid,
+        ask: closestStrike.ask,
+        mid: (closestStrike.bid + closestStrike.ask) / 2,
+        delta: closestStrike.greeks?.delta ?? null,
+        btcCost,
+        stoPremium,
+        netCreditPerContract,
+        netCreditTotal: netCreditPerContract !== null ? netCreditPerContract * input.quantity : null,
+        nearbyExps,
+      };
     }),
 });
