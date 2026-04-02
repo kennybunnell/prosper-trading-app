@@ -8677,3 +8677,10 @@ ROC Fix Mar 18 2026
 - [x] FIX: DTE fetch result writes newPremium/netCredit into candidate via onUpdateCandidate
 - [x] FIX: Per Contract and Total columns in table reflect updated premium after nudge/DTE change
 - [x] Current stock price redesigned as prominent labeled box with large font + View Chart button
+
+## Roll Order Review — Premium Display Fix (Apr 2, 2026 - Round 2)
+- [x] FIX: Removed unreliable nudgeResult overlay; display now always reads from c.newPremium (updated via onUpdateCandidate)
+- [x] FIX: fetchStrikeMutation onSuccess writes stoPremium/netCredit into candidate state with null guard
+- [x] FIX: fetchDteMutation onSuccess also sets premiumUpdated=true and uses null guards
+- [x] FIX: Toast now shows the actual premium value on success so you can see it immediately
+- [x] FIX: LIVE badge shows on both New STO Prem and Net Credit total after any nudge/DTE change

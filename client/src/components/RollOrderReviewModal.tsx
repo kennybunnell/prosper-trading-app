@@ -194,7 +194,9 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
 
   // Strike nudge state
   const [nudgeLoading, setNudgeLoading] = useState<'up' | 'down' | null>(null);
-  const [nudgeResult, setNudgeResult] = useState<{ strike: number; stoPremium: number | null; netCreditPerContract: number | null; netCreditTotal: number | null } | null>(null);
+  // Track whether premium was recently updated (for LIVE badge)
+  const [premiumUpdated, setPremiumUpdated] = useState(false);
+  const [prevStrike, setPrevStrike] = useState<number | undefined>(c.strike);
 
   // Live stock price via tRPC
   const stockPriceQuery = trpc.automation.getUnderlyingPrice.useQuery(
@@ -207,15 +209,20 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
   const fetchDteMutation = trpc.automation.fetchRollTargetForDTE.useMutation({
     onSuccess: (data) => {
       setNearbyExps(data.nearbyExps);
+      setPremiumUpdated(true);
       onUpdateCandidate(item.positionId, {
         expiration: data.expiration,
         dte: data.dte,
         strike: data.strike,
-        newPremium: data.stoPremium ?? undefined,
-        netCredit: data.netCreditPerContract ?? undefined,
+        newPremium: data.stoPremium != null ? data.stoPremium : undefined,
+        netCredit: data.netCreditPerContract != null ? data.netCreditPerContract : undefined,
         delta: data.delta ?? undefined,
       });
-      toast.success(`Rolled to ${data.expiration} (${data.dte}d) @ $${data.strike}`);
+      if (data.stoPremium != null) {
+        toast.success(`DTE → ${data.dte}d @ $${data.strike} · Premium: $${data.stoPremium?.toFixed(2)}`);
+      } else {
+        toast.warning(`DTE → ${data.dte}d @ $${data.strike} — premium unavailable`);
+      }
     },
     onError: (err) => toast.error(`DTE fetch failed: ${err.message}`),
   });
@@ -223,18 +230,19 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
   const fetchStrikeMutation = trpc.automation.fetchStrikeQuote.useMutation({
     onSuccess: (data) => {
       setNudgeLoading(null);
-      setNudgeResult({
-        strike: data.strike,
-        stoPremium: data.stoPremium,
-        netCreditPerContract: data.netCreditPerContract,
-        netCreditTotal: data.netCreditTotal,
-      });
+      setPrevStrike(c.strike);
+      setPremiumUpdated(true);
+      // Write all updated values directly into the candidate via parent state
       onUpdateCandidate(item.positionId, {
         strike: data.strike,
-        newPremium: data.stoPremium ?? undefined,
-        netCredit: data.netCreditPerContract ?? undefined,
+        newPremium: data.stoPremium != null ? data.stoPremium : undefined,
+        netCredit: data.netCreditPerContract != null ? data.netCreditPerContract : undefined,
       });
-      toast.success(`Strike updated to $${data.strike}`);
+      if (data.stoPremium == null) {
+        toast.warning(`Strike updated to $${data.strike} — premium unavailable (illiquid strike)`);
+      } else {
+        toast.success(`Strike updated to $${data.strike} · Premium: $${data.stoPremium?.toFixed(2)}`);
+      }
     },
     onError: (err) => {
       setNudgeLoading(null);
@@ -473,21 +481,21 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
                   </div>
                 </div>
                 <div><span className="text-muted-foreground">New Expiry</span><p className="font-mono font-semibold text-orange-300">{c.expiration ?? '\u2014'}</p></div>
-                {/* New STO Premium — reactive to nudge result */}
+                {/* New STO Premium — always reads from c.newPremium (updated via onUpdateCandidate) */}
                 <div>
-                  <span className="text-muted-foreground flex items-center gap-1">New STO Prem.{nudgeResult && <span className="text-[9px] text-sky-400 font-semibold">LIVE</span>}</span>
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    New STO Prem.
+                    {premiumUpdated && <span className="text-[9px] text-sky-400 font-semibold animate-pulse">LIVE</span>}
+                  </span>
                   <p className={`font-mono font-semibold ${
-                    nudgeResult
-                      ? (nudgeResult.stoPremium ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
-                      : 'text-emerald-400'
+                    c.newPremium == null ? 'text-muted-foreground' :
+                    c.newPremium >= 0 ? 'text-emerald-400' : 'text-red-400'
                   }`}>
-                    {nudgeResult ? fmt(nudgeResult.stoPremium) : fmt(c.newPremium)}
+                    {c.newPremium != null ? fmt(c.newPremium) : (nudgeLoading ? '...' : '—')}
                   </p>
-                  {nudgeResult && c.newPremium !== undefined && (
-                    <p className={`text-[10px] font-mono ${
-                      (nudgeResult.stoPremium ?? 0) > (c.newPremium ?? 0) ? 'text-emerald-400' : 'text-red-400'
-                    }`}>
-                      {(nudgeResult.stoPremium ?? 0) > (c.newPremium ?? 0) ? '\u2191' : '\u2193'} was {fmt(c.newPremium)}
+                  {premiumUpdated && prevStrike !== undefined && prevStrike !== c.strike && (
+                    <p className="text-[10px] text-muted-foreground/60 font-mono">
+                      strike: ${prevStrike?.toFixed(0)} → ${c.strike?.toFixed(0)}
                     </p>
                   )}
                 </div>
@@ -497,27 +505,18 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
                 {c.delta !== undefined && (
                   <div><span className="text-muted-foreground">New Delta</span><p className="font-mono font-semibold">{c.delta?.toFixed(2)}</p></div>
                 )}
-                {/* Net Credit total — reactive to nudge result */}
+                {/* Net Credit total — always reads from calcNetTotal(item) which uses updated c.netCredit */}
                 <div className="col-span-2 p-2 rounded-md bg-muted/20 border border-border/30">
                   <span className="text-muted-foreground text-[10px] flex items-center gap-1">
                     Net Credit (total)
-                    {nudgeResult && <span className="text-[9px] text-sky-400 font-semibold">LIVE</span>}
-                    {(liveCredit !== undefined && liveCredit !== null && !nudgeResult) && <span className="text-[9px] text-sky-400">refreshed</span>}
+                    {premiumUpdated && <span className="text-[9px] text-sky-400 font-semibold animate-pulse">LIVE</span>}
+                    {(liveCredit !== undefined && liveCredit !== null && !premiumUpdated) && <span className="text-[9px] text-sky-400">refreshed</span>}
                   </span>
                   <p className={`font-mono font-bold text-base mt-0.5 ${
-                    nudgeResult
-                      ? (nudgeResult.netCreditTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
-                      : (effectiveNetTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                    (effectiveNetTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
                   }`}>
-                    {nudgeResult ? fmtSigned(nudgeResult.netCreditTotal) : fmtSigned(effectiveNetTotal)}
+                    {fmtSigned(effectiveNetTotal)}
                   </p>
-                  {nudgeResult && (
-                    <p className={`text-[10px] font-mono mt-0.5 ${
-                      (nudgeResult.netCreditTotal ?? 0) > (effectiveNetTotal ?? 0) ? 'text-emerald-400' : 'text-red-400'
-                    }`}>
-                      {(nudgeResult.netCreditTotal ?? 0) > (effectiveNetTotal ?? 0) ? '\u2191' : '\u2193'} was {fmtSigned(effectiveNetTotal)}
-                    </p>
-                  )}
                 </div>
               </div>
             </section>
