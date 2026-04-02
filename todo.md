@@ -8691,3 +8691,11 @@ ROC Fix Mar 18 2026
 - [x] FIX: DTE column added as sortable header in Roll Order Review table
 - [x] FIX: fetchRollTargetForDTE now tries up to 5 closest expirations with fallback loop (not just exact DTE match)
 - [x] FIX: stoPremium handles null bid/ask gracefully in DTE fetch procedure
+
+## CRITICAL FIX: Premium Update on DTE Change + Strike Nudge (Apr 2, 2026 - Round 3)
+- [x] ROOT CAUSE FOUND: fetchRollTargetForDTE used `o.type` but Tradier returns `o.option_type` — chain filter always returned empty array
+- [x] FIX: Changed `o.type === input.optionType` → `o.option_type === input.optionType` in fetchRollTargetForDTE
+- [x] FIX: Added UTC date methods (getUTCFullYear/Month/Date) in both fetchStrikeQuote and fetchRollTargetForDTE to prevent timezone off-by-one in OCC symbol construction
+- [x] FIX: BTC cost lookup in fetchRollTargetForDTE now handles padded/trimmed symbol variants
+- [x] Added comprehensive server-side logging (OCC symbol construction, chain filter results, BTC lookup results)
+- [x] Added 8 unit tests proving the old filter was broken and the new filter works correctly (8/8 passing)

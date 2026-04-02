@@ -3023,13 +3023,15 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       const tradierApi = createTradierAPI(tradierApiKey);
 
       // Build the OCC symbol for the new strike
+      // Use UTC methods to avoid timezone off-by-one (expiration strings are YYYY-MM-DD, parsed as UTC midnight)
       const d = new Date(input.expiration);
-      const yy = d.getFullYear().toString().slice(2);
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
+      const yy = d.getUTCFullYear().toString().slice(2);
+      const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(d.getUTCDate()).padStart(2, '0');
       const typeChar = input.optionType === 'call' ? 'C' : 'P';
       const strikeStr = (input.strike * 1000).toFixed(0).padStart(8, '0');
       const newSymbol = `${input.symbol.padEnd(6)}${yy}${mm}${dd}${typeChar}${strikeStr}`;
+      console.log(`[fetchStrikeQuote] Building OCC symbol: underlying=${input.symbol} exp=${input.expiration} strike=${input.strike} type=${input.optionType} → ${newSymbol.trim()}`);
       const newSymbolTrimmed = newSymbol.trim();
       const currentSymbolTrimmed = input.currentOptionSymbol.trim();
       const quotes = await tradierApi.getQuotes([input.currentOptionSymbol, newSymbol]);
@@ -3128,8 +3130,10 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       let filteredChain: any[] = [];
       for (const candidate of sortedByCloseness.slice(0, 5)) {
         const chain = await tradierApi.getOptionChain(input.symbol, candidate.exp, true);
+        console.log(`[fetchRollTargetForDTE] ${input.symbol} exp=${candidate.exp} dte=${candidate.dte} chain.length=${chain.length} sample_option_type=${(chain as any[])[0]?.option_type ?? 'N/A'}`);
+        // CRITICAL FIX: Tradier returns option_type (not type) in OptionContract
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const f = (chain as any[]).filter((o: any) => o.type === input.optionType);
+        const f = (chain as any[]).filter((o: any) => o.option_type === input.optionType);
         if (f.length > 0) {
           best = candidate;
           filteredChain = f;
@@ -3146,23 +3150,29 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         Math.abs(curr.strike - input.currentShortStrike) < Math.abs(prev.strike - input.currentShortStrike) ? curr : prev
       );
 
-      // Get BTC cost for current position
+      // Get BTC cost for current position (handle padded/trimmed symbol variants)
       const currentQuotes = await tradierApi.getQuotes([input.currentOptionSymbol]);
-      const currentQ = (currentQuotes as Array<{ symbol: string; ask?: number }>).find(q => q.symbol === input.currentOptionSymbol);
+      const currentSymTrimmed = input.currentOptionSymbol.trim();
+      const currentQ = (currentQuotes as Array<{ symbol: string; ask?: number }>).find(
+        q => q.symbol === input.currentOptionSymbol || q.symbol?.trim() === currentSymTrimmed
+      );
       const btcCost = currentQ?.ask ?? null;
+      console.log(`[fetchRollTargetForDTE] BTC lookup: sym=${input.currentOptionSymbol.trim()} found=${!!currentQ} ask=${currentQ?.ask}`);
       const rawBid = closestStrike.bid ?? 0;
       const rawAsk = closestStrike.ask ?? 0;
       const stoPremium = rawBid > 0 ? rawBid : (rawAsk > 0 ? rawAsk / 2 : null);
       const netCreditPerContract = (stoPremium !== null && btcCost !== null) ? stoPremium - btcCost : null;
 
       // Build OCC symbol for the new option
+      // Use UTC methods to avoid timezone off-by-one (expiration strings are YYYY-MM-DD, parsed as UTC midnight)
       const d = new Date(best.exp);
-      const yy = d.getFullYear().toString().slice(2);
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
+      const yy = d.getUTCFullYear().toString().slice(2);
+      const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(d.getUTCDate()).padStart(2, '0');
       const typeChar = input.optionType === 'call' ? 'C' : 'P';
       const strikeStr = (closestStrike.strike * 1000).toFixed(0).padStart(8, '0');
       const newSymbol = `${input.symbol.padEnd(6)}${yy}${mm}${dd}${typeChar}${strikeStr}`;
+      console.log(`[fetchRollTargetForDTE] Built OCC symbol: ${newSymbol.trim()} strike=${closestStrike.strike} bid=${closestStrike.bid} ask=${closestStrike.ask} stoPremium=${stoPremium} btcCost=${btcCost}`);
 
       // Return nearby expirations for the DTE picker UI
       const nearbyExps = expsWithDte
