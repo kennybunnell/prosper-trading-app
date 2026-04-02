@@ -304,37 +304,39 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
         </Button>
       </div>
 
-      {/* Stock price bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-muted/20 border-b border-border/30">
-        <div className="flex items-center gap-2">
-          {priceLoading ? (
-            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" /> Fetching price...
-            </span>
-          ) : stockPrice !== null ? (
-            <>
-              <span className="text-[11px] text-muted-foreground">Last:</span>
-              <span className="font-mono font-bold text-sm text-foreground">${stockPrice.toFixed(2)}</span>
-              {stockPriceQuery.data?.changePct !== null && stockPriceQuery.data?.changePct !== undefined && (
-                <span className={`text-[10px] font-semibold ${
-                  (stockPriceQuery.data.changePct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
-                }`}>
-                  {(stockPriceQuery.data.changePct ?? 0) >= 0 ? '+' : ''}{stockPriceQuery.data.changePct?.toFixed(2)}%
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="text-[11px] text-muted-foreground/50">Price unavailable</span>
-          )}
+      {/* Current Price — prominent box */}
+      <div className="px-4 py-2.5 bg-muted/30 border-b border-border/40">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-0.5">Current Price</p>
+            {priceLoading ? (
+              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Loading...
+              </span>
+            ) : stockPrice !== null ? (
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono font-bold text-lg text-foreground">${stockPrice.toFixed(2)}</span>
+                {stockPriceQuery.data?.changePct !== null && stockPriceQuery.data?.changePct !== undefined && (
+                  <span className={`text-xs font-semibold ${
+                    (stockPriceQuery.data.changePct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  }`}>
+                    {(stockPriceQuery.data.changePct ?? 0) >= 0 ? '\u25b2' : '\u25bc'} {Math.abs(stockPriceQuery.data.changePct ?? 0).toFixed(2)}%
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-xs text-muted-foreground/50">Unavailable</span>
+            )}
+          </div>
+          <a
+            href={`https://www.tradingview.com/chart/?symbol=${item.symbol}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-sky-500/10 border border-sky-500/30 text-sky-400 hover:bg-sky-500/20 transition-colors text-xs font-medium"
+          >
+            <TrendingUp className="h-3.5 w-3.5" /> View Chart
+          </a>
         </div>
-        <a
-          href={`https://www.tradingview.com/chart/?symbol=${item.symbol}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 text-[10px] text-sky-400 hover:text-sky-300 transition-colors"
-        >
-          <TrendingUp className="h-3 w-3" /> Chart
-        </a>
       </div>
 
       <div className="flex-1 overflow-y-auto">

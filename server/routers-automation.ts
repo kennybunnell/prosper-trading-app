@@ -3030,24 +3030,57 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       const typeChar = input.optionType === 'call' ? 'C' : 'P';
       const strikeStr = (input.strike * 1000).toFixed(0).padStart(8, '0');
       const newSymbol = `${input.symbol.padEnd(6)}${yy}${mm}${dd}${typeChar}${strikeStr}`;
-
+      const newSymbolTrimmed = newSymbol.trim();
+      const currentSymbolTrimmed = input.currentOptionSymbol.trim();
       const quotes = await tradierApi.getQuotes([input.currentOptionSymbol, newSymbol]);
-      const qMap = new Map(quotes.map(q => [q.symbol, q]));
-      const currentQ = qMap.get(input.currentOptionSymbol);
-      const newQ = qMap.get(newSymbol);
-
+      // Build map with both padded and trimmed keys — Tradier may return symbols either way
+      const qMap = new Map<string, (typeof quotes)[0]>();
+      for (const q of quotes) {
+        if (q.symbol) {
+          qMap.set(q.symbol, q);
+          qMap.set(q.symbol.trim(), q);
+        }
+      }
+      console.log(`[fetchStrikeQuote] symbol=${newSymbol} trimmed=${newSymbolTrimmed} found=${qMap.has(newSymbol) || qMap.has(newSymbolTrimmed)} keys=[${Array.from(qMap.keys()).join('|')}]`);
+      const currentQ = qMap.get(input.currentOptionSymbol) ?? qMap.get(currentSymbolTrimmed);
+      const newQ = qMap.get(newSymbol) ?? qMap.get(newSymbolTrimmed);
       const btcCost = currentQ?.ask ?? null;   // cost to buy back current
-      const stoPremium = newQ?.bid ?? null;    // credit from new STO
+      let stoPremium = newQ?.bid ?? null;    // credit from new STO
+      let resolvedStrike = input.strike;
+      let resolvedSymbol = newSymbol;
+
+      // Fallback: if direct quote lookup returned nothing, fetch the option chain
+      // and find the closest available strike with a non-zero bid
+      if (stoPremium === null) {
+        console.log(`[fetchStrikeQuote] Direct quote not found for ${newSymbol}, falling back to option chain lookup`);
+        try {
+          const chain = await tradierApi.getOptionChain(input.symbol, input.expiration, false);
+          const typeFilter = input.optionType === 'call' ? 'call' : 'put';
+          const candidates = chain
+            .filter(c => c.option_type === typeFilter && c.bid > 0)
+            .sort((a, b) => Math.abs(a.strike - input.strike) - Math.abs(b.strike - input.strike));
+          if (candidates.length > 0) {
+            const best = candidates[0];
+            stoPremium = best.bid;
+            resolvedStrike = best.strike;
+            resolvedSymbol = best.symbol;
+            console.log(`[fetchStrikeQuote] Chain fallback found: ${best.symbol} bid=${best.bid}`);
+          }
+        } catch (chainErr) {
+          console.warn(`[fetchStrikeQuote] Chain fallback failed: ${chainErr}`);
+        }
+      }
+
       const netCreditPerContract = btcCost !== null && stoPremium !== null ? stoPremium - btcCost : null;
       const netCreditTotal = netCreditPerContract !== null ? netCreditPerContract * input.quantity : null;
 
       return {
         positionId: input.positionId,
-        newSymbol,
-        strike: input.strike,
-        bid: newQ?.bid ?? null,
+        newSymbol: resolvedSymbol,
+        strike: resolvedStrike,
+        bid: stoPremium,
         ask: newQ?.ask ?? null,
-        mid: newQ ? (newQ.bid + newQ.ask) / 2 : null,
+        mid: stoPremium !== null ? stoPremium : null,
         btcCost,
         stoPremium,
         netCreditPerContract,

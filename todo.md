@@ -8670,3 +8670,10 @@ ROC Fix Mar 18 2026
 - [x] FIX: Strike nudge now updates New STO Prem and Net Credit display immediately with LIVE badge and delta vs original
 - [x] FIX: DTE selector is now a full-width card with clear "Change DTE" label, preset buttons (7/14/21/30/45/60d), and prominent Fetch button
 - [x] Net Credit (total) box shows LIVE badge and arrow delta when nudge result is active
+
+## Roll Order Review — Nudge/DTE Premium Persistence Fix (Apr 2, 2026)
+- [x] FIX: fetchStrikeQuote now uses normalized symbol lookup (padded + trimmed) + option chain fallback
+- [x] FIX: Strike nudge result writes newPremium/netCredit into candidate via onUpdateCandidate
+- [x] FIX: DTE fetch result writes newPremium/netCredit into candidate via onUpdateCandidate
+- [x] FIX: Per Contract and Total columns in table reflect updated premium after nudge/DTE change
+- [x] Current stock price redesigned as prominent labeled box with large font + View Chart button
