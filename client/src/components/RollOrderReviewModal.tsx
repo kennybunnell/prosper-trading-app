@@ -380,7 +380,40 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
           {/* Roll Target */}
           {isRoll && (
             <section>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">Roll Target</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">Roll Target</p>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 px-1.5 text-[9px] text-muted-foreground/60 hover:text-orange-300 hover:bg-orange-500/10 border border-transparent hover:border-orange-500/30"
+                        onClick={() => {
+                          const original = item.allCandidates[0];
+                          if (!original) return;
+                          onUpdateCandidate(item.positionId, {
+                            strike: original.strike,
+                            expiration: original.expiration,
+                            dte: original.dte,
+                            newPremium: original.newPremium,
+                            netCredit: original.netCredit,
+                            delta: original.delta,
+                          });
+                          setPremiumUpdated(false);
+                          setPrevStrike(original.strike);
+                          toast.info('Reset to original scanner recommendation');
+                        }}
+                      >
+                        <RefreshCw className="h-2.5 w-2.5 mr-0.5" /> Reset
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="left" className="text-xs">
+                      Reset to scanner&apos;s original recommendation
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                 {/* Strike with nudge buttons */}
                 <div>
@@ -508,7 +541,14 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
                     c.newPremium >= 0 ? 'text-emerald-400' : 'text-red-400'
                   }`}>
                     {c.newPremium != null ? fmt(c.newPremium) : (nudgeLoading ? '...' : '—')}
+                    <span className="text-[10px] text-muted-foreground/60 font-normal ml-1">/share</span>
                   </p>
+                  {/* Full contract value = per-share × 100 */}
+                  {c.newPremium != null && (
+                    <p className="text-[10px] text-emerald-400/70 font-mono mt-0.5">
+                      {fmt(c.newPremium * 100)}/contract
+                    </p>
+                  )}
                   {premiumUpdated && prevStrike !== undefined && prevStrike !== c.strike && (
                     <p className="text-[10px] text-muted-foreground/60 font-mono">
                       strike: ${prevStrike?.toFixed(0)} → ${c.strike?.toFixed(0)}
@@ -836,7 +876,9 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
   React.useEffect(() => {
     setItems(initialItems);
     setSelectedId(null);
-    setSortKey('none');
+    // Default: sort by current DTE ascending so most time-critical positions appear first
+    setSortKey('dte');
+    setSortDir('asc');
     setLiveCredits(new Map());
     setRefreshedAt(null);
   }, [initialItems]);
@@ -849,9 +891,9 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
       let va: number | string = 0;
       let vb: number | string = 0;
       if (sortKey === 'dte') {
-        // Sort by current position DTE (lowest first = most urgent)
-        const dtea = a.candidate?.dte ?? a.currentDte ?? 999;
-        const dteb = b.candidate?.dte ?? b.currentDte ?? 999;
+        // Sort by CURRENT position DTE (lowest first = most urgent — needs attention soonest)
+        const dtea = a.currentDte ?? 999;
+        const dteb = b.currentDte ?? 999;
         return sortDir === 'asc' ? dtea - dteb : dteb - dtea;
       } else if (sortKey === 'symbol') { va = a.symbol; vb = b.symbol; }
       else if (sortKey === 'total') {

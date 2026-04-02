@@ -8710,3 +8710,8 @@ ROC Fix Mar 18 2026
 - [x] FIX: netCredit stored from fetchStrikeQuote/fetchRollTargetForDTE was per-share; must multiply by 100 to match rollDetection.ts convention
 - [x] FIX: Token refresh loop - added 15-minute cooldown between auto-refresh attempts
 - [x] FIX: DTE buttons now show ~Xd with tooltip "Find nearest expiration to X DTE" to clarify range behavior
+
+## UX Improvements: Roll Order Review (Apr 2, 2026 - Round 6)
+- [x] Add "Reset to Original" button in detail panel to revert strike/DTE/premium to scanner's original candidate
+- [x] Verify DTE ascending default sort is working (lowest DTE at top of list)
+- [x] Show full contract value next to "New STO Prem." (e.g., "$310/contract" secondary line)
