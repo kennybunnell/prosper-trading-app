@@ -8657,3 +8657,11 @@ ROC Fix Mar 18 2026
 - [x] Add DTE selector in detail panel: show candidate DTEs as buttons, allow custom DTE input, swap to matching candidate or re-fetch
 - [x] Add strike nudge buttons in detail panel: CC → move strike UP, CSP → move strike DOWN, re-fetch bid/ask and recalculate net credit
 - [x] Add tRPC procedures: automation.fetchStrikeQuote + automation.fetchRollTargetForDTE
+
+## Roll Order Review — Scroll Fix + DTE Range + Stock Price/Chart (Apr 2, 2026)
+- [x] Fix: table body must scroll independently; sticky header row and sticky footer action bar
+- [x] Add DTE range selector to Roll Positions toolbar (7-14d, 14-30d, 30-45d, 45-60d, custom)
+- [x] Pass dtMin/dtMax to getRollCandidates scanner so only expirations in range are returned
+- [x] Add current stock price (last) to detail panel — fetched live from Tradier on row select
+- [x] Add "View Chart" button in detail panel — opens TradingView chart for the symbol in new tab
+- [x] Add tRPC procedure: automation.getUnderlyingPrice

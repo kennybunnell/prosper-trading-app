@@ -604,6 +604,14 @@ export default function AutomationDashboard() {
   // ── Scan All Roll Candidates ─────────────────────────────────────────────
   const [isScanningAll, setIsScanningAll] = useState(false);
   const [scanAllProgress, setScanAllProgress] = useState<{ done: number; total: number } | null>(null);
+  // DTE range presets for Scan All (null = use server default logic)
+  const DTE_PRESETS = [
+    { label: '7–14d', min: 7, max: 14 },
+    { label: '14–30d', min: 14, max: 30 },
+    { label: '30–45d', min: 30, max: 45 },
+    { label: '45–60d', min: 45, max: 60 },
+  ] as const;
+  const [scanDteRange, setScanDteRange] = useState<{ min: number; max: number } | null>(null);
   const scanAllRollCandidates = trpc.rolls.scanAllRollCandidates.useMutation({
     onSuccess: (data) => {
       setIsScanningAll(false);
@@ -654,7 +662,7 @@ export default function AutomationDashboard() {
     if (positions.length === 0) { toast.info('No positions match that filter'); return; }
     setIsScanningAll(true);
     setScanAllProgress({ done: 0, total: positions.length });
-    scanAllRollCandidates.mutate({ positions });
+    scanAllRollCandidates.mutate({ positions, ...(scanDteRange ? { dteRange: scanDteRange } : {}) });
   };
 
   // Build RollOrderItem[] from the current selection for the review modal
@@ -2556,7 +2564,40 @@ export default function AutomationDashboard() {
 
           {/* Scan All buttons — appears after a roll scan has been run */}
           {rollScanResults && rollScanResults.all.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 p-3 bg-orange-950/20 border border-orange-500/20 rounded-lg">
+            <div className="flex flex-col gap-2 p-3 bg-orange-950/20 border border-orange-500/20 rounded-lg">
+              {/* DTE Range Selector */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-orange-400/70 mr-1">Target DTE:</span>
+                <button
+                  onClick={() => setScanDteRange(null)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                    scanDteRange === null
+                      ? 'bg-orange-500/30 border-orange-500/60 text-orange-200'
+                      : 'border-orange-500/20 text-orange-400/60 hover:border-orange-500/40 hover:text-orange-300'
+                  }`}
+                >
+                  Auto
+                </button>
+                {DTE_PRESETS.map(p => (
+                  <button
+                    key={p.label}
+                    onClick={() => setScanDteRange(scanDteRange?.min === p.min && scanDteRange?.max === p.max ? null : { min: p.min, max: p.max })}
+                    className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                      scanDteRange?.min === p.min && scanDteRange?.max === p.max
+                        ? 'bg-orange-500/30 border-orange-500/60 text-orange-200'
+                        : 'border-orange-500/20 text-orange-400/60 hover:border-orange-500/40 hover:text-orange-300'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+                {scanDteRange && (
+                  <span className="text-[10px] text-orange-300/60 ml-1">
+                    Scanner will look for expirations {scanDteRange.min}–{scanDteRange.max} DTE out
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold text-orange-300 uppercase tracking-wider mr-1">Scan All:</span>
               <TooltipProvider>
                 {/* Master Roll All */}
@@ -2606,6 +2647,7 @@ export default function AutomationDashboard() {
                   </span>
                 )}
               </TooltipProvider>
+              </div>
             </div>
           )}
 

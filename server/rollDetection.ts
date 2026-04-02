@@ -441,7 +441,8 @@ export async function generateRollCandidates(
   analysis: RollAnalysis,
   expirations: string[],
   underlyingPrice: number,
-  tradierClient: any
+  tradierClient: any,
+  dteOverride?: { min?: number; max?: number }
 ): Promise<RollCandidate[]> {
   // Generate roll candidates for position
   
@@ -474,8 +475,9 @@ export async function generateRollCandidates(
   // Filter expirations: look 14-45 DTE out from today (or 0-21 for 0 DTE positions).
   // This matches Tastytrade's Roll Expirations menu which shows credits at 6-37 DTE.
   // We always look at least 1 DTE beyond the current expiry to avoid rolling into the same expiry.
-  const minDTE = currentDTE === 0 ? 0 : Math.max(1, currentDTE + 1);
-  const maxDTE = currentDTE === 0 ? 21 : Math.max(45, currentDTE + 45);
+  // dteOverride allows the user to specify a custom DTE range from the UI.
+  const minDTE = dteOverride?.min !== undefined ? dteOverride.min : (currentDTE === 0 ? 0 : Math.max(1, currentDTE + 1));
+  const maxDTE = dteOverride?.max !== undefined ? dteOverride.max : (currentDTE === 0 ? 21 : Math.max(45, currentDTE + 45));
   
   const suitableExpirations = expirations.filter((expDate: string) => {
     const dte = calculateDTE(expDate);

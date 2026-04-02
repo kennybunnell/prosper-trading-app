@@ -1036,6 +1036,7 @@ export const rollsRouter = router({
         quantity: z.number().optional(),
         spreadWidth: z.number().optional(),
       })),
+      dteRange: z.object({ min: z.number(), max: z.number() }).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const { getApiCredentials } = await import('./db');
@@ -1131,7 +1132,8 @@ export const rollsRouter = router({
               mockAnalysis,
               expirations,
               underlyingPrice,
-              tradier
+              tradier,
+              input.dteRange
             );
             const annotated = candidates.map(c => ({
               ...c,

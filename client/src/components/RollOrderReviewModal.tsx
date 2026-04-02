@@ -12,7 +12,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Tooltip,
   TooltipContent,
@@ -191,11 +190,19 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
 
   // DTE input state
   const [dteInput, setDteInput] = useState('');
-  const [nearbyExps, setNearbyExps] = useState<Array<{ expiration: string; dte: number }>>([]);
+  const [nearbyExps, setNearbyExps] = useState<Array<{ expiration: string; dte: number }>>([]); 
 
   // Strike nudge state
   const [nudgeLoading, setNudgeLoading] = useState<'up' | 'down' | null>(null);
   const [nudgeResult, setNudgeResult] = useState<{ strike: number; stoPremium: number | null; netCreditPerContract: number | null; netCreditTotal: number | null } | null>(null);
+
+  // Live stock price via tRPC
+  const stockPriceQuery = trpc.automation.getUnderlyingPrice.useQuery(
+    { symbol: item.symbol },
+    { staleTime: 30_000, retry: 1 }
+  );
+  const stockPrice = stockPriceQuery.data?.price ?? null;
+  const priceLoading = stockPriceQuery.isLoading;
 
   const fetchDteMutation = trpc.automation.fetchRollTargetForDTE.useMutation({
     onSuccess: (data) => {
@@ -297,7 +304,40 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
         </Button>
       </div>
 
-      <ScrollArea className="flex-1">
+      {/* Stock price bar */}
+      <div className="flex items-center justify-between px-4 py-2 bg-muted/20 border-b border-border/30">
+        <div className="flex items-center gap-2">
+          {priceLoading ? (
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" /> Fetching price...
+            </span>
+          ) : stockPrice !== null ? (
+            <>
+              <span className="text-[11px] text-muted-foreground">Last:</span>
+              <span className="font-mono font-bold text-sm text-foreground">${stockPrice.toFixed(2)}</span>
+              {stockPriceQuery.data?.changePct !== null && stockPriceQuery.data?.changePct !== undefined && (
+                <span className={`text-[10px] font-semibold ${
+                  (stockPriceQuery.data.changePct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                }`}>
+                  {(stockPriceQuery.data.changePct ?? 0) >= 0 ? '+' : ''}{stockPriceQuery.data.changePct?.toFixed(2)}%
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="text-[11px] text-muted-foreground/50">Price unavailable</span>
+          )}
+        </div>
+        <a
+          href={`https://www.tradingview.com/chart/?symbol=${item.symbol}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-[10px] text-sky-400 hover:text-sky-300 transition-colors"
+        >
+          <TrendingUp className="h-3 w-3" /> Chart
+        </a>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
         <div className="px-4 py-3 space-y-4 text-xs">
 
           {/* Current Position */}
@@ -496,7 +536,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
             <p className="font-mono text-xs text-muted-foreground break-all">{item.accountNumber}</p>
           </section>
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
@@ -911,7 +951,7 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
               <button onClick={() => { setSortKey('none'); setSortDir('asc'); }} className="underline hover:no-underline ml-2">Clear sort</button>
             </div>
           )}
-          <ScrollArea className="flex-1">
+          <div className="flex-1 overflow-y-auto overflow-x-auto">
             <div className="min-w-[1020px]">
               <table className="w-full border-collapse">
                 <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur-sm">
@@ -965,7 +1005,7 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
                 </tbody>
               </table>
             </div>
-          </ScrollArea>
+          </div>
         </div>
 
         {/* Detail panel */}

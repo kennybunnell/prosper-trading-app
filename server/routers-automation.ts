@@ -3139,4 +3139,26 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         nearbyExps,
       };
     }),
+
+  // ── Get Underlying Stock Price ─────────────────────────────────────────────
+  getUnderlyingPrice: protectedProcedure
+    .input(z.object({ symbol: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const { getApiCredentials } = await import('./db');
+      const { TradierAPI } = await import('./tradier');
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials) throw new Error('Credentials not found');
+      const tradierApiKey = credentials.tradierApiKey || process.env.TRADIER_API_KEY;
+      if (!tradierApiKey) throw new Error('Tradier API key not configured');
+      const tradier = new TradierAPI(tradierApiKey, false);
+      const quote = await tradier.getQuote(input.symbol);
+      return {
+        symbol: input.symbol,
+        price: quote.last ?? quote.bid ?? quote.ask ?? null,
+        bid: quote.bid ?? null,
+        ask: quote.ask ?? null,
+        change: (quote as any).change ?? null,
+        changePct: (quote as any).change_percentage ?? null,
+      };
+    }),
 });
