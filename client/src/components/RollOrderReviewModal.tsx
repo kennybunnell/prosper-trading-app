@@ -406,77 +406,116 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
                   </p>
                 </div>
 
-                {/* DTE with selector */}
-                <div>
-                  <span className="text-muted-foreground flex items-center gap-1">
-                    <Calendar className="h-3 w-3" /> New DTE
-                  </span>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <p className="font-mono font-semibold text-orange-300">{c.dte ?? '—'}d</p>
-                    {fetchDteMutation.isPending && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-                  </div>
-                  {/* DTE quick-select from nearby expirations */}
-                  {nearbyExps.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {nearbyExps.slice(0, 6).map(e => (
-                        <button
-                          key={e.expiration}
-                          onClick={() => handleDteFetch(e.dte)}
-                          disabled={fetchDteMutation.isPending}
-                          className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
-                            c.dte === e.dte
-                              ? 'bg-orange-500/20 text-orange-300 border-orange-500/30'
-                              : 'bg-muted/30 text-muted-foreground border-border/50 hover:bg-muted/60'
-                          }`}
-                        >
-                          {e.dte}d
-                        </button>
-                      ))}
+                {/* DTE with selector — full-width interactive section */}
+                <div className="col-span-2 p-2 rounded-md bg-muted/20 border border-border/30">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-muted-foreground flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider">
+                      <Calendar className="h-3 w-3" /> Change DTE
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-mono font-bold text-orange-300 text-sm">{c.dte ?? '\u2014'}d</span>
+                      {fetchDteMutation.isPending && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
                     </div>
-                  )}
+                  </div>
+                  {/* Quick-select preset DTE buttons */}
+                  <div className="flex flex-wrap gap-1 mb-1.5">
+                    {[7, 14, 21, 30, 45, 60].map(dte => (
+                      <button
+                        key={dte}
+                        onClick={() => handleDteFetch(dte)}
+                        disabled={fetchDteMutation.isPending}
+                        className={`text-[11px] px-2 py-1 rounded border font-medium transition-colors ${
+                          c.dte === dte
+                            ? 'bg-orange-500/30 text-orange-300 border-orange-500/50'
+                            : 'bg-muted/40 text-muted-foreground border-border/60 hover:bg-muted/70 hover:text-foreground'
+                        }`}
+                      >
+                        {dte}d
+                      </button>
+                    ))}
+                    {nearbyExps.filter(e => ![7,14,21,30,45,60].includes(e.dte)).slice(0, 3).map(e => (
+                      <button
+                        key={e.expiration}
+                        onClick={() => handleDteFetch(e.dte)}
+                        disabled={fetchDteMutation.isPending}
+                        className={`text-[11px] px-2 py-1 rounded border font-medium transition-colors ${
+                          c.dte === e.dte
+                            ? 'bg-orange-500/30 text-orange-300 border-orange-500/50'
+                            : 'bg-sky-500/10 text-sky-400 border-sky-500/30 hover:bg-sky-500/20'
+                        }`}
+                      >
+                        {e.dte}d
+                      </button>
+                    ))}
+                  </div>
                   {/* Custom DTE input */}
-                  <div className="flex items-center gap-1 mt-1.5">
+                  <div className="flex items-center gap-1.5">
                     <Input
-                      className="h-6 w-16 text-[10px] font-mono px-1.5 py-0 bg-background/50"
-                      placeholder="DTE"
+                      className="h-7 flex-1 text-xs font-mono px-2 bg-background/50"
+                      placeholder="Custom DTE (1-180)"
                       value={dteInput}
                       onChange={e => setDteInput(e.target.value)}
                       onKeyDown={handleDteKeyDown}
                     />
                     <Button
-                      variant="ghost" size="sm"
-                      className="h-6 px-2 text-[10px] text-sky-400 hover:text-sky-300"
+                      variant="outline" size="sm"
+                      className="h-7 px-3 text-xs text-sky-400 border-sky-500/40 hover:bg-sky-500/10"
                       onClick={() => {
                         const n = parseInt(dteInput);
                         if (!isNaN(n) && n >= 1 && n <= 180) handleDteFetch(n);
                       }}
-                      disabled={fetchDteMutation.isPending}
+                      disabled={fetchDteMutation.isPending || !dteInput}
                     >
-                      Fetch
+                      {fetchDteMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Fetch'}
                     </Button>
                   </div>
                 </div>
-
-                <div><span className="text-muted-foreground">New Expiry</span><p className="font-mono font-semibold text-orange-300">{c.expiration ?? '—'}</p></div>
-                <div><span className="text-muted-foreground">New STO Prem.</span><p className="font-mono font-semibold text-emerald-400">{fmt(c.newPremium)}</p></div>
+                <div><span className="text-muted-foreground">New Expiry</span><p className="font-mono font-semibold text-orange-300">{c.expiration ?? '\u2014'}</p></div>
+                {/* New STO Premium — reactive to nudge result */}
+                <div>
+                  <span className="text-muted-foreground flex items-center gap-1">New STO Prem.{nudgeResult && <span className="text-[9px] text-sky-400 font-semibold">LIVE</span>}</span>
+                  <p className={`font-mono font-semibold ${
+                    nudgeResult
+                      ? (nudgeResult.stoPremium ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                      : 'text-emerald-400'
+                  }`}>
+                    {nudgeResult ? fmt(nudgeResult.stoPremium) : fmt(c.newPremium)}
+                  </p>
+                  {nudgeResult && c.newPremium !== undefined && (
+                    <p className={`text-[10px] font-mono ${
+                      (nudgeResult.stoPremium ?? 0) > (c.newPremium ?? 0) ? 'text-emerald-400' : 'text-red-400'
+                    }`}>
+                      {(nudgeResult.stoPremium ?? 0) > (c.newPremium ?? 0) ? '\u2191' : '\u2193'} was {fmt(c.newPremium)}
+                    </p>
+                  )}
+                </div>
                 {c.annualizedReturn !== undefined && (
                   <div><span className="text-muted-foreground">Ann. Return</span><p className={`font-mono font-semibold ${(c.annualizedReturn ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{c.annualizedReturn?.toFixed(1)}%</p></div>
                 )}
                 {c.delta !== undefined && (
                   <div><span className="text-muted-foreground">New Delta</span><p className="font-mono font-semibold">{c.delta?.toFixed(2)}</p></div>
                 )}
-                {nudgeResult && (
-                  <div className="col-span-2 p-1.5 rounded bg-emerald-500/10 border border-emerald-500/20">
-                    <p className="text-[10px] text-emerald-300 font-semibold">Live quote @ ${nudgeResult.strike}</p>
-                    <p className="font-mono text-[10px]">STO bid: {fmt(nudgeResult.stoPremium)} · Net/contract: {fmtSigned(nudgeResult.netCreditPerContract)}</p>
-                  </div>
-                )}
-                <div className="col-span-2">
-                  <span className="text-muted-foreground">Net Credit (total)</span>
-                  <p className={`font-mono font-bold text-sm ${(effectiveNetTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {fmtSigned(effectiveNetTotal)}
-                    {liveCredit !== undefined && liveCredit !== null && <span className="text-[10px] ml-1 text-sky-400">live</span>}
+                {/* Net Credit total — reactive to nudge result */}
+                <div className="col-span-2 p-2 rounded-md bg-muted/20 border border-border/30">
+                  <span className="text-muted-foreground text-[10px] flex items-center gap-1">
+                    Net Credit (total)
+                    {nudgeResult && <span className="text-[9px] text-sky-400 font-semibold">LIVE</span>}
+                    {(liveCredit !== undefined && liveCredit !== null && !nudgeResult) && <span className="text-[9px] text-sky-400">refreshed</span>}
+                  </span>
+                  <p className={`font-mono font-bold text-base mt-0.5 ${
+                    nudgeResult
+                      ? (nudgeResult.netCreditTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                      : (effectiveNetTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  }`}>
+                    {nudgeResult ? fmtSigned(nudgeResult.netCreditTotal) : fmtSigned(effectiveNetTotal)}
                   </p>
+                  {nudgeResult && (
+                    <p className={`text-[10px] font-mono mt-0.5 ${
+                      (nudgeResult.netCreditTotal ?? 0) > (effectiveNetTotal ?? 0) ? 'text-emerald-400' : 'text-red-400'
+                    }`}>
+                      {(nudgeResult.netCreditTotal ?? 0) > (effectiveNetTotal ?? 0) ? '\u2191' : '\u2193'} was {fmtSigned(effectiveNetTotal)}
+                    </p>
+                  )}
                 </div>
               </div>
             </section>

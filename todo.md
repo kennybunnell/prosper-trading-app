@@ -8665,3 +8665,8 @@ ROC Fix Mar 18 2026
 - [x] Add current stock price (last) to detail panel — fetched live from Tradier on row select
 - [x] Add "View Chart" button in detail panel — opens TradingView chart for the symbol in new tab
 - [x] Add tRPC procedure: automation.getUnderlyingPrice
+
+## Roll Order Review — Strike Nudge Premium Reactivity + DTE UX (Apr 2, 2026)
+- [x] FIX: Strike nudge now updates New STO Prem and Net Credit display immediately with LIVE badge and delta vs original
+- [x] FIX: DTE selector is now a full-width card with clear "Change DTE" label, preset buttons (7/14/21/30/45/60d), and prominent Fetch button
+- [x] Net Credit (total) box shows LIVE badge and arrow delta when nudge result is active
