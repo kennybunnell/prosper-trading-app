@@ -68,7 +68,7 @@ export type RollOrderItem = {
   };
 };
 
-type SortKey = 'none' | 'symbol' | 'total' | 'score';
+type SortKey = 'none' | 'symbol' | 'total' | 'score' | 'dte';
 type SortDir = 'asc' | 'desc';
 
 type Props = {
@@ -796,7 +796,8 @@ function TableRow({ item, index, total, isSelected, isSorted, onSelect, onRemove
 export function RollOrderReviewModal({ open, onClose, items: initialItems, onSubmit, isSubmitting }: Props) {
   const [items, setItems] = useState<RollOrderItem[]>(initialItems);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('none');
+  // Default: sort by DTE ascending (most time-critical positions first)
+  const [sortKey, setSortKey] = useState<SortKey>('dte');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
   const [liveCredits, setLiveCredits] = useState<Map<string, number | null>>(new Map());
@@ -831,7 +832,12 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
     return [...items].sort((a, b) => {
       let va: number | string = 0;
       let vb: number | string = 0;
-      if (sortKey === 'symbol') { va = a.symbol; vb = b.symbol; }
+      if (sortKey === 'dte') {
+        // Sort by current position DTE (lowest first = most urgent)
+        const dtea = a.candidate?.dte ?? a.currentDte ?? 999;
+        const dteb = b.candidate?.dte ?? b.currentDte ?? 999;
+        return sortDir === 'asc' ? dtea - dteb : dteb - dtea;
+      } else if (sortKey === 'symbol') { va = a.symbol; vb = b.symbol; }
       else if (sortKey === 'total') {
         const getNet = (item: RollOrderItem) => {
           const live = liveCredits.get(item.positionId);
@@ -986,7 +992,7 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
           {sortKey !== 'none' && (
             <div className="flex items-center gap-2 px-4 py-1.5 bg-orange-500/5 border-b border-orange-500/20 text-xs text-orange-300 shrink-0">
               <ArrowUpDown className="h-3 w-3" />
-              <span>Sorted by <strong>{sortKey}</strong> ({sortDir}). Reorder arrows are disabled while sorted.</span>
+              <span>Sorted by <strong>{sortKey === 'dte' ? 'DTE (closest first)' : sortKey}</strong> ({sortDir}). Reorder arrows are disabled while sorted.</span>
               <button onClick={applySort} className="underline hover:no-underline ml-1">Apply as permanent order</button>
               <button onClick={() => { setSortKey('none'); setSortDir('asc'); }} className="underline hover:no-underline ml-2">Clear sort</button>
             </div>
@@ -1002,7 +1008,9 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
                       <SortHeader label="Symbol" sortKey="symbol" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
                     </th>
                     <th className="px-2 py-2 text-center w-10"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Qty</span></th>
-                    <th className="px-2 py-2 text-left w-36"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Current</span></th>
+                    <th className="px-2 py-2 text-left w-36">
+                      <SortHeader label="Current (DTE)" sortKey="dte" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                    </th>
                     <th className="px-2 py-2 text-left w-16"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Action</span></th>
                     <th className="px-2 py-2 text-left w-40"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Roll Target</span></th>
                     <th className="px-2 py-2 text-right w-28"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Per Contract</span></th>

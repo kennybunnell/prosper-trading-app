@@ -8684,3 +8684,10 @@ ROC Fix Mar 18 2026
 - [x] FIX: fetchDteMutation onSuccess also sets premiumUpdated=true and uses null guards
 - [x] FIX: Toast now shows the actual premium value on success so you can see it immediately
 - [x] FIX: LIVE badge shows on both New STO Prem and Net Credit total after any nudge/DTE change
+
+## Token Refresh Loop + DTE Range + Sort + Nudge Fix (Apr 2, 2026)
+- [x] FIX: Token refresh loop — replaced useCallback with stable useRef pattern; useEffect no longer depends on mutation object
+- [x] FIX: Default sort in Roll Order Review modal to DTE ascending (closest expiry first)
+- [x] FIX: DTE column added as sortable header in Roll Order Review table
+- [x] FIX: fetchRollTargetForDTE now tries up to 5 closest expirations with fallback loop (not just exact DTE match)
+- [x] FIX: stoPremium handles null bid/ask gracefully in DTE fetch procedure

@@ -3119,27 +3119,41 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
 
       if (expsWithDte.length === 0) throw new TRPCError({ code: 'NOT_FOUND', message: 'No future expirations found.' });
 
-      // Find closest expiration to the target DTE
-      const best = expsWithDte.reduce((prev, curr) =>
-        Math.abs(curr.dte - input.targetDte) < Math.abs(prev.dte - input.targetDte) ? curr : prev
+      // Sort all expirations by closeness to targetDte (nearest first), try up to 5 until we find a valid chain
+      const sortedByCloseness = [...expsWithDte].sort((a, b) =>
+        Math.abs(a.dte - input.targetDte) - Math.abs(b.dte - input.targetDte)
       );
-
-      // Fetch the option chain for that expiration
-      const chain = await tradierApi.getOptionChain(input.symbol, best.exp, true);
-      const filtered = chain.filter(o => o.type === input.optionType);
-      if (filtered.length === 0) throw new TRPCError({ code: 'NOT_FOUND', message: `No ${input.optionType} options for ${input.symbol} on ${best.exp}` });
+      let best: { exp: string; dte: number } | null = null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let filteredChain: any[] = [];
+      for (const candidate of sortedByCloseness.slice(0, 5)) {
+        const chain = await tradierApi.getOptionChain(input.symbol, candidate.exp, true);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const f = (chain as any[]).filter((o: any) => o.type === input.optionType);
+        if (f.length > 0) {
+          best = candidate;
+          filteredChain = f;
+          break;
+        }
+      }
+      if (!best || filteredChain.length === 0) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `No ${input.optionType} options found near ${input.targetDte}d DTE for ${input.symbol}` });
+      }
 
       // Find the strike closest to the current strike (same strike, different expiry)
-      const closestStrike = filtered.reduce((prev, curr) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const closestStrike: any = filteredChain.reduce((prev: any, curr: any) =>
         Math.abs(curr.strike - input.currentShortStrike) < Math.abs(prev.strike - input.currentShortStrike) ? curr : prev
       );
 
       // Get BTC cost for current position
       const currentQuotes = await tradierApi.getQuotes([input.currentOptionSymbol]);
-      const currentQ = currentQuotes.find(q => q.symbol === input.currentOptionSymbol);
+      const currentQ = (currentQuotes as Array<{ symbol: string; ask?: number }>).find(q => q.symbol === input.currentOptionSymbol);
       const btcCost = currentQ?.ask ?? null;
-      const stoPremium = closestStrike.bid > 0 ? closestStrike.bid : (closestStrike.ask / 2);
-      const netCreditPerContract = btcCost !== null ? stoPremium - btcCost : null;
+      const rawBid = closestStrike.bid ?? 0;
+      const rawAsk = closestStrike.ask ?? 0;
+      const stoPremium = rawBid > 0 ? rawBid : (rawAsk > 0 ? rawAsk / 2 : null);
+      const netCreditPerContract = (stoPremium !== null && btcCost !== null) ? stoPremium - btcCost : null;
 
       // Build OCC symbol for the new option
       const d = new Date(best.exp);

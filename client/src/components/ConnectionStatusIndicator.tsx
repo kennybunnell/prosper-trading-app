@@ -49,12 +49,19 @@ export function ConnectionStatusIndicator() {
     },
   });
 
-  // Stable mutate reference — does NOT go in the useEffect dependency array
+  // Stable ref to the mutate function — avoids putting mutation object in useEffect deps
+  const mutateFnRef = useRef(forceTokenRefresh.mutate);
+  const isPendingRef = useRef(forceTokenRefresh.isPending);
+  useEffect(() => {
+    mutateFnRef.current = forceTokenRefresh.mutate;
+    isPendingRef.current = forceTokenRefresh.isPending;
+  });
+
   const triggerRefresh = useCallback(() => {
-    if (!forceTokenRefresh.isPending) {
-      forceTokenRefresh.mutate();
+    if (!isPendingRef.current) {
+      mutateFnRef.current();
     }
-  }, [forceTokenRefresh]);
+  }, []); // Empty deps — stable forever
 
   // Countdown timer — runs every second, but auto-refresh fires at most ONCE per token
   useEffect(() => {
@@ -106,8 +113,10 @@ export function ConnectionStatusIndicator() {
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-    // Only re-run when the token expiry timestamp changes — NOT when mutation state changes
-  }, [connectionStatus?.tastytrade.expiresAt, triggerRefresh]);
+    // Only re-run when the token expiry timestamp changes
+    // triggerRefresh is stable (empty deps useCallback) — safe to omit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectionStatus?.tastytrade.expiresAt]);
 
   if (isLoading) {
     return null;
