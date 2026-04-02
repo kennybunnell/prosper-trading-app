@@ -8715,3 +8715,7 @@ ROC Fix Mar 18 2026
 - [x] Add "Reset to Original" button in detail panel to revert strike/DTE/premium to scanner's original candidate
 - [x] Verify DTE ascending default sort is working (lowest DTE at top of list)
 - [x] Show full contract value next to "New STO Prem." (e.g., "$310/contract" secondary line)
+
+## UX Improvements: Roll Order Review (Apr 2, 2026 - Round 7)
+- [x] Add nudge step size selector ($1, $2.50, $5) in detail panel strike nudge area
+- [x] Show ITM/OTM distance next to current stock price in detail panel

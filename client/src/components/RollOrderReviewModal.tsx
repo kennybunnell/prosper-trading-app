@@ -194,6 +194,8 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
 
   // Strike nudge state
   const [nudgeLoading, setNudgeLoading] = useState<'up' | 'down' | null>(null);
+  // Nudge step size — user-selectable: $1, $2.50, or $5
+  const [nudgeStep, setNudgeStep] = useState<number>(1);
   // Track whether premium was recently updated (for LIVE badge)
   const [premiumUpdated, setPremiumUpdated] = useState(false);
   const [prevStrike, setPrevStrike] = useState<number | undefined>(c.strike);
@@ -280,8 +282,8 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
 
   const handleStrikeNudge = (direction: 'up' | 'down') => {
     if (!isRoll || !c.strike || !c.expiration) return;
-    // Determine increment: use $1 for stocks under $50, $5 for $50-$500, $10 for $500+
-    const increment = item.currentStrike < 50 ? 1 : item.currentStrike < 500 ? 5 : 10;
+    // Use user-selected nudge step size
+    const increment = nudgeStep;
     const newStrike = direction === 'up' ? c.strike + increment : c.strike - increment;
     if (newStrike <= 0) return;
     setNudgeLoading(direction);
@@ -329,15 +331,41 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
                 <Loader2 className="h-3 w-3 animate-spin" /> Loading...
               </span>
             ) : stockPrice !== null ? (
-              <div className="flex items-baseline gap-2">
-                <span className="font-mono font-bold text-lg text-foreground">${stockPrice.toFixed(2)}</span>
-                {stockPriceQuery.data?.changePct !== null && stockPriceQuery.data?.changePct !== undefined && (
-                  <span className={`text-xs font-semibold ${
-                    (stockPriceQuery.data.changePct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
-                  }`}>
-                    {(stockPriceQuery.data.changePct ?? 0) >= 0 ? '\u25b2' : '\u25bc'} {Math.abs(stockPriceQuery.data.changePct ?? 0).toFixed(2)}%
-                  </span>
-                )}
+              <div>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono font-bold text-lg text-foreground">${stockPrice.toFixed(2)}</span>
+                  {stockPriceQuery.data?.changePct !== null && stockPriceQuery.data?.changePct !== undefined && (
+                    <span className={`text-xs font-semibold ${
+                      (stockPriceQuery.data.changePct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                    }`}>
+                      {(stockPriceQuery.data.changePct ?? 0) >= 0 ? '\u25b2' : '\u25bc'} {Math.abs(stockPriceQuery.data.changePct ?? 0).toFixed(2)}%
+                    </span>
+                  )}
+                </div>
+                {/* ITM/OTM distance vs current strike */}
+                {(() => {
+                  const strike = item.currentStrike;
+                  const dist = strike - stockPrice;
+                  const distPct = Math.abs(dist / stockPrice * 100);
+                  // For CC: ITM when stock > strike; for CSP/puts: ITM when stock < strike
+                  const isCall = item.strategy === 'CC' || item.strategy === 'BCS';
+                  const isItm = isCall ? stockPrice > strike : stockPrice < strike;
+                  const label = isItm ? 'ITM' : 'OTM';
+                  const color = isItm ? 'text-red-400' : 'text-emerald-400';
+                  const absDistLabel = isCall
+                    ? (isItm ? `stock $${(stockPrice - strike).toFixed(2)} above strike` : `stock $${(strike - stockPrice).toFixed(2)} below strike`)
+                    : (isItm ? `stock $${(strike - stockPrice).toFixed(2)} below strike` : `stock $${(stockPrice - strike).toFixed(2)} above strike`);
+                  return (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${isItm ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+                        {label}
+                      </span>
+                      <span className={`text-[10px] font-mono ${color}`}>
+                        {distPct.toFixed(1)}% · {absDistLabel}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <span className="text-xs text-muted-foreground/50">Unavailable</span>
@@ -450,6 +478,23 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
                         <TooltipContent>{nudgeDownLabel}</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
+                  </div>
+                  {/* Nudge step size selector */}
+                  <div className="flex items-center gap-1 mt-1.5">
+                    <span className="text-[9px] text-muted-foreground/50 mr-0.5">Step:</span>
+                    {[1, 2.5, 5].map((step) => (
+                      <button
+                        key={step}
+                        onClick={() => setNudgeStep(step)}
+                        className={`text-[9px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
+                          nudgeStep === step
+                            ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
+                            : 'text-muted-foreground/50 border-border/30 hover:text-muted-foreground hover:border-border/60'
+                        }`}
+                      >
+                        ${step}
+                      </button>
+                    ))}
                   </div>
                   <p className="text-[10px] text-muted-foreground/50 mt-0.5">
                     {item.strategy === 'CC' ? '↑ up = less risk' : item.strategy === 'CSP' ? '↓ down = more cushion' : ''}
