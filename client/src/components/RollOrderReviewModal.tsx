@@ -210,12 +210,16 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
     onSuccess: (data) => {
       setNearbyExps(data.nearbyExps);
       setPremiumUpdated(true);
+      // CRITICAL: netCredit in RollCandidateItem is in TOTAL DOLLARS per contract (per-share × 100).
+      // data.netCreditPerContract is per-share (Tradier bid/ask). Must multiply by 100 to match
+      // the convention set by rollDetection.ts (netCredit = netCreditPerContract × qty × 100).
+      // calcNetTotal then multiplies by quantity to get the grand total.
       onUpdateCandidate(item.positionId, {
         expiration: data.expiration,
         dte: data.dte,
         strike: data.strike,
         newPremium: data.stoPremium != null ? data.stoPremium : undefined,
-        netCredit: data.netCreditPerContract != null ? data.netCreditPerContract : undefined,
+        netCredit: data.netCreditPerContract != null ? data.netCreditPerContract * 100 : undefined,
         delta: data.delta ?? undefined,
       });
       if (data.stoPremium != null) {
@@ -232,11 +236,14 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
       setNudgeLoading(null);
       setPrevStrike(c.strike);
       setPremiumUpdated(true);
-      // Write all updated values directly into the candidate via parent state
+      // CRITICAL: netCredit in RollCandidateItem is in TOTAL DOLLARS per contract (per-share × 100).
+      // data.netCreditPerContract is per-share (Tradier bid/ask). Must multiply by 100 to match
+      // the convention set by rollDetection.ts (netCredit = netCreditPerContract × qty × 100).
+      // calcNetTotal then multiplies by quantity to get the grand total.
       onUpdateCandidate(item.positionId, {
         strike: data.strike,
         newPremium: data.stoPremium != null ? data.stoPremium : undefined,
-        netCredit: data.netCreditPerContract != null ? data.netCreditPerContract : undefined,
+        netCredit: data.netCreditPerContract != null ? data.netCreditPerContract * 100 : undefined,
       });
       if (data.stoPremium == null) {
         toast.warning(`Strike updated to $${data.strike} — premium unavailable (illiquid strike)`);
@@ -427,21 +434,30 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
                       {fetchDteMutation.isPending && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
                     </div>
                   </div>
-                  {/* Quick-select preset DTE buttons */}
+                  {/* Quick-select preset DTE buttons — each finds the nearest available expiration to the target */}
+                  <p className="text-[9px] text-muted-foreground/50 mb-1">Finds nearest available expiration to target DTE</p>
                   <div className="flex flex-wrap gap-1 mb-1.5">
                     {[7, 14, 21, 30, 45, 60].map(dte => (
-                      <button
-                        key={dte}
-                        onClick={() => handleDteFetch(dte)}
-                        disabled={fetchDteMutation.isPending}
-                        className={`text-[11px] px-2 py-1 rounded border font-medium transition-colors ${
-                          c.dte === dte
-                            ? 'bg-orange-500/30 text-orange-300 border-orange-500/50'
-                            : 'bg-muted/40 text-muted-foreground border-border/60 hover:bg-muted/70 hover:text-foreground'
-                        }`}
-                      >
-                        {dte}d
-                      </button>
+                      <TooltipProvider key={dte}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => handleDteFetch(dte)}
+                              disabled={fetchDteMutation.isPending}
+                              className={`text-[11px] px-2 py-1 rounded border font-medium transition-colors ${
+                                c.dte === dte
+                                  ? 'bg-orange-500/30 text-orange-300 border-orange-500/50'
+                                  : 'bg-muted/40 text-muted-foreground border-border/60 hover:bg-muted/70 hover:text-foreground'
+                              }`}
+                            >
+                              ~{dte}d
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">
+                            Find nearest expiration to {dte} DTE
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     ))}
                     {nearbyExps.filter(e => ![7,14,21,30,45,60].includes(e.dte)).slice(0, 3).map(e => (
                       <button

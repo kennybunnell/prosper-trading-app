@@ -22,7 +22,10 @@ export function ConnectionStatusIndicator() {
   // useRef persists across re-renders without triggering them — prevents the loop
   const hasAutoRefreshed = useRef(false);
   // Track which expiresAt value we last processed, so the guard resets on a new token
-  const lastExpiresAt = useRef<string>('' );
+  const lastExpiresAt = useRef<string>('');
+  // Timestamp of the last refresh attempt — prevents rapid-fire retries on failure
+  // Minimum 15 minutes between auto-refresh attempts regardless of error/success
+  const lastRefreshAttemptMs = useRef<number>(0);
 
   const refreshTradierHealth = trpc.settings.refreshTradierHealth.useMutation({
     onSuccess: () => {
@@ -44,8 +47,8 @@ export function ConnectionStatusIndicator() {
     },
     onError: (error) => {
       toast.error(`Token refresh failed: ${error.message}`);
-      // Allow retry after failure
-      hasAutoRefreshed.current = false;
+      // Do NOT reset hasAutoRefreshed here — the 15-min cooldown (lastRefreshAttemptMs)
+      // already prevents rapid retries. hasAutoRefreshed resets only when a new token arrives.
     },
   });
 
@@ -91,9 +94,12 @@ export function ConnectionStatusIndicator() {
       const minutes = Math.floor(diffMs / 60000);
       const seconds = Math.floor((diffMs % 60000) / 1000);
 
-      // Auto-refresh exactly once when < 2 minutes remaining
-      if (diffMs < 120000 && !hasAutoRefreshed.current) {
+      // Auto-refresh at most once per 15 minutes when < 2 minutes remaining
+      const MIN_REFRESH_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+      const timeSinceLastRefresh = Date.now() - lastRefreshAttemptMs.current;
+      if (diffMs < 120000 && !hasAutoRefreshed.current && timeSinceLastRefresh >= MIN_REFRESH_INTERVAL_MS) {
         hasAutoRefreshed.current = true; // Set BEFORE calling mutate to prevent races
+        lastRefreshAttemptMs.current = Date.now();
         console.log('[ConnectionStatusIndicator] Auto-refreshing token (< 2 min remaining)');
         toast.info('Refreshing Tastytrade token...');
         triggerRefresh();

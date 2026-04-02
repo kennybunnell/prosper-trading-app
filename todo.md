@@ -8699,3 +8699,14 @@ ROC Fix Mar 18 2026
 - [x] FIX: BTC cost lookup in fetchRollTargetForDTE now handles padded/trimmed symbol variants
 - [x] Added comprehensive server-side logging (OCC symbol construction, chain filter results, BTC lookup results)
 - [x] Added 8 unit tests proving the old filter was broken and the new filter works correctly (8/8 passing)
+
+## FIX: Net Credit Total in Detail Panel (Apr 2, 2026 - Round 4)
+- [ ] FIX: Net Credit (total) in detail panel should show newPremium × 100 × quantity after strike nudge or DTE change
+- [ ] The server returns netCreditPerContract which is already (stoPremium - btcCost) per contract, but NOT yet multiplied by 100
+- [ ] Verify: is netCreditPerContract in per-share dollars or per-contract dollars?
+- [ ] Fix calcNetTotal() or the display to show the correct full contract value
+
+## FIX: Net Credit Total ×100 (Apr 2, 2026 - Round 5)
+- [x] FIX: netCredit stored from fetchStrikeQuote/fetchRollTargetForDTE was per-share; must multiply by 100 to match rollDetection.ts convention
+- [x] FIX: Token refresh loop - added 15-minute cooldown between auto-refresh attempts
+- [x] FIX: DTE buttons now show ~Xd with tooltip "Find nearest expiration to X DTE" to clarify range behavior
