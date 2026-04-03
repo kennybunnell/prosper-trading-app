@@ -2828,8 +2828,8 @@ export default function AutomationDashboard() {
                           <tr className="border-b border-border/50 bg-muted/30 text-xs">
                             <th className="text-left p-3 w-8" title="Select / deselect all visible roll positions">
                               {(() => {
-                                // Only include positions that have a candidate loaded — can't submit without one
-                                const visibleIds = rollScanResults.all.filter(pos => {
+                                // allVisibleIds: every visible row (for deselect-all to work on ghost selections too)
+                                const allVisibleIds = rollScanResults.all.filter(pos => {
                                   if (rollFilter !== 'all') {
                                     if (rollFilter === 'red' && pos.urgency !== 'red') return false;
                                     if (rollFilter === 'yellow' && pos.urgency !== 'yellow') return false;
@@ -2838,23 +2838,32 @@ export default function AutomationDashboard() {
                                   if (rollStrategyFilters.size > 0 && !rollStrategyFilters.has(pos.strategy)) return false;
                                   if (rollPnlFilters.size > 0 && !rollPnlFilters.has((pos as any).pnlStatus ?? '')) return false;
                                   if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
-                                  // Must have a candidate to be selectable
-                                  return !!rollCandidateSelections[pos.positionId];
+                                  return true;
                                 }).map(p => p.positionId);
-                                const allRollSelected = visibleIds.length > 0 && visibleIds.every(id => selectedRollPositions.has(id));
+                                // selectableIds: only those with a loaded candidate (for select-all)
+                                const selectableIds = allVisibleIds.filter(id => !!rollCandidateSelections[id]);
+                                const allSelected = selectableIds.length > 0 && selectableIds.every(id => selectedRollPositions.has(id));
+                                const anySelected = allVisibleIds.some(id => selectedRollPositions.has(id));
                                 return (
                                   <Checkbox
-                                    checked={allRollSelected}
-                                    disabled={visibleIds.length === 0}
+                                    checked={allSelected}
+                                    // Show indeterminate dash when some (but not all) are selected
+                                    data-state={anySelected && !allSelected ? 'indeterminate' : undefined}
+                                    disabled={allVisibleIds.length === 0}
                                     onCheckedChange={(checked) => {
                                       setSelectedRollPositions(prev => {
                                         const next = new Set(prev);
-                                        if (checked) visibleIds.forEach(id => next.add(id));
-                                        else visibleIds.forEach(id => next.delete(id));
+                                        if (checked) {
+                                          // Select only those with candidates
+                                          selectableIds.forEach(id => next.add(id));
+                                        } else {
+                                          // Deselect ALL visible rows (including ghosts)
+                                          allVisibleIds.forEach(id => next.delete(id));
+                                        }
                                         return next;
                                       });
                                     }}
-                                    aria-label="Select all visible roll positions with loaded candidates"
+                                    aria-label="Select/deselect all visible roll positions"
                                   />
                                 );
                               })()}
@@ -2962,11 +2971,12 @@ export default function AutomationDashboard() {
                                       checked={isSelected}
                                       onCheckedChange={(checked) => {
                                         const next = new Set(selectedRollPositions);
-                                        if (checked) next.add(pos.positionId);
-                                        else next.delete(pos.positionId);
+                                        if (checked && selectedCandidate) next.add(pos.positionId);
+                                        else next.delete(pos.positionId); // always allow deselect
                                         setSelectedRollPositions(next);
                                       }}
-                                      disabled={!selectedCandidate}
+                                      // Only disable checking (not unchecking) — ghost selections must be clearable
+                                      disabled={!isSelected && !selectedCandidate}
                                     />
                                   </td>
                                   {/* P&L Status + Action Label badges */}
