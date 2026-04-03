@@ -242,15 +242,28 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
       // data.netCreditPerContract is per-share (Tradier bid/ask). Must multiply by 100 to match
       // the convention set by rollDetection.ts (netCredit = netCreditPerContract × qty × 100).
       // calcNetTotal then multiplies by quantity to get the grand total.
+      // Build updated description reflecting the new strike
+      const newDesc = (() => {
+        const base = c.description ?? '';
+        // Replace old strike value in description with new strike
+        const strikeStr = data.strike != null
+          ? (Number.isInteger(data.strike) ? `$${data.strike.toFixed(0)}` : `$${data.strike.toFixed(2)}`)
+          : null;
+        if (!strikeStr) return base;
+        // Pattern: "Roll out to $XXX" or "Roll out to $XXX.XX"
+        return base.replace(/Roll out to \$[\d.]+/, `Roll out to ${strikeStr}`);
+      })();
       onUpdateCandidate(item.positionId, {
         strike: data.strike,
         newPremium: data.stoPremium != null ? data.stoPremium : undefined,
         netCredit: data.netCreditPerContract != null ? data.netCreditPerContract * 100 : undefined,
+        description: newDesc,
+        delta: data.delta != null ? data.delta : undefined,
       });
       if (data.stoPremium == null) {
-        toast.warning(`Strike updated to $${data.strike} — premium unavailable (illiquid strike)`);
+        toast.warning(`Strike updated to $${data.strike != null ? (Number.isInteger(data.strike) ? data.strike.toFixed(0) : data.strike.toFixed(2)) : '?'} — premium unavailable (illiquid strike)`);
       } else {
-        toast.success(`Strike updated to $${data.strike} · Premium: $${data.stoPremium?.toFixed(2)}`);
+        toast.success(`Strike updated to $${data.strike != null ? (Number.isInteger(data.strike) ? data.strike.toFixed(0) : data.strike.toFixed(2)) : '?'} · Premium: $${data.stoPremium?.toFixed(2)}`);
       }
     },
     onError: (err) => {
@@ -447,7 +460,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
                 <div>
                   <span className="text-muted-foreground">New Strike</span>
                   <div className="flex items-center gap-1 mt-0.5">
-                    <p className="font-mono font-semibold text-orange-300">${c.strike?.toFixed(0) ?? '—'}</p>
+                    <p className="font-mono font-semibold text-orange-300">${c.strike != null ? (Number.isInteger(c.strike) ? c.strike.toFixed(0) : c.strike.toFixed(2)) : '—'}</p>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -596,7 +609,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
                   )}
                   {premiumUpdated && prevStrike !== undefined && prevStrike !== c.strike && (
                     <p className="text-[10px] text-muted-foreground/60 font-mono">
-                      strike: ${prevStrike?.toFixed(0)} → ${c.strike?.toFixed(0)}
+                      strike: ${prevStrike != null ? (Number.isInteger(prevStrike) ? prevStrike.toFixed(0) : prevStrike.toFixed(2)) : '?'} → ${c.strike != null ? (Number.isInteger(c.strike) ? c.strike.toFixed(0) : c.strike.toFixed(2)) : '?'}
                     </p>
                   )}
                 </div>

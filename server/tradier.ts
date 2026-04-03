@@ -93,6 +93,7 @@ export interface Quote {
   asksize: number;
   askexch: string;
   ask_date: number;
+  greeks?: OptionGreeks; // present when quoting option symbols
 }
 
 export interface HistoricalData {

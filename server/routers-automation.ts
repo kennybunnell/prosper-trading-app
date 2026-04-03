@@ -3053,10 +3053,11 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
 
       // Fallback: if direct quote lookup returned nothing, fetch the option chain
       // and find the closest available strike with a non-zero bid
+      let resolvedDelta: number | null = newQ?.greeks?.delta ?? null;
       if (stoPremium === null) {
         console.log(`[fetchStrikeQuote] Direct quote not found for ${newSymbol}, falling back to option chain lookup`);
         try {
-          const chain = await tradierApi.getOptionChain(input.symbol, input.expiration, false);
+          const chain = await tradierApi.getOptionChain(input.symbol, input.expiration, true); // true = include greeks
           const typeFilter = input.optionType === 'call' ? 'call' : 'put';
           const candidates = chain
             .filter(c => c.option_type === typeFilter && c.bid > 0)
@@ -3066,7 +3067,8 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
             stoPremium = best.bid;
             resolvedStrike = best.strike;
             resolvedSymbol = best.symbol;
-            console.log(`[fetchStrikeQuote] Chain fallback found: ${best.symbol} bid=${best.bid}`);
+            resolvedDelta = best.greeks?.delta ?? null;
+            console.log(`[fetchStrikeQuote] Chain fallback found: ${best.symbol} bid=${best.bid} delta=${resolvedDelta}`);
           }
         } catch (chainErr) {
           console.warn(`[fetchStrikeQuote] Chain fallback failed: ${chainErr}`);
@@ -3087,6 +3089,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         stoPremium,
         netCreditPerContract,
         netCreditTotal,
+        delta: resolvedDelta,
       };
     }),
 

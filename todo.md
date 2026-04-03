@@ -8729,3 +8729,15 @@ ROC Fix Mar 18 2026
 ## BUG FIX: Automation Queue Checkbox Not Filtering Modal (Apr 3, 2026)
 - [x] Fix: Automation page passes all queued items to modal regardless of which checkboxes are checked
 - [ ] Remove auto-select after Scan All — start with everything deselected so user can pick one at a time
+- [ ] Fix strike nudge: up button going wrong direction or wrong step value
+- [ ] Fix description showing stale strike after nudge (should update to new strike)
+- [ ] Fix Net Credit (total) not updating after strike nudge
+
+## Strike Nudge Bug Fixes (Apr 3, 2026)
+- [x] Fix strike display rounding: New Strike field now shows exact decimal (e.g. $302.50 not $303) using Number.isInteger check
+- [x] Fix stale description after nudge: onSuccess handler now regex-replaces old strike in description with new strike value
+- [x] Fix Net Credit not updating after nudge: onSuccess now calls onUpdateCandidate with netCredit = netCreditPerContract × 100
+- [x] Fix delta not updating after nudge: fetchStrikeQuote now returns delta (from chain fallback or direct quote), onSuccess passes it to onUpdateCandidate
+- [x] Fix strike delta display rounding: "prev strike → new strike" line now shows decimal values correctly
+- [x] Add greeks field to Quote interface in tradier.ts so direct quote lookups can return delta
+- [x] fetchStrikeQuote chain fallback now requests greeks=true so delta is available from chain lookup
