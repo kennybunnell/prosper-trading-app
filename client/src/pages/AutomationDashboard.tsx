@@ -624,12 +624,9 @@ export default function AutomationDashboard() {
           newSelected.add(r.positionId);
         }
       }
-      setRollCandidateSelections(prev => ({ ...prev, ...newSelections }));
-      setSelectedRollPositions(prev => {
-        const next = new Set(prev);
-        Array.from(newSelected).forEach(id => next.add(id));
-        return next;
-      });
+      // Replace (not merge) so stale selections from previous scans don't accumulate
+      setRollCandidateSelections(newSelections);
+      setSelectedRollPositions(newSelected);
       const { creditRolls, closeOnly, errors } = data.summary;
       if (errors > 0) {
         toast.warning(`Scan All: ${creditRolls} credit roll${creditRolls !== 1 ? 's' : ''}, ${closeOnly} close-only, ${errors} errors`);
@@ -660,6 +657,9 @@ export default function AutomationDashboard() {
         spreadWidth: p.spreadDetails?.spreadWidth,
       }));
     if (positions.length === 0) { toast.info('No positions match that filter'); return; }
+    // Clear stale selections so the queue doesn't accumulate across scan sessions
+    setSelectedRollPositions(new Set());
+    setRollCandidateSelections({});
     setIsScanningAll(true);
     setScanAllProgress({ done: 0, total: positions.length });
     scanAllRollCandidates.mutate({ positions, ...(scanDteRange ? { dteRange: scanDteRange } : {}) });

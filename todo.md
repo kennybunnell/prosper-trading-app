@@ -8725,3 +8725,6 @@ ROC Fix Mar 18 2026
 - [x] "Select All" / "Deselect All" header checkbox
 - [x] Footer shows count and est. net only for selected rows
 - [x] Submit button only submits checked rows
+
+## BUG FIX: Automation Queue Checkbox Not Filtering Modal (Apr 3, 2026)
+- [x] Fix: Automation page passes all queued items to modal regardless of which checkboxes are checked
