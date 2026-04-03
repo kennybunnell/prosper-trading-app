@@ -598,6 +598,7 @@ export default function AutomationDashboard() {
     setExpandedRollRow(null);
     setSelectedRollPositions(new Set());
     setRollCandidateSelections({});
+    setRollCandidatesCache({});
     scanRollPositions.mutate({});
   };
 
@@ -657,9 +658,10 @@ export default function AutomationDashboard() {
         spreadWidth: p.spreadDetails?.spreadWidth,
       }));
     if (positions.length === 0) { toast.info('No positions match that filter'); return; }
-    // Clear stale selections so the queue doesn't accumulate across scan sessions
+    // Clear stale selections AND candidate cache so the queue doesn't accumulate across scan sessions
     setSelectedRollPositions(new Set());
     setRollCandidateSelections({});
+    setRollCandidatesCache({});
     setIsScanningAll(true);
     setScanAllProgress({ done: 0, total: positions.length });
     scanAllRollCandidates.mutate({ positions, ...(scanDteRange ? { dteRange: scanDteRange } : {}) });
@@ -2826,6 +2828,7 @@ export default function AutomationDashboard() {
                           <tr className="border-b border-border/50 bg-muted/30 text-xs">
                             <th className="text-left p-3 w-8" title="Select / deselect all visible roll positions">
                               {(() => {
+                                // Only include positions that have a candidate loaded — can't submit without one
                                 const visibleIds = rollScanResults.all.filter(pos => {
                                   if (rollFilter !== 'all') {
                                     if (rollFilter === 'red' && pos.urgency !== 'red') return false;
@@ -2835,12 +2838,14 @@ export default function AutomationDashboard() {
                                   if (rollStrategyFilters.size > 0 && !rollStrategyFilters.has(pos.strategy)) return false;
                                   if (rollPnlFilters.size > 0 && !rollPnlFilters.has((pos as any).pnlStatus ?? '')) return false;
                                   if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
-                                  return true;
+                                  // Must have a candidate to be selectable
+                                  return !!rollCandidateSelections[pos.positionId];
                                 }).map(p => p.positionId);
                                 const allRollSelected = visibleIds.length > 0 && visibleIds.every(id => selectedRollPositions.has(id));
                                 return (
                                   <Checkbox
                                     checked={allRollSelected}
+                                    disabled={visibleIds.length === 0}
                                     onCheckedChange={(checked) => {
                                       setSelectedRollPositions(prev => {
                                         const next = new Set(prev);
@@ -2849,7 +2854,7 @@ export default function AutomationDashboard() {
                                         return next;
                                       });
                                     }}
-                                    aria-label="Select all visible roll positions"
+                                    aria-label="Select all visible roll positions with loaded candidates"
                                   />
                                 );
                               })()}
@@ -3207,36 +3212,45 @@ export default function AutomationDashboard() {
               )}
 
               {/* Submit bar — opens review modal before any submission */}
-              {selectedRollPositions.size > 0 && (
-                <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-between">
-                  <div>
-                    <span className="font-semibold text-orange-400">{selectedRollPositions.size} order{selectedRollPositions.size !== 1 ? 's' : ''} queued</span>
-                    <span className="text-sm text-muted-foreground ml-2">
-                      {Array.from(selectedRollPositions).filter(k => rollCandidateSelections[k]?.action === 'roll').length} rolls,{' '}
-                      {Array.from(selectedRollPositions).filter(k => rollCandidateSelections[k]?.action === 'close').length} closes
-                    </span>
-                    <span className="text-xs text-orange-300/70 ml-3">· Review all details before submission</span>
+              {(() => {
+                // Only count positions that are BOTH selected AND have a loaded candidate
+                // This prevents ghost selections (selected but no candidate) from inflating the count
+                const effectiveSelected = Array.from(selectedRollPositions).filter(k => !!rollCandidateSelections[k]);
+                const effectiveCount = effectiveSelected.length;
+                const rollCount = effectiveSelected.filter(k => rollCandidateSelections[k]?.action === 'roll').length;
+                const closeCount = effectiveSelected.filter(k => rollCandidateSelections[k]?.action === 'close').length;
+                if (effectiveCount === 0) return null;
+                return (
+                  <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-between">
+                    <div>
+                      <span className="font-semibold text-orange-400">{effectiveCount} order{effectiveCount !== 1 ? 's' : ''} queued</span>
+                      <span className="text-sm text-muted-foreground ml-2">
+                        {rollCount} roll{rollCount !== 1 ? 's' : ''},{' '}
+                        {closeCount} close{closeCount !== 1 ? 's' : ''}
+                      </span>
+                      <span className="text-xs text-orange-300/70 ml-3">· Review all details before submission</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setSelectedRollPositions(new Set()); setRollCandidateSelections({}); }}
+                      >
+                        Clear
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-orange-600 hover:bg-orange-700 text-white font-semibold"
+                        onClick={handleOpenRollReview}
+                        disabled={isSubmittingRolls || killSwitchActive}
+                      >
+                        {isSubmittingRolls ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Eye className="h-4 w-4 mr-1" />}
+                        Review &amp; Submit {effectiveCount} Order{effectiveCount !== 1 ? 's' : ''}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => { setSelectedRollPositions(new Set()); setRollCandidateSelections({}); }}
-                    >
-                      Clear
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="bg-orange-600 hover:bg-orange-700 text-white font-semibold"
-                      onClick={handleOpenRollReview}
-                      disabled={isSubmittingRolls || killSwitchActive}
-                    >
-                      {isSubmittingRolls ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Eye className="h-4 w-4 mr-1" />}
-                      Review &amp; Submit {selectedRollPositions.size} Order{selectedRollPositions.size !== 1 ? 's' : ''}
-                    </Button>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </>
           )}
         </TabsContent>
