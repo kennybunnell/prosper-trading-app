@@ -8741,3 +8741,9 @@ ROC Fix Mar 18 2026
 - [x] Fix strike delta display rounding: "prev strike → new strike" line now shows decimal values correctly
 - [x] Add greeks field to Quote interface in tradier.ts so direct quote lookups can return delta
 - [x] fetchStrikeQuote chain fallback now requests greeks=true so delta is available from chain lookup
+
+## Submit This One — DetailPanel Single-Order Submit (Apr 3, 2026)
+- [x] Add onSubmitOne prop to DetailPanel (passes single RollOrderItem to parent's onSubmit)
+- [x] Add Submit This One button + Dry Run This One button at bottom of DetailPanel
+- [x] Add inline confirmation dialog in DetailPanel showing order summary before live submit
+- [x] Wire onSubmitOne in RollOrderReviewModal to call onSubmit([item], isDryRun)

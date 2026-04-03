@@ -181,9 +181,11 @@ type DetailPanelProps = {
   liveCredit?: number | null;
   onClose: () => void;
   onUpdateCandidate: (positionId: string, patch: Partial<RollCandidateItem>) => void;
+  onSubmitOne: (item: RollOrderItem, isDryRun: boolean) => Promise<void>;
+  isSubmitting: boolean;
 };
 
-function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPanelProps) {
+function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne, isSubmitting }: DetailPanelProps) {
   const c = item.candidate;
   const isRoll = c.action === 'roll';
   const optionType: 'call' | 'put' = (item.strategy === 'CC' || item.strategy === 'BCS') ? 'call' : 'put';
@@ -191,6 +193,10 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
   // DTE input state
   const [dteInput, setDteInput] = useState('');
   const [nearbyExps, setNearbyExps] = useState<Array<{ expiration: string; dte: number }>>([]); 
+
+  // Submit This One state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submitOneLoading, setSubmitOneLoading] = useState(false);
 
   // Strike nudge state
   const [nudgeLoading, setNudgeLoading] = useState<'up' | 'down' | null>(null);
@@ -320,6 +326,19 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
   const nudgeUpLabel = item.strategy === 'CC' ? 'Move strike UP (less assignment risk)' : 'Move strike UP';
   const nudgeDownLabel = item.strategy === 'CSP' ? 'Move strike DOWN (more cushion)' : 'Move strike DOWN';
   const primaryNudge: 'up' | 'down' = item.strategy === 'CC' ? 'up' : 'down';
+
+  const handleSubmitOne = async (isDryRun: boolean) => {
+    setConfirmOpen(false);
+    setSubmitOneLoading(true);
+    try {
+      await onSubmitOne(item, isDryRun);
+    } finally {
+      setSubmitOneLoading(false);
+    }
+  };
+
+  const netTotal = calcNetTotal(item);
+  const effectiveTotal = liveCredit !== undefined && liveCredit !== null ? liveCredit : netTotal;
 
   return (
     <div className="flex flex-col h-full bg-card border-l border-border/50 w-80 shrink-0">
@@ -690,6 +709,66 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate }: DetailPan
             <p className="font-mono text-xs text-muted-foreground break-all">{item.accountNumber}</p>
           </section>
         </div>
+      </div>
+
+      {/* ── Submit This One ── */}
+      <div className="px-4 py-3 border-t border-border/50 bg-card/80 shrink-0 space-y-2">
+        {!confirmOpen ? (
+          <>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-1">Submit This Position Only</p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline" size="sm"
+                className="flex-1 h-8 text-xs border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
+                onClick={() => handleSubmitOne(true)}
+                disabled={isSubmitting || submitOneLoading || nudgeLoading !== null || fetchDteMutation.isPending}
+              >
+                {submitOneLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Eye className="h-3.5 w-3.5 mr-1" />}
+                Dry Run
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1 h-8 text-xs bg-orange-600 hover:bg-orange-700 text-white font-semibold"
+                onClick={() => setConfirmOpen(true)}
+                disabled={isSubmitting || submitOneLoading || nudgeLoading !== null || fetchDteMutation.isPending}
+              >
+                <Send className="h-3.5 w-3.5 mr-1" />
+                Submit This One
+              </Button>
+            </div>
+          </>
+        ) : (
+          // Inline confirmation dialog
+          <div className="rounded-md border border-orange-500/40 bg-orange-500/8 p-3 space-y-2">
+            <p className="text-xs font-semibold text-orange-300">Confirm Live Order</p>
+            <div className="text-[11px] text-muted-foreground space-y-0.5">
+              <p><span className="text-foreground font-semibold">{item.symbol}</span> · {item.strategy} · {item.quantity}× contracts</p>
+              <p>Account: <span className="font-mono text-foreground">{item.accountNumber}</span></p>
+              {c.action === 'roll' && c.strike && c.expiration && (
+                <p>Roll to: <span className="text-orange-300 font-mono">${c.strike != null ? (Number.isInteger(c.strike) ? c.strike.toFixed(0) : c.strike.toFixed(2)) : '?'}</span> · {c.expiration} · {c.dte}d</p>
+              )}
+              <p>Est. Net: <span className={`font-semibold font-mono ${(effectiveTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtSigned(effectiveTotal)}</span></p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="ghost" size="sm"
+                className="flex-1 h-7 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1 h-7 text-xs bg-orange-600 hover:bg-orange-700 text-white font-bold"
+                onClick={() => handleSubmitOne(false)}
+                disabled={submitOneLoading}
+              >
+                {submitOneLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1" />}
+                Confirm &amp; Submit
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1225,6 +1304,10 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
             liveCredit={liveCredits.get(selectedItem.positionId)}
             onClose={() => setSelectedId(null)}
             onUpdateCandidate={handleUpdateCandidate}
+            onSubmitOne={async (singleItem, isDryRun) => {
+              await onSubmit([singleItem], isDryRun);
+            }}
+            isSubmitting={isSubmitting}
           />
         )}
       </div>
