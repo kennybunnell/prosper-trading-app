@@ -8719,3 +8719,9 @@ ROC Fix Mar 18 2026
 ## UX Improvements: Roll Order Review (Apr 2, 2026 - Round 7)
 - [x] Add nudge step size selector ($1, $2.50, $5) in detail panel strike nudge area
 - [x] Show ITM/OTM distance next to current stock price in detail panel
+
+## Feature: Roll Order Review Checkbox Selection (Apr 3, 2026)
+- [x] Add checkbox column to Roll Order Review table (first column)
+- [x] "Select All" / "Deselect All" header checkbox
+- [x] Footer shows count and est. net only for selected rows
+- [x] Submit button only submits checked rows

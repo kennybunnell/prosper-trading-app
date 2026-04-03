@@ -733,8 +733,10 @@ type RowProps = {
   index: number;
   total: number;
   isSelected: boolean;
+  isChecked: boolean;
   isSorted: boolean;
   onSelect: () => void;
+  onToggleCheck: () => void;
   onRemove: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -743,7 +745,7 @@ type RowProps = {
   refreshedCredit?: number | null;
 };
 
-function TableRow({ item, index, total, isSelected, isSorted, onSelect, onRemove, onMoveUp, onMoveDown, onSwap, onPriceChange, refreshedCredit }: RowProps) {
+function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelect, onToggleCheck, onRemove, onMoveUp, onMoveDown, onSwap, onPriceChange, refreshedCredit }: RowProps) {
   const [priceInput, setPriceInput] = useState(
     item.candidate.limitPrice !== undefined ? item.candidate.limitPrice.toFixed(2) : ''
   );
@@ -771,6 +773,14 @@ function TableRow({ item, index, total, isSelected, isSorted, onSelect, onRemove
       }`}
       onClick={onSelect}
     >
+      <td className="px-2 py-2.5 text-center w-10" onClick={e => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={onToggleCheck}
+          className="h-3.5 w-3.5 rounded accent-orange-500 cursor-pointer"
+        />
+      </td>
       <td className="px-2 py-2.5 text-center text-xs text-muted-foreground font-mono w-8">{index + 1}</td>
       <td className="px-2 py-2.5 w-14"><StratBadge s={item.strategy} /></td>
       <td className="px-2 py-2.5 w-20"><span className="font-semibold text-sm">{item.symbol}</span></td>
@@ -897,6 +907,8 @@ function TableRow({ item, index, total, isSelected, isSorted, onSelect, onRemove
 export function RollOrderReviewModal({ open, onClose, items: initialItems, onSubmit, isSubmitting }: Props) {
   const [items, setItems] = useState<RollOrderItem[]>(initialItems);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Checkbox selection: only checked rows are included in submission
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set(initialItems.map(i => i.positionId)));
   // Default: sort by DTE ascending (most time-critical positions first)
   const [sortKey, setSortKey] = useState<SortKey>('dte');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -926,6 +938,8 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
     setSortDir('asc');
     setLiveCredits(new Map());
     setRefreshedAt(null);
+    // Initialize all rows as checked
+    setCheckedIds(new Set(initialItems.map(i => i.positionId)));
   }, [initialItems]);
 
   const selectedItem = useMemo(() => items.find(i => i.positionId === selectedId) ?? null, [items, selectedId]);
@@ -976,16 +990,36 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
     toast.info('Sort order applied to queue');
   };
 
-  const rollCount = items.filter(i => i.candidate.action === 'roll').length;
-  const closeCount = items.filter(i => i.candidate.action === 'close').length;
+  // Only checked items are submitted
+  const checkedItems = useMemo(() => items.filter(i => checkedIds.has(i.positionId)), [items, checkedIds]);
+  const allChecked = items.length > 0 && items.every(i => checkedIds.has(i.positionId));
+  const someChecked = items.some(i => checkedIds.has(i.positionId));
+
+  const toggleCheck = useCallback((id: string) => {
+    setCheckedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback(() => {
+    setCheckedIds(prev => {
+      if (prev.size === items.length) return new Set(); // deselect all
+      return new Set(items.map(i => i.positionId)); // select all
+    });
+  }, [items]);
+
+  const rollCount = checkedItems.filter(i => i.candidate.action === 'roll').length;
+  const closeCount = checkedItems.filter(i => i.candidate.action === 'close').length;
 
   const totalNetCredit = useMemo(() => {
-    return items.reduce((sum, item) => {
+    return checkedItems.reduce((sum, item) => {
       const live = liveCredits.get(item.positionId);
       if (live !== undefined && live !== null) return sum + live;
       return sum + (calcNetTotal(item) ?? 0);
     }, 0);
-  }, [items, liveCredits]);
+  }, [checkedItems, liveCredits]);
 
   const handleRemove = useCallback((id: string) => {
     setItems(prev => prev.filter(i => i.positionId !== id));
@@ -1048,8 +1082,8 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
   };
 
   const handleSubmit = async (isDryRun: boolean) => {
-    if (items.length === 0) { toast.warning('No positions in queue'); return; }
-    await onSubmit(items, isDryRun);
+    if (checkedItems.length === 0) { toast.warning('No positions selected — check at least one row to submit'); return; }
+    await onSubmit(checkedItems, isDryRun);
   };
 
   if (!open) return null;
@@ -1105,6 +1139,16 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
               <table className="w-full border-collapse">
                 <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur-sm">
                   <tr className="border-b border-border/50">
+                    <th className="px-2 py-2 text-center w-10" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={allChecked}
+                        ref={el => { if (el) el.indeterminate = someChecked && !allChecked; }}
+                        onChange={toggleAll}
+                        className="h-3.5 w-3.5 rounded accent-orange-500 cursor-pointer"
+                        title={allChecked ? 'Deselect all' : 'Select all'}
+                      />
+                    </th>
                     <th className="px-2 py-2 text-left w-8"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">#</span></th>
                     <th className="px-2 py-2 text-left w-14"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Strat</span></th>
                     <th className="px-2 py-2 text-left w-20">
@@ -1130,7 +1174,7 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
                 <tbody>
                   {displayItems.length === 0 ? (
                     <tr>
-                      <td colSpan={12} className="text-center py-16 text-muted-foreground text-sm">
+                      <td colSpan={13} className="text-center py-16 text-muted-foreground text-sm">
                         No positions in queue. Close this panel and select positions to roll.
                       </td>
                     </tr>
@@ -1142,8 +1186,10 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
                         index={idx}
                         total={displayItems.length}
                         isSelected={selectedId === item.positionId}
+                        isChecked={checkedIds.has(item.positionId)}
                         isSorted={sortKey !== 'none'}
                         onSelect={() => setSelectedId(prev => prev === item.positionId ? null : item.positionId)}
+                        onToggleCheck={() => toggleCheck(item.positionId)}
                         onRemove={() => handleRemove(item.positionId)}
                         onMoveUp={() => handleMoveUp(items.indexOf(item))}
                         onMoveDown={() => handleMoveDown(items.indexOf(item))}
@@ -1174,9 +1220,10 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
       <div className="px-5 py-3 border-t border-border/50 bg-card/80 shrink-0 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <span>
-            <span className="font-semibold text-foreground">{items.length}</span> order{items.length !== 1 ? 's' : ''} queued
+            <span className="font-semibold text-foreground">{checkedItems.length}</span>
+            <span className="text-muted-foreground/50">/{items.length}</span> order{items.length !== 1 ? 's' : ''} selected
           </span>
-          {items.length > 0 && (
+          {checkedItems.length > 0 && (
             <span>
               · {liveCredits.size > 0 ? 'Live' : 'Est.'} net:{' '}
               <span className={`font-semibold ${totalNetCredit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -1211,7 +1258,7 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
           <Button
             variant="outline" size="sm"
             onClick={() => handleSubmit(true)}
-            disabled={isSubmitting || items.length === 0}
+            disabled={isSubmitting || checkedItems.length === 0}
             className="border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Eye className="h-4 w-4 mr-1.5" />}
@@ -1220,11 +1267,11 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
           <Button
             size="sm"
             onClick={() => handleSubmit(false)}
-            disabled={isSubmitting || items.length === 0}
+            disabled={isSubmitting || checkedItems.length === 0}
             className="bg-orange-600 hover:bg-orange-700 text-white font-semibold min-w-[160px]"
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Send className="h-4 w-4 mr-1.5" />}
-            Submit {items.length} Order{items.length !== 1 ? 's' : ''}
+            Submit {checkedItems.length} Order{checkedItems.length !== 1 ? 's' : ''}
           </Button>
         </div>
       </div>
