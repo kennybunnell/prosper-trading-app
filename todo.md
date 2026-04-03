@@ -8728,3 +8728,4 @@ ROC Fix Mar 18 2026
 
 ## BUG FIX: Automation Queue Checkbox Not Filtering Modal (Apr 3, 2026)
 - [x] Fix: Automation page passes all queued items to modal regardless of which checkboxes are checked
+- [ ] Remove auto-select after Scan All — start with everything deselected so user can pick one at a time

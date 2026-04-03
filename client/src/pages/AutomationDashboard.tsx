@@ -618,21 +618,19 @@ export default function AutomationDashboard() {
       setIsScanningAll(false);
       setScanAllProgress(null);
       const newSelections: Record<string, RollCandidate | null> = {};
-      const newSelected = new Set<string>();
       for (const r of data.results) {
         if (r.bestCandidate) {
           newSelections[r.positionId] = r.bestCandidate as RollCandidate;
-          newSelected.add(r.positionId);
         }
       }
-      // Replace (not merge) so stale selections from previous scans don't accumulate
+      // Load candidates but do NOT auto-select — user picks which ones to submit
       setRollCandidateSelections(newSelections);
-      setSelectedRollPositions(newSelected);
+      setSelectedRollPositions(new Set()); // always start with empty queue
       const { creditRolls, closeOnly, errors } = data.summary;
       if (errors > 0) {
-        toast.warning(`Scan All: ${creditRolls} credit roll${creditRolls !== 1 ? 's' : ''}, ${closeOnly} close-only, ${errors} errors`);
+        toast.warning(`Scan All: ${creditRolls} credit roll${creditRolls !== 1 ? 's' : ''}, ${closeOnly} close-only, ${errors} errors — check boxes to queue`);
       } else {
-        toast.success(`Scan All: ${creditRolls} credit roll${creditRolls !== 1 ? 's' : ''} + ${closeOnly} close-only — all queued in basket`);
+        toast.success(`Scan All complete: ${creditRolls} credit roll${creditRolls !== 1 ? 's' : ''} + ${closeOnly} close-only — check boxes to queue`);
       }
     },
     onError: (err) => {
