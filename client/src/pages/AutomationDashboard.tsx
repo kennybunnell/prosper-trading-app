@@ -4008,6 +4008,7 @@ export default function AutomationDashboard() {
           items={rollReviewItems}
           onSubmit={handleRollReviewSubmit}
           isSubmitting={isSubmittingRolls}
+          bestFitCache={bestFitCache}
         />
       )}
 

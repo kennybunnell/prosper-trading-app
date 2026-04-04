@@ -22,7 +22,7 @@ import {
   Loader2, Send, Eye, Trash2, ChevronUp, ChevronDown, RefreshCw,
   TrendingUp, TrendingDown, X, ChevronRight, ShieldCheck,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown,
-  Calendar,
+  Calendar, Star,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
@@ -77,6 +77,8 @@ type Props = {
   items: RollOrderItem[];
   onSubmit: (items: RollOrderItem[], isDryRun: boolean) => Promise<void>;
   isSubmitting: boolean;
+  /** Map of positionId → Best Fit candidate (strike+expiration) for badge display */
+  bestFitCache?: Record<string, { strike?: number; expiration?: string; action?: string } | null>;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -789,10 +791,11 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
 
 // ─── Swap Panel ───────────────────────────────────────────────────────────────
 
-function SwapPanel({ item, onSwap, onClose: onCloseSwap }: {
+function SwapPanel({ item, onSwap, onClose: onCloseSwap, bestFitCandidate }: {
   item: RollOrderItem;
   onSwap: (idx: number) => void;
   onClose: () => void;
+  bestFitCandidate?: { strike?: number; expiration?: string; action?: string } | null;
 }) {
   const current = item.candidate;
   return (
@@ -804,16 +807,22 @@ function SwapPanel({ item, onSwap, onClose: onCloseSwap }: {
       {item.allCandidates.map((ca, idx) => {
         const isCurrent = ca.description === current.description && ca.action === current.action;
         const netVal = ca.action === 'roll' ? (ca.netCredit !== undefined ? ca.netCredit * item.quantity : undefined) : ca.netPnl;
+        const isBF = bestFitCandidate != null &&
+          ca.action === bestFitCandidate.action &&
+          ca.strike === bestFitCandidate.strike &&
+          ca.expiration === bestFitCandidate.expiration;
         return (
           <button
             key={idx}
             onClick={() => { onSwap(idx); onCloseSwap(); }}
             className={`w-full text-left text-xs px-2 py-1.5 rounded flex items-center justify-between gap-2 transition-colors ${
+              isBF ? 'bg-yellow-500/10 border border-yellow-500/40 text-yellow-200' :
               isCurrent ? 'bg-orange-500/20 text-orange-200 border border-orange-500/30' : 'hover:bg-muted/50 text-muted-foreground'
             }`}
           >
             <span className="flex items-center gap-1.5 min-w-0 truncate">
               <ActionBadge a={ca.action} />
+              {isBF && <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400 shrink-0" />}
               <span className="truncate">{ca.description}</span>
             </span>
             <span className="shrink-0 flex items-center gap-2">
@@ -848,9 +857,11 @@ type RowProps = {
   onSwap: (idx: number) => void;
   onPriceChange: (price: number | undefined) => void;
   refreshedCredit?: number | null;
+  /** Whether the currently selected candidate is the Best Fit winner */
+  isBestFit?: boolean;
 };
 
-function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelect, onToggleCheck, onRemove, onMoveUp, onMoveDown, onSwap, onPriceChange, refreshedCredit }: RowProps) {
+function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelect, onToggleCheck, onRemove, onMoveUp, onMoveDown, onSwap, onPriceChange, refreshedCredit, isBestFit }: RowProps) {
   const [priceInput, setPriceInput] = useState(
     item.candidate.limitPrice !== undefined ? item.candidate.limitPrice.toFixed(2) : ''
   );
@@ -900,16 +911,24 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
       </td>
       <td className="px-2 py-2.5 w-16"><ActionBadge a={c.action} /></td>
       <td className="px-2 py-2.5 w-40">
-        {isRoll && c.strike && c.expiration ? (
-          <div className="text-xs font-mono leading-tight text-orange-300">
-            <span>${c.strike.toFixed(0)}</span>
-            <span className="text-orange-300/60 mx-1">·</span>
-            <span>{c.expiration.slice(5)}</span>
-            <span className="text-orange-300/40 ml-1">({c.dte}d)</span>
-          </div>
-        ) : (
-          <span className="text-xs text-muted-foreground/50 italic">close only</span>
-        )}
+        <div className="flex flex-col gap-0.5">
+          {isBestFit && (
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border border-yellow-500/60 bg-yellow-500/10 text-yellow-300 text-[9px] font-bold w-fit">
+              <Star className="h-2 w-2 fill-yellow-400 text-yellow-400" />
+              Best Fit
+            </span>
+          )}
+          {isRoll && c.strike && c.expiration ? (
+            <div className={`text-xs font-mono leading-tight ${isBestFit ? 'text-yellow-300' : 'text-orange-300'}`}>
+              <span>${c.strike.toFixed(0)}</span>
+              <span className="opacity-60 mx-1">·</span>
+              <span>{c.expiration.slice(5)}</span>
+              <span className="opacity-40 ml-1">({c.dte}d)</span>
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground/50 italic">close only</span>
+          )}
+        </div>
       </td>
       <td className="px-2 py-2.5 w-28 text-right">
         <CreditChip value={netPerContract} />
@@ -999,7 +1018,7 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
           </Button>
 
           {swapOpen && (
-            <SwapPanel item={item} onSwap={onSwap} onClose={() => setSwapOpen(false)} />
+            <SwapPanel item={item} onSwap={onSwap} onClose={() => setSwapOpen(false)} bestFitCandidate={undefined} />
           )}
         </div>
       </td>
@@ -1009,7 +1028,7 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function RollOrderReviewModal({ open, onClose, items: initialItems, onSubmit, isSubmitting }: Props) {
+export function RollOrderReviewModal({ open, onClose, items: initialItems, onSubmit, isSubmitting, bestFitCache }: Props) {
   const [items, setItems] = useState<RollOrderItem[]>(initialItems);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Checkbox selection: only checked rows are included in submission
@@ -1284,25 +1303,33 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
                       </td>
                     </tr>
                   ) : (
-                    displayItems.map((item, idx) => (
-                      <TableRow
-                        key={item.positionId}
-                        item={item}
-                        index={idx}
-                        total={displayItems.length}
-                        isSelected={selectedId === item.positionId}
-                        isChecked={checkedIds.has(item.positionId)}
-                        isSorted={sortKey !== 'none'}
-                        onSelect={() => setSelectedId(prev => prev === item.positionId ? null : item.positionId)}
-                        onToggleCheck={() => toggleCheck(item.positionId)}
-                        onRemove={() => handleRemove(item.positionId)}
-                        onMoveUp={() => handleMoveUp(items.indexOf(item))}
-                        onMoveDown={() => handleMoveDown(items.indexOf(item))}
-                        onSwap={(ci) => handleSwap(item.positionId, ci)}
-                        onPriceChange={(p) => handlePriceChange(item.positionId, p)}
-                        refreshedCredit={liveCredits.get(item.positionId)}
-                      />
-                    ))
+                    displayItems.map((item, idx) => {
+                      const bf = bestFitCache?.[item.positionId];
+                      const isBestFit = bf != null &&
+                        item.candidate.action === (bf.action ?? 'roll') &&
+                        item.candidate.strike === bf.strike &&
+                        item.candidate.expiration === bf.expiration;
+                      return (
+                        <TableRow
+                          key={item.positionId}
+                          item={item}
+                          index={idx}
+                          total={displayItems.length}
+                          isSelected={selectedId === item.positionId}
+                          isChecked={checkedIds.has(item.positionId)}
+                          isSorted={sortKey !== 'none'}
+                          onSelect={() => setSelectedId(prev => prev === item.positionId ? null : item.positionId)}
+                          onToggleCheck={() => toggleCheck(item.positionId)}
+                          onRemove={() => handleRemove(item.positionId)}
+                          onMoveUp={() => handleMoveUp(items.indexOf(item))}
+                          onMoveDown={() => handleMoveDown(items.indexOf(item))}
+                          onSwap={(ci) => handleSwap(item.positionId, ci)}
+                          onPriceChange={(p) => handlePriceChange(item.positionId, p)}
+                          refreshedCredit={liveCredits.get(item.positionId)}
+                          isBestFit={isBestFit}
+                        />
+                      );
+                    })
                   )}
                 </tbody>
               </table>
