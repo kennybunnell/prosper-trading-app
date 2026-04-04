@@ -727,3 +727,184 @@ function scoreRollCandidate(
 
   return Math.min(100, score);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Best Fit Optimizer
+// Ranks roll candidates by a weighted composite of three factors:
+//   1. Premium / credit quality  (default weight: 40%)
+//   2. Strike safety (OTM buffer from current price)  (default weight: 35%)
+//   3. DTE quality (sweet spot 30–45d)  (default weight: 25%)
+//
+// All three component scores are normalised 0–100 before weighting so that
+// no single factor dominates purely because of its numeric scale.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface BestFitConfig {
+  /** Weight for premium/credit quality (0–1). Default 0.40 */
+  premiumWeight?: number;
+  /** Weight for strike safety / OTM buffer (0–1). Default 0.35 */
+  strikeWeight?: number;
+  /** Weight for DTE quality (0–1). Default 0.25 */
+  dteWeight?: number;
+  /** Target OTM buffer % — strike this far OTM scores 100. Default 6.5 (midpoint of 5–8%) */
+  targetOtmPct?: number;
+  /** OTM buffer tolerance band ± around target (%). Default 3 */
+  otmBandPct?: number;
+  /** DTE sweet spot lower bound (inclusive). Default 30 */
+  dteSweetMin?: number;
+  /** DTE sweet spot upper bound (inclusive). Default 45 */
+  dteSweetMax?: number;
+}
+
+export interface BestFitResult {
+  candidate: RollCandidate;
+  bestFitScore: number;       // 0–100 composite
+  premiumScore: number;       // 0–100 component
+  strikeScore: number;        // 0–100 component
+  dteScore: number;           // 0–100 component
+  rank: number;               // 1 = best
+}
+
+/**
+ * Score a single roll candidate on the Best Fit composite.
+ *
+ * @param candidate   - The roll candidate to score
+ * @param underlyingPrice - Current underlying price (for OTM % calculation)
+ * @param isPut       - true for CSP/BPS, false for CC/BCS
+ * @param allCandidates - Full list of roll-only candidates for normalising premium
+ * @param cfg         - Optional weight/target overrides
+ */
+function scoreSingleBestFit(
+  candidate: RollCandidate,
+  underlyingPrice: number,
+  isPut: boolean,
+  allRollCandidates: RollCandidate[],
+  cfg: Required<BestFitConfig>
+): { premiumScore: number; strikeScore: number; dteScore: number; composite: number } {
+  // ── 1. Premium Score ──────────────────────────────────────────────────────
+  // Normalise net credit across all roll candidates: best credit = 100, worst = 0.
+  // Debit rolls get a penalty but are not excluded outright.
+  const credits = allRollCandidates.map(c => c.netCredit ?? 0);
+  const maxCredit = Math.max(...credits);
+  const minCredit = Math.min(...credits);
+  const creditRange = maxCredit - minCredit;
+
+  let premiumScore: number;
+  if (creditRange < 0.01) {
+    // All candidates have the same credit — score by absolute value
+    premiumScore = (candidate.netCredit ?? 0) > 0 ? 80 : 40;
+  } else {
+    const raw = ((candidate.netCredit ?? 0) - minCredit) / creditRange; // 0–1
+    premiumScore = Math.round(raw * 100);
+  }
+  // Bonus for meeting 3× rule
+  if (candidate.meets3XRule) premiumScore = Math.min(100, premiumScore + 10);
+
+  // ── 2. Strike Safety Score ────────────────────────────────────────────────
+  // Measure how far OTM the new strike is as a % of underlying price.
+  // For CSP: otmPct = (underlyingPrice - strike) / underlyingPrice * 100
+  // For CC:  otmPct = (strike - underlyingPrice) / underlyingPrice * 100
+  // Negative = ITM (bad). Score peaks at targetOtmPct ± otmBandPct.
+  let strikeScore = 0;
+  if (candidate.strike !== undefined && underlyingPrice > 0) {
+    const otmPct = isPut
+      ? ((underlyingPrice - candidate.strike) / underlyingPrice) * 100
+      : ((candidate.strike - underlyingPrice) / underlyingPrice) * 100;
+
+    if (otmPct < 0) {
+      // ITM — strong penalty, score 0–10 based on depth
+      strikeScore = Math.max(0, 10 + otmPct * 2); // deeper ITM → lower score
+    } else {
+      // OTM — bell curve centred on targetOtmPct
+      const distFromTarget = Math.abs(otmPct - cfg.targetOtmPct);
+      if (distFromTarget <= cfg.otmBandPct) {
+        // Inside the sweet band → full score
+        strikeScore = 100;
+      } else {
+        // Outside band — decay linearly; beyond 3× band → 0
+        const decay = Math.max(0, 1 - (distFromTarget - cfg.otmBandPct) / (cfg.otmBandPct * 3));
+        strikeScore = Math.round(decay * 100);
+      }
+    }
+  }
+
+  // ── 3. DTE Score ──────────────────────────────────────────────────────────
+  // Sweet spot: dteSweetMin–dteSweetMax = 100.
+  // Tapers to 0 at DTE ≤ 7 and DTE ≥ 90.
+  let dteScore = 0;
+  const dte = candidate.dte ?? 0;
+  if (dte >= cfg.dteSweetMin && dte <= cfg.dteSweetMax) {
+    dteScore = 100;
+  } else if (dte < cfg.dteSweetMin) {
+    // Below sweet spot — linear decay from dteSweetMin down to 7 (= 0)
+    const floor = 7;
+    if (dte <= floor) {
+      dteScore = 0;
+    } else {
+      dteScore = Math.round(((dte - floor) / (cfg.dteSweetMin - floor)) * 100);
+    }
+  } else {
+    // Above sweet spot — linear decay from dteSweetMax up to 90 (= 0)
+    const ceiling = 90;
+    if (dte >= ceiling) {
+      dteScore = 0;
+    } else {
+      dteScore = Math.round(((ceiling - dte) / (ceiling - cfg.dteSweetMax)) * 100);
+    }
+  }
+
+  // ── Composite ─────────────────────────────────────────────────────────────
+  const composite = Math.round(
+    premiumScore * cfg.premiumWeight +
+    strikeScore  * cfg.strikeWeight  +
+    dteScore     * cfg.dteWeight
+  );
+
+  return { premiumScore, strikeScore, dteScore, composite };
+}
+
+/**
+ * Find the Best Fit candidate from a list of roll candidates.
+ *
+ * Filters out the 'close' action, scores all roll candidates, and returns
+ * them ranked by composite Best Fit score (descending).
+ *
+ * @param candidates      - Full candidate list (including 'close' option)
+ * @param underlyingPrice - Current underlying price
+ * @param isPut           - true for CSP/BPS, false for CC/BCS
+ * @param cfg             - Optional weight/target overrides
+ * @returns Ranked array of BestFitResult (best first)
+ */
+export function rankBestFitCandidates(
+  candidates: RollCandidate[],
+  underlyingPrice: number,
+  isPut: boolean,
+  cfg: BestFitConfig = {}
+): BestFitResult[] {
+  // Apply defaults
+  const config: Required<BestFitConfig> = {
+    premiumWeight: cfg.premiumWeight ?? 0.40,
+    strikeWeight:  cfg.strikeWeight  ?? 0.35,
+    dteWeight:     cfg.dteWeight     ?? 0.25,
+    targetOtmPct:  cfg.targetOtmPct  ?? 6.5,
+    otmBandPct:    cfg.otmBandPct    ?? 3,
+    dteSweetMin:   cfg.dteSweetMin   ?? 30,
+    dteSweetMax:   cfg.dteSweetMax   ?? 45,
+  };
+
+  // Only score roll candidates (not the 'close' option)
+  const rollOnly = candidates.filter(c => c.action === 'roll');
+  if (rollOnly.length === 0) return [];
+
+  const scored = rollOnly.map(c => {
+    const { premiumScore, strikeScore, dteScore, composite } = scoreSingleBestFit(
+      c, underlyingPrice, isPut, rollOnly, config
+    );
+    return { candidate: c, bestFitScore: composite, premiumScore, strikeScore, dteScore };
+  });
+
+  // Sort descending by composite score
+  scored.sort((a, b) => b.bestFitScore - a.bestFitScore);
+
+  return scored.map((s, i) => ({ ...s, rank: i + 1 }));
+}

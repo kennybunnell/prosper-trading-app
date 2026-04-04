@@ -8764,3 +8764,10 @@ ROC Fix Mar 18 2026
 ## Bug: Roll Candidate Dry Run Failures (Apr 4, 2026)
 - [x] Investigate why roll candidate dry runs are failing — root cause: OCC symbol missing 6-char ticker padding
 - [x] Fix root cause: padded buildOCCSymbol to 6-char ticker (SPY→SPY   , AAPL→AAPL  ) — all 20 tests pass
+
+## Best Fit Roll Optimizer (Apr 4, 2026)
+- [x] Add scoreBestFitCandidate() function to rollDetection.ts (weights: 40% premium / 35% strike safety / 25% DTE)
+- [x] Add bestFitRollCandidate tRPC procedure to routers-rolls.ts (accepts candidates array + config)
+- [x] Add ⭐ Best Fit button to each roll candidate row in AutomationDashboard
+- [x] Show Best Fit badge on auto-selected candidate in the candidate picker
+- [x] Add vitest tests for the scoring function

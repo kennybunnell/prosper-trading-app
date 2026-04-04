@@ -19,7 +19,7 @@ import {
   Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle,
   TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2, Square, CheckSquare, Send, ShoppingCart,
   Power, Settings2, RefreshCw, BarChart3, GitMerge, Zap, Lock, Unlock, Download, Timer, ExternalLink, Activity, Mail,
-  Sparkles, ListOrdered, ChevronsDownUp, ChevronsUpDown, Info, ShieldCheck
+  Sparkles, ListOrdered, ChevronsDownUp, ChevronsUpDown, Info, ShieldCheck, Star
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterPill } from '@/components/FilterPill';
@@ -4097,6 +4097,79 @@ export default function AutomationDashboard() {
   );
 }
 
+// ─── Best Fit Optimizer (client-side, no extra API calls) ───────────────────
+type BestFitResult = {
+  candidate: RollCandidate;
+  bestFitScore: number;
+  premiumScore: number;
+  strikeScore: number;
+  dteScore: number;
+  rank: number;
+};
+
+function rankBestFit(
+  candidates: RollCandidate[],
+  underlyingPrice: number,
+  isPut: boolean,
+  cfg?: { premiumWeight?: number; strikeWeight?: number; dteWeight?: number; targetOtmPct?: number; otmBandPct?: number; dteSweetMin?: number; dteSweetMax?: number }
+): BestFitResult[] {
+  const pw = cfg?.premiumWeight ?? 0.40;
+  const sw = cfg?.strikeWeight  ?? 0.35;
+  const dw = cfg?.dteWeight     ?? 0.25;
+  const targetOtm = cfg?.targetOtmPct ?? 6.5;
+  const band      = cfg?.otmBandPct   ?? 3;
+  const dteMin    = cfg?.dteSweetMin  ?? 30;
+  const dteMax    = cfg?.dteSweetMax  ?? 45;
+
+  const rollOnly = candidates.filter(c => c.action === 'roll');
+  if (rollOnly.length === 0) return [];
+
+  const credits = rollOnly.map(c => c.netCredit ?? 0);
+  const maxC = Math.max(...credits);
+  const minC = Math.min(...credits);
+  const range = maxC - minC;
+
+  const scored = rollOnly.map(c => {
+    // 1. Premium score
+    let premiumScore = range < 0.01
+      ? ((c.netCredit ?? 0) > 0 ? 80 : 40)
+      : Math.round(((c.netCredit ?? 0) - minC) / range * 100);
+    if (c.meets3XRule) premiumScore = Math.min(100, premiumScore + 10);
+
+    // 2. Strike safety score
+    let strikeScore = 0;
+    if (c.strike !== undefined && underlyingPrice > 0) {
+      const otmPct = isPut
+        ? ((underlyingPrice - c.strike) / underlyingPrice) * 100
+        : ((c.strike - underlyingPrice) / underlyingPrice) * 100;
+      if (otmPct < 0) {
+        strikeScore = Math.max(0, 10 + otmPct * 2);
+      } else {
+        const dist = Math.abs(otmPct - targetOtm);
+        strikeScore = dist <= band ? 100 : Math.round(Math.max(0, 1 - (dist - band) / (band * 3)) * 100);
+      }
+    }
+
+    // 3. DTE score
+    const dte = c.dte ?? 0;
+    let dteScore = 0;
+    if (dte >= dteMin && dte <= dteMax) {
+      dteScore = 100;
+    } else if (dte < dteMin) {
+      dteScore = dte <= 7 ? 0 : Math.round(((dte - 7) / (dteMin - 7)) * 100);
+    } else {
+      dteScore = dte >= 90 ? 0 : Math.round(((90 - dte) / (90 - dteMax)) * 100);
+    }
+
+    const composite = Math.round(premiumScore * pw + strikeScore * sw + dteScore * dw);
+    return { candidate: c, bestFitScore: composite, premiumScore, strikeScore, dteScore };
+  });
+
+  scored.sort((a, b) => b.bestFitScore - a.bestFitScore);
+  return scored.map((s, i) => ({ ...s, rank: i + 1 }));
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
  * RollCandidateExpander — lazy-loads roll candidates for a position when the row is expanded.
  * Uses trpc.rolls.getRollCandidates.useQuery with skipToken until position data is available.
@@ -4146,7 +4219,16 @@ function RollCandidateExpander({
   }, [data, cachedCandidates, onCandidatesLoaded]);
 
   const candidates = cachedCandidates || (data?.candidates as RollCandidate[] | undefined);
-  const underlyingPrice = (data as any)?.underlyingPrice;
+  const underlyingPrice: number = (data as any)?.underlyingPrice ?? pos.metrics.currentPrice ?? 0;
+  const isPut = pos.strategy === 'CSP' || pos.strategy === 'BPS';
+
+  // Compute Best Fit rankings whenever candidates change (pure client-side, no API calls)
+  const bestFitRankings = useMemo(() => {
+    if (!candidates || candidates.length === 0) return [];
+    return rankBestFit(candidates, underlyingPrice, isPut);
+  }, [candidates, underlyingPrice, isPut]);
+
+  const bestFitWinner = bestFitRankings[0] ?? null;
 
   if (isLoading) {
     return (
@@ -4173,6 +4255,48 @@ function RollCandidateExpander({
 
   return (
     <div className="space-y-2">
+      {/* ⭐ Best Fit header button — shown when there are roll candidates to score */}
+      {bestFitWinner && (
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[11px] text-muted-foreground">Best Fit picks the optimal balance of premium, strike safety, and DTE (30–45d sweet spot)</span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => onSelectCandidate(bestFitWinner.candidate)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-yellow-500/60 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 text-xs font-semibold transition-all"
+                >
+                  <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                  Best Fit
+                  <span className="text-yellow-400/70 font-normal">{bestFitWinner.bestFitScore}/100</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-xs p-3 space-y-2">
+                <p className="font-semibold text-foreground flex items-center gap-1.5">
+                  <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" /> Best Fit Optimizer
+                </p>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Premium / credit (40%)</span>
+                    <span className="text-yellow-300 font-medium">{bestFitWinner.premiumScore}/100</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Strike safety 5–8% OTM (35%)</span>
+                    <span className="text-yellow-300 font-medium">{bestFitWinner.strikeScore}/100</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">DTE sweet spot 30–45d (25%)</span>
+                    <span className="text-yellow-300 font-medium">{bestFitWinner.dteScore}/100</span>
+                  </div>
+                </div>
+                <p className="text-muted-foreground border-t border-border/40 pt-2 text-[11px]">
+                  Clicking selects {bestFitWinner.candidate.description}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      )}
       {/* ITM Playbook guidance — shown when no credit roll is available */}
       {allDebits && (() => {
         const closeCandidate = candidates.find(c => c.action === 'close');
@@ -4373,14 +4497,25 @@ function RollCandidateExpander({
         {candidates.map((c, i) => {
           const isSelected = selectedCandidate === c ||
             (selectedCandidate?.action === c.action && selectedCandidate?.strike === c.strike && selectedCandidate?.expiration === c.expiration);
+          // Check if this candidate is the Best Fit winner
+          const bfResult = c.action === 'roll'
+            ? bestFitRankings.find(r =>
+                r.candidate.strike === c.strike &&
+                r.candidate.expiration === c.expiration &&
+                r.candidate.dte === c.dte
+              )
+            : undefined;
+          const isBestFit = bfResult?.rank === 1;
           return (
             <button
               key={i}
               onClick={() => onSelectCandidate(c)}
               className={`w-full text-left p-3 rounded-lg border text-sm transition-all ${
-                isSelected
-                  ? 'border-orange-500/60 bg-orange-500/10 text-foreground'
-                  : 'border-border/40 bg-muted/20 hover:bg-muted/40 text-muted-foreground hover:text-foreground'
+                isBestFit && !isSelected
+                  ? 'border-yellow-500/40 bg-yellow-500/5 hover:bg-yellow-500/10 text-muted-foreground hover:text-foreground'
+                  : isSelected
+                    ? 'border-orange-500/60 bg-orange-500/10 text-foreground'
+                    : 'border-border/40 bg-muted/20 hover:bg-muted/40 text-muted-foreground hover:text-foreground'
               }`}
             >
               <div className="flex items-center justify-between">
@@ -4390,6 +4525,12 @@ function RollCandidateExpander({
                   }`}>
                     {c.action === 'close' ? 'CLOSE' : 'ROLL'}
                   </span>
+                  {isBestFit && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-yellow-500/15 border border-yellow-500/40 text-yellow-300 text-[10px] font-semibold">
+                      <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
+                      Best Fit {bfResult!.bestFitScore}
+                    </span>
+                  )}
                   <span className="font-medium">{c.description}</span>
                 </div>
                 <div className="flex items-center gap-4 text-xs">
