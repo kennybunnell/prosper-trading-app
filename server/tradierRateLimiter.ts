@@ -1,14 +1,15 @@
 /**
  * Tradier API Rate Limiter
- * 
- * Tradier allows ~120 requests/minute but simultaneous connections cause timeouts.
+ *
+ * Tradier allows ~120 requests/minute on the sandbox plan.
  * This semaphore limits concurrent option chain fetches to MAX_CONCURRENT across
  * ALL scanners (CC, BCS, CSP/BPS, IC, PMCC) to prevent rate-limit timeouts.
- * 
- * Sweet spot: 6 concurrent = fast (6x faster than sequential) without overwhelming Tradier.
+ *
+ * Raised from 6 → 12 after profiling showed sequential chain fetches per position
+ * were the primary bottleneck. 12 concurrent = ~2x faster without overwhelming Tradier.
  */
 
-const MAX_CONCURRENT = 6;
+const MAX_CONCURRENT = 12;
 
 let activeCount = 0;
 const queue: Array<() => void> = [];

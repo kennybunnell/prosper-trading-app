@@ -1047,8 +1047,36 @@ export const rollsRouter = router({
       if (!tradierApiKey) throw new Error('Tradier API key not configured');
       const tradier = new TradierAPI(tradierApiKey, false);
 
-      // Process all positions in parallel batches (6 concurrent)
-      const CONCURRENCY = 6;
+      // ── Speed optimisation ──────────────────────────────────────────────────
+      // OLD: sequential batches of 6, each doing getQuote + getExpirations + N×getOptionChain
+      // NEW:
+      //  1. Batch-fetch all quotes in ONE call (getQuotes)
+      //  2. Fetch all expirations concurrently (one call per unique symbol, all in parallel)
+      //  3. Process all positions concurrently — generateRollCandidates now fetches
+      //     its option chains in parallel internally (via withRateLimit)
+      // ─────────────────────────────────────────────────────────────────────────
+
+      // Step 1: Batch-fetch all underlying quotes in a single API call
+      const uniqueSymbols = Array.from(new Set(input.positions.map(p => p.symbol)));
+      const bulkQuotes = await tradier.getQuotes(uniqueSymbols);
+      const quoteMap = new Map<string, number>();
+      for (const q of bulkQuotes) {
+        if (q.symbol && q.last != null) quoteMap.set(q.symbol, q.last);
+      }
+
+      // Step 2: Fetch expirations for all unique symbols concurrently
+      const { withRateLimit } = await import('./tradierRateLimiter');
+      const expirationResults = await Promise.allSettled(
+        uniqueSymbols.map(sym =>
+          withRateLimit(() => tradier.getExpirations(sym)).then(exps => ({ sym, exps }))
+        )
+      );
+      const expirationMap = new Map<string, string[]>();
+      for (const r of expirationResults) {
+        if (r.status === 'fulfilled') expirationMap.set(r.value.sym, r.value.exps);
+      }
+
+      // Step 3: Process ALL positions concurrently (no batch loop — rate limiter handles throttling)
       const allResults: Array<{
         positionId: string;
         symbol: string;
@@ -1056,16 +1084,10 @@ export const rollsRouter = router({
         bestCandidate: any | null;
         underlyingPrice: number;
         error?: string;
-      }> = [];
-
-      const queue = [...input.positions];
-      while (queue.length > 0) {
-        const batch = queue.splice(0, CONCURRENCY);
-        const batchResults = await Promise.all(batch.map(async (pos) => {
+      }> = await Promise.all(input.positions.map(async (pos) => {
           try {
-            const quote = await tradier.getQuote(pos.symbol);
-            const underlyingPrice = quote.last;
-            const expirations = await tradier.getExpirations(pos.symbol);
+            const underlyingPrice = quoteMap.get(pos.symbol) ?? pos.strikePrice;
+            const expirations = expirationMap.get(pos.symbol) ?? [];
             const currentDTE = Math.ceil(
               (new Date(pos.expirationDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
             );
@@ -1166,8 +1188,6 @@ export const rollsRouter = router({
             };
           }
         }));
-        allResults.push(...batchResults);
-      }
 
       const creditCount = allResults.filter(r => r.bestCandidate && r.bestCandidate.action !== 'close' && (r.bestCandidate.netCredit ?? 0) > 0).length;
       const closeCount  = allResults.filter(r => r.bestCandidate && r.bestCandidate.action === 'close').length;

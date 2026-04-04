@@ -608,10 +608,36 @@ export default function AutomationDashboard() {
   const [scanStartTime, setScanStartTime] = useState<number | null>(null);
   const [scanSecondsLeft, setScanSecondsLeft] = useState<number>(0);
   const [scanElapsed, setScanElapsed] = useState<number>(0);
-  // Countdown ticker — updates every second while a scan is running
+
+  // ── Adaptive scan timing ─────────────────────────────────────────────────
+  // Stores the last 3 actual scan durations (seconds per position) in localStorage.
+  // The average is used as the estimate for the next scan's progress bar.
+  // Default seed: 25s/position (conservative before any real data is collected).
+  const SCAN_TIMING_KEY = 'prosper_scan_secs_per_pos';
+  const DEFAULT_SECS_PER_POS = 25; // ~5 min for 12 positions before optimisation
+  const getSavedTimings = (): number[] => {
+    try {
+      const raw = localStorage.getItem(SCAN_TIMING_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  };
+  const saveNewTiming = (secsPerPos: number) => {
+    try {
+      const prev = getSavedTimings();
+      const updated = [...prev, secsPerPos].slice(-3); // keep last 3
+      localStorage.setItem(SCAN_TIMING_KEY, JSON.stringify(updated));
+    } catch { /* ignore */ }
+  };
+  const getEstimatedSecsPerPos = (): number => {
+    const saved = getSavedTimings();
+    if (saved.length === 0) return DEFAULT_SECS_PER_POS;
+    return saved.reduce((a, b) => a + b, 0) / saved.length;
+  };
+
+  // Countdown ticker — updates every 500ms while a scan is running
   useEffect(() => {
     if (!isScanningAll || !scanAllProgress || !scanStartTime) return;
-    const estimatedTotal = scanAllProgress.total * 2.2; // ~2.2s per position
+    const estimatedTotal = scanAllProgress.total * getEstimatedSecsPerPos();
     const tick = () => {
       const elapsed = (Date.now() - scanStartTime) / 1000;
       const remaining = Math.max(0, estimatedTotal - elapsed);
@@ -621,6 +647,7 @@ export default function AutomationDashboard() {
     tick();
     const id = setInterval(tick, 500);
     return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isScanningAll, scanAllProgress, scanStartTime]);
   // DTE range presets for Scan All (null = use server default logic)
   const DTE_PRESETS = [
@@ -632,6 +659,12 @@ export default function AutomationDashboard() {
   const [scanDteRange, setScanDteRange] = useState<{ min: number; max: number } | null>(null);
   const scanAllRollCandidates = trpc.rolls.scanAllRollCandidates.useMutation({
     onSuccess: (data) => {
+      // Record actual scan duration for adaptive timing
+      if (scanStartTime && scanAllProgress && scanAllProgress.total > 0) {
+        const actualSecs = (Date.now() - scanStartTime) / 1000;
+        const secsPerPos = actualSecs / scanAllProgress.total;
+        saveNewTiming(secsPerPos);
+      }
       setIsScanningAll(false);
       setScanAllProgress(null);
       setScanStartTime(null);

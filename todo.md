@@ -8755,3 +8755,8 @@ ROC Fix Mar 18 2026
 - [x] Fix scan buttons (Roll All, CC All, CSP All, BCS All) to show visible pill border - convert from shadcn Button to plain button elements
 - [x] Replace spinning scan progress text with horizontal progress bar + estimated time countdown inline with scan buttons
 - [x] Confirm submit capabilities are fully wired for market open
+## Scanner Speed Improvements (Apr 4, 2026)
+- [x] Audit scanAllRollCandidates server procedure for concurrency level and bottlenecks
+- [x] Maximize parallelism in scanner (increase concurrent workers, reduce sequential API calls)
+- [x] Fix progress bar time estimate to reflect actual ~5 min scan time
+- [x] Implement adaptive timing: store actual scan durations in localStorage and average them for future estimates

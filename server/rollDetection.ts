@@ -486,21 +486,33 @@ export async function generateRollCandidates(
   });
 
 
-  // Fetch option chains for each suitable expiration and generate candidates
-  for (const expirationDate of suitableExpirations) {
+  // Fetch all suitable option chains IN PARALLEL (rate-limited) instead of sequentially.
+  // This is the primary speed improvement: N expirations used to be N sequential awaits;
+  // now they all fire concurrently through the shared rate limiter.
+  const { withRateLimit } = await import('./tradierRateLimiter');
+  const chainResults = await Promise.allSettled(
+    suitableExpirations.map(expirationDate =>
+      withRateLimit(() => tradierClient.getOptionChain(position.symbol, expirationDate, true) as Promise<any[]>)
+        .then((options: any[]) => ({ expirationDate, options }))
+    )
+  );
+
+  for (const result of chainResults) {
+    if (result.status === 'rejected') {
+      console.error('[generateRollCandidates] Chain fetch failed:', result.reason);
+      continue;
+    }
+    const { expirationDate, options } = result.value as { expirationDate: string; options: any[] };
     const dte = calculateDTE(expirationDate);
-    
+
     try {
-      // Fetch option chain from Tradier for this expiration
-      const options = await tradierClient.getOptionChain(position.symbol, expirationDate, true);
-      
       // Filter to correct option type
-      const relevantOptions = options.filter((opt: any) => 
+      const relevantOptions = options.filter((opt: any) =>
         opt.option_type === (isPut ? 'put' : 'call')
       );
-      
+
       // Scenario 1: Roll Out (Same Strike)
-      const sameStrikeOption = relevantOptions.find((opt: any) => 
+      const sameStrikeOption = relevantOptions.find((opt: any) =>
         Math.abs(opt.strike - currentStrike) < 0.01
       );
       if (sameStrikeOption) {
@@ -557,7 +569,7 @@ export async function generateRollCandidates(
         }
       }
     } catch (error) {
-      console.error('[generateRollCandidates] Error fetching option chain for', expirationDate, error);
+      console.error('[generateRollCandidates] Error processing chain for', expirationDate, error);
     }
   }
 
