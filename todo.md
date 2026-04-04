@@ -8753,3 +8753,5 @@ ROC Fix Mar 18 2026
 - [x] Fix stale DTE in roll description after DTE change (shows "9 DTE" even when DTE updated to 47d)
 - [x] Add visible borders to Roll All / CC All / CSP All / BCS All scan buttons matching Credit Rolls Only style
 - [x] Fix scan buttons (Roll All, CC All, CSP All, BCS All) to show visible pill border - convert from shadcn Button to plain button elements
+- [x] Replace spinning scan progress text with horizontal progress bar + estimated time countdown inline with scan buttons
+- [x] Confirm submit capabilities are fully wired for market open

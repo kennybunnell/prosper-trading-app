@@ -605,6 +605,23 @@ export default function AutomationDashboard() {
   // ── Scan All Roll Candidates ─────────────────────────────────────────────
   const [isScanningAll, setIsScanningAll] = useState(false);
   const [scanAllProgress, setScanAllProgress] = useState<{ done: number; total: number } | null>(null);
+  const [scanStartTime, setScanStartTime] = useState<number | null>(null);
+  const [scanSecondsLeft, setScanSecondsLeft] = useState<number>(0);
+  const [scanElapsed, setScanElapsed] = useState<number>(0);
+  // Countdown ticker — updates every second while a scan is running
+  useEffect(() => {
+    if (!isScanningAll || !scanAllProgress || !scanStartTime) return;
+    const estimatedTotal = scanAllProgress.total * 2.2; // ~2.2s per position
+    const tick = () => {
+      const elapsed = (Date.now() - scanStartTime) / 1000;
+      const remaining = Math.max(0, estimatedTotal - elapsed);
+      setScanElapsed(elapsed);
+      setScanSecondsLeft(Math.ceil(remaining));
+    };
+    tick();
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [isScanningAll, scanAllProgress, scanStartTime]);
   // DTE range presets for Scan All (null = use server default logic)
   const DTE_PRESETS = [
     { label: '7–14d', min: 7, max: 14 },
@@ -617,6 +634,7 @@ export default function AutomationDashboard() {
     onSuccess: (data) => {
       setIsScanningAll(false);
       setScanAllProgress(null);
+      setScanStartTime(null);
       const newSelections: Record<string, RollCandidate | null> = {};
       for (const r of data.results) {
         if (r.bestCandidate) {
@@ -636,7 +654,8 @@ export default function AutomationDashboard() {
     onError: (err) => {
       setIsScanningAll(false);
       setScanAllProgress(null);
-      toast.error(`Scan All failed: ${err.message}`);
+      setScanStartTime(null);
+       toast.error(`Scan All failed: ${err.message}`);
     },
   });
 
@@ -662,6 +681,9 @@ export default function AutomationDashboard() {
     setRollCandidatesCache({});
     setIsScanningAll(true);
     setScanAllProgress({ done: 0, total: positions.length });
+    setScanStartTime(Date.now());
+    setScanSecondsLeft(Math.ceil(positions.length * 2.2));
+    setScanElapsed(0);
     scanAllRollCandidates.mutate({ positions, ...(scanDteRange ? { dteRange: scanDteRange } : {}) });
   };
 
@@ -2608,7 +2630,7 @@ export default function AutomationDashboard() {
                       onClick={() => handleScanAll()}
                       className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full border-2 border-orange-500 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition-all duration-150 shadow-sm h-8 cursor-pointer"
                     >
-                      {isScanningAll && !scanAllProgress ? (
+                      {isScanningAll ? (
                         <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Scanning...</>
                       ) : (
                         <><Zap className="h-3 w-3 mr-1" />Roll All ({rollScanResults.all.length})</>
@@ -2636,14 +2658,37 @@ export default function AutomationDashboard() {
                     </Tooltip>
                   );
                 })}
-                {isScanningAll && scanAllProgress && (
-                  <span className="text-xs text-orange-300/70 ml-1">
-                    <Loader2 className="h-3 w-3 inline mr-1 animate-spin" />
-                    Scanning {scanAllProgress.total} positions...
-                  </span>
-                )}
               </TooltipProvider>
               </div>
+              {/* Horizontal progress bar — shown while Scan All is running */}
+              {isScanningAll && scanAllProgress && (() => {
+                const estimatedTotal = scanAllProgress.total * 2.2;
+                const pct = Math.min(100, (scanElapsed / estimatedTotal) * 100);
+                const mins = Math.floor(scanSecondsLeft / 60);
+                const secs = scanSecondsLeft % 60;
+                const timeStr = mins > 0
+                  ? `${mins}m ${secs}s remaining`
+                  : scanSecondsLeft > 0
+                    ? `~${secs}s remaining`
+                    : 'Finishing up…';
+                return (
+                  <div className="mt-2 w-full">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] text-orange-300/80 font-medium flex items-center gap-1.5">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Scanning {scanAllProgress.total} position{scanAllProgress.total !== 1 ? 's' : ''}…
+                      </span>
+                      <span className="text-[11px] text-orange-400/70 tabular-nums">{timeStr}</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-orange-950/60 overflow-hidden border border-orange-500/20">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-orange-600 to-orange-400 transition-all duration-500 ease-linear"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
