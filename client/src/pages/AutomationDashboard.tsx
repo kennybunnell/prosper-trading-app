@@ -362,7 +362,7 @@ export default function AutomationDashboard() {
   const [expandedRollRow, setExpandedRollRow] = useState<string | null>(null);
   const [rollCandidatesCache, setRollCandidatesCache] = useState<Record<string, RollCandidate[]>>({});
   // Stores the Best Fit winner per positionId — computed when candidates are loaded
-  const [bestFitCache, setBestFitCache] = useState<Record<string, RollCandidate | null>>({});
+  const [bestFitCache, setBestFitCache] = useState<Record<string, BestFitResult | null>>({});
   const [selectedRollPositions, setSelectedRollPositions] = useState<Set<string>>(new Set());
   const [rollCandidateSelections, setRollCandidateSelections] = useState<Record<string, RollCandidate | null>>({});
   const [isSubmittingRolls, setIsSubmittingRolls] = useState(false);
@@ -672,7 +672,7 @@ export default function AutomationDashboard() {
       setScanStartTime(null);
       const newSelections: Record<string, RollCandidate | null> = {};
       const newCandidatesCache: Record<string, RollCandidate[]> = {};
-      const newBestFitCache: Record<string, RollCandidate | null> = {};
+      const newBestFitCache: Record<string, BestFitResult | null> = {};
       for (const r of data.results) {
         if (r.bestCandidate) {
           newSelections[r.positionId] = r.bestCandidate as RollCandidate;
@@ -686,14 +686,14 @@ export default function AutomationDashboard() {
           if (scanPos) {
             const isPut = scanPos.strategy === 'CSP' || scanPos.strategy === 'BPS';
             const ranked = rankBestFit(rAny.candidates as RollCandidate[], scanPos.metrics.currentPrice ?? 0, isPut);
-            newBestFitCache[r.positionId] = ranked[0]?.candidate ?? null;
+            newBestFitCache[r.positionId] = ranked[0] ?? null;
           }
         }
       }
       // Load candidates but do NOT auto-select — user picks which ones to submit
       setRollCandidateSelections(newSelections);
       setRollCandidatesCache(prev => ({ ...prev, ...newCandidatesCache }));
-      setBestFitCache(prev => ({ ...prev, ...newBestFitCache }));
+      setBestFitCache(prev => ({ ...prev, ...newBestFitCache } as Record<string, BestFitResult | null>));
       setSelectedRollPositions(new Set()); // always start with empty queue
       const { creditRolls, closeOnly, errors } = data.summary;
       if (errors > 0) {
@@ -2709,6 +2709,42 @@ export default function AutomationDashboard() {
                     </Tooltip>
                   );
                 })}
+                {/* ⭐ Best Fit All — only shown when bestFitCache has entries */}
+                {Object.keys(bestFitCache).length > 0 && (() => {
+                  const eligibleCount = Object.values(bestFitCache).filter(v => v?.candidate?.action === 'roll').length;
+                  if (eligibleCount === 0) return null;
+                  return (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          disabled={isScanningAll || isRollScanning}
+                          onClick={() => {
+                            let queued = 0;
+                            const newSelections: Record<string, RollCandidate | null> = {};
+                            const newSelected = new Set(selectedRollPositions);
+                            for (const [posId, bf] of Object.entries(bestFitCache)) {
+                              if (bf?.candidate) {
+                                newSelections[posId] = bf.candidate as RollCandidate;
+                                newSelected.add(posId);
+                                queued++;
+                              }
+                            }
+                            setRollCandidateSelections(prev => ({ ...prev, ...newSelections }));
+                            setSelectedRollPositions(newSelected);
+                            toast.success(`⭐ Best Fit applied to ${queued} position${queued !== 1 ? 's' : ''} — review queue to submit`);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-yellow-500/80 bg-yellow-500/10 hover:bg-yellow-500/25 hover:border-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed text-yellow-300 hover:text-yellow-200 text-xs font-semibold transition-all duration-150 h-8 cursor-pointer"
+                        >
+                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                          Best Fit All ({eligibleCount})
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-[220px]">
+                        <p>Auto-select the Best Fit candidate for all {eligibleCount} position{eligibleCount !== 1 ? 's' : ''} and queue them for review. Uses 40% premium / 35% strike safety / 25% DTE scoring.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })()}
               </TooltipProvider>
               </div>
               {/* Horizontal progress bar — shown while Scan All is running */}
@@ -3218,7 +3254,7 @@ export default function AutomationDashboard() {
                                               <button
                                                 onClick={(e) => {
                                                   e.stopPropagation();
-                                                  setRollCandidateSelections(prev => ({ ...prev, [pos.positionId]: bestFitWinnerForRow }));
+                                                  setRollCandidateSelections(prev => ({ ...prev, [pos.positionId]: bestFitWinnerForRow.candidate ?? null }));
                                                   setSelectedRollPositions(prev => { const next = new Set(prev); next.add(pos.positionId); return next; });
                                                 }}
                                                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-yellow-500/60 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 text-[10px] font-semibold transition-all"
@@ -3227,10 +3263,18 @@ export default function AutomationDashboard() {
                                                 Best Fit
                                               </button>
                                             </TooltipTrigger>
-                                            <TooltipContent side="left" className="text-xs p-2">
-                                              Auto-select: {bestFitWinnerForRow.action === 'roll'
-                                                ? `→ $${bestFitWinnerForRow.strike?.toFixed(0)} ${bestFitWinnerForRow.expiration?.slice(5)} · ${bestFitWinnerForRow.netCredit !== undefined ? (bestFitWinnerForRow.netCredit >= 0 ? '+' : '') + '$' + bestFitWinnerForRow.netCredit.toFixed(2) + ' credit' : ''}`
-                                                : 'Close position'}
+                                            <TooltipContent side="left" className="text-xs p-3 max-w-[220px] space-y-1.5">
+                                              <p className="font-semibold text-yellow-300 text-[11px] mb-1">
+                                                {bestFitWinnerForRow.candidate?.action === 'roll'
+                                                  ? `⭐ Best Fit: → $${bestFitWinnerForRow.candidate?.strike?.toFixed(0)} ${bestFitWinnerForRow.candidate?.expiration?.slice(5)}`
+                                                  : '⭐ Best Fit: Close position'}
+                                              </p>
+                                              <div className="space-y-1 text-[10px]">
+                                                <div className="flex justify-between gap-3"><span className="text-muted-foreground">Premium (40%)</span><span className="text-yellow-300 font-medium">{bestFitWinnerForRow.premiumScore}/100</span></div>
+                                                <div className="flex justify-between gap-3"><span className="text-muted-foreground">Strike safety (35%)</span><span className="text-yellow-300 font-medium">{bestFitWinnerForRow.strikeScore}/100</span></div>
+                                                <div className="flex justify-between gap-3"><span className="text-muted-foreground">DTE 30–45d (25%)</span><span className="text-yellow-300 font-medium">{bestFitWinnerForRow.dteScore}/100</span></div>
+                                                <div className="flex justify-between gap-3 border-t border-border/40 pt-1 font-semibold"><span className="text-foreground">Composite score</span><span className="text-yellow-400">{bestFitWinnerForRow.bestFitScore}/100</span></div>
+                                              </div>
                                             </TooltipContent>
                                           </Tooltip>
                                         </TooltipProvider>
@@ -3238,8 +3282,8 @@ export default function AutomationDashboard() {
                                       {/* Selected candidate display */}
                                       {selectedCandidate ? (
                                         <span className={`font-medium ${
-                                          selectedCandidate === bestFitWinnerForRow ||
-                                          (selectedCandidate.strike === bestFitWinnerForRow?.strike && selectedCandidate.expiration === bestFitWinnerForRow?.expiration)
+                                          selectedCandidate === bestFitWinnerForRow?.candidate ||
+                                          (selectedCandidate.strike === bestFitWinnerForRow?.candidate?.strike && selectedCandidate.expiration === bestFitWinnerForRow?.candidate?.expiration)
                                             ? 'text-yellow-300'
                                             : 'text-green-400'
                                         }`}>
@@ -3274,8 +3318,8 @@ export default function AutomationDashboard() {
                                           // Compute Best Fit winner and cache it for the collapsed row
                                           const isPut = pos.strategy === 'CSP' || pos.strategy === 'BPS';
                                           const ranked = rankBestFit(candidates, pos.metrics.currentPrice ?? 0, isPut);
-                                          const winner = ranked[0]?.candidate ?? null;
-                                          setBestFitCache(prev => ({ ...prev, [pos.positionId]: winner }));
+                                          const winnerResult = ranked[0] ?? null;
+                                          setBestFitCache(prev => ({ ...prev, [pos.positionId]: winnerResult } as Record<string, BestFitResult | null>));
                                         }}
                                         onSelectCandidate={(candidate) => {
                                           setRollCandidateSelections(prev => ({ ...prev, [pos.positionId]: candidate }));

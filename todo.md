@@ -8780,3 +8780,8 @@ ROC Fix Mar 18 2026
 - [x] Add ⭐ Best Fit badge to Roll Order Review panel rows (show which orders ARE the Best Fit pick)
 - [x] Add ⭐ Best Fit badge to expanded RollCandidateExpander candidate cards
 - [x] Best Fit winner should be visually primary/highlighted in the right-hand review panel
+
+## Best Fit Enhancements (Apr 4, 2026)
+- [ ] Extend Best Fit scoring to return per-component scores (premiumScore, safetyScore, dteScore)
+- [ ] Add score breakdown tooltip on every ⭐ badge (Premium: X · Safety: X · DTE: X = Score X)
+- [ ] Add "⭐ Best Fit All" button to scan toolbar — queues all Best Fit winners at once
