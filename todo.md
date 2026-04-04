@@ -8760,3 +8760,7 @@ ROC Fix Mar 18 2026
 - [x] Maximize parallelism in scanner (increase concurrent workers, reduce sequential API calls)
 - [x] Fix progress bar time estimate to reflect actual ~5 min scan time
 - [x] Implement adaptive timing: store actual scan durations in localStorage and average them for future estimates
+
+## Bug: Roll Candidate Dry Run Failures (Apr 4, 2026)
+- [x] Investigate why roll candidate dry runs are failing — root cause: OCC symbol missing 6-char ticker padding
+- [x] Fix root cause: padded buildOCCSymbol to 6-char ticker (SPY→SPY   , AAPL→AAPL  ) — all 20 tests pass

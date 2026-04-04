@@ -33,10 +33,12 @@ function parseOptionSymbol(symbol: string): {
 }
 
 function buildOCCSymbol(underlying: string, expiration: string, optionType: 'C' | 'P', strike: number): string {
+  // OCC standard: ticker padded to 6 chars + YYMMDD + C/P + 8-digit strike (21 chars total)
   const expParts = expiration.split('-');
   const dateStr = expParts[0].slice(2) + expParts[1] + expParts[2]; // YYMMDD
   const strikeStr = String(Math.round(strike * 1000)).padStart(8, '0');
-  return `${underlying}${dateStr}${optionType}${strikeStr}`;
+  const paddedTicker = underlying.padEnd(6, ' ');
+  return `${paddedTicker}${dateStr}${optionType}${strikeStr}`;
 }
 
 describe('OCC Symbol Parsing', () => {
@@ -79,18 +81,21 @@ describe('OCC Symbol Parsing', () => {
 });
 
 describe('OCC Symbol Building', () => {
-  it('builds a CSP OCC symbol correctly', () => {
+  it('builds a CSP OCC symbol correctly (padded ticker)', () => {
     const symbol = buildOCCSymbol('AAPL', '2025-01-17', 'P', 150);
-    expect(symbol).toBe('AAPL250117P00150000');
+    expect(symbol).toBe('AAPL  250117P00150000'); // 6-char padded ticker
+    expect(symbol.length).toBe(21);
   });
 
-  it('builds a CC OCC symbol correctly', () => {
+  it('builds a CC OCC symbol correctly (padded ticker)', () => {
     const symbol = buildOCCSymbol('TSLA', '2025-03-21', 'C', 250);
-    expect(symbol).toBe('TSLA250321C00250000');
+    expect(symbol).toBe('TSLA  250321C00250000');
+    expect(symbol.length).toBe(21);
   });
 
   it('round-trips: parse then build returns original symbol', () => {
-    const original = 'SOFI260320P00007500';
+    // parseOptionSymbol strips spaces, so round-trip uses the padded form
+    const original = 'SOFI  260320P00007500'; // padded form
     const parsed = parseOptionSymbol(original);
     expect(parsed).not.toBeNull();
     const rebuilt = buildOCCSymbol(
@@ -99,12 +104,25 @@ describe('OCC Symbol Building', () => {
       parsed!.optionType === 'PUT' ? 'P' : 'C',
       parsed!.strike
     );
-    expect(rebuilt).toBe(original);
+    expect(rebuilt).toBe('SOFI  260320P00007500');
   });
 
   it('pads strike correctly for sub-$10 strikes', () => {
     const symbol = buildOCCSymbol('HOOD', '2026-01-17', 'P', 7.5);
-    expect(symbol).toBe('HOOD260117P00007500');
+    expect(symbol).toBe('HOOD  260117P00007500');
+    expect(symbol.length).toBe(21);
+  });
+
+  it('3-char ticker gets 3 spaces of padding', () => {
+    const symbol = buildOCCSymbol('SPY', '2026-04-17', 'P', 540);
+    expect(symbol).toBe('SPY   260417P00540000');
+    expect(symbol.length).toBe(21);
+  });
+
+  it('5-char ticker gets 1 space of padding', () => {
+    const symbol = buildOCCSymbol('GOOGL', '2026-04-17', 'C', 180);
+    expect(symbol).toBe('GOOGL 260417C00180000');
+    expect(symbol.length).toBe(21);
   });
 });
 
@@ -173,7 +191,7 @@ describe('Submit Roll Orders — order construction', () => {
 
     expect(btcLeg.action).toBe('Buy to Close');
     expect(stoLeg.action).toBe('Sell to Open');
-    expect(stoLeg.symbol).toBe('SOFI260417P00007000');
+    expect(stoLeg.symbol).toBe('SOFI  260417P00007000'); // 6-char padded ticker
   });
 
   it('builds a close-only order (BTC only) correctly', () => {

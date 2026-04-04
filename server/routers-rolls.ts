@@ -39,10 +39,15 @@ function isDogPosition(
 // ─── OCC Symbol Helper ────────────────────────────────────────────────────────
 
 function buildOCCSymbol(underlying: string, expiration: string, optionType: 'C' | 'P', strike: number): string {
+  // Standard OCC format: 21 chars total
+  //   Ticker padded to 6 chars (right-padded with spaces) + YYMMDD + C/P + 8-digit strike (strike × 1000)
+  //   e.g. SPY   260417P00540000  or  GOOGL 260417C00180000
+  // Tastytrade rejects symbols that are not exactly this format (invalid_symbol preflight error).
   const expParts = expiration.split('-');
   const dateStr = expParts[0].slice(2) + expParts[1] + expParts[2]; // YYMMDD
   const strikeStr = String(Math.round(strike * 1000)).padStart(8, '0');
-  return `${underlying}${dateStr}${optionType}${strikeStr}`;
+  const paddedTicker = underlying.padEnd(6, ' '); // must be exactly 6 chars
+  return `${paddedTicker}${dateStr}${optionType}${strikeStr}`;
 }
 
 // ─── OCC Symbol Parser ────────────────────────────────────────────────────────
