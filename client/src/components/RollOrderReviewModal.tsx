@@ -66,6 +66,10 @@ export type RollOrderItem = {
     legs: Array<{ symbol: string; action: string; quantity: number }>;
     spreadWidth: number;
   };
+  /** Best Fit winner for this position (may differ from currently selected candidate) */
+  bestFitCandidate?: RollCandidateItem | null;
+  /** Score breakdown for the Best Fit winner */
+  bestFitScores?: { premiumScore: number; strikeScore: number; dteScore: number; bestFitScore: number };
 };
 
 type SortKey = 'none' | 'symbol' | 'total' | 'score' | 'dte';
@@ -456,7 +460,65 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
           {isRoll && (
             <section>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Roll Target</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Roll Target</p>
+                  {/* Best Fit badge — shown when current candidate IS the Best Fit winner */}
+                  {item.bestFitCandidate &&
+                    item.candidate.strike === item.bestFitCandidate.strike &&
+                    item.candidate.expiration === item.bestFitCandidate.expiration && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border border-yellow-500/60 bg-yellow-500/10 text-yellow-300 text-[9px] font-bold cursor-help">
+                            <Star className="h-2 w-2 fill-yellow-400 text-yellow-400" />
+                            Best Fit
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="text-xs max-w-[180px]">
+                          {item.bestFitScores ? (
+                            <div className="space-y-0.5">
+                              <div className="font-semibold text-yellow-300 mb-1">Best Fit Score Breakdown</div>
+                              <div>Premium: <span className="text-yellow-200 font-mono">{item.bestFitScores.premiumScore}</span>/100</div>
+                              <div>Strike Safety: <span className="text-yellow-200 font-mono">{item.bestFitScores.strikeScore}</span>/100</div>
+                              <div>DTE: <span className="text-yellow-200 font-mono">{item.bestFitScores.dteScore}</span>/100</div>
+                              <div className="border-t border-yellow-500/30 mt-1 pt-1 font-semibold">Composite: <span className="text-yellow-300 font-mono">{item.bestFitScores.bestFitScore}</span>/100</div>
+                            </div>
+                          ) : 'This is the Best Fit candidate for this position'}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  {/* Indicator when current candidate differs from Best Fit */}
+                  {item.bestFitCandidate &&
+                    !(item.candidate.strike === item.bestFitCandidate.strike &&
+                      item.candidate.expiration === item.bestFitCandidate.expiration) && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border border-orange-500/40 bg-orange-500/5 text-orange-400/70 text-[9px] font-medium cursor-help">
+                            <Star className="h-2 w-2 text-orange-400/70" />
+                            Best Fit: ${(item.bestFitCandidate?.strike ?? 0).toFixed(0)} {(item.bestFitCandidate?.expiration ?? '').slice(5)} ({item.bestFitCandidate?.dte ?? 0}d)
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="text-xs max-w-[200px]">
+                          {item.bestFitScores ? (
+                            <div className="space-y-0.5">
+                              <div className="font-semibold text-yellow-300 mb-1">Best Fit Recommendation</div>
+                              <div className="text-muted-foreground mb-1">Current selection differs from Best Fit</div>
+                              <div>Best Fit: ${(item.bestFitCandidate?.strike ?? 0).toFixed(0)} · {(item.bestFitCandidate?.expiration ?? '').slice(5)}</div>
+                              <div className="border-t border-yellow-500/30 mt-1 pt-1">
+                                <div>Premium: <span className="font-mono">{item.bestFitScores.premiumScore}</span>/100</div>
+                                <div>Strike Safety: <span className="font-mono">{item.bestFitScores.strikeScore}</span>/100</div>
+                                <div>DTE: <span className="font-mono">{item.bestFitScores.dteScore}</span>/100</div>
+                                <div className="font-semibold">Score: <span className="text-yellow-300 font-mono">{item.bestFitScores.bestFitScore}</span>/100</div>
+                              </div>
+                            </div>
+                          ) : 'Best Fit recommendation available — current selection differs'}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -1321,10 +1383,8 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
                     </tr>
                   ) : (
                     displayItems.map((item, idx) => {
-                      const bf = bestFitCache?.[item.positionId];
-                      const bfCandidate = bf?.candidate;
+                      const bfCandidate = item.bestFitCandidate;
                       const isBestFit = bfCandidate != null &&
-                        item.candidate.action === (bfCandidate.action ?? 'roll') &&
                         item.candidate.strike === bfCandidate.strike &&
                         item.candidate.expiration === bfCandidate.expiration;
                       return (
@@ -1345,7 +1405,7 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
                           onPriceChange={(p) => handlePriceChange(item.positionId, p)}
                           refreshedCredit={liveCredits.get(item.positionId)}
                           isBestFit={isBestFit}
-                          bestFitScores={bf ? { premiumScore: bf.premiumScore, strikeScore: bf.strikeScore, dteScore: bf.dteScore, bestFitScore: bf.bestFitScore } : undefined}
+                          bestFitScores={item.bestFitScores}
                         />
                       );
                     })

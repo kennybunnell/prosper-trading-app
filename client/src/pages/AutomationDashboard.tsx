@@ -750,6 +750,11 @@ export default function AutomationDashboard() {
       if (!candidate) continue;
       const allCandidates = (rollCandidatesCache[key] as RollCandidate[] | undefined) || [candidate];
       const isSpread = ['BPS', 'BCS', 'IC'].includes(pos.strategy);
+      // Compute Best Fit inline so the review modal always has it
+      const isPut = pos.strategy === 'CSP' || pos.strategy === 'BPS';
+      const currentPrice = pos.metrics.currentPrice ?? 0;
+      const ranked = rankBestFit(allCandidates, currentPrice, isPut);
+      const bfWinner = ranked[0] ?? null;
       items.push({
         positionId: pos.positionId,
         symbol: pos.symbol,
@@ -792,6 +797,27 @@ export default function AutomationDashboard() {
           score: c.score,
           description: c.description,
         })),
+        bestFitCandidate: bfWinner ? {
+          action: bfWinner.candidate.action,
+          strike: bfWinner.candidate.strike,
+          expiration: bfWinner.candidate.expiration,
+          dte: bfWinner.candidate.dte,
+          netCredit: bfWinner.candidate.netCredit,
+          closeCost: bfWinner.candidate.closeCost,
+          netPnl: bfWinner.candidate.netPnl,
+          openPremium: bfWinner.candidate.openPremium,
+          newPremium: bfWinner.candidate.newPremium,
+          annualizedReturn: bfWinner.candidate.annualizedReturn,
+          delta: bfWinner.candidate.delta,
+          score: bfWinner.candidate.score,
+          description: bfWinner.candidate.description,
+        } : null,
+        bestFitScores: bfWinner ? {
+          premiumScore: Math.round(bfWinner.premiumScore),
+          strikeScore: Math.round(bfWinner.strikeScore),
+          dteScore: Math.round(bfWinner.dteScore),
+          bestFitScore: Math.round(bfWinner.bestFitScore),
+        } : undefined,
         isSpread,
         spreadDetails: isSpread && pos.spreadDetails ? {
           legs: pos.spreadDetails.legs.map(l => ({
