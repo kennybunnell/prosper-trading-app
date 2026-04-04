@@ -341,11 +341,11 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
   const effectiveTotal = liveCredit !== undefined && liveCredit !== null ? liveCredit : netTotal;
 
   return (
-    <div className="flex flex-col h-full bg-card border-l border-border/50 w-80 shrink-0">
+    <div className="flex flex-col h-full bg-card border-l border-border/50 w-[440px] shrink-0">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
         <div className="flex items-center gap-2">
           <StratBadge s={item.strategy} />
-          <span className="font-semibold text-sm">{item.symbol}</span>
+          <span className="font-semibold text-base">{item.symbol}</span>
           <ActionBadge a={c.action} />
         </div>
         <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onClose}>
@@ -357,7 +357,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
       <div className="px-4 py-2.5 bg-muted/30 border-b border-border/40">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-0.5">Current Price</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-0.5">Current Price</p>
             {priceLoading ? (
               <span className="text-[11px] text-muted-foreground flex items-center gap-1">
                 <Loader2 className="h-3 w-3 animate-spin" /> Loading...
@@ -365,7 +365,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
             ) : stockPrice !== null ? (
               <div>
                 <div className="flex items-baseline gap-2">
-                  <span className="font-mono font-bold text-lg text-foreground">${stockPrice.toFixed(2)}</span>
+                  <span className="font-mono font-bold text-xl text-foreground">${stockPrice.toFixed(2)}</span>
                   {stockPriceQuery.data?.changePct !== null && stockPriceQuery.data?.changePct !== undefined && (
                     <span className={`text-xs font-semibold ${
                       (stockPriceQuery.data.changePct ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
@@ -389,10 +389,10 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                     : (isItm ? `stock $${(strike - stockPrice).toFixed(2)} below strike` : `stock $${(stockPrice - strike).toFixed(2)} above strike`);
                   return (
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${isItm ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isItm ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
                         {label}
                       </span>
-                      <span className={`text-[10px] font-mono ${color}`}>
+                      <span className={`text-xs font-mono ${color}`}>
                         {distPct.toFixed(1)}% · {absDistLabel}
                       </span>
                     </div>
@@ -415,11 +415,11 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="px-4 py-3 space-y-4 text-xs">
+        <div className="px-4 py-3 space-y-4 text-sm">
 
           {/* Current Position */}
           <section>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">Current Position</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">Current Position</p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               <div><span className="text-muted-foreground">Contracts</span><p className="font-mono font-semibold">{item.quantity}</p></div>
               <div><span className="text-muted-foreground">Strike</span><p className="font-mono font-semibold">${item.currentStrike.toFixed(0)}</p></div>
@@ -441,7 +441,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
           {isRoll && (
             <section>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">Roll Target</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">Roll Target</p>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -513,12 +513,12 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                   </div>
                   {/* Nudge step size selector */}
                   <div className="flex items-center gap-1 mt-1.5">
-                    <span className="text-[9px] text-muted-foreground/50 mr-0.5">Step:</span>
+                    <span className="text-[10px] text-muted-foreground/50 mr-0.5">Step:</span>
                     {[1, 2.5, 5].map((step) => (
                       <button
                         key={step}
                         onClick={() => setNudgeStep(step)}
-                        className={`text-[9px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
+                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
                           nudgeStep === step
                             ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
                             : 'text-muted-foreground/50 border-border/30 hover:text-muted-foreground hover:border-border/60'
@@ -528,7 +528,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                       </button>
                     ))}
                   </div>
-                  <p className="text-[10px] text-muted-foreground/50 mt-0.5">
+                  <p className="text-xs text-muted-foreground/50 mt-0.5">
                     {item.strategy === 'CC' ? '↑ up = less risk' : item.strategy === 'CSP' ? '↓ down = more cushion' : ''}
                   </p>
                 </div>
@@ -536,16 +536,16 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                 {/* DTE with selector — full-width interactive section */}
                 <div className="col-span-2 p-2 rounded-md bg-muted/20 border border-border/30">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-muted-foreground flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider">
+                    <span className="text-muted-foreground flex items-center gap-1 text-xs font-semibold uppercase tracking-wider">
                       <Calendar className="h-3 w-3" /> Change DTE
                     </span>
                     <div className="flex items-center gap-1">
-                      <span className="font-mono font-bold text-orange-300 text-sm">{c.dte ?? '\u2014'}d</span>
+                      <span className="font-mono font-bold text-orange-300 text-base">{c.dte ?? '\u2014'}d</span>
                       {fetchDteMutation.isPending && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
                     </div>
                   </div>
                   {/* Quick-select preset DTE buttons — each finds the nearest available expiration to the target */}
-                  <p className="text-[9px] text-muted-foreground/50 mb-1">Finds nearest available expiration to target DTE</p>
+                  <p className="text-[10px] text-muted-foreground/50 mb-1">Finds nearest available expiration to target DTE</p>
                   <div className="flex flex-wrap gap-1 mb-1.5">
                     {[7, 14, 21, 30, 45, 60].map(dte => (
                       <TooltipProvider key={dte}>
@@ -554,7 +554,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                             <button
                               onClick={() => handleDteFetch(dte)}
                               disabled={fetchDteMutation.isPending}
-                              className={`text-[11px] px-2 py-1 rounded border font-medium transition-colors ${
+                              className={`text-xs px-2 py-1 rounded border font-medium transition-colors ${
                                 c.dte === dte
                                   ? 'bg-orange-500/30 text-orange-300 border-orange-500/50'
                                   : 'bg-muted/40 text-muted-foreground border-border/60 hover:bg-muted/70 hover:text-foreground'
@@ -574,7 +574,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                         key={e.expiration}
                         onClick={() => handleDteFetch(e.dte)}
                         disabled={fetchDteMutation.isPending}
-                        className={`text-[11px] px-2 py-1 rounded border font-medium transition-colors ${
+                        className={`text-xs px-2 py-1 rounded border font-medium transition-colors ${
                           c.dte === e.dte
                             ? 'bg-orange-500/30 text-orange-300 border-orange-500/50'
                             : 'bg-sky-500/10 text-sky-400 border-sky-500/30 hover:bg-sky-500/20'
@@ -587,7 +587,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                   {/* Custom DTE input */}
                   <div className="flex items-center gap-1.5">
                     <Input
-                      className="h-7 flex-1 text-xs font-mono px-2 bg-background/50"
+                      className="h-8 flex-1 text-sm font-mono px-2 bg-background/50"
                       placeholder="Custom DTE (1-180)"
                       value={dteInput}
                       onChange={e => setDteInput(e.target.value)}
@@ -595,7 +595,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                     />
                     <Button
                       variant="outline" size="sm"
-                      className="h-7 px-3 text-xs text-sky-400 border-sky-500/40 hover:bg-sky-500/10"
+                      className="h-8 px-3 text-sm text-sky-400 border-sky-500/40 hover:bg-sky-500/10"
                       onClick={() => {
                         const n = parseInt(dteInput);
                         if (!isNaN(n) && n >= 1 && n <= 180) handleDteFetch(n);
@@ -618,16 +618,16 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                     c.newPremium >= 0 ? 'text-emerald-400' : 'text-red-400'
                   }`}>
                     {c.newPremium != null ? fmt(c.newPremium) : (nudgeLoading ? '...' : '—')}
-                    <span className="text-[10px] text-muted-foreground/60 font-normal ml-1">/share</span>
+                    <span className="text-xs text-muted-foreground/60 font-normal ml-1">/share</span>
                   </p>
                   {/* Full contract value = per-share × 100 */}
                   {c.newPremium != null && (
-                    <p className="text-[10px] text-emerald-400/70 font-mono mt-0.5">
+                    <p className="text-xs text-emerald-400/70 font-mono mt-0.5">
                       {fmt(c.newPremium * 100)}/contract
                     </p>
                   )}
                   {premiumUpdated && prevStrike !== undefined && prevStrike !== c.strike && (
-                    <p className="text-[10px] text-muted-foreground/60 font-mono">
+                    <p className="text-xs text-muted-foreground/60 font-mono">
                       strike: ${prevStrike != null ? (Number.isInteger(prevStrike) ? prevStrike.toFixed(0) : prevStrike.toFixed(2)) : '?'} → ${c.strike != null ? (Number.isInteger(c.strike) ? c.strike.toFixed(0) : c.strike.toFixed(2)) : '?'}
                     </p>
                   )}
@@ -640,7 +640,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                 )}
                 {/* Net Credit total — always reads from calcNetTotal(item) which uses updated c.netCredit */}
                 <div className="col-span-2 p-2 rounded-md bg-muted/20 border border-border/30">
-                  <span className="text-muted-foreground text-[10px] flex items-center gap-1">
+                  <span className="text-muted-foreground text-xs flex items-center gap-1">
                     Net Credit (total)
                     {premiumUpdated && <span className="text-[9px] text-sky-400 font-semibold animate-pulse">LIVE</span>}
                     {(liveCredit !== undefined && liveCredit !== null && !premiumUpdated) && <span className="text-[9px] text-sky-400">refreshed</span>}
@@ -658,7 +658,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
           {/* Close Details */}
           {!isRoll && (
             <section>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">Close Details</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">Close Details</p>
               <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                 <div><span className="text-muted-foreground">Close Cost</span><p className="font-mono font-semibold text-red-400">{fmt(c.closeCost)}</p></div>
                 <div><span className="text-muted-foreground">Net P&L</span><p className={`font-mono font-semibold ${(c.netPnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtSigned(c.netPnl)}</p></div>
@@ -674,13 +674,13 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
 
           {/* Candidate Info */}
           <section>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">Candidate Info</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">Candidate Info</p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               <div><span className="text-muted-foreground">Score</span><p className="font-mono font-semibold">{c.score}</p></div>
               <div className="col-span-2"><span className="text-muted-foreground">Description</span><p className="font-medium text-foreground/80">{c.description}</p></div>
               {isRoll && (
                 <div className="col-span-2">
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-500/10 border border-green-500/30 text-green-400 text-[10px] font-semibold">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-500/10 border border-green-500/30 text-green-400 text-xs font-semibold">
                     <ShieldCheck className="h-3 w-3" /> Atomic {item.isSpread ? '4-leg' : '2-leg'} combo order
                   </span>
                 </div>
@@ -693,7 +693,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
             <>
               <div className="border-t border-border/30" />
               <section>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">Spread Legs</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60 mb-2">Spread Legs</p>
                 <div className="space-y-1">
                   {item.spreadDetails.legs.map((leg, i) => (
                     <p key={i} className="font-mono text-muted-foreground/80">{leg.action} {leg.quantity}× {leg.symbol}</p>
@@ -705,7 +705,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
 
           <div className="border-t border-border/30" />
           <section>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">Account</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">Account</p>
             <p className="font-mono text-xs text-muted-foreground break-all">{item.accountNumber}</p>
           </section>
         </div>
@@ -715,11 +715,11 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
       <div className="px-4 py-3 border-t border-border/50 bg-card/80 shrink-0 space-y-2">
         {!confirmOpen ? (
           <>
-            <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-1">Submit This Position Only</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-1">Submit This Position Only</p>
             <div className="flex gap-2">
               <Button
                 variant="outline" size="sm"
-                className="flex-1 h-8 text-xs border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
+                className="flex-1 h-9 text-sm border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
                 onClick={() => handleSubmitOne(true)}
                 disabled={isSubmitting || submitOneLoading || nudgeLoading !== null || fetchDteMutation.isPending}
               >
@@ -728,7 +728,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
               </Button>
               <Button
                 size="sm"
-                className="flex-1 h-8 text-xs bg-orange-600 hover:bg-orange-700 text-white font-semibold"
+                className="flex-1 h-9 text-sm bg-orange-600 hover:bg-orange-700 text-white font-semibold"
                 onClick={() => setConfirmOpen(true)}
                 disabled={isSubmitting || submitOneLoading || nudgeLoading !== null || fetchDteMutation.isPending}
               >
@@ -740,8 +740,8 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
         ) : (
           // Inline confirmation dialog
           <div className="rounded-md border border-orange-500/40 bg-orange-500/8 p-3 space-y-2">
-            <p className="text-xs font-semibold text-orange-300">Confirm Live Order</p>
-            <div className="text-[11px] text-muted-foreground space-y-0.5">
+            <p className="text-sm font-semibold text-orange-300">Confirm Live Order</p>
+            <div className="text-xs text-muted-foreground space-y-0.5">
               <p><span className="text-foreground font-semibold">{item.symbol}</span> · {item.strategy} · {item.quantity}× contracts</p>
               <p>Account: <span className="font-mono text-foreground">{item.accountNumber}</span></p>
               {c.action === 'roll' && c.strike && c.expiration && (
@@ -875,7 +875,7 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
       </td>
       <td className="px-2 py-2.5 text-center text-xs text-muted-foreground font-mono w-8">{index + 1}</td>
       <td className="px-2 py-2.5 w-14"><StratBadge s={item.strategy} /></td>
-      <td className="px-2 py-2.5 w-20"><span className="font-semibold text-sm">{item.symbol}</span></td>
+      <td className="px-2 py-2.5 w-20"><span className="font-semibold text-base">{item.symbol}</span></td>
       <td className="px-2 py-2.5 text-center w-10"><span className="text-xs font-mono text-muted-foreground">{item.quantity}x</span></td>
       <td className="px-2 py-2.5 w-36">
         <div className="text-xs font-mono leading-tight">

@@ -8747,3 +8747,4 @@ ROC Fix Mar 18 2026
 - [x] Add Submit This One button + Dry Run This One button at bottom of DetailPanel
 - [x] Add inline confirmation dialog in DetailPanel showing order summary before live submit
 - [x] Wire onSubmitOne in RollOrderReviewModal to call onSubmit([item], isDryRun)
+- [x] Make Roll Order Review right-hand detail panel wider (w-80 → w-[440px]) and increase font sizes for readability
