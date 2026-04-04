@@ -2603,19 +2603,17 @@ export default function AutomationDashboard() {
                 {/* Master Roll All */}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="outline"
+                    <button
                       disabled={isScanningAll || isRollScanning}
                       onClick={() => handleScanAll()}
-                      className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full border border-orange-500 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold transition-all duration-150 shadow-sm h-8"
+                      className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full border-2 border-orange-500 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition-all duration-150 shadow-sm h-8 cursor-pointer"
                     >
                       {isScanningAll && !scanAllProgress ? (
                         <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Scanning...</>
                       ) : (
                         <><Zap className="h-3 w-3 mr-1" />Roll All ({rollScanResults.all.length})</>
                       )}
-                    </Button>
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent><p>Find the best credit roll for every position and pre-select them all in the basket</p></TooltipContent>
                 </Tooltip>
@@ -2626,15 +2624,13 @@ export default function AutomationDashboard() {
                   return (
                     <Tooltip key={s}>
                       <TooltipTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="outline"
+                        <button
                           disabled={isScanningAll || isRollScanning}
                           onClick={() => handleScanAll(s)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-orange-500/70 bg-orange-500/15 hover:bg-orange-500/30 hover:border-orange-500 text-orange-300 hover:text-orange-200 text-xs font-semibold transition-all duration-150 h-8"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-orange-500/80 bg-transparent hover:bg-orange-500/20 hover:border-orange-400 disabled:opacity-50 disabled:cursor-not-allowed text-orange-300 hover:text-orange-200 text-xs font-semibold transition-all duration-150 h-8 cursor-pointer"
                         >
                           {s} All ({count})
-                        </Button>
+                        </button>
                       </TooltipTrigger>
                       <TooltipContent><p>Find best credit roll for all {s} positions ({count})</p></TooltipContent>
                     </Tooltip>
