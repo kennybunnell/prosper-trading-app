@@ -1097,7 +1097,7 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
           </Button>
 
           {swapOpen && (
-            <SwapPanel item={item} onSwap={onSwap} onClose={() => setSwapOpen(false)} bestFitCandidate={undefined} />
+            <SwapPanel item={item} onSwap={onSwap} onClose={() => setSwapOpen(false)} bestFitCandidate={item.bestFitCandidate} />
           )}
         </div>
       </td>

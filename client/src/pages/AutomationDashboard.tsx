@@ -4252,7 +4252,8 @@ function rankBestFit(
   const dteMin    = cfg?.dteSweetMin  ?? 30;
   const dteMax    = cfg?.dteSweetMax  ?? 45;
 
-  const rollOnly = candidates.filter(c => c.action === 'roll');
+  // Score all candidates regardless of action type
+  const rollOnly = candidates;
   if (rollOnly.length === 0) return [];
 
   const credits = rollOnly.map(c => c.netCredit ?? 0);
