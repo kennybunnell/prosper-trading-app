@@ -2608,7 +2608,7 @@ export default function AutomationDashboard() {
                       variant="outline"
                       disabled={isScanningAll || isRollScanning}
                       onClick={() => handleScanAll()}
-                      className="bg-orange-600 hover:bg-orange-700 border-orange-500 text-white h-8 px-4 text-xs font-bold shadow-sm"
+                      className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full border border-orange-500 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold transition-all duration-150 shadow-sm h-8"
                     >
                       {isScanningAll && !scanAllProgress ? (
                         <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Scanning...</>
@@ -2631,7 +2631,7 @@ export default function AutomationDashboard() {
                           variant="outline"
                           disabled={isScanningAll || isRollScanning}
                           onClick={() => handleScanAll(s)}
-                          className="bg-orange-500/20 hover:bg-orange-500/35 border border-orange-500/60 text-orange-200 h-8 px-3 text-xs font-semibold"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-orange-500/70 bg-orange-500/15 hover:bg-orange-500/30 hover:border-orange-500 text-orange-300 hover:text-orange-200 text-xs font-semibold transition-all duration-150 h-8"
                         >
                           {s} All ({count})
                         </Button>

@@ -222,6 +222,18 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
       // data.netCreditPerContract is per-share (Tradier bid/ask). Must multiply by 100 to match
       // the convention set by rollDetection.ts (netCredit = netCreditPerContract × qty × 100).
       // calcNetTotal then multiplies by quantity to get the grand total.
+      // Update description to reflect new expiry date and DTE
+      const updatedDesc = (() => {
+        const base = c.description ?? '';
+        if (!data.expiration || data.dte == null) return base;
+        // Replace date portion: matches patterns like "4/12/2026" or "2026-04-12"
+        let updated = base.replace(/\d{1,2}\/\d{1,2}\/\d{4}/, data.expiration);
+        updated = updated.replace(/2\d{3}-\d{2}-\d{2}/, data.expiration);
+        // Replace DTE portion: matches "(9 DTE)" or "(47 DTE)" or "9 DTE" etc.
+        updated = updated.replace(/\(\d+ DTE\)/, `(${data.dte} DTE)`);
+        updated = updated.replace(/\b\d+ DTE\b/, `${data.dte} DTE`);
+        return updated;
+      })();
       onUpdateCandidate(item.positionId, {
         expiration: data.expiration,
         dte: data.dte,
@@ -229,6 +241,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
         newPremium: data.stoPremium != null ? data.stoPremium : undefined,
         netCredit: data.netCreditPerContract != null ? data.netCreditPerContract * 100 : undefined,
         delta: data.delta ?? undefined,
+        description: updatedDesc,
       });
       if (data.stoPremium != null) {
         toast.success(`DTE → ${data.dte}d @ $${data.strike} · Premium: $${data.stoPremium?.toFixed(2)}`);
