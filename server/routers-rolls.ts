@@ -1180,6 +1180,7 @@ export const rollsRouter = router({
               symbol: pos.symbol,
               strategy: pos.strategy,
               bestCandidate,
+              candidates: annotated, // Full candidate list for client-side Best Fit scoring
               underlyingPrice,
             };
           } catch (error: any) {

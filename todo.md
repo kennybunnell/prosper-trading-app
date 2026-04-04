@@ -8771,3 +8771,7 @@ ROC Fix Mar 18 2026
 - [x] Add ⭐ Best Fit button to each roll candidate row in AutomationDashboard
 - [x] Show Best Fit badge on auto-selected candidate in the candidate picker
 - [x] Add vitest tests for the scoring function
+
+## Bug: Best Fit Button Not Visible in Collapsed Row (Apr 4, 2026)
+- [x] Move ⭐ Best Fit button to the Roll Candidate column in the collapsed row so it's always visible
+- [x] Best Fit should auto-run when candidates are loaded and show result inline without requiring expand

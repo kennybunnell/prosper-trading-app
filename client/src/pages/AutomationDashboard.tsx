@@ -361,6 +361,8 @@ export default function AutomationDashboard() {
   const [isRollScanning, setIsRollScanning] = useState(false);
   const [expandedRollRow, setExpandedRollRow] = useState<string | null>(null);
   const [rollCandidatesCache, setRollCandidatesCache] = useState<Record<string, RollCandidate[]>>({});
+  // Stores the Best Fit winner per positionId — computed when candidates are loaded
+  const [bestFitCache, setBestFitCache] = useState<Record<string, RollCandidate | null>>({});
   const [selectedRollPositions, setSelectedRollPositions] = useState<Set<string>>(new Set());
   const [rollCandidateSelections, setRollCandidateSelections] = useState<Record<string, RollCandidate | null>>({});
   const [isSubmittingRolls, setIsSubmittingRolls] = useState(false);
@@ -669,13 +671,29 @@ export default function AutomationDashboard() {
       setScanAllProgress(null);
       setScanStartTime(null);
       const newSelections: Record<string, RollCandidate | null> = {};
+      const newCandidatesCache: Record<string, RollCandidate[]> = {};
+      const newBestFitCache: Record<string, RollCandidate | null> = {};
       for (const r of data.results) {
         if (r.bestCandidate) {
           newSelections[r.positionId] = r.bestCandidate as RollCandidate;
         }
+        // Cache all candidates so the ⭐ Best Fit button is available in collapsed rows
+        const rAny = r as any;
+        if (rAny.candidates && (rAny.candidates as RollCandidate[]).length > 0) {
+          newCandidatesCache[r.positionId] = rAny.candidates as RollCandidate[];
+          // Find the position to determine isPut
+          const scanPos = rollScanResults?.all.find(p => p.positionId === r.positionId);
+          if (scanPos) {
+            const isPut = scanPos.strategy === 'CSP' || scanPos.strategy === 'BPS';
+            const ranked = rankBestFit(rAny.candidates as RollCandidate[], scanPos.metrics.currentPrice ?? 0, isPut);
+            newBestFitCache[r.positionId] = ranked[0]?.candidate ?? null;
+          }
+        }
       }
       // Load candidates but do NOT auto-select — user picks which ones to submit
       setRollCandidateSelections(newSelections);
+      setRollCandidatesCache(prev => ({ ...prev, ...newCandidatesCache }));
+      setBestFitCache(prev => ({ ...prev, ...newBestFitCache }));
       setSelectedRollPositions(new Set()); // always start with empty queue
       const { creditRolls, closeOnly, errors } = data.summary;
       if (errors > 0) {
@@ -3013,6 +3031,8 @@ export default function AutomationDashboard() {
                             const isSelected = selectedRollPositions.has(pos.positionId);
                             const selectedCandidate = rollCandidateSelections[pos.positionId];
                             const cachedCandidates = rollCandidatesCache[pos.positionId];
+                            // Best Fit winner for this row (computed when candidates were loaded)
+                            const bestFitWinnerForRow = bestFitCache[pos.positionId] ?? null;
                             const itmDepth = pos.metrics.itmDepth;
                             const profitPct = pos.metrics.profitCaptured;
                             const stockPrice = pos.metrics.currentPrice;
@@ -3189,13 +3209,48 @@ export default function AutomationDashboard() {
                                   </td>
                                   {/* Roll Candidate */}
                                   <td className="p-3 text-center text-xs">
-                                    {selectedCandidate ? (
-                                      <span className="text-green-400 font-medium">
-                                        {selectedCandidate.action === 'close' ? 'Close only' : `→ $${selectedCandidate.strike?.toFixed(0)} ${selectedCandidate.expiration?.slice(5)}`}
-                                      </span>
-                                    ) : (
-                                      <span className="text-muted-foreground italic">expand ↓</span>
-                                    )}
+                                    <div className="flex flex-col items-center gap-1">
+                                      {/* ⭐ Best Fit button — always visible once candidates are loaded */}
+                                      {bestFitWinnerForRow && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setRollCandidateSelections(prev => ({ ...prev, [pos.positionId]: bestFitWinnerForRow }));
+                                                  setSelectedRollPositions(prev => { const next = new Set(prev); next.add(pos.positionId); return next; });
+                                                }}
+                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-yellow-500/60 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 text-[10px] font-semibold transition-all"
+                                              >
+                                                <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
+                                                Best Fit
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="left" className="text-xs p-2">
+                                              Auto-select: {bestFitWinnerForRow.action === 'roll'
+                                                ? `→ $${bestFitWinnerForRow.strike?.toFixed(0)} ${bestFitWinnerForRow.expiration?.slice(5)} · ${bestFitWinnerForRow.netCredit !== undefined ? (bestFitWinnerForRow.netCredit >= 0 ? '+' : '') + '$' + bestFitWinnerForRow.netCredit.toFixed(2) + ' credit' : ''}`
+                                                : 'Close position'}
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                      {/* Selected candidate display */}
+                                      {selectedCandidate ? (
+                                        <span className={`font-medium ${
+                                          selectedCandidate === bestFitWinnerForRow ||
+                                          (selectedCandidate.strike === bestFitWinnerForRow?.strike && selectedCandidate.expiration === bestFitWinnerForRow?.expiration)
+                                            ? 'text-yellow-300'
+                                            : 'text-green-400'
+                                        }`}>
+                                          {selectedCandidate.action === 'close' ? 'Close only' : `→ $${selectedCandidate.strike?.toFixed(0)} ${selectedCandidate.expiration?.slice(5)}`}
+                                        </span>
+                                      ) : (
+                                        <span className="text-muted-foreground italic text-[10px]">
+                                          {bestFitWinnerForRow ? 'click ⭐ or expand ↓' : 'expand ↓'}
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                 </tr>
                                 {/* Expanded roll candidates row */}
@@ -3216,6 +3271,11 @@ export default function AutomationDashboard() {
                                           } else {
                                             setDebitOnlyPositions(prev => { const next = new Set(prev); next.delete(pos.positionId); return next; });
                                           }
+                                          // Compute Best Fit winner and cache it for the collapsed row
+                                          const isPut = pos.strategy === 'CSP' || pos.strategy === 'BPS';
+                                          const ranked = rankBestFit(candidates, pos.metrics.currentPrice ?? 0, isPut);
+                                          const winner = ranked[0]?.candidate ?? null;
+                                          setBestFitCache(prev => ({ ...prev, [pos.positionId]: winner }));
                                         }}
                                         onSelectCandidate={(candidate) => {
                                           setRollCandidateSelections(prev => ({ ...prev, [pos.positionId]: candidate }));
