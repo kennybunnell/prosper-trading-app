@@ -997,6 +997,31 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
               </Tooltip>
             </TooltipProvider>
           )}
+          {/* Orange indicator when selection differs from Best Fit */}
+          {!isBestFit && item.bestFitCandidate && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border border-orange-500/40 bg-orange-500/5 text-orange-400/70 text-[9px] font-medium w-fit cursor-help">
+                    <Star className="h-2 w-2 text-orange-400/70" />
+                    BF: ${(item.bestFitCandidate.strike ?? 0).toFixed(0)} {(item.bestFitCandidate.expiration ?? '').slice(5)}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs p-3 max-w-[220px] space-y-1.5">
+                  <p className="font-semibold text-yellow-300 text-[11px] mb-1">Best Fit Recommendation</p>
+                  <p className="text-muted-foreground text-[10px]">Current selection differs from Best Fit</p>
+                  {bestFitScores && (
+                    <div className="space-y-1 text-[10px]">
+                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Premium (40%)</span><span className="text-yellow-300 font-medium">{bestFitScores.premiumScore}/100</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Strike safety (35%)</span><span className="text-yellow-300 font-medium">{bestFitScores.strikeScore}/100</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">DTE 30–45d (25%)</span><span className="text-yellow-300 font-medium">{bestFitScores.dteScore}/100</span></div>
+                      <div className="flex justify-between gap-3 border-t border-border/40 pt-1 font-semibold"><span>Composite</span><span className="text-yellow-400">{bestFitScores.bestFitScore}/100</span></div>
+                    </div>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           {isRoll && c.strike && c.expiration ? (
             <div className={`text-xs font-mono leading-tight ${isBestFit ? 'text-yellow-300' : 'text-orange-300'}`}>
               <span>${c.strike.toFixed(0)}</span>
