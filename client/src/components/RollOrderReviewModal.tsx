@@ -477,11 +477,11 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                         <TooltipContent side="right" className="text-xs max-w-[180px]">
                           {item.bestFitScores ? (
                             <div className="space-y-0.5">
-                              <div className="font-semibold text-foreground mb-1">Best Fit Score Breakdown</div>
-                              <div>Premium: <span className="text-foreground font-mono font-semibold">{item.bestFitScores.premiumScore}</span>/100</div>
-                              <div>Strike Safety: <span className="text-foreground font-mono font-semibold">{item.bestFitScores.strikeScore}</span>/100</div>
-                              <div>DTE: <span className="text-foreground font-mono font-semibold">{item.bestFitScores.dteScore}</span>/100</div>
-                              <div className="border-t border-border/40 mt-1 pt-1 font-semibold">Composite: <span className="text-foreground font-mono">{item.bestFitScores.bestFitScore}</span>/100</div>
+                              <div className="font-semibold mb-1">Best Fit Score Breakdown</div>
+                              <div>Premium: <span className="font-mono font-semibold">{item.bestFitScores.premiumScore}</span>/100</div>
+                              <div>Strike Safety: <span className="font-mono font-semibold">{item.bestFitScores.strikeScore}</span>/100</div>
+                              <div>DTE: <span className="font-mono font-semibold">{item.bestFitScores.dteScore}</span>/100</div>
+                              <div className="border-t border-border/40 mt-1 pt-1 font-semibold">Composite: <span className="font-mono">{item.bestFitScores.bestFitScore}</span>/100</div>
                             </div>
                           ) : 'This is the Best Fit candidate for this position'}
                         </TooltipContent>
@@ -503,14 +503,14 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                         <TooltipContent side="right" className="text-xs max-w-[200px]">
                           {item.bestFitScores ? (
                             <div className="space-y-0.5">
-                              <div className="font-semibold text-foreground mb-1">Best Fit Recommendation</div>
-                              <div className="text-muted-foreground mb-1">Current selection differs from Best Fit</div>
+                              <div className="font-semibold mb-1">Best Fit Recommendation</div>
+                              <div className="opacity-70 mb-1">Current selection differs from Best Fit</div>
                               <div>Best Fit: ${(item.bestFitCandidate?.strike ?? 0).toFixed(0)} · {(item.bestFitCandidate?.expiration ?? '').slice(5)}</div>
                               <div className="border-t border-border/40 mt-1 pt-1">
                                 <div>Premium: <span className="font-mono font-semibold">{item.bestFitScores.premiumScore}</span>/100</div>
                                 <div>Strike Safety: <span className="font-mono font-semibold">{item.bestFitScores.strikeScore}</span>/100</div>
                                 <div>DTE: <span className="font-mono font-semibold">{item.bestFitScores.dteScore}</span>/100</div>
-                                <div className="font-semibold">Score: <span className="text-foreground font-mono">{item.bestFitScores.bestFitScore}</span>/100</div>
+                                <div className="font-semibold">Score: <span className="font-mono">{item.bestFitScores.bestFitScore}</span>/100</div>
                               </div>
                             </div>
                           ) : 'Best Fit recommendation available — current selection differs'}
@@ -986,12 +986,12 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="text-xs p-3 max-w-[220px] space-y-1.5">
-                  <p className="font-semibold text-foreground text-[11px] mb-1">⭐ Best Fit Score Breakdown</p>
+                  <p className="font-semibold text-[11px] mb-1">⭐ Best Fit Score Breakdown</p>
                   <div className="space-y-1 text-[10px]">
-                    <div className="flex justify-between gap-3"><span className="text-muted-foreground">Premium (40%)</span><span className="text-foreground font-semibold">{bestFitScores?.premiumScore ?? '—'}/100</span></div>
-                    <div className="flex justify-between gap-3"><span className="text-muted-foreground">Strike safety (35%)</span><span className="text-foreground font-semibold">{bestFitScores?.strikeScore ?? '—'}/100</span></div>
-                    <div className="flex justify-between gap-3"><span className="text-muted-foreground">DTE 30–45d (25%)</span><span className="text-foreground font-semibold">{bestFitScores?.dteScore ?? '—'}/100</span></div>
-                    <div className="flex justify-between gap-3 border-t border-border/40 pt-1 font-semibold"><span className="text-foreground">Composite</span><span className="text-foreground">{bestFitScores?.bestFitScore ?? '—'}/100</span></div>
+                    <div className="flex justify-between gap-3"><span className="opacity-70">Premium (40%)</span><span className="font-semibold">{bestFitScores?.premiumScore ?? '—'}/100</span></div>
+                    <div className="flex justify-between gap-3"><span className="opacity-70">Strike safety (35%)</span><span className="font-semibold">{bestFitScores?.strikeScore ?? '—'}/100</span></div>
+                    <div className="flex justify-between gap-3"><span className="opacity-70">DTE 30–45d (25%)</span><span className="font-semibold">{bestFitScores?.dteScore ?? '—'}/100</span></div>
+                    <div className="flex justify-between gap-3 border-t border-border/40 pt-1 font-semibold"><span>Composite</span><span>{bestFitScores?.bestFitScore ?? '—'}/100</span></div>
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -1008,14 +1008,14 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="text-xs p-3 max-w-[220px] space-y-1.5">
-                  <p className="font-semibold text-foreground text-[11px] mb-1">Best Fit Recommendation</p>
-                  <p className="text-muted-foreground text-[10px]">Current selection differs from Best Fit</p>
+                  <p className="font-semibold text-[11px] mb-1">Best Fit Recommendation</p>
+                  <p className="opacity-70 text-[10px]">Current selection differs from Best Fit</p>
                   {bestFitScores && (
                     <div className="space-y-1 text-[10px]">
-                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Premium (40%)</span><span className="text-foreground font-semibold">{bestFitScores.premiumScore}/100</span></div>
-                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Strike safety (35%)</span><span className="text-foreground font-semibold">{bestFitScores.strikeScore}/100</span></div>
-                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">DTE 30–45d (25%)</span><span className="text-foreground font-semibold">{bestFitScores.dteScore}/100</span></div>
-                      <div className="flex justify-between gap-3 border-t border-border/40 pt-1 font-semibold"><span>Composite</span><span className="text-foreground">{bestFitScores.bestFitScore}/100</span></div>
+                      <div className="flex justify-between gap-3"><span className="opacity-70">Premium (40%)</span><span className="font-semibold">{bestFitScores.premiumScore}/100</span></div>
+                      <div className="flex justify-between gap-3"><span className="opacity-70">Strike safety (35%)</span><span className="font-semibold">{bestFitScores.strikeScore}/100</span></div>
+                      <div className="flex justify-between gap-3"><span className="opacity-70">DTE 30–45d (25%)</span><span className="font-semibold">{bestFitScores.dteScore}/100</span></div>
+                      <div className="flex justify-between gap-3 border-t border-border/40 pt-1 font-semibold"><span>Composite</span><span>{bestFitScores.bestFitScore}/100</span></div>
                     </div>
                   )}
                 </TooltipContent>
