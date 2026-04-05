@@ -469,8 +469,8 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border border-yellow-500/60 bg-yellow-500/10 text-yellow-300 text-[9px] font-bold cursor-help">
-                            <Star className="h-2 w-2 fill-yellow-400 text-yellow-400" />
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border border-yellow-600/70 bg-yellow-400/20 text-yellow-900 dark:text-yellow-100 text-[9px] font-bold cursor-help">
+                            <Star className="h-2 w-2 fill-yellow-600 text-yellow-600 dark:fill-yellow-300 dark:text-yellow-300" />
                             Best Fit
                           </span>
                         </TooltipTrigger>
@@ -980,8 +980,8 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border border-yellow-500/60 bg-yellow-500/10 text-yellow-300 text-[9px] font-bold w-fit cursor-help">
-                    <Star className="h-2 w-2 fill-yellow-400 text-yellow-400" />
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border border-yellow-600/70 bg-yellow-400/20 text-yellow-900 dark:text-yellow-100 text-[9px] font-bold w-fit cursor-help">
+                    <Star className="h-2 w-2 fill-yellow-600 text-yellow-600 dark:fill-yellow-300 dark:text-yellow-300" />
                     Best Fit
                   </span>
                 </TooltipTrigger>
@@ -1023,7 +1023,7 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
             </TooltipProvider>
           )}
           {isRoll && c.strike && c.expiration ? (
-            <div className={`text-xs font-mono leading-tight ${isBestFit ? 'text-yellow-300' : 'text-orange-300'}`}>
+            <div className={`text-xs font-mono leading-tight ${isBestFit ? 'text-amber-600 dark:text-yellow-200' : 'text-orange-300'}`}>
               <span>${c.strike.toFixed(0)}</span>
               <span className="opacity-60 mx-1">·</span>
               <span>{c.expiration.slice(5)}</span>
