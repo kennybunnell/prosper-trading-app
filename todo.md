@@ -8815,3 +8815,8 @@ ROC Fix Mar 18 2026
 - [x] Add getMorningBriefing tRPC procedure to dashboard router
 - [x] Add AI per-row icons to Portfolio Command Center Greeks table — per-symbol sparkle button opens risk/reward analysis slide-over
 - [x] Add getTickerAIAnalysis tRPC procedure for per-ticker LLM analysis (reuses existing analyzeTicker procedure)
+
+## VIX Explainer Modal (Apr 5, 2026)
+- [x] Make VIX badge on AI Morning Briefing card clickable
+- [x] Build VixExplainerModal with: What is VIX, 5 range bands with "You are here" indicator, 6 movement signals, options-seller strategy guide by VIX level
+- [x] TypeScript: 0 errors

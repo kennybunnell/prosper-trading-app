@@ -18,6 +18,12 @@ import { MonthlyPremiumChart } from "@/components/MonthlyPremiumChart";
 import { TradingViewEconomicCalendar } from "@/components/TradingViewEconomicCalendar";
 import { TradingViewTickerTape } from "@/components/TradingViewTickerTape";
 import { GapAdvisorModal } from "@/components/GapAdvisorModal";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // ─── Monthly Premium Chart Section ───────────────────────────────────────────
 
@@ -303,6 +309,142 @@ function AutoStepCard({
   );
 }
 
+// ─── VIX Explainer Modal ────────────────────────────────────────────────────
+
+function VixExplainerModal({ open, onClose, vix }: { open: boolean; onClose: () => void; vix?: number }) {
+  const vixLevel = vix
+    ? vix >= 40 ? 'extreme'
+    : vix >= 30 ? 'high'
+    : vix >= 20 ? 'elevated'
+    : vix >= 15 ? 'normal'
+    : 'low'
+    : 'unknown';
+
+  const vixColor = vix
+    ? vix >= 30 ? 'text-red-400'
+    : vix >= 20 ? 'text-amber-400'
+    : 'text-green-400'
+    : 'text-muted-foreground';
+
+  const ranges = [
+    { range: '< 15', label: 'Low / Complacent', color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20', meaning: 'Markets are calm. Premium is thin — options are cheap. Ideal for buying protection but tough for premium sellers. Be cautious of sudden reversals from complacency.' },
+    { range: '15 – 20', label: 'Normal / Stable', color: 'text-green-300', bg: 'bg-green-500/10 border-green-500/20', meaning: 'Healthy baseline. Good conditions for selling premium at reasonable strikes. CSPs and CCs work well. Standard delta targets (0.20–0.30) are appropriate.' },
+    { range: '20 – 30', label: 'Elevated / Cautious', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', meaning: 'Above-average fear. Premium is juicy — great for sellers, but risk is higher. Consider tighter deltas (0.15–0.20), wider spreads, and smaller position sizes. Watch for gap risk.' },
+    { range: '30 – 40', label: 'High / Fearful', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20', meaning: 'Significant market stress. Premium is very rich but so is the risk. Reduce position sizes, favor spreads over naked options, and avoid chasing premium. Rolls may be difficult.' },
+    { range: '> 40', label: 'Extreme / Crisis', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20', meaning: 'Crisis-level volatility (e.g., COVID crash, 2008). Extreme whipsaws. Most experienced traders go to cash or only trade defined-risk spreads. Avoid naked short options.' },
+  ];
+
+  const movements = [
+    { signal: 'VIX spikes +20% in a day', meaning: 'Market fear spiking — often a sell-off. Expect wide bid-ask spreads and gap risk overnight.' },
+    { signal: 'VIX drops sharply after a spike', meaning: 'Fear subsiding — often a relief rally. Good time to close defensive positions at profit.' },
+    { signal: 'VIX < 15 for weeks', meaning: 'Complacency building. Markets historically mean-revert from these levels. Consider buying cheap protection.' },
+    { signal: 'VIX > 30 + rising', meaning: 'Trend of fear. Avoid adding new short premium. Focus on managing existing positions.' },
+    { signal: 'VIX > 30 + falling', meaning: 'Peak fear may be passing. Historically a strong signal to sell premium into elevated IV.' },
+    { signal: 'VIX diverges from SPX', meaning: 'If SPX falls but VIX stays low, or SPX rises but VIX stays high — watch for a snap correction.' },
+  ];
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span>VIX — The Fear Gauge</span>
+            {vix && (
+              <span className={`text-sm font-bold ${vixColor}`}>
+                Currently: {vix} ({vixLevel.charAt(0).toUpperCase() + vixLevel.slice(1)})
+              </span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-5 text-sm">
+          {/* What is VIX */}
+          <div>
+            <h3 className="font-semibold text-foreground mb-1.5">What is the VIX?</h3>
+            <p className="text-muted-foreground leading-relaxed">
+              The <strong className="text-foreground">CBOE Volatility Index (VIX)</strong> measures the market's expectation of 30-day volatility in the S&P 500, derived from real-time options prices. It is often called the <em>"Fear Gauge"</em> because it rises when investors are uncertain or fearful and falls when markets are calm.
+            </p>
+            <p className="text-muted-foreground leading-relaxed mt-2">
+              For options sellers, VIX is critical: <strong className="text-foreground">higher VIX = richer premium</strong> (more income potential) but also <strong className="text-foreground">higher risk</strong> of large moves against your positions.
+            </p>
+          </div>
+
+          {/* VIX Ranges */}
+          <div>
+            <h3 className="font-semibold text-foreground mb-2">VIX Ranges & What They Mean</h3>
+            <div className="space-y-2">
+              {ranges.map((r) => (
+                <div key={r.range} className={`rounded-lg border p-3 ${r.bg} ${vix && (
+                  (r.range === '< 15' && vix < 15) ||
+                  (r.range === '15 – 20' && vix >= 15 && vix < 20) ||
+                  (r.range === '20 – 30' && vix >= 20 && vix < 30) ||
+                  (r.range === '30 – 40' && vix >= 30 && vix < 40) ||
+                  (r.range === '> 40' && vix >= 40)
+                ) ? 'ring-1 ring-offset-1 ring-offset-background ring-current' : ''}`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`font-bold font-mono ${r.color}`}>{r.range}</span>
+                    <span className={`text-xs font-semibold ${r.color}`}>{r.label}</span>
+                    {vix && (
+                      (r.range === '< 15' && vix < 15) ||
+                      (r.range === '15 – 20' && vix >= 15 && vix < 20) ||
+                      (r.range === '20 – 30' && vix >= 20 && vix < 30) ||
+                      (r.range === '30 – 40' && vix >= 30 && vix < 40) ||
+                      (r.range === '> 40' && vix >= 40)
+                    ) && <span className="text-xs bg-foreground/10 text-foreground px-1.5 py-0.5 rounded font-medium">← You are here</span>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{r.meaning}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* VIX Movement Signals */}
+          <div>
+            <h3 className="font-semibold text-foreground mb-2">Reading VIX Movement</h3>
+            <div className="space-y-2">
+              {movements.map((m) => (
+                <div key={m.signal} className="flex gap-3 py-2 border-b border-border/30 last:border-0">
+                  <span className="text-amber-400 font-mono text-xs font-semibold shrink-0 w-52">{m.signal}</span>
+                  <span className="text-xs text-muted-foreground">{m.meaning}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Options Seller Strategy */}
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+            <h3 className="font-semibold text-amber-300 mb-2">Options Seller Strategy by VIX Level</h3>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <p className="font-semibold text-foreground mb-1">Low VIX (&lt; 20)</p>
+                <ul className="text-muted-foreground space-y-0.5">
+                  <li>• Sell closer to ATM (higher delta)</li>
+                  <li>• Use shorter DTE (7–21 days)</li>
+                  <li>• Smaller position sizes</li>
+                  <li>• Consider buying spreads instead</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-semibold text-foreground mb-1">High VIX (&gt; 25)</p>
+                <ul className="text-muted-foreground space-y-0.5">
+                  <li>• Sell further OTM (lower delta)</li>
+                  <li>• Use longer DTE (30–45 days)</li>
+                  <li>• Reduce position count</li>
+                  <li>• Favor defined-risk spreads</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground/60 italic">
+            VIX data sourced from CBOE via Tradier. Updated with each Morning Briefing refresh.
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── AI Morning Briefing ─────────────────────────────────────────────────────
 
 function AIMorningBriefing() {
@@ -310,6 +452,7 @@ function AIMorningBriefing() {
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
   const [generatedAt, setGeneratedAt] = useState<Date | null>(null);
+  const [showVixModal, setShowVixModal] = useState(false);
   const hasAutoGenerated = useRef(false);
 
   const { data: ctx, isLoading: ctxLoading } = trpc.dashboard.getMorningBriefingContext.useQuery(undefined, {
@@ -386,19 +529,28 @@ function AIMorningBriefing() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* VIX badge */}
+          {/* VIX badge — clickable */}
           {ctx?.vix && (
             <Badge
-              className={`text-xs font-bold ${
+              className={`text-xs font-bold cursor-pointer hover:opacity-80 transition-opacity ${
                 ctx.vix >= 30 ? 'bg-red-500/20 text-red-300 border-red-500/30' :
                 ctx.vix >= 20 ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
                 'bg-green-500/20 text-green-300 border-green-500/30'
               }`}
               variant="outline"
+              onClick={() => setShowVixModal(true)}
+              title="Click to learn about VIX"
             >
               VIX {ctx.vix}
             </Badge>
           )}
+
+          {/* VIX Explainer Modal */}
+          <VixExplainerModal
+            open={showVixModal}
+            onClose={() => setShowVixModal(false)}
+            vix={ctx?.vix ?? undefined}
+          />
           <Button
             size="sm"
             variant="outline"
