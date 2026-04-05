@@ -8802,3 +8802,10 @@ ROC Fix Mar 18 2026
 - [ ] Add AI proactive summary card to Open Positions page (flags delta breach, near profit target, expiring soon)
 - [ ] Add per-row AI explanation icons to Action Items page (explains why action is recommended + best execution)
 - [ ] Add full AI analysis button and panel to Performance page (patterns, best symbols, optimal DTE, win rate by strategy)
+
+## Roll Submission State Fix (Apr 5, 2026)
+- [x] Fix consecutive individual roll submissions — after submitting 1 roll, other positions lost their candidate selections requiring a full rescan
+- [x] Root cause: submitRollOrders.onSuccess was calling setSelectedRollPositions(new Set()) and setRollCandidateSelections({}) clearing ALL selections globally
+- [x] Fix: Added lastSubmittedRollPositionIds useRef to track which positionIds were submitted; onSuccess now selectively removes only those IDs from selections, preserving all other positions' candidate selections for consecutive submissions
+- [x] Applied tracking in both handleRollReviewSubmit (modal path) and handleSubmitRolls (direct path)
+- [x] TypeScript: 0 errors

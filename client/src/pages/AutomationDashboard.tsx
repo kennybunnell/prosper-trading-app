@@ -390,6 +390,9 @@ export default function AutomationDashboard() {
   // Ref to always-current visibleScanResults — used by handleOpenOrderPreview
   // (which is declared before the useMemo that computes visibleScanResults)
   const visibleScanResultsRef = useRef<ScanResult[]>([]);
+  // Ref to track which positionIds were submitted in the last roll submission
+  // Used by submitRollOrders.onSuccess to selectively clear only submitted positions
+  const lastSubmittedRollPositionIds = useRef<string[]>([]);
   const handleScanSort = (col: string) => {
     if (scanSortCol === col) {
       setScanSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -585,8 +588,26 @@ export default function AutomationDashboard() {
           });
         }
       }
-      setSelectedRollPositions(new Set());
-      setRollCandidateSelections({});
+      // Selectively remove only the submitted positions from selections
+      // so that remaining positions retain their candidate selections for consecutive submissions
+      const submittedIds = lastSubmittedRollPositionIds.current;
+      if (submittedIds.length > 0) {
+        setSelectedRollPositions(prev => {
+          const next = new Set(prev);
+          submittedIds.forEach(id => next.delete(id));
+          return next;
+        });
+        setRollCandidateSelections(prev => {
+          const next = { ...prev };
+          submittedIds.forEach(id => delete next[id]);
+          return next;
+        });
+        lastSubmittedRollPositionIds.current = [];
+      } else {
+        // Fallback: clear all if we somehow lost track of submitted IDs
+        setSelectedRollPositions(new Set());
+        setRollCandidateSelections({});
+      }
       setRollReviewItems([]);
     },
     onError: (err) => {
@@ -887,6 +908,8 @@ export default function AutomationDashboard() {
       toast.warning('No valid orders to submit.');
       return;
     }
+    // Track which positionIds are being submitted so onSuccess can selectively clear them
+    lastSubmittedRollPositionIds.current = reviewedItems.map(item => item.positionId);
     setIsSubmittingRolls(true);
     submitRollOrders.mutate({ orders, dryRun: isDryRun });
   };
@@ -938,6 +961,8 @@ export default function AutomationDashboard() {
       toast.warning('No positions selected with a roll candidate chosen.');
       return;
     }
+    // Track which positionIds are being submitted so onSuccess can selectively clear them
+    lastSubmittedRollPositionIds.current = Array.from(selectedRollPositions).filter(k => !!rollCandidateSelections[k]);
     setIsSubmittingRolls(true);
     submitRollOrders.mutate({ orders, dryRun });
   };
