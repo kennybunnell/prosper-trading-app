@@ -1270,6 +1270,56 @@ Generate a morning briefing with these sections:
         return { briefing };
       }),
 
+    morningBriefingFollowUp: protectedProcedure
+      .input(
+        z.object({
+          briefingContext: z.string(),
+          initialBriefing: z.string(),
+          conversationHistory: z.array(
+            z.object({
+              role: z.enum(['user', 'assistant']),
+              content: z.string(),
+            })
+          ),
+          userMessage: z.string().max(2000),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+        let ctx: any = {};
+        try { ctx = JSON.parse(input.briefingContext); } catch { /* use empty */ }
+
+        const systemPrompt = `You are a concise morning briefing assistant for an experienced options income trader.
+You already generated a morning briefing. The trader has a follow-up question.
+
+Context summary:
+- VIX: ${ctx.vix ?? 'unknown'} (${ctx.vixLabel ?? ''})
+- Open positions: ${ctx.openPositionsCount ?? 'unknown'}
+- Close for profit: ${ctx.closeProfitCount ?? 0} positions
+- Roll positions: ${ctx.rollPositionsCount ?? 0} positions
+- Upcoming expirations: ${ctx.upcomingExpirations?.length ?? 0} within 21d
+
+Your initial briefing was:
+${input.initialBriefing}
+
+Answer the trader's follow-up question concisely and specifically. Use actual numbers when relevant. Format in Markdown.`;
+
+        const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+          { role: 'system', content: systemPrompt },
+          ...input.conversationHistory,
+          { role: 'user', content: input.userMessage },
+        ];
+
+        const response = await invokeLLM({ messages });
+        const rawContent = response?.choices?.[0]?.message?.content;
+        const reply: string = typeof rawContent === 'string'
+          ? rawContent
+          : Array.isArray(rawContent)
+            ? rawContent.map((c: any) => c.text || '').join('')
+            : 'Unable to generate response.';
+        return { reply };
+      }),
+
     getActionBadges: protectedProcedure.query(async ({ ctx }) => {
       try {
         const { getDb } = await import('./db');

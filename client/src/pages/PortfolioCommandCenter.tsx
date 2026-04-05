@@ -39,8 +39,10 @@ import {
   ScanLine,
   FileText,
   RotateCcw,
+  Send,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Textarea } from '@/components/ui/textarea';
 import { useLocation } from 'wouter';
 import { cn } from '@/lib/utils';
 import { useTradingMode } from '@/contexts/TradingModeContext';
@@ -874,6 +876,11 @@ function TickerAnalysisPanel({
   };
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [showRollCandidates, setShowRollCandidates] = useState(false);
+  const [followUpInput, setFollowUpInput] = useState('');
+  const [conversation, setConversation] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [isLoadingFollowUp, setIsLoadingFollowUp] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const followUpMutation = trpc.automation.analyzeTickerFollowUp.useMutation();
 
   type RollCandidate = {
     expiration: string;
@@ -1002,8 +1009,44 @@ function TickerAnalysisPanel({
     );
   }, [analyzeMutation, fetchRollCandidates]);
 
+  const handleFollowUp = useCallback(async () => {
+    const msg = followUpInput.trim();
+    if (!msg || !result || !ticker || isLoadingFollowUp) return;
+    setFollowUpInput('');
+    const newHistory = [...conversation, { role: 'user' as const, content: msg }];
+    setConversation(newHistory);
+    setIsLoadingFollowUp(true);
+    try {
+      const res = await followUpMutation.mutateAsync({
+        symbol: ticker.symbol,
+        initialAnalysis: {
+          verdict: result.verdict,
+          recommendation: result.recommendation,
+          strategyType: result.strategyType,
+          strikeDisplay: result.strikeDisplay,
+          contracts: result.contracts,
+          avgDte: result.avgDte,
+          netDelta: result.netDelta,
+          premiumCollected: result.premiumCollected,
+          underlyingPrice: result.underlyingPrice,
+          urgency: result.urgency,
+        },
+        conversationHistory: conversation,
+        userMessage: msg,
+      });
+      setConversation([...newHistory, { role: 'assistant', content: String(res.reply) }]);
+    } catch {
+      setConversation([...newHistory, { role: 'assistant', content: 'Unable to generate response. Please try again.' }]);
+    } finally {
+      setIsLoadingFollowUp(false);
+      setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    }
+  }, [followUpInput, result, ticker, isLoadingFollowUp, conversation, followUpMutation]);
+
   useEffect(() => {
     if (!ticker) return;
+    setConversation([]);
+    setFollowUpInput('');
     runAnalysis(ticker, positions);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticker?.symbol]);
@@ -1482,8 +1525,64 @@ function TickerAnalysisPanel({
               )}
             </div>
 
+            {/* === CONVERSATION HISTORY === */}
+            {conversation.length > 0 && (
+              <div className="px-5 pb-2 space-y-3">
+                <div className="border-t border-border/30 pt-3 space-y-2">
+                  {conversation.map((msg, i) => (
+                    <div
+                      key={i}
+                      className={`rounded-lg p-3 text-xs ${
+                        msg.role === 'user'
+                          ? 'bg-amber-500/10 border border-amber-500/20 ml-4 text-amber-200'
+                          : 'bg-muted/30 border border-border/40 mr-4 text-foreground/85'
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    </div>
+                  ))}
+                  {isLoadingFollowUp && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mr-4 bg-muted/30 border border-border/40 rounded-lg p-3">
+                      <Loader2 className="w-3 h-3 animate-spin text-amber-400 shrink-0" />
+                      Thinking…
+                    </div>
+                  )}
+                  <div ref={chatBottomRef} />
+                </div>
+              </div>
+            )}
+
             {/* === ACTION FOOTER === */}
             <div className="px-5 py-4 border-t border-border/40 space-y-2">
+              {/* Follow-up prompt */}
+              {result && !analyzeMutation.isPending && (
+                <div className="space-y-1.5">
+                  <div className="flex gap-2">
+                    <Textarea
+                      value={followUpInput}
+                      onChange={e => setFollowUpInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleFollowUp();
+                        }
+                      }}
+                      placeholder="Ask a follow-up question… (e.g. 'What strike should I roll to?')"
+                      className="min-h-[44px] max-h-[90px] text-xs resize-none bg-muted/20 border-border/40 focus:border-amber-500/40 placeholder:text-muted-foreground/50"
+                      disabled={isLoadingFollowUp}
+                    />
+                    <Button
+                      size="icon"
+                      className="h-10 w-10 shrink-0 bg-amber-500 hover:bg-amber-600 text-black self-end"
+                      onClick={handleFollowUp}
+                      disabled={!followUpInput.trim() || isLoadingFollowUp}
+                    >
+                      {isLoadingFollowUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/50">Enter to send · Shift+Enter for new line</p>
+                </div>
+              )}
               {result && (
                 <Button
                   className="w-full gap-2 font-semibold"
@@ -1497,7 +1596,7 @@ function TickerAnalysisPanel({
                 variant="ghost"
                 size="sm"
                 className="w-full gap-1.5 text-xs text-muted-foreground"
-                onClick={() => ticker && runAnalysis(ticker, positions)}
+                onClick={() => { if (ticker) { setConversation([]); runAnalysis(ticker, positions); } }}
                 disabled={analyzeMutation.isPending}
               >
                 <Sparkles className="w-3 h-3" />

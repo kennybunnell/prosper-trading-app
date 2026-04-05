@@ -8825,3 +8825,20 @@ ROC Fix Mar 18 2026
 - [x] Add AI sparkle icon to each row in the Roll Positions table in AutomationDashboard
 - [x] Reuse/extend existing AI analysis slide-over pattern from Close for Profit page (new AIRollAdvisorPanel component)
 - [x] Pass roll-specific context (P&L, % max profit, strategy, strikes, DTE, ITM/OTM, reason, roll candidates) to the LLM
+
+## Follow-up Prompt Field Audit (Apr 5, 2026)
+- [ ] Audit all AI panels for follow-up prompt field
+- [ ] Add follow-up prompt to AI Morning Briefing card (Home.tsx)
+- [ ] Add follow-up prompt to Portfolio Command Center AI per-row panel (TickerAnalysisPanel)
+- [ ] Add follow-up prompt to Close for Profit AI Strategy Review panel (AIStrategyReviewPanel)
+- [ ] Confirm AI Roll Advisor panel already has follow-up prompt (AIRollAdvisorPanel)
+
+## Follow-up Prompt Audit Results (Apr 5, 2026)
+- [x] Audit all AI panels for follow-up conversation input
+- [x] AI Morning Briefing (Home.tsx) — added follow-up prompt + conversation history + morningBriefingFollowUp tRPC procedure
+- [x] TickerAnalysisPanel (PortfolioCommandCenter.tsx) — added follow-up prompt + conversation history + analyzeTickerFollowUp tRPC procedure
+- [x] AIStrategyReviewPanel (Close for Profit) — already had follow-up prompt (no change needed)
+- [x] AIRollAdvisorPanel (Roll Positions) — already had follow-up prompt (no change needed)
+- [x] GapAdvisorModal — already had follow-up prompt (no change needed)
+- [x] PortfolioAdvisor.tsx — algorithmic data page, no LLM chat, no follow-up needed
+- [x] PortfolioAdvisorSummary.tsx — display widget, no LLM chat, no follow-up needed

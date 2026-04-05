@@ -3373,4 +3373,65 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       const reply = response.choices?.[0]?.message?.content ?? 'Unable to generate response.';
       return { reply };
     }),
+
+  analyzeTickerFollowUp: protectedProcedure
+    .input(
+      z.object({
+        symbol: z.string(),
+        initialAnalysis: z.object({
+          verdict: z.string(),
+          recommendation: z.string(),
+          strategyType: z.string(),
+          strikeDisplay: z.string().optional(),
+          contracts: z.number().optional(),
+          avgDte: z.number().optional(),
+          netDelta: z.number().optional(),
+          premiumCollected: z.number().optional(),
+          underlyingPrice: z.number().nullable().optional(),
+          urgency: z.string().optional(),
+        }),
+        conversationHistory: z.array(
+          z.object({
+            role: z.enum(['user', 'assistant']),
+            content: z.string(),
+          })
+        ),
+        userMessage: z.string().max(2000),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('./_core/llm');
+      const a = input.initialAnalysis;
+
+      const systemPrompt = `You are an expert options trading advisor. You already analyzed the ${input.symbol} position.
+
+Initial analysis summary:
+- Symbol: ${input.symbol}
+- Strategy: ${a.strategyType}
+- Verdict: ${a.verdict} (${a.urgency ?? 'unknown'} urgency)
+- Recommendation: ${a.recommendation}
+- Strikes: ${a.strikeDisplay ?? 'N/A'}
+- Contracts: ${a.contracts ?? 'N/A'}
+- DTE: ${a.avgDte ?? 'N/A'} days
+- Net Delta: ${a.netDelta ?? 'N/A'}
+- Premium Collected: $${a.premiumCollected ?? 'N/A'}
+- Underlying Price: $${a.underlyingPrice ?? 'N/A'}
+
+Answer the trader's follow-up question concisely and specifically. Use actual numbers when relevant. Format in Markdown.`;
+
+      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+        { role: 'system', content: systemPrompt },
+        ...input.conversationHistory,
+        { role: 'user', content: input.userMessage },
+      ];
+
+      const response = await invokeLLM({ messages });
+      const rawContent = response?.choices?.[0]?.message?.content;
+      const reply: string = typeof rawContent === 'string'
+        ? rawContent
+        : Array.isArray(rawContent)
+          ? rawContent.map((c: any) => c.text || '').join('')
+          : 'Unable to generate response.';
+      return { reply };
+    }),
 });
