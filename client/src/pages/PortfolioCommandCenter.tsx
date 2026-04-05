@@ -1936,6 +1936,12 @@ export default function PortfolioCommandCenter() {
                             </span>
                           </th>
                         ))}
+                        {/* AI column header */}
+                        <th className="px-2 py-2 text-center">
+                          <span className="inline-flex items-center gap-0.5 text-amber-400/60">
+                            <Sparkles className="w-3 h-3" />
+                          </span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1958,6 +1964,25 @@ export default function PortfolioCommandCenter() {
                           <td className="px-3 py-2 text-right text-muted-foreground">{t.avgDte.toFixed(0)}d</td>
                           <td className="px-3 py-2 text-right text-muted-foreground">{(t.avgIv * 100).toFixed(1)}%</td>
                           <td className="px-3 py-2 text-muted-foreground">{t.strategies.join(', ')}</td>
+                          {/* AI analyze button */}
+                          <td className="px-2 py-2 text-center">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={() => setSelectedTicker(t)}
+                                    className="inline-flex items-center justify-center w-6 h-6 rounded-md hover:bg-amber-500/15 text-amber-400/50 hover:text-amber-400 transition-colors"
+                                    aria-label={`AI analysis for ${t.symbol}`}
+                                  >
+                                    <Sparkles className="w-3 h-3" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="text-xs">
+                                  AI risk/reward analysis for {t.symbol}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1977,7 +2002,7 @@ export default function PortfolioCommandCenter() {
                         <td className="px-3 py-2 text-right font-bold text-foreground">
                           ${((portfolio?.totalPremiumAtRisk ?? 0) / 1000).toFixed(1)}k
                         </td>
-                        <td colSpan={3} />
+                        <td colSpan={4} />
                       </tr>
                     </tfoot>
                   </table>

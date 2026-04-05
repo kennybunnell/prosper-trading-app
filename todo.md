@@ -8809,3 +8809,9 @@ ROC Fix Mar 18 2026
 - [x] Fix: Added lastSubmittedRollPositionIds useRef to track which positionIds were submitted; onSuccess now selectively removes only those IDs from selections, preserving all other positions' candidate selections for consecutive submissions
 - [x] Applied tracking in both handleRollReviewSubmit (modal path) and handleSubmitRolls (direct path)
 - [x] TypeScript: 0 errors
+
+## AI Features (Apr 5, 2026)
+- [x] Add AI Morning Briefing card to Dashboard home page — auto-generates on login, summarizes positions needing attention, upcoming expirations, market conditions
+- [x] Add getMorningBriefing tRPC procedure to dashboard router
+- [x] Add AI per-row icons to Portfolio Command Center Greeks table — per-symbol sparkle button opens risk/reward analysis slide-over
+- [x] Add getTickerAIAnalysis tRPC procedure for per-ticker LLM analysis (reuses existing analyzeTicker procedure)

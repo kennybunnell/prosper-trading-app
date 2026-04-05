@@ -1045,6 +1045,231 @@ Answer concisely and specifically. Stay conservative — capital preservation fi
         return { answer };
       }),
 
+    /**
+     * Gather lightweight context for the AI Morning Briefing card.
+     * Pulls: open positions count, daily scan cache, VIX, upcoming expirations.
+     * Fast — does NOT fetch full option chains.
+     */
+    getMorningBriefingContext: protectedProcedure.query(async ({ ctx }) => {
+      const { getApiCredentials } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+
+      // ── 1. Daily scan cache (close/roll/sell counts) ─────────────────────────
+      let closeProfitCount = 0;
+      let rollPositionsCount = 0;
+      let sellCallsCount = 0;
+      let scannedAt: Date | null = null;
+      let closeProfitItems: any[] = [];
+      let rollPositionsItems: any[] = [];
+      try {
+        const { getDb } = await import('./db');
+        const db = await getDb();
+        if (db) {
+          const { dailyScanCache } = await import('../drizzle/schema');
+          const { eq, desc } = await import('drizzle-orm');
+          const [row] = await db.select().from(dailyScanCache)
+            .where(eq(dailyScanCache.userId, ctx.user.id))
+            .orderBy(desc(dailyScanCache.scannedAt)).limit(1);
+          if (row) {
+            closeProfitCount = row.closeProfitCount ?? 0;
+            rollPositionsCount = row.rollPositionsCount ?? 0;
+            sellCallsCount = row.sellCallsCount ?? 0;
+            scannedAt = row.scannedAt;
+            const safeParse = (s: string | null | undefined): any[] => { try { return JSON.parse(s ?? '[]'); } catch { return []; } };
+            closeProfitItems = safeParse(row.closeProfitItems);
+            rollPositionsItems = safeParse(row.rollPositionsItems);
+          }
+        }
+      } catch { /* non-fatal */ }
+
+      // ── 2. Open positions + upcoming expirations ─────────────────────────────
+      let openPositionsCount = 0;
+      let upcomingExpirations: { symbol: string; expiration: string; dte: number; strategy: string; accountNumber: string }[] = [];
+      try {
+        if (credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken) {
+          const { authenticateTastytrade } = await import('./tastytrade');
+          const api = await authenticateTastytrade(credentials, ctx.user.id);
+          const accounts = await api.getAccounts();
+          const now = Date.now();
+          for (const acct of accounts) {
+            const accNum = acct.account['account-number'];
+            try {
+              const positions = await api.getPositions(accNum);
+              openPositionsCount += positions.length;
+              for (const pos of positions) {
+                if (pos['instrument-type'] !== 'Equity Option') continue;
+                const sym: string = pos['underlying-symbol'] || '';
+                // 'expires-at' is an ISO datetime string like '2025-04-18T20:00:00.000+00:00'
+                const expStr: string = (pos as any)['expires-at'] || '';
+                if (!expStr) continue;
+                const expMs = new Date(expStr).getTime();
+                const dte = Math.max(0, Math.round((expMs - now) / 86400000));
+                if (dte <= 21) {
+                  const direction = pos['quantity-direction'] || '';
+                  const optSym: string = pos.symbol || '';
+                  const isCall = optSym.includes('C');
+                  const strategy = direction === 'Short' ? (isCall ? 'CC' : 'CSP') : (isCall ? 'Long Call' : 'Long Put');
+                  upcomingExpirations.push({ symbol: sym, expiration: expStr, dte, strategy, accountNumber: accNum });
+                }
+              }
+            } catch { /* skip account */ }
+          }
+          // Sort by DTE ascending
+          upcomingExpirations.sort((a, b) => a.dte - b.dte);
+        }
+      } catch { /* non-fatal */ }
+
+      // ── 3. VIX ───────────────────────────────────────────────────────────────
+      let vix: number | null = null;
+      let vixLabel = 'unknown';
+      try {
+        const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+        if (tradierKey) {
+          const { createTradierAPI } = await import('./tradier');
+          const tradierApi = createTradierAPI(tradierKey);
+          const vixQuote = await tradierApi.getQuote('VIX');
+          const vixLast = vixQuote?.last ?? vixQuote?.close ?? null;
+          if (vixLast && !isNaN(Number(vixLast))) {
+            vix = Math.round(Number(vixLast) * 100) / 100;
+            if (vix >= 30) vixLabel = 'HIGH — elevated fear, premium-rich';
+            else if (vix >= 20) vixLabel = 'ELEVATED — above-average volatility';
+            else if (vix >= 15) vixLabel = 'MODERATE — normal range';
+            else vixLabel = 'LOW — compressed volatility';
+          }
+        }
+      } catch { /* non-fatal */ }
+
+      // ── 4. Monthly progress ──────────────────────────────────────────────────
+      let monthlyCollected = 0;
+      let monthlyTarget = 150000;
+      try {
+        const { getUserPreferences } = await import('./db');
+        const prefs = await getUserPreferences(ctx.user.id);
+        monthlyTarget = prefs?.monthlyIncomeTarget ?? 150000;
+        if (credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken) {
+          const { authenticateTastytrade } = await import('./tastytrade');
+          const api = await authenticateTastytrade(credentials, ctx.user.id);
+          const accounts = await api.getAccounts();
+          const now = new Date();
+          const startStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+          const endStr = now.toISOString().split('T')[0];
+          let credits = 0, debits = 0;
+          for (const acct of accounts) {
+            try {
+              const txns = await api.getTransactionHistory(acct.account['account-number'], startStr, endStr);
+              for (const txn of txns) {
+                if (txn['transaction-type'] !== 'Trade') continue;
+                const sym: string = txn['symbol'] || '';
+                if (!/[A-Z0-9]+\s*\d{6}[CP]\d+/.test(sym)) continue;
+                const val = Math.abs(parseFloat(txn['net-value'] || '0'));
+                if (!val) continue;
+                if (txn['net-value-effect'] === 'Credit') credits += val;
+                else if (txn['net-value-effect'] === 'Debit') debits += val;
+              }
+            } catch { /* skip */ }
+          }
+          monthlyCollected = Math.round((credits - debits) * 100) / 100;
+        }
+      } catch { /* non-fatal */ }
+
+      return {
+        closeProfitCount,
+        rollPositionsCount,
+        sellCallsCount,
+        scannedAt,
+        closeProfitItems,
+        rollPositionsItems,
+        openPositionsCount,
+        upcomingExpirations,
+        vix,
+        vixLabel,
+        monthlyCollected,
+        monthlyTarget,
+      };
+    }),
+
+    /**
+     * Generate the AI Morning Briefing text from the pre-fetched context.
+     */
+    generateMorningBriefing: protectedProcedure
+      .input(z.object({ contextJson: z.string() }))
+      .mutation(async ({ input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+        let ctx: any = {};
+        try { ctx = JSON.parse(input.contextJson); } catch { /* use empty */ }
+
+        const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        const closeProfitItems: any[] = ctx.closeProfitItems ?? [];
+        const rollPositionsItems: any[] = ctx.rollPositionsItems ?? [];
+        const upcomingExpirations: any[] = ctx.upcomingExpirations ?? [];
+        const vix: number | null = ctx.vix ?? null;
+        const vixLabel: string = ctx.vixLabel ?? 'unknown';
+        const monthlyCollected: number = ctx.monthlyCollected ?? 0;
+        const monthlyTarget: number = ctx.monthlyTarget ?? 150000;
+        const monthlyPct = monthlyTarget > 0 ? ((monthlyCollected / monthlyTarget) * 100).toFixed(1) : '0';
+        const closeProfitCount: number = ctx.closeProfitCount ?? 0;
+        const rollPositionsCount: number = ctx.rollPositionsCount ?? 0;
+        const sellCallsCount: number = ctx.sellCallsCount ?? 0;
+        const openPositionsCount: number = ctx.openPositionsCount ?? 0;
+
+        const expiringList = upcomingExpirations.slice(0, 8).map((e: any) =>
+          `  - ${e.symbol} ${e.strategy}: ${e.dte}d DTE (${e.expiration})`
+        ).join('\n');
+
+        const closeProfitList = closeProfitItems.slice(0, 5).map((i: any) =>
+          `  - ${i.underlyingSymbol || i.symbol}: ${i.profitPct?.toFixed(0)}% profit, ${i.daysLeft}d left`
+        ).join('\n');
+
+        const rollList = rollPositionsItems.slice(0, 5).map((i: any) =>
+          `  - ${i.underlyingSymbol || i.symbol}: ${i.dte}d DTE, $${i.strike} ${i.optionType}`
+        ).join('\n');
+
+        const vixLine = vix !== null ? `Current VIX: ${vix} (${vixLabel})` : 'VIX: unavailable';
+
+        const systemPrompt = `You are a concise morning briefing assistant for an experienced options income trader. 
+Today is ${today}. Your job is to deliver a sharp, actionable morning briefing in 3-5 short sections.
+Be specific, direct, and prioritize the most urgent items first. Use markdown with ## headers and bullet points.
+Keep the total response under 300 words. No fluff — every sentence must add value.
+Focus on: what needs attention TODAY, what's expiring soon, market conditions, and one key insight.`;
+
+        const userPrompt = `Morning briefing data for today:
+
+${vixLine}
+Monthly income: $${monthlyCollected.toLocaleString('en-US', { maximumFractionDigits: 0 })} / $${monthlyTarget.toLocaleString()} (${monthlyPct}%)
+Open positions: ${openPositionsCount}
+
+Daily scan results:
+- Close for profit: ${closeProfitCount} positions ready
+${closeProfitList ? closeProfitList : '  (none)'}
+- Roll positions: ${rollPositionsCount} expiring soon
+${rollList ? rollList : '  (none)'}
+- Sell calls: ${sellCallsCount} eligible
+
+Upcoming expirations (≤21 DTE):
+${expiringList || '  None within 21 days'}
+
+Generate a morning briefing with these sections:
+## Today's Priority Actions
+## Expiration Watch
+## Market Conditions
+## Key Insight`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+        });
+
+        const rawContent = response?.choices?.[0]?.message?.content;
+        const briefing: string = typeof rawContent === 'string'
+          ? rawContent
+          : Array.isArray(rawContent)
+            ? rawContent.map((c: any) => c.text || '').join('')
+            : 'Unable to generate briefing at this time.';
+        return { briefing };
+      }),
+
     getActionBadges: protectedProcedure.query(async ({ ctx }) => {
       try {
         const { getDb } = await import('./db');
