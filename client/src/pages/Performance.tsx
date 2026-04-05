@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Loader2, Download, Package, ChevronRight, ChevronDown } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Loader2, Download, Package, ChevronRight, ChevronDown, Sparkles, ChevronUp, Brain } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { exportToCSV } from '@/lib/utils';
 import { useAccount } from '@/contexts/AccountContext';
@@ -118,6 +118,21 @@ export function ActivePositionsTab() {
   const [finalOrderStatus, setFinalOrderStatus] = useState<string | null>(null);
   const [safeguardWarning, setSafeguardWarning] = useState<{ symbol: string; message: string } | null>(null);
   const [pendingCloseOrders, setPendingCloseOrders] = useState<UnifiedOrder[] | null>(null);
+
+  // AI Summary Card state
+  const [showAiSummary, setShowAiSummary] = useState(false);
+  const [aiSummaryText, setAiSummaryText] = useState<string | null>(null);
+  const [aiSummaryExpanded, setAiSummaryExpanded] = useState(true);
+  const analyzePositionsMutation = trpc.performance.analyzePositions.useMutation({
+    onSuccess: (result) => {
+      setAiSummaryText(typeof result.analysis === 'string' ? result.analysis : String(result.analysis));
+      setShowAiSummary(true);
+      setAiSummaryExpanded(true);
+    },
+    onError: (err) => {
+      toast.error('AI analysis failed: ' + err.message);
+    },
+  });
 
   // Play success sound
   const playSuccessSound = () => {
@@ -609,6 +624,80 @@ export function ActivePositionsTab() {
 
   return (
     <div className="space-y-6">
+      {/* AI Proactive Summary Card */}
+      <Card className="border-violet-500/30 bg-gradient-to-r from-violet-500/5 to-purple-500/5">
+        <div className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center">
+                <Brain className="w-4 h-4 text-violet-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm text-violet-300">AI Position Advisor</h3>
+                <p className="text-xs text-muted-foreground">Proactive analysis of your open positions</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {aiSummaryText && (
+                <button
+                  onClick={() => setAiSummaryExpanded(!aiSummaryExpanded)}
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                >
+                  {aiSummaryExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  {aiSummaryExpanded ? 'Collapse' : 'Expand'}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (!data?.positions?.length) {
+                    toast.error('No positions to analyze');
+                    return;
+                  }
+                  analyzePositionsMutation.mutate({
+                    positions: (data.positions as any[]).slice(0, 20).map((p: any) => ({
+                      symbol: p.underlying || p.symbol || '',
+                      type: p.strategy || '',
+                      strike: Number(p.metrics?.strikePrice) || 0,
+                      expiration: p.metrics?.expiration || '',
+                      dte: p.metrics?.dte ?? 0,
+                      premium: p.metrics?.openPremium ?? 0,
+                      current: p.metrics?.currentValue ?? 0,
+                      realizedPercent: p.metrics?.profitCaptured ?? 0,
+                      action: p.action || undefined,
+                      spreadType: p.spreadType || null,
+                    })),
+                    summary: {
+                      openPositions: summary.openPositions,
+                      totalPremiumAtRisk: summary.totalPremiumAtRisk,
+                      avgRealizedPercent: summary.avgRealizedPercent,
+                      readyToClose: summary.readyToClose,
+                    },
+                  });
+                }}
+                disabled={analyzePositionsMutation.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 text-xs font-medium transition-colors disabled:opacity-50"
+              >
+                {analyzePositionsMutation.isPending ? (
+                  <><Loader2 className="w-3 h-3 animate-spin" /> Analyzing...</>
+                ) : (
+                  <><Sparkles className="w-3 h-3" /> {aiSummaryText ? 'Refresh Analysis' : 'Analyze Positions'}</>
+                )}
+              </button>
+            </div>
+          </div>
+          {aiSummaryText && aiSummaryExpanded && (
+            <div className="mt-3 pt-3 border-t border-violet-500/20">
+              <div className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{aiSummaryText}</div>
+            </div>
+          )}
+          {!aiSummaryText && !analyzePositionsMutation.isPending && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Click <span className="text-violet-300 font-medium">Analyze Positions</span> to get an AI-powered review of your portfolio — flags at-risk positions, profit targets, and roll opportunities.
+            </p>
+          )}
+        </div>
+      </Card>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className="p-6 bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20">
@@ -2894,6 +2983,18 @@ function PerformanceOverviewTab() {
   const [monthlySortDir, setMonthlySortDir] = useState<'asc' | 'desc'>('desc');
   const [symbolSortKey, setSymbolSortKey] = useState<string>('netPremium');
   const [symbolSortDir, setSymbolSortDir] = useState<'asc' | 'desc'>('desc');
+  const [showPerfAiPanel, setShowPerfAiPanel] = useState(false);
+  const [perfAiText, setPerfAiText] = useState<string | null>(null);
+
+  const analyzePerformanceMutation = trpc.performance.analyzePerformance.useMutation({
+    onSuccess: (result) => {
+      setPerfAiText(typeof result.analysis === 'string' ? result.analysis : String(result.analysis));
+      setShowPerfAiPanel(true);
+    },
+    onError: (err) => {
+      toast.error('AI analysis failed: ' + err.message);
+    },
+  });
 
   // Calculate monthsBack based on time period
   const calculateMonthsBack = (period: '3m' | '6m' | 'ytd' | 'all') => {
@@ -3075,8 +3176,58 @@ function PerformanceOverviewTab() {
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
+          <Button
+            onClick={() => {
+              if (!data) return;
+              analyzePerformanceMutation.mutate({
+                overview: {
+                  totalPremiumCollected: (data as any).totals?.totalCredits ?? 0,
+                  totalPremiumRealized: (data as any).totals?.totalNet ?? 0,
+                  winRate: (data as any).performanceMetrics?.winRate ?? 0,
+                  totalTrades: ((data as any).totals?.cspTrades ?? 0) + ((data as any).totals?.ccTrades ?? 0),
+                },
+                topSymbols: ((data as any).symbolPerformance ?? []).slice(0, 10).map((s: any) => ({
+                  symbol: s.symbol,
+                  premium: s.netPremium ?? 0,
+                  trades: s.tradeCount ?? 0,
+                  winRate: s.winRate ?? 0,
+                })),
+                monthlyData: ((data as any).monthlyData ?? []).slice(-6).map((m: any) => ({
+                  month: m.month ?? '',
+                  premium: m.netPremium ?? 0,
+                  trades: m.tradeCount ?? 0,
+                })),
+              });
+            }}
+            disabled={analyzePerformanceMutation.isPending}
+            variant="outline"
+            size="sm"
+            className="border-violet-500/40 text-violet-300 hover:bg-violet-500/10"
+          >
+            {analyzePerformanceMutation.isPending ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</>
+            ) : (
+              <><Sparkles className="w-4 h-4 mr-2" /> AI Analysis</>
+            )}
+          </Button>
         </div>
       </div>
+
+      {/* AI Performance Analysis Panel */}
+      {showPerfAiPanel && perfAiText && (
+        <Card className="border-violet-500/30 bg-gradient-to-r from-violet-500/5 to-purple-500/5">
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Brain className="w-4 h-4 text-violet-400" />
+                <h3 className="font-semibold text-sm text-violet-300">AI Performance Analysis</h3>
+              </div>
+              <button onClick={() => setShowPerfAiPanel(false)} className="text-xs text-muted-foreground hover:text-foreground">✕ Close</button>
+            </div>
+            <div className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">{perfAiText}</div>
+          </div>
+        </Card>
+      )}
 
       {/* Summary Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">

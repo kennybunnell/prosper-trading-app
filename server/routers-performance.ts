@@ -715,6 +715,113 @@ export const performanceRouter = router({
     }),
 
   /**
+   * AI: Analyze open positions — proactive summary card
+   * Flags at-risk positions (delta breach, near profit target, expiring soon)
+   */
+  analyzePositions: protectedProcedure
+    .input(
+      z.object({
+        positions: z.array(
+          z.object({
+            symbol: z.string(),
+            type: z.string(),
+            strike: z.number(),
+            expiration: z.string(),
+            dte: z.number(),
+            premium: z.number(),
+            current: z.number(),
+            realizedPercent: z.number(),
+            action: z.string().optional(),
+            spreadType: z.string().optional().nullable(),
+          })
+        ),
+        summary: z.object({
+          openPositions: z.number(),
+          totalPremiumAtRisk: z.number(),
+          avgRealizedPercent: z.number(),
+          readyToClose: z.number(),
+        }),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('./_core/llm');
+      const { positions, summary } = input;
+
+      // Build a concise position summary for the AI
+      const positionLines = positions.slice(0, 30).map(p => {
+        const pct = p.realizedPercent.toFixed(0);
+        return `${p.symbol} ${p.type} $${p.strike} exp ${p.expiration} (${p.dte}d) — ${pct}% realized, action: ${p.action || 'hold'}${p.spreadType ? ` [${p.spreadType}]` : ''}`;
+      }).join('\n');
+
+      const messages = [
+        {
+          role: 'system' as const,
+          content: `You are a professional options trading advisor specializing in covered calls, cash-secured puts, and spreads. Analyze the portfolio and provide a concise, actionable daily briefing. Be direct and specific. Use \u26a0\ufe0f for warnings, \u2705 for good news, \ud83d\udd34 for urgent items. Keep total response under 300 words.`,
+        },
+        {
+          role: 'user' as const,
+          content: `Portfolio Summary:\n- ${summary.openPositions} open positions\n- $${summary.totalPremiumAtRisk.toLocaleString()} total premium at risk\n- ${summary.avgRealizedPercent.toFixed(1)}% avg premium realized\n- ${summary.readyToClose} positions ready to close\n\nPositions:\n${positionLines}\n\nProvide:\n1. A 1-sentence overall portfolio health assessment\n2. Top 3 urgent items requiring action today (delta breach, expiring soon, profit target reached)\n3. Top 2 opportunities (positions near 80%+ profit that could be closed)\n4. One strategic observation about the portfolio`,
+        },
+      ];
+
+      const response = await invokeLLM({ messages });
+      return { analysis: response.choices[0].message.content || 'Analysis unavailable.' };
+    }),
+
+  /**
+   * AI: Analyze performance history — patterns and insights
+   */
+  analyzePerformance: protectedProcedure
+    .input(
+      z.object({
+        overview: z.object({
+          totalPremiumCollected: z.number(),
+          totalPremiumRealized: z.number(),
+          winRate: z.number(),
+          totalTrades: z.number(),
+          avgDTE: z.number().optional(),
+        }),
+        topSymbols: z.array(z.object({
+          symbol: z.string(),
+          trades: z.number(),
+          premium: z.number(),
+          winRate: z.number().optional(),
+        })).optional(),
+        monthlyData: z.array(z.object({
+          month: z.string(),
+          premium: z.number(),
+          trades: z.number(),
+        })).optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('./_core/llm');
+      const { overview, topSymbols, monthlyData } = input;
+
+      const symbolLines = (topSymbols || []).slice(0, 10).map(s =>
+        `${s.symbol}: ${s.trades} trades, $${s.premium.toLocaleString()} premium${s.winRate !== undefined ? `, ${s.winRate.toFixed(0)}% win rate` : ''}`
+      ).join('\n');
+
+      const monthLines = (monthlyData || []).slice(-6).map(m =>
+        `${m.month}: $${m.premium.toLocaleString()} (${m.trades} trades)`
+      ).join('\n');
+
+      const messages = [
+        {
+          role: 'system' as const,
+          content: `You are a professional options trading performance analyst. Analyze trading history and identify actionable patterns, strengths, and areas for improvement. Be specific with numbers. Use \u2705 for strengths, \u26a0\ufe0f for areas to improve, \ud83d\udca1 for insights. Keep total response under 400 words.`,
+        },
+        {
+          role: 'user' as const,
+          content: `Performance Overview:\n- Total premium collected: $${overview.totalPremiumCollected.toLocaleString()}\n- Total premium realized: $${overview.totalPremiumRealized.toLocaleString()}\n- Win rate: ${overview.winRate.toFixed(1)}%\n- Total trades: ${overview.totalTrades}${overview.avgDTE ? `\n- Avg DTE at entry: ${overview.avgDTE.toFixed(0)} days` : ''}\n\nTop Symbols:\n${symbolLines || 'No data'}\n\nMonthly Trend (last 6 months):\n${monthLines || 'No data'}\n\nProvide:\n1. Overall performance assessment (2-3 sentences)\n2. Top 3 strengths in this trading approach\n3. Top 3 areas for improvement with specific recommendations\n4. Best-performing symbols and why they work well\n5. Monthly trend analysis — is performance improving or declining?\n6. One specific strategic recommendation to increase premium income`,
+        },
+      ];
+
+      const response = await invokeLLM({ messages });
+      return { analysis: response.choices[0].message.content || 'Analysis unavailable.' };
+    }),
+
+  /**
    * Close selected positions (buy-to-close)
    */
   closePositions: protectedProcedure

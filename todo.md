@@ -8797,3 +8797,8 @@ ROC Fix Mar 18 2026
 - [ ] Apply AIRowIcon to CC per-row AI icon (explainCCScore / explainBCSScore)
 - [ ] Apply AIRowIcon to Automation per-row AI icon (currently orange circle — standardize)
 - [ ] Standardize Automation AI Strategy Review button to use AIAdvisorButton pattern
+
+## AI Expansion — Three New Features (Apr 5, 2026)
+- [ ] Add AI proactive summary card to Open Positions page (flags delta breach, near profit target, expiring soon)
+- [ ] Add per-row AI explanation icons to Action Items page (explains why action is recommended + best execution)
+- [ ] Add full AI analysis button and panel to Performance page (patterns, best symbols, optimal DTE, win rate by strategy)
