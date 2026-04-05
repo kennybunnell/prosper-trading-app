@@ -32,6 +32,7 @@ const IC_COLUMNS: ColumnDef[] = [
   { key: 'expiration', label: 'Expiration',   group: 'Position',                defaultVisible: false },
 ];
 import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
+import { AIAdvisorButton } from "@/components/AIAdvisorButton";
 import { BollingerChartPanel } from "@/components/BollingerChartPanel";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { Button } from "@/components/ui/button";
@@ -1085,21 +1086,14 @@ export default function IronCondorDashboard() {
               </label>
             </div>
 
-            {/* AI Advisor Button - prominent, full width */}
-            <div className="pt-2">
-              <Button
-                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white font-semibold shadow-lg hover:shadow-purple-900/40 transition-all duration-200"
-                size="default"
-                onClick={() => setShowAIAdvisor(!showAIAdvisor)}
-                disabled={opportunities.length === 0}
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                {showAIAdvisor ? 'Hide AI Advisor' : `AI Advisor — Analyze ${activeExchangeFilter ? `${displayedOpportunities.length} ${activeExchangeFilter}` : `${opportunities.length}`} Opportunities`}
-              </Button>
-              {opportunities.length === 0 && (
-                <p className="text-xs text-slate-500 text-center mt-1">Run a scan first to enable AI Advisor</p>
-              )}
-            </div>
+            {/* AI Advisor Button - standardized */}
+            <AIAdvisorButton
+              isOpen={showAIAdvisor}
+              onToggle={() => setShowAIAdvisor(!showAIAdvisor)}
+              count={activeExchangeFilter ? displayedOpportunities.length : opportunities.length}
+              label="Opportunities"
+              disabled={opportunities.length === 0}
+            />
 
             {/* AI Advisor Panel - inline below button */}
             {showAIAdvisor && (

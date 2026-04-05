@@ -41,6 +41,8 @@ import confetti from "canvas-confetti";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
+import { AIAdvisorButton } from "@/components/AIAdvisorButton";
+import { AIRowIcon } from "@/components/AIRowIcon";
 import { BollingerChartPanel } from "@/components/BollingerChartPanel";
 import { cn, exportToCSV } from "@/lib/utils";
 import {
@@ -2719,21 +2721,14 @@ export default function CCDashboard() {
             </div>
           </div>
 
-            {/* AI Advisor Button - prominent, full width */}
-            <div className="pt-2">
-              <Button
-                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white font-semibold shadow-lg hover:shadow-purple-900/40 transition-all duration-200"
-                size="default"
-                onClick={() => setShowAIAdvisor(!showAIAdvisor)}
-                disabled={opportunities.length === 0}
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                {showAIAdvisor ? 'Hide AI Advisor' : `AI Advisor — Analyze ${activeExchangeFilter ? `${filteredOpportunities.length} ${activeExchangeFilter}` : `${opportunities.length}`} Opportunities`}
-              </Button>
-              {opportunities.length === 0 && (
-                <p className="text-xs text-slate-500 text-center mt-1">Run a scan first to enable AI Advisor</p>
-              )}
-            </div>
+            {/* AI Advisor Button - standardized */}
+            <AIAdvisorButton
+              isOpen={showAIAdvisor}
+              onToggle={() => setShowAIAdvisor(!showAIAdvisor)}
+              count={activeExchangeFilter ? filteredOpportunities.length : opportunities.length}
+              label="Opportunities"
+              disabled={opportunities.length === 0}
+            />
 
             {/* AI Advisor Panel - inline below button */}
             {showAIAdvisor && (
@@ -3407,9 +3402,51 @@ export default function CCDashboard() {
                         
                         {/* 2. Score */}
                         <TableCell className="text-right">
-                          <Badge variant="secondary" className={getScoreBadgeClass(opp.score)}>
-                            {opp.score}
-                          </Badge>
+                          <div className="flex items-center justify-end gap-1">
+                            <Badge variant="secondary" className={getScoreBadgeClass(opp.score)}>
+                              {opp.score}
+                            </Badge>
+                            <AIRowIcon
+                              isLoading={analyzingRowKey === `${opp.symbol}-${opp.strike}-${opp.expiration}`}
+                              onClick={() => {
+                                const rowKey = `${opp.symbol}-${opp.strike}-${opp.expiration}`;
+                                setAnalyzingRowKey(rowKey);
+                                if (strategyType === 'spread') {
+                                  explainBCSScore.mutate({
+                                    symbol: opp.symbol,
+                                    shortStrike: opp.strike,
+                                    longStrike: (opp as any).longStrike ?? 0,
+                                    currentPrice: opp.currentPrice,
+                                    netCredit: opp.premium,
+                                    shortDelta: opp.delta,
+                                    dte: opp.dte,
+                                    rsi: opp.rsi,
+                                    bbPctB: opp.bbPctB,
+                                    ivRank: (opp as any).ivRank ?? null,
+                                    score: opp.score,
+                                    scoreBreakdown: (opp as any).scoreBreakdown ?? { technical: 0, greeks: 0, premium: 0, quality: 0, total: opp.score },
+                                  });
+                                } else {
+                                  explainCCScore.mutate({
+                                    symbol: opp.symbol,
+                                    strike: opp.strike,
+                                    currentPrice: opp.currentPrice,
+                                    premium: opp.premium,
+                                    delta: opp.delta,
+                                    dte: opp.dte,
+                                    weeklyReturn: opp.weeklyReturn,
+                                    distanceOtm: opp.distanceOtm,
+                                    rsi: opp.rsi,
+                                    bbPctB: opp.bbPctB,
+                                    spreadPct: opp.spreadPct ?? null,
+                                    score: opp.score,
+                                  });
+                                }
+                              }}
+                              title="AI explanation of this score"
+                              size="xs"
+                            />
+                          </div>
                         </TableCell>
                         
                         {/* 2b. Trend 14d (spread only) */}

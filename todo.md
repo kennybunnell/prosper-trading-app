@@ -8785,3 +8785,15 @@ ROC Fix Mar 18 2026
 - [ ] Extend Best Fit scoring to return per-component scores (premiumScore, safetyScore, dteScore)
 - [ ] Add score breakdown tooltip on every ⭐ badge (Premium: X · Safety: X · DTE: X = Score X)
 - [ ] Add "⭐ Best Fit All" button to scan toolbar — queues all Best Fit winners at once
+
+## AI Consistency Standardization
+
+- [ ] Create shared AIAdvisorButton component (full-width, purple gradient, Sparkles icon, count label)
+- [ ] Create shared AIRowIcon component (consistent violet color, size, loading state)
+- [ ] Apply AIAdvisorButton to CSP Dashboard (replace inline button markup)
+- [ ] Apply AIAdvisorButton to CC Dashboard (replace inline button markup)
+- [ ] Apply AIAdvisorButton to IC Dashboard (replace inline button markup)
+- [ ] Apply AIRowIcon to PMCC per-row AI icon (currently purple — standardize)
+- [ ] Apply AIRowIcon to CC per-row AI icon (explainCCScore / explainBCSScore)
+- [ ] Apply AIRowIcon to Automation per-row AI icon (currently orange circle — standardize)
+- [ ] Standardize Automation AI Strategy Review button to use AIAdvisorButton pattern

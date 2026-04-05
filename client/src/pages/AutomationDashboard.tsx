@@ -42,6 +42,7 @@ import { Separator } from '@/components/ui/separator';
 import InboxPage from './Inbox';
 import { skipToken } from '@tanstack/react-query';
 import { AIStrategyReviewPanel, ReviewPosition, StrategyType } from '@/components/AIStrategyReviewPanel';
+import { AIRowIcon } from '@/components/AIRowIcon';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -2120,14 +2121,37 @@ export default function AutomationDashboard() {
                         onClick={handlePillClick}
                       />
                       {t !== 'all' && count > 0 && (
-                        <button
-                          type="button"
+                        <AIRowIcon
+                          isLoading={false}
+                          onClick={() => {
+                            setAiReviewPositions(visibleOfType.map(r => {
+                              const occMatch = r.optionSymbol.match(/([CP])(\d{8})$/);
+                              const shortStrike = occMatch ? parseInt(occMatch[2], 10) / 1000 : undefined;
+                              const longOccMatch = r.spreadLongSymbol?.match(/([CP])(\d{8})$/);
+                              const longStrike = longOccMatch ? parseInt(longOccMatch[2], 10) / 1000 : undefined;
+                              return {
+                                symbol: r.symbol,
+                                type: r.type,
+                                optionSymbol: r.optionSymbol,
+                                price: r.buyBackCost / (r.quantity * 100),
+                                account: r.account,
+                                expiration: r.expiration ?? '',
+                                dte: r.dte ?? 0,
+                                premiumCollected: r.premiumCollected,
+                                buyBackCost: r.buyBackCost,
+                                netProfit: r.premiumCollected - r.buyBackCost,
+                                realizedPct: r.realizedPercent,
+                                action: r.action,
+                                spreadLongSymbol: r.spreadLongSymbol,
+                                spreadShortStrike: shortStrike,
+                                spreadLongStrike: longStrike,
+                              };
+                            }));
+                            setAiReviewStrategy(t as StrategyType);
+                          }}
                           title={`AI Strategy Review: Analyze all ${count} ${t} positions`}
-                          onClick={handleAiReviewClick}
-                          className="inline-flex items-center justify-center w-5 h-5 rounded-full text-orange-400/60 hover:text-orange-400 hover:bg-orange-500/15 transition-all duration-150 cursor-pointer"
-                        >
-                          <Sparkles className="w-3 h-3" />
-                        </button>
+                          size="xs"
+                        />
                       )}
                     </div>
                   );

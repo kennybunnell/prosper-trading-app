@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign, Download, RefreshCw, Plus, Minus, Sparkles, BarChart2 } from "lucide-react";
+import { AIRowIcon } from "@/components/AIRowIcon";
 import { BollingerChartPanel } from "@/components/BollingerChartPanel";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
@@ -872,24 +873,16 @@ export default function PMCCDashboard() {
                                 </span>
                               </td>
                               <td className="p-2 text-center">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-0 hover:bg-purple-500/20"
+                                <AIRowIcon
+                                  isLoading={analyzingRowKey === `${leap.symbol}-${leap.strike}-${leap.expiration}`}
                                   onClick={() => {
                                     const rowKey = `${leap.symbol}-${leap.strike}-${leap.expiration}`;
                                     setAnalyzingRowKey(rowKey);
                                     explainScore.mutate({ leap });
                                   }}
-                                  disabled={analyzingRowKey === `${leap.symbol}-${leap.strike}-${leap.expiration}`}
-                                  title="Click to see AI explanation of this score"
-                                >
-                                  {analyzingRowKey === `${leap.symbol}-${leap.strike}-${leap.expiration}` ? (
-                                    <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
-                                  ) : (
-                                    <Sparkles className="w-4 h-4 text-purple-500" />
-                                  )}
-                                </Button>
+                                  title="AI explanation of this score"
+                                  size="xs"
+                                />
                               </td>
                             </tr>
                           );
@@ -1014,24 +1007,16 @@ export default function PMCCDashboard() {
                             </span>
                           </td>
                           <td className="p-2 text-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 hover:bg-purple-500/20"
+                            <AIRowIcon
+                              isLoading={analyzingRowKey === `${leap.symbol}-${leap.strike}-${leap.expiration}`}
                               onClick={() => {
                                 const rowKey = `${leap.symbol}-${leap.strike}-${leap.expiration}`;
                                 setAnalyzingRowKey(rowKey);
                                 explainScore.mutate({ leap });
                               }}
-                              disabled={analyzingRowKey === `${leap.symbol}-${leap.strike}-${leap.expiration}`}
-                              title="Click to see AI explanation of this score"
-                            >
-                              {analyzingRowKey === `${leap.symbol}-${leap.strike}-${leap.expiration}` ? (
-                                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
-                              ) : (
-                                <Sparkles className="w-4 h-4 text-purple-500" />
-                              )}
-                            </Button>
+                              title="AI explanation of this score"
+                              size="xs"
+                            />
                           </td>
                         </tr>
                       ))}
