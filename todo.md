@@ -8820,3 +8820,8 @@ ROC Fix Mar 18 2026
 - [x] Make VIX badge on AI Morning Briefing card clickable
 - [x] Build VixExplainerModal with: What is VIX, 5 range bands with "You are here" indicator, 6 movement signals, options-seller strategy guide by VIX level
 - [x] TypeScript: 0 errors
+
+## AI Advisor for Roll Positions (Apr 5, 2026)
+- [x] Add AI sparkle icon to each row in the Roll Positions table in AutomationDashboard
+- [x] Reuse/extend existing AI analysis slide-over pattern from Close for Profit page (new AIRollAdvisorPanel component)
+- [x] Pass roll-specific context (P&L, % max profit, strategy, strikes, DTE, ITM/OTM, reason, roll candidates) to the LLM

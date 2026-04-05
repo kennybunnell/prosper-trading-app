@@ -42,6 +42,7 @@ import { Separator } from '@/components/ui/separator';
 import InboxPage from './Inbox';
 import { skipToken } from '@tanstack/react-query';
 import { AIStrategyReviewPanel, ReviewPosition, StrategyType } from '@/components/AIStrategyReviewPanel';
+import { AIRollAdvisorPanel, RollAdvisorPosition } from '@/components/AIRollAdvisorPanel';
 import { AIRowIcon } from '@/components/AIRowIcon';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -387,6 +388,8 @@ export default function AutomationDashboard() {
   // AI Strategy Review Panel state
   const [aiReviewStrategy, setAiReviewStrategy] = useState<StrategyType | null>(null);
   const [aiReviewPositions, setAiReviewPositions] = useState<ReviewPosition[]>([]);
+  // AI Roll Advisor panel state
+  const [aiRollAdvisorPosition, setAiRollAdvisorPosition] = useState<RollAdvisorPosition | null>(null);
   // Ref to always-current visibleScanResults — used by handleOpenOrderPreview
   // (which is declared before the useMemo that computes visibleScanResults)
   const visibleScanResultsRef = useRef<ScanResult[]>([]);
@@ -3083,16 +3086,17 @@ export default function AutomationDashboard() {
                               { key: 'itmDepth', label: 'ITM/OTM', align: 'right' },
                               { key: 'reason', label: 'Reason', align: 'left' },
                               { key: 'rollCandidate', label: 'Roll Candidate', align: 'center' },
+                              { key: 'ai', label: 'AI', align: 'center' },
                             ] as const).map(col => (
                               <th
                                 key={col.key}
                                 className={`p-3 text-${col.align} cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap ${
                                   rollSortCol === col.key ? 'text-orange-400' : 'text-muted-foreground'
                                 } ${
-                                  col.key === 'reason' || col.key === 'rollCandidate' ? 'cursor-default' : ''
+                                  col.key === 'reason' || col.key === 'rollCandidate' || col.key === 'ai' ? 'cursor-default' : ''
                                 }`}
                                 onClick={() => {
-                                  if (col.key === 'reason' || col.key === 'rollCandidate' || col.key === 'strikes') return;
+                                  if (col.key === 'reason' || col.key === 'rollCandidate' || col.key === 'ai' || col.key === 'strikes') return;
                                   if (rollSortCol === col.key) setRollSortDir(d => d === 'asc' ? 'desc' : 'asc');
                                   else { setRollSortCol(col.key); setRollSortDir('asc'); }
                                 }}
@@ -3318,6 +3322,61 @@ export default function AutomationDashboard() {
                                   <td className="p-3 text-xs text-muted-foreground max-w-[160px] truncate">
                                     {pos.reasons?.[0] || '—'}
                                   </td>
+                                  {/* AI Roll Advisor button */}
+                                  <td className="p-3 text-center" onClick={e => e.stopPropagation()}>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const cachedCands = rollCandidatesCache[pos.positionId] || [];
+                                              setAiRollAdvisorPosition({
+                                                positionId: pos.positionId,
+                                                symbol: pos.symbol,
+                                                strategy: pos.strategy,
+                                                unrealizedPnl: (pos as any).unrealizedPnl,
+                                                pnlStatus: (pos as any).pnlStatus,
+                                                dte: pos.metrics.dte,
+                                                profitCaptured: pos.metrics.profitCaptured,
+                                                itmDepth: pos.metrics.itmDepth,
+                                                strikePrice: pos.metrics.strikePrice,
+                                                currentPrice: pos.metrics.currentPrice,
+                                                expiration: pos.metrics.expiration,
+                                                openPremium: pos.metrics.openPremium,
+                                                currentValue: pos.metrics.currentValue,
+                                                reasons: pos.reasons,
+                                                actionLabel: (pos as any).actionLabel,
+                                                spreadDetails: (pos as any).spreadDetails ? {
+                                                  strategyType: (pos as any).spreadDetails.strategyType,
+                                                  shortStrike: (pos as any).spreadDetails.shortStrike,
+                                                  longStrike: (pos as any).spreadDetails.longStrike,
+                                                  spreadWidth: (pos as any).spreadDetails.spreadWidth,
+                                                } : undefined,
+                                                rollCandidates: cachedCands.map((c: RollCandidate) => ({
+                                                  action: c.action,
+                                                  strike: c.strike,
+                                                  expiration: c.expiration,
+                                                  dte: c.dte,
+                                                  netCredit: c.netCredit,
+                                                  newPremium: c.newPremium,
+                                                  delta: c.delta,
+                                                  score: c.score,
+                                                  description: c.description,
+                                                })),
+                                              });
+                                            }}
+                                            className="h-7 w-7 rounded-md bg-orange-500/10 border border-orange-500/30 hover:bg-orange-500/20 hover:border-orange-500/50 flex items-center justify-center transition-all group"
+                                          >
+                                            <Sparkles className="h-3.5 w-3.5 text-orange-400 group-hover:text-orange-300" />
+                                          </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="left" className="text-xs">
+                                          AI Roll Advisor
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </td>
                                   {/* Roll Candidate */}
                                   <td className="p-3 text-center text-xs">
                                     <div className="flex flex-col items-center gap-1">
@@ -3375,7 +3434,7 @@ export default function AutomationDashboard() {
                                 {/* Expanded roll candidates row */}
                                 {isExpanded && (
                                   <tr key={`${pos.positionId}-expanded`} className="bg-muted/10">
-                                    <td colSpan={12} className="p-4">
+                                    <td colSpan={13} className="p-4">
                                       <RollCandidateExpander
                                         pos={pos}
                                         cachedCandidates={cachedCandidates}
@@ -4137,6 +4196,14 @@ export default function AutomationDashboard() {
           strategy={aiReviewStrategy}
           positions={aiReviewPositions}
           onClose={() => setAiReviewStrategy(null)}
+        />
+      )}
+
+      {/* AI Roll Advisor Panel — per-position slide-out overlay */}
+      {aiRollAdvisorPosition && (
+        <AIRollAdvisorPanel
+          position={aiRollAdvisorPosition}
+          onClose={() => setAiRollAdvisorPosition(null)}
         />
       )}
 

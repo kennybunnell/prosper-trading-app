@@ -3221,4 +3221,156 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         changePct: (quote as any).change_percentage ?? null,
       };
     }),
+
+  // ── AI Roll Advisor — per-position roll analysis ─────────────────────────
+  aiRollAdvisor: protectedProcedure
+    .input(
+      z.object({
+        position: z.object({
+          positionId: z.string(),
+          symbol: z.string(),
+          strategy: z.enum(['CSP', 'CC', 'BPS', 'BCS', 'IC']),
+          unrealizedPnl: z.number().optional(),
+          pnlStatus: z.enum(['winner', 'breakeven', 'loser']).optional(),
+          dte: z.number(),
+          profitCaptured: z.number(),
+          itmDepth: z.number(),
+          strikePrice: z.number(),
+          currentPrice: z.number(),
+          expiration: z.string(),
+          openPremium: z.number(),
+          currentValue: z.number(),
+          reasons: z.array(z.string()),
+          actionLabel: z.string().optional(),
+          spreadDetails: z.object({
+            strategyType: z.string(),
+            shortStrike: z.number().optional(),
+            longStrike: z.number().optional(),
+            spreadWidth: z.number().optional(),
+          }).optional(),
+          rollCandidates: z.array(z.object({
+            action: z.enum(['roll', 'close']),
+            strike: z.number().optional(),
+            expiration: z.string().optional(),
+            dte: z.number().optional(),
+            netCredit: z.number().optional(),
+            newPremium: z.number().optional(),
+            delta: z.number().optional(),
+            score: z.number(),
+            description: z.string(),
+          })).optional(),
+        }),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('./_core/llm');
+      const { position } = input;
+
+      const strategyLabels: Record<string, string> = {
+        CSP: 'Cash-Secured Put',
+        CC: 'Covered Call',
+        BPS: 'Bull Put Spread',
+        BCS: 'Bear Call Spread',
+        IC: 'Iron Condor',
+      };
+
+      const pnlSign = (position.unrealizedPnl ?? 0) >= 0 ? '+' : '';
+      const pnlStr = position.unrealizedPnl !== undefined
+        ? `${pnlSign}$${position.unrealizedPnl.toFixed(2)}`
+        : 'unknown';
+
+      const candidateSummary = (position.rollCandidates ?? []).slice(0, 5).map((c, i) =>
+        c.action === 'roll'
+          ? `  ${i + 1}. Roll → $${c.strike} exp ${c.expiration} (${c.dte}d) | net credit: $${(c.netCredit ?? 0).toFixed(2)} | new premium: $${(c.newPremium ?? 0).toFixed(2)} | delta: ${c.delta?.toFixed(2) ?? 'n/a'} | score: ${c.score}`
+          : `  ${i + 1}. Close position | cost: $${(c.netCredit ?? 0).toFixed(2)} | ${c.description}`
+      ).join('\n');
+
+      const systemPrompt = `You are an expert options trading advisor specializing in premium-selling strategies (CSP, CC, BPS, BCS, Iron Condors).
+You are analyzing a single position and must give a clear, specific, actionable recommendation on whether to roll it, close it, or hold it.
+
+Your response MUST use these exact Markdown sections:
+
+## 🎯 Recommendation
+One clear sentence: ROLL / CLOSE / HOLD — and the specific target if rolling (strike + expiration).
+
+## 📊 Position Assessment
+2-3 sentences analyzing the current state: P&L status, ITM/OTM depth, DTE urgency, and why this position needs attention.
+
+## 🔄 Roll Analysis
+If rolling is viable: evaluate the top 1-2 candidates. Compare the net credit, new premium, delta, and DTE. State which is best and why.
+If rolling is NOT viable (debit roll only): explain why and what the alternatives are.
+
+## ⚠️ Risk Factors
+List 2-3 specific risks for this position: gamma risk, earnings dates, sector volatility, assignment risk, etc.
+
+## 💡 Key Insight
+One actionable sentence the trader should remember when making this decision.
+
+Be specific — use actual numbers. Do not be generic.`;
+
+      const userPrompt = `Position to analyze:
+- Symbol: ${position.symbol}
+- Strategy: ${strategyLabels[position.strategy] ?? position.strategy}
+- Current Stock Price: $${position.currentPrice.toFixed(2)}
+- Strike: $${position.strikePrice.toFixed(2)}${position.spreadDetails ? ` / $${position.spreadDetails.longStrike?.toFixed(2)} (${position.spreadDetails.spreadWidth}w spread)` : ''}
+- Expiration: ${position.expiration} (${position.dte} DTE)
+- Open Premium: $${position.openPremium.toFixed(2)}
+- Current Value: $${position.currentValue.toFixed(2)}
+- Unrealized P&L: ${pnlStr} (${position.profitCaptured.toFixed(1)}% of max profit captured)
+- P&L Status: ${position.pnlStatus ?? 'unknown'}
+- ITM/OTM Depth: ${position.itmDepth > 0 ? `▲${position.itmDepth.toFixed(1)}% ITM` : `▼${Math.abs(position.itmDepth).toFixed(1)}% OTM`}
+- Scan Reasons: ${position.reasons.join('; ')}
+- System Action Label: ${position.actionLabel ?? 'ROLL'}
+
+Available Roll/Close Candidates (top 5):
+${candidateSummary || '  No candidates loaded yet — advise based on position data alone.'}`;
+
+      const response = await invokeLLM({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      });
+
+      const analysis = response.choices?.[0]?.message?.content ?? 'Unable to generate analysis.';
+      return { analysis };
+    }),
+
+  // Follow-up chat for the AI Roll Advisor panel
+  aiRollAdvisorFollowUp: protectedProcedure
+    .input(
+      z.object({
+        positionContext: z.string(),
+        initialAnalysis: z.string(),
+        conversationHistory: z.array(
+          z.object({
+            role: z.enum(['user', 'assistant']),
+            content: z.string(),
+          })
+        ),
+        userMessage: z.string().max(2000),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('./_core/llm');
+
+      const systemPrompt = `You are an expert options trading advisor. You already analyzed a specific roll position.
+Context:
+${input.positionContext}
+
+Your initial analysis:
+${input.initialAnalysis}
+
+Answer the trader's follow-up question concisely and specifically. Use actual numbers when relevant. Format in Markdown.`;
+
+      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+        { role: 'system', content: systemPrompt },
+        ...input.conversationHistory,
+        { role: 'user', content: input.userMessage },
+      ];
+
+      const response = await invokeLLM({ messages });
+      const reply = response.choices?.[0]?.message?.content ?? 'Unable to generate response.';
+      return { reply };
+    }),
 });
