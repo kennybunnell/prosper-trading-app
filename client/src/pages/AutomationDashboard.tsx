@@ -3290,16 +3290,16 @@ export default function AutomationDashboard() {
                                               </button>
                                             </TooltipTrigger>
                                             <TooltipContent side="left" className="text-xs p-3 max-w-[220px] space-y-1.5">
-                                              <p className="font-semibold text-yellow-300 text-[11px] mb-1">
+                                              <p className="font-semibold text-foreground text-[11px] mb-1">
                                                 {bestFitWinnerForRow.candidate?.action === 'roll'
                                                   ? `⭐ Best Fit: → $${bestFitWinnerForRow.candidate?.strike?.toFixed(0)} ${bestFitWinnerForRow.candidate?.expiration?.slice(5)}`
                                                   : '⭐ Best Fit: Close position'}
                                               </p>
                                               <div className="space-y-1 text-[10px]">
-                                                <div className="flex justify-between gap-3"><span className="text-muted-foreground">Premium (40%)</span><span className="text-yellow-300 font-medium">{bestFitWinnerForRow.premiumScore}/100</span></div>
-                                                <div className="flex justify-between gap-3"><span className="text-muted-foreground">Strike safety (35%)</span><span className="text-yellow-300 font-medium">{bestFitWinnerForRow.strikeScore}/100</span></div>
-                                                <div className="flex justify-between gap-3"><span className="text-muted-foreground">DTE 30–45d (25%)</span><span className="text-yellow-300 font-medium">{bestFitWinnerForRow.dteScore}/100</span></div>
-                                                <div className="flex justify-between gap-3 border-t border-border/40 pt-1 font-semibold"><span className="text-foreground">Composite score</span><span className="text-yellow-400">{bestFitWinnerForRow.bestFitScore}/100</span></div>
+                                                <div className="flex justify-between gap-3"><span className="text-muted-foreground">Premium (40%)</span><span className="text-foreground font-semibold">{bestFitWinnerForRow.premiumScore}/100</span></div>
+                                                <div className="flex justify-between gap-3"><span className="text-muted-foreground">Strike safety (35%)</span><span className="text-foreground font-semibold">{bestFitWinnerForRow.strikeScore}/100</span></div>
+                                                <div className="flex justify-between gap-3"><span className="text-muted-foreground">DTE 30–45d (25%)</span><span className="text-foreground font-semibold">{bestFitWinnerForRow.dteScore}/100</span></div>
+                                                <div className="flex justify-between gap-3 border-t border-border/40 pt-1 font-semibold"><span className="text-foreground">Composite score</span><span className="text-foreground">{bestFitWinnerForRow.bestFitScore}/100</span></div>
                                               </div>
                                             </TooltipContent>
                                           </Tooltip>
@@ -4410,15 +4410,15 @@ function RollCandidateExpander({
                 <div className="space-y-1">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Premium / credit (40%)</span>
-                    <span className="text-yellow-300 font-medium">{bestFitWinner.premiumScore}/100</span>
+                    <span className="text-foreground font-semibold">{bestFitWinner.premiumScore}/100</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Strike safety 5–8% OTM (35%)</span>
-                    <span className="text-yellow-300 font-medium">{bestFitWinner.strikeScore}/100</span>
+                    <span className="text-foreground font-semibold">{bestFitWinner.strikeScore}/100</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">DTE sweet spot 30–45d (25%)</span>
-                    <span className="text-yellow-300 font-medium">{bestFitWinner.dteScore}/100</span>
+                    <span className="text-foreground font-semibold">{bestFitWinner.dteScore}/100</span>
                   </div>
                 </div>
                 <p className="text-muted-foreground border-t border-border/40 pt-2 text-[11px]">
