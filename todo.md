@@ -8842,3 +8842,14 @@ ROC Fix Mar 18 2026
 - [x] GapAdvisorModal — already had follow-up prompt (no change needed)
 - [x] PortfolioAdvisor.tsx — algorithmic data page, no LLM chat, no follow-up needed
 - [x] PortfolioAdvisorSummary.tsx — display widget, no LLM chat, no follow-up needed
+
+## AI Advisor in Roll Order Review Detail Panel (Apr 5, 2026)
+- [ ] Add AI advisor section to the right-hand detail panel in RollOrderReviewModal
+- [ ] Add follow-up prompt + conversation thread to the Roll Review detail panel
+- [ ] Add aiRollReviewAdvisor tRPC procedure (or reuse aiRollAdvisor) for review-context analysis
+
+## AI Advisor in Roll Order Review Detail Panel (Apr 5, 2026)
+- [x] Add AI advisor section to the right-hand detail panel in RollOrderReviewModal
+- [x] Add follow-up prompt + conversation thread to the Roll Review detail panel
+- [x] Reuse aiRollAdvisor and aiRollAdvisorFollowUp tRPC procedures (no new server code needed)
+- [x] TypeScript: 0 errors

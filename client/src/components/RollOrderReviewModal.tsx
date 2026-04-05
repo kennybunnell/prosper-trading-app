@@ -9,7 +9,7 @@
  *     (more cushion). Each nudge fetches live bid/ask and recalculates net credit.
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -22,8 +22,10 @@ import {
   Loader2, Send, Eye, Trash2, ChevronUp, ChevronDown, RefreshCw,
   TrendingUp, TrendingDown, X, ChevronRight, ShieldCheck,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown,
-  Calendar, Star,
+  Calendar, Star, Sparkles, MessageSquare,
 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Streamdown } from 'streamdown';
 import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
 
@@ -204,6 +206,22 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitOneLoading, setSubmitOneLoading] = useState(false);
 
+  // AI Advisor state
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiExpanded, setAiExpanded] = useState(false);
+  const [aiConversation, setAiConversation] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [aiFollowUp, setAiFollowUp] = useState('');
+  const aiFollowUpRef = useRef<HTMLTextAreaElement>(null);
+
+  // Reset AI state when item changes
+  useEffect(() => {
+    setAiAnalysis(null);
+    setAiConversation([]);
+    setAiExpanded(false);
+    setAiFollowUp('');
+  }, [item.positionId]);
+
   // Strike nudge state
   const [nudgeLoading, setNudgeLoading] = useState<'up' | 'down' | null>(null);
   // Nudge step size — user-selectable: $1, $2.50, or $5
@@ -355,6 +373,80 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
       setSubmitOneLoading(false);
     }
   };
+
+  // AI Advisor mutations
+  const aiRollAdvisorMutation = trpc.automation.aiRollAdvisor.useMutation({
+    onSuccess: (data) => {
+      setAiAnalysis(data.analysis as string);
+      setAiConversation([{ role: 'assistant', content: data.analysis as string }]);
+      setAiLoading(false);
+      setAiExpanded(true);
+    },
+    onError: (err) => {
+      setAiLoading(false);
+      toast.error(`AI Advisor failed: ${err.message}`);
+    },
+  });
+
+  const aiRollAdvisorFollowUpMutation = trpc.automation.aiRollAdvisorFollowUp.useMutation({
+    onSuccess: (data) => {
+      setAiConversation(prev => [...prev, { role: 'assistant', content: data.reply as string }]);
+      setAiFollowUp('');
+    },
+    onError: (err) => {
+      toast.error(`AI follow-up failed: ${err.message}`);
+    },
+  });
+
+  const handleAiGenerate = useCallback(() => {
+    setAiLoading(true);
+    setAiAnalysis(null);
+    setAiConversation([]);
+    aiRollAdvisorMutation.mutate({
+      position: {
+        positionId: item.positionId,
+        symbol: item.symbol,
+        strategy: item.strategy,
+        dte: item.currentDte,
+        profitCaptured: item.openPremium > 0
+          ? Math.round(((item.openPremium - Math.abs(item.currentValue)) / item.openPremium) * 100)
+          : 0,
+        itmDepth: 0,
+        strikePrice: item.currentStrike,
+        currentPrice: stockPrice ?? item.currentStrike,
+        expiration: item.currentExpiration,
+        openPremium: item.openPremium,
+        currentValue: item.currentValue,
+        unrealizedPnl: item.currentValue,
+        reasons: [item.candidate.description],
+        actionLabel: 'ROLL',
+        rollCandidates: item.allCandidates.slice(0, 5).map(ca => ({
+          action: ca.action,
+          strike: ca.strike,
+          expiration: ca.expiration,
+          dte: ca.dte,
+          netCredit: ca.netCredit,
+          newPremium: ca.newPremium,
+          delta: ca.delta,
+          score: ca.score,
+          description: ca.description,
+        })),
+      },
+    });
+  }, [item, stockPrice, aiRollAdvisorMutation]);
+
+  const handleAiFollowUp = useCallback(() => {
+    const q = aiFollowUp.trim();
+    if (!q || aiRollAdvisorFollowUpMutation.isPending) return;
+    const updatedConv = [...aiConversation, { role: 'user' as const, content: q }];
+    setAiConversation(updatedConv);
+    aiRollAdvisorFollowUpMutation.mutate({
+      positionContext: `${item.symbol} ${item.strategy} | Strike: $${item.currentStrike} | Exp: ${item.currentExpiration} (${item.currentDte}d) | Open Premium: $${item.openPremium} | Current Value: $${item.currentValue}`,
+      initialAnalysis: aiAnalysis ?? '',
+      conversationHistory: aiConversation,
+      userMessage: q,
+    });
+  }, [aiFollowUp, aiConversation, aiAnalysis, item, aiRollAdvisorFollowUpMutation]);
 
   const netTotal = calcNetTotal(item);
   const effectiveTotal = liveCredit !== undefined && liveCredit !== null ? liveCredit : netTotal;
@@ -784,6 +876,120 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
           <section>
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">Account</p>
             <p className="font-mono text-xs text-muted-foreground break-all">{item.accountNumber}</p>
+          </section>
+
+          {/* ── AI Advisor ── */}
+          <div className="border-t border-border/30" />
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+                <p className="text-xs font-bold uppercase tracking-wider text-violet-400/80">AI Advisor</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 px-2 text-[10px] border-violet-500/40 text-violet-300 hover:bg-violet-500/10"
+                onClick={handleAiGenerate}
+                disabled={aiLoading}
+              >
+                {aiLoading ? (
+                  <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Analyzing...</>
+                ) : aiAnalysis ? (
+                  <><RefreshCw className="h-3 w-3 mr-1" />Re-analyze</>
+                ) : (
+                  <><Sparkles className="h-3 w-3 mr-1" />Analyze This Roll</>
+                )}
+              </Button>
+            </div>
+
+            {/* Analysis output */}
+            {aiAnalysis && (
+              <div className="space-y-2">
+                <div
+                  className="text-xs leading-relaxed bg-violet-500/5 border border-violet-500/20 rounded-md p-2.5 cursor-pointer"
+                  onClick={() => setAiExpanded(e => !e)}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-semibold text-violet-400/70 uppercase tracking-wide">Analysis</span>
+                    <ChevronDown className={`h-3 w-3 text-violet-400/60 transition-transform ${aiExpanded ? 'rotate-180' : ''}`} />
+                  </div>
+                  {aiExpanded ? (
+                    <div className="prose prose-invert prose-xs max-w-none text-foreground/80">
+                      <Streamdown>{aiAnalysis}</Streamdown>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground/70 line-clamp-2">{aiAnalysis.replace(/#+\s*/g, '').slice(0, 120)}…</p>
+                  )}
+                </div>
+
+                {/* Conversation thread */}
+                {aiConversation.length > 1 && (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {aiConversation.slice(1).map((msg, i) => (
+                      <div
+                        key={i}
+                        className={`text-xs rounded-md px-2.5 py-1.5 ${
+                          msg.role === 'user'
+                            ? 'bg-violet-500/10 border border-violet-500/20 text-violet-200 ml-4'
+                            : 'bg-muted/30 border border-border/30 text-foreground/80'
+                        }`}
+                      >
+                        {msg.role === 'user' ? (
+                          <p>{msg.content}</p>
+                        ) : (
+                          <div className="prose prose-invert prose-xs max-w-none">
+                            <Streamdown>{msg.content}</Streamdown>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {aiRollAdvisorFollowUpMutation.isPending && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60 px-2">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Thinking...
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Follow-up prompt */}
+                <div className="flex gap-1.5">
+                  <Textarea
+                    ref={aiFollowUpRef}
+                    value={aiFollowUp}
+                    onChange={e => setAiFollowUp(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleAiFollowUp();
+                      }
+                    }}
+                    placeholder="Ask a follow-up question…"
+                    className="flex-1 min-h-[52px] max-h-[100px] text-xs resize-none bg-muted/20 border-border/40 placeholder:text-muted-foreground/40"
+                    disabled={aiRollAdvisorFollowUpMutation.isPending}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-auto px-2 bg-violet-600 hover:bg-violet-700 text-white self-end"
+                    onClick={handleAiFollowUp}
+                    disabled={!aiFollowUp.trim() || aiRollAdvisorFollowUpMutation.isPending}
+                  >
+                    {aiRollAdvisorFollowUpMutation.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <MessageSquare className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Prompt shown before first analysis */}
+            {!aiAnalysis && !aiLoading && (
+              <p className="text-[11px] text-muted-foreground/50 italic">
+                Click &ldquo;Analyze This Roll&rdquo; to get an AI recommendation on whether to roll, close, or hold this position.
+              </p>
+            )}
           </section>
         </div>
       </div>
