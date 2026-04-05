@@ -8853,3 +8853,19 @@ ROC Fix Mar 18 2026
 - [x] Add follow-up prompt + conversation thread to the Roll Review detail panel
 - [x] Reuse aiRollAdvisor and aiRollAdvisorFollowUp tRPC procedures (no new server code needed)
 - [x] TypeScript: 0 errors
+
+## Portfolio Greeks Expansion (Apr 5, 2026)
+- [ ] Add Gamma View button to heat map (color tiles by gamma exposure per ticker)
+- [ ] Add Vega View button to heat map (color tiles by vega exposure per ticker)
+- [ ] Show net Gamma and net Vega in the top summary stats bar
+- [ ] Add Portfolio Greeks AI Advisor button (full-portfolio Greeks analysis)
+- [ ] AI Advisor analyzes Delta, Theta, Gamma, Vega holistically with risk recommendations
+- [ ] Add follow-up conversation prompt to Portfolio Greeks AI Advisor panel
+
+## Portfolio Greeks Expansion (Apr 5, 2026)
+- [x] Add Gamma View button and heat map tile coloring to Portfolio Command Center
+- [x] Add Vega View button and heat map tile coloring to Portfolio Command Center
+- [x] Add portfolioGreeksAdvisor tRPC procedure with Delta/Theta/Gamma/Vega analysis
+- [x] Add portfolioGreeksAdvisorFollowUp tRPC procedure for conversation
+- [x] Add AI Greeks Advisor button to heat map header toolbar
+- [x] Add AI Greeks Advisor panel below heat map with full-portfolio analysis and follow-up prompt

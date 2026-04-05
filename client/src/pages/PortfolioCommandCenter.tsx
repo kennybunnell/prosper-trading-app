@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { trpc } from '@/lib/trpc';
+import { Streamdown } from 'streamdown';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -50,7 +51,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 // --- Types ---
-type ViewMode = 'delta' | 'theta';
+type ViewMode = 'delta' | 'theta' | 'gamma' | 'vega';
 
 type TickerData = {
   symbol: string;
@@ -328,11 +329,14 @@ function HeatMapCell({
   const premiumRatio = maxPremium > 0 ? ticker.premiumAtRisk / maxPremium : 0;
   const span = premiumRatio >= 0.7 ? 3 : premiumRatio >= 0.4 ? 2 : premiumRatio >= 0.15 ? 2 : 1;
   const minH = span >= 3 ? '120px' : span >= 2 ? '100px' : '80px';
-  const value = viewMode === 'delta' ? ticker.netDelta : ticker.dailyTheta;
+  const value = viewMode === 'delta' ? ticker.netDelta
+    : viewMode === 'theta' ? ticker.dailyTheta
+    : viewMode === 'gamma' ? ticker.netGamma
+    : ticker.netVega;
   const intensity = maxValue > 0 ? Math.min(Math.abs(value) / maxValue, 1) : 0;
   const greeksReady = ticker.greeksLoaded !== false;
 
-  // --- Background color: delta/theta bias + intensity ---
+  // --- Background color per view mode ---
   let bgColor: string;
   let textColor: string;
   if (!greeksReady) {
@@ -340,26 +344,48 @@ function HeatMapCell({
     textColor = 'text-muted-foreground';
   } else if (viewMode === 'delta') {
     if (value > 0.5) {
-      // Long delta bias → green (positive directional risk)
       bgColor = `rgba(34, 197, 94, ${0.12 + intensity * 0.60})`;
       textColor = 'text-green-300';
     } else if (value < -0.5) {
-      // Short delta bias → red (negative directional risk)
       bgColor = `rgba(239, 68, 68, ${0.12 + intensity * 0.60})`;
       textColor = 'text-red-300';
     } else {
-      // Neutral → slate (well-balanced position)
       bgColor = 'rgba(100, 116, 139, 0.20)';
       textColor = 'text-slate-300';
     }
-  } else {
-    // Theta view: green = collecting premium, blue = paying premium
+  } else if (viewMode === 'theta') {
+    // Theta: green = collecting premium, blue = paying premium
     if (value > 0) {
       bgColor = `rgba(34, 197, 94, ${0.12 + intensity * 0.60})`;
       textColor = 'text-green-300';
     } else {
       bgColor = `rgba(59, 130, 246, ${0.12 + intensity * 0.50})`;
       textColor = 'text-blue-300';
+    }
+  } else if (viewMode === 'gamma') {
+    // Gamma: orange/amber = high gamma risk (near expiry, fast delta change)
+    // Low gamma = safer, high gamma = dangerous for short options
+    if (Math.abs(value) > 0.01) {
+      // High gamma exposure → orange warning
+      bgColor = `rgba(249, 115, 22, ${0.10 + intensity * 0.65})`;
+      textColor = value > 0 ? 'text-orange-300' : 'text-amber-300';
+    } else {
+      bgColor = 'rgba(100, 116, 139, 0.20)';
+      textColor = 'text-slate-300';
+    }
+  } else {
+    // Vega: purple = high vega sensitivity (IV risk), teal = low sensitivity
+    if (value < -10) {
+      // Negative vega (short vol) → purple: profits from IV crush, hurt by spikes
+      bgColor = `rgba(168, 85, 247, ${0.10 + intensity * 0.60})`;
+      textColor = 'text-purple-300';
+    } else if (value > 10) {
+      // Positive vega (long vol) → teal
+      bgColor = `rgba(20, 184, 166, ${0.10 + intensity * 0.55})`;
+      textColor = 'text-teal-300';
+    } else {
+      bgColor = 'rgba(100, 116, 139, 0.20)';
+      textColor = 'text-slate-300';
     }
   }
 
@@ -431,7 +457,11 @@ function HeatMapCell({
 
   const displayValue = viewMode === 'delta'
     ? (value >= 0 ? '+' : '') + value.toFixed(1)
-    : (value >= 0 ? '+$' : '-$') + Math.abs(value).toFixed(2);
+    : viewMode === 'theta'
+    ? (value >= 0 ? '+$' : '-$') + Math.abs(value).toFixed(2)
+    : viewMode === 'gamma'
+    ? (value >= 0 ? '+' : '') + value.toFixed(4) + 'Γ'
+    : (value >= 0 ? '+' : '') + value.toFixed(2) + 'V';
 
   // --- Tooltip: full Greek breakdown + risk narrative ---
   const deltaStory = !greeksReady ? '—' :
@@ -576,7 +606,12 @@ function HeatMapGrid({
 
   const maxValue = useMemo(() => {
     if (!tickers.length) return 1;
-    return Math.max(...tickers.map(t => Math.abs(viewMode === 'delta' ? t.netDelta : t.dailyTheta)));
+    return Math.max(...tickers.map(t => Math.abs(
+      viewMode === 'delta' ? t.netDelta
+      : viewMode === 'theta' ? t.dailyTheta
+      : viewMode === 'gamma' ? t.netGamma
+      : t.netVega
+    )));
   }, [tickers, viewMode]);
 
   const maxPremium = useMemo(() => {
@@ -1763,6 +1798,14 @@ export default function PortfolioCommandCenter() {
   }, [location]);
   const [viewMode, setViewMode] = useState<ViewMode>('delta');
   const [selectedTicker, setSelectedTicker] = useState<TickerData | null>(null);
+  const [showGreeksAI, setShowGreeksAI] = useState(false);
+  const [greeksAIAnalysis, setGreeksAIAnalysis] = useState<string | null>(null);
+  const [greeksAILoading, setGreeksAILoading] = useState(false);
+  const [greeksAIInput, setGreeksAIInput] = useState('');
+  const [greeksAIConversation, setGreeksAIConversation] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [greeksAIFollowUpLoading, setGreeksAIFollowUpLoading] = useState(false);
+  const greeksAdvisorMutation = trpc.automation.portfolioGreeksAdvisor.useMutation();
+  const greeksAdvisorFollowUpMutation = trpc.automation.portfolioGreeksAdvisorFollowUp.useMutation();
 
   // Greeks table sort state
   type GreeksSortCol = 'symbol' | 'contracts' | 'netDelta' | 'dailyTheta' | 'netVega' | 'premiumAtRisk' | 'avgDte' | 'avgIv' | 'strategies';
@@ -1906,6 +1949,17 @@ export default function PortfolioCommandCenter() {
                     <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin text-amber-400')} />
                     {isLoading ? 'Loading…' : 'Refresh Greeks'}
                   </Button>
+                  <Button
+                    variant={showGreeksAI ? 'default' : 'outline'}
+                    size="sm"
+                    className={cn('h-7 text-xs gap-1.5', showGreeksAI && 'bg-violet-600 hover:bg-violet-700 border-violet-500')}
+                    onClick={() => setShowGreeksAI(v => !v)}
+                    disabled={tickers.length === 0}
+                    title="AI Portfolio Greeks Advisor"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    AI Greeks Advisor
+                  </Button>
                   <div className="w-px h-4 bg-border/50" />
                   <Button
                     variant={viewMode === 'delta' ? 'default' : 'outline'}
@@ -1924,6 +1978,24 @@ export default function PortfolioCommandCenter() {
                   >
                     <Zap className="w-3.5 h-3.5" />
                     Theta View
+                  </Button>
+                  <Button
+                    variant={viewMode === 'gamma' ? 'default' : 'outline'}
+                    size="sm"
+                    className={cn('h-7 text-xs gap-1.5', viewMode === 'gamma' && 'bg-orange-600 hover:bg-orange-700 border-orange-500')}
+                    onClick={() => setViewMode('gamma')}
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                    Gamma View
+                  </Button>
+                  <Button
+                    variant={viewMode === 'vega' ? 'default' : 'outline'}
+                    size="sm"
+                    className={cn('h-7 text-xs gap-1.5', viewMode === 'vega' && 'bg-purple-600 hover:bg-purple-700 border-purple-500')}
+                    onClick={() => setViewMode('vega')}
+                  >
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    Vega View
                   </Button>
                 </div>
               </div>
@@ -1944,7 +2016,7 @@ export default function PortfolioCommandCenter() {
                       Short delta bias
                     </div>
                   </>
-                ) : (
+                ) : viewMode === 'theta' ? (
                   <>
                     <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                       <div className="w-2.5 h-2.5 rounded-sm bg-green-500/60" />
@@ -1953,6 +2025,34 @@ export default function PortfolioCommandCenter() {
                     <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                       <div className="w-2.5 h-2.5 rounded-sm bg-blue-500/50" />
                       Negative theta (cost)
+                    </div>
+                  </>
+                ) : viewMode === 'gamma' ? (
+                  <>
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <div className="w-2.5 h-2.5 rounded-sm bg-orange-500/70" />
+                      High gamma risk (fast delta change)
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <div className="w-2.5 h-2.5 rounded-sm bg-slate-400/30" />
+                      Low gamma (stable delta)
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-orange-400/70">
+                      Brighter = faster delta acceleration near expiry
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <div className="w-2.5 h-2.5 rounded-sm bg-purple-500/70" />
+                      Negative vega (short vol — hurt by VIX spikes)
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <div className="w-2.5 h-2.5 rounded-sm bg-teal-500/60" />
+                      Positive vega (long vol — benefits from VIX spikes)
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-purple-400/70">
+                      Brighter = more sensitive to IV changes
                     </div>
                   </>
                 )}
@@ -2106,6 +2206,182 @@ export default function PortfolioCommandCenter() {
                     </tfoot>
                   </table>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* AI Greeks Advisor Panel */}
+          {showGreeksAI && portfolio && (
+            <Card className="bg-card/50 backdrop-blur border-violet-500/30">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Sparkles className="w-5 h-5 text-violet-400" />
+                    Portfolio Greeks AI Advisor
+                    <Badge variant="outline" className="text-[10px] border-violet-500/40 text-violet-400">
+                      Full Portfolio Analysis
+                    </Badge>
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700"
+                      onClick={async () => {
+                        if (!portfolio) return;
+                        setGreeksAILoading(true);
+                        setGreeksAIAnalysis(null);
+                        setGreeksAIConversation([]);
+                        try {
+                          const result = await greeksAdvisorMutation.mutateAsync({
+                            portfolio: {
+                              netDelta: portfolio.netDelta,
+                              dailyTheta: portfolio.dailyTheta,
+                              netVega: portfolio.netVega,
+                              netGamma: portfolio.netGamma,
+                              maxConcentration: portfolio.maxConcentration,
+                              positionCount: portfolio.positionCount,
+                              totalPremiumAtRisk: portfolio.totalPremiumAtRisk,
+                            },
+                            tickers: tickers.map(t => ({
+                              symbol: t.symbol,
+                              netDelta: t.netDelta,
+                              dailyTheta: t.dailyTheta,
+                              netVega: t.netVega,
+                              netGamma: t.netGamma,
+                              avgDte: t.avgDte,
+                              avgIv: t.avgIv,
+                              premiumAtRisk: t.premiumAtRisk,
+                              contracts: t.contracts,
+                              strategies: t.strategies,
+                            })),
+                          });
+                          setGreeksAIAnalysis(result.analysis as string);
+                        } catch (e) {
+                          setGreeksAIAnalysis('Failed to generate analysis. Please try again.');
+                        } finally {
+                          setGreeksAILoading(false);
+                        }
+                      }}
+                      disabled={greeksAILoading}
+                    >
+                      {greeksAILoading ? (
+                        <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analyzing...</>
+                      ) : (
+                        <><Sparkles className="w-3.5 h-3.5" /> {greeksAIAnalysis ? 'Re-analyze' : 'Analyze Portfolio Greeks'}</>
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowGreeksAI(false)}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!greeksAIAnalysis && !greeksAILoading && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Sparkles className="w-8 h-8 mx-auto mb-2 text-violet-400/50" />
+                    <p className="text-sm">Click &ldquo;Analyze Portfolio Greeks&rdquo; to get a holistic risk assessment</p>
+                    <p className="text-xs mt-1 text-muted-foreground/60">Analyzes Delta, Theta, Gamma, Vega across all {tickers.length} tickers</p>
+                  </div>
+                )}
+                {greeksAILoading && (
+                  <div className="text-center py-8">
+                    <RefreshCw className="w-8 h-8 mx-auto mb-2 text-violet-400 animate-spin" />
+                    <p className="text-sm text-muted-foreground">Analyzing portfolio Greeks...</p>
+                  </div>
+                )}
+                {greeksAIAnalysis && (
+                  <div className="space-y-4">
+                    <div className="prose prose-invert prose-sm max-w-none text-sm leading-relaxed">
+                      <Streamdown>{greeksAIAnalysis}</Streamdown>
+                    </div>
+                    {/* Conversation history */}
+                    {greeksAIConversation.length > 0 && (
+                      <div className="space-y-3 border-t border-border/40 pt-4">
+                        {greeksAIConversation.map((msg, i) => (
+                          <div key={i} className={cn('flex gap-2', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+                            <div className={cn(
+                              'max-w-[85%] rounded-lg px-3 py-2 text-sm',
+                              msg.role === 'user'
+                                ? 'bg-violet-600/20 text-violet-100 border border-violet-500/30'
+                                : 'bg-card border border-border/50 text-foreground'
+                            )}>
+                              {msg.role === 'assistant' ? <Streamdown>{msg.content}</Streamdown> : msg.content}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Follow-up prompt */}
+                    <div className="flex gap-2 pt-2 border-t border-border/40">
+                      <Textarea
+                        placeholder="Ask a follow-up question about your portfolio Greeks..."
+                        value={greeksAIInput}
+                        onChange={e => setGreeksAIInput(e.target.value)}
+                        onKeyDown={async e => {
+                          if (e.key === 'Enter' && !e.shiftKey && greeksAIInput.trim() && !greeksAIFollowUpLoading) {
+                            e.preventDefault();
+                            const userMsg = greeksAIInput.trim();
+                            setGreeksAIInput('');
+                            setGreeksAIFollowUpLoading(true);
+                            const newConv = [...greeksAIConversation, { role: 'user' as const, content: userMsg }];
+                            setGreeksAIConversation(newConv);
+                            try {
+                              const portfolioCtx = `Net Delta: ${portfolio.netDelta.toFixed(1)}, Daily Theta: +$${portfolio.dailyTheta.toFixed(2)}, Net Vega: ${portfolio.netVega.toFixed(2)}, Net Gamma: ${portfolio.netGamma.toFixed(4)}, ${tickers.length} tickers`;
+                              const result = await greeksAdvisorFollowUpMutation.mutateAsync({
+                                portfolioContext: portfolioCtx,
+                                initialAnalysis: greeksAIAnalysis,
+                                conversationHistory: greeksAIConversation,
+                                userMessage: userMsg,
+                              });
+                              setGreeksAIConversation([...newConv, { role: 'assistant', content: result.reply as string }]);
+                            } catch {
+                              setGreeksAIConversation([...newConv, { role: 'assistant', content: 'Failed to generate response.' }]);
+                            } finally {
+                              setGreeksAIFollowUpLoading(false);
+                            }
+                          }
+                        }}
+                        className="flex-1 min-h-[60px] text-sm resize-none bg-background/50 border-border/50 focus:border-violet-500/50"
+                        disabled={greeksAIFollowUpLoading}
+                      />
+                      <Button
+                        size="sm"
+                        className="self-end h-9 px-3 bg-violet-600 hover:bg-violet-700"
+                        disabled={!greeksAIInput.trim() || greeksAIFollowUpLoading}
+                        onClick={async () => {
+                          const userMsg = greeksAIInput.trim();
+                          if (!userMsg) return;
+                          setGreeksAIInput('');
+                          setGreeksAIFollowUpLoading(true);
+                          const newConv = [...greeksAIConversation, { role: 'user' as const, content: userMsg }];
+                          setGreeksAIConversation(newConv);
+                          try {
+                            const portfolioCtx = `Net Delta: ${portfolio.netDelta.toFixed(1)}, Daily Theta: +$${portfolio.dailyTheta.toFixed(2)}, Net Vega: ${portfolio.netVega.toFixed(2)}, Net Gamma: ${portfolio.netGamma.toFixed(4)}, ${tickers.length} tickers`;
+                            const result = await greeksAdvisorFollowUpMutation.mutateAsync({
+                              portfolioContext: portfolioCtx,
+                              initialAnalysis: greeksAIAnalysis,
+                              conversationHistory: greeksAIConversation,
+                              userMessage: userMsg,
+                            });
+                            setGreeksAIConversation([...newConv, { role: 'assistant', content: result.reply as string }]);
+                          } catch {
+                            setGreeksAIConversation([...newConv, { role: 'assistant', content: 'Failed to generate response.' }]);
+                          } finally {
+                            setGreeksAIFollowUpLoading(false);
+                          }
+                        }}
+                      >
+                        {greeksAIFollowUpLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

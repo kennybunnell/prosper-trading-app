@@ -3434,4 +3434,118 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
           : 'Unable to generate response.';
       return { reply };
     }),
+
+  portfolioGreeksAdvisor: protectedProcedure
+    .input(z.object({
+      portfolio: z.object({
+        netDelta: z.number(),
+        dailyTheta: z.number(),
+        netVega: z.number(),
+        netGamma: z.number(),
+        maxConcentration: z.number(),
+        positionCount: z.number(),
+        totalPremiumAtRisk: z.number(),
+      }),
+      tickers: z.array(z.object({
+        symbol: z.string(),
+        netDelta: z.number(),
+        dailyTheta: z.number(),
+        netVega: z.number(),
+        netGamma: z.number(),
+        avgDte: z.number(),
+        avgIv: z.number(),
+        premiumAtRisk: z.number(),
+        contracts: z.number(),
+        strategies: z.array(z.string()),
+      })),
+      vix: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { portfolio, tickers, vix } = input;
+
+      // Sort tickers by absolute delta for risk narrative
+      const topDeltaRisk = [...tickers].sort((a, b) => Math.abs(b.netDelta) - Math.abs(a.netDelta)).slice(0, 5);
+      const topGammaRisk = [...tickers].sort((a, b) => Math.abs(b.netGamma) - Math.abs(a.netGamma)).slice(0, 5);
+      const topVegaRisk = [...tickers].sort((a, b) => Math.abs(b.netVega) - Math.abs(a.netVega)).slice(0, 5);
+      const shortDte = tickers.filter(t => t.avgDte <= 7).map(t => t.symbol);
+
+      const systemPrompt = `You are a professional options portfolio risk manager specializing in premium-selling strategies (CSP, CC, BCS, PMCC, Iron Condors). Analyze the portfolio's aggregate Greeks profile and provide actionable risk management advice.
+
+Portfolio Summary:
+- Net Delta: ${portfolio.netDelta.toFixed(1)} (directional bias)
+- Daily Theta: +$${portfolio.dailyTheta.toFixed(2)} (daily income)
+- Net Vega: ${portfolio.netVega.toFixed(2)} (IV sensitivity)
+- Net Gamma: ${portfolio.netGamma.toFixed(4)} (delta acceleration risk)
+- Max Concentration: ${portfolio.maxConcentration.toFixed(1)}% (largest single ticker)
+- Total Positions: ${portfolio.positionCount} contracts
+- Total Premium at Risk: $${portfolio.totalPremiumAtRisk.toFixed(0)}
+- Current VIX: ${vix ? vix.toFixed(2) : 'unknown'}
+
+Top Delta Risk Tickers: ${topDeltaRisk.map(t => `${t.symbol}(Δ${t.netDelta.toFixed(1)})`).join(', ')}
+Top Gamma Risk Tickers: ${topGammaRisk.map(t => `${t.symbol}(Γ${t.netGamma.toFixed(4)})`).join(', ')}
+Top Vega Risk Tickers: ${topVegaRisk.map(t => `${t.symbol}(V${t.netVega.toFixed(1)})`).join(', ')}
+Short DTE Positions (≤7d): ${shortDte.length > 0 ? shortDte.join(', ') : 'None'}
+
+Provide analysis in these sections:
+
+## Portfolio Greeks Assessment
+Interpret the overall Greeks profile — is the portfolio delta-neutral, directionally biased, over-exposed to gamma risk, or vulnerable to IV spikes?
+
+## Key Risk Factors
+Identify the top 3 risks based on the Greeks data. Be specific about which tickers drive each risk.
+
+## Theta Efficiency
+Assess whether the daily theta income justifies the vega and gamma risk being taken.
+
+## Recommended Adjustments
+Provide 3-5 specific, actionable adjustments to improve the Greeks balance (e.g., reduce delta by closing/rolling X, hedge vega by adding Y, manage gamma risk on Z).
+
+## VIX Context
+${vix ? `With VIX at ${vix.toFixed(2)}, explain how the current IV environment affects this portfolio's risk profile and what to watch for.` : 'Explain how a VIX spike would affect this portfolio.'}`;
+
+      const { invokeLLM: invokeLLMGreeks } = await import('./_core/llm');
+      const response = await invokeLLMGreeks({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: 'Analyze my portfolio Greeks and provide risk management recommendations.' },
+        ],
+      });
+
+      const rawContent = response.choices[0]?.message?.content;
+      const analysis = typeof rawContent === 'string'
+        ? rawContent
+        : Array.isArray(rawContent)
+          ? rawContent.map((c: any) => c.text || '').join('')
+          : 'Unable to generate analysis.';
+      return { analysis };
+    }),
+
+  portfolioGreeksAdvisorFollowUp: protectedProcedure
+    .input(z.object({
+      portfolioContext: z.string(),
+      initialAnalysis: z.string(),
+      conversationHistory: z.array(z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string(),
+      })),
+      userMessage: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { portfolioContext, initialAnalysis, conversationHistory, userMessage } = input;
+      const { invokeLLM: invokeLLMFollowUp } = await import('./_core/llm');
+      const response = await invokeLLMFollowUp({
+        messages: [
+          { role: 'system', content: `You are a professional options portfolio risk manager. The user is asking follow-up questions about their portfolio Greeks analysis.\n\nPortfolio Context:\n${portfolioContext}\n\nInitial Analysis:\n${initialAnalysis}` },
+          ...conversationHistory.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+          { role: 'user', content: userMessage },
+        ],
+      });
+      const rawContent = response.choices[0]?.message?.content;
+      const reply = typeof rawContent === 'string'
+        ? rawContent
+        : Array.isArray(rawContent)
+          ? rawContent.map((c: any) => c.text || '').join('')
+          : 'Unable to generate response.';
+      return { reply };
+    }),
 });
