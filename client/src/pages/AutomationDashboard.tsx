@@ -399,6 +399,16 @@ export default function AutomationDashboard() {
   // Ref to track which positionIds were submitted in the last roll submission
   // Used by submitRollOrders.onSuccess to selectively clear only submitted positions
   const lastSubmittedRollPositionIds = useRef<string[]>([]);
+  // Rolled-today tracking: hide positions already rolled today to prevent double-rolling
+  const [hideRolledToday, setHideRolledToday] = useState(true);
+  const { data: rolledTodayData, refetch: refetchRolledToday } = trpc.rolls.getRolledToday.useQuery(
+    undefined,
+    { refetchOnWindowFocus: false }
+  );
+  const rolledTodaySet = useMemo(
+    () => new Set(rolledTodayData?.positionIds ?? []),
+    [rolledTodayData]
+  );
   const handleScanSort = (col: string) => {
     if (scanSortCol === col) {
       setScanSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -615,6 +625,8 @@ export default function AutomationDashboard() {
         setRollCandidateSelections({});
       }
       setRollReviewItems([]);
+      // Refresh the rolled-today list so the Roll Dashboard immediately flags submitted positions
+      refetchRolledToday();
     },
     onError: (err) => {
       setIsSubmittingRolls(false);
@@ -910,6 +922,7 @@ export default function AutomationDashboard() {
           newShortStrike: candidate.action === 'roll' ? candidate.strike : undefined,
           netCredit: candidate.action === 'roll' ? candidate.netCredit : undefined,
           limitPrice: candidate.limitPrice,
+          positionId: item.positionId,
         });
       } else {
         orders.push({
@@ -925,6 +938,7 @@ export default function AutomationDashboard() {
           netCredit: candidate.action === 'roll' ? candidate.netCredit : undefined,
           action: candidate.action,
           limitPrice: candidate.limitPrice,
+          positionId: item.positionId,
         });
       }
     }
@@ -963,6 +977,7 @@ export default function AutomationDashboard() {
           newExpiration: candidate.action === 'roll' ? candidate.expiration : undefined,
           newShortStrike: candidate.action === 'roll' ? candidate.strike : undefined,
           netCredit: candidate.action === 'roll' ? candidate.netCredit : undefined,
+          positionId: key,
         });
       } else {
         // Single-leg CSP / CC roll
@@ -978,6 +993,7 @@ export default function AutomationDashboard() {
           newPremium: candidate.action === 'roll' ? candidate.newPremium : undefined,
           netCredit: candidate.action === 'roll' ? candidate.netCredit : undefined,
           action: candidate.action,
+          positionId: key,
         });
       }
     }
@@ -2958,10 +2974,22 @@ export default function AutomationDashboard() {
                   : 'Click to hide debit-only positions and show only credit roll candidates.'}
                 onClick={() => setRollCreditOnlyFilter(v => !v)}
               />
-              {(rollStrategyFilters.size > 0 || rollPnlFilters.size > 0 || rollCreditOnlyFilter) && (
+              {/* Hide Rolled Today toggle */}
+              {rolledTodaySet.size > 0 && (
+                <FilterPill
+                  label={`🔒 Hide Rolled Today (${rolledTodaySet.size})`}
+                  selected={hideRolledToday}
+                  variant="amber"
+                  title={hideRolledToday
+                    ? `Hiding ${rolledTodaySet.size} position${rolledTodaySet.size !== 1 ? 's' : ''} already rolled today. Click to show them.`
+                    : 'Click to hide positions already rolled today and prevent accidental re-rolls.'}
+                  onClick={() => setHideRolledToday(v => !v)}
+                />
+              )}
+              {(rollStrategyFilters.size > 0 || rollPnlFilters.size > 0 || rollCreditOnlyFilter || hideRolledToday) && (
                 <button
                   className="text-[10px] text-orange-400/70 hover:text-orange-400 px-2 py-0.5 rounded border border-orange-500/20 hover:border-orange-500/40 transition-colors ml-1"
-                  onClick={() => { setRollStrategyFilters(new Set()); setRollPnlFilters(new Set()); setRollCreditOnlyFilter(true); }}
+                  onClick={() => { setRollStrategyFilters(new Set()); setRollPnlFilters(new Set()); setRollCreditOnlyFilter(true); setHideRolledToday(true); }}
                   title="Reset all filters"
                 >Reset all filters</button>
               )}
@@ -3063,6 +3091,7 @@ export default function AutomationDashboard() {
                                   if (rollStrategyFilters.size > 0 && !rollStrategyFilters.has(pos.strategy)) return false;
                                   if (rollPnlFilters.size > 0 && !rollPnlFilters.has((pos as any).pnlStatus ?? '')) return false;
                                   if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
+                                  if (hideRolledToday && rolledTodaySet.has(pos.positionId)) return false;
                                   return true;
                                 }).map(p => p.positionId);
                                 // selectableIds: only those with a loaded candidate (for select-all)
@@ -3138,6 +3167,8 @@ export default function AutomationDashboard() {
                             if (rollPnlFilters.size > 0 && !rollPnlFilters.has((pos as any).pnlStatus ?? '')) return false;
                             // Credit-only filter: hide positions where a credit roll is unlikely (deep ITM)
                             if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
+                            // Hide positions already rolled today to prevent accidental re-rolls
+                            if (hideRolledToday && rolledTodaySet.has(pos.positionId)) return false;
                             return true;
                           }).sort((a, b) => {
                             // When credit-only filter is OFF, push debit-only positions to the bottom
@@ -3304,7 +3335,19 @@ export default function AutomationDashboard() {
                                     {profitPct >= 0 ? `${profitPct.toFixed(0)}%` : `${profitPct.toFixed(0)}%`}
                                   </td>
                                   {/* Symbol */}
-                                  <td className="p-3 font-semibold text-xs">{pos.symbol}</td>
+                                  <td className="p-3 font-semibold text-xs">
+                                    <div className="flex items-center gap-1.5">
+                                      {pos.symbol}
+                                      {rolledTodaySet.has(pos.positionId) && (
+                                        <span
+                                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                                          title="This position was already rolled today. Disable 'Hide Rolled Today' filter to include it."
+                                        >
+                                          ✓ ROLLED
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
                                   {/* Strategy badge */}
                                   <td className="p-3">
                                     <Badge variant="outline" className={`text-xs ${

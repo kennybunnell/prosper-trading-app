@@ -763,6 +763,10 @@ export const rollsRouter = router({
         // When provided, overrides the auto-computed netCredit as the order limit price.
         // Rounded to nearest $0.05 (tastytrade minimum tick for spread orders).
         limitPrice: z.number().optional(),
+
+        // ── Roll tracking ──
+        // positionId from the Roll Dashboard used to flag this position as rolled today.
+        positionId: z.string().optional(),
       }))
     }))
     .mutation(async ({ ctx, input }) => {
@@ -1007,6 +1011,22 @@ export const rollsRouter = router({
               dryRun: false,
               legCount: legs.length,
             });
+            // Record the roll in the submittedRolls table so the Roll Dashboard
+            // can flag this position as already rolled today.
+            if (order.positionId) {
+              const { recordSubmittedRoll } = await import('./db');
+              await recordSubmittedRoll({
+                userId: ctx.user.id,
+                accountId: order.accountNumber,
+                positionId: order.positionId,
+                symbol: order.symbol,
+                strategy: order.strategyType.toLowerCase(),
+                orderId: String(submitted.id),
+                newExpiration: order.newExpiration,
+                newStrike: order.newStrike !== undefined ? String(order.newStrike) : undefined,
+                netCredit: order.netCredit !== undefined ? String(order.netCredit) : undefined,
+              });
+            }
           }
         } catch (error: any) {
           results.push({
@@ -1220,5 +1240,16 @@ export const rollsRouter = router({
           errors: errorCount,
         },
       };
+    }),
+
+  /**
+   * Return the list of positionIds that have already been rolled today.
+   * Used by the Roll Dashboard to show "ROLLED TODAY" badges and hide re-roll candidates.
+   */
+  getRolledToday: protectedProcedure
+    .query(async ({ ctx }) => {
+      const { getRolledTodayPositionIds } = await import('./db');
+      const positionIds = await getRolledTodayPositionIds(ctx.user.id);
+      return { positionIds: Array.from(positionIds) };
     }),
 });

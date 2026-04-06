@@ -8940,3 +8940,19 @@ ROC Fix Mar 18 2026
 - [ ] Add inline continuous slider per row with 5 labeled snap points (Bid/25%/Mid/75%/Ask) and live limit price display
 - [ ] Sync per-row slider with detail panel slider
 - [ ] Wire per-row limitPrice through to submitRollOrders per-order payload
+
+## Rolled-Today Tracking (Apr 6, 2026)
+- [ ] Add submittedRolls table to DB schema (positionId + date + orderId + userId)
+- [ ] Write to submittedRolls when submitRollOrders succeeds (non-dry-run)
+- [ ] Add getRolledTodayPositionIds db helper
+- [ ] Annotate getRollPositions response with rolledToday flag
+- [ ] Show amber "ROLLED TODAY" badge in Roll Dashboard for positions rolled today
+- [ ] Add "Hide Rolled Today" filter toggle (default: on) to prevent re-rolling
+
+## Rolled-Today Tracking (Apr 6, 2026)
+- [ ] Add submittedRolls table to DB schema (positionId + date + orderId + userId)
+- [ ] Write to submittedRolls when submitRollOrders succeeds (non-dry-run)
+- [ ] Add getRolledTodayPositionIds db helper
+- [ ] Annotate getRollPositions response with rolledToday flag
+- [ ] Show amber ROLLED TODAY badge in Roll Dashboard for positions rolled today
+- [ ] Add Hide Rolled Today filter toggle (default: on)

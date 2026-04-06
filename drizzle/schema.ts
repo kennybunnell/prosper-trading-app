@@ -360,6 +360,36 @@ export type OrderHistory = typeof orderHistory.$inferSelect;
 export type InsertOrderHistory = typeof orderHistory.$inferInsert;
 
 /**
+ * Submitted roll tracking
+ * Records every roll order submitted (non-dry-run) so the Roll Dashboard
+ * can flag positions that have already been rolled today and avoid re-rolling.
+ */
+export const submittedRolls = mysqlTable("submittedRolls", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  accountId: varchar("accountId", { length: 64 }).notNull(),
+  /** The positionId used by the Roll Dashboard (e.g. "5WZ80418::SPY::2026-04-06::CC::644") */
+  positionId: varchar("positionId", { length: 200 }).notNull(),
+  symbol: varchar("symbol", { length: 10 }).notNull(),
+  strategy: varchar("strategy", { length: 10 }).notNull(), // cc, csp, bps, bcs, ic
+  /** tastytrade order ID returned after successful submission */
+  orderId: varchar("orderId", { length: 64 }).notNull(),
+  /** The new expiry the position was rolled to */
+  newExpiration: varchar("newExpiration", { length: 20 }),
+  /** The new strike the position was rolled to */
+  newStrike: varchar("newStrike", { length: 20 }),
+  /** Net credit/debit received for the roll */
+  netCredit: varchar("netCredit", { length: 20 }),
+  rolledAt: timestamp("rolledAt").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("submittedRolls_userId_idx").on(table.userId),
+  positionDateIdx: index("submittedRolls_positionId_date_idx").on(table.positionId, table.rolledAt),
+}));
+
+export type SubmittedRoll = typeof submittedRolls.$inferSelect;
+export type InsertSubmittedRoll = typeof submittedRolls.$inferInsert;
+
+/**
  * Watchlist ticker selections
  * Stores which tickers are selected for scanning across all dashboards
  */

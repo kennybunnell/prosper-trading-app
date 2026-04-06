@@ -1349,6 +1349,68 @@ export async function setAllWatchlistSelections(userId: number, symbols: string[
  * Fetch replacement counts for a list of Tastytrade order IDs.
  * Returns a Map<orderId, replacementCount> for quick lookup.
  */
+/**
+ * Record a successfully submitted roll order so the Roll Dashboard
+ * can flag positions that have already been rolled today.
+ */
+export async function recordSubmittedRoll(data: {
+  userId: number;
+  accountId: string;
+  positionId: string;
+  symbol: string;
+  strategy: string;
+  orderId: string;
+  newExpiration?: string;
+  newStrike?: string;
+  netCredit?: string;
+}) {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    const { submittedRolls } = await import('../drizzle/schema');
+    await db.insert(submittedRolls).values({
+      userId: data.userId,
+      accountId: data.accountId,
+      positionId: data.positionId,
+      symbol: data.symbol,
+      strategy: data.strategy,
+      orderId: data.orderId,
+      newExpiration: data.newExpiration ?? null,
+      newStrike: data.newStrike ?? null,
+      netCredit: data.netCredit ?? null,
+    });
+    console.log(`[SubmittedRolls] Recorded roll for positionId=${data.positionId} orderId=${data.orderId}`);
+  } catch (err) {
+    console.warn('[SubmittedRolls] Failed to record submitted roll:', err);
+  }
+}
+
+/**
+ * Return the set of positionIds that the user has already rolled today (UTC day).
+ */
+export async function getRolledTodayPositionIds(userId: number): Promise<Set<string>> {
+  const result = new Set<string>();
+  try {
+    const db = await getDb();
+    if (!db) return result;
+    const { submittedRolls } = await import('../drizzle/schema');
+    const { sql: sqlExpr } = await import('drizzle-orm');
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const todayStr = todayStart.toISOString().slice(0, 19).replace('T', ' ');
+    const filtered = await db
+      .select({ positionId: submittedRolls.positionId })
+      .from(submittedRolls)
+      .where(sqlExpr`${submittedRolls.userId} = ${userId} AND ${submittedRolls.rolledAt} >= ${todayStr}`);
+    for (const row of filtered) {
+      result.add(row.positionId);
+    }
+  } catch (err) {
+    console.warn('[SubmittedRolls] getRolledTodayPositionIds failed:', err);
+  }
+  return result;
+}
+
 export async function getReplacementCounts(orderIds: string[]): Promise<Map<string, number>> {
   const result = new Map<string, number>();
   if (orderIds.length === 0) return result;
