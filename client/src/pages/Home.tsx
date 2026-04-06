@@ -8,7 +8,7 @@ import {
   LayoutDashboard, TrendingDown, LineChart, AlertTriangle, ChevronRight,
   Newspaper, ClipboardList, ListOrdered, BellRing, Briefcase, Target,
   ArrowUpRight, RefreshCw, CheckCircle2, Clock, Bot, TrendingDown as ProfitIcon,
-  RotateCcw, PhoneCall, Scan, Play, Sparkles, Send
+  RotateCcw, RotateCw, PhoneCall, Scan, Play, Sparkles, Send
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { getLoginUrl } from "@/const";
@@ -1107,6 +1107,120 @@ function NavigationGrid() {
   );
 }
 
+// ─── Rolled Today Card ──────────────────────────────────────────────────────
+function RolledTodayCard() {
+  const [, navigate] = useLocation();
+  const { data, isLoading, refetch } = trpc.rolls.getRolledTodaySummary.useQuery(undefined, {
+    refetchInterval: 2 * 60_000, // refresh every 2 min
+    retry: false,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-card/40 p-4 animate-pulse">
+        <div className="h-4 w-32 bg-muted/40 rounded mb-3" />
+        <div className="h-8 w-24 bg-muted/40 rounded" />
+      </div>
+    );
+  }
+
+  if (!data || data.count === 0) {
+    return (
+      <div className="rounded-2xl border border-border/30 bg-gradient-to-br from-card/60 to-card/30 p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <RotateCw className="w-4 h-4 text-amber-400" />
+          <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Rolled Today</span>
+        </div>
+        <p className="text-xs text-muted-foreground">No rolls submitted today.</p>
+      </div>
+    );
+  }
+
+  const strategyColors: Record<string, string> = {
+    CC: 'text-purple-400 bg-purple-500/10 border-purple-500/30',
+    CSP: 'text-blue-400 bg-blue-500/10 border-blue-500/30',
+    BPS: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30',
+    BCS: 'text-pink-400 bg-pink-500/10 border-pink-500/30',
+    IC: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+  };
+
+  return (
+    <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/8 to-card/40 backdrop-blur-sm p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center">
+            <RotateCw className="w-3.5 h-3.5 text-amber-400" />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Rolled Today</span>
+            <span className="ml-2 text-xs text-muted-foreground">{data.count} position{data.count !== 1 ? 's' : ''}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="text-right">
+            <div className="text-lg font-bold text-green-400">
+              {data.totalNetCredit >= 0 ? '+' : ''}${data.totalNetCredit.toFixed(2)}
+            </div>
+            <div className="text-[10px] text-muted-foreground">total net credit</div>
+          </div>
+          <button
+            onClick={() => refetch()}
+            className="p-1.5 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Position rows */}
+      <div className="space-y-1.5">
+        {data.positions.map((pos) => (
+          <div
+            key={pos.id}
+            className="flex items-center justify-between px-3 py-2 rounded-xl bg-background/30 border border-border/20 hover:border-amber-500/30 hover:bg-amber-500/5 transition-all cursor-pointer"
+            onClick={() => navigate('/automation?tab=rolls')}
+            title="View in Roll Dashboard"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-bold text-xs text-foreground">{pos.symbol}</span>
+              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                strategyColors[pos.strategy.toUpperCase()] ?? 'text-muted-foreground bg-muted/20 border-border/30'
+              }`}>
+                {pos.strategy.toUpperCase()}
+              </span>
+              {pos.newStrike && (
+                <span className="text-[10px] text-muted-foreground">
+                  → ${pos.newStrike} · {pos.newExpiration}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`text-xs font-mono font-semibold ${
+                pos.netCredit >= 0 ? 'text-green-400' : 'text-red-400'
+              }`}>
+                {pos.netCredit >= 0 ? '+' : ''}${pos.netCredit.toFixed(2)}
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                {new Date(pos.rolledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer link */}
+      <button
+        onClick={() => navigate('/automation?tab=rolls')}
+        className="mt-3 w-full text-center text-[10px] text-amber-400/70 hover:text-amber-400 transition-colors flex items-center justify-center gap-1"
+      >
+        View Roll Dashboard <ChevronRight className="w-3 h-3" />
+      </button>
+    </div>
+  );
+}
+
 // ─── Main Home Component ──────────────────────────────────────────────────────
 
 export default function Home() {
@@ -1219,6 +1333,9 @@ export default function Home() {
 
         {/* Monthly Income Target Tracker */}
         <MonthlyIncomeTracker />
+
+        {/* Rolled Today Summary */}
+        <RolledTodayCard />
 
         {/* Navigation Grid */}
         <NavigationGrid />

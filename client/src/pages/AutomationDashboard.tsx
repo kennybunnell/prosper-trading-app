@@ -409,6 +409,8 @@ export default function AutomationDashboard() {
     () => new Set(rolledTodayData?.positionIds ?? []),
     [rolledTodayData]
   );
+  // Positions that the user has explicitly overridden to allow re-rolling today
+  const [overrideRolledPositions, setOverrideRolledPositions] = useState<Set<string>>(new Set());
   const handleScanSort = (col: string) => {
     if (scanSortCol === col) {
       setScanSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -3091,7 +3093,7 @@ export default function AutomationDashboard() {
                                   if (rollStrategyFilters.size > 0 && !rollStrategyFilters.has(pos.strategy)) return false;
                                   if (rollPnlFilters.size > 0 && !rollPnlFilters.has((pos as any).pnlStatus ?? '')) return false;
                                   if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
-                                  if (hideRolledToday && rolledTodaySet.has(pos.positionId)) return false;
+                                  if (hideRolledToday && rolledTodaySet.has(pos.positionId) && !overrideRolledPositions.has(pos.positionId)) return false;
                                   return true;
                                 }).map(p => p.positionId);
                                 // selectableIds: only those with a loaded candidate (for select-all)
@@ -3168,7 +3170,7 @@ export default function AutomationDashboard() {
                             // Credit-only filter: hide positions where a credit roll is unlikely (deep ITM)
                             if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
                             // Hide positions already rolled today to prevent accidental re-rolls
-                            if (hideRolledToday && rolledTodaySet.has(pos.positionId)) return false;
+                            if (hideRolledToday && rolledTodaySet.has(pos.positionId) && !overrideRolledPositions.has(pos.positionId)) return false;
                             return true;
                           }).sort((a, b) => {
                             // When credit-only filter is OFF, push debit-only positions to the bottom
@@ -3339,11 +3341,41 @@ export default function AutomationDashboard() {
                                     <div className="flex items-center gap-1.5">
                                       {pos.symbol}
                                       {rolledTodaySet.has(pos.positionId) && (
-                                        <span
-                                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                                          title="This position was already rolled today. Disable 'Hide Rolled Today' filter to include it."
-                                        >
-                                          ✓ ROLLED
+                                        <span className="flex items-center gap-1">
+                                          <span
+                                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                                            title="This position was already rolled today."
+                                          >
+                                            ✓ ROLLED
+                                          </span>
+                                          {!overrideRolledPositions.has(pos.positionId) && (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (window.confirm(`"${pos.symbol}" was already rolled today. Roll again anyway?\n\nThis is useful if the first roll didn't fill.`)) {
+                                                  setOverrideRolledPositions(prev => {
+                                                    const next = new Set(prev);
+                                                    next.add(pos.positionId);
+                                                    return next;
+                                                  });
+                                                  // If the hide filter is on, turn it off so the row stays visible
+                                                  setHideRolledToday(false);
+                                                }
+                                              }}
+                                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 hover:border-orange-500/50 transition-all"
+                                              title="Roll Again — bypasses the rolled-today filter for this position"
+                                            >
+                                              ↺ Roll Again
+                                            </button>
+                                          )}
+                                          {overrideRolledPositions.has(pos.positionId) && (
+                                            <span
+                                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                                              title="Override active — this position is included despite being rolled today"
+                                            >
+                                              ↺ OVERRIDE
+                                            </span>
+                                          )}
                                         </span>
                                       )}
                                     </div>

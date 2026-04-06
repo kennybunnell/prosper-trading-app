@@ -1252,4 +1252,52 @@ export const rollsRouter = router({
       const positionIds = await getRolledTodayPositionIds(ctx.user.id);
       return { positionIds: Array.from(positionIds) };
     }),
+
+  getRolledTodaySummary: protectedProcedure
+    .query(async ({ ctx }) => {
+      const { getDb } = await import('./db');
+      const { submittedRolls } = await import('../drizzle/schema');
+      const { eq, gte, and } = await import('drizzle-orm');
+
+      const db = await getDb();
+      if (!db) return { count: 0, totalNetCredit: 0, positions: [] };
+
+      // Get all rolls submitted today (UTC midnight to now)
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+
+      const rows = await db
+        .select()
+        .from(submittedRolls)
+        .where(
+          and(
+            eq(submittedRolls.userId, ctx.user.id),
+            gte(submittedRolls.rolledAt, todayStart)
+          )
+        )
+        .orderBy(submittedRolls.rolledAt);
+
+      // Compute total net credit across all rolls today
+      let totalNetCredit = 0;
+      const positions = rows.map((r: typeof submittedRolls.$inferSelect) => {
+        const credit = parseFloat(r.netCredit ?? '0');
+        totalNetCredit += isNaN(credit) ? 0 : credit;
+        return {
+          id: r.id,
+          symbol: r.symbol,
+          strategy: r.strategy,
+          newExpiration: r.newExpiration ?? '',
+          newStrike: r.newStrike ?? '',
+          netCredit: credit,
+          rolledAt: r.rolledAt,
+          orderId: r.orderId,
+        };
+      });
+
+      return {
+        count: rows.length,
+        totalNetCredit,
+        positions,
+      };
+    }),
 });

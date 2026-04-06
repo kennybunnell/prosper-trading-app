@@ -8956,3 +8956,16 @@ ROC Fix Mar 18 2026
 - [ ] Annotate getRollPositions response with rolledToday flag
 - [ ] Show amber ROLLED TODAY badge in Roll Dashboard for positions rolled today
 - [ ] Add Hide Rolled Today filter toggle (default: on)
+
+## Rolled Today Dashboard Card + Roll Again Button (Apr 6, 2026)
+- [ ] Add getRolledTodaySummary tRPC procedure with per-position net credit details
+- [ ] Add Rolled Today summary card to home Dashboard
+- [ ] Add Roll Again override button per row in Roll Dashboard
+
+## Dashboard & Roll Dashboard Enhancements (Apr 6, 2026)
+- [x] Add getRolledTodaySummary tRPC procedure (routers-rolls.ts) — returns count, totalNetCredit, and per-position detail
+- [x] Add RolledTodayCard component to Dashboard Home (Home.tsx) — shows count, symbol list with strategy/strike/expiry, net credit per roll, total credit, refresh button, and link to Roll Dashboard
+- [x] Add overrideRolledPositions state to AutomationDashboard — tracks per-positionId overrides
+- [x] Update both roll filter locations to respect overrideRolledPositions set
+- [x] Add "↺ Roll Again" button next to ✓ ROLLED badge — shows confirmation dialog, adds to override set, disables hide filter
+- [x] Add "↺ OVERRIDE" badge when override is active for a position
