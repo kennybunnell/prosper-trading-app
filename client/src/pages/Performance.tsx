@@ -2197,6 +2197,12 @@ export function WorkingOrdersTab() {
                     ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30'
                     : rollType === 'cc_roll'
                     ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                    : rollType === 'bps_roll'
+                    ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-600/30'
+                    : rollType === 'bcs_roll'
+                    ? 'bg-orange-600/20 text-orange-300 border border-orange-600/30'
+                    : rollType === 'ic_roll'
+                    ? 'bg-purple-600/20 text-purple-300 border border-purple-600/30'
                     : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30';
 
                   const spreadTitle = spreadType === 'bull_put' ? 'Bull Put Spread — click to see legs'
@@ -2204,8 +2210,9 @@ export function WorkingOrdersTab() {
                     : spreadType === 'iron_condor' ? 'Iron Condor — click to see all 4 legs'
                     : '';
 
+                  const rollLegCount = isRoll ? (spreadLegs?.length ?? 2) : 2;
                   const rollTitle = isRoll
-                    ? `Atomic Roll Order (${rollLabel}) — click to see both legs`
+                    ? `Atomic Roll Order (${rollLabel}) — click to see all ${rollLegCount} legs`
                     : '';
 
                   const actionAbbr = (a: string) =>
@@ -2364,10 +2371,18 @@ export function WorkingOrdersTab() {
                       {isRoll && isExpanded && spreadLegs && spreadLegs.length >= 2 && (
                         <tr key={`roll-legs-${idx}`} className="border-t-0">
                           <td colSpan={TOTAL_COLS} className="px-4 pb-4 pt-0 bg-muted/10">
-                            <div className="ml-8 border border-violet-500/30 rounded-lg overflow-hidden">
+                            <div className={`ml-8 rounded-lg overflow-hidden border ${
+                              rollType === 'bps_roll' ? 'border-emerald-600/30'
+                              : rollType === 'bcs_roll' ? 'border-orange-600/30'
+                              : rollType === 'ic_roll' ? 'border-purple-600/30'
+                              : 'border-violet-500/30'
+                            }`}>
                               {/* Header */}
-                              <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wide ${rollBadgeClass} bg-opacity-10`}>
-                                ⟳ Atomic Roll Order — {rollLabel} — BTC old expiry + STO new expiry (2-leg combo)
+                              <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wide ${rollBadgeClass}`}>
+                                ⟳ Atomic Roll Order — {rollLabel} —
+                                {(rollType === 'bps_roll' || rollType === 'bcs_roll')
+                                  ? ' 2 BTC legs + 2 STO legs (4-leg spread roll)'
+                                  : ' BTC old expiry + STO new expiry (2-leg roll)'}
                               </div>
                               <table className="w-full text-sm">
                                 <thead>
@@ -2392,11 +2407,33 @@ export function WorkingOrdersTab() {
                                       : isSto
                                       ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30'
                                       : 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
-                                    const roleNote = isBtc
-                                      ? 'Close existing position (costs debit)'
-                                      : isSto
-                                      ? 'Open new position at new expiry (receives credit)'
-                                      : '';
+                                    // For 4-leg spread rolls, identify short vs long leg within each side
+                                    const btcLegsInPanel = spreadLegs.filter((l: any) => l.action?.includes('Buy to Close'));
+                                    const stoLegsInPanel = spreadLegs.filter((l: any) => l.action?.includes('Sell to Open'));
+                                    let roleNote = '';
+                                    if (isBtc && (rollType === 'bps_roll' || rollType === 'bcs_roll')) {
+                                      // BPS: higher BTC strike = short put; lower = long put
+                                      // BCS: lower BTC strike = short call; higher = long call
+                                      const btcStrikes = btcLegsInPanel.map((l: any) => l.strike);
+                                      const isShortLeg = rollType === 'bps_roll'
+                                        ? leg.strike === Math.max(...btcStrikes)
+                                        : leg.strike === Math.min(...btcStrikes);
+                                      roleNote = isShortLeg
+                                        ? 'Close short leg (existing spread)'
+                                        : 'Close long leg (existing spread)';
+                                    } else if (isSto && (rollType === 'bps_roll' || rollType === 'bcs_roll')) {
+                                      const stoStrikes = stoLegsInPanel.map((l: any) => l.strike);
+                                      const isShortLeg = rollType === 'bps_roll'
+                                        ? leg.strike === Math.max(...stoStrikes)
+                                        : leg.strike === Math.min(...stoStrikes);
+                                      roleNote = isShortLeg
+                                        ? 'Open new short leg (rolled spread)'
+                                        : 'Open new long leg (rolled spread)';
+                                    } else if (isBtc) {
+                                      roleNote = 'Close existing position (costs debit)';
+                                    } else if (isSto) {
+                                      roleNote = 'Open new position at new expiry (receives credit)';
+                                    }
                                     return (
                                       <tr key={legIdx} className="border-t border-border/30 hover:bg-muted/20">
                                         <td className="px-4 py-2 text-xs text-muted-foreground">Leg {legIdx + 1}</td>
@@ -2433,7 +2470,10 @@ export function WorkingOrdersTab() {
                                     <span className="font-semibold text-yellow-400">${order.currentPrice.toFixed(2)} {order.priceEffect}</span>
                                   </div>
                                   <div className="flex items-center gap-1.5 text-muted-foreground/70 italic">
-                                    <span>💡 Both legs execute simultaneously — you will never be left with a naked position between legs.</span>
+                                    <span>💡 {(rollType === 'bps_roll' || rollType === 'bcs_roll')
+                                      ? 'All 4 legs execute simultaneously as a single spread roll — no partial fills, no naked exposure between legs.'
+                                      : 'Both legs execute simultaneously — you will never be left with a naked position between legs.'}
+                                    </span>
                                   </div>
                                 </div>
                               </div>

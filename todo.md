@@ -8903,7 +8903,7 @@ ROC Fix Mar 18 2026
 - [ ] Update submitRoll tRPC procedure to send one multi-leg tastytrade order (BTC + STO as single payload)
 - [ ] Update Roll Dashboard UI: replace separate BTC/STO price fields with net credit/debit input + price-effect toggle
 - [ ] Update Working Orders tab: expand multi-leg order rows to show both legs
-- [ ] TypeScript: 0 errors
+- [x] TypeScript: 0 errors
 
 ## Atomic Roll Order Working Orders Display (Apr 5, 2026)
 - [x] Audit roll submission pipeline — confirmed rolls already submitted as single multi-leg tastytrade order
@@ -8914,4 +8914,12 @@ ROC Fix Mar 18 2026
 - [x] Add roll badge (CSP Roll / CC Roll) with expand/collapse button in Working Orders table
 - [x] Add roll expanded legs panel showing both legs with action, strike, expiry, bid/ask/mid, and role note
 - [x] Add "Both legs execute simultaneously" footer note in roll expanded panel
+- [x] TypeScript: 0 errors
+
+## BPS/BCS 4-Leg Roll Detection (Apr 5, 2026)
+- [x] Add 4-leg roll detection: 2 BTC legs + 2 STO legs = BPS Roll or BCS Roll
+- [x] Determine roll type from option types: PUT legs = BPS Roll, CALL legs = BCS Roll
+- [x] Extract old and new strikes/expirations from all 4 legs
+- [x] Add BPS Roll / BCS Roll badge colors in Working Orders UI
+- [x] Add 4-leg expanded panel with all legs showing action, strike, expiry, bid/ask/mid
 - [x] TypeScript: 0 errors

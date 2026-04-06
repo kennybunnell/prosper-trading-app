@@ -415,24 +415,68 @@ export const workingOrdersRouter = router({
               }
             }
           } else if (order.legs.length === 4) {
-            // Iron Condor: 2 puts + 2 calls
-            const parsed = order.legs.map((l: any) => ({
+            // Parse all 4 legs
+            const parsed4 = order.legs.map((l: any) => ({
               ...parseLeg(l.symbol),
-              action: l.action,
+              action: l.action as string,
               rawSymbol: l.symbol,
             })).filter((l: any) => l.optionType);
 
-            const puts = parsed.filter((l: any) => l.optionType === 'PUT');
-            const calls = parsed.filter((l: any) => l.optionType === 'CALL');
+            const btcLegs4 = parsed4.filter((l: any) => l.action?.includes('Buy to Close'));
+            const stoLegs4 = parsed4.filter((l: any) => l.action?.includes('Sell to Open'));
 
-            if (puts.length === 2 && calls.length === 2) {
-              isSpread = true;
-              spreadType = 'iron_condor';
-              // For IC display: show short put strike as primary
-              const shortPut = puts.find((l: any) => l.action?.includes('Sell')) || puts[0];
-              const shortCall = calls.find((l: any) => l.action?.includes('Sell')) || calls[0];
-              strike = shortPut?.strike ?? strike;
-              longStrike = shortCall?.strike;
+            // ── BPS/BCS Roll: 2 BTC legs + 2 STO legs (same option type) ──
+            if (btcLegs4.length === 2 && stoLegs4.length === 2) {
+              const allPuts = parsed4.every((l: any) => l.optionType === 'PUT');
+              const allCalls = parsed4.every((l: any) => l.optionType === 'CALL');
+
+              if (allPuts || allCalls) {
+                isRoll = true;
+                rollType = allPuts ? 'bps_roll' : 'bcs_roll';
+
+                // Primary display: use the BTC short strike (higher put / lower call)
+                const btcStrikes = btcLegs4.map((l: any) => l.strike as number);
+                const stoStrikes = stoLegs4.map((l: any) => l.strike as number);
+
+                if (allPuts) {
+                  // BPS: short put is the higher strike BTC leg
+                  strike = Math.max(...btcStrikes);
+                  rollNewStrike = Math.max(...stoStrikes);
+                } else {
+                  // BCS: short call is the lower strike BTC leg
+                  strike = Math.min(...btcStrikes);
+                  rollNewStrike = Math.min(...stoStrikes);
+                }
+
+                // New expiration: from the STO legs
+                const stoLeg4 = stoLegs4[0];
+                const stoSymMatch = stoLeg4.rawSymbol.match(/^([A-Z]+)\s+(\d{6})([CP])(\d+)$/);
+                if (stoSymMatch) {
+                  const expRaw = stoSymMatch[2];
+                  const yr = 2000 + parseInt(expRaw.substring(0, 2));
+                  const mo = expRaw.substring(2, 4);
+                  const dy = expRaw.substring(4, 6);
+                  rollNewExpiration = `${mo}/${dy}/${yr}`;
+                }
+
+                console.log(`[WorkingOrders] 4-leg roll detected: ${rollType} for ${underlyingSymbol}, BTC strikes: ${btcStrikes}, STO strikes: ${stoStrikes}`);
+              }
+            }
+
+            // ── Iron Condor: 2 puts + 2 calls (close order) ──
+            if (!isRoll) {
+              const puts = parsed4.filter((l: any) => l.optionType === 'PUT');
+              const calls = parsed4.filter((l: any) => l.optionType === 'CALL');
+
+              if (puts.length === 2 && calls.length === 2) {
+                isSpread = true;
+                spreadType = 'iron_condor';
+                // For IC display: show short put strike as primary
+                const shortPut = puts.find((l: any) => l.action?.includes('Sell')) || puts[0];
+                const shortCall = calls.find((l: any) => l.action?.includes('Sell')) || calls[0];
+                strike = shortPut?.strike ?? strike;
+                longStrike = shortCall?.strike;
+              }
             }
           }
 
@@ -506,23 +550,22 @@ export const workingOrdersRouter = router({
               mid = (bid + ask) / 2;
               spread = ask - bid;
             }
-          } else if (isRoll && order.legs.length === 2) {
-            // Roll order: net credit = STO bid - BTC ask (best-case)
-            //             net debit  = BTC ask - STO bid (worst-case)
-            const btcLeg = order.legs.find((l: any) => l.action === 'Buy to Close');
-            const stoLeg = order.legs.find((l: any) => l.action === 'Sell to Open');
-            const btcBid = btcLeg ? (quotes[btcLeg.symbol]?.bid || 0) : 0;
-            const btcAsk = btcLeg ? (quotes[btcLeg.symbol]?.ask || 0) : 0;
-            const stoBid = stoLeg ? (quotes[stoLeg.symbol]?.bid || 0) : 0;
-            const stoAsk = stoLeg ? (quotes[stoLeg.symbol]?.ask || 0) : 0;
-            // Net credit (positive = receive money): STO bid - BTC ask
-            const netCredit = stoBid - btcAsk;
-            // For display: use absolute value; priceEffect tells direction
+          } else if (isRoll) {
+            // Roll order net pricing: sum(STO bids) - sum(BTC asks) = net credit
+            // Works for both 2-leg (CSP/CC) and 4-leg (BPS/BCS) rolls
+            const rollBtcLegs = order.legs.filter((l: any) => l.action === 'Buy to Close');
+            const rollStoLegs = order.legs.filter((l: any) => l.action === 'Sell to Open');
+            const sumBtcBid = rollBtcLegs.reduce((s: number, l: any) => s + (quotes[l.symbol]?.bid || 0), 0);
+            const sumBtcAsk = rollBtcLegs.reduce((s: number, l: any) => s + (quotes[l.symbol]?.ask || 0), 0);
+            const sumStoBid = rollStoLegs.reduce((s: number, l: any) => s + (quotes[l.symbol]?.bid || 0), 0);
+            const sumStoAsk = rollStoLegs.reduce((s: number, l: any) => s + (quotes[l.symbol]?.ask || 0), 0);
+            // Net credit (positive = receive money): sum(STO bids) - sum(BTC asks)
+            const netCredit = sumStoBid - sumBtcAsk;
             bid = Math.abs(netCredit);
-            ask = Math.abs(stoBid - btcAsk);
-            mid = Math.abs((stoBid + stoAsk) / 2 - (btcBid + btcAsk) / 2);
-            spread = Math.abs(stoAsk - stoBid) + Math.abs(btcAsk - btcBid);
-            console.log(`[WorkingOrders] Roll ${underlyingSymbol} (${rollType}): btcAsk=${btcAsk.toFixed(2)} stoBid=${stoBid.toFixed(2)} → netCredit=${netCredit.toFixed(2)}`);
+            ask = Math.abs(sumStoBid - sumBtcAsk);
+            mid = Math.abs((sumStoBid + sumStoAsk) / 2 - (sumBtcBid + sumBtcAsk) / 2);
+            spread = Math.abs(sumStoAsk - sumStoBid) + Math.abs(sumBtcAsk - sumBtcBid);
+            console.log(`[WorkingOrders] Roll ${underlyingSymbol} (${rollType}, ${order.legs.length}-leg): sumBtcAsk=${sumBtcAsk.toFixed(2)} sumStoBid=${sumStoBid.toFixed(2)} → netCredit=${netCredit.toFixed(2)}`);
           } else {
             bid = quote.bid || 0;
             ask = quote.ask || 0;
