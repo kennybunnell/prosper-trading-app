@@ -36,7 +36,13 @@ export type RollCandidateItem = {
   strike?: number;
   expiration?: string;
   dte?: number;
-  netCredit?: number;
+  netCredit?: number;   // mid-price net (positive = credit)
+  netBid?: number;      // net at bid: STO bid - BTC ask (aggressive fill, lower credit)
+  netAsk?: number;      // net at ask: STO ask - BTC bid (max credit, harder to fill)
+  stoBid?: number;
+  stoAsk?: number;
+  btcBid?: number;
+  btcAsk?: number;
   closeCost?: number;
   netPnl?: number;
   openPremium?: number;
@@ -229,6 +235,12 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
   // Track whether premium was recently updated (for LIVE badge)
   const [premiumUpdated, setPremiumUpdated] = useState(false);
   const [prevStrike, setPrevStrike] = useState<number | undefined>(c.strike);
+
+  // Bid/Ask continuum slider state (0 = bid/aggressive, 50 = mid, 100 = ask/max credit)
+  // Initialize at 50 (mid) when netBid/netAsk are available, otherwise leave at 50
+  const [sliderPos, setSliderPos] = useState(50);
+  // Reset slider to mid whenever the candidate changes
+  useEffect(() => { setSliderPos(50); }, [item.positionId, c.strike, c.expiration]);
 
   // Live stock price via tRPC
   const stockPriceQuery = trpc.automation.getUnderlyingPrice.useQuery(
@@ -450,6 +462,40 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
 
   const netTotal = calcNetTotal(item);
   const effectiveTotal = liveCredit !== undefined && liveCredit !== null ? liveCredit : netTotal;
+
+  // ── Bid/Ask Slider derived values ──────────────────────────────────────────
+  // netBid = lowest credit (aggressive fill), netAsk = highest credit (harder fill)
+  // sliderPos: 0 = bid, 50 = mid, 100 = ask
+  const hasSpread = isRoll && c.netBid !== undefined && c.netAsk !== undefined;
+  const sliderLimitPrice = hasSpread
+    ? (() => {
+        const low  = c.netBid!;   // most aggressive (bid side)
+        const high = c.netAsk!;   // max credit (ask side)
+        const raw = low + (sliderPos / 100) * (high - low);
+        // Round to nearest $0.05 (tastytrade minimum tick for spread orders)
+        return Math.round(raw / 5) * 5 / 100;
+      })()
+    : undefined;
+
+  // Fill probability label based on slider position
+  const fillLabel = sliderPos <= 20
+    ? { text: 'Very Likely to Fill', color: 'text-emerald-400' }
+    : sliderPos <= 40
+    ? { text: 'Likely to Fill', color: 'text-emerald-300' }
+    : sliderPos <= 60
+    ? { text: 'Mid — Good Balance', color: 'text-sky-400' }
+    : sliderPos <= 80
+    ? { text: 'Less Likely to Fill', color: 'text-amber-400' }
+    : { text: 'Unlikely to Fill', color: 'text-red-400' };
+
+  // Sync slider-derived limit price into the candidate whenever slider moves
+  // (so the table row and submission both see the updated limitPrice)
+  useEffect(() => {
+    if (hasSpread && sliderLimitPrice !== undefined) {
+      onUpdateCandidate(item.positionId, { limitPrice: sliderLimitPrice });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sliderPos, item.positionId]);
 
   return (
     <div className="flex flex-col h-full bg-card border-l border-border/50 w-[550px] shrink-0">
@@ -807,19 +853,76 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                 {c.delta !== undefined && (
                   <div><span className="text-muted-foreground">New Delta</span><p className="font-mono font-semibold">{c.delta?.toFixed(2)}</p></div>
                 )}
-                {/* Net Credit total — always reads from calcNetTotal(item) which uses updated c.netCredit */}
-                <div className="col-span-2 p-2 rounded-md bg-muted/20 border border-border/30">
-                  <span className="text-muted-foreground text-xs flex items-center gap-1">
-                    Net Credit (total)
-                    {premiumUpdated && <span className="text-[9px] text-sky-400 font-semibold animate-pulse">LIVE</span>}
-                    {(liveCredit !== undefined && liveCredit !== null && !premiumUpdated) && <span className="text-[9px] text-sky-400">refreshed</span>}
-                  </span>
-                  <p className={`font-mono font-bold text-base mt-0.5 ${
-                    (effectiveNetTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
-                  }`}>
-                    {fmtSigned(effectiveNetTotal)}
-                  </p>
-                </div>
+                {/* ── Bid/Ask Continuum Slider ── */}
+                {hasSpread ? (
+                  <div className="col-span-2 p-3 rounded-md bg-muted/10 border border-sky-500/30 space-y-3">
+                    {/* Header row */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-sky-400/80">Limit Price Tuner</span>
+                      <span className={`text-xs font-semibold ${fillLabel.color}`}>{fillLabel.text}</span>
+                    </div>
+
+                    {/* Bid / Mid / Ask reference row */}
+                    <div className="grid grid-cols-3 text-center text-[10px] font-mono">
+                      <div>
+                        <p className="text-muted-foreground/60 mb-0.5">Bid (fill fast)</p>
+                        <p className="text-emerald-300 font-semibold">{c.netBid !== undefined ? fmtSigned(c.netBid) : '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground/60 mb-0.5">Mid</p>
+                        <p className="text-sky-300 font-semibold">{fmtSigned(effectiveNetTotal)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground/60 mb-0.5">Ask (max credit)</p>
+                        <p className="text-amber-300 font-semibold">{c.netAsk !== undefined ? fmtSigned(c.netAsk) : '—'}</p>
+                      </div>
+                    </div>
+
+                    {/* Slider */}
+                    <div className="space-y-1">
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={sliderPos}
+                        onChange={e => setSliderPos(Number(e.target.value))}
+                        className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                        style={{
+                          background: `linear-gradient(to right, #34d399 0%, #38bdf8 50%, #fbbf24 100%)`,
+                        }}
+                      />
+                      <div className="flex justify-between text-[9px] text-muted-foreground/50">
+                        <span>← Aggressive Fill</span>
+                        <span>Max Credit →</span>
+                      </div>
+                    </div>
+
+                    {/* Selected limit price */}
+                    <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                      <span className="text-xs text-muted-foreground">Limit Price (net credit)</span>
+                      <span className={`font-mono font-bold text-base ${
+                        (sliderLimitPrice ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                      }`}>
+                        {sliderLimitPrice !== undefined ? fmtSigned(sliderLimitPrice) : fmtSigned(effectiveNetTotal)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  /* Fallback: plain Net Credit box when no bid/ask data */
+                  <div className="col-span-2 p-2 rounded-md bg-muted/20 border border-border/30">
+                    <span className="text-muted-foreground text-xs flex items-center gap-1">
+                      Net Credit (total)
+                      {premiumUpdated && <span className="text-[9px] text-sky-400 font-semibold animate-pulse">LIVE</span>}
+                      {(liveCredit !== undefined && liveCredit !== null && !premiumUpdated) && <span className="text-[9px] text-sky-400">refreshed</span>}
+                    </span>
+                    <p className={`font-mono font-bold text-base mt-0.5 ${
+                      (effectiveNetTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                    }`}>
+                      {fmtSigned(effectiveNetTotal)}
+                    </p>
+                  </div>
+                )}
               </div>
             </section>
           )}

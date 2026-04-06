@@ -8923,3 +8923,12 @@ ROC Fix Mar 18 2026
 - [x] Add BPS Roll / BCS Roll badge colors in Working Orders UI
 - [x] Add 4-leg expanded panel with all legs showing action, strike, expiry, bid/ask/mid
 - [x] TypeScript: 0 errors
+
+## Roll Order Bid/Ask Continuum Slider (Apr 6, 2026)
+- [x] Add netBid and netAsk fields to RollCandidate type in rollDetection.ts
+- [x] Compute netBid (STO bid - BTC ask) and netAsk (STO ask - BTC bid) in createRollCandidateFromTradier
+- [x] Pass netBid/netAsk through getRollCandidates response and into RollOrderItem
+- [x] Add bid/ask slider to RollOrderReviewModal detail panel (bid=aggressive fill, ask=max credit, mid=default)
+- [x] Show fill probability label: Near Bid = Very Likely, Mid = Likely, Near Ask = Less Likely
+- [x] Wire limitPrice from slider through submitRollOrders server input schema
+- [x] TypeScript: 0 errors

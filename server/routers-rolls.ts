@@ -758,6 +758,11 @@ export const rollsRouter = router({
         newShortStrike: z.number().optional(),
         putShortStrike: z.number().optional(),
         callShortStrike: z.number().optional(),
+
+        // ── User-tuned limit price from bid/ask slider ──
+        // When provided, overrides the auto-computed netCredit as the order limit price.
+        // Rounded to nearest $0.05 (tastytrade minimum tick for spread orders).
+        limitPrice: z.number().optional(),
       }))
     }))
     .mutation(async ({ ctx, input }) => {
@@ -910,9 +915,11 @@ export const rollsRouter = router({
               legs.push({ instrumentType: 'Equity Option', symbol: buildOCCSymbol(order.symbol, newExpiration, 'C', newCallLong),    quantity: String(qty), action: 'Sell to Open' });
             }
 
-            const absPrice = Math.abs(order.netCredit || 0);
-            price = absPrice.toFixed(2);
-            priceEffect = (order.netCredit || 0) >= 0 ? 'Credit' : 'Debit';
+            // If user tuned the limit price via the bid/ask slider, use that; otherwise fall back to mid (netCredit)
+            const rawSpreadPrice = order.limitPrice !== undefined ? order.limitPrice : Math.abs(order.netCredit || 0);
+            price = rawSpreadPrice.toFixed(2);
+            priceEffect = (order.limitPrice !== undefined ? order.limitPrice : (order.netCredit || 0)) >= 0 ? 'Credit' : 'Debit';
+            console.log(`[Roll] ${order.symbol} spread roll price: ${price} ${priceEffect}${order.limitPrice !== undefined ? ' (user-tuned)' : ' (mid)'}`);
 
           } else if (['BPS', 'BCS', 'IC'].includes(order.strategyType) && order.spreadLegs && order.action === 'close') {
             // ── Close-only for spreads: BTC all legs ──
@@ -954,11 +961,17 @@ export const rollsRouter = router({
               });
             }
 
-            const absPrice = order.action === 'roll' && order.netCredit !== undefined
-              ? Math.abs(order.netCredit)
-              : Math.abs(order.currentValue || 0);
-            price = absPrice.toFixed(2);
-            priceEffect = order.action === 'roll' && (order.netCredit || 0) >= 0 ? 'Credit' : 'Debit';
+            // If user tuned the limit price via the bid/ask slider, use that; otherwise fall back to mid (netCredit)
+            const rawSinglePrice = order.limitPrice !== undefined
+              ? order.limitPrice
+              : (order.action === 'roll' && order.netCredit !== undefined
+                  ? Math.abs(order.netCredit)
+                  : Math.abs(order.currentValue || 0));
+            price = rawSinglePrice.toFixed(2);
+            priceEffect = order.action === 'roll'
+              ? ((order.limitPrice !== undefined ? order.limitPrice : (order.netCredit || 0)) >= 0 ? 'Credit' : 'Debit')
+              : 'Debit';
+            console.log(`[Roll] ${order.symbol} single-leg roll price: ${price} ${priceEffect}${order.limitPrice !== undefined ? ' (user-tuned)' : ' (mid)'}`);
           }
 
           const orderRequest = {

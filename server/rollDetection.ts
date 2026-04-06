@@ -46,7 +46,13 @@ export interface RollCandidate {
   strike?: number;
   expiration?: string;
   dte?: number;
-  netCredit?: number; // positive = credit, negative = debit
+  netCredit?: number; // positive = credit, negative = debit (mid-price based)
+  netBid?: number;   // net at bid: STO bid - BTC ask (most aggressive fill, lowest credit)
+  netAsk?: number;   // net at ask: STO ask - BTC bid (least aggressive, highest credit)
+  stoBid?: number;   // new STO leg bid per contract
+  stoAsk?: number;   // new STO leg ask per contract
+  btcBid?: number;   // existing BTC leg bid per contract
+  btcAsk?: number;   // existing BTC leg ask per contract
   closeCost?: number;  // absolute debit required to BTC (always positive, only on close action)
   netPnl?: number;     // openPremium - closeCost (positive = profit, negative = loss)
   openPremium?: number; // original credit received when position was opened
@@ -605,12 +611,12 @@ async function createRollCandidateFromTradier(
   const bid = option.bid || 0;
   const ask = option.ask || 0;
   const newPremiumPerContract = (bid + ask) / 2;
-  
+
   if (newPremiumPerContract <= 0) {
     console.warn('[createRollCandidateFromTradier] Invalid premium:', newPremiumPerContract);
     return null;
   }
-  
+
   const newStrike = option.strike;
   const qty = Math.abs(position.quantity) || 1;
 
@@ -619,6 +625,13 @@ async function createRollCandidateFromTradier(
   // Per-contract current BTC cost = totalBtcCost / (qty × 100)
   const totalBtcCost = Math.abs(position.current_value);
   const currentMarkPerContract = totalBtcCost / (qty * 100);
+
+  // Per-contract bid/ask estimates for the BTC leg
+  // tastytrade returns mark (≈ mid) for existing positions; approximate ±5% spread
+  const btcMidPerContract = currentMarkPerContract;
+  const spreadEstimate = btcMidPerContract * 0.05;
+  const btcBidEst = Math.max(0, btcMidPerContract - spreadEstimate);
+  const btcAskEst = btcMidPerContract + spreadEstimate;
 
   // Net credit of the atomic roll (per contract) = new STO mid − current BTC mid
   // Positive = credit roll (we receive more than we pay), Negative = debit roll
@@ -645,12 +658,25 @@ async function createRollCandidateFromTradier(
     description = `Roll up & out to $${newStrike.toFixed(2)} ${new Date(newExpiration).toLocaleDateString()} (${dte} DTE)`;
   }
 
+  // Net at bid: STO bid - BTC ask (most aggressive fill, lowest credit received)
+  // Net at ask: STO ask - BTC bid (least aggressive, highest credit but harder to fill)
+  const netBidPerContract = bid - btcAskEst;
+  const netAskPerContract = ask - btcBidEst;
+  const netBid = netBidPerContract * qty * 100;
+  const netAsk = netAskPerContract * qty * 100;
+
   return {
     action: 'roll',
     strike: newStrike,
     expiration: newExpiration,
     dte,
     netCredit,
+    netBid,
+    netAsk,
+    stoBid: bid * qty * 100,
+    stoAsk: ask * qty * 100,
+    btcBid: btcBidEst * qty * 100,
+    btcAsk: btcAskEst * qty * 100,
     newPremium,
     annualizedReturn,
     meets3XRule,
