@@ -8897,3 +8897,21 @@ ROC Fix Mar 18 2026
 - [x] Remove Paper Orders tab and its content
 - [x] Default landing tab changed to Heat Map
 - [x] TypeScript: 0 errors
+
+## Atomic Multi-Leg Roll Orders (Apr 5, 2026)
+- [ ] Migrate rollOrders DB schema: replace btcOrderId + stoOrderId with single atomicOrderId column
+- [ ] Update submitRoll tRPC procedure to send one multi-leg tastytrade order (BTC + STO as single payload)
+- [ ] Update Roll Dashboard UI: replace separate BTC/STO price fields with net credit/debit input + price-effect toggle
+- [ ] Update Working Orders tab: expand multi-leg order rows to show both legs
+- [ ] TypeScript: 0 errors
+
+## Atomic Roll Order Working Orders Display (Apr 5, 2026)
+- [x] Audit roll submission pipeline — confirmed rolls already submitted as single multi-leg tastytrade order
+- [x] Add isRoll/rollType/rollNewExpiration/rollNewStrike fields to ProcessedWorkingOrder interface
+- [x] Add BTC+STO roll detection logic in 2-leg order processing block (distinct from BTC+STC spread close)
+- [x] Add roll net credit/debit pricing calculation (STO bid - BTC ask)
+- [x] Add expiration field to spreadLegs for roll display
+- [x] Add roll badge (CSP Roll / CC Roll) with expand/collapse button in Working Orders table
+- [x] Add roll expanded legs panel showing both legs with action, strike, expiry, bid/ask/mid, and role note
+- [x] Add "Both legs execute simultaneously" footer note in roll expanded panel
+- [x] TypeScript: 0 errors

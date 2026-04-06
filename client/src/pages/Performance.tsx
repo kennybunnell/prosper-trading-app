@@ -2166,14 +2166,26 @@ export function WorkingOrdersTab() {
                   const isSpread = (order as any).isSpread;
                   const spreadType: string | undefined = (order as any).spreadType;
                   const spreadLegs: any[] | undefined = (order as any).spreadLegs;
+                  const isRoll: boolean = !!(order as any).isRoll;
+                  const rollType: string | undefined = (order as any).rollType;
+                  const rollNewExpiration: string | undefined = (order as any).rollNewExpiration;
+                  const rollNewStrike: number | undefined = (order as any).rollNewStrike;
+                  const isMultiLeg = isSpread || isRoll;
                   const isExpanded = expandedOrders.has(idx);
                   const TOTAL_COLS = 16; // total number of <th> columns
 
-                  // ── helpers ──────────────────────────────────────────────────
+                  // ── helpers ────────────────────────────────────────────────────────────
                   const spreadLabel = spreadType === 'bull_put' ? 'BPS'
                     : spreadType === 'bear_call' ? 'BCS'
                     : spreadType === 'iron_condor' ? 'IC'
                     : null;
+
+                  const rollLabel = rollType === 'csp_roll' ? 'CSP Roll'
+                    : rollType === 'cc_roll' ? 'CC Roll'
+                    : rollType === 'bps_roll' ? 'BPS Roll'
+                    : rollType === 'bcs_roll' ? 'BCS Roll'
+                    : rollType === 'ic_roll' ? 'IC Roll'
+                    : isRoll ? 'Roll' : null;
 
                   const spreadBadgeClass = spreadType === 'bull_put'
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
@@ -2181,9 +2193,19 @@ export function WorkingOrdersTab() {
                     ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
                     : 'bg-purple-500/20 text-purple-400 border border-purple-500/30';
 
+                  const rollBadgeClass = rollType === 'csp_roll'
+                    ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30'
+                    : rollType === 'cc_roll'
+                    ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                    : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30';
+
                   const spreadTitle = spreadType === 'bull_put' ? 'Bull Put Spread — click to see legs'
                     : spreadType === 'bear_call' ? 'Bear Call Spread — click to see legs'
                     : spreadType === 'iron_condor' ? 'Iron Condor — click to see all 4 legs'
+                    : '';
+
+                  const rollTitle = isRoll
+                    ? `Atomic Roll Order (${rollLabel}) — click to see both legs`
                     : '';
 
                   const actionAbbr = (a: string) =>
@@ -2220,11 +2242,11 @@ export function WorkingOrdersTab() {
                         <td className="p-3 text-sm">{order.accountNumber}</td>
                         <td className="p-3 text-sm font-medium">
                           <div className="flex items-center gap-1">
-                            {isSpread && (
+                            {isMultiLeg && (
                               <button
                                 onClick={() => toggleExpand(idx)}
                                 className="text-muted-foreground hover:text-foreground transition-colors"
-                                title={isExpanded ? 'Collapse legs' : 'Expand legs'}
+                                title={isExpanded ? 'Collapse legs' : (isRoll ? rollTitle : 'Expand legs')}
                               >
                                 {isExpanded
                                   ? <ChevronDown className="h-3.5 w-3.5" />
@@ -2234,7 +2256,9 @@ export function WorkingOrdersTab() {
                             <div>
                               <div>{order.underlyingSymbol}</div>
                               <div className="text-xs text-muted-foreground">
-                                {order.optionType} ${order.strike.toFixed(2)}
+                                {isRoll && rollNewStrike
+                                  ? `${order.optionType} $${order.strike.toFixed(0)} → $${rollNewStrike.toFixed(0)}`
+                                  : `${order.optionType} $${order.strike.toFixed(2)}`}
                               </div>
                             </div>
                           </div>
@@ -2247,6 +2271,14 @@ export function WorkingOrdersTab() {
                               title={spreadTitle}
                             >
                               {spreadLabel} {isExpanded ? '▲' : '▼'}
+                            </button>
+                          ) : isRoll && rollLabel ? (
+                            <button
+                              onClick={() => toggleExpand(idx)}
+                              className={`px-2 py-1 rounded text-xs font-medium cursor-pointer ${rollBadgeClass}`}
+                              title={rollTitle}
+                            >
+                              ⟳ {rollLabel} {isExpanded ? '▲' : '▼'}
                             </button>
                           ) : (
                             <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -2328,7 +2360,89 @@ export function WorkingOrdersTab() {
                         </td>
                       </tr>
 
-                      {/* ── Expanded legs panel ─────────────────────────────── */}
+                      {/* ── Expanded roll legs panel ────────────────────────── */}
+                      {isRoll && isExpanded && spreadLegs && spreadLegs.length >= 2 && (
+                        <tr key={`roll-legs-${idx}`} className="border-t-0">
+                          <td colSpan={TOTAL_COLS} className="px-4 pb-4 pt-0 bg-muted/10">
+                            <div className="ml-8 border border-violet-500/30 rounded-lg overflow-hidden">
+                              {/* Header */}
+                              <div className={`px-4 py-2 text-xs font-semibold uppercase tracking-wide ${rollBadgeClass} bg-opacity-10`}>
+                                ⟳ Atomic Roll Order — {rollLabel} — BTC old expiry + STO new expiry (2-leg combo)
+                              </div>
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b border-border/50 bg-muted/30">
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Leg</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Action</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Type</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Strike</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Expiry</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Bid</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Ask</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Mid</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Role</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {spreadLegs.map((leg: any, legIdx: number) => {
+                                    const isBtc = leg.action?.includes('Buy to Close');
+                                    const isSto = leg.action?.includes('Sell to Open');
+                                    const legBadgeClass = isBtc
+                                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                                      : isSto
+                                      ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30'
+                                      : 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
+                                    const roleNote = isBtc
+                                      ? 'Close existing position (costs debit)'
+                                      : isSto
+                                      ? 'Open new position at new expiry (receives credit)'
+                                      : '';
+                                    return (
+                                      <tr key={legIdx} className="border-t border-border/30 hover:bg-muted/20">
+                                        <td className="px-4 py-2 text-xs text-muted-foreground">Leg {legIdx + 1}</td>
+                                        <td className="px-4 py-2">
+                                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${legBadgeClass}`}>
+                                            {actionAbbr(leg.action)}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-2 text-xs">
+                                          <span className={leg.optionType === 'PUT' ? 'text-red-300' : 'text-blue-300'}>
+                                            {leg.optionType}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-2 text-right font-medium">${leg.strike.toFixed(2)}</td>
+                                        <td className="px-4 py-2 text-xs text-muted-foreground">{leg.expiration}</td>
+                                        <td className="px-4 py-2 text-right text-muted-foreground">${leg.bid.toFixed(2)}</td>
+                                        <td className="px-4 py-2 text-right text-muted-foreground">${leg.ask.toFixed(2)}</td>
+                                        <td className="px-4 py-2 text-right">
+                                          <span className={isBtc ? 'text-amber-400' : isSto ? 'text-violet-400' : ''}>
+                                            ${leg.mid.toFixed(2)}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-2 text-xs text-muted-foreground italic">{roleNote}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                              {/* Net credit/debit footer */}
+                              <div className="px-4 py-3 bg-muted/20 border-t border-border/50">
+                                <div className="flex flex-wrap items-center gap-4 text-xs">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-muted-foreground">Limit price (net):</span>
+                                    <span className="font-semibold text-yellow-400">${order.currentPrice.toFixed(2)} {order.priceEffect}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 text-muted-foreground/70 italic">
+                                    <span>💡 Both legs execute simultaneously — you will never be left with a naked position between legs.</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* ── Expanded spread legs panel ───────────────────────── */}
                       {isSpread && isExpanded && (
                         <tr key={`legs-${idx}`} className="border-t-0">
                           <td colSpan={TOTAL_COLS} className="px-4 pb-4 pt-0 bg-muted/10">

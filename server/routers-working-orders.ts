@@ -45,12 +45,18 @@ export interface ProcessedWorkingOrder {
   isSpread?: boolean;
   longStrike?: number;
   spreadType?: 'bull_put' | 'bear_call' | 'iron_condor';
+  // Roll-specific fields (atomic BTC + STO combo orders)
+  isRoll?: boolean;
+  rollType?: 'csp_roll' | 'cc_roll' | 'bps_roll' | 'bcs_roll' | 'ic_roll';
+  rollNewExpiration?: string;   // new expiry leg expiration date
+  rollNewStrike?: number;       // new expiry leg strike
   // Per-leg detail for multi-leg expansion in the UI
   spreadLegs?: Array<{
     symbol: string;
     action: string;       // 'Buy to Close' | 'Sell to Close' | 'Buy to Open' | 'Sell to Open'
     strike: number;
     optionType: 'PUT' | 'CALL';
+    expiration: string;   // formatted expiration date for roll display
     bid: number;
     ask: number;
     mid: number;
@@ -352,14 +358,46 @@ export const workingOrdersRouter = router({
             };
           };
 
+          // Track roll-specific state
+          let isRoll = false;
+          let rollType: ProcessedWorkingOrder['rollType'] = undefined;
+          let rollNewExpiration: string | undefined;
+          let rollNewStrike: number | undefined;
+
           if (order.legs.length === 2) {
+            const leg1 = order.legs[0];
             const leg2 = order.legs[1];
             const leg2Match = leg2.symbol.match(/^([A-Z]+)\s+(\d{6})([CP])(\d+)$/);
             if (leg2Match) {
               const leg2OptionType = leg2Match[3];
               const leg2Strike = parseInt(leg2Match[4]) / 1000;
-              // Both legs same option type → vertical spread
-              if (leg2OptionType === symbolMatch[3]) {
+              const leg2Expiry = leg2Match[2];
+              const leg1Expiry = symbolMatch[2];
+
+              // ── Roll detection: BTC (old expiry) + STO (new expiry) ──
+              // A roll has one BTC leg and one STO leg on the same option type
+              const leg1Action: string = leg1.action || '';
+              const leg2Action: string = leg2.action || '';
+              const hasBTC = leg1Action.includes('Buy to Close') || leg2Action.includes('Buy to Close');
+              const hasSTO = leg1Action.includes('Sell to Open') || leg2Action.includes('Sell to Open');
+              const sameOptionType = leg2OptionType === symbolMatch[3];
+
+              if (hasBTC && hasSTO && sameOptionType) {
+                // This is an atomic roll order
+                isRoll = true;
+                const stoLeg = leg1Action.includes('Sell to Open') ? leg1 : leg2;
+                const stoMatch = stoLeg.symbol.match(/^([A-Z]+)\s+(\d{6})([CP])(\d+)$/);
+                if (stoMatch) {
+                  rollNewStrike = parseInt(stoMatch[4]) / 1000;
+                  const stoExpRaw = stoMatch[2];
+                  const stoYear = 2000 + parseInt(stoExpRaw.substring(0, 2));
+                  const stoMonth = stoExpRaw.substring(2, 4);
+                  const stoDay = stoExpRaw.substring(4, 6);
+                  rollNewExpiration = `${stoMonth}/${stoDay}/${stoYear}`;
+                }
+                rollType = optionType === 'PUT' ? 'csp_roll' : 'cc_roll';
+              } else if (leg2OptionType === symbolMatch[3]) {
+                // Both legs same option type, same expiry → vertical spread close
                 isSpread = true;
                 if (optionType === 'PUT') {
                   const higherStrike = Math.max(strike, leg2Strike);
@@ -398,19 +436,30 @@ export const workingOrdersRouter = router({
             }
           }
 
-          // Build per-leg detail array for all spread types
-          if (isSpread) {
+          // Build per-leg detail array for spread and roll orders
+          if (isSpread || isRoll) {
             spreadLegs = order.legs.map((l: any) => {
               const parsed = parseLeg(l.symbol);
               if (!parsed) return null;
               const legQuote = quotes[l.symbol] || {};
               const legBid = legQuote.bid || 0;
               const legAsk = legQuote.ask || 0;
+              // Parse expiration from leg symbol for roll display
+              const legSymMatch = l.symbol.match(/^([A-Z]+)\s+(\d{6})([CP])(\d+)$/);
+              let legExpiration = '';
+              if (legSymMatch) {
+                const expRaw = legSymMatch[2];
+                const yr = 2000 + parseInt(expRaw.substring(0, 2));
+                const mo = expRaw.substring(2, 4);
+                const dy = expRaw.substring(4, 6);
+                legExpiration = `${mo}/${dy}/${yr}`;
+              }
               return {
                 symbol: l.symbol,
                 action: l.action as string,
                 strike: parsed.strike,
                 optionType: parsed.optionType,
+                expiration: legExpiration,
                 bid: legBid,
                 ask: legAsk,
                 mid: (legBid + legAsk) / 2,
@@ -457,6 +506,23 @@ export const workingOrdersRouter = router({
               mid = (bid + ask) / 2;
               spread = ask - bid;
             }
+          } else if (isRoll && order.legs.length === 2) {
+            // Roll order: net credit = STO bid - BTC ask (best-case)
+            //             net debit  = BTC ask - STO bid (worst-case)
+            const btcLeg = order.legs.find((l: any) => l.action === 'Buy to Close');
+            const stoLeg = order.legs.find((l: any) => l.action === 'Sell to Open');
+            const btcBid = btcLeg ? (quotes[btcLeg.symbol]?.bid || 0) : 0;
+            const btcAsk = btcLeg ? (quotes[btcLeg.symbol]?.ask || 0) : 0;
+            const stoBid = stoLeg ? (quotes[stoLeg.symbol]?.bid || 0) : 0;
+            const stoAsk = stoLeg ? (quotes[stoLeg.symbol]?.ask || 0) : 0;
+            // Net credit (positive = receive money): STO bid - BTC ask
+            const netCredit = stoBid - btcAsk;
+            // For display: use absolute value; priceEffect tells direction
+            bid = Math.abs(netCredit);
+            ask = Math.abs(stoBid - btcAsk);
+            mid = Math.abs((stoBid + stoAsk) / 2 - (btcBid + btcAsk) / 2);
+            spread = Math.abs(stoAsk - stoBid) + Math.abs(btcAsk - btcBid);
+            console.log(`[WorkingOrders] Roll ${underlyingSymbol} (${rollType}): btcAsk=${btcAsk.toFixed(2)} stoBid=${stoBid.toFixed(2)} → netCredit=${netCredit.toFixed(2)}`);
           } else {
             bid = quote.bid || 0;
             ask = quote.ask || 0;
@@ -525,6 +591,11 @@ export const workingOrdersRouter = router({
             longStrike,
             spreadType,
             spreadLegs,
+            // Roll fields
+            isRoll,
+            rollType,
+            rollNewExpiration,
+            rollNewStrike,
           });
         }
 
