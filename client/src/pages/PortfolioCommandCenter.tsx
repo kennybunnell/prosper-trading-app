@@ -840,6 +840,13 @@ function PortfolioStatBar({
       color: !portfolio ? 'text-muted-foreground' : portfolio.netVega < -50 ? 'text-amber-400' : 'text-blue-400',
     },
     {
+      label: 'Net Gamma',
+      value: isLoading ? '—' : ((portfolio?.netGamma ?? 0) >= 0 ? '+' : '') + (portfolio?.netGamma ?? 0).toFixed(4),
+      sub: 'Delta change per $1 move',
+      icon: Zap,
+      color: !portfolio ? 'text-muted-foreground' : Math.abs(portfolio?.netGamma ?? 0) > 0.5 ? 'text-amber-400' : 'text-cyan-400',
+    },
+    {
       label: 'Max Concentration',
       value: isLoading ? '—' : `${(portfolio?.maxConcentration ?? 0).toFixed(1)}%`,
       sub: 'Largest single-ticker %',
@@ -849,7 +856,7 @@ function PortfolioStatBar({
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
       {stats.map(stat => {
         const Icon = stat.icon;
         return (
@@ -1806,6 +1813,9 @@ export default function PortfolioCommandCenter() {
   const [greeksAIFollowUpLoading, setGreeksAIFollowUpLoading] = useState(false);
   const greeksAdvisorMutation = trpc.automation.portfolioGreeksAdvisor.useMutation();
   const greeksAdvisorFollowUpMutation = trpc.automation.portfolioGreeksAdvisorFollowUp.useMutation();
+  // Track whether Greeks just finished loading (for pulsing dot)
+  const [greeksJustLoaded, setGreeksJustLoaded] = useState(false);
+  const prevPhaseRef = useRef<string>('');
 
   // Greeks table sort state
   type GreeksSortCol = 'symbol' | 'contracts' | 'netDelta' | 'dailyTheta' | 'netVega' | 'premiumAtRisk' | 'avgDte' | 'avgIv' | 'strategies';
@@ -1837,6 +1847,14 @@ export default function PortfolioCommandCenter() {
     isLoading,
     refresh,
   } = useProgressiveHeatMap(5);
+
+  // Auto-trigger pulsing dot when Greeks finish loading
+  useEffect(() => {
+    if (prevPhaseRef.current !== 'done' && phase === 'done' && tickers.length > 0) {
+      setGreeksJustLoaded(true);
+    }
+    prevPhaseRef.current = phase;
+  }, [phase, tickers.length]);
 
   // Sorted rows for the Greeks table (never mutates the original tickers array)
   const sortedTickers = useMemo(() => {
@@ -1949,17 +1967,25 @@ export default function PortfolioCommandCenter() {
                     <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin text-amber-400')} />
                     {isLoading ? 'Loading…' : 'Refresh Greeks'}
                   </Button>
-                  <Button
-                    variant={showGreeksAI ? 'default' : 'outline'}
-                    size="sm"
-                    className={cn('h-7 text-xs gap-1.5', showGreeksAI && 'bg-violet-600 hover:bg-violet-700 border-violet-500')}
-                    onClick={() => setShowGreeksAI(v => !v)}
-                    disabled={tickers.length === 0}
-                    title="AI Portfolio Greeks Advisor"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    AI Greeks Advisor
-                  </Button>
+                  <div className="relative inline-flex">
+                    <Button
+                      variant={showGreeksAI ? 'default' : 'outline'}
+                      size="sm"
+                      className={cn('h-7 text-xs gap-1.5', showGreeksAI && 'bg-violet-600 hover:bg-violet-700 border-violet-500')}
+                      onClick={() => { setShowGreeksAI(v => !v); setGreeksJustLoaded(false); }}
+                      disabled={tickers.length === 0}
+                      title="AI Portfolio Greeks Advisor"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      AI Greeks Advisor
+                    </Button>
+                    {greeksJustLoaded && !showGreeksAI && (
+                      <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-500" />
+                      </span>
+                    )}
+                  </div>
                   <div className="w-px h-4 bg-border/50" />
                   <Button
                     variant={viewMode === 'delta' ? 'default' : 'outline'}

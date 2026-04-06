@@ -3548,4 +3548,82 @@ ${vix ? `With VIX at ${vix.toFixed(2)}, explain how the current IV environment a
           : 'Unable to generate response.';
       return { reply };
     }),
+
+  aiSellCallAdvisor: protectedProcedure
+    .input(z.object({
+      symbol: z.string(),
+      account: z.string(),
+      strike: z.number(),
+      expiration: z.string(),
+      dte: z.number(),
+      delta: z.number(),
+      mid: z.number(),
+      totalPremium: z.number(),
+      weeklyReturn: z.number(),
+      currentPrice: z.number(),
+      quantity: z.number(),
+      aiScore: z.number().optional(),
+      aiRationale: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('./_core/llm');
+      const systemPrompt = `You are a professional options income strategist specializing in covered calls (CC). Analyze this covered call opportunity and provide actionable guidance for a retail options seller.
+
+Respond with these sections:
+## Recommendation
+Clear SELL / SKIP / WAIT verdict with one-sentence rationale.
+
+## Opportunity Assessment
+Evaluate the premium quality (weekly return %, total premium), strike placement vs current price, and DTE suitability for income generation.
+
+## Risk Factors
+Identify key risks: assignment risk at the strike, IV environment, earnings proximity, and any concerns about the delta level.
+
+## Income Strategy
+Advise on whether this fits a systematic CC income strategy, ideal position sizing, and any adjustments to consider (strike, DTE, or quantity).
+
+## Key Insight
+One actionable takeaway in bold.`;
+
+      const userMessage = `Analyze this covered call opportunity:\n\nSymbol: ${input.symbol}\nAccount: ${input.account}\nCurrent Stock Price: $${input.currentPrice.toFixed(2)}\nStrike: $${input.strike}\nExpiration: ${input.expiration} (${input.dte} DTE)\nDelta: ${input.delta.toFixed(2)}\nMid Premium: $${input.mid.toFixed(2)}\nTotal Premium (${input.quantity} contracts): $${input.totalPremium.toFixed(0)}\nWeekly Return: ${input.weeklyReturn.toFixed(2)}%${input.aiScore !== undefined ? `\nAI Score: ${input.aiScore}/100 \u2014 ${input.aiRationale ?? ''}` : ''}`;
+
+      const response = await invokeLLM({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
+        ],
+      });
+      const rawContent = response.choices[0]?.message?.content;
+      const analysis = typeof rawContent === 'string'
+        ? rawContent
+        : Array.isArray(rawContent)
+          ? rawContent.map((c: any) => c.text || '').join('')
+          : 'Unable to generate analysis.';
+      return { analysis };
+    }),
+
+  aiSellCallAdvisorFollowUp: protectedProcedure
+    .input(z.object({
+      symbol: z.string(),
+      initialAnalysis: z.string(),
+      conversationHistory: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() })),
+      userMessage: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('./_core/llm');
+      const response = await invokeLLM({
+        messages: [
+          { role: 'system', content: `You are a professional options income strategist specializing in covered calls. The user is asking follow-up questions about a covered call opportunity on ${input.symbol}.\n\nInitial Analysis:\n${input.initialAnalysis}` },
+          ...input.conversationHistory.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+          { role: 'user', content: input.userMessage },
+        ],
+      });
+      const rawContent = response.choices[0]?.message?.content;
+      const reply = typeof rawContent === 'string'
+        ? rawContent
+        : Array.isArray(rawContent)
+          ? rawContent.map((c: any) => c.text || '').join('')
+          : 'Unable to generate response.';
+      return { reply };
+    }),
 });

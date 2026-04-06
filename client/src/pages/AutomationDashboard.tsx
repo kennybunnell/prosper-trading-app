@@ -43,6 +43,7 @@ import InboxPage from './Inbox';
 import { skipToken } from '@tanstack/react-query';
 import { AIStrategyReviewPanel, ReviewPosition, StrategyType } from '@/components/AIStrategyReviewPanel';
 import { AIRollAdvisorPanel, RollAdvisorPosition } from '@/components/AIRollAdvisorPanel';
+import { AISellCallAdvisorPanel, SellCallCandidate } from '@/components/AISellCallAdvisorPanel';
 import { AIRowIcon } from '@/components/AIRowIcon';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -390,6 +391,8 @@ export default function AutomationDashboard() {
   const [aiReviewPositions, setAiReviewPositions] = useState<ReviewPosition[]>([]);
   // AI Roll Advisor panel state
   const [aiRollAdvisorPosition, setAiRollAdvisorPosition] = useState<RollAdvisorPosition | null>(null);
+  // AI Sell Call Advisor panel state
+  const [aiSellCallCandidate, setAiSellCallCandidate] = useState<SellCallCandidate | null>(null);
   // Ref to always-current visibleScanResults — used by handleOpenOrderPreview
   // (which is declared before the useMemo that computes visibleScanResults)
   const visibleScanResultsRef = useRef<ScanResult[]>([]);
@@ -3804,6 +3807,7 @@ export default function AutomationDashboard() {
                           <th className="text-right py-2 pr-2">Total</th>
                           <th className="text-right py-2 pr-2">Wkly%</th>
                           {hasAiScores && <th className="text-left py-2 pl-3" style={{minWidth:'220px'}}>AI Score &amp; Rationale</th>}
+                          <th className="text-center py-2 pl-2 w-8">AI</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -3879,6 +3883,26 @@ export default function AutomationDashboard() {
                                   )}
                                 </td>
                               )}
+                              <td className="py-2 pl-2 text-center">
+                                <AIRowIcon
+                                  onClick={() => setAiSellCallCandidate({
+                                    symbol: r.symbol,
+                                    account: r.account,
+                                    strike: r.strike,
+                                    expiration: new Date(r.expiration).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }),
+                                    dte: r.dte,
+                                    delta: r.delta,
+                                    mid: r.mid,
+                                    totalPremium: r.totalPremium,
+                                    weeklyReturn: r.weeklyReturn,
+                                    currentPrice: r.currentPrice,
+                                    quantity: r.quantity,
+                                    aiScore: r.aiScore,
+                                    aiRationale: r.aiRationale,
+                                  })}
+                                  title={`AI analysis for ${r.symbol} covered call`}
+                                />
+                              </td>
                             </tr>
                           );
                         })}
@@ -4204,6 +4228,14 @@ export default function AutomationDashboard() {
         <AIRollAdvisorPanel
           position={aiRollAdvisorPosition}
           onClose={() => setAiRollAdvisorPosition(null)}
+        />
+      )}
+
+      {/* AI Sell Call Advisor Panel — per-CC-candidate slide-out overlay */}
+      {aiSellCallCandidate && (
+        <AISellCallAdvisorPanel
+          candidate={aiSellCallCandidate}
+          onClose={() => setAiSellCallCandidate(null)}
         />
       )}
 

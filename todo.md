@@ -8874,3 +8874,12 @@ ROC Fix Mar 18 2026
 - [x] Move AI Greeks Advisor panel from bottom of heatmap tab to inline position between legend row and heat map tiles
 - [x] Remove standalone Card wrapper; use inline violet-bordered section for tighter integration
 - [x] TypeScript: 0 errors
+
+## Three Feature Additions (Apr 5, 2026)
+- [x] Auto-trigger pulsing dot on AI Greeks Advisor button when Greeks finish loading (useEffect watches phase + tickers.length)
+- [x] Clicking AI Greeks Advisor button dismisses the pulsing dot
+- [x] Add Net Gamma as fifth stat card to top stats bar in Portfolio Command Center (grid updated to 5 columns)
+- [x] Add AI sparkle buttons (AIRowIcon) to each row in Sell Calls tab CC scan results table
+- [x] Create AISellCallAdvisorPanel component with auto-analysis, follow-up conversation, violet color scheme
+- [x] Add aiSellCallAdvisor and aiSellCallAdvisorFollowUp tRPC procedures to routers-automation.ts
+- [x] TypeScript: 0 errors
