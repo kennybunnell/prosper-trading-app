@@ -8883,3 +8883,11 @@ ROC Fix Mar 18 2026
 - [x] Create AISellCallAdvisorPanel component with auto-analysis, follow-up conversation, violet color scheme
 - [x] Add aiSellCallAdvisor and aiSellCallAdvisorFollowUp tRPC procedures to routers-automation.ts
 - [x] TypeScript: 0 errors
+
+## Greeks AI Advisor UX Enhancements (Apr 5, 2026)
+- [x] Auto-launch analysis when AI Greeks Advisor button is clicked (no separate generate step)
+- [x] Add structured action items extraction from AI response (separate JSON schema call)
+- [x] Display action items as clickable cards at top of AI Greeks Advisor panel
+- [x] Each action card shows: priority badge (HIGH/MEDIUM/LOW), action title, description, and navigation link
+- [x] Navigation links route to relevant app pages (Daily Actions, Portfolio, Roll Positions, etc.)
+- [x] TypeScript: 0 errors

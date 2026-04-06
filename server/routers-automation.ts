@@ -3517,7 +3517,74 @@ ${vix ? `With VIX at ${vix.toFixed(2)}, explain how the current IV environment a
         : Array.isArray(rawContent)
           ? rawContent.map((c: any) => c.text || '').join('')
           : 'Unable to generate analysis.';
-      return { analysis };
+
+      // Second call: extract structured action items from the analysis
+      const actionItemsPrompt = `Based on the following portfolio Greeks analysis, extract 3-6 specific, actionable items the trader should act on TODAY. For each action item, determine which page/section of the trading app it belongs to.
+
+Available pages:
+- "daily-actions" = Daily Actions page (automation scans: BTC close-for-profit, CC sell calls, roll positions)
+- "portfolio" = Portfolio Command Center (Greeks heat map, position overview)
+- "roll-positions" = Roll Positions tab in Daily Actions (roll expiring or losing positions)
+- "sell-calls" = Sell Calls tab in Daily Actions (sell covered calls on stock holdings)
+- "close-for-profit" = Close for Profit tab in Daily Actions (BTC positions at 50-90% profit)
+- "risk-monitor" = Risk Monitor tab in Portfolio Command Center
+
+Analysis:
+${analysis}
+
+Return a JSON array of action items. Each item must have:
+- priority: "high" | "medium" | "low"
+- title: short action title (max 8 words)
+- description: one sentence explaining what to do and why (max 120 chars)
+- page: one of the page keys above
+- symbol: specific ticker symbol if applicable, otherwise null`;
+
+      let actionItems: Array<{ priority: string; title: string; description: string; page: string; symbol: string | null }> = [];
+      try {
+        const actionResponse = await invokeLLMGreeks({
+          messages: [
+            { role: 'system', content: 'You are a trading action item extractor. Return only valid JSON.' },
+            { role: 'user', content: actionItemsPrompt },
+          ],
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'action_items',
+              strict: true,
+              schema: {
+                type: 'object',
+                properties: {
+                  items: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        priority: { type: 'string' },
+                        title: { type: 'string' },
+                        description: { type: 'string' },
+                        page: { type: 'string' },
+                        symbol: { type: ['string', 'null'] },
+                      },
+                      required: ['priority', 'title', 'description', 'page', 'symbol'],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ['items'],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+        const actionRaw = actionResponse.choices[0]?.message?.content;
+        const actionContent = typeof actionRaw === 'string' ? actionRaw : JSON.stringify(actionRaw);
+        const parsed = JSON.parse(actionContent) as { items: typeof actionItems };
+        actionItems = parsed.items ?? [];
+      } catch {
+        // If action item extraction fails, continue with empty array
+      }
+
+      return { analysis, actionItems };
     }),
 
   portfolioGreeksAdvisorFollowUp: protectedProcedure

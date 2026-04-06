@@ -1792,7 +1792,7 @@ export default function PortfolioCommandCenter() {
   const [activeTab, setActiveTab] = useState(initialTab);
 
   // Also respond to URL changes (e.g. navigating from Home dashboard badge)
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const t = params.get('tab');
@@ -1811,6 +1811,8 @@ export default function PortfolioCommandCenter() {
   const [greeksAIInput, setGreeksAIInput] = useState('');
   const [greeksAIConversation, setGreeksAIConversation] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [greeksAIFollowUpLoading, setGreeksAIFollowUpLoading] = useState(false);
+  type GreeksActionItem = { priority: string; title: string; description: string; page: string; symbol: string | null };
+  const [greeksAIActionItems, setGreeksAIActionItems] = useState<GreeksActionItem[]>([]);
   const greeksAdvisorMutation = trpc.automation.portfolioGreeksAdvisor.useMutation();
   const greeksAdvisorFollowUpMutation = trpc.automation.portfolioGreeksAdvisorFollowUp.useMutation();
   // Track whether Greeks just finished loading (for pulsing dot)
@@ -1972,7 +1974,47 @@ export default function PortfolioCommandCenter() {
                       variant={showGreeksAI ? 'default' : 'outline'}
                       size="sm"
                       className={cn('h-7 text-xs gap-1.5', showGreeksAI && 'bg-violet-600 hover:bg-violet-700 border-violet-500')}
-                      onClick={() => { setShowGreeksAI(v => !v); setGreeksJustLoaded(false); }}
+                      onClick={async () => {
+                        const opening = !showGreeksAI;
+                        setShowGreeksAI(v => !v);
+                        setGreeksJustLoaded(false);
+                        // Auto-launch analysis when opening and no analysis yet
+                        if (opening && !greeksAIAnalysis && !greeksAILoading && portfolio) {
+                          setGreeksAILoading(true);
+                          setGreeksAIActionItems([]);
+                          try {
+                            const result = await greeksAdvisorMutation.mutateAsync({
+                              portfolio: {
+                                netDelta: portfolio.netDelta,
+                                dailyTheta: portfolio.dailyTheta,
+                                netVega: portfolio.netVega,
+                                netGamma: portfolio.netGamma,
+                                maxConcentration: portfolio.maxConcentration,
+                                positionCount: portfolio.positionCount,
+                                totalPremiumAtRisk: portfolio.totalPremiumAtRisk,
+                              },
+                              tickers: tickers.map(t => ({
+                                symbol: t.symbol,
+                                netDelta: t.netDelta,
+                                dailyTheta: t.dailyTheta,
+                                netVega: t.netVega,
+                                netGamma: t.netGamma,
+                                avgDte: t.avgDte,
+                                avgIv: t.avgIv,
+                                premiumAtRisk: t.premiumAtRisk,
+                                contracts: t.contracts,
+                                strategies: t.strategies,
+                              })),
+                            });
+                            setGreeksAIAnalysis(result.analysis as string);
+                            if (result.actionItems) setGreeksAIActionItems(result.actionItems as GreeksActionItem[]);
+                          } catch {
+                            setGreeksAIAnalysis('Failed to generate analysis. Please try again.');
+                          } finally {
+                            setGreeksAILoading(false);
+                          }
+                        }
+                      }}
                       disabled={tickers.length === 0}
                       title="AI Portfolio Greeks Advisor"
                     >
@@ -2120,6 +2162,7 @@ export default function PortfolioCommandCenter() {
                           setGreeksAILoading(true);
                           setGreeksAIAnalysis(null);
                           setGreeksAIConversation([]);
+                          setGreeksAIActionItems([]);
                           try {
                             const result = await greeksAdvisorMutation.mutateAsync({
                               portfolio: {
@@ -2145,7 +2188,8 @@ export default function PortfolioCommandCenter() {
                               })),
                             });
                             setGreeksAIAnalysis(result.analysis as string);
-                          } catch (e) {
+                            if (result.actionItems) setGreeksAIActionItems(result.actionItems as GreeksActionItem[]);
+                          } catch {
                             setGreeksAIAnalysis('Failed to generate analysis. Please try again.');
                           } finally {
                             setGreeksAILoading(false);
@@ -2172,9 +2216,8 @@ export default function PortfolioCommandCenter() {
                   <div className="px-4 py-3 space-y-3">
                     {!greeksAIAnalysis && !greeksAILoading && (
                       <div className="text-center py-6 text-muted-foreground">
-                        <Sparkles className="w-7 h-7 mx-auto mb-2 text-violet-400/50" />
-                        <p className="text-sm">Click &ldquo;Analyze Portfolio Greeks&rdquo; to get a holistic risk assessment</p>
-                        <p className="text-xs mt-1 text-muted-foreground/60">Covers market context, portfolio state, and specific recommendations across all {tickers.length} tickers</p>
+                        <RefreshCw className="w-7 h-7 mx-auto mb-2 text-violet-400 animate-spin" />
+                        <p className="text-sm">Launching analysis...</p>
                       </div>
                     )}
                     {greeksAILoading && (
@@ -2185,6 +2228,71 @@ export default function PortfolioCommandCenter() {
                     )}
                     {greeksAIAnalysis && (
                       <div className="space-y-3">
+                        {/* Action Items Cards — shown at the very top */}
+                        {greeksAIActionItems.length > 0 && (() => {
+                          // Map page keys to navigable routes
+                          const pageRoutes: Record<string, string> = {
+                            'daily-actions': '/automation',
+                            'portfolio': '/portfolio?tab=heatmap',
+                            'roll-positions': '/automation?tab=step2-roll',
+                            'sell-calls': '/automation?tab=step3-cc',
+                            'close-for-profit': '/automation?tab=step1-close',
+                            'risk-monitor': '/portfolio?tab=safety',
+                          };
+                          const pageLabels: Record<string, string> = {
+                            'daily-actions': 'Daily Actions',
+                            'portfolio': 'Portfolio',
+                            'roll-positions': 'Roll Positions',
+                            'sell-calls': 'Sell Calls',
+                            'close-for-profit': 'Close for Profit',
+                            'risk-monitor': 'Risk Monitor',
+                          };
+                          const priorityConfig: Record<string, { border: string; badge: string; dot: string }> = {
+                            high: { border: 'border-red-500/40 hover:border-red-400/60', badge: 'bg-red-500/20 text-red-300 border-red-500/40', dot: 'bg-red-400' },
+                            medium: { border: 'border-amber-500/40 hover:border-amber-400/60', badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40', dot: 'bg-amber-400' },
+                            low: { border: 'border-blue-500/40 hover:border-blue-400/60', badge: 'bg-blue-500/20 text-blue-300 border-blue-500/40', dot: 'bg-blue-400' },
+                          };
+                          return (
+                            <div className="mb-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs font-semibold text-violet-300 uppercase tracking-wider">Action Items</span>
+                                <span className="text-[10px] text-muted-foreground/60">Click any card to navigate</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                {greeksAIActionItems.map((item, i) => {
+                                  const cfg = priorityConfig[item.priority] ?? priorityConfig.low;
+                                  const route = pageRoutes[item.page] ?? '/automation';
+                                  const label = pageLabels[item.page] ?? item.page;
+                                  return (
+                                    <button
+                                      key={i}
+                                      onClick={() => navigate(route)}
+                                      className={cn(
+                                        'text-left rounded-lg border bg-card/60 px-3 py-2.5 transition-all cursor-pointer hover:bg-card/90 group',
+                                        cfg.border
+                                      )}
+                                    >
+                                      <div className="flex items-start justify-between gap-2 mb-1">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className={cn('inline-block w-1.5 h-1.5 rounded-full shrink-0 mt-0.5', cfg.dot)} />
+                                          <span className="text-xs font-semibold text-foreground leading-tight">{item.title}</span>
+                                        </div>
+                                        <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded border shrink-0', cfg.badge)}>
+                                          {item.priority.toUpperCase()}
+                                        </span>
+                                      </div>
+                                      <p className="text-[10px] text-muted-foreground leading-snug mb-1.5">{item.description}</p>
+                                      <div className="flex items-center gap-1 text-[9px] text-violet-400/70 group-hover:text-violet-400 transition-colors">
+                                        <span>→</span>
+                                        <span>{label}{item.symbol ? ` · ${item.symbol}` : ''}</span>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
                         <div className="prose prose-invert prose-sm max-w-none text-sm leading-relaxed">
                           <Streamdown>{greeksAIAnalysis}</Streamdown>
                         </div>
