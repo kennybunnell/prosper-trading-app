@@ -8932,3 +8932,11 @@ ROC Fix Mar 18 2026
 - [x] Show fill probability label: Near Bid = Very Likely, Mid = Likely, Near Ask = Less Likely
 - [x] Wire limitPrice from slider through submitRollOrders server input schema
 - [x] TypeScript: 0 errors
+
+## Per-Row Continuous Slider in Roll Order Review Modal (Apr 5, 2026)
+- [ ] Add per-row sliderPos state map (keyed by roll item index) to RollOrderReviewModal
+- [ ] Add batch pricing buttons: Set All to Fill (0%), Set All to Mid (50%), Set All to Ask (100%), Reset All
+- [ ] Redesign table: collapse # col, merge QTY into SYMBOL, remove ACTION col, collapse PER CONTRACT to tooltip, move SCORE into ROLL TARGET badge
+- [ ] Add inline continuous slider per row with 5 labeled snap points (Bid/25%/Mid/75%/Ask) and live limit price display
+- [ ] Sync per-row slider with detail panel slider
+- [ ] Wire per-row limitPrice through to submitRollOrders per-order payload

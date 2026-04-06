@@ -197,9 +197,11 @@ type DetailPanelProps = {
   onUpdateCandidate: (positionId: string, patch: Partial<RollCandidateItem>) => void;
   onSubmitOne: (item: RollOrderItem, isDryRun: boolean) => Promise<void>;
   isSubmitting: boolean;
+  initialSliderPos?: number;
+  onSliderChange?: (positionId: string, pos: number) => void;
 };
 
-function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne, isSubmitting }: DetailPanelProps) {
+function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne, isSubmitting, initialSliderPos, onSliderChange }: DetailPanelProps) {
   const c = item.candidate;
   const isRoll = c.action === 'roll';
   const optionType: 'call' | 'put' = (item.strategy === 'CC' || item.strategy === 'BCS') ? 'call' : 'put';
@@ -237,10 +239,15 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
   const [prevStrike, setPrevStrike] = useState<number | undefined>(c.strike);
 
   // Bid/Ask continuum slider state (0 = bid/aggressive, 50 = mid, 100 = ask/max credit)
-  // Initialize at 50 (mid) when netBid/netAsk are available, otherwise leave at 50
-  const [sliderPos, setSliderPos] = useState(50);
-  // Reset slider to mid whenever the candidate changes
-  useEffect(() => { setSliderPos(50); }, [item.positionId, c.strike, c.expiration]);
+  // Initialize from the row-level slider position if provided, otherwise default to 50 (mid)
+  const [sliderPos, setSliderPos] = useState(initialSliderPos ?? 50);
+  // Sync from row when item changes or initialSliderPos changes
+  useEffect(() => { setSliderPos(initialSliderPos ?? 50); }, [item.positionId, c.strike, c.expiration, initialSliderPos]);
+  // Propagate detail panel slider changes back to the row-level slider
+  const handleDetailSliderChange = (pos: number) => {
+    setSliderPos(pos);
+    onSliderChange?.(item.positionId, pos);
+  };
 
   // Live stock price via tRPC
   const stockPriceQuery = trpc.automation.getUnderlyingPrice.useQuery(
@@ -887,7 +894,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                         max={100}
                         step={1}
                         value={sliderPos}
-                        onChange={e => setSliderPos(Number(e.target.value))}
+                        onChange={e => handleDetailSliderChange(Number(e.target.value))}
                         className="w-full h-2 rounded-full appearance-none cursor-pointer"
                         style={{
                           background: `linear-gradient(to right, #34d399 0%, #38bdf8 50%, #fbbf24 100%)`,
@@ -1233,28 +1240,52 @@ type RowProps = {
   isBestFit?: boolean;
   /** Score breakdown for the Best Fit winner */
   bestFitScores?: { premiumScore?: number; strikeScore?: number; dteScore?: number; bestFitScore?: number };
+  /** Per-row slider position 0=bid 50=mid 100=ask */
+  sliderPos: number;
+  onSliderChange: (pos: number) => void;
 };
 
-function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelect, onToggleCheck, onRemove, onMoveUp, onMoveDown, onSwap, onPriceChange, refreshedCredit, isBestFit, bestFitScores }: RowProps) {
-  const [priceInput, setPriceInput] = useState(
-    item.candidate.limitPrice !== undefined ? item.candidate.limitPrice.toFixed(2) : ''
-  );
+function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelect, onToggleCheck, onRemove, onMoveUp, onMoveDown, onSwap, onPriceChange, refreshedCredit, isBestFit, bestFitScores, sliderPos, onSliderChange }: RowProps) {
   const [swapOpen, setSwapOpen] = useState(false);
 
   const c = item.candidate;
   const isRoll = c.action === 'roll';
-  const netPerContract = isRoll ? c.netCredit : c.netPnl;
-  // BUG FIX: netCredit is per-contract dollars (already includes 100-share multiplier)
   const netTotal = calcNetTotal(item);
 
   const hasRefresh = refreshedCredit !== undefined && refreshedCredit !== null;
   const refreshDiff = hasRefresh && netTotal !== undefined ? refreshedCredit! - netTotal : null;
 
-  const handlePrice = (val: string) => {
-    setPriceInput(val);
-    const n = parseFloat(val);
-    onPriceChange(isNaN(n) ? undefined : n);
-  };
+  // ── Inline slider derived values ──────────────────────────────────────────
+  const hasSlider = isRoll && c.netBid !== undefined && c.netAsk !== undefined && c.netBid !== c.netAsk;
+  const rowLimitPrice = hasSlider
+    ? (() => {
+        const low = c.netBid!;
+        const high = c.netAsk!;
+        const raw = low + (sliderPos / 100) * (high - low);
+        return Math.round(raw / 5) * 5 / 100;
+      })()
+    : undefined;
+
+  // Sync slider-derived limitPrice into candidate whenever slider moves
+  const prevSliderRef = React.useRef(sliderPos);
+  React.useEffect(() => {
+    if (hasSlider && rowLimitPrice !== undefined && prevSliderRef.current !== sliderPos) {
+      prevSliderRef.current = sliderPos;
+      onPriceChange(rowLimitPrice);
+    }
+  }, [sliderPos, rowLimitPrice, hasSlider, onPriceChange]);
+
+  const fillColor = sliderPos <= 20 ? '#34d399'
+    : sliderPos <= 40 ? '#6ee7b7'
+    : sliderPos <= 60 ? '#38bdf8'
+    : sliderPos <= 80 ? '#fbbf24'
+    : '#f87171';
+
+  const fillLabelShort = sliderPos <= 20 ? 'Fast Fill'
+    : sliderPos <= 40 ? 'Likely'
+    : sliderPos <= 60 ? 'Mid'
+    : sliderPos <= 80 ? 'Slow'
+    : 'Max Credit';
 
   return (
     <tr
@@ -1271,10 +1302,13 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
           className="h-3.5 w-3.5 rounded accent-orange-500 cursor-pointer"
         />
       </td>
-      <td className="px-2 py-2.5 text-center text-xs text-muted-foreground font-mono w-8">{index + 1}</td>
       <td className="px-2 py-2.5 w-14"><StratBadge s={item.strategy} /></td>
-      <td className="px-2 py-2.5 w-20"><span className="font-semibold text-base">{item.symbol}</span></td>
-      <td className="px-2 py-2.5 text-center w-10"><span className="text-xs font-mono text-muted-foreground">{item.quantity}x</span></td>
+      <td className="px-2 py-2.5 w-24">
+        <div className="flex items-center gap-1">
+          <span className="font-semibold text-base">{item.symbol}</span>
+          <span className="text-[10px] font-mono text-muted-foreground/60">{item.quantity}x</span>
+        </div>
+      </td>
       <td className="px-2 py-2.5 w-36">
         <div className="text-xs font-mono leading-tight">
           <span className="text-muted-foreground">${item.currentStrike.toFixed(0)}</span>
@@ -1283,7 +1317,6 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
           <span className="text-muted-foreground/40 ml-1">({item.currentDte}d)</span>
         </div>
       </td>
-      <td className="px-2 py-2.5 w-16"><ActionBadge a={c.action} /></td>
       <td className="px-2 py-2.5 w-40">
         <div className="flex flex-col gap-0.5">
           {isBestFit && (
@@ -1338,42 +1371,73 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
               <span className="opacity-60 mx-1">·</span>
               <span>{c.expiration.slice(5)}</span>
               <span className="opacity-40 ml-1">({c.dte}d)</span>
+              <span className="ml-1.5 text-muted-foreground/40 text-[9px]">#{c.score}</span>
             </div>
           ) : (
             <span className="text-xs text-muted-foreground/50 italic">close only</span>
           )}
         </div>
       </td>
-      <td className="px-2 py-2.5 w-28 text-right">
-        <CreditChip value={netPerContract} />
-      </td>
-      <td className="px-2 py-2.5 w-40 text-right">
-        <div className="flex flex-col items-end gap-0.5">
-          <span className={`text-xs font-bold font-mono ${(netTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {fmtSigned(netTotal)}
-          </span>
-          {hasRefresh && (
-            <span className={`text-[10px] font-mono ${(refreshedCredit ?? 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-              Live: {fmtSigned(refreshedCredit)}
-              {refreshDiff !== null && Math.abs(refreshDiff) > 0.01 && (
-                <span className={`ml-1 ${refreshDiff > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  ({refreshDiff > 0 ? '+' : ''}{refreshDiff.toFixed(2)})
+      <td className="px-2 py-2.5 w-36 text-right">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex flex-col items-end gap-0.5 cursor-help">
+                <span className={`text-xs font-bold font-mono ${(netTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {fmtSigned(netTotal)}
                 </span>
-              )}
-            </span>
-          )}
-        </div>
+                {hasRefresh && (
+                  <span className={`text-[10px] font-mono ${(refreshedCredit ?? 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                    Live: {fmtSigned(refreshedCredit)}
+                    {refreshDiff !== null && Math.abs(refreshDiff) > 0.01 && (
+                      <span className={`ml-1 ${refreshDiff > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        ({refreshDiff > 0 ? '+' : ''}{refreshDiff.toFixed(2)})
+                      </span>
+                    )}
+                  </span>
+                )}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="text-xs">
+              Per contract: <span className="font-mono font-semibold">{fmtSigned(isRoll ? c.netCredit : c.netPnl)}</span>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </td>
-      <td className="px-2 py-2.5 w-20 text-center">
-        <span className="text-xs font-mono text-muted-foreground">{c.score}</span>
-      </td>
-      <td className="px-2 py-2.5 w-28" onClick={e => e.stopPropagation()}>
-        <Input
-          className="h-6 w-24 text-xs font-mono px-1.5 py-0 bg-background/50"
-          placeholder="auto"
-          value={priceInput}
-          onChange={e => handlePrice(e.target.value)}
-        />
+      {/* ── Inline Bid/Ask Slider ── */}
+      <td className="px-2 py-2.5 w-52" onClick={e => e.stopPropagation()}>
+        {hasSlider ? (
+          <div className="space-y-1">
+            {/* Snap point labels */}
+            <div className="flex justify-between text-[8px] text-muted-foreground/50 px-0.5">
+              <span>Bid</span>
+              <span>25%</span>
+              <span>Mid</span>
+              <span>75%</span>
+              <span>Ask</span>
+            </div>
+            {/* Slider track */}
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={sliderPos}
+              onChange={e => onSliderChange(Number(e.target.value))}
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+              style={{ background: `linear-gradient(to right, #34d399 0%, #38bdf8 50%, #fbbf24 100%)` }}
+            />
+            {/* Live price + fill label */}
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-medium" style={{ color: fillColor }}>{fillLabelShort}</span>
+              <span className={`text-[10px] font-mono font-bold ${(rowLimitPrice ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {rowLimitPrice !== undefined ? fmtSigned(rowLimitPrice) : fmtSigned(netTotal)}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground/40 italic">no spread data</span>
+        )}
       </td>
       <td className="px-2 py-2.5 w-36" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-0.5 relative">
@@ -1452,6 +1516,24 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
   const [liveCredits, setLiveCredits] = useState<Map<string, number | null>>(new Map());
+  // Per-row slider positions: 0=bid, 50=mid, 100=ask
+  const [rowSliderPositions, setRowSliderPositions] = useState<Map<string, number>>(() => new Map());
+
+  const getSliderPos = (positionId: string) => rowSliderPositions.get(positionId) ?? 50;
+  const setSliderPos = (positionId: string, pos: number) => {
+    setRowSliderPositions(prev => {
+      const next = new Map(prev);
+      next.set(positionId, pos);
+      return next;
+    });
+  };
+  const batchSetSlider = (pos: number) => {
+    setRowSliderPositions(() => {
+      const next = new Map<string, number>();
+      items.forEach(item => next.set(item.positionId, pos));
+      return next;
+    });
+  };
 
   const refreshMutation = trpc.automation.refreshRollPrices.useMutation({
     onSuccess: (data) => {
@@ -1478,6 +1560,8 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
     setRefreshedAt(null);
     // Initialize all rows as checked
     setCheckedIds(new Set(initialItems.map(i => i.positionId)));
+    // Reset all sliders to mid (50)
+    setRowSliderPositions(new Map());
   }, [initialItems]);
 
   const selectedItem = useMemo(() => items.find(i => i.positionId === selectedId) ?? null, [items, selectedId]);
@@ -1664,6 +1748,46 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
       {/* Body: table + optional detail panel */}
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          {/* Batch pricing toolbar */}
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-card/60 border-b border-border/30 shrink-0">
+            <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider mr-1">Set All:</span>
+            <button
+              onClick={() => batchSetSlider(5)}
+              className="px-2 py-0.5 rounded text-[10px] font-semibold border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+            >
+              ⚡ Fill Fast (Bid)
+            </button>
+            <button
+              onClick={() => batchSetSlider(25)}
+              className="px-2 py-0.5 rounded text-[10px] font-semibold border border-emerald-400/30 bg-emerald-400/5 text-emerald-300 hover:bg-emerald-400/15 transition-colors"
+            >
+              Near Bid (25%)
+            </button>
+            <button
+              onClick={() => batchSetSlider(50)}
+              className="px-2 py-0.5 rounded text-[10px] font-semibold border border-sky-500/40 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 transition-colors"
+            >
+              Mid (50%)
+            </button>
+            <button
+              onClick={() => batchSetSlider(75)}
+              className="px-2 py-0.5 rounded text-[10px] font-semibold border border-amber-500/30 bg-amber-500/5 text-amber-300 hover:bg-amber-500/15 transition-colors"
+            >
+              Near Ask (75%)
+            </button>
+            <button
+              onClick={() => batchSetSlider(100)}
+              className="px-2 py-0.5 rounded text-[10px] font-semibold border border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors"
+            >
+              Max Credit (Ask)
+            </button>
+            <button
+              onClick={() => batchSetSlider(50)}
+              className="px-2 py-0.5 rounded text-[10px] font-medium border border-border/40 bg-muted/20 text-muted-foreground hover:bg-muted/40 transition-colors ml-auto"
+            >
+              Reset All
+            </button>
+          </div>
           {sortKey !== 'none' && (
             <div className="flex items-center gap-2 px-4 py-1.5 bg-orange-500/5 border-b border-orange-500/20 text-xs text-orange-300 shrink-0">
               <ArrowUpDown className="h-3 w-3" />
@@ -1687,25 +1811,18 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
                         title={allChecked ? 'Deselect all' : 'Select all'}
                       />
                     </th>
-                    <th className="px-2 py-2 text-left w-8"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">#</span></th>
                     <th className="px-2 py-2 text-left w-14"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Strat</span></th>
-                    <th className="px-2 py-2 text-left w-20">
+                    <th className="px-2 py-2 text-left w-24">
                       <SortHeader label="Symbol" sortKey="symbol" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
                     </th>
-                    <th className="px-2 py-2 text-center w-10"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Qty</span></th>
                     <th className="px-2 py-2 text-left w-36">
                       <SortHeader label="Current (DTE)" sortKey="dte" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
                     </th>
-                    <th className="px-2 py-2 text-left w-16"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Action</span></th>
                     <th className="px-2 py-2 text-left w-40"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Roll Target</span></th>
-                    <th className="px-2 py-2 text-right w-28"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Per Contract</span></th>
-                    <th className="px-2 py-2 text-right w-40">
+                    <th className="px-2 py-2 text-right w-36">
                       <SortHeader label="Total" sortKey="total" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
                     </th>
-                    <th className="px-2 py-2 text-center w-20">
-                      <SortHeader label="Score" sortKey="score" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
-                    </th>
-                    <th className="px-2 py-2 text-left w-28"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Limit $</span></th>
+                    <th className="px-2 py-2 text-left w-52"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Limit Price · Bid ←→ Ask</span></th>
                     <th className="px-2 py-2 text-left w-36"><span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Controls</span></th>
                   </tr>
                 </thead>
@@ -1741,6 +1858,8 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
                           refreshedCredit={liveCredits.get(item.positionId)}
                           isBestFit={isBestFit}
                           bestFitScores={item.bestFitScores}
+                          sliderPos={getSliderPos(item.positionId)}
+                          onSliderChange={(pos) => setSliderPos(item.positionId, pos)}
                         />
                       );
                     })
@@ -1762,6 +1881,8 @@ export function RollOrderReviewModal({ open, onClose, items: initialItems, onSub
               await onSubmit([singleItem], isDryRun);
             }}
             isSubmitting={isSubmitting}
+            initialSliderPos={getSliderPos(selectedItem.positionId)}
+            onSliderChange={(positionId, pos) => setSliderPos(positionId, pos)}
           />
         )}
       </div>
