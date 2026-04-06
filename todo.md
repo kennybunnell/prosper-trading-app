@@ -8891,3 +8891,9 @@ ROC Fix Mar 18 2026
 - [x] Each action card shows: priority badge (HIGH/MEDIUM/LOW), action title, description, and navigation link
 - [x] Navigation links route to relevant app pages (Daily Actions, Portfolio, Roll Positions, etc.)
 - [x] TypeScript: 0 errors
+
+## Tab Reorder (Apr 5, 2026)
+- [x] Reorder Portfolio Command Center tabs: Heat Map, Screener, Portfolio Advisor, Position Analyzer, Risk Monitor
+- [x] Remove Paper Orders tab and its content
+- [x] Default landing tab changed to Heat Map
+- [x] TypeScript: 0 errors

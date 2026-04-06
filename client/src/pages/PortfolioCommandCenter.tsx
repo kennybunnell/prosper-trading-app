@@ -1787,7 +1787,7 @@ export default function PortfolioCommandCenter() {
       if (t === 'heatmap') return 'heatmap';
       if (t === 'screener') return 'screener';
     }
-    return 'screener';
+    return 'heatmap';
   })();
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -1913,30 +1913,26 @@ export default function PortfolioCommandCenter() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="screener" className="flex items-center gap-1.5 text-xs">
-            <ScanLine className="w-3.5 h-3.5" />
-            Screener
-          </TabsTrigger>
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="heatmap" className="flex items-center gap-1.5 text-xs">
             <Grid3X3 className="w-3.5 h-3.5" />
             Heat Map
           </TabsTrigger>
-          <TabsTrigger value="safety" className="flex items-center gap-1.5 text-xs">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            Risk Monitor
-          </TabsTrigger>
-          <TabsTrigger value="analyzer" className="flex items-center gap-1.5 text-xs">
-            <Dog className="w-3.5 h-3.5" />
-            Position Analyzer
+          <TabsTrigger value="screener" className="flex items-center gap-1.5 text-xs">
+            <ScanLine className="w-3.5 h-3.5" />
+            Screener
           </TabsTrigger>
           <TabsTrigger value="advisor" className="flex items-center gap-1.5 text-xs">
             <BookOpen className="w-3.5 h-3.5" />
             Portfolio Advisor
           </TabsTrigger>
-          <TabsTrigger value="paper-orders" className="flex items-center gap-1.5 text-xs">
-            <FileText className="w-3.5 h-3.5" />
-            Paper Orders
+          <TabsTrigger value="analyzer" className="flex items-center gap-1.5 text-xs">
+            <Dog className="w-3.5 h-3.5" />
+            Position Analyzer
+          </TabsTrigger>
+          <TabsTrigger value="safety" className="flex items-center gap-1.5 text-xs">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            Risk Monitor
           </TabsTrigger>
         </TabsList>
 
@@ -2526,9 +2522,7 @@ export default function PortfolioCommandCenter() {
         <TabsContent value="advisor">
           <PortfolioAdvisor />
         </TabsContent>
-        <TabsContent value="paper-orders">
-          <PaperOrdersTab />
-        </TabsContent>
+
       </Tabs>
 
       {/* AI Ticker Analysis Slide-over */}
