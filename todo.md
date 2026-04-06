@@ -8869,3 +8869,8 @@ ROC Fix Mar 18 2026
 - [x] Add portfolioGreeksAdvisorFollowUp tRPC procedure for conversation
 - [x] Add AI Greeks Advisor button to heat map header toolbar
 - [x] Add AI Greeks Advisor panel below heat map with full-portfolio analysis and follow-up prompt
+
+## AI Greeks Advisor Relocated (Apr 5, 2026)
+- [x] Move AI Greeks Advisor panel from bottom of heatmap tab to inline position between legend row and heat map tiles
+- [x] Remove standalone Card wrapper; use inline violet-bordered section for tighter integration
+- [x] TypeScript: 0 errors

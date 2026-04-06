@@ -2076,6 +2076,175 @@ export default function PortfolioCommandCenter() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* AI Greeks Advisor Panel — shown between legend and tiles */}
+              {showGreeksAI && portfolio && (
+                <div className="mb-4 rounded-lg border border-violet-500/30 bg-violet-950/20 overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-violet-500/20 bg-violet-900/10">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-violet-400" />
+                      <span className="text-sm font-semibold text-violet-300">Portfolio Greeks AI Advisor</span>
+                      <Badge variant="outline" className="text-[10px] border-violet-500/40 text-violet-400">Full Portfolio Analysis</Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700"
+                        onClick={async () => {
+                          if (!portfolio) return;
+                          setGreeksAILoading(true);
+                          setGreeksAIAnalysis(null);
+                          setGreeksAIConversation([]);
+                          try {
+                            const result = await greeksAdvisorMutation.mutateAsync({
+                              portfolio: {
+                                netDelta: portfolio.netDelta,
+                                dailyTheta: portfolio.dailyTheta,
+                                netVega: portfolio.netVega,
+                                netGamma: portfolio.netGamma,
+                                maxConcentration: portfolio.maxConcentration,
+                                positionCount: portfolio.positionCount,
+                                totalPremiumAtRisk: portfolio.totalPremiumAtRisk,
+                              },
+                              tickers: tickers.map(t => ({
+                                symbol: t.symbol,
+                                netDelta: t.netDelta,
+                                dailyTheta: t.dailyTheta,
+                                netVega: t.netVega,
+                                netGamma: t.netGamma,
+                                avgDte: t.avgDte,
+                                avgIv: t.avgIv,
+                                premiumAtRisk: t.premiumAtRisk,
+                                contracts: t.contracts,
+                                strategies: t.strategies,
+                              })),
+                            });
+                            setGreeksAIAnalysis(result.analysis as string);
+                          } catch (e) {
+                            setGreeksAIAnalysis('Failed to generate analysis. Please try again.');
+                          } finally {
+                            setGreeksAILoading(false);
+                          }
+                        }}
+                        disabled={greeksAILoading}
+                      >
+                        {greeksAILoading ? (
+                          <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analyzing...</>
+                        ) : (
+                          <><Sparkles className="w-3.5 h-3.5" /> {greeksAIAnalysis ? 'Re-analyze' : 'Analyze Portfolio Greeks'}</>
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowGreeksAI(false)}
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="px-4 py-3 space-y-3">
+                    {!greeksAIAnalysis && !greeksAILoading && (
+                      <div className="text-center py-6 text-muted-foreground">
+                        <Sparkles className="w-7 h-7 mx-auto mb-2 text-violet-400/50" />
+                        <p className="text-sm">Click &ldquo;Analyze Portfolio Greeks&rdquo; to get a holistic risk assessment</p>
+                        <p className="text-xs mt-1 text-muted-foreground/60">Covers market context, portfolio state, and specific recommendations across all {tickers.length} tickers</p>
+                      </div>
+                    )}
+                    {greeksAILoading && (
+                      <div className="text-center py-6">
+                        <RefreshCw className="w-7 h-7 mx-auto mb-2 text-violet-400 animate-spin" />
+                        <p className="text-sm text-muted-foreground">Analyzing portfolio Greeks...</p>
+                      </div>
+                    )}
+                    {greeksAIAnalysis && (
+                      <div className="space-y-3">
+                        <div className="prose prose-invert prose-sm max-w-none text-sm leading-relaxed">
+                          <Streamdown>{greeksAIAnalysis}</Streamdown>
+                        </div>
+                        {greeksAIConversation.length > 0 && (
+                          <div className="space-y-3 border-t border-border/40 pt-3">
+                            {greeksAIConversation.map((msg, i) => (
+                              <div key={i} className={cn('flex gap-2', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+                                <div className={cn(
+                                  'max-w-[85%] rounded-lg px-3 py-2 text-sm',
+                                  msg.role === 'user'
+                                    ? 'bg-violet-600/20 text-violet-100 border border-violet-500/30'
+                                    : 'bg-card border border-border/50 text-foreground'
+                                )}>
+                                  {msg.role === 'assistant' ? <Streamdown>{msg.content}</Streamdown> : msg.content}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex gap-2 pt-2 border-t border-border/40">
+                          <Textarea
+                            placeholder="Ask a follow-up question about your portfolio Greeks..."
+                            value={greeksAIInput}
+                            onChange={e => setGreeksAIInput(e.target.value)}
+                            onKeyDown={async e => {
+                              if (e.key === 'Enter' && !e.shiftKey && greeksAIInput.trim() && !greeksAIFollowUpLoading) {
+                                e.preventDefault();
+                                const userMsg = greeksAIInput.trim();
+                                setGreeksAIInput('');
+                                setGreeksAIFollowUpLoading(true);
+                                const newConv = [...greeksAIConversation, { role: 'user' as const, content: userMsg }];
+                                setGreeksAIConversation(newConv);
+                                try {
+                                  const portfolioCtx = `Net Delta: ${portfolio.netDelta.toFixed(1)}, Daily Theta: +$${portfolio.dailyTheta.toFixed(2)}, Net Vega: ${portfolio.netVega.toFixed(2)}, Net Gamma: ${portfolio.netGamma.toFixed(4)}, ${tickers.length} tickers`;
+                                  const result = await greeksAdvisorFollowUpMutation.mutateAsync({
+                                    portfolioContext: portfolioCtx,
+                                    initialAnalysis: greeksAIAnalysis,
+                                    conversationHistory: greeksAIConversation,
+                                    userMessage: userMsg,
+                                  });
+                                  setGreeksAIConversation([...newConv, { role: 'assistant', content: result.reply as string }]);
+                                } catch {
+                                  setGreeksAIConversation([...newConv, { role: 'assistant', content: 'Failed to generate response.' }]);
+                                } finally {
+                                  setGreeksAIFollowUpLoading(false);
+                                }
+                              }
+                            }}
+                            className="flex-1 min-h-[60px] text-sm resize-none bg-background/50 border-border/50 focus:border-violet-500/50"
+                            disabled={greeksAIFollowUpLoading}
+                          />
+                          <Button
+                            size="sm"
+                            className="self-end h-9 px-3 bg-violet-600 hover:bg-violet-700"
+                            disabled={!greeksAIInput.trim() || greeksAIFollowUpLoading}
+                            onClick={async () => {
+                              const userMsg = greeksAIInput.trim();
+                              if (!userMsg) return;
+                              setGreeksAIInput('');
+                              setGreeksAIFollowUpLoading(true);
+                              const newConv = [...greeksAIConversation, { role: 'user' as const, content: userMsg }];
+                              setGreeksAIConversation(newConv);
+                              try {
+                                const portfolioCtx = `Net Delta: ${portfolio.netDelta.toFixed(1)}, Daily Theta: +$${portfolio.dailyTheta.toFixed(2)}, Net Vega: ${portfolio.netVega.toFixed(2)}, Net Gamma: ${portfolio.netGamma.toFixed(4)}, ${tickers.length} tickers`;
+                                const result = await greeksAdvisorFollowUpMutation.mutateAsync({
+                                  portfolioContext: portfolioCtx,
+                                  initialAnalysis: greeksAIAnalysis,
+                                  conversationHistory: greeksAIConversation,
+                                  userMessage: userMsg,
+                                });
+                                setGreeksAIConversation([...newConv, { role: 'assistant', content: result.reply as string }]);
+                              } catch {
+                                setGreeksAIConversation([...newConv, { role: 'assistant', content: 'Failed to generate response.' }]);
+                              } finally {
+                                setGreeksAIFollowUpLoading(false);
+                              }
+                            }}
+                          >
+                            {greeksAIFollowUpLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               <HeatMapGrid
                 tickers={tickers}
                 phase={phase}
@@ -2210,181 +2379,6 @@ export default function PortfolioCommandCenter() {
             </Card>
           )}
 
-          {/* AI Greeks Advisor Panel */}
-          {showGreeksAI && portfolio && (
-            <Card className="bg-card/50 backdrop-blur border-violet-500/30">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Sparkles className="w-5 h-5 text-violet-400" />
-                    Portfolio Greeks AI Advisor
-                    <Badge variant="outline" className="text-[10px] border-violet-500/40 text-violet-400">
-                      Full Portfolio Analysis
-                    </Badge>
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      className="h-7 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700"
-                      onClick={async () => {
-                        if (!portfolio) return;
-                        setGreeksAILoading(true);
-                        setGreeksAIAnalysis(null);
-                        setGreeksAIConversation([]);
-                        try {
-                          const result = await greeksAdvisorMutation.mutateAsync({
-                            portfolio: {
-                              netDelta: portfolio.netDelta,
-                              dailyTheta: portfolio.dailyTheta,
-                              netVega: portfolio.netVega,
-                              netGamma: portfolio.netGamma,
-                              maxConcentration: portfolio.maxConcentration,
-                              positionCount: portfolio.positionCount,
-                              totalPremiumAtRisk: portfolio.totalPremiumAtRisk,
-                            },
-                            tickers: tickers.map(t => ({
-                              symbol: t.symbol,
-                              netDelta: t.netDelta,
-                              dailyTheta: t.dailyTheta,
-                              netVega: t.netVega,
-                              netGamma: t.netGamma,
-                              avgDte: t.avgDte,
-                              avgIv: t.avgIv,
-                              premiumAtRisk: t.premiumAtRisk,
-                              contracts: t.contracts,
-                              strategies: t.strategies,
-                            })),
-                          });
-                          setGreeksAIAnalysis(result.analysis as string);
-                        } catch (e) {
-                          setGreeksAIAnalysis('Failed to generate analysis. Please try again.');
-                        } finally {
-                          setGreeksAILoading(false);
-                        }
-                      }}
-                      disabled={greeksAILoading}
-                    >
-                      {greeksAILoading ? (
-                        <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analyzing...</>
-                      ) : (
-                        <><Sparkles className="w-3.5 h-3.5" /> {greeksAIAnalysis ? 'Re-analyze' : 'Analyze Portfolio Greeks'}</>
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                      onClick={() => setShowGreeksAI(false)}
-                    >
-                      ×
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {!greeksAIAnalysis && !greeksAILoading && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Sparkles className="w-8 h-8 mx-auto mb-2 text-violet-400/50" />
-                    <p className="text-sm">Click &ldquo;Analyze Portfolio Greeks&rdquo; to get a holistic risk assessment</p>
-                    <p className="text-xs mt-1 text-muted-foreground/60">Analyzes Delta, Theta, Gamma, Vega across all {tickers.length} tickers</p>
-                  </div>
-                )}
-                {greeksAILoading && (
-                  <div className="text-center py-8">
-                    <RefreshCw className="w-8 h-8 mx-auto mb-2 text-violet-400 animate-spin" />
-                    <p className="text-sm text-muted-foreground">Analyzing portfolio Greeks...</p>
-                  </div>
-                )}
-                {greeksAIAnalysis && (
-                  <div className="space-y-4">
-                    <div className="prose prose-invert prose-sm max-w-none text-sm leading-relaxed">
-                      <Streamdown>{greeksAIAnalysis}</Streamdown>
-                    </div>
-                    {/* Conversation history */}
-                    {greeksAIConversation.length > 0 && (
-                      <div className="space-y-3 border-t border-border/40 pt-4">
-                        {greeksAIConversation.map((msg, i) => (
-                          <div key={i} className={cn('flex gap-2', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
-                            <div className={cn(
-                              'max-w-[85%] rounded-lg px-3 py-2 text-sm',
-                              msg.role === 'user'
-                                ? 'bg-violet-600/20 text-violet-100 border border-violet-500/30'
-                                : 'bg-card border border-border/50 text-foreground'
-                            )}>
-                              {msg.role === 'assistant' ? <Streamdown>{msg.content}</Streamdown> : msg.content}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {/* Follow-up prompt */}
-                    <div className="flex gap-2 pt-2 border-t border-border/40">
-                      <Textarea
-                        placeholder="Ask a follow-up question about your portfolio Greeks..."
-                        value={greeksAIInput}
-                        onChange={e => setGreeksAIInput(e.target.value)}
-                        onKeyDown={async e => {
-                          if (e.key === 'Enter' && !e.shiftKey && greeksAIInput.trim() && !greeksAIFollowUpLoading) {
-                            e.preventDefault();
-                            const userMsg = greeksAIInput.trim();
-                            setGreeksAIInput('');
-                            setGreeksAIFollowUpLoading(true);
-                            const newConv = [...greeksAIConversation, { role: 'user' as const, content: userMsg }];
-                            setGreeksAIConversation(newConv);
-                            try {
-                              const portfolioCtx = `Net Delta: ${portfolio.netDelta.toFixed(1)}, Daily Theta: +$${portfolio.dailyTheta.toFixed(2)}, Net Vega: ${portfolio.netVega.toFixed(2)}, Net Gamma: ${portfolio.netGamma.toFixed(4)}, ${tickers.length} tickers`;
-                              const result = await greeksAdvisorFollowUpMutation.mutateAsync({
-                                portfolioContext: portfolioCtx,
-                                initialAnalysis: greeksAIAnalysis,
-                                conversationHistory: greeksAIConversation,
-                                userMessage: userMsg,
-                              });
-                              setGreeksAIConversation([...newConv, { role: 'assistant', content: result.reply as string }]);
-                            } catch {
-                              setGreeksAIConversation([...newConv, { role: 'assistant', content: 'Failed to generate response.' }]);
-                            } finally {
-                              setGreeksAIFollowUpLoading(false);
-                            }
-                          }
-                        }}
-                        className="flex-1 min-h-[60px] text-sm resize-none bg-background/50 border-border/50 focus:border-violet-500/50"
-                        disabled={greeksAIFollowUpLoading}
-                      />
-                      <Button
-                        size="sm"
-                        className="self-end h-9 px-3 bg-violet-600 hover:bg-violet-700"
-                        disabled={!greeksAIInput.trim() || greeksAIFollowUpLoading}
-                        onClick={async () => {
-                          const userMsg = greeksAIInput.trim();
-                          if (!userMsg) return;
-                          setGreeksAIInput('');
-                          setGreeksAIFollowUpLoading(true);
-                          const newConv = [...greeksAIConversation, { role: 'user' as const, content: userMsg }];
-                          setGreeksAIConversation(newConv);
-                          try {
-                            const portfolioCtx = `Net Delta: ${portfolio.netDelta.toFixed(1)}, Daily Theta: +$${portfolio.dailyTheta.toFixed(2)}, Net Vega: ${portfolio.netVega.toFixed(2)}, Net Gamma: ${portfolio.netGamma.toFixed(4)}, ${tickers.length} tickers`;
-                            const result = await greeksAdvisorFollowUpMutation.mutateAsync({
-                              portfolioContext: portfolioCtx,
-                              initialAnalysis: greeksAIAnalysis,
-                              conversationHistory: greeksAIConversation,
-                              userMessage: userMsg,
-                            });
-                            setGreeksAIConversation([...newConv, { role: 'assistant', content: result.reply as string }]);
-                          } catch {
-                            setGreeksAIConversation([...newConv, { role: 'assistant', content: 'Failed to generate response.' }]);
-                          } finally {
-                            setGreeksAIFollowUpLoading(false);
-                          }
-                        }}
-                      >
-                        {greeksAIFollowUpLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
 
         <TabsContent value="safety">
