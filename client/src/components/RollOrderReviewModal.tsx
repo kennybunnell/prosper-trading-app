@@ -466,7 +466,8 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
   // ── Bid/Ask Slider derived values ──────────────────────────────────────────
   // netBid = lowest credit (aggressive fill), netAsk = highest credit (harder fill)
   // sliderPos: 0 = bid, 50 = mid, 100 = ask
-  const hasSpread = isRoll && c.netBid !== undefined && c.netAsk !== undefined;
+  // Show slider for ALL roll types (CC, CSP, BPS, BCS, IC) whenever bid/ask data is available
+  const hasSpread = isRoll && c.netBid !== undefined && c.netAsk !== undefined && c.netBid !== c.netAsk;
   const sliderLimitPrice = hasSpread
     ? (() => {
         const low  = c.netBid!;   // most aggressive (bid side)
