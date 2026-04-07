@@ -8969,3 +8969,9 @@ ROC Fix Mar 18 2026
 - [x] Update both roll filter locations to respect overrideRolledPositions set
 - [x] Add "↺ Roll Again" button next to ✓ ROLLED badge — shows confirmation dialog, adds to override set, disables hide filter
 - [x] Add "↺ OVERRIDE" badge when override is active for a position
+
+## Bug Fix: BTC Close Order Price Override (Apr 7, 2026)
+- [x] Root cause identified: server was ignoring the user's slider price and recalculating its own limit price (fell back to stale close-price formula when Tradier returned 0/2 live quotes for SPXW options)
+- [x] Added optional `userLimitPrice` field to submitCloseOrders input schema
+- [x] Server now uses `userLimitPrice` directly (snapped to tick size) when provided, skipping the live-quote recalculation
+- [x] AutomationDashboard handleUnifiedSubmit BTC path now passes `o.premium` as `userLimitPrice` so the slider value is always honoured

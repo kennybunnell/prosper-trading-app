@@ -1085,6 +1085,8 @@ export default function AutomationDashboard() {
             isEstimated: o.isEstimated ?? false,
             spreadLongSymbol: o.spreadLongSymbol,
             spreadLongPrice: o.spreadLongPrice !== undefined ? String(o.spreadLongPrice) : undefined,
+            // Pass the user-adjusted slider price so the server honours it instead of recalculating
+            userLimitPrice: o.premium !== undefined && o.premium > 0 ? o.premium : undefined,
           };
         });
 

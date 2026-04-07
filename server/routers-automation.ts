@@ -1536,6 +1536,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             // Spread order fields (optional — present when closing a spread atomically)
             spreadLongSymbol: z.string().optional(),  // Long leg OCC symbol
             spreadLongPrice: z.string().optional(),   // Long leg close price (string)
+            userLimitPrice: z.number().optional(),    // User-set limit price from slider (overrides server calculation)
           })
         ),
         dryRun: z.boolean().optional().default(false),
@@ -1733,7 +1734,20 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             : 0;
 
           let limitPrice: number;
-          if (isSpreadOrder) {
+          if (order.userLimitPrice !== undefined && order.userLimitPrice > 0) {
+            // ── User explicitly set a limit price via the slider — honour it exactly ──
+            // Snap to tick size to satisfy Tastytrade's server-side validation.
+            const { snapToTick: snapTick } = await import('../shared/orderUtils');
+            limitPrice = snapTick(Math.max(0.01, order.userLimitPrice), order.symbol);
+            // For spread orders, determine net credit/debit direction from the user price.
+            // The user's slider already represents the net price, so we just need to know
+            // whether it's a credit or debit. We use the raw spread cost to determine direction.
+            if (isSpreadOrder) {
+              const rawNet = shortLegCostPerShare - longLegCreditPerShare;
+              (order as any)._netCreditSpread = rawNet < 0;
+            }
+            console.log(`[submitCloseOrders] Using user-set limit price $${limitPrice.toFixed(2)} for ${order.optionSymbol}`);
+          } else if (isSpreadOrder) {
             // Spread: use live short leg price minus live long leg credit
             const shortLegLivePrice = calcBtcLimitPrice(order.optionSymbol, shortLegCostPerShare);
             const longLegLiveQ = order.spreadLongSymbol ? liveQuoteMap.get(order.spreadLongSymbol) : null;
