@@ -9006,3 +9006,15 @@ ROC Fix Mar 18 2026
 - [x] Verify 2X STOP threshold uses net spread P&L — confirmed: currentValue is already net (short - long) in spreadDetection.ts
 - [x] Ensure the tastytrade order submission sends a spread combo order — confirmed: spreadLongSymbol triggers 2-leg combo in submitCloseOrders
 - [ ] Make stop-loss threshold configurable (1.5x-2.0x) per user preference (currently hardcoded at 2.0x in routers-rolls.ts)
+
+## BCS Close Modal Fixes (Apr 8, 2026)
+- [ ] Fix net close direction: BTC spread close must show net DEBIT (cost out), not net credit
+- [ ] Fix OCC date parsing: SPXW 260408C... should decode to Apr 8 2026, not Apr 7
+- [ ] Fix short leg price lookup: verify correct OCC symbol is fetched for the short leg
+- [ ] Fix Estimated Profit formula: should be openPremium - netCloseDebit (negative if closing at a loss)
+
+## Spread Close Bug Fixes (Apr 8, 2026)
+- [x] Bug 1: Fixed index option quote fetching — SPXW/NDX/XSP/RUT options now use 'index-option' API parameter instead of 'equity-option' in getOptionQuotesBatch; previously returned 0 quotes causing stale close-price fallback (~$69 instead of ~$227 for SPXW $6550 call)
+- [x] Bug 2: Net close cost sign inversion resolved automatically by Bug 1 fix — correct prices now produce positive netBTCCost (debit to close) instead of negative (false credit)
+- [x] Bug 3: Fixed DTE off-by-1-day — calcDTE in spreadDetection.ts now compares UTC midnight dates consistently; previously local-time 'today' vs UTC 'expDate' caused timezone-induced off-by-1 errors
+- [x] Bug 4: Estimated Profit now correct — resolves automatically from Bug 1+2 fix; shows negative P&L (red) for losing spreads instead of nonsensical positive profit

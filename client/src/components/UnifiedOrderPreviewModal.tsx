@@ -677,7 +677,11 @@ export function UnifiedOrderPreviewModal({
             longCredit = liveBid ?? (order.spreadLongPrice !== undefined ? order.spreadLongPrice : 0);
           }
           const netBTCCost = btcPrice - longCredit;
-          // Net cost can be negative (credit) for profitable closes — still add to sum
+          // Net cost is normally positive (debit to close).
+          // It can be negative only when the long leg is worth more than the short leg
+          // (e.g., a very profitable spread where short has decayed near zero but long retains value).
+          // With correct live quotes from the index-option API fix, this should always be positive
+          // for deep-ITM spreads. We allow negative to pass through so profitable closes show correctly.
           return sum + (netBTCCost * 100 * qty);
         }
         

@@ -666,15 +666,29 @@ export class TastytradeAPI {
 
   /**
    * Get option quotes for multiple symbols
-   * Uses the /market-data/by-type endpoint with equity-option parameters
+   * Uses the /market-data/by-type endpoint.
+   * IMPORTANT: Index options (SPXW, NDXP, XSP, NDX, RUT, etc.) MUST use the
+   * 'index-option' parameter type. Using 'equity-option' for these returns no data.
    */
   async getOptionQuotesBatch(symbols: string[]): Promise<Record<string, any>> {
+    // Index option underlyings that require 'index-option' parameter type
+    const INDEX_UNDERLYINGS = new Set(['SPX', 'SPXW', 'NDX', 'NDXP', 'RUT', 'MRUT', 'XSP', 'VIX', 'DJX', 'XND']);
+
+    // Helper: extract underlying ticker from OCC symbol (strip spaces, take leading alpha chars)
+    const getUnderlying = (sym: string): string => {
+      const clean = sym.replace(/\s/g, '');
+      const m = clean.match(/^([A-Z]+)/);
+      return m ? m[1] : '';
+    };
+
     try {
-      // Build query string with multiple equity-option parameters
-      // Example: ?equity-option=AAPL  260220C00150000&equity-option=MSFT  260220P00400000
+      // Build query string: index options use 'index-option', equity options use 'equity-option'
+      // Example: ?index-option=SPXW  260408C06550000&equity-option=AAPL  260220C00150000
       const params = new URLSearchParams();
       symbols.forEach(symbol => {
-        params.append('equity-option', symbol);
+        const underlying = getUnderlying(symbol);
+        const paramType = INDEX_UNDERLYINGS.has(underlying) ? 'index-option' : 'equity-option';
+        params.append(paramType, symbol);
       });
       
       console.log(`[Tastytrade] Requesting quotes for symbols:`, symbols);

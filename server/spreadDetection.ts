@@ -98,9 +98,12 @@ export interface SpreadPosition {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function calcDTE(expiration: string): number {
-  const expDate = new Date(expiration);
-  const today = new Date();
-  const diffMs = expDate.getTime() - today.getTime();
+  // Use UTC dates throughout to avoid timezone-induced off-by-1-day errors.
+  // new Date('2026-04-08') parses as UTC midnight; compare against today's UTC midnight.
+  const expDate = new Date(expiration); // UTC midnight on expiry date
+  const now = new Date();
+  const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const diffMs = expDate.getTime() - todayUTC.getTime();
   return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
 }
 
