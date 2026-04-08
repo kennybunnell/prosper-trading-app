@@ -3301,6 +3301,10 @@ export default function AutomationDashboard() {
                             const isSelected = selectedRollPositions.has(pos.positionId);
                             const selectedCandidate = rollCandidateSelections[pos.positionId];
                             const cachedCandidates = rollCandidatesCache[pos.positionId];
+                            // CLOSE/STOP rows are always selectable — they don't need a roll candidate
+                            const actionLabel = (pos as any).actionLabel as string | undefined;
+                            const isCloseRow = actionLabel === 'CLOSE' || actionLabel === 'STOP';
+                            const isCheckable = isCloseRow || !!selectedCandidate;
                             // Best Fit winner for this row (computed when candidates were loaded)
                             const bestFitWinnerForRow = bestFitCache[pos.positionId] ?? null;
                             const itmDepth = pos.metrics.itmDepth;
@@ -3333,12 +3337,12 @@ export default function AutomationDashboard() {
                                       checked={isSelected}
                                       onCheckedChange={(checked) => {
                                         const next = new Set(selectedRollPositions);
-                                        if (checked && selectedCandidate) next.add(pos.positionId);
+                                        if (checked && isCheckable) next.add(pos.positionId);
                                         else next.delete(pos.positionId); // always allow deselect
                                         setSelectedRollPositions(next);
                                       }}
-                                      // Only disable checking (not unchecking) — ghost selections must be clearable
-                                      disabled={!isSelected && !selectedCandidate}
+                                      // CLOSE/STOP rows are always checkable; roll rows need a loaded candidate
+                                      disabled={!isSelected && !isCheckable}
                                     />
                                   </td>
                                   {/* P&L Status + Action Label badges */}
@@ -3744,12 +3748,17 @@ export default function AutomationDashboard() {
                 const effectiveCount = effectiveSelected.length;
                 const rollCount = effectiveSelected.filter(k => rollCandidateSelections[k]?.action === 'roll').length;
                 const closeCount = effectiveSelected.filter(k => rollCandidateSelections[k]?.action === 'close').length;
-                // Close-flagged positions that are visible and not yet in the queue
-                const closeNowPositions = rollScanResults?.all.filter(pos => {
+                // CLOSE/STOP rows that are CHECKED by the user (selected but no roll candidate = close-only)
+                const checkedClosePositions = rollScanResults?.all.filter(pos => {
                   const al = (pos as any).actionLabel;
-                  return (al === 'CLOSE' || al === 'STOP') && !selectedRollPositions.has(pos.positionId);
+                  return (al === 'CLOSE' || al === 'STOP') && selectedRollPositions.has(pos.positionId);
                 }) ?? [];
-                if (effectiveCount === 0 && closeNowPositions.length === 0) return null;
+                // All CLOSE/STOP positions visible (for the footer count hint)
+                const allClosePositions = rollScanResults?.all.filter(pos => {
+                  const al = (pos as any).actionLabel;
+                  return al === 'CLOSE' || al === 'STOP';
+                }) ?? [];
+                if (effectiveCount === 0 && checkedClosePositions.length === 0) return null;
                 return (
                   <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-between gap-4">
                     <div>
@@ -3763,14 +3772,14 @@ export default function AutomationDashboard() {
                           <span className="text-xs text-orange-300/70 ml-3">· Review all details before submission</span>
                         </>
                       )}
-                      {closeNowPositions.length > 0 && (
+                      {checkedClosePositions.length > 0 && (
                         <span className="text-sm text-red-400 ml-2">
-                          {closeNowPositions.length} position{closeNowPositions.length !== 1 ? 's' : ''} flagged for immediate close
+                          {checkedClosePositions.length} of {allClosePositions.length} close-flagged position{checkedClosePositions.length !== 1 ? 's' : ''} selected
                         </span>
                       )}
                     </div>
                     <div className="flex gap-2">
-                      {effectiveCount > 0 && (
+                      {(effectiveCount > 0 || checkedClosePositions.length > 0) && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -3779,21 +3788,20 @@ export default function AutomationDashboard() {
                           Clear
                         </Button>
                       )}
-                      {closeNowPositions.length > 0 && (
+                      {checkedClosePositions.length > 0 && (
                         <Button
                           size="sm"
                           className="bg-red-700 hover:bg-red-800 text-white font-semibold"
                           onClick={() => {
-                            if (closeNowPositions.length === 0) return;
-                            // Open the first one; user can batch-close via the modal's Submit Another Batch
-                            // For now open the first flagged position's close modal
-                            handleOpenRollPositionClose(closeNowPositions[0]);
+                            if (checkedClosePositions.length === 0) return;
+                            // Open the first checked close position; user can use Submit Another Batch for the rest
+                            handleOpenRollPositionClose(checkedClosePositions[0]);
                           }}
                           disabled={killSwitchActive}
-                          title={`Open close order for ${closeNowPositions.length} position${closeNowPositions.length !== 1 ? 's' : ''} flagged for immediate close`}
+                          title={`Close ${checkedClosePositions.length} selected position${checkedClosePositions.length !== 1 ? 's' : ''}`}
                         >
                           <X className="h-4 w-4 mr-1" />
-                          Close Flagged ({closeNowPositions.length})
+                          Close Selected ({checkedClosePositions.length})
                         </Button>
                       )}
                       {effectiveCount > 0 && (

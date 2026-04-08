@@ -8993,3 +8993,9 @@ ROC Fix Mar 18 2026
 - [x] Rename Roll Positions tab to "Roll / Close Positions" in the Daily Actions stepper
 - [x] Add a "Close" filter pill to the Roll dashboard filter bar (alongside Loss / Even / Winners)
 - [x] Wire Close action to the existing BTC close flow (UnifiedOrderPreviewModal)
+
+## Roll/Close Checkbox Fix (Apr 8, 2026)
+- [x] Allow CLOSE/STOP rows to be checked without needing a roll candidate loaded
+- [x] Track a separate selectedClosePositions set for close-flagged rows
+- [x] Wire Close Flagged button to act only on the checked close positions
+- [x] Select-all checkbox in header should also select/deselect CLOSE/STOP rows when close filter is active
