@@ -1341,6 +1341,17 @@ export class TastytradeAPI {
 const userApiInstances = new Map<number, TastytradeAPI>();
 
 /**
+ * Evict the cached API instance for a user so the next call creates a fresh one.
+ * Call this whenever credentials are updated to avoid stale token reuse.
+ */
+export function clearUserInstance(userId: number): void {
+  if (userApiInstances.has(userId)) {
+    userApiInstances.delete(userId);
+    console.log(`[TastytradeAPI] Cleared cached instance for userId: ${userId}`);
+  }
+}
+
+/**
  * Get or create a per-user TastytradeAPI instance.
  * Each userId gets its own isolated instance with its own access token.
  * @param userId - The user's database ID. If omitted, returns a temporary anonymous instance.

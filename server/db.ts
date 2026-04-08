@@ -441,6 +441,26 @@ export async function loadAccessToken(userId: number): Promise<{
   };
 }
 
+/**
+ * Clear the stored access token for a user (call when credentials are updated/replaced).
+ * This forces a fresh token fetch on the next authentication attempt.
+ */
+export async function clearAccessToken(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const { apiCredentials } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  await db
+    .update(apiCredentials)
+    .set({
+      tastytradeAccessToken: null,
+      tastytradeAccessTokenExpiresAt: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(apiCredentials.userId, userId));
+  console.log(`[DB] Access token cleared for userId: ${userId}`);
+}
+
 export async function upsertApiCredentials(userId: number, credentials: { 
   tastytradeUsername?: string; 
   tastytradePassword?: string; 

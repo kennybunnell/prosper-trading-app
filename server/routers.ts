@@ -1528,8 +1528,19 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
           refreshTokenLength: input.tastytradeRefreshToken?.length || 0,
           refreshTokenStart: input.tastytradeRefreshToken?.substring(0, 50) || 'none',
         });
-        const { upsertApiCredentials } = await import('./db');
+        const { upsertApiCredentials, clearAccessToken } = await import('./db');
         await upsertApiCredentials(ctx.user.id, input);
+        
+        // If Tastytrade credentials were updated, evict the stale per-user API instance
+        // and clear the persisted access token so the next auth call gets a fresh token.
+        const tastytradeCredentialsChanged = !!(input.tastytradeClientSecret || input.tastytradeRefreshToken || input.tastytradeClientId);
+        if (tastytradeCredentialsChanged) {
+          const { clearUserInstance } = await import('./tastytrade');
+          clearUserInstance(ctx.user.id);
+          await clearAccessToken(ctx.user.id);
+          console.log('[Settings] Tastytrade credentials updated — cleared stale token and API instance for userId:', ctx.user.id);
+        }
+        
         console.log('[Settings] Credentials saved successfully');
         return { success: true };
       }),
@@ -1781,7 +1792,6 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       }),
      sync: protectedProcedure.mutation(async ({ ctx }) => {
       const { getApiCredentials, upsertTastytradeAccount, deleteRemovedTastytradeAccounts } = await import('./db');
-      const { getTastytradeAPI } = await import('./tastytrade');
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
         throw new Error('Tastytrade OAuth2 credentials not configured. Please add them in Settings.');
