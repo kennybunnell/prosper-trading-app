@@ -125,4 +125,89 @@ describe('rankBestFitCandidates', () => {
     const itmResult = result.find(r => r.candidate === itmCall)!;
     expect(otmResult.strikeScore).toBeGreaterThan(itmResult.strikeScore);
   });
+
+  // ── ITM Rescue Tests ──────────────────────────────────────────────────────
+
+  it('Strike Improvement Bonus: awards higher bonus to candidates that move strike furthest OTM for ITM CSP', () => {
+    // Stock at $500, current CSP strike at $510 (2% ITM)
+    // Use a deeply ITM scenario (10%+) so the adaptive band fully kicks in and the bonus is decisive
+    const smallImprove = makeRoll({ strike: 495, dte: 35, netCredit: 1.00 }); // rolls down a little
+    const bigImprove   = makeRoll({ strike: 450, dte: 35, netCredit: 1.00 }); // rolls down a lot (10% OTM)
+    const result = rankBestFitCandidates(
+      [smallImprove, bigImprove],
+      500,
+      true,
+      { currentItmDepthPct: 10, currentStrike: 560 } // 12% ITM — rescue scenario
+    );
+    const smallResult = result.find(r => r.candidate === smallImprove)!;
+    const bigResult   = result.find(r => r.candidate === bigImprove)!;
+    // bigImprove moves the strike much further OTM so it must have a higher bonus
+    expect(bigResult.strikeImprovementBonus).toBeGreaterThan(smallResult.strikeImprovementBonus);
+    // bigImprove should be the maximum bonus (20 pts)
+    expect(bigResult.strikeImprovementBonus).toBe(20);
+  });
+
+  it('Strike Improvement Bonus: awards higher bonus to CC candidates that move strike furthest up', () => {
+    // Stock at $500, current CC strike at $490 (2% ITM for a call)
+    const smallImprove = makeRoll({ strike: 495, dte: 35, netCredit: 1.00 });
+    const bigImprove   = makeRoll({ strike: 515, dte: 35, netCredit: 1.00 });
+    const result = rankBestFitCandidates(
+      [smallImprove, bigImprove],
+      500,
+      false, // CC
+      { currentItmDepthPct: 2, currentStrike: 490 }
+    );
+    const bigResult   = result.find(r => r.candidate === bigImprove)!;
+    const smallResult = result.find(r => r.candidate === smallImprove)!;
+    expect(bigResult.strikeImprovementBonus).toBeGreaterThan(smallResult.strikeImprovementBonus);
+    expect(result[0].candidate).toBe(bigImprove);
+  });
+
+  it('Adaptive OTM Band: deeply ITM position rewards near-OTM candidates instead of penalising them', () => {
+    // Stock at $500, position is 8% ITM (current strike $540 for a CSP)
+    // Candidate A: 1% OTM ($495) — would score poorly under standard 6.5% target
+    // Candidate B: 7% OTM ($465) — standard sweet spot
+    const nearOtm  = makeRoll({ strike: 495, dte: 35, netCredit: 1.00 }); // 1% OTM
+    const sweetOtm = makeRoll({ strike: 465, dte: 35, netCredit: 1.00 }); // 7% OTM
+
+    // Standard scoring (no ITM context)
+    const standardResult = rankBestFitCandidates([nearOtm, sweetOtm], 500, true);
+    const standardNear = standardResult.find(r => r.candidate === nearOtm)!;
+
+    // ITM-aware scoring
+    const itmResult = rankBestFitCandidates(
+      [nearOtm, sweetOtm],
+      500,
+      true,
+      { currentItmDepthPct: 8, currentStrike: 540 }
+    );
+    const itmNear = itmResult.find(r => r.candidate === nearOtm)!;
+
+    // The near-OTM candidate should score significantly better with ITM context
+    expect(itmNear.strikeScore).toBeGreaterThan(standardNear.strikeScore);
+  });
+
+  it('Strike Improvement Bonus is 0 when position is OTM (no ITM context)', () => {
+    const roll = makeRoll({ strike: 465, dte: 35, netCredit: 1.50 });
+    const result = rankBestFitCandidates([roll], 500, true); // no currentItmDepthPct
+    expect(result[0].strikeImprovementBonus).toBe(0);
+  });
+
+  it('composite score stays within 0–100 even with Strike Improvement Bonus applied', () => {
+    const candidates = [
+      makeRoll({ strike: 480, dte: 35, netCredit: 2.00 }),
+      makeRoll({ strike: 460, dte: 35, netCredit: 1.50 }),
+      makeRoll({ strike: 440, dte: 35, netCredit: 0.50 }),
+    ];
+    const result = rankBestFitCandidates(
+      candidates,
+      500,
+      true,
+      { currentItmDepthPct: 5, currentStrike: 530 }
+    );
+    for (const r of result) {
+      expect(r.bestFitScore).toBeGreaterThanOrEqual(0);
+      expect(r.bestFitScore).toBeLessThanOrEqual(100);
+    }
+  });
 });

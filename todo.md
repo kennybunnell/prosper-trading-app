@@ -8975,3 +8975,10 @@ ROC Fix Mar 18 2026
 - [x] Added optional `userLimitPrice` field to submitCloseOrders input schema
 - [x] Server now uses `userLimitPrice` directly (snapped to tick size) when provided, skipping the live-quote recalculation
 - [x] AutomationDashboard handleUnifiedSubmit BTC path now passes `o.premium` as `userLimitPrice` so the slider value is always honoured
+
+## Best Fit Scoring Improvements (Apr 8, 2026)
+- [x] Add Strike Improvement bonus to scoreSingleBestFit: when position is ITM, award up to +20 pts for candidates that move the strike furthest away from current price
+- [x] Adaptive OTM sweet-spot: when position is ITM, shift the targetOtmPct band to reward any OTM improvement rather than penalising candidates that don't reach the standard 6.5% target
+- [x] Add Credit+Direction filter toggle to Roll Dashboard UI: show only candidates that are (a) net credit AND (b) move strike further OTM than current position
+- [x] Pass itmDepth and currentStrike into BestFitConfig so scoreSingleBestFit can use them
+- [x] Update bestFit.test.ts to cover ITM rescue scenarios

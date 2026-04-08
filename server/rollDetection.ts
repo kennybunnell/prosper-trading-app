@@ -761,6 +761,13 @@ function scoreRollCandidate(
 //   2. Strike safety (OTM buffer from current price)  (default weight: 35%)
 //   3. DTE quality (sweet spot 30–45d)  (default weight: 25%)
 //
+// When the current position is ITM two additional adjustments activate:
+//   A. Strike Improvement Bonus — candidates that move the strike furthest
+//      away from the current price receive up to +20 pts on the strike score.
+//   B. Adaptive OTM Band — the targetOtmPct is shifted toward 0 so that any
+//      OTM improvement is rewarded rather than penalised for not reaching the
+//      standard 6.5% target.
+//
 // All three component scores are normalised 0–100 before weighting so that
 // no single factor dominates purely because of its numeric scale.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -780,25 +787,40 @@ export interface BestFitConfig {
   dteSweetMin?: number;
   /** DTE sweet spot upper bound (inclusive). Default 45 */
   dteSweetMax?: number;
+  /**
+   * Current position's ITM depth as a percentage (positive = ITM, negative = OTM).
+   * When provided and > 0, activates the Strike Improvement Bonus and Adaptive OTM Band.
+   * Calculated as: (underlyingPrice - strike) / underlyingPrice * 100 for puts,
+   *                (strike - underlyingPrice) / underlyingPrice * 100 for calls.
+   * Default undefined (standard scoring).
+   */
+  currentItmDepthPct?: number;
+  /**
+   * Current position's strike price. Used alongside currentItmDepthPct to measure
+   * how much each candidate improves the strike direction.
+   * Default undefined.
+   */
+  currentStrike?: number;
 }
 
 export interface BestFitResult {
   candidate: RollCandidate;
-  bestFitScore: number;       // 0–100 composite
-  premiumScore: number;       // 0–100 component
-  strikeScore: number;        // 0–100 component
-  dteScore: number;           // 0–100 component
-  rank: number;               // 1 = best
+  bestFitScore: number;          // 0–100 composite
+  premiumScore: number;          // 0–100 component
+  strikeScore: number;           // 0–100 component
+  dteScore: number;              // 0–100 component
+  strikeImprovementBonus: number; // 0–20 bonus applied when position is ITM
+  rank: number;                  // 1 = best
 }
 
 /**
  * Score a single roll candidate on the Best Fit composite.
  *
- * @param candidate   - The roll candidate to score
+ * @param candidate       - The roll candidate to score
  * @param underlyingPrice - Current underlying price (for OTM % calculation)
- * @param isPut       - true for CSP/BPS, false for CC/BCS
- * @param allCandidates - Full list of roll-only candidates for normalising premium
- * @param cfg         - Optional weight/target overrides
+ * @param isPut           - true for CSP/BPS, false for CC/BCS
+ * @param allCandidates   - Full list of roll-only candidates for normalising premium
+ * @param cfg             - Optional weight/target overrides (includes ITM context)
  */
 function scoreSingleBestFit(
   candidate: RollCandidate,
@@ -806,7 +828,7 @@ function scoreSingleBestFit(
   isPut: boolean,
   allRollCandidates: RollCandidate[],
   cfg: Required<BestFitConfig>
-): { premiumScore: number; strikeScore: number; dteScore: number; composite: number } {
+): { premiumScore: number; strikeScore: number; dteScore: number; strikeImprovementBonus: number; composite: number } {
   // ── 1. Premium Score ──────────────────────────────────────────────────────
   // Normalise net credit across all roll candidates: best credit = 100, worst = 0.
   // Debit rolls get a penalty but are not excluded outright.
@@ -826,11 +848,31 @@ function scoreSingleBestFit(
   // Bonus for meeting 3× rule
   if (candidate.meets3XRule) premiumScore = Math.min(100, premiumScore + 10);
 
-  // ── 2. Strike Safety Score ────────────────────────────────────────────────
+  // ── 2. Strike Safety Score (with ITM-aware adaptations) ───────────────────
   // Measure how far OTM the new strike is as a % of underlying price.
   // For CSP: otmPct = (underlyingPrice - strike) / underlyingPrice * 100
   // For CC:  otmPct = (strike - underlyingPrice) / underlyingPrice * 100
-  // Negative = ITM (bad). Score peaks at targetOtmPct ± otmBandPct.
+  // Negative = ITM (bad).
+  //
+  // When the current position is ITM (cfg.currentItmDepthPct > 0):
+  //   B. Adaptive OTM Band — shift the target OTM % toward 0 so that any
+  //      OTM improvement is rewarded rather than penalised for not reaching
+  //      the standard 6.5% target. The target is interpolated between 0 and
+  //      the standard target based on how deep ITM the position currently is.
+  const positionIsItm = (cfg.currentItmDepthPct ?? 0) > 0;
+  const itmDepth = cfg.currentItmDepthPct ?? 0;
+
+  // Adaptive target: when deeply ITM, lower the bar — even 1% OTM is a win.
+  // Interpolate: at itmDepth=0 → standard target; at itmDepth≥10% → target=0.5%
+  let effectiveTargetOtmPct = cfg.targetOtmPct;
+  let effectiveOtmBandPct = cfg.otmBandPct;
+  if (positionIsItm) {
+    const rescueFactor = Math.min(1, itmDepth / 10); // 0 at surface, 1 at 10%+ ITM
+    effectiveTargetOtmPct = cfg.targetOtmPct * (1 - rescueFactor) + 0.5 * rescueFactor;
+    // Widen the band proportionally so near-OTM candidates still score well
+    effectiveOtmBandPct = cfg.otmBandPct + rescueFactor * 4;
+  }
+
   let strikeScore = 0;
   if (candidate.strike !== undefined && underlyingPrice > 0) {
     const otmPct = isPut
@@ -841,17 +883,47 @@ function scoreSingleBestFit(
       // ITM — strong penalty, score 0–10 based on depth
       strikeScore = Math.max(0, 10 + otmPct * 2); // deeper ITM → lower score
     } else {
-      // OTM — bell curve centred on targetOtmPct
-      const distFromTarget = Math.abs(otmPct - cfg.targetOtmPct);
-      if (distFromTarget <= cfg.otmBandPct) {
+      // OTM — bell curve centred on effectiveTargetOtmPct
+      const distFromTarget = Math.abs(otmPct - effectiveTargetOtmPct);
+      if (distFromTarget <= effectiveOtmBandPct) {
         // Inside the sweet band → full score
         strikeScore = 100;
       } else {
         // Outside band — decay linearly; beyond 3× band → 0
-        const decay = Math.max(0, 1 - (distFromTarget - cfg.otmBandPct) / (cfg.otmBandPct * 3));
+        const decay = Math.max(0, 1 - (distFromTarget - effectiveOtmBandPct) / (effectiveOtmBandPct * 3));
         strikeScore = Math.round(decay * 100);
       }
     }
+  }
+
+  // ── A. Strike Improvement Bonus (ITM rescue only) ─────────────────────────
+  // When the current position is ITM, reward candidates that move the strike
+  // the furthest away from the current price (out and up for CC, out and down
+  // for CSP). The bonus is up to +20 pts, proportional to how much further OTM
+  // the candidate moves the strike relative to the best candidate in the pool.
+  let strikeImprovementBonus = 0;
+  if (positionIsItm && candidate.strike !== undefined && cfg.currentStrike !== undefined && underlyingPrice > 0) {
+    // Measure improvement: positive = moved further OTM vs current strike
+    // For CC: improvement = (newStrike - currentStrike) / underlyingPrice * 100
+    // For CSP: improvement = (currentStrike - newStrike) / underlyingPrice * 100
+    const improvement = isPut
+      ? ((cfg.currentStrike - candidate.strike) / underlyingPrice) * 100
+      : ((candidate.strike - cfg.currentStrike) / underlyingPrice) * 100;
+
+    // Normalise across all candidates: find the max improvement in the pool
+    const allImprovements = allRollCandidates
+      .filter(c => c.strike !== undefined)
+      .map(c => isPut
+        ? ((cfg.currentStrike! - c.strike!) / underlyingPrice) * 100
+        : ((c.strike! - cfg.currentStrike!) / underlyingPrice) * 100
+      );
+    const maxImprovement = Math.max(...allImprovements, 0.001);
+
+    if (improvement > 0 && maxImprovement > 0) {
+      // Scale 0–20 pts: best improvement in pool = 20 pts, proportional below
+      strikeImprovementBonus = Math.round(Math.min(20, (improvement / maxImprovement) * 20));
+    }
+    // No bonus for candidates that move the strike the wrong direction or stay flat
   }
 
   // ── 3. DTE Score ──────────────────────────────────────────────────────────
@@ -880,13 +952,17 @@ function scoreSingleBestFit(
   }
 
   // ── Composite ─────────────────────────────────────────────────────────────
-  const composite = Math.round(
+  // Strike score is capped at 100 before weighting; bonus is additive on top
+  // of the weighted sum (not inside the weight) so it doesn't distort the
+  // premium/DTE balance — it acts as a tie-breaker for ITM rescue scenarios.
+  const weightedBase = Math.round(
     premiumScore * cfg.premiumWeight +
     strikeScore  * cfg.strikeWeight  +
     dteScore     * cfg.dteWeight
   );
+  const composite = Math.min(100, weightedBase + strikeImprovementBonus);
 
-  return { premiumScore, strikeScore, dteScore, composite };
+  return { premiumScore, strikeScore, dteScore, strikeImprovementBonus, composite };
 }
 
 /**
@@ -909,13 +985,15 @@ export function rankBestFitCandidates(
 ): BestFitResult[] {
   // Apply defaults
   const config: Required<BestFitConfig> = {
-    premiumWeight: cfg.premiumWeight ?? 0.40,
-    strikeWeight:  cfg.strikeWeight  ?? 0.35,
-    dteWeight:     cfg.dteWeight     ?? 0.25,
-    targetOtmPct:  cfg.targetOtmPct  ?? 6.5,
-    otmBandPct:    cfg.otmBandPct    ?? 3,
-    dteSweetMin:   cfg.dteSweetMin   ?? 30,
-    dteSweetMax:   cfg.dteSweetMax   ?? 45,
+    premiumWeight:      cfg.premiumWeight      ?? 0.40,
+    strikeWeight:       cfg.strikeWeight       ?? 0.35,
+    dteWeight:          cfg.dteWeight          ?? 0.25,
+    targetOtmPct:       cfg.targetOtmPct       ?? 6.5,
+    otmBandPct:         cfg.otmBandPct         ?? 3,
+    dteSweetMin:        cfg.dteSweetMin        ?? 30,
+    dteSweetMax:        cfg.dteSweetMax        ?? 45,
+    currentItmDepthPct: cfg.currentItmDepthPct ?? 0,
+    currentStrike:      cfg.currentStrike      ?? undefined as unknown as number,
   };
 
   // Only score roll candidates (not the 'close' option)
@@ -923,10 +1001,10 @@ export function rankBestFitCandidates(
   if (rollOnly.length === 0) return [];
 
   const scored = rollOnly.map(c => {
-    const { premiumScore, strikeScore, dteScore, composite } = scoreSingleBestFit(
+    const { premiumScore, strikeScore, dteScore, strikeImprovementBonus, composite } = scoreSingleBestFit(
       c, underlyingPrice, isPut, rollOnly, config
     );
-    return { candidate: c, bestFitScore: composite, premiumScore, strikeScore, dteScore };
+    return { candidate: c, bestFitScore: composite, premiumScore, strikeScore, dteScore, strikeImprovementBonus };
   });
 
   // Sort descending by composite score

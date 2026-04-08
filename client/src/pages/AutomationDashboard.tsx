@@ -374,6 +374,7 @@ export default function AutomationDashboard() {
   const [rollStrategyFilters, setRollStrategyFilters] = useState<Set<string>>(new Set());
   const [rollPnlFilters, setRollPnlFilters] = useState<Set<string>>(new Set());
   const [rollCreditOnlyFilter, setRollCreditOnlyFilter] = useState(true); // default ON — show only credit rolls
+  const [creditDirectionFilter, setCreditDirectionFilter] = useState(false); // Credit+Direction: credit AND moves strike further OTM
   // Track positions where ALL roll candidates are debits (populated by RollCandidateExpander)
   const [debitOnlyPositions, setDebitOnlyPositions] = useState<Set<string>>(new Set());
   const [rollSortCol, setRollSortCol] = useState<string>('unrealizedPnl');
@@ -727,7 +728,10 @@ export default function AutomationDashboard() {
           const scanPos = rollScanResults?.all.find(p => p.positionId === r.positionId);
           if (scanPos) {
             const isPut = scanPos.strategy === 'CSP' || scanPos.strategy === 'BPS';
-            const ranked = rankBestFit(rAny.candidates as RollCandidate[], scanPos.metrics.currentPrice ?? 0, isPut);
+            const ranked = rankBestFit(rAny.candidates as RollCandidate[], scanPos.metrics.currentPrice ?? 0, isPut, {
+              currentItmDepthPct: scanPos.metrics.itmDepth > 0 ? scanPos.metrics.itmDepth : 0,
+              currentStrike: scanPos.metrics.strikePrice,
+            });
             newBestFitCache[r.positionId] = ranked[0] ?? null;
           }
         }
@@ -795,7 +799,10 @@ export default function AutomationDashboard() {
       // Compute Best Fit inline so the review modal always has it
       const isPut = pos.strategy === 'CSP' || pos.strategy === 'BPS';
       const currentPrice = pos.metrics.currentPrice ?? 0;
-      const ranked = rankBestFit(allCandidates, currentPrice, isPut);
+      const ranked = rankBestFit(allCandidates, currentPrice, isPut, {
+        currentItmDepthPct: pos.metrics.itmDepth > 0 ? pos.metrics.itmDepth : 0,
+        currentStrike: pos.metrics.strikePrice,
+      });
       const bfWinner = ranked[0] ?? null;
       items.push({
         positionId: pos.positionId,
@@ -2990,10 +2997,20 @@ export default function AutomationDashboard() {
                   onClick={() => setHideRolledToday(v => !v)}
                 />
               )}
-              {(rollStrategyFilters.size > 0 || rollPnlFilters.size > 0 || rollCreditOnlyFilter || hideRolledToday) && (
+              {/* Credit + Direction filter */}
+              <FilterPill
+                label="↗️ Credit + Direction"
+                selected={creditDirectionFilter}
+                variant="sky"
+                title={creditDirectionFilter
+                  ? 'Showing only positions where the Best Fit candidate is a credit roll AND moves the strike further OTM. Click to disable.'
+                  : 'Click to show only positions where the Best Fit is a net credit AND moves the strike further OTM (out and up for CC, out and down for CSP).'}
+                onClick={() => setCreditDirectionFilter(v => !v)}
+              />
+              {(rollStrategyFilters.size > 0 || rollPnlFilters.size > 0 || rollCreditOnlyFilter || hideRolledToday || creditDirectionFilter) && (
                 <button
                   className="text-[10px] text-orange-400/70 hover:text-orange-400 px-2 py-0.5 rounded border border-orange-500/20 hover:border-orange-500/40 transition-colors ml-1"
-                  onClick={() => { setRollStrategyFilters(new Set()); setRollPnlFilters(new Set()); setRollCreditOnlyFilter(true); setHideRolledToday(true); }}
+                  onClick={() => { setRollStrategyFilters(new Set()); setRollPnlFilters(new Set()); setRollCreditOnlyFilter(true); setHideRolledToday(true); setCreditDirectionFilter(false); }}
                   title="Reset all filters"
                 >Reset all filters</button>
               )}
@@ -3096,6 +3113,21 @@ export default function AutomationDashboard() {
                                   if (rollPnlFilters.size > 0 && !rollPnlFilters.has((pos as any).pnlStatus ?? '')) return false;
                                   if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
                                   if (hideRolledToday && rolledTodaySet.has(pos.positionId) && !overrideRolledPositions.has(pos.positionId)) return false;
+                                  if (creditDirectionFilter) {
+                                    // Keep only positions where the Best Fit candidate is:
+                                    //   (a) a net credit roll, AND
+                                    //   (b) moves the strike further OTM than the current strike
+                                    const bf = bestFitCache[pos.positionId];
+                                    if (!bf) return false; // no candidate loaded yet
+                                    const isCredit = (bf.candidate.netCredit ?? 0) >= 0;
+                                    const isPut = pos.strategy === 'CSP' || pos.strategy === 'BPS';
+                                    const currentStrike = pos.metrics.strikePrice;
+                                    const newStrike = bf.candidate.strike ?? currentStrike;
+                                    const movesOtm = isPut
+                                      ? newStrike < currentStrike   // CSP: lower strike = more OTM
+                                      : newStrike > currentStrike;  // CC:  higher strike = more OTM
+                                    if (!isCredit || !movesOtm) return false;
+                                  }
                                   return true;
                                 }).map(p => p.positionId);
                                 // selectableIds: only those with a loaded candidate (for select-all)
@@ -3173,6 +3205,19 @@ export default function AutomationDashboard() {
                             if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
                             // Hide positions already rolled today to prevent accidental re-rolls
                             if (hideRolledToday && rolledTodaySet.has(pos.positionId) && !overrideRolledPositions.has(pos.positionId)) return false;
+                            // Credit+Direction filter: keep only positions where Best Fit is a credit roll that moves strike further OTM
+                            if (creditDirectionFilter) {
+                              const bf = bestFitCache[pos.positionId];
+                              if (!bf) return false;
+                              const isCredit = (bf.candidate.netCredit ?? 0) >= 0;
+                              const isPut = pos.strategy === 'CSP' || pos.strategy === 'BPS';
+                              const currentStrike = pos.metrics.strikePrice;
+                              const newStrike = bf.candidate.strike ?? currentStrike;
+                              const movesOtm = isPut
+                                ? newStrike < currentStrike
+                                : newStrike > currentStrike;
+                              if (!isCredit || !movesOtm) return false;
+                            }
                             return true;
                           }).sort((a, b) => {
                             // When credit-only filter is OFF, push debit-only positions to the bottom
@@ -3549,7 +3594,10 @@ export default function AutomationDashboard() {
                                           }
                                           // Compute Best Fit winner and cache it for the collapsed row
                                           const isPut = pos.strategy === 'CSP' || pos.strategy === 'BPS';
-                                          const ranked = rankBestFit(candidates, pos.metrics.currentPrice ?? 0, isPut);
+                                          const ranked = rankBestFit(candidates, pos.metrics.currentPrice ?? 0, isPut, {
+                                            currentItmDepthPct: pos.metrics.itmDepth > 0 ? pos.metrics.itmDepth : 0,
+                                            currentStrike: pos.metrics.strikePrice,
+                                          });
                                           const winnerResult = ranked[0] ?? null;
                                           setBestFitCache(prev => ({ ...prev, [pos.positionId]: winnerResult } as Record<string, BestFitResult | null>));
                                         }}
@@ -4478,6 +4526,7 @@ type BestFitResult = {
   premiumScore: number;
   strikeScore: number;
   dteScore: number;
+  strikeImprovementBonus: number;
   rank: number;
 };
 
@@ -4485,7 +4534,14 @@ function rankBestFit(
   candidates: RollCandidate[],
   underlyingPrice: number,
   isPut: boolean,
-  cfg?: { premiumWeight?: number; strikeWeight?: number; dteWeight?: number; targetOtmPct?: number; otmBandPct?: number; dteSweetMin?: number; dteSweetMax?: number }
+  cfg?: {
+    premiumWeight?: number; strikeWeight?: number; dteWeight?: number;
+    targetOtmPct?: number; otmBandPct?: number; dteSweetMin?: number; dteSweetMax?: number;
+    /** Current position ITM depth % (positive = ITM). Activates Strike Improvement Bonus + Adaptive OTM Band. */
+    currentItmDepthPct?: number;
+    /** Current position strike price. Required for Strike Improvement Bonus. */
+    currentStrike?: number;
+  }
 ): BestFitResult[] {
   const pw = cfg?.premiumWeight ?? 0.40;
   const sw = cfg?.strikeWeight  ?? 0.35;
@@ -4494,6 +4550,15 @@ function rankBestFit(
   const band      = cfg?.otmBandPct   ?? 3;
   const dteMin    = cfg?.dteSweetMin  ?? 30;
   const dteMax    = cfg?.dteSweetMax  ?? 45;
+  const itmDepth  = cfg?.currentItmDepthPct ?? 0;
+  const currentStrike = cfg?.currentStrike;
+  const positionIsItm = itmDepth > 0;
+
+  // Adaptive OTM target: when deeply ITM, lower the bar so any OTM improvement scores well.
+  // At itmDepth=0 → standard target; at itmDepth≥10% → target=0.5%
+  const rescueFactor = positionIsItm ? Math.min(1, itmDepth / 10) : 0;
+  const effectiveTargetOtm = targetOtm * (1 - rescueFactor) + 0.5 * rescueFactor;
+  const effectiveBand = band + rescueFactor * 4;
 
   // Score all candidates regardless of action type
   const rollOnly = candidates;
@@ -4504,6 +4569,15 @@ function rankBestFit(
   const minC = Math.min(...credits);
   const range = maxC - minC;
 
+  // Pre-compute max strike improvement for normalisation (used in bonus)
+  const allImprovements = rollOnly
+    .filter(c => c.strike !== undefined)
+    .map(c => isPut
+      ? ((currentStrike ?? 0) - c.strike!) / underlyingPrice * 100
+      : (c.strike! - (currentStrike ?? 0)) / underlyingPrice * 100
+    );
+  const maxImprovement = Math.max(...allImprovements, 0.001);
+
   const scored = rollOnly.map(c => {
     // 1. Premium score
     let premiumScore = range < 0.01
@@ -4511,7 +4585,7 @@ function rankBestFit(
       : Math.round(((c.netCredit ?? 0) - minC) / range * 100);
     if (c.meets3XRule) premiumScore = Math.min(100, premiumScore + 10);
 
-    // 2. Strike safety score
+    // 2. Strike safety score (with adaptive OTM band for ITM positions)
     let strikeScore = 0;
     if (c.strike !== undefined && underlyingPrice > 0) {
       const otmPct = isPut
@@ -4520,8 +4594,20 @@ function rankBestFit(
       if (otmPct < 0) {
         strikeScore = Math.max(0, 10 + otmPct * 2);
       } else {
-        const dist = Math.abs(otmPct - targetOtm);
-        strikeScore = dist <= band ? 100 : Math.round(Math.max(0, 1 - (dist - band) / (band * 3)) * 100);
+        const dist = Math.abs(otmPct - effectiveTargetOtm);
+        strikeScore = dist <= effectiveBand ? 100 : Math.round(Math.max(0, 1 - (dist - effectiveBand) / (effectiveBand * 3)) * 100);
+      }
+    }
+
+    // A. Strike Improvement Bonus (ITM rescue only — up to +20 pts)
+    // Rewards candidates that move the strike furthest away from the current price.
+    let strikeImprovementBonus = 0;
+    if (positionIsItm && c.strike !== undefined && currentStrike !== undefined && underlyingPrice > 0) {
+      const improvement = isPut
+        ? (currentStrike - c.strike) / underlyingPrice * 100
+        : (c.strike - currentStrike) / underlyingPrice * 100;
+      if (improvement > 0) {
+        strikeImprovementBonus = Math.round(Math.min(20, (improvement / maxImprovement) * 20));
       }
     }
 
@@ -4536,8 +4622,9 @@ function rankBestFit(
       dteScore = dte >= 90 ? 0 : Math.round(((90 - dte) / (90 - dteMax)) * 100);
     }
 
-    const composite = Math.round(premiumScore * pw + strikeScore * sw + dteScore * dw);
-    return { candidate: c, bestFitScore: composite, premiumScore, strikeScore, dteScore };
+    const weightedBase = Math.round(premiumScore * pw + strikeScore * sw + dteScore * dw);
+    const composite = Math.min(100, weightedBase + strikeImprovementBonus);
+    return { candidate: c, bestFitScore: composite, premiumScore, strikeScore, dteScore, strikeImprovementBonus };
   });
 
   scored.sort((a, b) => b.bestFitScore - a.bestFitScore);
@@ -4600,8 +4687,11 @@ function RollCandidateExpander({
   // Compute Best Fit rankings whenever candidates change (pure client-side, no API calls)
   const bestFitRankings = useMemo(() => {
     if (!candidates || candidates.length === 0) return [];
-    return rankBestFit(candidates, underlyingPrice, isPut);
-  }, [candidates, underlyingPrice, isPut]);
+    return rankBestFit(candidates, underlyingPrice, isPut, {
+      currentItmDepthPct: pos.metrics.itmDepth > 0 ? pos.metrics.itmDepth : 0,
+      currentStrike: pos.metrics.strikePrice,
+    });
+  }, [candidates, underlyingPrice, isPut, pos.metrics.itmDepth, pos.metrics.strikePrice]);
 
   const bestFitWinner = bestFitRankings[0] ?? null;
 
