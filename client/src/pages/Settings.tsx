@@ -392,10 +392,30 @@ export default function Settings() {
                 </p>
               </div>
             )}
-            {hasChanges && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Save your credentials first before testing the connection
-              </p>
+            {/* Inline Save button for Tastytrade — always visible when fields have content */}
+            {(tastytradeClientSecret || tastytradeRefreshToken) && (
+              <div className="flex items-center gap-3 pt-1">
+                <Button
+                  onClick={handleSave}
+                  disabled={!hasChanges || saveCredentials.isPending}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0"
+                >
+                  {saveCredentials.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save Tastytrade Credentials
+                </Button>
+                {hasChanges && (
+                  <span className="text-xs text-amber-500 flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    Unsaved changes — save before testing
+                  </span>
+                )}
+                {!hasChanges && credentials?.tastytradeClientSecret && (
+                  <span className="text-xs text-green-500 flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Credentials saved
+                  </span>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -531,10 +551,30 @@ export default function Settings() {
                 </Button>
               )}
             </div>
-            {hasChanges && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Save your credentials first before testing the connection
-              </p>
+            {/* Inline Save button for Tradier */}
+            {(tradierApiKey || tradierAccountId) && (
+              <div className="flex items-center gap-3 pt-1">
+                <Button
+                  onClick={handleSave}
+                  disabled={!hasChanges || saveCredentials.isPending}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0"
+                >
+                  {saveCredentials.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save Tradier Credentials
+                </Button>
+                {hasChanges && (
+                  <span className="text-xs text-amber-500 flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    Unsaved changes — save before testing
+                  </span>
+                )}
+                {!hasChanges && credentials?.tradierApiKey && (
+                  <span className="text-xs text-green-500 flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Credentials saved
+                  </span>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>

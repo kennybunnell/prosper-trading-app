@@ -9039,3 +9039,9 @@ ROC Fix Mar 18 2026
 - [x] Allow VIP users to use Live trading mode (TradingModeToggle in Sidebar checks isVipActive)
 - [x] Suppress trial expiration modal for VIP users (App.tsx checks isVipActive)
 - [x] Allow VIP users to enter Tastytrade and Tradier credentials (Settings page has no tier gate on credential fields)
+
+## Settings Page Credential Save Bug (Apr 8, 2026)
+- [x] Add inline "Save Tastytrade Credentials" button directly inside the Tastytrade card
+- [x] Add inline "Save Tradier Credentials" button directly inside the Tradier card
+- [x] Show amber warning when unsaved changes exist, green confirmation when saved
+- [x] Test/Reconnect/Sync buttons remain disabled until credentials are saved (hasChanges guard)
