@@ -1482,6 +1482,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       // Never expose actual API keys, secrets, or tokens to the browser
       const masked = {
         ...credentials,
+        tastytradeClientId: credentials.tastytradeClientId ? '••••••••••••••••' : '',
         tastytradeClientSecret: credentials.tastytradeClientSecret ? '••••••••••••••••' : '',
         tastytradeRefreshToken: credentials.tastytradeRefreshToken ? '••••••••••••••••' : '',
         // For free trial users without their own Tradier key, provide owner's token (masked)
@@ -1505,6 +1506,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
     saveCredentials: protectedProcedure
       .input(
         z.object({
+          tastytradeClientId: z.string().optional(),
           tastytradeClientSecret: z.string().optional(),
           tastytradeRefreshToken: z.string().optional(),
           tradierApiKey: z.string().optional(),
@@ -1514,6 +1516,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       )
       .mutation(async ({ ctx, input }) => {
         console.log('[Settings] saveCredentials called with input:', {
+          hasClientId: !!input.tastytradeClientId,
           hasClientSecret: !!input.tastytradeClientSecret,
           clientSecretLength: input.tastytradeClientSecret?.length || 0,
           hasRefreshToken: !!input.tastytradeRefreshToken,
@@ -1566,7 +1569,9 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       // Call getAccessToken directly - this will refresh and save to database
       const token = await api.getAccessToken(
         credentials.tastytradeRefreshToken,
-        credentials.tastytradeClientSecret
+        credentials.tastytradeClientSecret,
+        0,
+        credentials.tastytradeClientId || undefined
       );
       
       console.log('[Force Refresh] Token refreshed successfully');

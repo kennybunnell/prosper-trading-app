@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 export default function Settings() {
   const { user, loading: authLoading } = useAuth();
-  // Client ID not needed - only Client Secret and Refresh Token
+  const [tastytradeClientId, setTastytradeClientId] = useState("");
   const [tastytradeClientSecret, setTastytradeClientSecret] = useState("");
   const [tastytradeRefreshToken, setTastytradeRefreshToken] = useState("");
   const [tradierApiKey, setTradierApiKey] = useState("");
@@ -152,7 +152,7 @@ export default function Settings() {
   useEffect(() => {
     if (credentials) {
       console.log('[Settings] Loading credentials from database:', credentials);
-      // Client ID not needed - only Client Secret and Refresh Token
+      setTastytradeClientId((credentials as any).tastytradeClientId || "");
       setTastytradeClientSecret(credentials.tastytradeClientSecret || "");
       setTastytradeRefreshToken(credentials.tastytradeRefreshToken || "");
       setTradierApiKey(credentials.tradierApiKey || "");
@@ -174,8 +174,8 @@ export default function Settings() {
     const isMasked = (value: string) => value.startsWith('••••');
     
     saveCredentials.mutate({
-      // Client ID not needed - only Client Secret and Refresh Token
       // Only send credentials if they've been changed (not masked values)
+      tastytradeClientId: (tastytradeClientId && !isMasked(tastytradeClientId)) ? tastytradeClientId : undefined,
       tastytradeClientSecret: (tastytradeClientSecret && !isMasked(tastytradeClientSecret)) ? tastytradeClientSecret : undefined,
       tastytradeRefreshToken: (tastytradeRefreshToken && !isMasked(tastytradeRefreshToken)) ? tastytradeRefreshToken : undefined,
       tradierApiKey: (tradierApiKey && !isMasked(tradierApiKey)) ? tradierApiKey : undefined,
@@ -273,7 +273,24 @@ export default function Settings() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Client ID field removed - not needed for OAuth2 token refresh */}
+            <div className="space-y-2">
+              <Label htmlFor="tastytrade-client-id">Client ID</Label>
+              <Input
+                id="tastytrade-client-id"
+                type="password"
+                value={tastytradeClientId}
+                onChange={(e) => {
+                  setTastytradeClientId(e.target.value);
+                  handleInputChange();
+                }}
+                placeholder="Enter your Tastytrade Client ID"
+              />
+              {tastytradeClientId.startsWith('••••') && (
+                <p className="text-xs text-muted-foreground">
+                  🔒 Existing credential is masked for security. Enter a new value to update.
+                </p>
+              )}
+            </div>
             <div className="space-y-2">
               <Label htmlFor="tastytrade-client-secret">Client Secret</Label>
               <Input

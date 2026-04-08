@@ -198,7 +198,9 @@ export class TastytradeAPI {
                 // Refresh the token
                 await this.getAccessToken(
                   credentials.tastytradeRefreshToken,
-                  credentials.tastytradeClientSecret
+                  credentials.tastytradeClientSecret,
+                  0,
+                  credentials.tastytradeClientId || undefined
                 );
                 
                 // Update the Authorization header in the original request
@@ -267,7 +269,7 @@ export class TastytradeAPI {
   /**
    * Get access token using OAuth2 refresh token with retry logic
    */
-  async getAccessToken(refreshToken: string, clientSecret: string, retryCount: number = 0): Promise<TastytradeOAuth2Token> {
+  async getAccessToken(refreshToken: string, clientSecret: string, retryCount: number = 0, clientId?: string): Promise<TastytradeOAuth2Token> {
     try {
       // Log current token state BEFORE requesting new token
       console.log('[Tastytrade OAuth2] === TOKEN REFRESH REQUEST START ===');
@@ -286,11 +288,15 @@ export class TastytradeAPI {
       params.append('grant_type', 'refresh_token');
       params.append('refresh_token', refreshToken);
       params.append('client_secret', clientSecret);
+      if (clientId) {
+        params.append('client_id', clientId);
+      }
       
       console.log('[Tastytrade] Request params:', {
         grant_type: 'refresh_token',
         refresh_token_length: refreshToken?.length || 0,
         client_secret_length: clientSecret?.length || 0,
+        client_id_length: clientId?.length || 0,
       });
       
       const requestBody = params.toString();
@@ -378,7 +384,7 @@ export class TastytradeAPI {
         const delay = 2000 * Math.pow(2, retryCount); // 2s, 4s, 8s
         console.log(`[Tastytrade OAuth2] Retrying token refresh (attempt ${retryCount + 1}/${maxRetries}) after ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
-        return this.getAccessToken(refreshToken, clientSecret, retryCount + 1);
+        return this.getAccessToken(refreshToken, clientSecret, retryCount + 1, clientId);
       }
       
       throw new Error(`Tastytrade OAuth2 authentication failed: ${errorMessage}`);
@@ -1413,7 +1419,9 @@ export async function authenticateTastytrade(
     if (isExpired) {
       await api.getAccessToken(
         credentials.tastytradeRefreshToken,
-        credentials.tastytradeClientSecret
+        credentials.tastytradeClientSecret,
+        0,
+        credentials.tastytradeClientId || undefined
       );
     } else {
       console.log('[Tastytrade OAuth2] Using existing valid token (no refresh needed)');

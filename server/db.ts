@@ -444,6 +444,7 @@ export async function loadAccessToken(userId: number): Promise<{
 export async function upsertApiCredentials(userId: number, credentials: { 
   tastytradeUsername?: string; 
   tastytradePassword?: string; 
+  tastytradeClientId?: string;
   tastytradeClientSecret?: string; 
   tastytradeRefreshToken?: string; 
   tradierApiKey?: string; 

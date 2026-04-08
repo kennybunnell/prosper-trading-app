@@ -9045,3 +9045,17 @@ ROC Fix Mar 18 2026
 - [x] Add inline "Save Tradier Credentials" button directly inside the Tradier card
 - [x] Show amber warning when unsaved changes exist, green confirmation when saved
 - [x] Test/Reconnect/Sync buttons remain disabled until credentials are saved (hasChanges guard)
+
+## Tastytrade OAuth2 400 Fix (Apr 8, 2026)
+- [ ] Add client_id to the token refresh request body in tastytrade.ts
+- [ ] Add Client ID field back to Settings page (required alongside Client Secret)
+- [ ] Add tastytradeClientId column to DB schema and push migration
+- [ ] Update saveCredentials and getCredentials procedures to include clientId
+- [ ] Update getAccessToken signature to accept clientId parameter
+
+## Tastytrade OAuth2 Client ID Fix (Apr 8, 2026)
+- [x] Add Client ID field to Settings page (separate from Client Secret)
+- [x] Add client_id to OAuth2 token request body in tastytrade.ts getAccessToken
+- [x] Add tastytradeClientId to saveCredentials input schema in routers.ts
+- [x] Pass clientId to getAccessToken in forceTokenRefresh, authenticateTastytrade, and auto-refresh interceptor
+- [x] Update getCredentials to return masked clientId
