@@ -1076,4 +1076,79 @@ export const adminRouter = router({
       expiringTrials: expiringTrials[0]?.count || 0,
     };
   }),
+
+  // ============================================
+  // VIP MODE MANAGEMENT
+  // ============================================
+
+  /**
+   * Grant VIP Mode to a user.
+   * VIP Mode gives full advanced-tier access regardless of subscription tier.
+   * Duration options: unlimited (null expiry), or 30/60/90 days, or a custom date.
+   */
+  grantVip: adminProcedure
+    .input(z.object({
+      userId: z.number(),
+      /** Duration in days. 0 = unlimited (no expiry). */
+      durationDays: z.number().min(0).max(3650),
+      /** Custom expiry date (ISO string). Overrides durationDays if provided. */
+      customExpiresAt: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import('./db');
+      const { users } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+      const [target] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+      if (!target) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+
+      let vipExpiresAt: Date | null = null;
+      if (input.customExpiresAt) {
+        vipExpiresAt = new Date(input.customExpiresAt);
+      } else if (input.durationDays > 0) {
+        vipExpiresAt = new Date();
+        vipExpiresAt.setDate(vipExpiresAt.getDate() + input.durationDays);
+      }
+      // durationDays === 0 means unlimited → vipExpiresAt stays null
+
+      await db.update(users)
+        .set({
+          vipMode: true,
+          vipExpiresAt,
+          vipGrantedAt: new Date(),
+          vipGrantedBy: ctx.user.id,
+        })
+        .where(eq(users.id, input.userId));
+
+      console.log(`[VIP] Granted VIP to user ${input.userId} by admin ${ctx.user.id}, expires: ${vipExpiresAt?.toISOString() ?? 'never'}`);
+      return { success: true, vipExpiresAt };
+    }),
+
+  /**
+   * Revoke VIP Mode from a user immediately.
+   * They revert to their actual subscriptionTier.
+   */
+  revokeVip: adminProcedure
+    .input(z.object({ userId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import('./db');
+      const { users } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+      await db.update(users)
+        .set({
+          vipMode: false,
+          vipExpiresAt: null,
+        })
+        .where(eq(users.id, input.userId));
+
+      console.log(`[VIP] Revoked VIP from user ${input.userId} by admin ${ctx.user.id}`);
+      return { success: true };
+    }),
 });

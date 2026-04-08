@@ -33,7 +33,7 @@ export const userRouter = router({
    */
   getSubscriptionStatus: protectedProcedure.query(async ({ ctx }) => {
     const { getRemainingScans } = await import('./middleware/rateLimiting');
-    const { canUseLiveTrading, getTierDisplayName, getTradableStrategies, getViewableStrategies } = await import('./middleware/subscriptionEnforcement');
+    const { canUseLiveTrading, getTierDisplayName, getTradableStrategies, getViewableStrategies, getEffectiveTier } = await import('./middleware/subscriptionEnforcement');
     const { getApiCredentials } = await import('./db');
     const db = await getDb();
     if (!db) {
@@ -46,15 +46,19 @@ export const userRouter = router({
       throw new Error('User not found');
     }
 
+    // Resolve effective tier (VIP Mode overrides actual subscriptionTier)
+    const effectiveTier = getEffectiveTier(user);
+    const isVipActive = user.vipMode && (!user.vipExpiresAt || new Date(user.vipExpiresAt) > new Date());
+
     // Get remaining scans
-    const scanInfo = await getRemainingScans(ctx.user.id, user.subscriptionTier, user.role);
+    const scanInfo = await getRemainingScans(ctx.user.id, effectiveTier, user.role);
 
     // Check live trading access
-    const liveTradingAccess = canUseLiveTrading(user.subscriptionTier, user.role);
+    const liveTradingAccess = canUseLiveTrading(effectiveTier, user.role);
 
     // Get viewable and tradable strategies
-    const viewableStrategies = getViewableStrategies(user.subscriptionTier);
-    const tradableStrategies = getTradableStrategies(user.subscriptionTier, user.tradingMode);
+    const viewableStrategies = getViewableStrategies(effectiveTier);
+    const tradableStrategies = getTradableStrategies(effectiveTier, user.tradingMode);
 
     // Get API credentials status
     const credentials = await getApiCredentials(ctx.user.id);
@@ -64,8 +68,11 @@ export const userRouter = router({
     };
 
     return {
-      tier: user.subscriptionTier,
-      tierDisplayName: getTierDisplayName(user.subscriptionTier),
+      tier: effectiveTier,
+      actualTier: user.subscriptionTier,
+      isVipActive: !!isVipActive,
+      vipExpiresAt: user.vipExpiresAt ?? null,
+      tierDisplayName: isVipActive ? 'VIP' : getTierDisplayName(effectiveTier),
       tradingMode: user.tradingMode,
       trialEndsAt: user.trialEndsAt,
       scansRemaining: scanInfo.remaining,

@@ -9021,3 +9021,12 @@ ROC Fix Mar 18 2026
 
 ## CSP Order Submission Index Symbol Fix (Apr 8, 2026)
 - [x] Fixed NDX/RUT CSP order submission error — buildOptionSymbol in CSPDashboard.tsx now calls getOccRoot(ticker, expiration) to correctly map NDX→NDXP (weekly) and RUT→RUTW (weekly) before building the OCC symbol; previously sent bare NDX/RUT which tastytrade rejects with "Trading of NDX ... is not supported"
+
+## VIP Mode Feature (Apr 8, 2026)
+- [x] Add vipMode, vipExpiresAt, vipGrantedAt, vipGrantedBy fields to users schema and push migration
+- [x] Add admin tRPC procedures: grantVip, revokeVip
+- [x] Add getEffectiveTier helper in subscriptionEnforcement.ts (resolves VIP → advanced tier)
+- [x] Update Admin User Management UI: VIP badge in Tier column, Grant VIP button, Revoke VIP action
+- [x] Grant VIP dialog: Unlimited / 30 / 60 / 90 days / Custom date picker
+- [x] Wire VIP into subscription tier resolution (effectiveTier) across all scan/rate-limit checks
+- [ ] Write vitest tests for VIP expiry logic

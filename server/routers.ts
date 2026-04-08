@@ -2067,9 +2067,11 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         const { createTradierAPI } = await import('./tradier');
         const { scoreOpportunities } = await import('./scoring');
         const { checkRateLimit, incrementScanCount } = await import('./middleware/rateLimiting');
+        const { getEffectiveTier: _getETx } = await import('./middleware/subscriptionEnforcement');
+        const _effTier = _getETx(ctx.user);
 
-        // Check rate limit for Tier 1 users (owner/admin bypass automatically)
-        const rateLimit = await checkRateLimit(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+        // Check rate limit (VIP users treated as advanced, bypass free_trial limits)
+        const rateLimit = await checkRateLimit(ctx.user.id, _effTier, ctx.user.role);
         if (!rateLimit.allowed) {
           throw new Error(rateLimit.message || 'Rate limit exceeded');
         }
@@ -2077,7 +2079,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         const credentials = await getApiCredentials(ctx.user.id);
         
         // Paper mode and free trial users can use the system Tradier key for market data scanning
-        const isPaperOrFreeTrial = ctx.user.subscriptionTier === 'free_trial' || ctx.user.tradingMode === 'paper';
+        const isPaperOrFreeTrial = _effTier === 'free_trial' || ctx.user.tradingMode === 'paper';
         const tradierApiKey = credentials?.tradierApiKey || (isPaperOrFreeTrial ? process.env.TRADIER_API_KEY : null);
         
         if (!tradierApiKey) {
@@ -2132,7 +2134,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         });
 
         // Increment scan count for Tier 1 users (after successful scan)
-        await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+        await incrementScanCount(ctx.user.id, _effTier, ctx.user.role);
 
         return scoredWithBadges;
       }),
@@ -3001,9 +3003,11 @@ Summary: [One sentence overall assessment]`;
         const { scoreOpportunities } = await import('./scoring');
         const { calculateBullPutSpread, calculateBearCallSpread } = await import('./spread-pricing');
         const { checkRateLimit, incrementScanCount } = await import('./middleware/rateLimiting');
+        const { getEffectiveTier: _getETx } = await import('./middleware/subscriptionEnforcement');
+        const _effTier = _getETx(ctx.user);
 
-        // Check rate limit for Tier 1 users (owner/admin bypass automatically)
-        const rateLimit = await checkRateLimit(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+        // Check rate limit (VIP users treated as advanced, bypass free_trial limits)
+        const rateLimit = await checkRateLimit(ctx.user.id, _effTier, ctx.user.role);
         if (!rateLimit.allowed) {
           throw new Error(rateLimit.message || 'Rate limit exceeded');
         }
@@ -3011,7 +3015,7 @@ Summary: [One sentence overall assessment]`;
         const credentials = await getApiCredentials(ctx.user.id);
         
         // Paper mode and free trial users can use the system Tradier key for market data scanning
-        const isPaperOrFreeTrial = ctx.user.subscriptionTier === 'free_trial' || ctx.user.tradingMode === 'paper';
+        const isPaperOrFreeTrial = _effTier === 'free_trial' || ctx.user.tradingMode === 'paper';
         const tradierApiKey = credentials?.tradierApiKey || (isPaperOrFreeTrial ? process.env.TRADIER_API_KEY : null);
         
         if (!tradierApiKey) {
@@ -3364,7 +3368,7 @@ Summary: [One sentence overall assessment]`;
         }));
 
         // Increment scan count for Tier 1 users (after successful scan)
-        await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+        await incrementScanCount(ctx.user.id, _effTier, ctx.user.role);
 
         return scoredWithBadges;
       }),
@@ -3393,9 +3397,11 @@ Summary: [One sentence overall assessment]`;
         const { scoreBPSOpportunities } = await import('./scoring');
         const { calculateBullPutSpread } = await import('./spread-pricing');
         const { checkRateLimit, incrementScanCount } = await import('./middleware/rateLimiting');
+        const { getEffectiveTier: _getETx } = await import('./middleware/subscriptionEnforcement');
+        const _effTier = _getETx(ctx.user);
 
-        // Check rate limit for Tier 1 users (owner/admin bypass automatically)
-        const rateLimit = await checkRateLimit(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+        // Check rate limit (VIP users treated as advanced, bypass free_trial limits)
+        const rateLimit = await checkRateLimit(ctx.user.id, _effTier, ctx.user.role);
         if (!rateLimit.allowed) {
           throw new Error(rateLimit.message || 'Rate limit exceeded');
         }
@@ -3403,7 +3409,7 @@ Summary: [One sentence overall assessment]`;
         const credentials = await getApiCredentials(ctx.user.id);
         
         // Paper mode and free trial users can use the system Tradier key for market data scanning
-        const isPaperOrFreeTrial = ctx.user.subscriptionTier === 'free_trial' || ctx.user.tradingMode === 'paper';
+        const isPaperOrFreeTrial = _effTier === 'free_trial' || ctx.user.tradingMode === 'paper';
         const tradierApiKey = credentials?.tradierApiKey || (isPaperOrFreeTrial ? process.env.TRADIER_API_KEY : null);
         
         if (!tradierApiKey) {
@@ -3659,7 +3665,7 @@ Summary: [One sentence overall assessment]`;
         }));
 
         // Increment scan count for Tier 1 users (after successful scan)
-        await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+        await incrementScanCount(ctx.user.id, _effTier, ctx.user.role);
 
         return scoredWithBadges;
       }),

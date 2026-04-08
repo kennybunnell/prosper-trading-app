@@ -23,6 +23,25 @@ export type TradingStrategy = 'csp' | 'cc' | 'bps' | 'bcs' | 'iron_condor' | 'pm
 export type TradingMode = 'live' | 'paper';
 
 /**
+ * Returns the effective subscription tier for a user, taking VIP Mode into account.
+ * When a user has active VIP Mode (vipMode=true and not expired), they are treated
+ * as 'advanced' tier regardless of their actual subscriptionTier.
+ * This is the single source of truth for VIP tier resolution.
+ */
+export function getEffectiveTier(
+  user: { subscriptionTier: SubscriptionTier; vipMode?: boolean | null; vipExpiresAt?: Date | string | null }
+): SubscriptionTier {
+  if (user.vipMode) {
+    const expires = user.vipExpiresAt ? new Date(user.vipExpiresAt) : null;
+    if (!expires || expires > new Date()) {
+      // Active VIP → treat as advanced (full access)
+      return 'advanced';
+    }
+  }
+  return user.subscriptionTier;
+}
+
+/**
  * Check if a user can VIEW a specific trading strategy
  * NEW: All users can view all strategies in all tiers
  */

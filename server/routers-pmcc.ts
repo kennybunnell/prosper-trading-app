@@ -50,9 +50,11 @@ export const pmccRouter = router({
       const { createTradierAPI } = await import("./tradier");
       const { getWatchlist } = await import("./db");
       const { checkRateLimit, incrementScanCount } = await import('./middleware/rateLimiting');
+      const { getEffectiveTier: _getETpmcc } = await import('./middleware/subscriptionEnforcement');
+      const _effTierPMCC = _getETpmcc(ctx.user);
 
-      // Check rate limit for Tier 1 users (owner/admin bypass automatically)
-      const rateLimit = await checkRateLimit(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+      // Check rate limit (VIP users treated as advanced, bypass free_trial limits)
+      const rateLimit = await checkRateLimit(ctx.user.id, _effTierPMCC, ctx.user.role);
       if (!rateLimit.allowed) {
         throw new TRPCError({
           code: 'TOO_MANY_REQUESTS',
@@ -78,7 +80,7 @@ export const pmccRouter = router({
       const credentials = await getApiCredentials(ctx.user.id);
       
       // Determine if user can use system API key (only free trial users)
-      const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+      const isFreeTrialUser = _effTierPMCC === 'free_trial';
       const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
       
       if (!tradierApiKey) {
@@ -224,7 +226,7 @@ export const pmccRouter = router({
       console.log(`[PMCC] Found ${allOpportunities.length} LEAP opportunities across ${symbols.length} symbols`);
 
       // Increment scan count for Tier 1 users (after successful scan)
-      await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+      await incrementScanCount(ctx.user.id, _effTierPMCC, ctx.user.role);
 
       return {
         opportunities: allOpportunities,
@@ -282,7 +284,8 @@ export const pmccRouter = router({
       });
 
       // Get current market data for each LEAP
-      const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+      const { getEffectiveTier: _getETleap } = await import('./middleware/subscriptionEnforcement');
+      const isFreeTrialUser = _getETleap(ctx.user) === 'free_trial';
       const tradierApiKey = credentials.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null) || "";
       const tradierApi = createTradierAPI(tradierApiKey);
       const enrichedPositions = await Promise.all(
@@ -645,9 +648,11 @@ export const pmccRouter = router({
       const { getApiCredentials } = await import("./db");
       const { createTradierAPI } = await import("./tradier");
       const { checkRateLimit } = await import('./middleware/rateLimiting');
+      const { getEffectiveTier: _getETsc } = await import('./middleware/subscriptionEnforcement');
+      const _effTierSC = _getETsc(ctx.user);
 
       // Check rate limit
-      const rateLimit = await checkRateLimit(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+      const rateLimit = await checkRateLimit(ctx.user.id, _effTierSC, ctx.user.role);
       if (!rateLimit.allowed) {
         throw new TRPCError({
           code: 'TOO_MANY_REQUESTS',
@@ -657,7 +662,7 @@ export const pmccRouter = router({
 
       // Get API credentials
       const credentials = await getApiCredentials(ctx.user.id);
-      const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+      const isFreeTrialUser = _effTierSC === 'free_trial';
       const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
       
       if (!tradierApiKey) {

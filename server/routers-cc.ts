@@ -474,9 +474,11 @@ export const ccRouter = router({
       const { getApiCredentials } = await import('./db');
       const { createTradierAPI } = await import('./tradier');
       const { checkRateLimit, incrementScanCount } = await import('./middleware/rateLimiting');
+      const { getEffectiveTier: _getETcc } = await import('./middleware/subscriptionEnforcement');
+      const _effTierCC = _getETcc(ctx.user);
 
-      // Check rate limit for Tier 1 users (owner/admin bypass automatically)
-      const rateLimit = await checkRateLimit(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+      // Check rate limit (VIP users treated as advanced, bypass free_trial limits)
+      const rateLimit = await checkRateLimit(ctx.user.id, _effTierCC, ctx.user.role);
       if (!rateLimit.allowed) {
         throw new Error(rateLimit.message || 'Rate limit exceeded');
       }
@@ -484,7 +486,7 @@ export const ccRouter = router({
       const credentials = await getApiCredentials(ctx.user.id);
       
       // Determine if user can use system API key (only free trial users)
-      const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+      const isFreeTrialUser = _effTierCC === 'free_trial';
       const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
       
       if (!tradierApiKey) {
@@ -768,7 +770,7 @@ export const ccRouter = router({
       }));
 
       // Increment scan count for Tier 1 users (after successful scan)
-      await incrementScanCount(ctx.user.id, ctx.user.subscriptionTier, ctx.user.role);
+      await incrementScanCount(ctx.user.id, _effTierCC, ctx.user.role);
 
       return scoredWithBadges;
     }),
@@ -794,7 +796,9 @@ export const ccRouter = router({
       const credentials = await getApiCredentials(ctx.user.id);
       
       // Determine if user can use system API key (only free trial users)
-      const isFreeTrialUser = ctx.user.subscriptionTier === 'free_trial';
+      const { getEffectiveTier: _getETcc2 } = await import('./middleware/subscriptionEnforcement');
+      const _effTierCC2 = _getETcc2(ctx.user);
+      const isFreeTrialUser = _effTierCC2 === 'free_trial';
       const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null);
       
       if (!tradierApiKey) {

@@ -484,6 +484,13 @@
       "when": 1775488405068,
       "tag": "0069_bright_slapstick",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "5",
+      "when": 1775685365761,
+      "tag": "0070_old_enchantress",
+      "breakpoints": true
     }
   ]
 }

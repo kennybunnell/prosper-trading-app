@@ -42,6 +42,19 @@ export const users = mysqlTable("users", {
   approvedBy: int("approvedBy"),
   /** Whether the user has seen the paper trading onboarding walkthrough */
   hasSeenPaperOnboarding: boolean("hasSeenPaperOnboarding").default(false).notNull(),
+  /**
+   * VIP Mode — admin-granted full access override.
+   * When vipMode=true and (vipExpiresAt is null OR vipExpiresAt > now()), the user
+   * gets full advanced-tier access regardless of their subscriptionTier.
+   * Once expired or revoked (vipMode=false), they revert to their actual tier.
+   */
+  vipMode: boolean("vipMode").default(false).notNull(),
+  /** VIP expiry timestamp (UTC). NULL = unlimited. Set to a future date for time-limited VIP. */
+  vipExpiresAt: timestamp("vipExpiresAt"),
+  /** When VIP was granted (for audit trail) */
+  vipGrantedAt: timestamp("vipGrantedAt"),
+  /** Admin user ID who granted VIP */
+  vipGrantedBy: int("vipGrantedBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
