@@ -843,7 +843,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
                     {c.newPremium != null ? fmt(c.newPremium) : (nudgeLoading ? '...' : '—')}
                     <span className="text-xs text-muted-foreground/60 font-normal ml-1">/share</span>
                   </p>
-                  {/* Full contract value = per-share × 100 */}
+                  {/* Full contract value = per-share × 100 (1 contract = 100 shares) */}
                   {c.newPremium != null && (
                     <p className="text-xs text-emerald-400/70 font-mono mt-0.5">
                       {fmt(c.newPremium * 100)}/contract

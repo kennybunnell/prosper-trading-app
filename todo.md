@@ -8982,3 +8982,6 @@ ROC Fix Mar 18 2026
 - [x] Add Credit+Direction filter toggle to Roll Dashboard UI: show only candidates that are (a) net credit AND (b) move strike further OTM than current position
 - [x] Pass itmDepth and currentStrike into BestFitConfig so scoreSingleBestFit can use them
 - [x] Update bestFit.test.ts to cover ITM rescue scenarios
+
+## Bug Fix: New STO Premium display (Apr 8, 2026)
+- [x] RollOrderReviewModal shows New STO Prem as $590/share for HOOD — newPremium is stored as total dollars (per-share × qty × 100) but displayed as if it were per-share, then multiplied by 100 again for the /contract line

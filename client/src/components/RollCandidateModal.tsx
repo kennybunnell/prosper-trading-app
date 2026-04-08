@@ -287,7 +287,10 @@ export function RollCandidateModal({
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">New Premium</div>
-                        <div className="text-sm font-medium">${candidate.newPremium?.toFixed(2)}</div>
+                        <div className="text-sm font-medium">${candidate.newPremium?.toFixed(2)}<span className="text-xs text-muted-foreground font-normal ml-1">/share</span></div>
+                        {candidate.newPremium != null && (
+                          <div className="text-xs text-emerald-400/70 font-mono">${(candidate.newPremium * 100).toFixed(2)}/contract</div>
+                        )}
                       </div>
                     </div>
                   </div>

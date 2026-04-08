@@ -84,7 +84,7 @@ ${closeCandidate ? `**Close Now:**
 
 ${rollCandidates.map((c, i) => `**Roll Option ${i + 1}:** ${c.description}
 - Roll Cost: $${Math.abs(c.netCredit || 0).toFixed(2)} ${(c.netCredit || 0) > 0 ? 'CREDIT' : 'DEBIT'}
-- New Premium: $${(c.newPremium || 0).toFixed(2)}
+- New Premium: $${(c.newPremium || 0).toFixed(2)}/share ($${((c.newPremium || 0) * 100).toFixed(2)}/contract)
 - Net Result: $${(currentPL + (c.netCredit || 0)).toFixed(2)} profit after roll
 - Annualized Return: ${(c.annualizedReturn || 0).toFixed(1)}%
 - New Delta: ${(c.delta || 0).toFixed(2)}

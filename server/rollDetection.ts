@@ -637,7 +637,7 @@ async function createRollCandidateFromTradier(
   // Positive = credit roll (we receive more than we pay), Negative = debit roll
   const netCreditPerContract = newPremiumPerContract - currentMarkPerContract;
   const netCredit = netCreditPerContract * qty * 100; // Scale back to total dollars
-  const newPremium = newPremiumPerContract * qty * 100; // Total STO premium in dollars
+  const newPremium = newPremiumPerContract; // Per-share (mid-price of new STO leg) — display layer multiplies by 100 for contract value
   const closeCost = totalBtcCost;
   const meets3XRule = newPremiumPerContract >= (currentMarkPerContract * 3);
   
