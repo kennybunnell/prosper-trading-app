@@ -141,7 +141,7 @@ function Router() {
     <>
       <LegalAcceptanceModal open={showLegalModal} onAccepted={handleLegalAccepted} />
       <TrialExpirationModal 
-        open={showTrialModal} 
+        open={showTrialModal && !subscriptionStatus.data?.isVipActive} 
         daysRemaining={subscriptionStatus.data?.trialEndsAt ? Math.max(0, Math.ceil((new Date(subscriptionStatus.data.trialEndsAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0}
         onClose={() => setShowTrialModal(false)}
       />
