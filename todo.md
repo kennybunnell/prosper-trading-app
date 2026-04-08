@@ -9018,3 +9018,6 @@ ROC Fix Mar 18 2026
 - [x] Bug 2: Net close cost sign inversion resolved automatically by Bug 1 fix — correct prices now produce positive netBTCCost (debit to close) instead of negative (false credit)
 - [x] Bug 3: Fixed DTE off-by-1-day — calcDTE in spreadDetection.ts now compares UTC midnight dates consistently; previously local-time 'today' vs UTC 'expDate' caused timezone-induced off-by-1 errors
 - [x] Bug 4: Estimated Profit now correct — resolves automatically from Bug 1+2 fix; shows negative P&L (red) for losing spreads instead of nonsensical positive profit
+
+## CSP Order Submission Index Symbol Fix (Apr 8, 2026)
+- [x] Fixed NDX/RUT CSP order submission error — buildOptionSymbol in CSPDashboard.tsx now calls getOccRoot(ticker, expiration) to correctly map NDX→NDXP (weekly) and RUT→RUTW (weekly) before building the OCC symbol; previously sent bare NDX/RUT which tastytrade rejects with "Trading of NDX ... is not supported"

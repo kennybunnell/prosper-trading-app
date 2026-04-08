@@ -191,7 +191,7 @@ import { OrderStatusModal, OrderSubmissionStatus } from "@/components/OrderStatu
 import { HelpBadge } from "@/components/HelpBadge";
 import { HelpDialog } from "@/components/HelpDialog";
 import { HELP_CONTENT } from "@/lib/helpContent";
-import { getIndexExchange, getMinSpreadWidth, validateMultiIndexSelection } from "@shared/orderUtils";
+import { getIndexExchange, getMinSpreadWidth, validateMultiIndexSelection, getOccRoot } from "@shared/orderUtils";
 import { ColumnVisibilityToggle, useColumnVisibility, type ColumnDef } from "@/components/ColumnVisibilityToggle";
 
 // BPS column definitions (unified schema)
@@ -1187,7 +1187,10 @@ export default function CSPDashboard() {
         if (tradierOptionSymbol && tradierOptionSymbol.length > 15) {
           ticker = tradierOptionSymbol.slice(0, tradierOptionSymbol.length - 15);
         }
-        return `${ticker.padEnd(6, ' ')}${expShort}${optionType}${strikeFormatted}`;
+        // Apply OCC root resolution: NDX → NDXP (weekly), RUT → RUTW (weekly),
+        // SPX → SPXW (non-3rd-Friday). This ensures Tastytrade accepts the order.
+        const occRoot = getOccRoot(ticker, expiration);
+        return `${occRoot.padEnd(6, ' ')}${expShort}${optionType}${strikeFormatted}`;
       };
       
       const orderLegs = orders.map((order, idx) => {
