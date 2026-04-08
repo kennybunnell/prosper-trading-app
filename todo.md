@@ -8985,3 +8985,11 @@ ROC Fix Mar 18 2026
 
 ## Bug Fix: New STO Premium display (Apr 8, 2026)
 - [x] RollOrderReviewModal shows New STO Prem as $590/share for HOOD — newPremium is stored as total dollars (per-share × qty × 100) but displayed as if it were per-share, then multiplied by 100 again for the /contract line
+
+## Roll/Close Dashboard Enhancements (Apr 8, 2026)
+- [x] Add CLOSE recommendation logic: detect positions better closed than rolled (deep ITM with no credit roll available, 2x stop hit, or CLOSE badge already set)
+- [x] Add per-row "Close Position" action button in Roll Positions dashboard (alongside Roll action)
+- [x] Add batch-close support: checkbox selection + "Close Selected" button in Roll dashboard toolbar
+- [x] Rename Roll Positions tab to "Roll / Close Positions" in the Daily Actions stepper
+- [x] Add a "Close" filter pill to the Roll dashboard filter bar (alongside Loss / Even / Winners)
+- [x] Wire Close action to the existing BTC close flow (UnifiedOrderPreviewModal)

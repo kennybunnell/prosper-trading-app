@@ -19,7 +19,7 @@ import {
   Loader2, Play, Clock, CheckCircle2, XCircle, AlertCircle,
   TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Eye, Trash2, Square, CheckSquare, Send, ShoppingCart,
   Power, Settings2, RefreshCw, BarChart3, GitMerge, Zap, Lock, Unlock, Download, Timer, ExternalLink, Activity, Mail,
-  Sparkles, ListOrdered, ChevronsDownUp, ChevronsUpDown, Info, ShieldCheck, Star
+  Sparkles, ListOrdered, ChevronsDownUp, ChevronsUpDown, Info, ShieldCheck, Star, X
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterPill } from '@/components/FilterPill';
@@ -412,6 +412,41 @@ export default function AutomationDashboard() {
   );
   // Positions that the user has explicitly overridden to allow re-rolling today
   const [overrideRolledPositions, setOverrideRolledPositions] = useState<Set<string>>(new Set());
+  // Filter to show only positions flagged for close (CLOSE or STOP action label)
+  const [rollCloseFilter, setRollCloseFilter] = useState(false);
+
+  // Open the BTC close modal for a single Roll position (from the Roll/Close dashboard)
+  const handleOpenRollPositionClose = useCallback((pos: RollAnalysis) => {
+    const occTypeMatch = pos.optionSymbol.match(/([CP])(\d{8})$/);
+    const isCall = occTypeMatch ? occTypeMatch[1] === 'C' : pos.strategy === 'CC';
+    const strike = occTypeMatch ? parseInt(occTypeMatch[2], 10) / 1000 : pos.metrics.strikePrice;
+    const perShareCost = pos.metrics.currentValue / ((pos.quantity ?? 1) * 100);
+    const estimatedBid = Math.max(0.01, perShareCost * 0.8);
+    const estimatedAsk = Math.max(0.02, perShareCost * 1.2);
+    const order: UnifiedOrder = {
+      symbol: pos.symbol,
+      strike,
+      expiration: pos.metrics.expiration,
+      premium: perShareCost,
+      action: 'BTC',
+      optionType: isCall ? 'CALL' : 'PUT',
+      bid: estimatedBid,
+      ask: estimatedAsk,
+      currentPrice: perShareCost,
+      optionSymbol: pos.optionSymbol,
+      accountNumber: pos.accountNumber || pos.accountId || '',
+      quantity: pos.quantity ?? 1,
+      isEstimated: true,
+    };
+    setPreviewAccountId(pos.accountNumber || pos.accountId || '');
+    setUnifiedOrders([order]);
+    setPreviewPremiumCollected(pos.metrics.openPremium);
+    setPreviewStrategy('btc');
+    setOrderSubmissionComplete(false);
+    setOrderFinalStatus(null);
+    setShowOrderPreview(true);
+  }, []);
+
   const handleScanSort = (col: string) => {
     if (scanSortCol === col) {
       setScanSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -1734,7 +1769,7 @@ export default function AutomationDashboard() {
           <TabsTrigger value="step2-roll" className="relative flex flex-col gap-0.5 py-2 text-xs">
             <span className="font-bold text-sm">2</span>
             <span className="flex items-center gap-1">
-              Roll Positions
+              Roll / Close Positions
               {(() => {
                 // Prefer live scan count; fall back to cached daily count
                 const liveRed = rollScanResults?.red?.length ?? null;
@@ -2728,10 +2763,10 @@ export default function AutomationDashboard() {
             <div>
               <h2 className="text-xl font-semibold flex items-center gap-2">
                 <GitMerge className="h-5 w-5 text-orange-400" />
-                Roll Positions
+                Roll / Close Positions
               </h2>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Scan all accounts for CSP/CC positions approaching expiry or under stress
+                Scan all accounts for CSP/CC positions approaching expiry, under stress, or needing to be closed
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -3007,10 +3042,20 @@ export default function AutomationDashboard() {
                   : 'Click to show only positions where the Best Fit is a net credit AND moves the strike further OTM (out and up for CC, out and down for CSP).'}
                 onClick={() => setCreditDirectionFilter(v => !v)}
               />
-              {(rollStrategyFilters.size > 0 || rollPnlFilters.size > 0 || rollCreditOnlyFilter || hideRolledToday || creditDirectionFilter) && (
+              {/* Close-only filter */}
+              <FilterPill
+                label={`✕ Needs Close${rollScanResults ? ` (${rollScanResults.all.filter(p => (p as any).actionLabel === 'CLOSE' || (p as any).actionLabel === 'STOP').length})` : ''}`}
+                selected={rollCloseFilter}
+                variant="red"
+                title={rollCloseFilter
+                  ? 'Showing only positions flagged for immediate close (✕ CLOSE or ⛔ 2X STOP). Click to show all.'
+                  : 'Click to show only positions that should be closed rather than rolled.'}
+                onClick={() => setRollCloseFilter(v => !v)}
+              />
+              {(rollStrategyFilters.size > 0 || rollPnlFilters.size > 0 || rollCreditOnlyFilter || hideRolledToday || creditDirectionFilter || rollCloseFilter) && (
                 <button
                   className="text-[10px] text-orange-400/70 hover:text-orange-400 px-2 py-0.5 rounded border border-orange-500/20 hover:border-orange-500/40 transition-colors ml-1"
-                  onClick={() => { setRollStrategyFilters(new Set()); setRollPnlFilters(new Set()); setRollCreditOnlyFilter(true); setHideRolledToday(true); setCreditDirectionFilter(false); }}
+                  onClick={() => { setRollStrategyFilters(new Set()); setRollPnlFilters(new Set()); setRollCreditOnlyFilter(true); setHideRolledToday(true); setCreditDirectionFilter(false); setRollCloseFilter(false); }}
                   title="Reset all filters"
                 >Reset all filters</button>
               )}
@@ -3128,6 +3173,10 @@ export default function AutomationDashboard() {
                                       : newStrike > currentStrike;  // CC:  higher strike = more OTM
                                     if (!isCredit || !movesOtm) return false;
                                   }
+                                  if (rollCloseFilter) {
+                                    const al = (pos as any).actionLabel;
+                                    if (al !== 'CLOSE' && al !== 'STOP') return false;
+                                  }
                                   return true;
                                 }).map(p => p.positionId);
                                 // selectableIds: only those with a loaded candidate (for select-all)
@@ -3217,6 +3266,11 @@ export default function AutomationDashboard() {
                                 ? newStrike < currentStrike
                                 : newStrike > currentStrike;
                               if (!isCredit || !movesOtm) return false;
+                            }
+                            // Close-only filter: show only positions flagged for immediate close
+                            if (rollCloseFilter) {
+                              const al = (pos as any).actionLabel;
+                              if (al !== 'CLOSE' && al !== 'STOP') return false;
                             }
                             return true;
                           }).sort((a, b) => {
@@ -3340,14 +3394,15 @@ export default function AutomationDashboard() {
                                         );
                                       })()}
                                       {(pos as any).actionLabel === 'CLOSE' && (
-                                        <span
+                                        <button
                                           title={
                                             ['BPS','BCS','IC'].includes(pos.strategy)
-                                              ? `${pos.strategy} spread is ITM — loss is capped. Rolling at a debit adds cost with no upside. Close and redeploy capital.`
-                                              : 'ITM with ≤5 DTE — close now, no time to roll'
+                                              ? `${pos.strategy} spread is ITM — loss is capped. Click to open close order.`
+                                              : 'ITM with ≤5 DTE — click to open close order'
                                           }
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600/25 text-red-300 text-[10px] font-bold tracking-wide"
-                                        >✕ CLOSE</span>
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600/25 text-red-300 text-[10px] font-bold tracking-wide hover:bg-red-600/40 hover:text-red-200 transition-colors cursor-pointer"
+                                          onClick={e => { e.stopPropagation(); handleOpenRollPositionClose(pos); }}
+                                        >✕ CLOSE</button>
                                       )}
                                       {(pos as any).actionLabel === 'LET_EXPIRE' && (
                                         <span title="OTM with ≤5 DTE — let time decay finish it" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 text-[10px] font-bold tracking-wide">✓ LET EXPIRE</span>
@@ -3359,7 +3414,11 @@ export default function AutomationDashboard() {
                                         <span title={(pos as any).dogReason || 'Dog position — let stock be called away'} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 text-[10px] font-bold tracking-wide">📞 LET CALLED</span>
                                       )}
                                       {(pos as any).actionLabel === 'STOP' && (
-                                        <span title={`2x STOP-LOSS: Cost to close is ${(pos as any).stopLossRatio || '2'}x the original credit. Close immediately to limit losses.`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600/25 text-red-400 text-[10px] font-bold tracking-wide animate-pulse">⛔ 2X STOP</span>
+                                        <button
+                                          title={`2x STOP-LOSS: Cost to close is ${(pos as any).stopLossRatio || '2'}x the original credit. Click to open close order immediately.`}
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600/25 text-red-400 text-[10px] font-bold tracking-wide animate-pulse hover:bg-red-600/40 hover:text-red-300 transition-colors cursor-pointer"
+                                          onClick={e => { e.stopPropagation(); handleOpenRollPositionClose(pos); }}
+                                        >⛔ 2X STOP</button>
                                       )}
                                       {pos.hasStaleMarks && (
                                         <span title="P&L uses yesterday's close price — live marks unavailable" className="text-[9px] text-amber-400/70 font-medium">⚠ stale</span>
@@ -3685,34 +3744,69 @@ export default function AutomationDashboard() {
                 const effectiveCount = effectiveSelected.length;
                 const rollCount = effectiveSelected.filter(k => rollCandidateSelections[k]?.action === 'roll').length;
                 const closeCount = effectiveSelected.filter(k => rollCandidateSelections[k]?.action === 'close').length;
-                if (effectiveCount === 0) return null;
+                // Close-flagged positions that are visible and not yet in the queue
+                const closeNowPositions = rollScanResults?.all.filter(pos => {
+                  const al = (pos as any).actionLabel;
+                  return (al === 'CLOSE' || al === 'STOP') && !selectedRollPositions.has(pos.positionId);
+                }) ?? [];
+                if (effectiveCount === 0 && closeNowPositions.length === 0) return null;
                 return (
-                  <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-between">
+                  <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center justify-between gap-4">
                     <div>
-                      <span className="font-semibold text-orange-400">{effectiveCount} order{effectiveCount !== 1 ? 's' : ''} queued</span>
-                      <span className="text-sm text-muted-foreground ml-2">
-                        {rollCount} roll{rollCount !== 1 ? 's' : ''},{' '}
-                        {closeCount} close{closeCount !== 1 ? 's' : ''}
-                      </span>
-                      <span className="text-xs text-orange-300/70 ml-3">· Review all details before submission</span>
+                      {effectiveCount > 0 && (
+                        <>
+                          <span className="font-semibold text-orange-400">{effectiveCount} order{effectiveCount !== 1 ? 's' : ''} queued</span>
+                          <span className="text-sm text-muted-foreground ml-2">
+                            {rollCount} roll{rollCount !== 1 ? 's' : ''},{' '}
+                            {closeCount} close{closeCount !== 1 ? 's' : ''}
+                          </span>
+                          <span className="text-xs text-orange-300/70 ml-3">· Review all details before submission</span>
+                        </>
+                      )}
+                      {closeNowPositions.length > 0 && (
+                        <span className="text-sm text-red-400 ml-2">
+                          {closeNowPositions.length} position{closeNowPositions.length !== 1 ? 's' : ''} flagged for immediate close
+                        </span>
+                      )}
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => { setSelectedRollPositions(new Set()); setRollCandidateSelections({}); }}
-                      >
-                        Clear
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="bg-orange-600 hover:bg-orange-700 text-white font-semibold"
-                        onClick={handleOpenRollReview}
-                        disabled={isSubmittingRolls || killSwitchActive}
-                      >
-                        {isSubmittingRolls ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Eye className="h-4 w-4 mr-1" />}
-                        Review &amp; Submit {effectiveCount} Order{effectiveCount !== 1 ? 's' : ''}
-                      </Button>
+                      {effectiveCount > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => { setSelectedRollPositions(new Set()); setRollCandidateSelections({}); }}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                      {closeNowPositions.length > 0 && (
+                        <Button
+                          size="sm"
+                          className="bg-red-700 hover:bg-red-800 text-white font-semibold"
+                          onClick={() => {
+                            if (closeNowPositions.length === 0) return;
+                            // Open the first one; user can batch-close via the modal's Submit Another Batch
+                            // For now open the first flagged position's close modal
+                            handleOpenRollPositionClose(closeNowPositions[0]);
+                          }}
+                          disabled={killSwitchActive}
+                          title={`Open close order for ${closeNowPositions.length} position${closeNowPositions.length !== 1 ? 's' : ''} flagged for immediate close`}
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Close Flagged ({closeNowPositions.length})
+                        </Button>
+                      )}
+                      {effectiveCount > 0 && (
+                        <Button
+                          size="sm"
+                          className="bg-orange-600 hover:bg-orange-700 text-white font-semibold"
+                          onClick={handleOpenRollReview}
+                          disabled={isSubmittingRolls || killSwitchActive}
+                        >
+                          {isSubmittingRolls ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Eye className="h-4 w-4 mr-1" />}
+                          Review &amp; Submit {effectiveCount} Order{effectiveCount !== 1 ? 's' : ''}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
