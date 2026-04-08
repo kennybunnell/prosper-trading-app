@@ -67,7 +67,7 @@ export const ccRouter = router({
 
       // Live mode - fetch from Tastytrade
       const { getApiCredentials } = await import('./db');
-      const { getTastytradeAPI } = await import('./tastytrade');
+      
 
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
@@ -75,7 +75,7 @@ export const ccRouter = router({
       }
 
       const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
 
       // Fetch all positions
       const positions = await api.getPositions(input.accountNumber);
@@ -269,7 +269,7 @@ export const ccRouter = router({
       if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
         throw new Error('Tastytrade OAuth2 credentials not configured. Please add them in Settings.');
       }
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
       const allAccounts = await api.getAccounts();
       // Tastytrade API returns accounts as { account: { 'account-number': '...' } }
       // Must handle nested structure same as automation scan
@@ -1085,7 +1085,7 @@ export const ccRouter = router({
 
       // Validate contract limits before submission (both dry run and live)
       const { getApiCredentials } = await import('./db');
-      const { getTastytradeAPI } = await import('./tastytrade');
+      
 
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
@@ -1093,7 +1093,7 @@ export const ccRouter = router({
       }
 
       const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
 
       // ── Multi-account position validation ──────────────────────────────────
       // Each order may target a different account (multi-account CC scans).
@@ -1326,7 +1326,7 @@ export const ccRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { getApiCredentials } = await import('./db');
-      const { getTastytradeAPI } = await import('./tastytrade');
+      
 
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
@@ -1334,7 +1334,7 @@ export const ccRouter = router({
       }
 
       const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
 
       if (input.dryRun) {
         // Dry run - return success without submitting

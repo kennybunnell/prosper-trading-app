@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from './_core/trpc';
-import { getTastytradeAPI, authenticateTastytrade } from './tastytrade';
+import { authenticateTastytrade } from './tastytrade';
 import { getApiCredentials } from './db';
 import { getContractMultiplier } from '../shared/orderUtils';
 
@@ -596,8 +596,7 @@ export const spreadAnalyticsRouter = router({
         throw new Error('Tastytrade credentials not configured');
       }
       
-      await authenticateTastytrade(credentials, ctx.user.id);
-      const api = getTastytradeAPI();
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
       
       // Get all accounts
       const accounts = await api.getAccounts();
@@ -668,8 +667,7 @@ export const spreadAnalyticsRouter = router({
         throw new Error('Tastytrade credentials not configured');
       }
       
-      await authenticateTastytrade(credentials, ctx.user.id);
-      const api = getTastytradeAPI();
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
       
       const accounts = await api.getAccounts();
       if (accounts.length === 0) {
@@ -707,8 +705,7 @@ export const spreadAnalyticsRouter = router({
         throw new Error('Tastytrade credentials not configured');
       }
       
-      await authenticateTastytrade(credentials, ctx.user.id);
-      const api = getTastytradeAPI();
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
       
       const accounts = await api.getAccounts();
       if (accounts.length === 0) {

@@ -1336,14 +1336,25 @@ export class TastytradeAPI {
   }
 }
 
-// Singleton instance for session management
-let tastytradeInstance: TastytradeAPI | null = null;
+// Per-user instance map — each user gets their own isolated TastytradeAPI instance
+// This prevents cross-user token contamination in a multi-tenant environment
+const userApiInstances = new Map<number, TastytradeAPI>();
 
-export function getTastytradeAPI(): TastytradeAPI {
-  if (!tastytradeInstance) {
-    tastytradeInstance = new TastytradeAPI();
+/**
+ * Get or create a per-user TastytradeAPI instance.
+ * Each userId gets its own isolated instance with its own access token.
+ * @param userId - The user's database ID. If omitted, returns a temporary anonymous instance.
+ */
+export function getTastytradeAPI(userId?: number): TastytradeAPI {
+  if (!userId) {
+    // Anonymous/legacy usage — return a temporary instance (not cached)
+    // Callers should migrate to passing userId for proper isolation
+    return new TastytradeAPI();
   }
-  return tastytradeInstance;
+  if (!userApiInstances.has(userId)) {
+    userApiInstances.set(userId, new TastytradeAPI());
+  }
+  return userApiInstances.get(userId)!;
 }
 
 /**
@@ -1370,9 +1381,10 @@ export async function authenticateTastytrade(
     timestamp: new Date().toISOString(),
   });
   
-  const api = getTastytradeAPI();
+  // Get or create the per-user isolated API instance
+  const api = getTastytradeAPI(userId);
   
-  // Set userId for database persistence
+  // Set userId for database persistence (also sets it on new instances)
   if (userId) {
     api.setUserId(userId);
   }
@@ -1459,9 +1471,11 @@ export async function submitRollOrder(params: {
     expiration: string;
     optionType: 'PUT' | 'CALL';
   };
+  userId?: number;
 }): Promise<{ orderId: string }> {
-  const api = getTastytradeAPI();
-  return api.submitRollOrder(params);
+  const { userId, ...orderParams } = params;
+  const api = getTastytradeAPI(userId);
+  return api.submitRollOrder(orderParams);
 }
 
 /**
@@ -1478,7 +1492,9 @@ export async function submitCloseOrder(params: {
     optionType: 'PUT' | 'CALL';
     price: number;
   };
+  userId?: number;
 }): Promise<{ orderId: string }> {
-  const api = getTastytradeAPI();
-  return api.submitCloseOrder(params);
+  const { userId, ...orderParams } = params;
+  const api = getTastytradeAPI(userId);
+  return api.submitCloseOrder(orderParams);
 }

@@ -1343,8 +1343,13 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         let workingOrdersCount: number | null = null;
         let openPositionsCount: number | null = null;
         try {
-          const { getTastytradeAPI } = await import('./tastytrade');
-          const api = getTastytradeAPI();
+          const { getApiCredentials } = await import('./db');
+          const { authenticateTastytrade } = await import('./tastytrade');
+          const credentials = await getApiCredentials(ctx.user.id);
+          if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+            throw new Error('Tastytrade credentials not configured');
+          }
+          const api = await authenticateTastytrade(credentials, ctx.user.id);
           const withTimeout = <T>(p: Promise<T>): Promise<T | null> =>
             Promise.race([p, new Promise<null>((res) => setTimeout(() => res(null), 8000))]);
           const accounts = await withTimeout(api.getAccounts());
@@ -1562,8 +1567,8 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
 
       console.log('[Force Refresh] Requesting fresh access token...');
       
-      // Get a fresh API instance and request new token
-      const api = getTastytradeAPI();
+      // Get the per-user API instance and request new token
+      const api = getTastytradeAPI(ctx.user.id);
       api.setUserId(ctx.user.id);
       
       // Call getAccessToken directly - this will refresh and save to database

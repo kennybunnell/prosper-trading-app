@@ -9059,3 +9059,28 @@ ROC Fix Mar 18 2026
 - [x] Add tastytradeClientId to saveCredentials input schema in routers.ts
 - [x] Pass clientId to getAccessToken in forceTokenRefresh, authenticateTastytrade, and auto-refresh interceptor
 - [x] Update getCredentials to return masked clientId
+
+## CRITICAL: Multi-Tenancy Audit (Apr 8, 2026)
+- [ ] Audit all DB query helpers in server/db.ts for missing userId filters
+- [ ] Fix Dashboard monthly premium earnings query to scope to ctx.user.id
+- [ ] Fix AI Morning Briefing to only use logged-in user's positions
+- [ ] Fix Daily Actions automation scan to only process logged-in user's accounts
+- [ ] Fix Daily Actions execution history to only show logged-in user's runs
+- [ ] Fix Portfolio/positions queries to scope to ctx.user.id
+- [ ] Fix Working Orders to scope to ctx.user.id
+- [ ] Fix all tastytrade account lookups to scope to ctx.user.id
+- [ ] Verify no procedure returns data from other users
+
+## Multi-Tenancy Security Fixes (Apr 8, 2026)
+- [x] Fix critical cross-account contamination: replace global TastytradeAPI singleton with per-user instance map (tastytrade.ts)
+- [x] Fix getActionBadges procedure to use authenticateTastytrade(credentials, ctx.user.id) instead of global singleton
+- [x] Fix upsertTastytradeAccount to filter by both userId AND accountId (prevents cross-user account record overwrites)
+- [x] Fix routers-performance.ts: all 4 authenticateTastytrade calls now pass userId
+- [x] Fix routers-spread-analytics.ts: all 3 getTastytradeAPI/authenticateTastytrade calls now pass userId
+- [x] Fix routers-working-orders.ts: all 5 getTastytradeAPI calls now use per-user instance
+- [x] Fix routers-orders.ts: submitRollOrder and submitCloseOrder now pass userId; pollStatus uses ctx.user.id
+- [x] Fix routers-rolls.ts: both authenticateTastytrade calls now pass userId
+- [x] Fix routers-cc.ts: all 4 authenticateTastytrade calls now pass userId
+- [x] Fix routers-pmcc.ts: both authenticateTastytrade calls now pass userId
+- [x] Fix tastytrade-order-status.ts: checkOrderStatus now accepts optional userId parameter
+- [x] TypeScript compilation: zero errors after all fixes

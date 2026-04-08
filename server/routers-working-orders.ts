@@ -5,7 +5,8 @@
 
 import { z } from 'zod';
 import { router, protectedProcedure } from './_core/trpc';
-import { getTastytradeAPI } from './tastytrade';
+import { getTastytradeAPI, authenticateTastytrade } from './tastytrade';
+import { getApiCredentials } from './db';
 import { 
   calculateSmartFillPrice, 
   calculateMinutesWorking, 
@@ -78,7 +79,10 @@ export const workingOrdersRouter = router({
 
       console.log(`[WorkingOrders] Auto-canceling stuck orders (>${minutesThreshold} minutes)`);
 
-      const api = getTastytradeAPI();
+      const credentials = await getApiCredentials(userId);
+      const api = credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken
+        ? await authenticateTastytrade(credentials, userId)
+        : getTastytradeAPI(userId);
       const { getStuckOrders, recordOrderCanceled } = await import('./db');
 
       // Get stuck orders from database
@@ -229,12 +233,15 @@ export const workingOrdersRouter = router({
       accountId: z.string(),
       aggressiveFillMode: z.boolean().default(false),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { accountId, aggressiveFillMode } = input;
 
       console.log(`[WorkingOrders] Fetching orders for account: ${accountId}, aggressive: ${aggressiveFillMode}`);
 
-      const api = getTastytradeAPI();
+      const credentials = await getApiCredentials(ctx.user.id);
+      const api = credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken
+        ? await authenticateTastytrade(credentials, ctx.user.id)
+        : getTastytradeAPI(ctx.user.id);
 
       try {
         // Handle ALL_ACCOUNTS case
@@ -683,12 +690,15 @@ export const workingOrdersRouter = router({
         symbol: z.string(),
       })),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { orders } = input;
 
       console.log(`[WorkingOrders] Canceling ${orders.length} orders`);
 
-      const api = getTastytradeAPI();
+      const credentials = await getApiCredentials(ctx.user.id);
+      const api = credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken
+        ? await authenticateTastytrade(credentials, ctx.user.id)
+        : getTastytradeAPI(ctx.user.id);
       const results: Array<{ orderId: string; symbol: string; success: boolean; message: string }> = [];
 
       for (const order of orders) {
@@ -733,12 +743,15 @@ export const workingOrdersRouter = router({
         rawOrder: z.any(), // Full original order object from Tastytrade API
       })),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { orders } = input;
 
       console.log(`[WorkingOrders] Replacing ${orders.length} orders`);
 
-      const api = getTastytradeAPI();
+      const credentials = await getApiCredentials(ctx.user.id);
+      const api = credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken
+        ? await authenticateTastytrade(credentials, ctx.user.id)
+        : getTastytradeAPI(ctx.user.id);
       const results: Array<{ 
         orderId: string; 
         symbol: string; 
@@ -847,10 +860,13 @@ export const workingOrdersRouter = router({
       accountId: z.string(),
       orderIds: z.array(z.string()),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { accountId, orderIds } = input;
       const { checkOrderStatusBatch } = await import('./tastytrade-order-status');
-      const api = getTastytradeAPI();
+      const credentials = await getApiCredentials(ctx.user.id);
+      const api = credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken
+        ? await authenticateTastytrade(credentials, ctx.user.id)
+        : getTastytradeAPI(ctx.user.id);
 
       try {
         // Resolve account list

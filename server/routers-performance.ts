@@ -2,7 +2,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getApiCredentials } from "./db";
-import { getTastytradeAPI } from "./tastytrade";
+
 
 /**
  * Processed position with premium realization calculations
@@ -62,7 +62,7 @@ export const performanceRouter = router({
 
       // Get Tastytrade API instance
       const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, userId);
 
       // Get accounts
       const accounts = await api.getAccounts();
@@ -260,7 +260,7 @@ export const performanceRouter = router({
 
       // Initialize Tastytrade API
       const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
 
       // Get accounts
       const accounts = await api.getAccounts();
@@ -854,7 +854,7 @@ export const performanceRouter = router({
 
       // Initialize Tastytrade API
       const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
 
       console.log(`[Performance] ${dryRun ? 'Dry run' : 'Submitting'} close orders for ${positions.length} position(s)`);
 
@@ -1118,7 +1118,8 @@ export const performanceRouter = router({
         });
       }
 
-      const api = await getTastytradeAPI();
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const api = await authenticateTastytrade(credentials, userId);
       const accounts = await api.getAccounts();
 
       // Handle ALL_ACCOUNTS

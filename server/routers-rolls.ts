@@ -262,7 +262,7 @@ export const rollsRouter = router({
       const tradierApiKey = credentials.tradierApiKey || process.env.TRADIER_API_KEY;
       if (!tradierApiKey) throw new Error('Tradier API key not configured');
 
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
       const tradier = new TradierAPI(tradierApiKey, false);
 
       const accounts = await getTastytradeAccounts(ctx.user.id);
@@ -788,7 +788,7 @@ export const rollsRouter = router({
         throw new Error('Tastytrade credentials not found');
       }
 
-      const api = await authenticateTastytrade(credentials);
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
 
       const results: Array<{
         symbol: string;

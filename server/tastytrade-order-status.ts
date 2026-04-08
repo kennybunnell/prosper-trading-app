@@ -64,9 +64,10 @@ function isMarketOpen(): boolean {
 export async function checkOrderStatus(
   accountId: string,
   orderId: string,
-  retryCount: number = 2
+  retryCount: number = 2,
+  userId?: number
 ): Promise<OrderStatus> {
-  const api = getTastytradeAPI();
+  const api = getTastytradeAPI(userId);
 
   // Only block on market-closed BEFORE the first API attempt.
   // If the market just opened and orders are already filling, we should not

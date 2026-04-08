@@ -73,9 +73,9 @@ export const ordersRouter = router({
         intervalMs: z.number().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { getTastytradeAPI } = await import('./tastytrade.js');
-      const api = getTastytradeAPI();
+      const api = getTastytradeAPI(ctx.user.id);
       // Resolve account list — support ALL_ACCOUNTS
       let accountsToTry: string[] = [];
       if (input.accountId === 'ALL_ACCOUNTS') {
@@ -276,6 +276,7 @@ export const ordersRouter = router({
           symbol: input.symbol,
           closeLeg: input.closeLeg,
           openLeg: input.openLeg,
+          userId: ctx.user.id,
         });
 
         return {
@@ -329,6 +330,7 @@ export const ordersRouter = router({
           accountNumber: input.accountNumber,
           symbol: input.symbol,
           closeLeg: input.closeLeg,
+          userId: ctx.user.id,
         });
 
         return {
