@@ -82,11 +82,12 @@ function Router() {
   }, [user]);
 
   // Show trial expiration modal when trial is expiring or expired
+  // VIP users bypass this modal entirely
   useEffect(() => {
     if (!subscriptionStatus.data) return;
     
-    const { tier, trialEndsAt } = subscriptionStatus.data;
-    if (tier !== 'free_trial' || !trialEndsAt) return;
+    const { tier, trialEndsAt, isVipActive } = subscriptionStatus.data;
+    if (tier !== 'free_trial' || !trialEndsAt || isVipActive) return;
 
     const now = new Date();
     const trialEnd = new Date(trialEndsAt);

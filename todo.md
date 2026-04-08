@@ -9030,3 +9030,12 @@ ROC Fix Mar 18 2026
 - [x] Grant VIP dialog: Unlimited / 30 / 60 / 90 days / Custom date picker
 - [x] Wire VIP into subscription tier resolution (effectiveTier) across all scan/rate-limit checks
 - [ ] Write vitest tests for VIP expiry logic
+
+## VIP Mode Banner Suppression (Apr 8, 2026)
+- [x] Hide "14-Day Free Trial" badge in sidebar for VIP users (TrialStatusBanner suppressed via isVipActive)
+- [x] Hide "0/10 Scans Used" counter in sidebar for VIP users (same TrialStatusBanner fix)
+- [x] Hide "Trial ending soon!" + "Upgrade Now" banner in top-right for VIP users (same)
+- [x] Hide full-width DEMO MODE banner for VIP users (PaperTradingBanner checks isVipActive)
+- [x] Allow VIP users to use Live trading mode (TradingModeToggle in Sidebar checks isVipActive)
+- [x] Suppress trial expiration modal for VIP users (App.tsx checks isVipActive)
+- [x] Allow VIP users to enter Tastytrade and Tradier credentials (Settings page has no tier gate on credential fields)

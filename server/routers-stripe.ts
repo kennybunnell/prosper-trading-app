@@ -24,6 +24,7 @@ export const stripeRouter = router({
     if (!user[0]) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
 
     const userData = user[0];
+    const isVipActive = userData.vipMode && (!userData.vipExpiresAt || new Date(userData.vipExpiresAt) > new Date());
     
     return {
       tier: userData.subscriptionTier,
@@ -31,6 +32,7 @@ export const stripeRouter = router({
       stripeSubscriptionId: userData.stripeSubscriptionId,
       trialEndsAt: userData.trialEndsAt,
       createdAt: userData.createdAt,
+      isVipActive: !!isVipActive,
     };
   }),
 

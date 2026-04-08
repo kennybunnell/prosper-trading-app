@@ -57,7 +57,13 @@ export function Sidebar({ className }: SidebarProps) {
   });
   const safetyViolationCount = (safetyData?.criticalCount ?? 0) + (safetyData?.warningCount ?? 0);
 
-  const isTrialUser = user?.subscriptionTier === 'free_trial';
+  const { data: subscriptionStatus } = trpc.user.getSubscriptionStatus.useQuery(
+    undefined,
+    { enabled: !!user }
+  );
+  const isVipActive = subscriptionStatus?.isVipActive ?? false;
+  // Trial user who does NOT have VIP — show demo account
+  const isTrialUser = user?.subscriptionTier === 'free_trial' && !isVipActive;
 
   const { data: demoAccount } = trpc.demo.getOrCreateDemoAccount.useQuery(
     undefined,
@@ -418,8 +424,14 @@ export function Sidebar({ className }: SidebarProps) {
 function TradingModeToggle() {
   const { mode, setMode, isLoading } = useTradingMode();
   const { user } = useAuth();
+  const { data: subscriptionStatus } = trpc.user.getSubscriptionStatus.useQuery(
+    undefined,
+    { enabled: !!user }
+  );
 
-  const isDemo = user?.subscriptionTier === 'free_trial';
+  // VIP users bypass demo mode — they get the live/paper toggle
+  const isVipActive = subscriptionStatus?.isVipActive ?? false;
+  const isDemo = user?.subscriptionTier === 'free_trial' && !isVipActive;
 
   const handleToggle = () => {
     const newMode = mode === 'live' ? 'paper' : 'live';

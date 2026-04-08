@@ -19,8 +19,8 @@ export function TrialStatusBanner() {
   const { user } = useAuth();
   const { data: subscriptionStatus } = trpc.user.getSubscriptionStatus.useQuery(undefined, { enabled: !!user });
 
-  // Only show for free trial users
-  if (!user || !subscriptionStatus || subscriptionStatus.tier !== 'free_trial') {
+  // Only show for free trial users who do NOT have active VIP
+  if (!user || !subscriptionStatus || subscriptionStatus.tier !== 'free_trial' || subscriptionStatus.isVipActive) {
     return null;
   }
 
