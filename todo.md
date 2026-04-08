@@ -8999,3 +8999,10 @@ ROC Fix Mar 18 2026
 - [x] Track a separate selectedClosePositions set for close-flagged rows
 - [x] Wire Close Flagged button to act only on the checked close positions
 - [x] Select-all checkbox in header should also select/deselect CLOSE/STOP rows when close filter is active
+
+## BCS/BPS Spread Close Fix (Apr 8, 2026)
+- [x] Fix handleOpenRollPositionClose to build a 2-leg spread close order (BTC short + STC long) for BCS/BPS positions
+- [x] Fix UnifiedOrderPreviewModal summary: net cost = BTC short mid - STC long mid — confirmed calculateTotalCollateral already does this correctly
+- [x] Verify 2X STOP threshold uses net spread P&L — confirmed: currentValue is already net (short - long) in spreadDetection.ts
+- [x] Ensure the tastytrade order submission sends a spread combo order — confirmed: spreadLongSymbol triggers 2-leg combo in submitCloseOrders
+- [ ] Make stop-loss threshold configurable (1.5x-2.0x) per user preference (currently hardcoded at 2.0x in routers-rolls.ts)

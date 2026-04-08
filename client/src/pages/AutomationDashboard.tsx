@@ -417,26 +417,57 @@ export default function AutomationDashboard() {
 
   // Open the BTC close modal for a single Roll position (from the Roll/Close dashboard)
   const handleOpenRollPositionClose = useCallback((pos: RollAnalysis) => {
-    const occTypeMatch = pos.optionSymbol.match(/([CP])(\d{8})$/);
-    const isCall = occTypeMatch ? occTypeMatch[1] === 'C' : pos.strategy === 'CC';
-    const strike = occTypeMatch ? parseInt(occTypeMatch[2], 10) / 1000 : pos.metrics.strikePrice;
-    const perShareCost = pos.metrics.currentValue / ((pos.quantity ?? 1) * 100);
-    const estimatedBid = Math.max(0.01, perShareCost * 0.8);
-    const estimatedAsk = Math.max(0.02, perShareCost * 1.2);
+    const isSpread = ['BPS', 'BCS', 'IC'].includes(pos.strategy);
+    const sd = pos.spreadDetails;
+    const qty = pos.quantity ?? 1;
+
+    // For spreads: find the short leg (BTC) and long leg (STC) from spreadDetails.legs
+    const shortLeg = sd?.legs.find(l => l.role === 'short');
+    const longLeg  = sd?.legs.find(l => l.role === 'long');
+
+    // Short leg identity
+    const shortSymbol = shortLeg?.symbol ?? pos.optionSymbol;
+    const occTypeMatch = shortSymbol.match(/([CP])\d{6}([CP]\d{8})?$/) ||
+                         shortSymbol.match(/([CP])(\d{8})$/);
+    const isCall = shortLeg ? shortLeg.optionType === 'CALL' : (pos.strategy === 'CC' || pos.strategy === 'BCS');
+    const strike = shortLeg?.strike ?? pos.metrics.strikePrice;
+
+    // Short leg cost per share (what we pay to BTC the short)
+    const shortMarkPerShare = shortLeg ? shortLeg.markPrice : (pos.metrics.currentValue / (qty * 100));
+    const estimatedShortBid = Math.max(0.01, shortMarkPerShare * 0.95);
+    const estimatedShortAsk = Math.max(0.02, shortMarkPerShare * 1.05);
+
+    // Long leg credit per share (what we receive to STC the long) — only for spreads
+    const longMarkPerShare = longLeg ? longLeg.markPrice : undefined;
+
+    // Net cost per share for the spread close = BTC short - STC long
+    const netCostPerShare = isSpread && longMarkPerShare !== undefined
+      ? Math.max(0.01, shortMarkPerShare - longMarkPerShare)
+      : shortMarkPerShare;
+
     const order: UnifiedOrder = {
       symbol: pos.symbol,
       strike,
       expiration: pos.metrics.expiration,
-      premium: perShareCost,
+      premium: netCostPerShare,          // net cost per share (spread) or gross (single-leg)
       action: 'BTC',
       optionType: isCall ? 'CALL' : 'PUT',
-      bid: estimatedBid,
-      ask: estimatedAsk,
-      currentPrice: perShareCost,
-      optionSymbol: pos.optionSymbol,
+      bid: estimatedShortBid,
+      ask: estimatedShortAsk,
+      currentPrice: netCostPerShare,
+      optionSymbol: shortSymbol,
       accountNumber: pos.accountNumber || pos.accountId || '',
-      quantity: pos.quantity ?? 1,
-      isEstimated: true,
+      quantity: qty,
+      isEstimated: !shortLeg,            // false when we have live mark prices from spread legs
+      // Spread fields — populated for BCS/BPS/IC so the submission layer builds a 2-leg combo order
+      ...(isSpread && longLeg ? {
+        spreadLongSymbol: longLeg.symbol,
+        spreadLongPrice: longMarkPerShare,
+        longStrike: longLeg.strike,
+        longPremium: longMarkPerShare,
+        longBid: longMarkPerShare ? Math.max(0.01, longMarkPerShare * 0.95) : undefined,
+        longAsk: longMarkPerShare ? Math.max(0.02, longMarkPerShare * 1.05) : undefined,
+      } : {}),
     };
     setPreviewAccountId(pos.accountNumber || pos.accountId || '');
     setUnifiedOrders([order]);
