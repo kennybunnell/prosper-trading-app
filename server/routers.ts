@@ -1566,14 +1566,26 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       
       const { getApiCredentials } = await import('./db');
       const { authenticateTastytrade } = await import('./tastytrade');
+      const { TRPCError } = await import('@trpc/server');
       
       const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials) {
-        throw new Error('Tastytrade credentials not configured');
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Tastytrade credentials not configured. Please enter your Client ID, Client Secret, and Refresh Token in Settings.',
+        });
       }
 
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
-      return { success: true, message: 'Connection successful' };
+      try {
+        await authenticateTastytrade(credentials, ctx.user.id);
+        return { success: true, message: 'Connection successful' };
+      } catch (authError: any) {
+        // Convert authentication errors to user-friendly tRPC errors (not 500s)
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: authError.message || 'Tastytrade authentication failed. Please check your credentials in Settings.',
+        });
+      }
     }),
     forceTokenRefresh: protectedProcedure.mutation(async ({ ctx }) => {
       console.log('[Force Refresh] === FORCE TOKEN REFRESH START ===');

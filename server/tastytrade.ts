@@ -367,12 +367,38 @@ export class TastytradeAPI {
       console.error('[Tastytrade] Error response data:', JSON.stringify(error.response?.data, null, 2));
       console.error('[Tastytrade] Error message:', error.message);
       
-      // Check if this is a refresh token expiration/revocation error
-      const is403Error = error.response?.status === 403;
-      const errorMessage = error.response?.data?.error?.message || error.message;
-      const isInsufficientScopes = errorMessage.includes('insufficient scopes');
+      const statusCode = error.response?.status;
+      const errorMessage = error.response?.data?.error?.message 
+        || error.response?.data?.error 
+        || error.response?.data?.message 
+        || error.message;
+
+      console.error('[Tastytrade OAuth2] HTTP status:', statusCode);
+      console.error('[Tastytrade OAuth2] Error message:', errorMessage);
+
+      // 400 Bad Request — invalid credentials (wrong client_secret, malformed refresh_token, etc.)
+      if (statusCode === 400) {
+        throw new Error(
+          'Tastytrade rejected the credentials (400 Bad Request). ' +
+          'Please verify your Client ID, Client Secret, and Refresh Token are correct and were copied in full from your Tastytrade OAuth app. ' +
+          'Common causes: (1) refresh token was regenerated and old one is now invalid, ' +
+          '(2) client_secret was copied with extra spaces, ' +
+          '(3) the OAuth app was deleted and recreated.'
+        );
+      }
+
+      // 401 Unauthorized — token revoked or expired
+      if (statusCode === 401) {
+        throw new Error(
+          'Tastytrade credentials are unauthorized (401). Your refresh token may have expired. ' +
+          'Please go to Settings → Clear All Credentials, then re-enter your credentials.'
+        );
+      }
+
+      // 403 with insufficient scopes — refresh token expired/revoked
+      const is403Error = statusCode === 403;
+      const isInsufficientScopes = typeof errorMessage === 'string' && errorMessage.includes('insufficient scopes');
       
-      // If refresh token is expired/revoked, provide clear guidance
       if (is403Error && isInsufficientScopes) {
         throw new Error('Your Tastytrade refresh token has expired or been revoked. Please click "Reconnect Tastytrade" in Settings to re-authenticate.');
       }
@@ -387,7 +413,7 @@ export class TastytradeAPI {
         return this.getAccessToken(refreshToken, clientSecret, retryCount + 1, clientId);
       }
       
-      throw new Error(`Tastytrade OAuth2 authentication failed: ${errorMessage}`);
+      throw new Error(`Tastytrade OAuth2 authentication failed (${statusCode}): ${errorMessage}`);
     }
   }
 

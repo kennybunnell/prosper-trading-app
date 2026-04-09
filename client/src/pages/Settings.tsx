@@ -180,9 +180,9 @@ export default function Settings() {
   useEffect(() => {
     if (userPreferences) {
       setDefaultTastytradeAccountId(userPreferences.defaultTastytradeAccountId || "");
-      // Reset hasChanges when user preferences are loaded
-      console.log('[Settings] Resetting hasChanges to false');
-      setHasChanges(false);
+      // NOTE: Do NOT reset hasChanges here — userPreferences loading fires after
+      // the user may have already typed new credentials, which would incorrectly
+      // disable the Save button.
     }
   }, [userPreferences]);
 
