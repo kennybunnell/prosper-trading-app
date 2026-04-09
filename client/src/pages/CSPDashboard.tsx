@@ -398,6 +398,7 @@ export default function CSPDashboard() {
       // Don't clear symbolWidths on equity mode — preserve for when user returns to index mode
     }
   }, [isIndexMode, strategyType]);
+
   const [sortColumn, setSortColumn] = useState<string>('score');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [dryRun, setDryRun] = useState(true);
@@ -568,6 +569,27 @@ export default function CSPDashboard() {
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
     }
   );
+
+  // Pre-populate symbolWidths with getMinSpreadWidth() defaults for every index symbol
+  // in the watchlist that doesn't already have an explicit user override.
+  // This ensures SPX→50pt, NDX→25pt, XSP→5pt etc. are used from the very first scan
+  // without requiring the user to click each width button manually.
+  useEffect(() => {
+    if (!isIndexMode || !watchlist || watchlist.length === 0) return;
+    const indexSymbols = (watchlist as any[]).filter(w => !!w.isIndex).map(w => w.symbol as string);
+    if (indexSymbols.length === 0) return;
+    setSymbolWidths(prev => {
+      const updated = { ...prev };
+      let changed = false;
+      for (const sym of indexSymbols) {
+        if (updated[sym] === undefined) {
+          updated[sym] = getMinSpreadWidth(sym);
+          changed = true;
+        }
+      }
+      return changed ? updated : prev;
+    });
+  }, [isIndexMode, watchlist]);
 
   // Fetch ticker selections with 5-minute cache
   const { data: selections = [] } = trpc.watchlist.getSelections.useQuery(
