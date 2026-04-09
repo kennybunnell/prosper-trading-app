@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { Loader2, CheckCircle2, XCircle, AlertCircle, Trash2 } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, AlertCircle, Trash2, Wand2 } from "lucide-react";
 import { useState, useEffect } from "react";
+import TastytradeWizard from "@/components/TastytradeWizard";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ export default function Settings() {
   const [hasChanges, setHasChanges] = useState(false);
   const [credentialsSaved, setCredentialsSaved] = useState(false);
   const [lastConnectedAt, setLastConnectedAt] = useState<Date | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   
   // Background pattern state for real-time preview
   const [opacity, setOpacity] = useState(8);
@@ -299,6 +301,22 @@ export default function Settings() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Setup Wizard Banner */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
+              <div>
+                <p className="text-sm font-medium text-blue-400">First time or having trouble? Use the Setup Wizard</p>
+                <p className="text-xs text-muted-foreground">Step-by-step guide with exact Tastytrade instructions — takes 3 minutes</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 border-blue-500/50 text-blue-400 hover:bg-blue-500/10 shrink-0 ml-4"
+                onClick={() => setWizardOpen(true)}
+              >
+                <Wand2 className="h-3.5 w-3.5" />
+                Setup Wizard
+              </Button>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="tastytrade-client-id">Client ID</Label>
               <Input
@@ -724,6 +742,17 @@ export default function Settings() {
         {/* CSP Filter Presets */}
         <FilterPresetsSection />
       </div>
+
+      {/* Tastytrade Setup Wizard */}
+      <TastytradeWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onSuccess={() => {
+          setCredentialsSaved(true);
+          setLastConnectedAt(new Date());
+          utils.accounts.list.invalidate();
+        }}
+      />
     </div>
   );
 }

@@ -9093,3 +9093,13 @@ ROC Fix Mar 18 2026
 ## Demo Account Filtering (Apr 8)
 - [x] Filter out Demo/Paper accounts during Tastytrade sync for VIP users
 - [x] Purge existing demo accounts from DB on sync
+
+## Tastytrade Connection Wizard (Apr 8, 2026)
+- [ ] Build TastytradeWizard.tsx - 4-step guided setup modal with exact Tastytrade docs sequence
+- [ ] Step 1: Create OAuth App - link + exact path + scope checklist (read, trade, openid all required)
+- [ ] Step 2: Copy Client ID & Secret - one-time secret warning, copy button
+- [ ] Step 3: Generate Personal Grant - Manage > Create Grant path, refresh token copy
+- [ ] Step 4: Paste & Live Test - plain text fields, auto-test + auto-sync on success
+- [ ] Add diagnoseConnection tRPC procedure - returns token age, scopes, last error, Tastytrade raw response
+- [ ] Add Connection Diagnostics collapsible panel in Settings
+- [ ] Add proactive health banner on Dashboard when credentials invalid/missing
