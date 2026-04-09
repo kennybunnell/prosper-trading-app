@@ -20,6 +20,8 @@ export default function Settings() {
   const [tradierAccountId, setTradierAccountId] = useState("");
   const [defaultTastytradeAccountId, setDefaultTastytradeAccountId] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
+  const [lastConnectedAt, setLastConnectedAt] = useState<Date | null>(null);
+  const [validationErrors, setValidationErrors] = useState<{ clientSecret?: string; refreshToken?: string }>({});
   
   // Background pattern state for real-time preview
   const [opacity, setOpacity] = useState(8);
@@ -60,7 +62,11 @@ export default function Settings() {
 
   const testTastytrade = trpc.settings.testTastytradeConnection.useMutation({
     onSuccess: () => {
-      toast.success("Tastytrade connection successful!");
+      const now = new Date();
+      setLastConnectedAt(now);
+      toast.success("Tastytrade connection successful! Syncing accounts...");
+      // Auto-sync accounts after successful connection
+      syncAccounts.mutate();
     },
     onError: (error) => {
       toast.error(`Tastytrade connection failed: ${error.message}`);
@@ -179,7 +185,27 @@ export default function Settings() {
     }
   }, [userPreferences]);
 
+  const validateCredentials = (): boolean => {
+    const isMasked = (v: string) => v.startsWith('••••');
+    const errors: { clientSecret?: string; refreshToken?: string } = {};
+    
+    // Only validate fields that have been changed (not masked)
+    if (tastytradeClientSecret && !isMasked(tastytradeClientSecret)) {
+      if (tastytradeClientSecret.length < 20) {
+        errors.clientSecret = 'Client Secret must be at least 20 characters.';
+      }
+    }
+    if (tastytradeRefreshToken && !isMasked(tastytradeRefreshToken)) {
+      if (!tastytradeRefreshToken.startsWith('eyJ')) {
+        errors.refreshToken = 'Refresh Token must start with \'eyJ\' (JWT format). Check that you copied the full token.';
+      }
+    }
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSave = () => {
+    if (!validateCredentials()) return;
     // Helper function to detect masked values
     const isMasked = (value: string) => value.startsWith('••••');
     
@@ -310,14 +336,21 @@ export default function Settings() {
                 onChange={(e) => {
                   setTastytradeClientSecret(e.target.value);
                   handleInputChange();
+                  if (validationErrors.clientSecret) setValidationErrors(prev => ({ ...prev, clientSecret: undefined }));
                 }}
                 placeholder="Enter your Tastytrade Client Secret"
+                className={cn(validationErrors.clientSecret && 'border-destructive focus-visible:ring-destructive')}
               />
-              {tastytradeClientSecret.startsWith('••••') && (
+              {validationErrors.clientSecret ? (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <XCircle className="h-3.5 w-3.5 shrink-0" />
+                  {validationErrors.clientSecret}
+                </p>
+              ) : tastytradeClientSecret.startsWith('••••') ? (
                 <p className="text-xs text-muted-foreground">
                   🔒 Existing credential is masked for security. Enter a new value to update.
                 </p>
-              )}
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="tastytrade-refresh-token">Refresh Token</Label>
@@ -328,10 +361,17 @@ export default function Settings() {
                 onChange={(e) => {
                   setTastytradeRefreshToken(e.target.value);
                   handleInputChange();
+                  if (validationErrors.refreshToken) setValidationErrors(prev => ({ ...prev, refreshToken: undefined }));
                 }}
                 placeholder="Enter your Tastytrade Refresh Token"
+                className={cn(validationErrors.refreshToken && 'border-destructive focus-visible:ring-destructive')}
               />
-              {tastytradeRefreshToken.startsWith('••••') ? (
+              {validationErrors.refreshToken ? (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <XCircle className="h-3.5 w-3.5 shrink-0" />
+                  {validationErrors.refreshToken}
+                </p>
+              ) : tastytradeRefreshToken.startsWith('••••') ? (
                 <p className="text-xs text-muted-foreground">
                   🔒 Existing credential is masked for security. Enter a new value to update.
                 </p>
@@ -341,15 +381,23 @@ export default function Settings() {
                 </p>
               )}
             </div>
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                onClick={() => testTastytrade.mutate()}
-                disabled={!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken || testTastytrade.isPending || hasChanges}
-              >
-                {testTastytrade.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Test Connection
-              </Button>
+            <div className="flex gap-2 flex-wrap items-center">
+              <div className="flex flex-col gap-1">
+                <Button
+                  variant="outline"
+                  onClick={() => testTastytrade.mutate()}
+                  disabled={!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken || testTastytrade.isPending || syncAccounts.isPending || hasChanges}
+                >
+                  {(testTastytrade.isPending || syncAccounts.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {testTastytrade.isPending ? 'Testing...' : syncAccounts.isPending ? 'Syncing...' : 'Test Connection'}
+                </Button>
+                {lastConnectedAt && (
+                  <span className="text-xs text-green-500 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Last connected {lastConnectedAt.toLocaleString()}
+                  </span>
+                )}
+              </div>
               <Button
                 onClick={() => forceTokenRefresh.mutate()}
                 disabled={!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken || forceTokenRefresh.isPending || hasChanges}

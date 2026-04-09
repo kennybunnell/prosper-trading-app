@@ -9084,3 +9084,8 @@ ROC Fix Mar 18 2026
 - [x] Fix routers-pmcc.ts: both authenticateTastytrade calls now pass userId
 - [x] Fix tastytrade-order-status.ts: checkOrderStatus now accepts optional userId parameter
 - [x] TypeScript compilation: zero errors after all fixes
+
+## Settings UX Improvements (Apr 8)
+- [x] Credential validation before save (refresh token starts with eyJ, client secret >= 20 chars)
+- [x] Last-connected timestamp next to Test Connection button
+- [x] Auto-sync accounts after successful Test Connection
