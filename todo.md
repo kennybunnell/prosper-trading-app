@@ -9089,3 +9089,7 @@ ROC Fix Mar 18 2026
 - [x] Credential validation before save (refresh token starts with eyJ, client secret >= 20 chars)
 - [x] Last-connected timestamp next to Test Connection button
 - [x] Auto-sync accounts after successful Test Connection
+
+## Demo Account Filtering (Apr 8)
+- [x] Filter out Demo/Paper accounts during Tastytrade sync for VIP users
+- [x] Purge existing demo accounts from DB on sync

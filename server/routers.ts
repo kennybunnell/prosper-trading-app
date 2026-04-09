@@ -1833,6 +1833,10 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       console.log('[Account Sync] Retrieved accounts from Tastytrade:', JSON.stringify(accounts, null, 2));
 
       const liveAccountNumbers: string[] = [];
+      let skippedDemo = 0;
+
+      // Account types to exclude — demo/paper accounts should never appear for VIP users
+      const EXCLUDED_ACCOUNT_TYPES = ['Demo', 'Paper', 'Simulated', 'Virtual'];
 
       for (const item of accounts) {
         console.log('[Account Sync] Processing account:', JSON.stringify(item, null, 2));
@@ -1840,8 +1844,19 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         // Tastytrade API returns nested structure with kebab-case field names
         const account = item.account;
         const accountNumber = account['account-number'];
-        const accountType = account['account-type-name'];
+        const accountType = account['account-type-name'] as string;
         const nickname = account['nickname'];
+        
+        // Skip demo/paper accounts — VIP users only see real live accounts
+        const isDemo = EXCLUDED_ACCOUNT_TYPES.some(t =>
+          accountType?.toLowerCase().includes(t.toLowerCase()) ||
+          accountNumber?.toUpperCase().startsWith('DEMO')
+        );
+        if (isDemo) {
+          console.log(`[Account Sync] Skipping demo/paper account: ${accountNumber} (type: ${accountType})`);
+          skippedDemo++;
+          continue; // Do NOT add to liveAccountNumbers — this causes it to be purged from DB below
+        }
         
         console.log('[Account Sync] Mapped data:', {
           accountId: accountNumber,
@@ -1861,12 +1876,14 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       }
 
       // Remove accounts that no longer exist in Tastytrade (closed/removed accounts)
+      // This also purges any previously-stored demo accounts since they're not in liveAccountNumbers
       const removed = await deleteRemovedTastytradeAccounts(ctx.user.id, liveAccountNumbers);
       if (removed > 0) {
-        console.log(`[Account Sync] Removed ${removed} account(s) no longer in Tastytrade`);
+        console.log(`[Account Sync] Removed ${removed} account(s) no longer in Tastytrade (includes ${skippedDemo} demo account(s))`);
       }
 
-      return { success: true, count: accounts.length, removed };
+      const realCount = accounts.length - skippedDemo;
+      return { success: true, count: realCount, removed, skippedDemo };
     }),
     getBuyingPower: protectedProcedure
       .input(z.object({ accountId: z.string() }))

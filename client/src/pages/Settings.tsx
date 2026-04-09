@@ -125,7 +125,8 @@ export default function Settings() {
   const syncAccounts = trpc.accounts.sync.useMutation({
     onSuccess: (data) => {
       const removedMsg = (data as any).removed > 0 ? ` (${(data as any).removed} removed)` : '';
-      toast.success(`Synced ${data.count} account(s) from Tastytrade${removedMsg}`);
+      const skippedMsg = (data as any).skippedDemo > 0 ? ` — ${(data as any).skippedDemo} demo account(s) excluded` : '';
+      toast.success(`Synced ${data.count} real account(s) from Tastytrade${removedMsg}${skippedMsg}`);
       utils.accounts.list.invalidate();
     },
     onError: (error) => {
