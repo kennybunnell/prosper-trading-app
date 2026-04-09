@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { Loader2, CheckCircle2, XCircle, AlertCircle, Trash2 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -20,19 +20,13 @@ export default function Settings() {
   const [tradierAccountId, setTradierAccountId] = useState("");
   const [defaultTastytradeAccountId, setDefaultTastytradeAccountId] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
-  const credentialsInitialized = useRef(false);
+  const [credentialsSaved, setCredentialsSaved] = useState(false);
   const [lastConnectedAt, setLastConnectedAt] = useState<Date | null>(null);
-  const [validationErrors, setValidationErrors] = useState<{ clientSecret?: string; refreshToken?: string }>({});
   
   // Background pattern state for real-time preview
   const [opacity, setOpacity] = useState(8);
   const [pattern, setPattern] = useState<'diagonal' | 'crosshatch' | 'dots' | 'woven' | 'none'>('diagonal');
   
-  // Debug: Log hasChanges whenever it changes
-  useEffect(() => {
-    console.log('[Settings] hasChanges state updated to:', hasChanges);
-  }, [hasChanges]);
-
   const { data: credentials, isLoading: loadingCredentials } = trpc.settings.getCredentials.useQuery(
     undefined,
     { enabled: !!user }
@@ -53,8 +47,9 @@ export default function Settings() {
     onSuccess: () => {
       toast.success("Credentials saved successfully");
       setHasChanges(false);
-      // Refresh credentials from database
-      utils.settings.getCredentials.invalidate();
+      setCredentialsSaved(true);
+      // Do NOT invalidate getCredentials — that would re-fetch masked values
+      // and overwrite what the user just typed.
     },
     onError: (error) => {
       toast.error(`Failed to save credentials: ${error.message}`);
@@ -115,8 +110,13 @@ export default function Settings() {
 
   const clearTastytradeCredentials = trpc.settings.clearTastytradeCredentials.useMutation({
     onSuccess: () => {
-      toast.success("Tastytrade credentials cleared. Please enter new credentials.");
-      utils.settings.getCredentials.invalidate();
+      // Clear local state so fields are blank and ready for new input
+      setTastytradeClientId("");
+      setTastytradeClientSecret("");
+      setTastytradeRefreshToken("");
+      setCredentialsSaved(false);
+      setHasChanges(false);
+      toast.success("Tastytrade credentials cleared. Enter your new credentials below.");
     },
     onError: (error) => {
       toast.error(`Failed to clear credentials: ${error.message}`);
@@ -167,20 +167,11 @@ export default function Settings() {
 
   const utils = trpc.useUtils();
 
+  // Tradier credentials are safe to pre-fill (they don't interfere with Tastytrade auth)
   useEffect(() => {
-    if (credentials) {
-      // Only load from DB on first load, or if user has no pending changes.
-      // This prevents DB refetch (triggered by invalidate after save) from
-      // overwriting credentials the user is actively editing.
-      if (!credentialsInitialized.current || !hasChanges) {
-        console.log('[Settings] Loading credentials from database:', credentials);
-        setTastytradeClientId((credentials as any).tastytradeClientId || "");
-        setTastytradeClientSecret(credentials.tastytradeClientSecret || "");
-        setTastytradeRefreshToken(credentials.tastytradeRefreshToken || "");
-        setTradierApiKey(credentials.tradierApiKey || "");
-        setTradierAccountId(credentials.tradierAccountId || "");
-        credentialsInitialized.current = true;
-      }
+    if (credentials && !tradierApiKey && !tradierAccountId) {
+      setTradierApiKey(credentials.tradierApiKey || "");
+      setTradierAccountId(credentials.tradierAccountId || "");
     }
   }, [credentials]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -194,35 +185,26 @@ export default function Settings() {
   }, [userPreferences]);
 
   const validateCredentials = (): boolean => {
-    const isMasked = (v: string) => v.startsWith('••••');
-    const errors: { clientSecret?: string; refreshToken?: string } = {};
-    
-    // Only validate fields that have been changed (not masked)
-    if (tastytradeClientSecret && !isMasked(tastytradeClientSecret)) {
-      if (tastytradeClientSecret.length < 20) {
-        errors.clientSecret = 'Client Secret must be at least 20 characters.';
-      }
+    // Simple validation — fields are always plain text, no masking logic needed
+    if (tastytradeClientSecret && tastytradeClientSecret.length < 20) {
+      toast.error('Client Secret must be at least 20 characters.');
+      return false;
     }
-    if (tastytradeRefreshToken && !isMasked(tastytradeRefreshToken)) {
-      if (!tastytradeRefreshToken.startsWith('eyJ')) {
-        errors.refreshToken = 'Refresh Token must start with \'eyJ\' (JWT format). Check that you copied the full token.';
-      }
+    if (tastytradeRefreshToken && !tastytradeRefreshToken.startsWith('eyJ')) {
+      toast.error("Refresh Token must start with 'eyJ' (JWT format). Check that you copied the full token.");
+      return false;
     }
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
+    return true;
   };
 
   const handleSave = () => {
     if (!validateCredentials()) return;
-    // Helper function to detect masked values
-    const isMasked = (value: string) => value.startsWith('••••');
-    
+    // Fields are always plain text — send whatever is in them
     saveCredentials.mutate({
-      // Only send credentials if they've been changed (not masked values)
-      tastytradeClientId: (tastytradeClientId && !isMasked(tastytradeClientId)) ? tastytradeClientId : undefined,
-      tastytradeClientSecret: (tastytradeClientSecret && !isMasked(tastytradeClientSecret)) ? tastytradeClientSecret : undefined,
-      tastytradeRefreshToken: (tastytradeRefreshToken && !isMasked(tastytradeRefreshToken)) ? tastytradeRefreshToken : undefined,
-      tradierApiKey: (tradierApiKey && !isMasked(tradierApiKey)) ? tradierApiKey : undefined,
+      tastytradeClientId: tastytradeClientId || undefined,
+      tastytradeClientSecret: tastytradeClientSecret || undefined,
+      tastytradeRefreshToken: tastytradeRefreshToken || undefined,
+      tradierApiKey: tradierApiKey || undefined,
       tradierAccountId: tradierAccountId || undefined,
       defaultTastytradeAccountId: defaultTastytradeAccountId || undefined,
     });
@@ -299,7 +281,7 @@ export default function Settings() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               Tastytrade API (OAuth2)
-              {credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken && (
+              {(credentialsSaved || (tastytradeClientSecret && tastytradeRefreshToken)) && (
                 <CheckCircle2 className="h-5 w-5 text-green-500" />
               )}
             </CardTitle>
@@ -321,67 +303,56 @@ export default function Settings() {
               <Label htmlFor="tastytrade-client-id">Client ID</Label>
               <Input
                 id="tastytrade-client-id"
-                type="password"
+                type="text"
                 value={tastytradeClientId}
                 onChange={(e) => {
                   setTastytradeClientId(e.target.value);
                   handleInputChange();
                 }}
-                placeholder="Enter your Tastytrade Client ID"
+                placeholder="Paste your Tastytrade Client ID"
+                autoComplete="off"
+                spellCheck={false}
               />
-              {tastytradeClientId.startsWith('••••') && (
-                <p className="text-xs text-muted-foreground">
-                  🔒 Existing credential is masked for security. Enter a new value to update.
-                </p>
-              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="tastytrade-client-secret">Client Secret</Label>
               <Input
                 id="tastytrade-client-secret"
-                type="password"
+                type="text"
                 value={tastytradeClientSecret}
                 onChange={(e) => {
                   setTastytradeClientSecret(e.target.value);
                   handleInputChange();
-                  if (validationErrors.clientSecret) setValidationErrors(prev => ({ ...prev, clientSecret: undefined }));
                 }}
-                placeholder="Enter your Tastytrade Client Secret"
-                className={cn(validationErrors.clientSecret && 'border-destructive focus-visible:ring-destructive')}
+                placeholder="Paste your Tastytrade Client Secret"
+                autoComplete="off"
+                spellCheck={false}
               />
-              {validationErrors.clientSecret ? (
+              {tastytradeClientSecret && tastytradeClientSecret.length < 20 && (
                 <p className="text-xs text-destructive flex items-center gap-1">
                   <XCircle className="h-3.5 w-3.5 shrink-0" />
-                  {validationErrors.clientSecret}
+                  Client Secret must be at least 20 characters.
                 </p>
-              ) : tastytradeClientSecret.startsWith('••••') ? (
-                <p className="text-xs text-muted-foreground">
-                  🔒 Existing credential is masked for security. Enter a new value to update.
-                </p>
-              ) : null}
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="tastytrade-refresh-token">Refresh Token</Label>
               <Input
                 id="tastytrade-refresh-token"
-                type="password"
+                type="text"
                 value={tastytradeRefreshToken}
                 onChange={(e) => {
                   setTastytradeRefreshToken(e.target.value);
                   handleInputChange();
-                  if (validationErrors.refreshToken) setValidationErrors(prev => ({ ...prev, refreshToken: undefined }));
                 }}
-                placeholder="Enter your Tastytrade Refresh Token"
-                className={cn(validationErrors.refreshToken && 'border-destructive focus-visible:ring-destructive')}
+                placeholder="Paste your Tastytrade Refresh Token (starts with eyJ...)"
+                autoComplete="off"
+                spellCheck={false}
               />
-              {validationErrors.refreshToken ? (
+              {tastytradeRefreshToken && !tastytradeRefreshToken.startsWith('eyJ') ? (
                 <p className="text-xs text-destructive flex items-center gap-1">
                   <XCircle className="h-3.5 w-3.5 shrink-0" />
-                  {validationErrors.refreshToken}
-                </p>
-              ) : tastytradeRefreshToken.startsWith('••••') ? (
-                <p className="text-xs text-muted-foreground">
-                  🔒 Existing credential is masked for security. Enter a new value to update.
+                  Refresh Token must start with 'eyJ' (JWT format). Check that you copied the full token.
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground">
@@ -394,7 +365,7 @@ export default function Settings() {
                 <Button
                   variant="outline"
                   onClick={() => testTastytrade.mutate()}
-                  disabled={!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken || testTastytrade.isPending || syncAccounts.isPending || hasChanges}
+                  disabled={!tastytradeClientSecret || !tastytradeRefreshToken || testTastytrade.isPending || syncAccounts.isPending || hasChanges}
                 >
                   {(testTastytrade.isPending || syncAccounts.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {testTastytrade.isPending ? 'Testing...' : syncAccounts.isPending ? 'Syncing...' : 'Test Connection'}
@@ -408,7 +379,7 @@ export default function Settings() {
               </div>
               <Button
                 onClick={() => forceTokenRefresh.mutate()}
-                disabled={!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken || forceTokenRefresh.isPending || hasChanges}
+                disabled={!tastytradeClientSecret || !tastytradeRefreshToken || forceTokenRefresh.isPending || hasChanges}
                 className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0"
               >
                 {forceTokenRefresh.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -417,7 +388,7 @@ export default function Settings() {
               <Button
                 variant="outline"
                 onClick={() => syncAccounts.mutate()}
-                disabled={!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken || syncAccounts.isPending || hasChanges}
+                disabled={!tastytradeClientSecret || !tastytradeRefreshToken || syncAccounts.isPending || hasChanges}
               >
                 {syncAccounts.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sync Accounts
@@ -488,31 +459,29 @@ export default function Settings() {
                 </p>
               </div>
             )}
-            {/* Inline Save button for Tastytrade — always visible when fields have content */}
-            {(tastytradeClientSecret || tastytradeRefreshToken) && (
-              <div className="flex items-center gap-3 pt-1">
-                <Button
-                  onClick={handleSave}
-                  disabled={!hasChanges || saveCredentials.isPending}
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0"
-                >
-                  {saveCredentials.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Save Tastytrade Credentials
-                </Button>
-                {hasChanges && (
-                  <span className="text-xs text-amber-500 flex items-center gap-1">
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    Unsaved changes — save before testing
-                  </span>
-                )}
-                {!hasChanges && credentials?.tastytradeClientSecret && (
-                  <span className="text-xs text-green-500 flex items-center gap-1">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Credentials saved
-                  </span>
-                )}
-              </div>
-            )}
+            {/* Save button — always visible */}
+            <div className="flex items-center gap-3 pt-1">
+              <Button
+                onClick={handleSave}
+                disabled={saveCredentials.isPending || (!tastytradeClientId && !tastytradeClientSecret && !tastytradeRefreshToken)}
+                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0"
+              >
+                {saveCredentials.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Tastytrade Credentials
+              </Button>
+              {hasChanges && (
+                <span className="text-xs text-amber-500 flex items-center gap-1">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Unsaved changes — save before testing
+                </span>
+              )}
+              {!hasChanges && credentialsSaved && (
+                <span className="text-xs text-green-500 flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Credentials saved
+                </span>
+              )}
+            </div>
           </CardContent>
         </Card>
 
