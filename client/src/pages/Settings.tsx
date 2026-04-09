@@ -106,6 +106,16 @@ export default function Settings() {
     },
   });
 
+  const clearTastytradeCredentials = trpc.settings.clearTastytradeCredentials.useMutation({
+    onSuccess: () => {
+      toast.success("Tastytrade credentials cleared. Please enter new credentials.");
+      utils.settings.getCredentials.invalidate();
+    },
+    onError: (error) => {
+      toast.error(`Failed to clear credentials: ${error.message}`);
+    },
+  });
+
   const syncAccounts = trpc.accounts.sync.useMutation({
     onSuccess: (data) => {
       const removedMsg = (data as any).removed > 0 ? ` (${(data as any).removed} removed)` : '';
@@ -355,6 +365,19 @@ export default function Settings() {
               >
                 {syncAccounts.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sync Accounts
+              </Button>
+              <Button
+                variant="outline"
+                className="text-destructive hover:text-destructive border-destructive/40 hover:bg-destructive/10"
+                onClick={() => {
+                  if (confirm('This will permanently clear all saved Tastytrade credentials for your account. You will need to re-enter them. Continue?')) {
+                    clearTastytradeCredentials.mutate();
+                  }
+                }}
+                disabled={clearTastytradeCredentials.isPending}
+              >
+                {clearTastytradeCredentials.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Clear All Credentials
               </Button>
             </div>
             {accounts.length > 0 && (

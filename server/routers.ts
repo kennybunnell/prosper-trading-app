@@ -1520,20 +1520,31 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // Server-side guard: strip any masked placeholder values (starting with ••••)
+        // before saving to the database. The frontend does this too, but defense-in-depth.
+        const isMasked = (v?: string) => !!v && v.startsWith('\u2022\u2022\u2022\u2022');
+        const sanitized = {
+          tastytradeClientId: isMasked(input.tastytradeClientId) ? undefined : input.tastytradeClientId,
+          tastytradeClientSecret: isMasked(input.tastytradeClientSecret) ? undefined : input.tastytradeClientSecret,
+          tastytradeRefreshToken: isMasked(input.tastytradeRefreshToken) ? undefined : input.tastytradeRefreshToken,
+          tradierApiKey: isMasked(input.tradierApiKey) ? undefined : input.tradierApiKey,
+          tradierAccountId: input.tradierAccountId,
+          defaultTastytradeAccountId: input.defaultTastytradeAccountId,
+        };
         console.log('[Settings] saveCredentials called with input:', {
-          hasClientId: !!input.tastytradeClientId,
-          hasClientSecret: !!input.tastytradeClientSecret,
-          clientSecretLength: input.tastytradeClientSecret?.length || 0,
-          hasRefreshToken: !!input.tastytradeRefreshToken,
-          refreshTokenLength: input.tastytradeRefreshToken?.length || 0,
-          refreshTokenStart: input.tastytradeRefreshToken?.substring(0, 50) || 'none',
+          hasClientId: !!sanitized.tastytradeClientId,
+          hasClientSecret: !!sanitized.tastytradeClientSecret,
+          clientSecretLength: sanitized.tastytradeClientSecret?.length || 0,
+          hasRefreshToken: !!sanitized.tastytradeRefreshToken,
+          refreshTokenLength: sanitized.tastytradeRefreshToken?.length || 0,
+          refreshTokenStart: sanitized.tastytradeRefreshToken?.substring(0, 50) || 'none',
         });
         const { upsertApiCredentials, clearAccessToken } = await import('./db');
-        await upsertApiCredentials(ctx.user.id, input);
+        await upsertApiCredentials(ctx.user.id, sanitized);
         
         // If Tastytrade credentials were updated, evict the stale per-user API instance
         // and clear the persisted access token so the next auth call gets a fresh token.
-        const tastytradeCredentialsChanged = !!(input.tastytradeClientSecret || input.tastytradeRefreshToken || input.tastytradeClientId);
+        const tastytradeCredentialsChanged = !!(sanitized.tastytradeClientSecret || sanitized.tastytradeRefreshToken || sanitized.tastytradeClientId);
         if (tastytradeCredentialsChanged) {
           const { clearUserInstance } = await import('./tastytrade');
           clearUserInstance(ctx.user.id);
@@ -1766,6 +1777,26 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         expiresAt: expiresAt.toISOString(),
         isValid: true,
       };
+    }),
+    clearTastytradeCredentials: protectedProcedure.mutation(async ({ ctx }) => {
+      const db = await (await import('./db')).getDb();
+      if (!db) throw new Error('Database unavailable');
+      const { apiCredentials } = await import('../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      // Wipe all Tastytrade credential fields for this user
+      await db.update(apiCredentials).set({
+        tastytradeClientId: null,
+        tastytradeClientSecret: null,
+        tastytradeRefreshToken: null,
+        tastytradeAccessToken: null,
+        tastytradeAccessTokenExpiresAt: null,
+        updatedAt: new Date(),
+      }).where(eq(apiCredentials.userId, ctx.user.id));
+      // Also evict the in-memory instance
+      const { clearUserInstance } = await import('./tastytrade');
+      clearUserInstance(ctx.user.id);
+      console.log('[Settings] Tastytrade credentials cleared for userId:', ctx.user.id);
+      return { success: true };
     }),
   }),
 
