@@ -400,6 +400,9 @@ export default function AutomationDashboard() {
   // Ref to track which positionIds were submitted in the last roll submission
   // Used by submitRollOrders.onSuccess to selectively clear only submitted positions
   const lastSubmittedRollPositionIds = useRef<string[]>([]);
+  // Ref to track whether the last roll submission was a dry run
+  // Used by submitRollOrders.onSuccess to avoid closing the modal on dry runs
+  const lastSubmitWasDryRun = useRef<boolean>(false);
   // Rolled-today tracking: hide positions already rolled today to prevent double-rolling
   const [hideRolledToday, setHideRolledToday] = useState(true);
   const { data: rolledTodayData, refetch: refetchRolledToday } = trpc.rolls.getRolledToday.useQuery(
@@ -658,6 +661,31 @@ export default function AutomationDashboard() {
   const submitRollOrders = trpc.rolls.submitRollOrders.useMutation({
     onSuccess: (data) => {
       setIsSubmittingRolls(false);
+      const wasDryRun = lastSubmitWasDryRun.current;
+      lastSubmitWasDryRun.current = false;
+
+      if (wasDryRun) {
+        // Dry run: keep the modal open, just show a toast with the result per position
+        if (data.summary.failed === 0) {
+          const symbols = (data.results ?? []).map((r: any) => r.symbol).join(', ');
+          toast.info(
+            `Dry run passed for ${data.summary.success} order${data.summary.success !== 1 ? 's' : ''}${symbols ? ` (${symbols})` : ''} — no real order was sent.`,
+            { duration: 6000 }
+          );
+        } else {
+          toast.warning(
+            `Dry run: ${data.summary.success} would succeed, ${data.summary.failed} would fail.`,
+            { duration: 6000 }
+          );
+          (data.results ?? []).filter((r: any) => !r.success).forEach((r: any) => {
+            toast.error(`Dry run — ${r.symbol}: ${r.error || 'Would be rejected'}`, { duration: 8000 });
+          });
+        }
+        lastSubmittedRollPositionIds.current = [];
+        return; // Keep the modal open so the user can adjust and submit live
+      }
+
+      // Live submission: close the modal and clean up
       setShowRollReview(false);
       if (data.summary.failed === 0) {
         toast.success(`${data.summary.success} roll order${data.summary.success !== 1 ? 's' : ''} submitted successfully!`);
@@ -1024,6 +1052,7 @@ export default function AutomationDashboard() {
     // Track which positionIds are being submitted so onSuccess can selectively clear them
     lastSubmittedRollPositionIds.current = reviewedItems.map(item => item.positionId);
     setIsSubmittingRolls(true);
+    lastSubmitWasDryRun.current = isDryRun;
     submitRollOrders.mutate({ orders, dryRun: isDryRun });
   };
 
@@ -1079,6 +1108,7 @@ export default function AutomationDashboard() {
     // Track which positionIds are being submitted so onSuccess can selectively clear them
     lastSubmittedRollPositionIds.current = Array.from(selectedRollPositions).filter(k => !!rollCandidateSelections[k]);
     setIsSubmittingRolls(true);
+    lastSubmitWasDryRun.current = dryRun;
     submitRollOrders.mutate({ orders, dryRun });
   };
 
