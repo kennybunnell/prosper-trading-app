@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { Loader2, CheckCircle2, XCircle, AlertCircle, Trash2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,7 @@ export default function Settings() {
   const [tradierAccountId, setTradierAccountId] = useState("");
   const [defaultTastytradeAccountId, setDefaultTastytradeAccountId] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
+  const credentialsInitialized = useRef(false);
   const [lastConnectedAt, setLastConnectedAt] = useState<Date | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ clientSecret?: string; refreshToken?: string }>({});
   
@@ -168,14 +169,20 @@ export default function Settings() {
 
   useEffect(() => {
     if (credentials) {
-      console.log('[Settings] Loading credentials from database:', credentials);
-      setTastytradeClientId((credentials as any).tastytradeClientId || "");
-      setTastytradeClientSecret(credentials.tastytradeClientSecret || "");
-      setTastytradeRefreshToken(credentials.tastytradeRefreshToken || "");
-      setTradierApiKey(credentials.tradierApiKey || "");
-      setTradierAccountId(credentials.tradierAccountId || "");
+      // Only load from DB on first load, or if user has no pending changes.
+      // This prevents DB refetch (triggered by invalidate after save) from
+      // overwriting credentials the user is actively editing.
+      if (!credentialsInitialized.current || !hasChanges) {
+        console.log('[Settings] Loading credentials from database:', credentials);
+        setTastytradeClientId((credentials as any).tastytradeClientId || "");
+        setTastytradeClientSecret(credentials.tastytradeClientSecret || "");
+        setTastytradeRefreshToken(credentials.tastytradeRefreshToken || "");
+        setTradierApiKey(credentials.tradierApiKey || "");
+        setTradierAccountId(credentials.tradierAccountId || "");
+        credentialsInitialized.current = true;
+      }
     }
-  }, [credentials]);
+  }, [credentials]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (userPreferences) {
