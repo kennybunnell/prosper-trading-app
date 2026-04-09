@@ -1268,22 +1268,31 @@ export function UnifiedOrderPreviewModal({
   //   - minimum is always $0.01 (can go below bid for aggressive BTC)
   //   - maximum is always at least 2x the ask (can go above ask if needed)
   const getOrderPriceRange = (order: UnifiedOrder) => {
+    // Helper: build a symmetric range so mid always maps to 50%
+    const symmetricRange = (mid: number, halfRange: number) => ({
+      minPrice: Math.max(0.01, mid - halfRange),
+      maxPrice: mid + halfRange,
+      midPrice: mid,
+    });
+
     if (!order.bid || !order.ask) {
-      const fallback = Math.max(0.01, order.premium);
-      return { minPrice: 0.01, maxPrice: Math.max(fallback * 2, 0.50), midPrice: fallback };
+      // No live quote: anchor on premium with ±50% range
+      const mid = Math.max(0.01, order.premium);
+      return symmetricRange(mid, Math.max(mid * 0.5, 0.25));
     }
-    if (order.longStrike && order.bid && order.ask && order.longBid !== undefined && order.longAsk !== undefined) {
-      // Credit spread (STO): net credit range
-      //   worst case (least credit): sell at bid, buy at ask = bid - longAsk
-      //   best case (most credit):  sell at ask, buy at bid = ask - longBid
-      const worstCredit = Math.max(0.01, order.bid - order.longAsk);
-      const bestCredit  = order.ask - order.longBid;
-      const midPrice = order.premium; // netCredit mid = (shortMid - longMid)
-      return { minPrice: Math.max(0.01, worstCredit * 0.5), maxPrice: Math.max(bestCredit * 1.5, 0.50), midPrice };
+
+    if (order.longStrike) {
+      // Spread order (BPS/BCS/STO or BTC spread):
+      // order.premium is the NET credit/debit mid — use it as the anchor.
+      // Build ±60% range so slider has meaningful travel without going negative.
+      const mid = order.premium > 0 ? order.premium : Math.max(0.01, (order.bid + order.ask) / 2);
+      return symmetricRange(mid, Math.max(mid * 0.6, 0.25));
     }
-    // Single-leg: extend range below bid and above ask for full manual control
-    const midPrice = (order.bid + order.ask) / 2;
-    return { minPrice: 0.01, maxPrice: Math.max(order.ask * 2, 0.50), midPrice };
+
+    // Single-leg: bid→ask is the natural range; extend by half-spread on each side
+    const mid = (order.bid + order.ask) / 2;
+    const halfSpread = Math.max((order.ask - order.bid) / 2, 0.05);
+    return symmetricRange(mid, halfSpread * 2); // ±2× half-spread gives bid-0.5×spread to ask+0.5×spread
   };
 
   // Set price via slider (full bid→ask range)
@@ -1310,44 +1319,42 @@ export function UnifiedOrderPreviewModal({
     return [Math.max(0, Math.min(100, position))];
   };
   
-  // Get fill zone guidance based on slider position and order direction
-  // BTC (buy to close): slider goes bid→ask; Good Fill Zone = 40-75% (mid to 75% toward ask)
-  //   <40% = below mid = unlikely to fill | >75% = paying too much above mid
-  // STO (sell to open): slider goes bid→ask; Good Fill Zone = 40-70% (near mid)
-  //   <30% = too far below mid = unlikely to fill | >80% = above mid = great but rare
+  // Get fill zone guidance based on slider position and order direction.
+  // With the new symmetric range, 50% always = mid price.
+  // BTC (buy to close): paying more (higher %) = better fill chance
+  //   <35% = below mid = unlikely to fill | 35-65% = near mid = good zone | >65% = above mid = fast fill
+  // STO (sell to open): receiving more credit (higher %) = better but harder to fill
+  //   <35% = too far below mid = may not fill | 35-65% = near mid = good zone | >65% = above mid = great credit
   const getFillZoneGuidance = (sliderPos: number, action: string) => {
-    const isBTC = action === 'BTC';
+    const isBTC = action === 'BTC' || action === 'BTO';
     if (isBTC) {
-      if (sliderPos < 30) return { text: "⚠️ Below mid — unlikely to fill", color: "text-red-400" };
-      if (sliderPos >= 30 && sliderPos < 45) return { text: "↗ Near mid — may fill slowly", color: "text-yellow-400" };
-      if (sliderPos >= 45 && sliderPos < 75) return { text: "✅ Good Fill Zone", color: "text-green-400" };
-      if (sliderPos >= 75 && sliderPos < 90) return { text: "↑ Above mid — fast fill", color: "text-blue-400" };
-      return { text: "⚠️ Near ask — paying full spread", color: "text-orange-400" };
+      if (sliderPos < 25) return { text: "⚠️ Well below mid — unlikely to fill", color: "text-red-400" };
+      if (sliderPos >= 25 && sliderPos < 42) return { text: "↗ Below mid — may fill slowly", color: "text-yellow-400" };
+      if (sliderPos >= 42 && sliderPos < 65) return { text: "✅ Good Fill Zone (near mid)", color: "text-green-400" };
+      if (sliderPos >= 65 && sliderPos < 80) return { text: "↑ Above mid — fast fill", color: "text-blue-400" };
+      return { text: "⚠️ Well above mid — paying full spread", color: "text-orange-400" };
     } else {
-      // STO
-      if (sliderPos < 30) return { text: "⚠️ Too aggressive — may not fill", color: "text-red-400" };
-      if (sliderPos >= 30 && sliderPos < 45) return { text: "↗ Slightly below mid", color: "text-yellow-400" };
-      if (sliderPos >= 45 && sliderPos < 70) return { text: "✅ Good Fill Zone", color: "text-green-400" };
-      if (sliderPos >= 70 && sliderPos < 85) return { text: "↑ Above mid — great credit", color: "text-blue-400" };
-      return { text: "⚠️ Near ask — unlikely to fill", color: "text-orange-400" };
+      // STO / STC
+      if (sliderPos < 25) return { text: "⚠️ Well below mid — may not fill", color: "text-red-400" };
+      if (sliderPos >= 25 && sliderPos < 42) return { text: "↗ Slightly below mid", color: "text-yellow-400" };
+      if (sliderPos >= 42 && sliderPos < 65) return { text: "✅ Good Fill Zone (near mid)", color: "text-green-400" };
+      if (sliderPos >= 65 && sliderPos < 80) return { text: "↑ Above mid — great credit", color: "text-blue-400" };
+      return { text: "⚠️ Well above mid — unlikely to fill", color: "text-orange-400" };
     }
   };
   
-  // Reset all prices to Good Fill Zone (BTC: mid+25% toward ask; STO: mid)
+  // Reset all prices to Good Fill Zone = mid price (50% on the slider)
   const handleResetAllToMidpoint = () => {
     const newPrices = new Map(adjustedPrices);
     let updatedCount = 0;
     orders.forEach(order => {
-      if (order.bid && order.ask) {
-        const isBTC = order.action === 'BTC';
-        const { minPrice, maxPrice, midPrice } = getOrderPriceRange(order);
-        const rawGoodFill = Math.max(0.01, isBTC ? midPrice + (maxPrice - midPrice) * 0.25 : midPrice);
-        // Use integer-arithmetic snapToTick to avoid floating-point precision errors
-        const goodFill = snapToTick(rawGoodFill, order.symbol);
-        const key = getOrderKey(order);
-        newPrices.set(key, goodFill);
-        updatedCount++;
-      }
+      // Reset even if no live bid/ask — use premium as mid fallback
+      const { midPrice } = getOrderPriceRange(order);
+      // Good Fill Zone = mid for all strategies (symmetric range means 50% = mid)
+      const goodFill = snapToTick(Math.max(0.01, midPrice), order.symbol);
+      const key = getOrderKey(order);
+      newPrices.set(key, goodFill);
+      updatedCount++;
     });
     setAdjustedPrices(newPrices);
     toast({

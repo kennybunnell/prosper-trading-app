@@ -9108,3 +9108,4 @@ ROC Fix Mar 18 2026
 - [x] Fix BPS/Spread scan: use per-index symbolWidths from UI config (pre-populate with getMinSpreadWidth defaults so SPX=50pt, NDX=25pt etc. are used from first scan)
 - [x] Fix Working Orders: Bid/Ask/Mid showing $0.00 in Confirm Order Replacement modal - fetch live quotes before displaying
 - [ ] Add per-row price sliders to Confirm Order Replacement modal so user can adjust limit price toward mid/bid/ask before confirming
+- [x] Fix Order Preview slider: 'Reset All to Good Fill Zone' now correctly sets sliders to mid price (symmetric range fix)
