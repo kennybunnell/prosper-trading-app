@@ -1753,5 +1753,23 @@ function calculateCCScore(opp: any): number {
     score += 5; // Neutral if no data
   }
 
-  return Math.round(score);
+
+  // 7. Open Interest / Liquidity (15 points)
+  // OI=0 contracts rarely fill — apply a hard penalty.
+  let ccLiquidityScore = 0;
+  const ccOi = opp.openInterest ?? 0;
+  if (ccOi >= 500) {
+    ccLiquidityScore += 15;
+  } else if (ccOi >= 200) {
+    ccLiquidityScore += 12;
+  } else if (ccOi >= 100) {
+    ccLiquidityScore += 9;
+  } else if (ccOi >= 50) {
+    ccLiquidityScore += 6;
+  } else if (ccOi >= 10) {
+    ccLiquidityScore += 3;
+  } else if (ccOi === 0) {
+    ccLiquidityScore -= 10; // Hard penalty: OI=0 contracts rarely fill
+  }
+  return Math.round(score + ccLiquidityScore);
 }

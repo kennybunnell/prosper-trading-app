@@ -3006,6 +3006,16 @@ export default function CSPDashboard() {
                                                 <span className="text-gray-400">Quality (Mag7+Cap):</span>
                                                 <span className="font-medium text-white">{(opp as any).scoreBreakdown.quality}/10</span>
                                               </div>
+                                              {(opp as any).scoreBreakdown.liquidity !== undefined && (
+                                                <div className="flex justify-between">
+                                                  <span className="text-gray-400">Liquidity (OI):</span>
+                                                  <span className={`font-medium ${
+                                                    (opp as any).scoreBreakdown.liquidity < 0 ? 'text-red-400' :
+                                                    (opp as any).scoreBreakdown.liquidity >= 12 ? 'text-green-400' :
+                                                    'text-yellow-400'
+                                                  }`}>{(opp as any).scoreBreakdown.liquidity}/15</span>
+                                                </div>
+                                              )}
                                             </>
                                           )}
                                         </>

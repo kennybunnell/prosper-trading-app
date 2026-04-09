@@ -10,6 +10,7 @@ export interface ScoreBreakdown {
   greeks: number; // Delta + DTE + IV Rank (30 points)
   premium: number; // Weekly Return + Spread (20 points)
   quality: number; // Mag 7 + Market Cap (10 points)
+  liquidity?: number; // Open Interest liquidity (15 points, -10 penalty for OI=0)
   perfectSetupBonus?: number; // Perfect Setup Bonus (10 points)
   total: number; // Sum of all (0-100)
 }
@@ -252,6 +253,25 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
     qualityScore += 2;
   }
 
+
+  // ===== OPEN INTEREST / LIQUIDITY (15 points) =====
+  // OI is critical for fillability — low OI = wide spreads, hard to fill at mid.
+  // OI=0 is penalised heavily because these contracts almost never fill.
+  let liquidityScore = 0;
+  const oiValue = opp.openInterest ?? 0;
+  if (oiValue >= 500) {
+    liquidityScore += 15; // Excellent liquidity
+  } else if (oiValue >= 200) {
+    liquidityScore += 12;
+  } else if (oiValue >= 100) {
+    liquidityScore += 9;
+  } else if (oiValue >= 50) {
+    liquidityScore += 6;
+  } else if (oiValue >= 10) {
+    liquidityScore += 3;
+  } else if (oiValue === 0) {
+    liquidityScore -= 10; // Hard penalty: OI=0 contracts rarely fill
+  }
   // ===== PERFECT SETUP BONUS (10 points) =====
   // Awarded when ALL conditions align for a unicorn CSP opportunity
   let perfectSetupBonus = 0;
@@ -271,7 +291,7 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
   }
 
   // Calculate total score
-  const totalScore = Math.round(technicalScore + greeksScore + premiumScore + qualityScore + perfectSetupBonus);
+  const totalScore = Math.round(technicalScore + greeksScore + premiumScore + qualityScore + liquidityScore + perfectSetupBonus);
 
   return {
     score: totalScore,
@@ -280,6 +300,7 @@ export function calculateCSPScore(opp: CSPOpportunity): { score: number; breakdo
       greeks: Math.round(greeksScore),
       premium: Math.round(premiumScore),
       quality: Math.round(qualityScore),
+      liquidity: Math.round(liquidityScore),
       perfectSetupBonus: perfectSetupBonus,
       total: totalScore,
     },
@@ -463,6 +484,7 @@ export interface BPSScoreBreakdown {
   greeks: number;            // Short delta + Long delta + DTE (25 points)
   technical: number;         // RSI + BB (15 points) - confirms uptrend
   premium: number;           // Spread tightness + IV Rank (5 points)
+  liquidity?: number;        // Open Interest liquidity (15 points, -10 penalty for OI=0)
   perfectSetupBonus?: number; // Unicorn trade bonus (5 points)
   total: number;             // Sum of all (0-105 max)
   trend14d?: number;         // 14-day price change % used for direction scoring
@@ -671,6 +693,25 @@ export function calculateBPSScore(
     premiumScore += 1;
   }
 
+
+  // ===== OPEN INTEREST / LIQUIDITY (15 points) =====
+  // OI is critical for fillability — low OI = wide spreads, hard to fill at mid.
+  // OI=0 is penalised heavily because these contracts almost never fill.
+  let bpsLiquidityScore = 0;
+  const bpsOiValue = opp.openInterest ?? 0;
+  if (bpsOiValue >= 500) {
+    bpsLiquidityScore += 15; // Excellent liquidity
+  } else if (bpsOiValue >= 200) {
+    bpsLiquidityScore += 12;
+  } else if (bpsOiValue >= 100) {
+    bpsLiquidityScore += 9;
+  } else if (bpsOiValue >= 50) {
+    bpsLiquidityScore += 6;
+  } else if (bpsOiValue >= 10) {
+    bpsLiquidityScore += 3;
+  } else if (bpsOiValue === 0) {
+    bpsLiquidityScore -= 10; // Hard penalty: OI=0 contracts rarely fill
+  }
   // ===== PERFECT SETUP BONUS (5 points) =====
   // Awarded when direction + technicals + ROC all align perfectly
   let perfectSetupBonus = 0;
@@ -684,7 +725,7 @@ export function calculateBPSScore(
     perfectSetupBonus = 5;
   }
 
-  const totalScore = directionScore + spreadEfficiencyScore + greeksScore + technicalScore + premiumScore + perfectSetupBonus;
+  const totalScore = directionScore + spreadEfficiencyScore + greeksScore + technicalScore + premiumScore + bpsLiquidityScore + perfectSetupBonus;
 
   return {
     score: Math.round(totalScore),
@@ -694,6 +735,7 @@ export function calculateBPSScore(
       greeks: greeksScore,
       technical: technicalScore,
       premium: premiumScore,
+      liquidity: Math.round(bpsLiquidityScore),
       perfectSetupBonus,
       total: Math.round(totalScore),
       trend14d,

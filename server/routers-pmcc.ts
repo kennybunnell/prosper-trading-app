@@ -786,11 +786,14 @@ export const pmccRouter = router({
               else if (roc >= 5) score += 10;
               else if (roc >= 2) score += 5;
 
-              // Open Interest component (0-10 points)
+              // Open Interest component (0-15 points, -10 penalty for OI=0)
               const oi = parseInt(String(opt.open_interest || '0'));
-              if (oi >= 100) score += 10;
-              else if (oi >= 50) score += 7;
-              else if (oi >= 25) score += 4;
+              if (oi >= 500) score += 15;
+              else if (oi >= 200) score += 12;
+              else if (oi >= 100) score += 9;
+              else if (oi >= 50) score += 6;
+              else if (oi >= 10) score += 3;
+              else if (oi === 0) score -= 10; // Hard penalty: OI=0 contracts rarely fill
 
               allOpportunities.push({
                 leapSymbol: leap.optionSymbol,
