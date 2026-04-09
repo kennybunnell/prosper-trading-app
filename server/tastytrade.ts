@@ -716,23 +716,22 @@ export class TastytradeAPI {
     try {
       // Build query string: index options use 'index-option', equity options use 'equity-option'
       // Example: ?index-option=SPXW  260408C06550000&equity-option=AAPL  260220C00150000
-      const params = new URLSearchParams();
+      // Build query string manually using %20 for spaces (NOT + from URLSearchParams.toString())
+      // The Tastytrade API requires OCC symbols with spaces encoded as %20, not +
+      // e.g. "XSP   260417P00660000" must become "XSP%20%20%20260417P00660000"
+      const queryParts: string[] = [];
       symbols.forEach(symbol => {
         const underlying = getUnderlying(symbol);
         const paramType = INDEX_UNDERLYINGS.has(underlying) ? 'index-option' : 'equity-option';
-        params.append(paramType, symbol);
+        // encodeURIComponent encodes spaces as %20 (correct), not + (incorrect)
+        queryParts.push(`${paramType}=${encodeURIComponent(symbol)}`);
       });
+      const queryString = queryParts.join('&');
       
       console.log(`[Tastytrade] Requesting quotes for symbols:`, symbols);
-      console.log(`[Tastytrade] Query string:`, params.toString());
+      console.log(`[Tastytrade] Query string:`, queryString);
       
-      const response = await this.client.get('/market-data/by-type', {
-        params,
-        paramsSerializer: (params) => {
-          // Return the URLSearchParams as-is to preserve multiple equity-option params
-          return params.toString();
-        },
-      });
+      const response = await this.client.get(`/market-data/by-type?${queryString}`);
       
       console.log(`[Tastytrade] API response status:`, response.status);
       console.log(`[Tastytrade] API response data:`, JSON.stringify(response.data, null, 2));

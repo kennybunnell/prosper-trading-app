@@ -9106,3 +9106,5 @@ ROC Fix Mar 18 2026
 - [x] Fix Roll Order Review: "Dry Run" button in detail panel (SUBMIT THIS POSITION ONLY section) should only dry-run the single selected position, not all orders
 - [x] Factor OI more heavily into scoring across all strategies (CSP, CC, Spreads, PMCC): add 15-pt OI component with -10 penalty for OI=0
 - [x] Fix BPS/Spread scan: use per-index symbolWidths from UI config (pre-populate with getMinSpreadWidth defaults so SPX=50pt, NDX=25pt etc. are used from first scan)
+- [x] Fix Working Orders: Bid/Ask/Mid showing $0.00 in Confirm Order Replacement modal - fetch live quotes before displaying
+- [ ] Add per-row price sliders to Confirm Order Replacement modal so user can adjust limit price toward mid/bid/ask before confirming

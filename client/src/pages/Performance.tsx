@@ -1317,6 +1317,8 @@ export function WorkingOrdersTab() {
   const [showFillNowDialog, setShowFillNowDialog] = useState(false);
   const [actionResults, setActionResults] = useState<any>(null);
   const [showFillRateAnalytics, setShowFillRateAnalytics] = useState(false);
+  // Per-row price overrides for the Replace dialog sliders (keyed by order index in the selected list)
+  const [overridePrices, setOverridePrices] = useState<Record<number, number>>({});
   const [groupBySymbol, setGroupBySymbol] = useState(true);
   const [expandedOrders, setExpandedOrders] = useState<Set<number>>(new Set());
 
@@ -1696,33 +1698,28 @@ export function WorkingOrdersTab() {
     });
   };
   
-  const confirmReplace = () => {
-    // If there are selected orders, replace only those; otherwise replace all that need replacement
-    const ordersToReplace = selectedOrders.size > 0
-      ? Array.from(selectedOrders).map(idx => orders[idx]).map(order => ({
-          orderId: String(order.orderId),
-          accountNumber: String(order.accountNumber),
-          symbol: order.symbol,
-          suggestedPrice: order.suggestedPrice,
-          rawOrder: order.rawOrder,
-        }))
-      : orders
-          .filter(order => order.needsReplacement)
-          .map(order => ({
-            orderId: String(order.orderId),
-            accountNumber: String(order.accountNumber),
-            symbol: order.symbol,
-            suggestedPrice: order.suggestedPrice,
-            rawOrder: order.rawOrder,
-          }));
+    const confirmReplace = () => {
+    // Build the list of orders to replace (selected or all needing replacement)
+    const selectedList = selectedOrders.size > 0
+      ? Array.from(selectedOrders).map(idx => ({ idx, order: orders[idx] })).filter(x => x.order != null)
+      : orders.filter(order => order.needsReplacement).map((order, idx) => ({ idx, order }));
+
+    const ordersToReplace = selectedList.map(({ idx, order }) => ({
+      orderId: String(order.orderId),
+      accountNumber: String(order.accountNumber),
+      symbol: order.symbol,
+      // Use the user's slider override if set, otherwise fall back to suggestedPrice
+      suggestedPrice: overridePrices[idx] !== undefined ? overridePrices[idx] : order.suggestedPrice,
+      rawOrder: order.rawOrder,
+    }));
 
     if (ordersToReplace.length === 0) {
       toast.error('No orders to replace');
       setShowReplaceDialog(false);
       return;
     }
-
     replaceOrdersMutation.mutate({ orders: ordersToReplace });
+    setOverridePrices({});
     setShowReplaceDialog(false);
   };
 
@@ -2811,7 +2808,7 @@ export function WorkingOrdersTab() {
                     <th className="p-2 text-right font-medium">Bid</th>
                     <th className="p-2 text-right font-medium">Ask</th>
                     <th className="p-2 text-right font-medium">Mid</th>
-                    <th className="p-2 text-right font-medium">Suggested</th>
+                    <th className="p-2 text-left font-medium" style={{ minWidth: 180 }}>Limit Price (drag to adjust)</th>
                     <th className="p-2 text-left font-medium">Price Effect</th>
                     <th className="p-2 text-right font-medium">Cost</th>
                   </tr>
@@ -2828,9 +2825,17 @@ export function WorkingOrdersTab() {
                       ? (order as any).priceEffect === 'Debit'  // Debit spread = paying to close = buy-side
                       : order.action.toLowerCase().includes('buy');
                     const priceEffect = isBuyOrder ? 'Debit' : 'Credit';
-                    // For spreads: suggestedPrice is already the NET spread price
-                    // cost = net price × contracts × 100 (same formula, correct semantics)
-                    const cost = order.suggestedPrice * order.quantity * 100;
+                    // Determine slider range: bid → ask, default to suggestedPrice (mid)
+                    const sliderBid = order.bid ?? 0;
+                    const sliderAsk = order.ask ?? 0;
+                    const sliderMid = order.mid > 0 ? order.mid : order.suggestedPrice ?? 0;
+                    const hasLiveQuote = sliderAsk > 0;
+                    const sliderMin = Math.max(0, sliderBid);
+                    const sliderMax = sliderAsk > 0 ? sliderAsk * 1.05 : Math.max(sliderMid * 1.5, 0.05);
+                    const currentSliderVal = overridePrices[idx] !== undefined ? overridePrices[idx] : sliderMid;
+                    // cost uses override price if set
+                    const effectivePrice = overridePrices[idx] !== undefined ? overridePrices[idx] : (order.suggestedPrice ?? 0);
+                    const cost = effectivePrice * order.quantity * 100;
                     
                     return (
                       <tr key={idx} className="border-t">
@@ -2850,17 +2855,38 @@ export function WorkingOrdersTab() {
                           </span>
                         </td>
                         <td className="p-2 text-right text-muted-foreground">${order.currentPrice.toFixed(2)}</td>
-                        <td className="p-2 text-right">${order.bid.toFixed(2)}</td>
-                        <td className="p-2 text-right font-medium text-yellow-400">${order.ask.toFixed(2)}</td>
-                        <td className="p-2 text-right">${order.mid.toFixed(2)}</td>
-                        <td className="p-2 text-right">
-                          <div className="font-bold text-green-400">${(order.suggestedPrice ?? 0).toFixed(2)}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {order.currentPrice !== (order.suggestedPrice ?? 0) && (
-                              <span className={(order.suggestedPrice ?? 0) > order.currentPrice ? 'text-red-400' : 'text-green-400'}>
-                                {(order.suggestedPrice ?? 0) > order.currentPrice ? '+' : ''}
-                                ${((order.suggestedPrice ?? 0) - order.currentPrice).toFixed(2)}
-                              </span>
+                        <td className="p-2 text-right text-sm">{hasLiveQuote ? `$${sliderBid.toFixed(2)}` : <span className="text-muted-foreground text-xs">—</span>}</td>
+                        <td className="p-2 text-right font-medium text-yellow-400">{hasLiveQuote ? `$${sliderAsk.toFixed(2)}` : <span className="text-muted-foreground text-xs">—</span>}</td>
+                        <td className="p-2 text-right">{hasLiveQuote ? `$${sliderMid.toFixed(2)}` : <span className="text-muted-foreground text-xs">—</span>}</td>
+                        {/* Price Slider column — replaces static Suggested column */}
+                        <td className="p-2" style={{ minWidth: 180 }}>
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">Limit Price</span>
+                              <span className="text-sm font-bold text-green-400">${currentSliderVal.toFixed(2)}</span>
+                            </div>
+                            {hasLiveQuote ? (
+                              <>
+                                <input
+                                  type="range"
+                                  min={sliderMin}
+                                  max={sliderMax}
+                                  step={0.01}
+                                  value={currentSliderVal}
+                                  onChange={e => setOverridePrices(prev => ({ ...prev, [idx]: parseFloat(e.target.value) }))}
+                                  className="w-full h-1.5 accent-orange-500 cursor-pointer"
+                                />
+                                <div className="flex justify-between text-xs text-muted-foreground">
+                                  <span>Bid ${sliderBid.toFixed(2)}</span>
+                                  <button
+                                    className="text-xs text-blue-400 hover:text-blue-300 underline"
+                                    onClick={() => setOverridePrices(prev => ({ ...prev, [idx]: sliderMid }))}
+                                  >Mid</button>
+                                  <span>Ask ${sliderAsk.toFixed(2)}</span>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-xs text-amber-400">Fetching live quote…</div>
                             )}
                           </div>
                         </td>
@@ -2893,13 +2919,19 @@ export function WorkingOrdersTab() {
                 <span className="text-muted-foreground">Total Cost to Close:</span>
                 <span className="font-bold text-lg">
                   ${(selectedOrders.size > 0 
-                    ? Array.from(selectedOrders).map(idx => orders[idx]).filter((o): o is NonNullable<typeof o> => o != null).reduce((sum, o) => sum + ((o.suggestedPrice ?? 0) * o.quantity * 100), 0)
-                    : orders.filter(o => o.needsReplacement).reduce((sum, o) => sum + ((o.suggestedPrice ?? 0) * o.quantity * 100), 0)
+                    ? Array.from(selectedOrders).map(idx => orders[idx]).filter((o): o is NonNullable<typeof o> => o != null).reduce((sum, o, i) => {
+                        const price = overridePrices[i] !== undefined ? overridePrices[i] : (o.suggestedPrice ?? 0);
+                        return sum + price * o.quantity * 100;
+                      }, 0)
+                    : orders.filter(o => o.needsReplacement).reduce((sum, o, i) => {
+                        const price = overridePrices[i] !== undefined ? overridePrices[i] : (o.suggestedPrice ?? 0);
+                        return sum + price * o.quantity * 100;
+                      }, 0)
                   ).toFixed(2)}
                 </span>
               </div>
               <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">
-                💡 <strong>Price Strategy:</strong> Uses spread-width tier pricing (tight=mid, medium=mid+$0.01, wide=75% from bid, very wide=85% from bid). Spread orders show NET cost. Debit = you pay money.
+                💡 <strong>Price Strategy:</strong> Default limit price is set to mid. Drag the slider per row to adjust toward bid (aggressive fill) or ask (max credit). Spread orders show NET cost. Debit = you pay money.
               </div>
             </div>
           </div>
