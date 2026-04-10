@@ -9109,3 +9109,4 @@ ROC Fix Mar 18 2026
 - [x] Fix Working Orders: Bid/Ask/Mid showing $0.00 in Confirm Order Replacement modal - fetch live quotes before displaying
 - [ ] Add per-row price sliders to Confirm Order Replacement modal so user can adjust limit price toward mid/bid/ask before confirming
 - [x] Fix Order Preview slider: 'Reset All to Good Fill Zone' now correctly sets sliders to mid price (symmetric range fix)
+- [x] Roll/Close Positions: add urgency score (DTE-based), default sort by urgency, colored DTE badges, EXPIRES TODAY pin for DTE=0

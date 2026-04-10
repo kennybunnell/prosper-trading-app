@@ -377,8 +377,8 @@ export default function AutomationDashboard() {
   const [creditDirectionFilter, setCreditDirectionFilter] = useState(false); // Credit+Direction: credit AND moves strike further OTM
   // Track positions where ALL roll candidates are debits (populated by RollCandidateExpander)
   const [debitOnlyPositions, setDebitOnlyPositions] = useState<Set<string>>(new Set());
-  const [rollSortCol, setRollSortCol] = useState<string>('unrealizedPnl');
-  const [rollSortDir, setRollSortDir] = useState<'asc' | 'desc'>('asc');
+  const [rollSortCol, setRollSortCol] = useState<string>('urgency');
+  const [rollSortDir, setRollSortDir] = useState<'asc' | 'desc'>('desc');
   // Roll Order Review Modal state
   const [showRollReview, setShowRollReview] = useState(false);
   const [rollReviewItems, setRollReviewItems] = useState<RollOrderItem[]>([]);
@@ -3270,6 +3270,7 @@ export default function AutomationDashboard() {
                             </th>
                             {/* Sortable column helper */}
                             {([
+                              { key: 'urgency', label: 'Urgency ↓', align: 'center' },
                               { key: 'pnlStatus', label: 'P&L', align: 'center' },
                               { key: 'unrealizedPnl', label: 'Unreal. P&L', align: 'right' },
                               { key: 'profitPct', label: '% Max Profit', align: 'right' },
@@ -3335,6 +3336,37 @@ export default function AutomationDashboard() {
                             }
                             return true;
                           }).sort((a, b) => {
+                            // Composite urgency score: DTE is primary driver, ITM depth and P&L are tiebreakers
+                            // Higher score = more urgent = should appear first (sort desc)
+                            const urgencyScore = (pos: RollAnalysis): number => {
+                              const dte = pos.metrics.dte;
+                              const itmDepth = pos.metrics.itmDepth;
+                              const pnlPct = (pos as any).unrealizedPnl ?? 0;
+                              // DTE component (0-60 pts): lower DTE = higher urgency
+                              let dteScore = 0;
+                              if (dte === 0)       dteScore = 60; // CRITICAL: expires today
+                              else if (dte <= 1)   dteScore = 55;
+                              else if (dte <= 3)   dteScore = 50;
+                              else if (dte <= 7)   dteScore = 40;
+                              else if (dte <= 14)  dteScore = 25;
+                              else if (dte <= 21)  dteScore = 15;
+                              else if (dte <= 30)  dteScore = 8;
+                              else                 dteScore = 0;
+                              // ITM component (0-25 pts): deeper ITM = more urgent
+                              let itmScore = 0;
+                              if (itmDepth > 20)      itmScore = 25;
+                              else if (itmDepth > 10) itmScore = 18;
+                              else if (itmDepth > 5)  itmScore = 12;
+                              else if (itmDepth > 2)  itmScore = 6;
+                              else if (itmDepth > 0)  itmScore = 3;
+                              // P&L component (0-15 pts): larger loss = more urgent
+                              let pnlScore = 0;
+                              if (pnlPct < -500)      pnlScore = 15;
+                              else if (pnlPct < -200) pnlScore = 10;
+                              else if (pnlPct < -100) pnlScore = 6;
+                              else if (pnlPct < 0)    pnlScore = 3;
+                              return dteScore + itmScore + pnlScore;
+                            };
                             // When credit-only filter is OFF, push debit-only positions to the bottom
                             if (!rollCreditOnlyFilter) {
                               const aDebit = debitOnlyPositions.has(a.positionId) ? 1 : 0;
@@ -3343,6 +3375,7 @@ export default function AutomationDashboard() {
                             }
                             const dir = rollSortDir === 'asc' ? 1 : -1;
                             switch (rollSortCol) {
+                              case 'urgency': return (urgencyScore(a) - urgencyScore(b)) * dir;
                               case 'unrealizedPnl': return ((a as any).unrealizedPnl - (b as any).unrealizedPnl) * dir;
                               case 'profitPct': return (a.metrics.profitCaptured - b.metrics.profitCaptured) * dir;
                               case 'symbol': return a.symbol.localeCompare(b.symbol) * dir;
@@ -3406,6 +3439,30 @@ export default function AutomationDashboard() {
                                       disabled={!isSelected && !isCheckable}
                                     />
                                   </td>
+                                  {/* Urgency badge — DTE-based priority */}
+                                  {(() => {
+                                    const dte = pos.metrics.dte;
+                                    const itmDepth = pos.metrics.itmDepth;
+                                    const isExpiringToday = dte === 0;
+                                    const isCritical = dte <= 1;
+                                    const isUrgent = dte <= 3 || (dte <= 7 && itmDepth > 2);
+                                    const isHigh = dte <= 7 || (dte <= 14 && itmDepth > 0);
+                                    return (
+                                      <td className="p-3 text-center">
+                                        {isExpiringToday ? (
+                                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-600/30 text-red-300 text-[10px] font-bold tracking-wide animate-pulse border border-red-500/40">🔴 EXPIRES TODAY</span>
+                                        ) : isCritical ? (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-[10px] font-bold">🔴 {dte}d</span>
+                                        ) : isUrgent ? (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-[10px] font-bold">🟠 {dte}d</span>
+                                        ) : isHigh ? (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 text-[10px] font-semibold">🟡 {dte}d</span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/30 text-muted-foreground text-[10px]">⚪ {dte}d</span>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
                                   {/* P&L Status + Action Label badges */}
                                   <td className="p-3 text-center">
                                     <div className="flex flex-col items-center gap-1">
@@ -3574,10 +3631,13 @@ export default function AutomationDashboard() {
                                   </td>
                                   {/* Expiry */}
                                   <td className="p-3 text-xs">{pos.metrics.expiration}</td>
-                                  {/* DTE */}
+                                  {/* DTE — kept for reference; urgency badge is the primary indicator */}
                                   <td className={`p-3 text-right font-mono text-xs ${
-                                    pos.metrics.dte <= 7 ? 'text-red-400' : pos.metrics.dte <= 14 ? 'text-yellow-400' : 'text-muted-foreground'
-                                  }`}>{pos.metrics.dte}</td>
+                                    pos.metrics.dte === 0 ? 'text-red-400 font-bold animate-pulse' :
+                                    pos.metrics.dte <= 3 ? 'text-red-400 font-bold' :
+                                    pos.metrics.dte <= 7 ? 'text-orange-400' :
+                                    pos.metrics.dte <= 14 ? 'text-yellow-400' : 'text-muted-foreground'
+                                  }`}>{pos.metrics.dte === 0 ? '⚡0' : pos.metrics.dte}</td>
                                   {/* ITM/OTM */}
                                   <td className={`p-3 text-right font-mono text-xs ${
                                     itmDepth > 5 ? 'text-red-400' : itmDepth > 0 ? 'text-yellow-400' :
