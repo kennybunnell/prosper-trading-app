@@ -9114,3 +9114,11 @@ ROC Fix Mar 18 2026
 - [ ] Roll/Close: Add collapsible "Hidden Losers" section with per-position reason tags for why each is filtered out
 - [x] Add filter mismatch callout: show "X of Y losers hidden by active filters" banner in Roll/Close Positions
 - [x] Add collapsible Hidden Losers section with per-position reason tags and suggested actions
+- [x] Build getSymbolContext() server function: pulls cost basis, transaction history, computed premium totals for any symbol
+- [x] Wire getSymbolContext into Roll Panel AI chat (right-side panel)
+- [x] Wire getSymbolContext into CSP AI Advisor (analyzeTicker + analyzeTickerFollowUp)
+- [x] Wire getSymbolContext into CC AI Advisor (explainCCScore + explainBCSScore)
+- [x] Wire getSymbolContext into Spread Advisor AI (analyzeTicker covers BPS/BCS/IC)
+- [x] Wire getSymbolContext into PMCC AI panel (explainScore)
+- [x] Wire getSymbolContext into Roll Recommendations router (getRecommendation)
+- [x] Apply Prosper AI Philosophy: AI always pulls from full portfolio context, never just summarizes current screen

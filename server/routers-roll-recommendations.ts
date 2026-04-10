@@ -40,8 +40,12 @@ export const rollRecommendationsRouter = router({
         description: z.string(),
       })),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const { getSymbolContext } = await import('./ai-context');
       const { position, candidates } = input;
+
+      // Fetch full portfolio context for this symbol
+      const symbolCtx = await getSymbolContext(ctx.user.id, position.symbol);
       
       // Calculate net profit for each candidate
       const closeCandidate = candidates.find(c => c.action === 'close');
@@ -54,6 +58,10 @@ export const rollRecommendationsRouter = router({
       // Build context for LLM
       const systemPrompt = `You are an expert options trader providing actionable recommendations for managing positions. 
 Your goal is to help the trader make the best decision based on their position metrics and available roll candidates.
+
+IMPORTANT: You have access to the trader's FULL PORTFOLIO HISTORY for this symbol. Reference the actual cost basis, effective cost basis after premiums, total income collected, and trade history in your recommendation.
+
+${symbolCtx.contextBlock}
 
 Key considerations:
 - For CSP (Cash Secured Put): Consider whether it's better to let the position be assigned and sell covered calls, or roll forward

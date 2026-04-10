@@ -1508,11 +1508,19 @@ export const ccRouter = router({
         score: z.number(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const { invokeLLM } = await import('./_core/llm');
+      const { getSymbolContext } = await import('./ai-context');
+
+      // Fetch full portfolio context for this symbol
+      const symbolCtx = await getSymbolContext(ctx.user.id, input.symbol, input.currentPrice);
       
       // Generate concise explanation of the CC score
       const prompt = `You are explaining a Covered Call opportunity's composite score to a trader.
+
+FULL PORTFOLIO CONTEXT (reference cost basis, effective cost basis after premiums, total income history in your explanation):
+${symbolCtx.contextBlock}
+
 
 Opportunity Details:
 - Symbol: ${input.symbol}
@@ -1591,11 +1599,19 @@ Summary: [One sentence overall assessment]`;
         }),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const { invokeLLM } = await import('./_core/llm');
+      const { getSymbolContext } = await import('./ai-context');
+
+      // Fetch full portfolio context for this symbol
+      const symbolCtx = await getSymbolContext(ctx.user.id, input.symbol, input.currentPrice);
       
       // Generate concise explanation of the BCS score
       const prompt = `You are explaining a Bear Call Spread opportunity's composite score to a trader.
+
+FULL PORTFOLIO CONTEXT (reference cost basis, effective cost basis after premiums, total income history):
+${symbolCtx.contextBlock}
+
 
 Opportunity Details:
 - Symbol: ${input.symbol}

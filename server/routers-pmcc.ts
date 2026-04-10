@@ -588,9 +588,13 @@ export const pmccRouter = router({
         }),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const { calculatePMCCScore, explainPMCCScore } = await import('./pmcc-scoring');
       const { invokeLLM } = await import('./_core/llm');
+      const { getSymbolContext } = await import('./ai-context');
+
+      // Fetch full portfolio context for this symbol
+      const symbolCtx = await getSymbolContext(ctx.user.id, input.leap.symbol, input.leap.currentPrice);
 
       // Recalculate score to get breakdown
       const { score, breakdown } = calculatePMCCScore(input.leap);
@@ -598,16 +602,20 @@ export const pmccRouter = router({
       // Generate detailed explanation using scoring breakdown
       const technicalExplanation = explainPMCCScore(input.leap, breakdown);
 
-      // Use AI to provide conversational explanation with company context
+      // Use AI to provide conversational explanation with company context and portfolio history
       const response = await invokeLLM({
         messages: [
           {
             role: 'system',
-            content: `You are an expert options trader explaining PMCC (Poor Man's Covered Call) LEAP scores. Provide clear, actionable insights about why a LEAP received its score and whether it's a good buy. Be concise but thorough. Always start with a brief company overview to help newer traders understand what the ticker represents.`,
+            content: `You are an expert options trader explaining PMCC (Poor Man's Covered Call) LEAP scores. Provide clear, actionable insights about why a LEAP received its score and whether it's a good buy. Be concise but thorough. Always start with a brief company overview to help newer traders understand what the ticker represents.
+
+IMPORTANT: You have access to the trader's FULL PORTFOLIO HISTORY for this symbol. Use it — reference the actual cost basis, effective cost basis after premiums collected, total income history, and whether the trader has traded this symbol before. Provide insights the trader cannot easily compute themselves.
+
+${symbolCtx.contextBlock}`,
           },
           {
             role: 'user',
-            content: `Explain this PMCC LEAP score for ${input.leap.symbol} in a conversational way:\n\n${technicalExplanation}\n\nProvide:\n1. Company Overview: Brief description of what ${input.leap.symbol} is (company name, sector, what they do) - keep this to 1-2 sentences for newer traders\n2. Overall assessment (Is this a good LEAP to buy?)\n3. Key strengths\n4. Key concerns (if any)\n5. Recommendation (Buy, Pass, or Monitor)`,
+            content: `Explain this PMCC LEAP score for ${input.leap.symbol} in a conversational way:\n\n${technicalExplanation}\n\nProvide:\n1. Company Overview: Brief description of what ${input.leap.symbol} is (company name, sector, what they do) - keep this to 1-2 sentences for newer traders\n2. Portfolio History: Reference the actual cost basis and premium income history from the context above\n3. Overall assessment (Is this a good LEAP to buy given the full history?)\n4. Key strengths\n5. Key concerns (if any)\n6. Recommendation (Buy, Pass, or Monitor)`,
           },
         ],
       });

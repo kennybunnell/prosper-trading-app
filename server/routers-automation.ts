@@ -2277,6 +2277,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
       const { invokeLLM } = await import('./_core/llm');
       const { getApiCredentials } = await import('./db');
       const { createTradierAPI } = await import('./tradier');
+      const { getSymbolContext } = await import('./ai-context');
 
       // --- Fetch current stock price from Tradier ---
       let underlyingPrice: number | null = null;
@@ -2425,11 +2426,18 @@ ROLL MECHANICS FOR CSP (Cash-Secured Put):
 - Target new strike below current stock price, delta ≤ 0.30`;
       }
 
+      // --- Fetch full portfolio context for this symbol ---
+      const symbolCtx = await getSymbolContext(ctx.user.id, input.symbol, underlyingPrice ?? undefined);
+
       // Build concise prompt for brief recommendation
       const stockPriceLine = underlyingPrice != null
         ? `\nCurrent Stock Price: $${underlyingPrice.toFixed(2)}`
         : '';
-      const prompt = `You are a professional options trading coach teaching retail traders. Give a BRIEF, DIRECT assessment AND step-by-step execution instructions.${rollMechanicsContext}
+      const prompt = `You are a professional options trading coach teaching retail traders. Give a BRIEF, DIRECT assessment AND step-by-step execution instructions.
+
+FULL PORTFOLIO CONTEXT (use this to inform your recommendation — reference cost basis, effective cost basis after premiums, total income history):
+${symbolCtx.contextBlock}
+${rollMechanicsContext}
 
 Position: ${strategyType} on ${input.symbol}
 Strikes: ${strikeDisplay || 'N/A'}${stockPriceLine}
@@ -3276,9 +3284,13 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         }),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const { invokeLLM } = await import('./_core/llm');
+      const { getSymbolContext } = await import('./ai-context');
       const { position } = input;
+
+      // Fetch full portfolio context for this symbol (cost basis, transaction history, premiums collected)
+      const symbolCtx = await getSymbolContext(ctx.user.id, position.symbol, position.currentPrice);
 
       const strategyLabels: Record<string, string> = {
         CSP: 'Cash-Secured Put',
@@ -3302,6 +3314,10 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       const systemPrompt = `You are an expert options trading advisor specializing in premium-selling strategies (CSP, CC, BPS, BCS, Iron Condors).
 You are analyzing a single position and must give a clear, specific, actionable recommendation on whether to roll it, close it, or hold it.
 
+IMPORTANT: You have access to the trader's FULL PORTFOLIO HISTORY for this symbol. Use it deeply — reference the actual cost basis, effective cost basis after premiums, total income collected, and trade history. Do NOT just summarize what is on screen. Provide insights the trader cannot easily compute themselves.
+
+${symbolCtx.contextBlock}
+
 Your response MUST use these exact Markdown sections:
 
 ## 🎯 Recommendation
@@ -3313,6 +3329,9 @@ One clear sentence: ROLL / CLOSE / HOLD — and the specific target if rolling (
 ## 🔄 Roll Analysis
 If rolling is viable: evaluate the top 1-2 candidates. Compare the net credit, new premium, delta, and DTE. State which is best and why.
 If rolling is NOT viable (debit roll only): explain why and what the alternatives are.
+
+## 📈 Portfolio Context
+1-2 sentences referencing the actual cost basis, effective cost basis after premiums collected, and whether the total premium income justifies holding vs. closing.
 
 ## ⚠️ Risk Factors
 List 2-3 specific risks for this position: gamma risk, earnings dates, sector volatility, assignment risk, etc.
