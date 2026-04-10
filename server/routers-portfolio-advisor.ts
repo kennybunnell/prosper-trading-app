@@ -792,26 +792,32 @@ async function fetchPortfolioData(userId: number) {
     throw new Error('Tastytrade credentials not configured');
   }
 
-  const { authenticateTastytrade } = await import('./tastytrade');
-  const api = await authenticateTastytrade(credentials, userId);
-
   const accounts = await getTastytradeAccounts(userId);
   if (!accounts || accounts.length === 0) throw new Error('No accounts found');
 
-  // Fetch positions + balances in parallel across all accounts
+  // Load positions from DB cache
+  const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+  const cachedPos = await getCachedPositions(userId);
+  const wirePositions = cachedPos.map(p => cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }));
+
+  // Parse cached positions
   const allParsed: ParsedPosition[] = [];
+  const positionsByAccount = new Map<string, any[]>();
+  for (const wire of wirePositions) {
+    const accNum = (wire as any)['account-number'] || '';
+    if (!positionsByAccount.has(accNum)) positionsByAccount.set(accNum, []);
+    positionsByAccount.get(accNum)!.push(wire);
+  }
+  positionsByAccount.forEach((positions, accNum) => {
+    if (positions.length > 0) allParsed.push(...parsePositions(positions, accNum));
+  });
+
+  // Fetch live balances (must stay live — real-time buying power)
   const accountBalances: AccountBalance[] = [];
-
+  const { authenticateTastytrade } = await import('./tastytrade');
+  const api = await authenticateTastytrade(credentials, userId);
   await Promise.all(accounts.map(async (account) => {
-    const [positions, balances] = await Promise.all([
-      api.getPositions(account.accountNumber).catch(() => []),
-      api.getBalances(account.accountNumber).catch(() => null),
-    ]);
-
-    if (positions && positions.length > 0) {
-      allParsed.push(...parsePositions(positions, account.accountNumber));
-    }
-
+    const balances = await api.getBalances(account.accountNumber).catch(() => null);
     if (balances) {
       accountBalances.push({
         accountNumber: account.accountNumber,

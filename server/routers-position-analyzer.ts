@@ -266,29 +266,23 @@ export const positionAnalyzerRouter = router({
       }
       const tradierApi = new TradierAPI(tradierKey, false);
 
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
+      // Load positions from DB cache
+      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+      const cachedPositions = await getCachedPositions(ctx.user.id);
+      const wirePositions = cachedPositions.map(p => cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }));
 
-      // Get accounts
+      // Get accounts from DB
       const dbAccounts = await getTastytradeAccounts(ctx.user.id);
-      let accountList: Array<{ accountNumber: string; accountType: string }> = [];
-      if (!dbAccounts || dbAccounts.length === 0) {
-        const rawAccounts = await api.getAccounts();
-        accountList = rawAccounts.map((a: any) => ({
-          accountNumber: a['account-number'] || a.accountNumber,
-          accountType: a['account-type-name'] || a.accountType || 'Unknown',
-        }));
-      } else {
-        accountList = dbAccounts.map((a: any) => ({
-          accountNumber: a.accountNumber,
-          accountType: a.accountType || 'Unknown',
-        }));
-      }
+      let accountList: Array<{ accountNumber: string; accountType: string }> = (dbAccounts || []).map((a: any) => ({
+        accountNumber: a.accountNumber,
+        accountType: a.accountType || 'Unknown',
+      }));
 
       if (input?.accountNumber) {
         accountList = accountList.filter(a => a.accountNumber === input.accountNumber);
       }
 
-      // Collect all stock positions across accounts
+      // Collect all stock positions from cache
       const allStockPositions: Array<{
         symbol: string;
         accountNumber: string;
@@ -297,22 +291,20 @@ export const positionAnalyzerRouter = router({
         avgOpenPrice: number;
       }> = [];
 
-      for (const account of accountList) {
-        try {
-          const positions = await api.getPositions(account.accountNumber);
-          const stockPos = (positions || []).filter((p: any) => p['instrument-type'] === 'Equity' && p.quantity > 0);
-          for (const p of stockPos) {
-            allStockPositions.push({
-              symbol: p.symbol || p['underlying-symbol'],
-              accountNumber: account.accountNumber,
-              accountType: account.accountType || 'Unknown',
-              quantity: p.quantity,
-              avgOpenPrice: parseFloat(p['average-open-price'] || '0'),
-            });
-          }
-        } catch (e) {
-          console.warn(`[PositionAnalyzer] Could not fetch positions for ${account.accountNumber}:`, e);
-        }
+      const accountTypeMap = new Map(accountList.map(a => [a.accountNumber, a.accountType]));
+      for (const p of wirePositions) {
+        if (p['instrument-type'] !== 'Equity') continue;
+        const qty = parseFloat(String(p.quantity || '0'));
+        if (qty <= 0) continue;
+        const accNum = (p as any)['account-number'] || '';
+        if (input?.accountNumber && accNum !== input.accountNumber) continue;
+        allStockPositions.push({
+          symbol: p.symbol || p['underlying-symbol'],
+          accountNumber: accNum,
+          accountType: accountTypeMap.get(accNum) || 'Unknown',
+          quantity: qty,
+          avgOpenPrice: parseFloat(String(p['average-open-price'] || '0')),
+        });
       }
 
       if (allStockPositions.length === 0) {
@@ -394,10 +386,9 @@ export const positionAnalyzerRouter = router({
       // NOTE: Tastytrade positions API uses 'quantity-direction' ("Short"/"Long"), NOT 'option-type'.
       //       We detect calls by checking if the OCC symbol contains 'C' (call marker).
       const openShortCallsMap = new Map<string, Array<{ strike: number; expiration: string; quantity: number; daysToExpiry: number }>>();
-      for (const account of accountList) {
-        try {
-          const positions = await api.getPositions(account.accountNumber);
-          const optionPositions = (positions || []).filter((p: any) => p['instrument-type'] === 'Equity Option');
+      // Use cached option positions (already loaded above)
+      {
+        const optionPositions = wirePositions.filter((p: any) => p['instrument-type'] === 'Equity Option');
           const shortCalls = optionPositions.filter((p: any) => {
             const direction = (p['quantity-direction'] || '').toLowerCase();
             const isShort = direction === 'short' || (typeof p.quantity === 'number' && p.quantity < 0);
@@ -441,7 +432,8 @@ export const positionAnalyzerRouter = router({
               if (strikeMatch) strike = parseInt(strikeMatch[1], 10) / 1000;
             }
             const qty = typeof sc.quantity === 'number' ? Math.abs(sc.quantity) : 1;
-            const key = `${underlying}-${account.accountNumber}`;
+            const scAccNum = (sc as any)['account-number'] || '';
+            const key = `${underlying}-${scAccNum}`;
             if (!openShortCallsMap.has(key)) openShortCallsMap.set(key, []);
             openShortCallsMap.get(key)!.push({
               strike,
@@ -449,11 +441,8 @@ export const positionAnalyzerRouter = router({
               quantity: qty,
               daysToExpiry,
             });
-            console.log(`[PositionAnalyzer] Detected short call: ${underlying} $${strike} ${expDateStr} (${daysToExpiry}d) in ${account.accountNumber}`);
+            console.log(`[PositionAnalyzer] Detected short call: ${underlying} $${strike} ${expDateStr} (${daysToExpiry}d) in ${scAccNum}`);
           }
-        } catch (e) {
-          console.warn(`[PositionAnalyzer] Could not fetch option positions for ${account.accountNumber}:`, e);
-        }
       }
 
       // Build analyzed positions

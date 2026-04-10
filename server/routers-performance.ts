@@ -49,57 +49,29 @@ export const performanceRouter = router({
       const { accountId, monthsBack } = input;
       const userId = ctx.user.id;
 
-      console.log(`[Performance] Fetching overview for account ${accountId}, ${monthsBack} months back`);
-
-      // Get API credentials
-      const credentials = await getApiCredentials(userId);
-      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
-        throw new TRPCError({
-          code: 'PRECONDITION_FAILED',
-          message: 'Tastytrade API credentials not configured',
-        });
-      }
-
-      // Get Tastytrade API instance
-      const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials, userId);
-
-      // Get accounts
-      const accounts = await api.getAccounts();
-      let accountNumbers: string[] = [];
-      if (accountId === 'ALL_ACCOUNTS') {
-        accountNumbers = accounts.map(acc => acc.account['account-number']);
-      } else {
-        accountNumbers = [accountId];
-      }
+      console.log(`[Performance] Fetching overview for account ${accountId}, ${monthsBack} months back (from cache)`);
 
       // Calculate date range (last N months)
       const endDate = new Date();
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() - monthsBack);
-
       const startDateStr = startDate.toISOString().split('T')[0];
       const endDateStr = endDate.toISOString().split('T')[0];
 
-      console.log(`[Performance] Date range: ${startDateStr} to ${endDateStr}`);
+      // Read from DB cache — no live API call needed
+      const { getCachedTransactions, cachedTxnToWireFormat } = await import('./portfolio-sync');
+      const cachedRows = await getCachedTransactions(userId);
 
-      // Fetch transactions for all accounts
-      const allTransactions: any[] = [];
-      for (const accountNumber of accountNumbers) {
-        try {
-          const transactions = await api.getTransactionHistory(
-            accountNumber,
-            startDateStr,
-            endDateStr,
-            1000
-          );
-          allTransactions.push(...transactions);
-          console.log(`[Performance] Fetched ${transactions.length} transactions for ${accountNumber}`);
-        } catch (error: any) {
-          console.error(`[Performance] Error fetching transactions for ${accountNumber}:`, error.message);
-          // Continue with other accounts
-        }
-      }
+      // Filter by account and date range, then convert to wire format
+      const allTransactions: any[] = cachedRows
+        .filter(txn => {
+          if (accountId !== 'ALL_ACCOUNTS' && txn.accountNumber !== accountId) return false;
+          if (txn.executedAt < startDate || txn.executedAt > endDate) return false;
+          return true;
+        })
+        .map(cachedTxnToWireFormat);
+
+      console.log(`[Performance] Loaded ${allTransactions.length} transactions from cache (${startDateStr} to ${endDateStr})`);
 
       if (allTransactions.length === 0) {
         return {
@@ -249,7 +221,7 @@ export const performanceRouter = router({
     .query(async ({ input, ctx }) => {
       const { accountId, positionType, minRealizedPercent } = input;
 
-      // Get Tastytrade credentials
+      // Get Tastytrade credentials (still needed for live quotes and working orders)
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
         throw new TRPCError({
@@ -258,74 +230,47 @@ export const performanceRouter = router({
         });
       }
 
-      // Initialize Tastytrade API
+      // Initialize Tastytrade API (used for live quotes + working orders only)
       const { authenticateTastytrade } = await import('./tastytrade');
       const api = await authenticateTastytrade(credentials, ctx.user.id);
 
-      // Get accounts
-      const accounts = await api.getAccounts();
-      if (!accounts || accounts.length === 0) {
+      // ── Positions: read from DB cache (no live API call) ──────────────────────
+      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+      const cachedPos = await getCachedPositions(ctx.user.id);
+
+      if (cachedPos.length === 0) {
         return {
           positions: [],
-          summary: {
-            openPositions: 0,
-            totalPremiumAtRisk: 0,
-            avgRealizedPercent: 0,
-            readyToClose: 0,
-          },
+          summary: { openPositions: 0, totalPremiumAtRisk: 0, avgRealizedPercent: 0, readyToClose: 0 },
         };
       }
 
-      // Determine which accounts to fetch from
-      let accountsToFetch: string[] = [];
-      if (accountId === 'ALL_ACCOUNTS') {
-        // Fetch from all accounts
-        accountsToFetch = accounts.map(acc => acc.account["account-number"]);
-        console.log(`[Performance] Fetching from all ${accountsToFetch.length} accounts:`, accountsToFetch);
-      } else {
-        // Fetch from single account
-        const accountNumber = accountId || accounts[0].account["account-number"];
-        accountsToFetch = [accountNumber];
-        console.log(`[Performance] Fetching positions for account: ${accountNumber}`);
-      }
+      // Determine which accounts to use
+      const accountsToFetch = accountId === 'ALL_ACCOUNTS'
+        ? Array.from(new Set(cachedPos.map(p => p.accountNumber)))
+        : [accountId];
+
+      // Convert cached rows to wire format and filter by account
+      const positions: any[] = cachedPos
+        .filter(p => accountId === 'ALL_ACCOUNTS' || p.accountNumber === accountId)
+        .map(p => ({
+          ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }),
+          _accountNumber: p.accountNumber,
+          multiplier: 100,
+        }));
+
+      console.log(`[Performance] Loaded ${positions.length} positions from cache`);
+
+      // Filter for option positions (both short and long)
+      const optionPositions = positions.filter((pos) =>
+        pos['instrument-type'] === 'Equity Option' || pos['instrument-type'] === 'Index Option'
+      );
+      const shortOptions = optionPositions.filter(pos => pos['quantity-direction'] === 'Short');
+      const longOptions = optionPositions.filter(pos => pos['quantity-direction'] === 'Long');
+      console.log(`[Performance] ${shortOptions.length} short, ${longOptions.length} long options from cache`);
 
       try {
-        // Fetch positions from all selected accounts in parallel
-        const positionsArrays = await Promise.all(
-          accountsToFetch.map(async (accNum) => {
-            try {
-              const positions = await api.getPositions(accNum);
-              // Tag each position with its account number
-              return positions.map((pos: any) => ({ ...pos, _accountNumber: accNum }));
-            } catch (error) {
-              console.error(`[Performance] Error fetching positions for account ${accNum}:`, error);
-              return [];
-            }
-          })
-        );
-        const positions = positionsArrays.flat();
-        console.log(`[Performance] Retrieved ${positions.length} total positions`);
-        
-        // Log first position for debugging
-        if (positions.length > 0) {
-          console.log('[Performance] Sample position:', JSON.stringify(positions[0], null, 2));
-        }
-        
-        // Filter for option positions (both short and long)
-        // Include BOTH Equity Option AND Index Option (SPX/NDX/RUT/SPXW are Index Options)
-        const optionPositions = positions.filter((pos) => {
-          return pos['instrument-type'] === 'Equity Option' || pos['instrument-type'] === 'Index Option';
-        });
-        console.log(`[Performance] Found ${optionPositions.length} option positions`);
-        
-        // Separate short and long positions
-        const shortOptions = optionPositions.filter(pos => pos['quantity-direction'] === 'Short');
-        const longOptions = optionPositions.filter(pos => pos['quantity-direction'] === 'Long');
-        console.log(`[Performance] ${shortOptions.length} short, ${longOptions.length} long`);
-
-        // ── Order-ID-based spread leg linkage ──────────────────────────────────────
-        // Fetch filled orders to build a definitive symbol → orderId map.
-        // Two positions sharing an order ID are guaranteed to be legs of the same spread.
+        // ── Order-ID spread linkage: still live (filled orders not cached) ────────
         const perfSymbolToOrderId = new Map<string, string>();
         const perfOrderIdToLongSym = new Map<string, string>();
         const perfConsumedLongSyms = new Set<string>();
@@ -347,7 +292,7 @@ export const performanceRouter = router({
               }
             }
           } catch (e: any) {
-            console.warn(`[Performance] Could not fetch filled orders for ${accNum} (will use heuristic): ${e.message}`);
+            console.warn(`[Performance] Could not fetch filled orders for ${accNum}: ${e.message}`);
           }
         }
         console.log(`[Performance] Order-ID linkage: ${perfSymbolToOrderId.size} symbols mapped`);
@@ -358,27 +303,16 @@ export const performanceRouter = router({
           const normSym = (longPos.symbol || '').replace(/\s+/g, '');
           longPositionMap.set(normSym, longPos);
         }
-        console.log(`[Performance] Built map of ${longPositionMap.size} long positions`);
-        
-        // If no short options found, log all instrument types and quantity directions
-        if (shortOptions.length === 0 && positions.length > 0) {
-          const types = positions.map(p => `${p['instrument-type']}|${p['quantity-direction']}|qty:${p.quantity}`);
-          console.log('[Performance] All position types (first 10):', types.slice(0, 10));
-        }
 
-        // Fetch working orders for all accounts to mark positions
-        // Only include LIVE orders (exclude Filled, Cancelled, Rejected, Expired)
+        // ── Working orders: still live (order status changes in real time) ────────
         const workingOrderSymbols = new Set<string>();
         for (const accNum of accountsToFetch) {
           try {
             const workingOrders = await api.getWorkingOrders(accNum);
             for (const order of workingOrders) {
-              // Only count orders with Live status
               if (order.status === 'Live' && order.legs) {
                 for (const leg of order.legs) {
-                  if (leg.symbol) {
-                    workingOrderSymbols.add(leg.symbol);
-                  }
+                  if (leg.symbol) workingOrderSymbols.add(leg.symbol);
                 }
               }
             }
@@ -1107,47 +1041,29 @@ export const performanceRouter = router({
       const { accountId } = input;
       const userId = ctx.user.id;
 
-      console.log(`[Performance] Fetching expiration calendar for account ${accountId}`);
+      console.log(`[Performance] Fetching expiration calendar for account ${accountId} (from cache)`);
 
-      // Get API credentials
-      const credentials = await getApiCredentials(userId);
-      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
-        throw new TRPCError({
-          code: 'PRECONDITION_FAILED',
-          message: 'Tastytrade API credentials not configured',
-        });
-      }
+      // Read from DB cache — no live API call needed
+      const { getCachedPositions } = await import('./portfolio-sync');
+      const cachedPos = await getCachedPositions(userId);
 
-      const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials, userId);
-      const accounts = await api.getAccounts();
-
-      // Handle ALL_ACCOUNTS
-      const targetAccounts = accountId === 'ALL_ACCOUNTS'
-        ? accounts
-        : accounts.filter(acc => (acc as any)['account-number'] === accountId);
-
-      if (targetAccounts.length === 0) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Account not found',
-        });
-      }
-
-      // Fetch positions from all target accounts
-      const allPositions = [];
-      for (const account of targetAccounts) {
-        const positions = await api.getPositions((account as any)['account-number']);
-        const shortOptions = positions.filter(p => 
-          p['instrument-type'] === 'Equity Option' && 
-          p.quantity < 0
-        );
-        allPositions.push(...shortOptions.map(p => ({
-          ...p,
-          accountNumber: (account as any)['account-number'],
-          accountName: (account as any).nickname || (account as any)['account-number'],
-        })));
-      }
+      // Filter to short options for the requested account
+      const allPositions = cachedPos
+        .filter(p =>
+          p.instrumentType === 'Equity Option' &&
+          parseFloat(p.quantity) < 0 &&
+          (accountId === 'ALL_ACCOUNTS' || p.accountNumber === accountId)
+        )
+        .map(p => ({
+          symbol: p.symbol,
+          'underlying-symbol': p.underlyingSymbol,
+          'instrument-type': p.instrumentType,
+          quantity: parseFloat(p.quantity),
+          'expiration-date': p.expiresAt,
+          'strike-price': p.strikePrice,
+          accountNumber: p.accountNumber,
+          accountName: p.accountNumber,
+        }));
 
       // Group by expiration date
       const expirationMap = new Map<string, any[]>();

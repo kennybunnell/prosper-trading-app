@@ -16,41 +16,45 @@ export const taxRouter = router({
     .query(async ({ ctx, input }) => {
       console.log(`[Tax Dashboard] ========== NEW REQUEST at ${new Date().toISOString()} ==========`);
       console.log(`[Tax Dashboard] Input:`, input);
-      const { authenticateTastytrade } = await import('./tastytrade');
-      const { getApiCredentials } = await import('./db');
-      
-      const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials) {
-        throw new Error('Tastytrade credentials not found');
+
+      // ── Read from DB cache — no live API calls for positions or transactions ────────────
+      const { getCachedPositions, getCachedTransactions, cachedTxnToWireFormat, cachedPosToWireFormat } = await import('./portfolio-sync');
+      const allCachedPos = await getCachedPositions(ctx.user.id);
+      const allCachedTxns = await getCachedTransactions(ctx.user.id);
+
+      if (allCachedPos.length === 0 && allCachedTxns.length === 0) {
+        throw new Error('No portfolio data in cache. Please run a portfolio sync from Settings first.');
       }
-      
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
-      const accounts = await api.getAccounts();
-      console.log(`[Tax Dashboard] Fetched ${accounts?.length || 0} accounts from API`);
-      console.log(`[Tax Dashboard] First account full object:`, JSON.stringify(accounts?.[0], null, 2));
-      console.log(`[Tax Dashboard] Account details:`, accounts?.map((acc: any) => ({ accountNumber: acc.account?.['account-number'], nickname: acc.account?.nickname })));
-      
-      if (!accounts || accounts.length === 0) {
-        throw new Error('No accounts found');
-      }
-      
-      // Filter to specific account if provided
-      console.log(`[Tax Dashboard] Input accountNumber:`, input.accountNumber);
-      const targetAccounts = input.accountNumber && input.accountNumber !== 'all'
-        ? accounts.filter((acc: any) => acc.account?.['account-number'] === input.accountNumber)
-        : accounts;
-      
-      console.log(`[Tax Dashboard] Target accounts after filtering:`, targetAccounts.length);
-      
-      const accountNumbers = targetAccounts.map((acc: any) => acc.account?.['account-number']);
-      
+
+      // Determine account numbers from cache
+      const allAccountNumbers = Array.from(new Set([
+        ...allCachedPos.map(p => p.accountNumber),
+        ...allCachedTxns.map(t => t.accountNumber),
+      ]));
+      const accountNumbers = (input.accountNumber && input.accountNumber !== 'all')
+        ? allAccountNumbers.filter(a => a === input.accountNumber)
+        : allAccountNumbers;
+
       // Tax year (default to current year)
       const taxYear = input.year || new Date().getFullYear();
-      const yearStart = `${taxYear}-01-01`;
-      const yearEnd = `${taxYear}-12-31`;
-      
-      console.log(`[Tax Dashboard] Fetching data for year ${taxYear}, date range: ${yearStart} to ${yearEnd}`);
-      console.log(`[Tax Dashboard] Target accounts:`, accountNumbers);
+      const yearStart = new Date(taxYear, 0, 1);
+      const yearEnd = new Date(taxYear, 11, 31, 23, 59, 59);
+      const yearStartStr = `${taxYear}-01-01`;
+      const yearEndStr = `${taxYear}-12-31`;
+
+      console.log(`[Tax Dashboard] Using cache: ${allCachedPos.length} positions, ${allCachedTxns.length} transactions`);
+      console.log(`[Tax Dashboard] Tax year ${taxYear}, accounts:`, accountNumbers);
+
+      // Filter cached transactions to the tax year and target accounts
+      const yearTxns = allCachedTxns
+        .filter(t => accountNumbers.includes(t.accountNumber))
+        .filter(t => t.executedAt >= yearStart && t.executedAt <= yearEnd)
+        .map(cachedTxnToWireFormat);
+
+      // Positions filtered to target accounts (wire format)
+      const positions: any[] = allCachedPos
+        .filter(p => accountNumbers.includes(p.accountNumber))
+        .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }), accountNumber: p.accountNumber }));
       
       // Initialize summary
       let realizedGains = 0; // Stock sales only
@@ -67,122 +71,56 @@ export const taxRouter = router({
         unrealizedPL: number;
       }> = [];
       
-      // Fetch closed spread positions for ordinary income
+      // ── Spread income from cached transactions ─────────────────────────────────────────
       // IRS RULE: Spread P&L is ordinary income, NOT capital gains
-      console.log(`[Tax Dashboard] Fetching closed spreads for tax year ${taxYear}...`);
       try {
         const { groupIntoClosedPositions } = await import('./routers-spread-analytics');
-        
-        // Fetch transaction history from ALL accounts for the tax year
-        let allTransactions: any[] = [];
-        for (const accountNumber of accountNumbers) {
-          console.log(`[Tax Dashboard] Fetching transactions for spread analysis: account ${accountNumber}`);
-          const accountTransactions = await api.getTransactionHistory(accountNumber, yearStart, yearEnd, 1000);
-          if (accountTransactions && Array.isArray(accountTransactions)) {
-            allTransactions = allTransactions.concat(accountTransactions);
-          }
-        }
-        
-        console.log(`[Tax Dashboard] Total transactions for spread analysis: ${allTransactions.length}`);
-        
-        // Group transactions into closed spread positions
-        const closedSpreads = groupIntoClosedPositions(allTransactions);
-        console.log(`[Tax Dashboard] Found ${closedSpreads.length} closed spread positions`);
-        
-        // Calculate total spread P/L (ordinary income)
+        const closedSpreads = groupIntoClosedPositions(yearTxns);
         for (const spread of closedSpreads) {
-          const pl = spread.profitLoss || 0;
-          spreadIncome += pl; // Can be positive (income) or negative (loss)
-          console.log(`[Tax Dashboard] Spread ${spread.symbol} ${spread.spreadType}: P/L = $${pl.toFixed(2)}`);
+          spreadIncome += spread.profitLoss || 0;
         }
-        
-        console.log(`[Tax Dashboard] Total Spread Income (Ordinary): $${spreadIncome.toFixed(2)}`);
+        console.log(`[Tax Dashboard] Spread income from cache: $${spreadIncome.toFixed(2)} (${closedSpreads.length} spreads)`);
       } catch (error) {
-        console.error(`[Tax Dashboard] Failed to fetch closed spreads:`, error);
-        // Continue without spread data
+        console.error(`[Tax Dashboard] Failed to compute spread income:`, error);
       }
-      
-      // Fetch positions for each account
-      for (const accountNumber of accountNumbers) {
-        console.log(`[Tax Dashboard] Fetching positions for account ${accountNumber}...`);
-        const positions = await api.getPositions(accountNumber);
-        console.log(`[Tax Dashboard] Received ${positions?.length || 0} positions for account ${accountNumber}`);
-        if (!positions) continue;
-        
-        for (const pos of positions) {
-          const instrumentType = pos['instrument-type'];
-          
-          // Stock positions - check for unrealized losses (harvestable)
-          if (instrumentType === 'Equity') {
-            console.log(`[Tax Dashboard] Found stock position:`, { symbol: pos.symbol, quantity: pos.quantity, avgOpenPrice: pos['average-open-price'], closePrice: pos['close-price'] });
-            const quantity = typeof pos.quantity === 'number' ? pos.quantity : parseInt(String(pos.quantity || '0'));
-            if (quantity === 0) continue;
-            
-            const avgCost = parseFloat(pos['average-open-price'] || '0');
-            const currentPrice = parseFloat(pos['close-price'] || '0');
-            const costBasis = quantity * avgCost;
-            const marketValue = quantity * currentPrice;
-            const unrealizedPL = marketValue - costBasis;
-            
-            // Only track positions with unrealized losses (harvestable)
-            if (unrealizedPL < 0) {
-              harvestablePositions.push({
-                symbol: pos.symbol || '',
-                accountNumber,
-                quantity,
-                costBasis: avgCost,
-                currentPrice,
-                marketValue,
-                unrealizedPL,
-              });
-            }
-          }
+
+      // ── Harvestable positions from cached equity positions ────────────────────────
+      for (const pos of positions) {
+        if (pos['instrument-type'] !== 'Equity') continue;
+        const quantity = typeof pos.quantity === 'number' ? pos.quantity : parseInt(String(pos.quantity || '0'));
+        if (quantity === 0) continue;
+        const avgCost = parseFloat(pos['average-open-price'] || '0');
+        const currentPrice = parseFloat(pos['close-price'] || '0');
+        const costBasis = quantity * avgCost;
+        const marketValue = quantity * currentPrice;
+        const unrealizedPL = marketValue - costBasis;
+        if (unrealizedPL < 0) {
+          harvestablePositions.push({
+            symbol: pos.symbol || '',
+            accountNumber: pos.accountNumber || '',
+            quantity,
+            costBasis: avgCost,
+            currentPrice,
+            marketValue,
+            unrealizedPL,
+          });
         }
-        
-        // Fetch closed positions (for realized gains/losses and ordinary income)
-        try {
-          console.log(`[Tax Dashboard] Fetching transaction history for account ${accountNumber}...`);
-          const closedPositions = await api.getTransactionHistory(accountNumber, yearStart, yearEnd, 1000);
-          console.log(`[Tax Dashboard] Received ${closedPositions?.length || 0} transactions for account ${accountNumber}`);
-          
-          if (closedPositions && Array.isArray(closedPositions)) {
-            console.log(`[Tax Dashboard] Processing ${closedPositions.length} transactions...`);
-            for (const txn of closedPositions) {
-              const txnType = txn.type;
-              const instrumentType = txn['instrument-type'];
-              
-              // Options trades = ordinary income (premium collected)
-              // NOTE: Spreads are already counted in spreadGains/spreadLosses above
-              // Here we only count naked options (CSP, CC) as ordinary income
-              if (instrumentType === 'Equity Option') {
-                console.log(`[Tax Dashboard] Processing option transaction:`, { symbol: txn.symbol, action: txn.action, value: txn.value, netValue: txn['net-value'] });
-                const value = parseFloat(String(txn.value || '0'));
-                const action = txn.action;
-                
-                // Selling options = collecting premium (ordinary income)
-                // This captures naked CSPs and CCs
-                if (action === 'Sell to Open') {
-                  ordinaryIncome += Math.abs(value);
-                }
-              }
-              
-              // Stock trades = capital gains/losses
-              if (instrumentType === 'Equity') {
-                console.log(`[Tax Dashboard] Processing stock transaction:`, { symbol: txn.symbol, action: txn.action, netValue: txn['net-value'] });
-                if (txnType === 'Trade' && txn['net-value']) {
-                  const netValue = parseFloat(String(txn['net-value'] || '0'));
-                  if (netValue > 0) {
-                    realizedGains += netValue;
-                  } else if (netValue < 0) {
-                    realizedLosses += Math.abs(netValue);
-                  }
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error(`Failed to fetch transaction history for ${accountNumber}:`, error);
-          // Continue with other accounts even if one fails
+      }
+
+      // ── Realized gains/losses and ordinary income from cached transactions ─────────
+      console.log(`[Tax Dashboard] Processing ${yearTxns.length} cached transactions for tax year ${taxYear}`);
+      for (const txn of yearTxns) {
+        const txnType = txn['transaction-type'];
+        const instrumentType = txn['instrument-type'];
+        const action = txn.action;
+
+        if (instrumentType === 'Equity Option' && action === 'Sell to Open') {
+          ordinaryIncome += Math.abs(parseFloat(String(txn['net-value'] || txn.value || '0')));
+        }
+        if (instrumentType === 'Equity' && txnType === 'Trade') {
+          const netValue = parseFloat(String(txn['net-value'] || '0'));
+          if (netValue > 0) realizedGains += netValue;
+          else if (netValue < 0) realizedLosses += Math.abs(netValue);
         }
       }
       
@@ -220,10 +158,15 @@ export const taxRouter = router({
       const extendedStartStr = extendedStart.toISOString().split('T')[0];
       const extendedEndStr = extendedEnd.toISOString().split('T')[0];
       
+      // ── Wash sale detection from cached transactions (extended window) ────────────
       for (const accountNumber of accountNumbers) {
         try {
-          const allTransactions = await api.getTransactionHistory(accountNumber, extendedStartStr, extendedEndStr, 2000);
-          
+          // Use cached transactions filtered to the extended wash-sale window
+          const allTransactions = allCachedTxns
+            .filter(t => t.accountNumber === accountNumber)
+            .filter(t => t.executedAt >= extendedStart && t.executedAt <= extendedEnd)
+            .map(cachedTxnToWireFormat);
+
           if (!allTransactions || !Array.isArray(allTransactions)) continue;
           
           // Filter to stock transactions only
@@ -370,34 +313,33 @@ export const taxRouter = router({
         }
       }
       
-      // Fetch tax lot data for open stock positions (for cost basis verification)
+      // Fetch tax lot data using DB cache for stock positions, then live API for tax lots
       const taxLotData: Array<{
         symbol: string;
         accountNumber: string;
         lots: any[];
       }> = [];
       
-      for (const accountNumber of accountNumbers) {
+      const { getCachedPositions: getCachedPosForTax } = await import('./portfolio-sync');
+      const cachedPosForTax = await getCachedPosForTax(ctx.user.id);
+      const stockPosForTax = cachedPosForTax.filter(p =>
+        accountNumbers.includes(p.accountNumber) &&
+        p.instrumentType === 'Equity' &&
+        (typeof p.quantity === 'number' ? p.quantity : parseInt(String(p.quantity || '0'))) !== 0
+      );
+      
+      for (const position of stockPosForTax) {
         try {
-          const positions = await api.getPositions(accountNumber);
-          const stockPositions = positions.filter((pos: any) => 
-            pos['instrument-type'] === 'Equity' && pos.quantity !== 0
-          );
-          
-          for (const position of stockPositions) {
-            const symbol = position.symbol;
-            const lots = await api.getTaxLots(accountNumber, symbol);
-            
-            if (lots.length > 0) {
-              taxLotData.push({
-                symbol,
-                accountNumber,
-                lots,
-              });
-            }
+          const lots = await api.getTaxLots(position.accountNumber, position.symbol);
+          if (lots.length > 0) {
+            taxLotData.push({
+              symbol: position.symbol,
+              accountNumber: position.accountNumber,
+              lots,
+            });
           }
         } catch (error) {
-          console.error(`Failed to fetch tax lots for ${accountNumber}:`, error);
+          console.error(`Failed to fetch tax lots for ${position.symbol}:`, error);
         }
       }
       
@@ -452,40 +394,46 @@ export const taxRouter = router({
       const harvestablePositions: any[] = [];
       const washSaleViolations: any[] = [];
       
-      for (const accountNumber of accountNumbers) {
-        try {
-          const transactions = await api.getTransactionHistory(accountNumber, yearStart, yearEnd);
-          
-          for (const txn of transactions) {
-            if (txn.action === 'Sell' && txn['instrument-type'] === 'Equity') {
-              const pnl = parseFloat(txn['net-value'] || '0');
-              if (pnl > 0) realizedGains += pnl;
-              else realizedLosses += Math.abs(pnl);
-            }
-            if (txn['instrument-type'] === 'Equity Option' && (txn.action === 'Sell to Open' || txn.action === 'Buy to Close')) {
-              ordinaryIncome += Math.abs(parseFloat(txn['net-value'] || '0'));
-            }
-          }
-          
-          const positions = await api.getPositions(accountNumber);
-          const stockPositions = positions.filter((pos: any) => 
-            pos['instrument-type'] === 'Equity' && pos.quantity !== 0
-          );
-          
-          for (const position of stockPositions) {
-            const unrealizedPL = parseFloat(position['close-price'] || '0') * position.quantity - parseFloat(position['cost-effect'] || '0');
-            if (unrealizedPL < 0) {
-              harvestablePositions.push({
-                symbol: position.symbol,
-                accountNumber,
-                quantity: position.quantity,
-                costBasis: parseFloat(position['cost-effect'] || '0'),
-                unrealizedPL,
-              });
-            }
-          }
-        } catch (error) {
-          console.error(`Failed to fetch data for ${accountNumber}:`, error);
+      // Use DB cache for transactions and positions in PDF generation
+      const { getCachedTransactions: getCachedTxnsPDF, getCachedPositions: getCachedPosPDF, cachedTxnToWireFormat: toWirePDF } = await import('./portfolio-sync');
+      const cachedTxnsPDF = await getCachedTxnsPDF(ctx.user.id);
+      const cachedPosPDF = await getCachedPosPDF(ctx.user.id);
+      const startMs = new Date(yearStart).getTime();
+      const endMs = new Date(yearEnd).getTime() + 86400000;
+      const yearTxns = cachedTxnsPDF
+        .filter(t => accountNumbers.includes(t.accountNumber) && t.executedAt && new Date(t.executedAt).getTime() >= startMs && new Date(t.executedAt).getTime() <= endMs)
+        .map(t => toWirePDF(t));
+      
+      for (const txn of yearTxns) {
+        if (txn.action === 'Sell' && txn['instrument-type'] === 'Equity') {
+          const pnl = parseFloat(txn['net-value'] || '0');
+          if (pnl > 0) realizedGains += pnl;
+          else realizedLosses += Math.abs(pnl);
+        }
+        if (txn['instrument-type'] === 'Equity Option' && (txn.action === 'Sell to Open' || txn.action === 'Buy to Close')) {
+          ordinaryIncome += Math.abs(parseFloat(txn['net-value'] || '0'));
+        }
+      }
+      
+      const stockPosPDF = cachedPosPDF.filter(p =>
+        accountNumbers.includes(p.accountNumber) &&
+        p.instrumentType === 'Equity' &&
+        (typeof p.quantity === 'number' ? p.quantity : parseInt(String(p.quantity || '0'))) !== 0
+      );
+      for (const position of stockPosPDF) {
+        const qty = typeof position.quantity === 'number' ? position.quantity : parseInt(String(position.quantity || '0'));
+        const closePrice = parseFloat(String(position.closePrice || '0'));
+        const avgOpenPrice = parseFloat(String(position.averageOpenPrice || '0'));
+        const costBasis = avgOpenPrice * qty;
+        const unrealizedPL = closePrice * qty - costBasis;
+        if (unrealizedPL < 0) {
+          harvestablePositions.push({
+            symbol: position.symbol,
+            accountNumber: position.accountNumber,
+            quantity: qty,
+            costBasis,
+            unrealizedPL,
+          });
         }
       }
       

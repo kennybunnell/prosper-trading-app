@@ -596,31 +596,20 @@ export const spreadAnalyticsRouter = router({
         throw new Error('Tastytrade credentials not configured');
       }
       
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
-      
-      // Get all accounts
-      const accounts = await api.getAccounts();
-      if (accounts.length === 0) {
-        throw new Error('No accounts found');
-      }
-      
-      // Default date range: last 1 year if not specified
+      // Load transactions from DB cache — filtered by date range
+      const { getCachedTransactions, cachedTxnToWireFormat } = await import('./portfolio-sync');
+      const cachedTxns = await getCachedTransactions(ctx.user.id);
       const endDate = input.endDate || new Date().toISOString().split('T')[0];
       const startDate = input.startDate || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      
-      console.log(`[Spread Analytics] Fetching transactions from ${startDate} to ${endDate} across ${accounts.length} accounts`);
-      
-      // Fetch transaction history from ALL accounts
-      let allTransactions: any[] = [];
-      for (const account of accounts) {
-        const accountNumber = account.account['account-number'];
-        console.log(`[Spread Analytics] Fetching transactions for account ${accountNumber}`);
-        const accountTransactions = await api.getTransactionHistory(accountNumber, startDate, endDate);
-        console.log(`[Spread Analytics] Account ${accountNumber}: ${accountTransactions.length} transactions`);
-        allTransactions = allTransactions.concat(accountTransactions);
-      }
-      
-      const transactions = allTransactions;
+      const startMs = new Date(startDate).getTime();
+      const endMs = new Date(endDate).getTime() + 86400000;
+      const transactions = cachedTxns
+        .filter(t => {
+          const ts = t.executedAt ? new Date(t.executedAt).getTime() : 0;
+          return ts >= startMs && ts <= endMs;
+        })
+        .map(t => cachedTxnToWireFormat(t));
+      console.log(`[Spread Analytics] Loaded ${transactions.length} cached transactions from ${startDate} to ${endDate}`);
       
       console.log(`[Spread Analytics] Fetched ${transactions.length} transactions`);
       
@@ -667,25 +656,17 @@ export const spreadAnalyticsRouter = router({
         throw new Error('Tastytrade credentials not configured');
       }
       
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
-      
-      const accounts = await api.getAccounts();
-      if (accounts.length === 0) {
-        throw new Error('No accounts found');
-      }
-      
-      const endDate = input.endDate || new Date().toISOString().split('T')[0];
-      const startDate = input.startDate || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      
-      // Fetch transactions from ALL accounts
-      let allTransactions: any[] = [];
-      for (const account of accounts) {
-        const accountNumber = account.account['account-number'];
-        const accountTransactions = await api.getTransactionHistory(accountNumber, startDate, endDate);
-        allTransactions = allTransactions.concat(accountTransactions);
-      }
-      const transactions = allTransactions;
-      const closedPositions = groupIntoClosedPositions(transactions);
+      // Load transactions from DB cache
+      const { getCachedTransactions: getCachedTxns2, cachedTxnToWireFormat: toWire2 } = await import('./portfolio-sync');
+      const cachedTxns2 = await getCachedTxns2(ctx.user.id);
+      const endDate2 = input.endDate || new Date().toISOString().split('T')[0];
+      const startDate2 = input.startDate || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const startMs2 = new Date(startDate2).getTime();
+      const endMs2 = new Date(endDate2).getTime() + 86400000;
+      const transactions2 = cachedTxns2
+        .filter(t => { const ts = t.executedAt ? new Date(t.executedAt).getTime() : 0; return ts >= startMs2 && ts <= endMs2; })
+        .map(t => toWire2(t));
+      const closedPositions = groupIntoClosedPositions(transactions2);
       const metrics = calculateStrategyMetrics(closedPositions);
       
       return metrics;
@@ -705,26 +686,18 @@ export const spreadAnalyticsRouter = router({
         throw new Error('Tastytrade credentials not configured');
       }
       
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
-      
-      const accounts = await api.getAccounts();
-      if (accounts.length === 0) {
-        throw new Error('No accounts found');
-      }
-      
-      const endDate = input.endDate || new Date().toISOString().split('T')[0];
-      const startDate = input.startDate || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      
-      // Fetch transactions from ALL accounts
-      let allTransactions: any[] = [];
-      for (const account of accounts) {
-        const accountNumber = account.account['account-number'];
-        const accountTransactions = await api.getTransactionHistory(accountNumber, startDate, endDate);
-        allTransactions = allTransactions.concat(accountTransactions);
-      }
-      const transactions = allTransactions;
-      const closedPositions = groupIntoClosedPositions(transactions);
-      const metrics = calculateSymbolMetrics(closedPositions);
+      // Load transactions from DB cache
+      const { getCachedTransactions: getCachedTxns3, cachedTxnToWireFormat: toWire3 } = await import('./portfolio-sync');
+      const cachedTxns3 = await getCachedTxns3(ctx.user.id);
+      const endDate3 = input.endDate || new Date().toISOString().split('T')[0];
+      const startDate3 = input.startDate || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const startMs3 = new Date(startDate3).getTime();
+      const endMs3 = new Date(endDate3).getTime() + 86400000;
+      const transactions3 = cachedTxns3
+        .filter(t => { const ts = t.executedAt ? new Date(t.executedAt).getTime() : 0; return ts >= startMs3 && ts <= endMs3; })
+        .map(t => toWire3(t));
+      const closedPositions3 = groupIntoClosedPositions(transactions3);
+      const metrics = calculateSymbolMetrics(closedPositions3);
       
       return metrics;
     }),

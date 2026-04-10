@@ -513,3 +513,91 @@ export async function getPortfolioSyncState(userId: number) {
     .from(portfolioSyncState)
     .where(eq(portfolioSyncState.userId, userId));
 }
+
+// ─── Format Converters ────────────────────────────────────────────────────────
+
+/**
+ * Convert a cached transaction row to the Tastytrade wire-format expected by
+ * performance-utils.ts aggregation functions.
+ *
+ * This lets all existing analytics (aggregateMonthlyData, aggregateBySymbol,
+ * calculatePerformanceMetrics, calculateAssignmentImpact) work unchanged
+ * against the DB cache without any modifications to performance-utils.ts.
+ */
+export function cachedTxnToWireFormat(txn: {
+  transactionType: string;
+  transactionSubType?: string | null;
+  action?: string | null;
+  symbol?: string | null;
+  underlyingSymbol?: string | null;
+  instrumentType?: string | null;
+  description?: string | null;
+  value: string;
+  netValue?: string | null;
+  quantity?: string | null;
+  price?: string | null;
+  commissions?: string | null;
+  fees?: string | null;
+  optionType?: string | null;
+  strikePrice?: string | null;
+  expiresAt?: string | null;
+  executedAt: Date;
+  accountNumber: string;
+}): Record<string, any> {
+  const netVal = parseFloat(txn.netValue || txn.value || '0');
+  const rawVal = parseFloat(txn.value || '0');
+  // Derive net-value-effect from the sign of the raw value
+  // Positive value = Credit (STO received money), Negative = Debit (BTC paid money)
+  const netValueEffect = rawVal >= 0 ? 'Credit' : 'Debit';
+
+  return {
+    'transaction-type': txn.transactionType,
+    'transaction-sub-type': txn.transactionSubType ?? '',
+    action: txn.action ?? '',
+    symbol: txn.symbol ?? '',
+    'underlying-symbol': txn.underlyingSymbol ?? '',
+    'instrument-type': txn.instrumentType ?? '',
+    description: txn.description ?? '',
+    value: String(Math.abs(rawVal)),
+    'net-value': String(Math.abs(netVal)),
+    'net-value-effect': netValueEffect,
+    quantity: txn.quantity ?? '0',
+    price: txn.price ?? '0',
+    commissions: txn.commissions ?? '0',
+    fees: txn.fees ?? '0',
+    'executed-at': txn.executedAt.toISOString(),
+    'account-number': txn.accountNumber,
+  };
+}
+
+/**
+ * Convert a cached position row to the Tastytrade wire-format expected by
+ * existing position-processing code.
+ */
+export function cachedPosToWireFormat(pos: {
+  symbol: string;
+  underlyingSymbol: string;
+  instrumentType: string;
+  quantity: string;
+  quantityDirection: string;
+  averageOpenPrice: string;
+  closePrice?: string | null;
+  strikePrice?: string | null;
+  optionType?: string | null;
+  expiresAt?: string | null;
+  accountNumber: string;
+}): Record<string, any> {
+  return {
+    symbol: pos.symbol,
+    'underlying-symbol': pos.underlyingSymbol,
+    'instrument-type': pos.instrumentType,
+    quantity: parseFloat(pos.quantity),
+    'quantity-direction': pos.quantityDirection,
+    'average-open-price': pos.averageOpenPrice,
+    'close-price': pos.closePrice ?? '0',
+    'strike-price': pos.strikePrice ?? '0',
+    'option-type': pos.optionType ?? '',
+    'expires-at': pos.expiresAt ?? '',
+    'account-number': pos.accountNumber,
+  };
+}

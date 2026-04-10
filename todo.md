@@ -9133,3 +9133,19 @@ ROC Fix Mar 18 2026
 - [x] Wire auto-sync on login (OAuth callback fires background sync after successful auth)
 - [x] Add Portfolio Data Cache card to Settings page with sync status, Sync Now, Full Refresh buttons
 - [x] Fix TypeScript errors across all modified files
+
+## ✅ Cache-First Architecture Migration (Apr 10 2026)
+
+- [x] Audit all server router files for unnecessary live Tastytrade API calls
+- [x] Phase A: Migrate getActionBadges, getMonthlyCollected, getExpirationCalendar, getLeapPositions to DB cache
+- [x] Phase B: Migrate getPerformanceOverview, getActivePositions, getEligiblePositions, getEligiblePositionsAllAccounts to DB cache
+- [x] Phase C: Migrate getMorningBriefingContext, getGapAdvisorContext to DB cache
+- [x] Phase D: Migrate getTaxSummary, generateTaxPDF, scanViolations, checkStockClose, checkSpreadIntegrity, checkCoverageRatio, scanExpirationRisk, triggerFridaySweep, triggerDailyScan, preTradeCheck to DB cache
+- [x] Migrate fetchPortfolioData (portfolio advisor), routers-position-analyzer, routers-rolls scanner to DB cache
+- [x] Migrate getHistoricalPerformance, getThetaDecay, getLockedInIncome, getMonthlyPremiumData, getCapitalEvents, getStockPositions, getCCPremiums, getRecoveryMetrics to DB cache
+- [x] Migrate getStrategyMetrics, getSymbolMetrics (spread analytics) to DB cache
+- [x] Confirmed 3 remaining live calls are legitimate order submission contexts (submitOrders, validateCloseOrders, closePositions quantity guard)
+- [x] Add 15-minute market-hours incremental sync scheduler (portfolio-sync-scheduler.ts)
+- [x] Wire scheduler into server startup (index.ts)
+- [x] Add cachedPosToWireFormat and cachedTxnToWireFormat mappers for performance-utils compatibility
+- [x] Tenant isolation confirmed: all cache tables have user_id FK + WHERE user_id filter on every read

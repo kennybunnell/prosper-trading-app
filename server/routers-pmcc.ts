@@ -241,89 +241,65 @@ export const pmccRouter = router({
   getLeapPositions: protectedProcedure
     .query(async ({ ctx }) => {
       const { getApiCredentials } = await import("./db");
-      const { getTastytradeAPI } = await import("./tastytrade");
       const { createTradierAPI } = await import("./tradier");
 
-      // Get Tastytrade credentials
-      const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Tastytrade credentials not configured. Please add them in Settings.",
-        });
-      }
+      // Read LEAP positions from DB cache — no live Tastytrade API call needed
+      const { getCachedPositions } = await import('./portfolio-sync');
+      const cachedPos = await getCachedPositions(ctx.user.id);
 
-      // Initialize Tastytrade API
-      const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
-
-      // Get accounts
-      const accounts = await api.getAccounts();
-      if (!accounts || accounts.length === 0) {
-        return { positions: [] };
-      }
-
-      const accountNumber = accounts[0].account["account-number"];
-
-      // Get positions
-      const positions = await api.getPositions(accountNumber);
-
+      const now = new Date();
       // Filter for LEAP calls (long call options with 270+ DTE)
-      const leapPositions = positions.filter(pos => {
-        if (pos['instrument-type'] !== "Equity Option") return false;
-        if (pos['quantity-direction'] !== "Long") return false;
-        if (!pos.symbol.includes("C")) return false; // Must be a call
-        if (!pos['expires-at']) return false;
-
-        // Calculate DTE
-        const expiration = new Date(pos['expires-at']);
-        const now = new Date();
+      const leapPositions = cachedPos.filter(pos => {
+        if (pos.instrumentType !== 'Equity Option') return false;
+        if (pos.quantityDirection !== 'Long') return false;
+        if (pos.optionType !== 'C') return false;
+        if (!pos.expiresAt) return false;
+        const expiration = new Date(pos.expiresAt);
         const dte = Math.floor((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-        return dte >= 270; // Only LEAPs (9+ months)
+        return dte >= 270;
       });
 
-      // Get current market data for each LEAP
+      if (leapPositions.length === 0) return { positions: [] };
+
+      // Enrich with live market data from Tradier (current prices only — this IS needed live)
+      const credentials = await getApiCredentials(ctx.user.id);
       const { getEffectiveTier: _getETleap } = await import('./middleware/subscriptionEnforcement');
       const isFreeTrialUser = _getETleap(ctx.user) === 'free_trial';
-      const tradierApiKey = credentials.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null) || "";
+      const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null) || '';
       const tradierApi = createTradierAPI(tradierApiKey);
+
       const enrichedPositions = await Promise.all(
         leapPositions.map(async (pos) => {
           try {
-            // Parse option symbol to get underlying and strike
-            const underlying = pos['underlying-symbol'];
-            const strike = parseFloat(pos.symbol.match(/C(\d+)/)?.[1] || "0") / 1000;
-            const expiration = new Date(pos['expires-at']!);
-            const dte = Math.floor((expiration.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+            const underlying = pos.underlyingSymbol;
+            const strike = parseFloat(pos.strikePrice || '0');
+            const expiration = new Date(pos.expiresAt!);
+            const dte = Math.floor((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            const currentPrice = parseFloat(pos.closePrice || '0');
+            const qty = parseFloat(pos.quantity);
 
-            // Get current option price from position data
-            const currentPrice = parseFloat(pos['close-price']) || 0;
-
-            // Get current stock price
             const stockQuote = await tradierApi.getQuote(underlying);
             const stockPrice = stockQuote?.last || 0;
 
-            // Calculate P/L
-            const costBasis = Math.abs(parseFloat(pos['average-open-price'])) * 100 * pos.quantity; // *100 for multiplier
-            const currentValue = currentPrice * 100 * pos.quantity;
+            const costBasis = Math.abs(parseFloat(pos.averageOpenPrice)) * 100 * qty;
+            const currentValue = currentPrice * 100 * qty;
             const profitLoss = currentValue - costBasis;
-            const profitLossPercent = (profitLoss / costBasis) * 100;
+            const profitLossPercent = costBasis !== 0 ? (profitLoss / costBasis) * 100 : 0;
 
             return {
               symbol: underlying,
               optionSymbol: pos.symbol,
               strike,
-              expiration: pos['expires-at']!,
+              expiration: pos.expiresAt!,
               dte,
-              quantity: pos.quantity,
+              quantity: qty,
               costBasis,
               currentValue,
               profitLoss,
               profitLossPercent,
               currentPrice,
               stockPrice,
-              delta: 0.80, // TODO: Get from Greeks if available
+              delta: 0.80,
             };
           } catch (error) {
             console.error(`[PMCC] Error enriching position ${pos.symbol}:`, error);

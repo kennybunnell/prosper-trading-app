@@ -56,19 +56,10 @@ function parseOptionSymbol(symbol: string): { underlying: string; expiration: st
 
 const projectionsRouter = router({
   getLockedInIncome: protectedProcedure.query(async ({ ctx }) => {
-    const { getTastytradeAPI } = await import('./tastytrade');
-    const { getApiCredentials, getTastytradeAccounts } = await import('./db');
-    
-    const credentials = await getApiCredentials(ctx.user.id);
-    if (!credentials || !credentials.tastytradeClientSecret || !credentials.tastytradeRefreshToken) {
-      throw new Error('Tastytrade OAuth2 credentials not found. Please configure them in Settings.');
-    }
-    
-    const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
-    
-    const accounts = await getTastytradeAccounts(ctx.user.id);
-    if (!accounts || accounts.length === 0) {
+    // ── Read from DB cache ────────────────────────────────────────────────────────────────
+    const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+    const allCachedPos = await getCachedPositions(ctx.user.id);
+    if (allCachedPos.length === 0) {
       return {
         thisWeek: { premium: 0, positions: 0 },
         thisMonth: { premium: 0, positions: 0 },
@@ -76,8 +67,6 @@ const projectionsRouter = router({
         totalOpen: { premium: 0, positions: 0 },
       };
     }
-    
-    const accountNumbers = accounts.map((acc) => acc.accountNumber);
 
     const now = new Date();
     const thisWeekEnd = new Date(now);
@@ -92,8 +81,12 @@ const projectionsRouter = router({
       totalOpen: { premium: 0, positions: 0 },
     };
 
+    // Group by account number (reuse same loop structure)
+    const accountNumbers = Array.from(new Set(allCachedPos.map(p => p.accountNumber)));
     for (const accountNumber of accountNumbers) {
-      const positions = await api.getPositions(accountNumber);
+      const positions = allCachedPos
+        .filter(p => p.accountNumber === accountNumber)
+        .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
       if (!positions) continue;
 
       for (const pos of positions) {
@@ -137,34 +130,19 @@ const projectionsRouter = router({
   }),
 
   getThetaDecay: protectedProcedure.query(async ({ ctx }) => {
-    const { getTastytradeAPI } = await import('./tastytrade');
-    const { getApiCredentials, getTastytradeAccounts } = await import('./db');
-    
-    const credentials = await getApiCredentials(ctx.user.id);
-    if (!credentials || !credentials.tastytradeClientSecret || !credentials.tastytradeRefreshToken) {
-      throw new Error('Tastytrade OAuth2 credentials not found. Please configure them in Settings.');
+    // ── Read from DB cache ────────────────────────────────────────────────────────────────
+    const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+    const allCachedPos = await getCachedPositions(ctx.user.id);
+    if (allCachedPos.length === 0) {
+      return { dailyTheta: 0, weeklyTheta: 0, monthlyTheta: 0, positionCount: 0 };
     }
-    
-    const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
-    
-    const accounts = await getTastytradeAccounts(ctx.user.id);
-    if (!accounts || accounts.length === 0) {
-      return {
-        daily: 0,
-        weekly: 0,
-        monthly: 0,
-        positionCount: 0,
-      };
-    }
-    
-    const accountNumbers = accounts.map((acc) => acc.accountNumber);
 
     let totalTheta = 0;
     let positionCount = 0;
+    const positions = allCachedPos.map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
 
-    for (const accountNumber of accountNumbers) {
-      const positions = await api.getPositions(accountNumber);
+    // Dummy loop to match original structure
+    for (const accountNumber of [null]) {
       if (!positions) continue;
 
       for (const pos of positions) {
@@ -211,46 +189,32 @@ const projectionsRouter = router({
   }),
 
   getHistoricalPerformance: protectedProcedure.query(async ({ ctx }) => {
-    const { getTastytradeAPI } = await import('./tastytrade');
-    const { getApiCredentials, getTastytradeAccounts } = await import('./db');
-    
-    const credentials = await getApiCredentials(ctx.user.id);
-    if (!credentials || !credentials.tastytradeClientSecret || !credentials.tastytradeRefreshToken) {
-      throw new Error('Tastytrade OAuth2 credentials not found. Please configure them in Settings.');
-    }
-    
-    const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
-    
-    const accounts = await getTastytradeAccounts(ctx.user.id);
-    if (!accounts || accounts.length === 0) {
+    // ── Read from DB cache ────────────────────────────────────────────────────────────────
+    const { getCachedTransactions, cachedTxnToWireFormat } = await import('./portfolio-sync');
+    const allCachedTxns = await getCachedTransactions(ctx.user.id);
+    if (allCachedTxns.length === 0) {
       return {
-        totalCredits: 0,
-        totalDebits: 0,
-        netPremium: 0,
-        avgMonthlyPremium: 0,
-        monthsAnalyzed: 0,
-        winRate: 0,
-        monthlyBreakdown: [],
+        totalCredits: 0, totalDebits: 0, netPremium: 0,
+        avgMonthlyPremium: 0, monthsAnalyzed: 0, winRate: 0, monthlyBreakdown: [],
       };
     }
-    
-    const accountNumbers = accounts.map((acc) => acc.accountNumber);
 
     const now = new Date();
     const sixMonthsAgo = new Date(now);
     sixMonthsAgo.setMonth(now.getMonth() - 6);
+    const sixMonthsAgoMs = sixMonthsAgo.getTime();
 
     const monthlyPremiums: Record<string, number> = {};
     let totalCredits = 0;
     let totalDebits = 0;
 
-    for (const accountNumber of accountNumbers) {
-      const transactions = await api.getTransactionHistory(
-        accountNumber,
-        sixMonthsAgo.toISOString().split('T')[0],
-        now.toISOString().split('T')[0]
-      );
+    // Filter to last 6 months and convert to wire format
+    const transactions = allCachedTxns
+      .filter(t => t.executedAt && new Date(t.executedAt).getTime() >= sixMonthsAgoMs)
+      .map(t => cachedTxnToWireFormat(t));
+
+    for (const accountNumber of [null]) {
+      const _ = accountNumber; // unused, kept for structure
 
       for (const txn of transactions) {
         const tType = txn['transaction-type'];
@@ -339,71 +303,54 @@ export const appRouter = router({
      */
     getMonthlyPremiumData: protectedProcedure
       .input(z.object({
-        year: z.number().optional(), // Optional year filter (e.g., 2025, 2026). If not provided, shows last 6 months
+        year: z.number().optional(),
       }).optional())
       .query(async ({ ctx, input }) => {
-        const { getTastytradeAPI } = await import('./tastytrade');
-        const { getApiCredentials } = await import('./db');
-        
+        // ── Read from DB cache ────────────────────────────────────────────────────────────────
         try {
-        // Get Tastytrade credentials
-        const credentials = await getApiCredentials(ctx.user.id);
-        if (!credentials || !credentials.tastytradeClientSecret || !credentials.tastytradeRefreshToken) {
-          return { monthlyData: [], error: 'Tastytrade OAuth2 credentials not configured. Please add them in Settings.' };
+        const { getCachedTransactions, cachedTxnToWireFormat } = await import('./portfolio-sync');
+        const allCachedTxns = await getCachedTransactions(ctx.user.id);
+        if (allCachedTxns.length === 0) {
+          return { monthlyData: [], error: 'No cached transaction data. Please run a portfolio sync from Settings.' };
         }
-        
-        // Initialize API and login
-        const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
-        
-        // Get all accounts
-        const accounts = await api.getAccounts();
-        if (!accounts || accounts.length === 0) {
-          return { monthlyData: [], error: 'No accounts found' };
-        }
-        
-        console.log(`[Dashboard] Aggregating premium data across ${accounts.length} account(s):`);
-        accounts.forEach((acc, idx) => {
-          console.log(`  ${idx + 1}. ${acc.account['account-number']} (${acc.account.nickname || 'No nickname'})`);
-        });
-        
-        // Calculate date range based on year filter
+
         const now = new Date();
         const selectedYear = input?.year;
-        
         let startDate: Date;
         let endDate: Date;
-        
+
         if (selectedYear) {
-          // Filter by specific year (Jan 1 - Dec 31)
-          startDate = new Date(selectedYear, 0, 1); // Jan 1
-          endDate = new Date(selectedYear, 11, 31); // Dec 31
+          startDate = new Date(selectedYear, 0, 1);
+          endDate = new Date(selectedYear, 11, 31);
         } else {
-          // Default: last 6 months
           const startMonth = now.getMonth() - 5;
           const startYear = now.getFullYear() + Math.floor(startMonth / 12);
           const adjustedStartMonth = ((startMonth % 12) + 12) % 12;
           startDate = new Date(startYear, adjustedStartMonth, 1);
           endDate = now;
         }
-        
-        const startDateStr = startDate.toISOString().split('T')[0];
-        const endDateStr = endDate.toISOString().split('T')[0];
-        
-        // Aggregate transactions from all accounts
+
+        const startMs = startDate.getTime();
+        const endMs = endDate.getTime();
+
+        // Filter by date range and convert to wire format
+        const transactions = allCachedTxns
+          .filter(t => {
+            if (!t.executedAt) return false;
+            const ms = new Date(t.executedAt).getTime();
+            return ms >= startMs && ms <= endMs;
+          })
+          .map(t => cachedTxnToWireFormat(t));
+
         const monthlyData: Record<string, { credits: number; debits: number }> = {};
         const failedAccounts: string[] = [];
-        
-        for (const account of accounts) {
-          const accountNumber = account.account['account-number'];
-          const accountName = account.account.nickname || accountNumber;
-          
+
+        for (const account of [null]) {
+          const accountNumber = 'cache';
+          const accountName = 'All Accounts';
+
           try {
-            const transactions = await api.getTransactionHistory(
-              accountNumber,
-              startDateStr,
-              endDateStr
-            );
+            // transactions already filtered above — no inner API call needed
             
             // Track this account's contribution separately for debugging
             const accountMonthlyData: Record<string, { credits: number; debits: number }> = {};
@@ -533,19 +480,11 @@ export const appRouter = router({
         year: z.number().optional(),
       }).optional())
       .query(async ({ ctx, input }) => {
-        const { getTastytradeAPI } = await import('./tastytrade');
-        const { getApiCredentials } = await import('./db');
-
+        // ── Read from DB cache ────────────────────────────────────────────────────────────────
         try {
-          const credentials = await getApiCredentials(ctx.user.id);
-          if (!credentials || !credentials.tastytradeClientSecret || !credentials.tastytradeRefreshToken) {
-            return { events: [], error: 'Tastytrade credentials not configured.' };
-          }
-
-          const { authenticateTastytrade } = await import('./tastytrade');
-          const api = await authenticateTastytrade(credentials, ctx.user.id);
-          const accounts = await api.getAccounts();
-          if (!accounts || accounts.length === 0) return { events: [], error: 'No accounts found' };
+          const { getCachedTransactions, cachedTxnToWireFormat } = await import('./portfolio-sync');
+          const allCachedTxns = await getCachedTransactions(ctx.user.id);
+          if (allCachedTxns.length === 0) return { events: [], error: 'No cached transaction data. Please run a portfolio sync from Settings.' };
 
           const now = new Date();
           const selectedYear = input?.year;
@@ -563,8 +502,15 @@ export const appRouter = router({
             endDate = now;
           }
 
-          const startDateStr = startDate.toISOString().split('T')[0];
-          const endDateStr = endDate.toISOString().split('T')[0];
+          const startMs = startDate.getTime();
+          const endMs = endDate.getTime();
+          const transactions = allCachedTxns
+            .filter(t => {
+              if (!t.executedAt) return false;
+              const ms = new Date(t.executedAt).getTime();
+              return ms >= startMs && ms <= endMs;
+            })
+            .map(t => cachedTxnToWireFormat(t));
 
           const events: Array<{
             date: string;
@@ -580,60 +526,42 @@ export const appRouter = router({
             eventType: 'assignment' | 'purchase' | 'sale' | 'other';
           }> = [];
 
-          for (const account of accounts) {
-            const accountNumber = account.account['account-number'];
-            const accountName = account.account.nickname || accountNumber;
-
-            try {
-              const transactions = await api.getTransactionHistory(accountNumber, startDateStr, endDateStr);
-
-              for (const txn of transactions) {
-                if (txn['transaction-type'] !== 'Trade') continue;
-
-                const txnSymbol: string = txn['symbol'] || '';
-                const isOptionSymbol = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol);
-                if (isOptionSymbol) continue; // Skip options — those go in premium scorecard
-                if (!txnSymbol) continue;
-
-                const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
-                if (netValue === 0) continue;
-
-                const executedAt = txn['executed-at'];
-                if (!executedAt) continue;
-
-                const description: string = txn['description'] || '';
-                const action: string = txn['action'] || '';
-                const quantity = Math.abs(parseFloat(txn['quantity'] || '0'));
-                const price = quantity > 0 ? netValue / quantity : 0;
-
-                // Classify event type
-                let eventType: 'assignment' | 'purchase' | 'sale' | 'other' = 'other';
-                const descLower = description.toLowerCase();
-                if (descLower.includes('assignment') || descLower.includes('assigned')) {
-                  eventType = 'assignment';
-                } else if (action === 'Buy' || action === 'Buy to Open') {
-                  eventType = 'purchase';
-                } else if (action === 'Sell' || action === 'Sell to Close') {
-                  eventType = 'sale';
-                }
-
-                events.push({
-                  date: executedAt,
-                  symbol: txnSymbol,
-                  description,
-                  action,
-                  quantity,
-                  pricePerShare: Math.round(price * 100) / 100,
-                  netValue: Math.round(netValue * 100) / 100,
-                  netValueEffect: txn['net-value-effect'] || '',
-                  accountNumber,
-                  accountName,
-                  eventType,
-                });
-              }
-            } catch (err: any) {
-              console.error(`[CapitalEvents] Failed for account ${accountNumber}:`, err.message);
+          for (const txn of transactions) {
+            if (txn['transaction-type'] !== 'Trade') continue;
+            const txnSymbol: string = txn['symbol'] || '';
+            const isOptionSymbol = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol);
+            if (isOptionSymbol) continue;
+            if (!txnSymbol) continue;
+            const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
+            if (netValue === 0) continue;
+            const executedAt = txn['executed-at'];
+            if (!executedAt) continue;
+            const description: string = txn['description'] || '';
+            const action: string = txn['action'] || '';
+            const quantity = Math.abs(parseFloat(txn['quantity'] || '0'));
+            const price = quantity > 0 ? netValue / quantity : 0;
+            let eventType: 'assignment' | 'purchase' | 'sale' | 'other' = 'other';
+            const descLower = description.toLowerCase();
+            if (descLower.includes('assignment') || descLower.includes('assigned')) {
+              eventType = 'assignment';
+            } else if (action === 'Buy' || action === 'Buy to Open') {
+              eventType = 'purchase';
+            } else if (action === 'Sell' || action === 'Sell to Close') {
+              eventType = 'sale';
             }
+            events.push({
+              date: executedAt,
+              symbol: txnSymbol,
+              description,
+              action,
+              quantity,
+              pricePerShare: Math.round(price * 100) / 100,
+              netValue: Math.round(netValue * 100) / 100,
+              netValueEffect: txn['net-value-effect'] || '',
+              accountNumber: (txn as any)['account-number'] || 'cache',
+              accountName: (txn as any)['account-number'] || 'All Accounts',
+              eventType,
+            });
           }
 
           // Sort by date descending (most recent first)
@@ -718,13 +646,20 @@ export const appRouter = router({
         return { error: 'Tastytrade credentials not configured', target, collected: 0, gap: target };
       }
 
-      const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
+      // ── Load from DB cache (positions + transactions) ───────────────────────────────────────
+      const { getCachedPositions, getCachedTransactions, cachedPosToWireFormat, cachedTxnToWireFormat } = await import('./portfolio-sync');
+      const [cachedPositions, allCachedTxns] = await Promise.all([
+        getCachedPositions(ctx.user.id),
+        getCachedTransactions(ctx.user.id),
+      ]);
+      const wirePositions = cachedPositions.map(p => cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }));
 
-      // ── 1. Buying power across all accounts ─────────────────────────────────
+      // ── 1. Buying power — MUST stay live (real-time balance) ──────────────────────────────
       let totalBuyingPower = 0;
       let accountSummaries: { accountNumber: string; nickname: string; buyingPower: number }[] = [];
       try {
+        const { authenticateTastytrade } = await import('./tastytrade');
+        const api = await authenticateTastytrade(credentials, ctx.user.id);
         const accounts = await api.getAccounts();
         for (const acct of accounts) {
           const accNum = acct.account['account-number'];
@@ -742,130 +677,102 @@ export const appRouter = router({
         }
       } catch { /* skip */ }
 
-      // ── 2. Monthly collected so far (same logic as tracker) ─────────────────
+      // ── 2. Monthly collected so far — from DB cache ──────────────────────────────────────
       let collected = 0;
       try {
-        const accounts = await api.getAccounts();
         const now = new Date();
-        const startDateStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const endDateStr = now.toISOString().split('T')[0];
+        const monthStartMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
         let credits = 0, debits = 0;
-        for (const acct of accounts) {
-          try {
-            const txns = await api.getTransactionHistory(acct.account['account-number'], startDateStr, endDateStr);
-            for (const txn of txns) {
-              if (txn['transaction-type'] !== 'Trade') continue;
-              const sym: string = txn['symbol'] || '';
-              if (!/[A-Z0-9]+\s*\d{6}[CP]\d+/.test(sym)) continue;
-              const val = Math.abs(parseFloat(txn['net-value'] || '0'));
-              if (!val) continue;
-              if (txn['net-value-effect'] === 'Credit') credits += val;
-              else if (txn['net-value-effect'] === 'Debit') debits += val;
-            }
-          } catch { /* skip */ }
+        for (const t of allCachedTxns) {
+          if (!t.executedAt || new Date(t.executedAt).getTime() < monthStartMs) continue;
+          if (t.transactionType !== 'Trade') continue;
+          const sym = t.symbol || '';
+          if (!/[A-Z0-9]+\s*\d{6}[CP]\d+/.test(sym)) continue;
+          const val = Math.abs(parseFloat(String(t.netValue || '0')));
+          if (!val) continue;
+          const isCredit = parseFloat(String(t.value || '0')) > 0;
+          if (isCredit) credits += val;
+          else debits += val;
         }
         collected = Math.round((credits - debits) * 100) / 100;
       } catch { /* skip */ }
 
       const gap = Math.max(0, target - collected);
 
-      // ── 3. Covered call candidates (long equity >= 100 shares, no active short call) ──
+      // ── 3. Covered call candidates — from DB cache ──────────────────────────────────────
       let ccCandidates: { symbol: string; shares: number; avgCost: number; currentPrice: number; recommendation: string }[] = [];
       try {
-        const accounts = await api.getAccounts();
-        for (const acct of accounts) {
-          const accNum = acct.account['account-number'];
-          try {
-            const positions = await api.getPositions(accNum);
-            const longEquity = positions.filter((p: any) =>
-              p['instrument-type'] === 'Equity' &&
-              p['quantity-direction'] === 'Long' &&
-              parseFloat(p.quantity || '0') >= 100
-            );
-            const shortCalls = new Set(
-              positions
-                .filter((p: any) => p['instrument-type'] === 'Equity Option' && p['quantity-direction'] === 'Short')
-                .map((p: any) => (p['underlying-symbol'] || '').toUpperCase())
-            );
-            for (const pos of longEquity) {
-              const sym = (pos['underlying-symbol'] || pos.symbol || '').toUpperCase();
-              if (shortCalls.has(sym)) continue; // already has CC
-              const shares = typeof pos.quantity === 'number' ? pos.quantity : parseFloat(String(pos.quantity || '0'));
-              const avgCost = parseFloat(pos['average-open-price'] || '0');
-              const currentPrice = parseFloat(pos['close-price'] || '0');
-              const pctFromCost = avgCost > 0 ? ((currentPrice - avgCost) / avgCost) * 100 : 0;
-              const recommendation = pctFromCost <= -40 ? 'LIQUIDATE' : pctFromCost <= -20 ? 'HARVEST' : 'MONITOR';
-              if (recommendation !== 'LIQUIDATE') {
-                ccCandidates.push({ symbol: sym, shares, avgCost, currentPrice, recommendation });
-              }
-            }
-          } catch { /* skip */ }
+        const longEquity = wirePositions.filter((p: any) =>
+          p['instrument-type'] === 'Equity' &&
+          p['quantity-direction'] === 'Long' &&
+          parseFloat(p.quantity || '0') >= 100
+        );
+        const shortCalls = new Set(
+          wirePositions
+            .filter((p: any) => p['instrument-type'] === 'Equity Option' && p['quantity-direction'] === 'Short')
+            .map((p: any) => (p['underlying-symbol'] || '').toUpperCase())
+        );
+        for (const pos of longEquity) {
+          const sym = (pos['underlying-symbol'] || pos.symbol || '').toUpperCase();
+          if (shortCalls.has(sym)) continue;
+          const shares = parseFloat(String(pos.quantity || '0'));
+          const avgCost = parseFloat(pos['average-open-price'] || '0');
+          const currentPrice = parseFloat(pos['close-price'] || '0');
+          const pctFromCost = avgCost > 0 ? ((currentPrice - avgCost) / avgCost) * 100 : 0;
+          const recommendation = pctFromCost <= -40 ? 'LIQUIDATE' : pctFromCost <= -20 ? 'HARVEST' : 'MONITOR';
+          if (recommendation !== 'LIQUIDATE') ccCandidates.push({ symbol: sym, shares, avgCost, currentPrice, recommendation });
         }
       } catch { /* skip */ }
 
-      // ── 4. Account-type classification ──────────────────────────────────────
-      // Classify accounts by nickname keywords: IRA, Cash, HELOC, LLC, etc.
+      // ── 4. Account-type classification — from accountSummaries (live balances already fetched) ───
       const accountTypeBreakdown = accountSummaries.map(acct => {
         const nick = acct.nickname.toLowerCase();
         let type = 'Cash';
         if (nick.includes('ira') || nick.includes('roth') || nick.includes('traditional')) type = 'IRA';
         else if (nick.includes('heloc') || nick.includes('home equity') || nick.includes('line of credit')) type = 'HELOC';
         else if (nick.includes('llc') || nick.includes('entity') || nick.includes('business') || nick.includes('trust')) type = 'LLC/Entity';
-        // IRA accounts cannot sell naked puts — only spreads and covered calls
         const spreadOnly = type === 'IRA';
         return { ...acct, type, spreadOnly };
       });
 
-      // ── 5. 90-day strategy history analysis ─────────────────────────────────
-      // Count trades by strategy type and extract top CSP tickers
+      // ── 5. 90-day strategy history — from DB cache ───────────────────────────────────────────
       let strategyHistory = { spxSpreads: 0, csps: 0, coveredCalls: 0, ironCondors: 0, totalTrades: 0 };
       let topCspTickers: { symbol: string; count: number; avgPremium: number }[] = [];
       const MAG7 = new Set(['AAPL', 'MSFT', 'NVDA', 'AMZN', 'META', 'GOOGL', 'GOOG', 'TSLA']);
       try {
         const now90 = new Date();
-        const start90 = new Date(now90);
-        start90.setDate(start90.getDate() - 90);
-        const start90Str = start90.toISOString().split('T')[0];
-        const end90Str = now90.toISOString().split('T')[0];
-        const accounts90 = await api.getAccounts();
+        const start90Ms = new Date(now90.getTime() - 90 * 86400000).getTime();
         const cspMap: Record<string, { count: number; totalPremium: number }> = {};
-        for (const acct of accounts90) {
-          try {
-            const txns = await api.getTransactionHistory(acct.account['account-number'], start90Str, end90Str);
-            for (const txn of txns) {
-              if (txn['transaction-type'] !== 'Trade') continue;
-              const sym: string = txn['symbol'] || '';
-              const desc: string = (txn['description'] || '').toLowerCase();
-              const isOption = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(sym);
-              if (!isOption) continue;
-              strategyHistory.totalTrades++;
-              const underlying = (sym.match(/^([A-Z0-9]+)\s*\d{6}/) || [])[1] || '';
-              const isSpx = ['SPX', 'SPXW', 'NDX', 'XSP', 'RUT'].includes(underlying);
-              const isPut = sym.includes('P') && !sym.includes('C');
-              const isCall = sym.includes('C') && !sym.includes('P');
-              const isSTO = txn['net-value-effect'] === 'Credit';
-              const isBTC = txn['net-value-effect'] === 'Debit';
-              if (isSpx && isSTO) strategyHistory.spxSpreads++;
-              else if (!isSpx && isPut && isSTO) {
-                strategyHistory.csps++;
-                if (underlying) {
-                  if (!cspMap[underlying]) cspMap[underlying] = { count: 0, totalPremium: 0 };
-                  cspMap[underlying].count++;
-                  cspMap[underlying].totalPremium += Math.abs(parseFloat(txn['net-value'] || '0'));
-                }
-              } else if (!isSpx && isCall && isSTO) strategyHistory.coveredCalls++;
-              // Iron condors: if same underlying has both put and call STO on same day — approximate
-              if (isSpx && isSTO && (desc.includes('condor') || desc.includes('iron'))) strategyHistory.ironCondors++;
+        for (const t of allCachedTxns) {
+          if (!t.executedAt || new Date(t.executedAt).getTime() < start90Ms) continue;
+          if (t.transactionType !== 'Trade') continue;
+          const sym = t.symbol || '';
+          const desc = (t.description || '').toLowerCase();
+          const isOption = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(sym);
+          if (!isOption) continue;
+          strategyHistory.totalTrades++;
+          const underlying = (sym.match(/^([A-Z0-9]+)\s*\d{6}/) || [])[1] || '';
+          const isSpx = ['SPX', 'SPXW', 'NDX', 'XSP', 'RUT'].includes(underlying);
+          const isPut = sym.includes('P') && !sym.includes('C');
+          const isCall = sym.includes('C') && !sym.includes('P');
+          const isSTO = parseFloat(String(t.value || '0')) > 0;
+          if (isSpx && isSTO) strategyHistory.spxSpreads++;
+          else if (!isSpx && isPut && isSTO) {
+            strategyHistory.csps++;
+            if (underlying) {
+              if (!cspMap[underlying]) cspMap[underlying] = { count: 0, totalPremium: 0 };
+              cspMap[underlying].count++;
+              cspMap[underlying].totalPremium += Math.abs(parseFloat(String(t.netValue || '0')));
             }
-          } catch { /* skip */ }
+          } else if (!isSpx && isCall && isSTO) strategyHistory.coveredCalls++;
+          if (isSpx && isSTO && (desc.includes('condor') || desc.includes('iron'))) strategyHistory.ironCondors++;
         }
-        // Sort CSP tickers by count, Mag7 first
         topCspTickers = Object.entries(cspMap)
           .map(([symbol, data]) => ({ symbol, count: data.count, avgPremium: data.count > 0 ? Math.round(data.totalPremium / data.count) : 0 }))
           .sort((a, b) => {
             const aMag = MAG7.has(a.symbol) ? 1 : 0;
             const bMag = MAG7.has(b.symbol) ? 1 : 0;
-            if (bMag !== aMag) return bMag - aMag; // Mag7 first
+            if (bMag !== aMag) return bMag - aMag;
             return b.count - a.count;
           })
           .slice(0, 10);
@@ -1084,41 +991,30 @@ Answer concisely and specifically. Stay conservative — capital preservation fi
         }
       } catch { /* non-fatal */ }
 
-      // ── 2. Open positions + upcoming expirations ─────────────────────────────
+      // ── 2. Open positions + upcoming expirations — from DB cache ────────────────────────────
       let openPositionsCount = 0;
       let upcomingExpirations: { symbol: string; expiration: string; dte: number; strategy: string; accountNumber: string }[] = [];
       try {
-        if (credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken) {
-          const { authenticateTastytrade } = await import('./tastytrade');
-          const api = await authenticateTastytrade(credentials, ctx.user.id);
-          const accounts = await api.getAccounts();
-          const now = Date.now();
-          for (const acct of accounts) {
-            const accNum = acct.account['account-number'];
-            try {
-              const positions = await api.getPositions(accNum);
-              openPositionsCount += positions.length;
-              for (const pos of positions) {
-                if (pos['instrument-type'] !== 'Equity Option') continue;
-                const sym: string = pos['underlying-symbol'] || '';
-                // 'expires-at' is an ISO datetime string like '2025-04-18T20:00:00.000+00:00'
-                const expStr: string = (pos as any)['expires-at'] || '';
-                if (!expStr) continue;
-                const expMs = new Date(expStr).getTime();
-                const dte = Math.max(0, Math.round((expMs - now) / 86400000));
-                if (dte <= 21) {
-                  const direction = pos['quantity-direction'] || '';
-                  const optSym: string = pos.symbol || '';
-                  const isCall = optSym.includes('C');
-                  const strategy = direction === 'Short' ? (isCall ? 'CC' : 'CSP') : (isCall ? 'Long Call' : 'Long Put');
-                  upcomingExpirations.push({ symbol: sym, expiration: expStr, dte, strategy, accountNumber: accNum });
-                }
-              }
-            } catch { /* skip account */ }
+        const { getCachedPositions } = await import('./portfolio-sync');
+        const cachedPos = await getCachedPositions(ctx.user.id);
+        openPositionsCount = cachedPos.length;
+        const nowMs = Date.now();
+        for (const pos of cachedPos) {
+          if (pos.instrumentType !== 'Equity Option') continue;
+          const sym = pos.underlyingSymbol || '';
+          const expStr = pos.expiresAt || '';
+          if (!expStr) continue;
+          const expMs = new Date(expStr).getTime();
+          const dte = Math.max(0, Math.round((expMs - nowMs) / 86400000));
+          if (dte <= 21) {
+            const direction = pos.quantityDirection || '';
+            const optSym = pos.symbol || '';
+            const isCall = optSym.includes('C');
+            const strategy = direction === 'Short' ? (isCall ? 'CC' : 'CSP') : (isCall ? 'Long Call' : 'Long Put');
+            upcomingExpirations.push({ symbol: sym, expiration: expStr, dte, strategy, accountNumber: pos.accountNumber });
           }
-          // Sort by DTE ascending
-          upcomingExpirations.sort((a, b) => a.dte - b.dte);
         }
+        upcomingExpirations.sort((a, b) => a.dte - b.dte);
       } catch { /* non-fatal */ }
 
       // ── 3. VIX ───────────────────────────────────────────────────────────────
@@ -1148,30 +1044,24 @@ Answer concisely and specifically. Stay conservative — capital preservation fi
         const { getUserPreferences } = await import('./db');
         const prefs = await getUserPreferences(ctx.user.id);
         monthlyTarget = prefs?.monthlyIncomeTarget ?? 150000;
-        if (credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken) {
-          const { authenticateTastytrade } = await import('./tastytrade');
-          const api = await authenticateTastytrade(credentials, ctx.user.id);
-          const accounts = await api.getAccounts();
-          const now = new Date();
-          const startStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-          const endStr = now.toISOString().split('T')[0];
-          let credits = 0, debits = 0;
-          for (const acct of accounts) {
-            try {
-              const txns = await api.getTransactionHistory(acct.account['account-number'], startStr, endStr);
-              for (const txn of txns) {
-                if (txn['transaction-type'] !== 'Trade') continue;
-                const sym: string = txn['symbol'] || '';
-                if (!/[A-Z0-9]+\s*\d{6}[CP]\d+/.test(sym)) continue;
-                const val = Math.abs(parseFloat(txn['net-value'] || '0'));
-                if (!val) continue;
-                if (txn['net-value-effect'] === 'Credit') credits += val;
-                else if (txn['net-value-effect'] === 'Debit') debits += val;
-              }
-            } catch { /* skip */ }
-          }
-          monthlyCollected = Math.round((credits - debits) * 100) / 100;
+        // ── Monthly progress — from DB cache ─────────────────────────────────────────────────────
+        const { getCachedTransactions } = await import('./portfolio-sync');
+        const allTxns = await getCachedTransactions(ctx.user.id);
+        const now2 = new Date();
+        const monthStartMs = new Date(now2.getFullYear(), now2.getMonth(), 1).getTime();
+        let credits = 0, debits = 0;
+        for (const t of allTxns) {
+          if (!t.executedAt || new Date(t.executedAt).getTime() < monthStartMs) continue;
+          if (t.transactionType !== 'Trade') continue;
+          const sym = t.symbol || '';
+          if (!/[A-Z0-9]+\s*\d{6}[CP]\d+/.test(sym)) continue;
+          const val = Math.abs(parseFloat(String(t.netValue || '0')));
+          if (!val) continue;
+          const isCredit = parseFloat(String(t.value || '0')) > 0;
+          if (isCredit) credits += val;
+          else debits += val;
         }
+        monthlyCollected = Math.round((credits - debits) * 100) / 100;
       } catch { /* non-fatal */ }
 
       return {
@@ -1341,45 +1231,43 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
           .from(gtcOrdersTable)
           .where(and(eq(gtcOrdersTable.userId, ctx.user.id), eq(gtcOrdersTable.status, 'submitted')));
 
-        // Working orders + open positions from Tastytrade (8s timeout, null on failure)
+        // Open positions count — read from DB cache (instant, no live API call)
         let workingOrdersCount: number | null = null;
         let openPositionsCount: number | null = null;
         try {
+          const { getCachedPositions } = await import('./portfolio-sync');
+          const cachedPos = await getCachedPositions(ctx.user.id);
+          openPositionsCount = cachedPos.length;
+          // Working orders: still live (order status changes in real time)
+          // Only attempt if credentials are configured
           const { getApiCredentials } = await import('./db');
-          const { authenticateTastytrade } = await import('./tastytrade');
           const credentials = await getApiCredentials(ctx.user.id);
-          if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
-            throw new Error('Tastytrade credentials not configured');
+          if (credentials?.tastytradeClientSecret && credentials?.tastytradeRefreshToken) {
+            const { authenticateTastytrade } = await import('./tastytrade');
+            const api = await authenticateTastytrade(credentials, ctx.user.id);
+            const withTimeout = <T>(p: Promise<T>): Promise<T | null> =>
+              Promise.race([p, new Promise<null>((res) => setTimeout(() => res(null), 5000))]);
+            const accounts = await withTimeout(api.getAccounts());
+            if (accounts) {
+              const accountNums: string[] = (accounts as any[]).map((a: any) =>
+                a.account?.['account-number'] || a['account-number']
+              ).filter(Boolean);
+              let totalOrders = 0;
+              await Promise.all(accountNums.map(async (accNum: string) => {
+                try {
+                  const orders = await withTimeout(api.getLiveOrders(accNum));
+                  if (orders) {
+                    const active = (orders as any[]).filter((o: any) =>
+                      !['filled','cancelled','rejected','expired','replaced'].includes((o.status||'').toLowerCase())
+                    );
+                    totalOrders += active.length;
+                  }
+                } catch { /* skip account on error */ }
+              }));
+              workingOrdersCount = totalOrders;
+            }
           }
-          const api = await authenticateTastytrade(credentials, ctx.user.id);
-          const withTimeout = <T>(p: Promise<T>): Promise<T | null> =>
-            Promise.race([p, new Promise<null>((res) => setTimeout(() => res(null), 8000))]);
-          const accounts = await withTimeout(api.getAccounts());
-          if (accounts) {
-            const accountNums: string[] = (accounts as any[]).map((a: any) =>
-              a.account?.['account-number'] || a['account-number']
-            ).filter(Boolean);
-            let totalOrders = 0;
-            let totalPositions = 0;
-            await Promise.all(accountNums.map(async (accNum: string) => {
-              try {
-                const [orders, positions] = await Promise.all([
-                  withTimeout(api.getLiveOrders(accNum)),
-                  withTimeout(api.getPositions(accNum)),
-                ]);
-                if (orders) {
-                  const active = (orders as any[]).filter((o: any) =>
-                    !['filled','cancelled','rejected','expired','replaced'].includes((o.status||'').toLowerCase())
-                  );
-                  totalOrders += active.length;
-                }
-                if (positions) totalPositions += (positions as any[]).length;
-              } catch { /* skip account on error */ }
-            }));
-            workingOrdersCount = totalOrders;
-            openPositionsCount = totalPositions;
-          }
-        } catch { /* Tastytrade not configured — return nulls */ }
+        } catch { /* cache or Tastytrade not configured — return nulls */ }
 
         return {
           liquidationFlags: Number(flagRow?.value ?? 0),
@@ -3803,44 +3691,26 @@ Summary: [One sentence overall assessment]`;
       const prefs = await getUserPreferences(ctx.user.id);
       const target = prefs?.monthlyIncomeTarget ?? 150000;
 
-      // Use the EXACT same logic as getMonthlyPremiumData chart:
-      // option-symbol regex filter + net-value-effect (Credit/Debit)
+      // Read from DB cache — no live API call needed for monthly premium totals
       try {
-        const credentials = await getApiCredentials(ctx.user.id);
-        if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
-          return { collected: 0, target, remaining: target, pct: 0, error: 'Tastytrade credentials not configured' };
-        }
-        const { authenticateTastytrade } = await import('./tastytrade');
-        const api = await authenticateTastytrade(credentials, ctx.user.id);
-        const accounts = await api.getAccounts();
-        if (!accounts || accounts.length === 0) {
-          return { collected: 0, target, remaining: target, pct: 0 };
-        }
+        const { getCachedTransactions } = await import('./portfolio-sync');
         const now = new Date();
-        const startDateStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const endDateStr = now.toISOString().split('T')[0];
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const allTxns = await getCachedTransactions(ctx.user.id);
         let credits = 0;
         let debits = 0;
-        for (const account of accounts) {
-          const accountNumber = account.account['account-number'];
-          try {
-            const transactions = await api.getTransactionHistory(accountNumber, startDateStr, endDateStr);
-            for (const txn of transactions) {
-              // Only count Trade transactions
-              if (txn['transaction-type'] !== 'Trade') continue;
-              // Only count option transactions (same regex as chart)
-              const txnSymbol: string = txn['symbol'] || '';
-              const isOptionSymbol = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol);
-              if (!isOptionSymbol) continue;
-              const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
-              const netValueEffect = txn['net-value-effect'];
-              if (!netValueEffect || netValue === 0) continue;
-              if (netValueEffect === 'Credit') credits += netValue;
-              else if (netValueEffect === 'Debit') debits += netValue;
-            }
-          } catch (e) {
-            // Skip failed accounts silently
-          }
+        for (const txn of allTxns) {
+          if (!txn.executedAt || txn.executedAt < monthStart) continue;
+          if (txn.transactionType !== 'Trade') continue;
+          const txnSymbol: string = txn.symbol || '';
+          const isOptionSymbol = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol);
+          if (!isOptionSymbol) continue;
+          const netValue = Math.abs(parseFloat(txn.netValue || '0'));
+          if (netValue === 0) continue;
+          // Positive value = credit (STO), negative = debit (BTC)
+          const rawValue = parseFloat(txn.value || '0');
+          if (rawValue > 0) credits += netValue;
+          else if (rawValue < 0) debits += netValue;
         }
         const collected = Math.round((credits - debits) * 100) / 100;
         return {
@@ -4127,32 +3997,28 @@ Summary: [One sentence overall assessment]`;
           return { positions: [], summary: { totalCostBasis: 0, totalCurrentValue: 0, totalUnrealized: 0, totalCCPremium: 0 } };
         }
 
-        const allPositions: any[] = [];
-
-        for (const account of accounts) {
-          const positions = await api.getPositions(account.accountNumber);
-          
-          for (const pos of positions) {
-            if (pos['instrument-type'] === 'Equity') {
-              const symbol = pos.symbol;
-              const quantity = typeof pos.quantity === 'number' ? pos.quantity : parseInt(String(pos.quantity || '0'));
-              const avgCost = parseFloat(pos['average-open-price'] || '0');
-              const currentPrice = parseFloat(pos['close-price'] || '0');
-              
-              allPositions.push({
-                symbol,
-                quantity,
-                avgCost,
-                currentPrice,
-                costBasis: quantity * avgCost,
-                marketValue: quantity * currentPrice,
-                unrealizedPL: (quantity * currentPrice) - (quantity * avgCost),
-                accountNumber: account.accountNumber,
-                accountNickname: account.nickname || account.accountNumber,
-              });
-            }
-          }
-        }
+        // Use DB cache for stock positions
+        const { getCachedPositions: getCachedPosStk } = await import('./portfolio-sync');
+        const cachedPosStk = await getCachedPosStk(ctx.user.id);
+        const allPositions = cachedPosStk
+          .filter(p => p.instrumentType === 'Equity')
+          .map(p => {
+            const quantity = typeof p.quantity === 'number' ? p.quantity : parseInt(String(p.quantity || '0'));
+            const avgCost = parseFloat(String(p.averageOpenPrice || '0'));
+            const currentPrice = parseFloat(String(p.closePrice || '0'));
+            const acct = accounts.find(a => a.accountNumber === p.accountNumber);
+            return {
+              symbol: p.symbol,
+              quantity,
+              avgCost,
+              currentPrice,
+              costBasis: quantity * avgCost,
+              marketValue: quantity * currentPrice,
+              unrealizedPL: (quantity * currentPrice) - (quantity * avgCost),
+              accountNumber: p.accountNumber,
+              accountNickname: acct?.nickname || p.accountNumber,
+            };
+          });
 
         return { positions: allPositions };
       }),
@@ -4161,7 +4027,6 @@ Summary: [One sentence overall assessment]`;
     getCCPremiums: protectedProcedure
       .input(z.object({ lookbackDays: z.number().default(365) }))
       .query(async ({ ctx, input }) => {
-        const { getTastytradeAPI } = await import('./tastytrade');
         const { getApiCredentials, getTastytradeAccounts } = await import('./db');
         const { TRPCError } = await import('@trpc/server');
         
@@ -4169,9 +4034,6 @@ Summary: [One sentence overall assessment]`;
         if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
           throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Tastytrade OAuth2 credentials not configured. Please add them in Settings.' });
         }
-
-        const { authenticateTastytrade } = await import('./tastytrade');
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
 
         const accounts = await getTastytradeAccounts(ctx.user.id);
         if (!accounts || accounts.length === 0) {
@@ -4182,40 +4044,32 @@ Summary: [One sentence overall assessment]`;
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - input.lookbackDays);
 
-        for (const account of accounts) {
-          const transactions = await api.getTransactionHistory(
-            account.accountNumber,
-            startDate.toISOString().split('T')[0],
-            new Date().toISOString().split('T')[0]
-          );
+        // Use DB cache for transaction history
+        const { getCachedTransactions: getCachedTxnsCC, cachedTxnToWireFormat: toWireCC } = await import('./portfolio-sync');
+        const cachedTxnsCC = await getCachedTxnsCC(ctx.user.id);
+        const startMs = startDate.getTime();
+        const transactions = cachedTxnsCC
+          .filter(t => t.executedAt && new Date(t.executedAt).getTime() >= startMs)
+          .map(t => toWireCC(t));
 
-          for (const txn of transactions) {
-            const txnType = txn['transaction-type'];
-            const txnSubType = txn['transaction-sub-type'];
-            const symbol = txn.symbol || '';
-            const instrumentType = txn['instrument-type'];
-            const value = parseFloat(txn.value || '0');
-
-             // Only process Trade transactions with Sell to Open sub-type
-            if (txnType !== 'Trade' || txnSubType !== 'Sell to Open') continue;
-            // Process both Equity Options and Index Options (SPX/NDX/RUT)
-            if (instrumentType !== 'Equity Option' && instrumentType !== 'Index Option') continue;
-            // Parse option symbol to get underlying and option type
-            // Format: SYMBOL YYMMDD C/P STRIKE (e.g., AAPL 260117C00150000)
-            const cleanSymbol = symbol.replace(/\s+/g, '');
-            const match = cleanSymbol.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);
-            if (!match) continue;
-            const underlying = match[1];
-            const optionType = match[3]; // 'C' for CALL, 'P' for PUT
-
-            // Only track CALL options (covered calls)
-            if (optionType === 'C') {
-              // Premium is the credit received (positive value)
-              const premium = Math.abs(value);
-              if (premium > 0) {
-                ccPremiums[underlying] = (ccPremiums[underlying] || 0) + premium;
-              }
-            }
+        for (const txn of transactions) {
+          const txnType = txn['transaction-type'];
+          const txnSubType = txn['transaction-sub-type'];
+          const symbol = txn.symbol || '';
+          const instrumentType = txn['instrument-type'];
+          const value = parseFloat(txn.value || '0');
+          // Only process Trade transactions with Sell to Open sub-type
+          if (txnType !== 'Trade' || txnSubType !== 'Sell to Open') continue;
+          // Process both Equity Options and Index Options (SPX/NDX/RUT)
+          if (instrumentType !== 'Equity Option' && instrumentType !== 'Index Option') continue;
+          const cleanSymbol = symbol.replace(/\s+/g, '');
+          const match = cleanSymbol.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);
+          if (!match) continue;
+          const underlying = match[1];
+          const optionType = match[3];
+          if (optionType === 'C') {
+            const premium = Math.abs(value);
+            if (premium > 0) ccPremiums[underlying] = (ccPremiums[underlying] || 0) + premium;
           }
         }
 
@@ -4249,72 +4103,35 @@ Summary: [One sentence overall assessment]`;
           };
         }
 
-        // Get stock positions
-        const allPositions: any[] = [];
-        for (const account of accounts) {
-          const positions = await api.getPositions(account.accountNumber);
-          
-          for (const pos of positions) {
-            if (pos['instrument-type'] === 'Equity') {
-              const symbol = pos.symbol;
-              const quantity = typeof pos.quantity === 'number' ? pos.quantity : parseInt(String(pos.quantity || '0'));
-              const avgCost = parseFloat(pos['average-open-price'] || '0');
-              const currentPrice = parseFloat(pos['close-price'] || '0');
-              
-              allPositions.push({
-                symbol,
-                quantity,
-                avgCost,
-                currentPrice,
-                costBasis: quantity * avgCost,
-                marketValue: quantity * currentPrice,
-                unrealizedPL: (quantity * currentPrice) - (quantity * avgCost),
-              });
-            }
-          }
-        }
+        // Use DB cache for positions and transactions
+        const { getCachedPositions: getCachedPosRec, getCachedTransactions: getCachedTxnsRec, cachedTxnToWireFormat: toWireRec } = await import('./portfolio-sync');
+        const cachedPosRec = await getCachedPosRec(ctx.user.id);
+        const allPositions = cachedPosRec
+          .filter(p => p.instrumentType === 'Equity')
+          .map(p => {
+            const quantity = typeof p.quantity === 'number' ? p.quantity : parseInt(String(p.quantity || '0'));
+            const avgCost = parseFloat(String(p.averageOpenPrice || '0'));
+            const currentPrice = parseFloat(String(p.closePrice || '0'));
+            return { symbol: p.symbol, quantity, avgCost, currentPrice, costBasis: quantity * avgCost, marketValue: quantity * currentPrice, unrealizedPL: (quantity * currentPrice) - (quantity * avgCost) };
+          });
 
-        // Get CC premiums using the same logic as getCCPremiums
+        // Get CC premiums from cached transactions
         const ccPremiums: Record<string, number> = {};
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - 365);
-
-        for (const account of accounts) {
-          const transactions = await api.getTransactionHistory(
-            account.accountNumber,
-            startDate.toISOString().split('T')[0],
-            new Date().toISOString().split('T')[0]
-          );
-
-          for (const txn of transactions) {
-            const txnType = txn['transaction-type'];
-            const txnSubType = txn['transaction-sub-type'];
-            const symbol = txn.symbol || '';
-            const instrumentType = txn['instrument-type'];
-            const value = parseFloat(txn.value || '0');
-
-            // Only process Trade transactions with Sell to Open sub-type
-            if (txnType !== 'Trade' || txnSubType !== 'Sell to Open') continue;
-
-            // Only process Equity Options
-            if (instrumentType !== 'Equity Option') continue;
-
-            // Parse option symbol to get underlying and option type
-            const cleanSymbol = symbol.replace(/\s+/g, '');
-            const match = cleanSymbol.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);
-            if (!match) continue;
-
-            const underlying = match[1];
-            const optionType = match[3]; // 'C' for CALL, 'P' for PUT
-
-            // Only track CALL options (covered calls)
-            if (optionType === 'C') {
-              const premium = Math.abs(value);
-              if (premium > 0) {
-                ccPremiums[underlying] = (ccPremiums[underlying] || 0) + premium;
-              }
-            }
-          }
+        const startDateRec = new Date();
+        startDateRec.setDate(startDateRec.getDate() - 365);
+        const startMsRec = startDateRec.getTime();
+        const cachedTxnsRec = await getCachedTxnsRec(ctx.user.id);
+        const txnsRec = cachedTxnsRec
+          .filter(t => t.executedAt && new Date(t.executedAt).getTime() >= startMsRec)
+          .map(t => toWireRec(t));
+        for (const txn of txnsRec) {
+          if (txn['transaction-type'] !== 'Trade' || txn['transaction-sub-type'] !== 'Sell to Open') continue;
+          if (txn['instrument-type'] !== 'Equity Option') continue;
+          const cleanSym = (txn.symbol || '').replace(/\s+/g, '');
+          const m = cleanSym.match(/^([A-Z]+)(\d{6})([CP])(\d+)$/);
+          if (!m || m[3] !== 'C') continue;
+          const premium = Math.abs(parseFloat(txn.value || '0'));
+          if (premium > 0) ccPremiums[m[1]] = (ccPremiums[m[1]] || 0) + premium;
         }
 
         // Calculate recovery metrics for underwater positions

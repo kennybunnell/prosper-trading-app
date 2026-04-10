@@ -103,19 +103,13 @@ export const safeguardsRouter = router({
       sharesToClose: z.number().int().positive(),
     }))
     .query(async ({ ctx, input }) => {
-      const { getApiCredentials, getTastytradeAccounts } = await import('./db');
-      const { authenticateTastytrade } = await import('./tastytrade');
-
-      const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
-        return { safe: true, warnings: [] };
-      }
-
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
       const warnings: SafeguardWarning[] = [];
 
       try {
-        const positions = await api.getPositions(input.accountNumber);
+        // ── Read from DB cache ────────────────────────────────────────────────────────────────
+        const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+        const rawPositions = await getCachedPositions(ctx.user.id, input.accountNumber);
+        const positions = rawPositions.map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
         const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
 
         // Find active short calls against this symbol
@@ -182,19 +176,13 @@ export const safeguardsRouter = router({
       action: z.enum(['BTC', 'STC']), // BTC = closing a long, STC = closing a short
     }))
     .query(async ({ ctx, input }) => {
-      const { getApiCredentials } = await import('./db');
-      const { authenticateTastytrade } = await import('./tastytrade');
-
-      const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
-        return { safe: true, warnings: [] };
-      }
-
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
       const warnings: SafeguardWarning[] = [];
 
       try {
-        const positions = await api.getPositions(input.accountNumber);
+        // ── Read from DB cache ────────────────────────────────────────────────────────────────
+        const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+        const rawPositions = await getCachedPositions(ctx.user.id, input.accountNumber);
+        const positions = rawPositions.map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
         const optionPositions = positions.filter((p: any) =>
           p['instrument-type'] === 'Equity Option' &&
           (p['underlying-symbol'] || '') === input.symbol
@@ -281,20 +269,14 @@ export const safeguardsRouter = router({
       })),
     }))
     .query(async ({ ctx, input }) => {
-      const { getApiCredentials } = await import('./db');
-      const { authenticateTastytrade } = await import('./tastytrade');
-
-      const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
-        return { safe: true, warnings: [], coverageMap: {} };
-      }
-
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
       const warnings: SafeguardWarning[] = [];
       const coverageMap: Record<string, { sharesOwned: number; existingContracts: number; availableContracts: number }> = {};
 
       try {
-        const positions = await api.getPositions(input.accountNumber);
+        // ── Read from DB cache ────────────────────────────────────────────────────────────────
+        const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+        const rawPositions = await getCachedPositions(ctx.user.id, input.accountNumber);
+        const positions = rawPositions.map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
         const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
         const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
 
@@ -405,25 +387,25 @@ export const safeguardsRouter = router({
       accountId: z.string().optional(),
     }))
     .query(async ({ ctx, input }) => {
-      const { getApiCredentials, getTastytradeAccounts } = await import('./db');
-      const { authenticateTastytrade } = await import('./tastytrade');
-
-      const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+      // ── Read from DB cache ────────────────────────────────────────────────────────────────
+      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+      const allCachedPos = await getCachedPositions(ctx.user.id);
+      if (allCachedPos.length === 0) {
         return { alerts: [], accountsScanned: 0, hasAlerts: false };
       }
 
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
-      const dbAccounts = await getTastytradeAccounts(ctx.user.id);
-      if (!dbAccounts || dbAccounts.length === 0) {
-        return { alerts: [], accountsScanned: 0, hasAlerts: false };
-      }
-
-      let targetAccounts = dbAccounts;
-      if (input.accountId) {
-        const found = dbAccounts.find((a: any) => a.accountId === input.accountId);
-        if (found) targetAccounts = [found];
-      }
+      // Build account list from cache
+      const { getTastytradeAccounts } = await import('./db');
+      const dbAccounts = await getTastytradeAccounts(ctx.user.id) || [];
+      const cacheAccountNumbers = Array.from(new Set(allCachedPos.map(p => p.accountNumber)));
+      // Build targetAccounts list from cache account numbers, enriched with accountType from DB
+      const allTargetAccounts = cacheAccountNumbers.map(acctNum => {
+        const dbAcct = dbAccounts.find((a: any) => a.accountNumber === acctNum || a.accountId === acctNum);
+        return { accountNumber: acctNum, accountType: dbAcct?.accountType || '' };
+      });
+      const targetAccounts = input.accountId
+        ? allTargetAccounts.filter(a => a.accountNumber === input.accountId)
+        : allTargetAccounts;
 
       const dteCutoff = input.mode === 'friday' ? 7 : 5; // Friday sweep looks 7 days out
 
@@ -450,13 +432,10 @@ export const safeguardsRouter = router({
       for (const account of targetAccounts) {
         const accountType = account.accountType || '';
 
-        let positions: any[] = [];
-        try {
-          positions = await api.getPositions(account.accountNumber) || [];
-        } catch (e: any) {
-          console.warn(`[Safeguard 4/5] Could not fetch positions for ${account.accountNumber}:`, e.message);
-          continue;
-        }
+        // Use cached positions for this account
+        const positions = allCachedPos
+          .filter(p => p.accountNumber === account.accountNumber)
+          .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
 
         const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
         const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
@@ -573,11 +552,15 @@ export const safeguardsRouter = router({
         return { safe: true, warnings: [], blocked: false };
       }
 
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
       const warnings: SafeguardWarning[] = [];
 
       try {
-        const positions = await api.getPositions(input.accountNumber);
+        // Use DB cache for pre-trade checks — cache is synced on login and after every order
+        const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+        const cachedPos = await getCachedPositions(ctx.user.id);
+        const positions: any[] = cachedPos
+          .filter(p => p.accountNumber === input.accountNumber)
+          .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }), 'account-number': p.accountNumber }));
         const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
         const optionPositions = positions.filter((p: any) =>
           p['instrument-type'] === 'Equity Option' &&
@@ -735,24 +718,26 @@ export const safeguardsRouter = router({
   triggerFridaySweep: protectedProcedure
     .mutation(async ({ ctx }): Promise<{ alertCount: number; notificationSent: boolean; message: string }> => {
       // Run the Friday sweep scan (mode='friday' looks 7 DTE out)
-      // We call scanExpirationRisk inline to avoid circular import with automation-scheduler
-      const { getApiCredentials, getTastytradeAccounts } = await import('./db');
-      const { authenticateTastytrade } = await import('./tastytrade');
+      const { getTastytradeAccounts } = await import('./db');
       const { notifyOwner } = await import('./_core/notification');
+      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
 
-      const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
-        return { alertCount: 0, notificationSent: false, message: 'No Tastytrade credentials configured.' };
+      const allCachedPos = await getCachedPositions(ctx.user.id);
+      if (allCachedPos.length === 0) {
+        return { alertCount: 0, notificationSent: false, message: 'No portfolio data in cache. Please run a sync from Settings first.' };
       }
 
-      const accounts = await getTastytradeAccounts(ctx.user.id);
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
+      const accounts = await getTastytradeAccounts(ctx.user.id) || [];
       const dteCutoff = 7; // Friday sweep looks 7 days out
       const allAlerts: Array<{ symbol: string; accountId: string; accountName?: string; strike: number; expiration: string; dte: number; violationType: string }> = [];
 
-      for (const account of accounts) {
+      const accountNumbers = Array.from(new Set(allCachedPos.map(p => p.accountNumber)));
+      for (const accountNumber of accountNumbers) {
+        const dbAcct = accounts.find((a: any) => a.accountNumber === accountNumber || a.accountId === accountNumber);
         try {
-          const positions = await api.getPositions(account.accountId);
+          const positions = allCachedPos
+            .filter(p => p.accountNumber === accountNumber)
+            .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
           const shortCalls = positions.filter((p: any) =>
             p['instrument-type'] === 'Equity Option' &&
             p['quantity-direction']?.toLowerCase() === 'short' &&
@@ -766,8 +751,8 @@ export const safeguardsRouter = router({
               const expiration = pos['expires-at'] ? pos['expires-at'].split('T')[0] : parseExpirationFromSymbol(pos.symbol);
               allAlerts.push({
                 symbol: underlying,
-                accountId: account.accountNumber,
-                accountName: account.nickname || account.accountType || undefined,
+                accountId: accountNumber,
+                accountName: dbAcct?.nickname || dbAcct?.accountType || undefined,
                 strike,
                 expiration,
                 dte,
@@ -776,7 +761,7 @@ export const safeguardsRouter = router({
             }
           }
         } catch (e: any) {
-          console.warn(`[Friday Sweep] Error scanning ${account.accountNumber}:`, e.message);
+          console.warn(`[Friday Sweep] Error scanning ${accountNumber}:`, e.message);
         }
       }
 
@@ -927,22 +912,21 @@ export const safeguardsRouter = router({
   /** Manually trigger the daily ITM assignment risk scan (5 DTE cutoff) */
   triggerDailyScan: protectedProcedure.mutation(async ({ ctx }) => {
     try {
-      const { authenticateTastytrade } = await import('./tastytrade');
       const { notifyOwner } = await import('./_core/notification');
-      const { getApiCredentials } = await import('./db');
-      const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
-        throw new Error('Tastytrade not connected — please link your account in Settings');
-      }
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
-      if (!api) throw new Error('Tastytrade not connected');
+      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
 
-      const accounts = await api.getAccounts();
+      const allCachedPos = await getCachedPositions(ctx.user.id);
+      if (allCachedPos.length === 0) {
+        throw new Error('No portfolio data in cache. Please run a sync from Settings first.');
+      }
+
+      const accountNumbers = Array.from(new Set(allCachedPos.map(p => p.accountNumber)));
       const allAlerts: Array<{ symbol: string; accountId: string; strike: number; expiration: string; dte: number; optionSymbol: string; sharesOwned: number; sharesNeeded: number }> = [];
 
-      for (const account of accounts) {
-        const accountNumber = account.account['account-number'];
-        const positions = await api.getPositions(accountNumber);
+      for (const accountNumber of accountNumbers) {
+        const positions = allCachedPos
+          .filter(p => p.accountNumber === accountNumber)
+          .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
         const today = new Date();
 
         for (const pos of positions) {
@@ -1006,7 +990,7 @@ export const safeguardsRouter = router({
             scanType: 'daily_scan',
             ranAt: Date.now(),
             alertCount: allAlerts.length,
-            accountsScanned: accounts.length,
+            accountsScanned: accountNumbers.length,
             triggeredBy: 'manual',
             summaryJson: JSON.stringify(summaryItems),
           });

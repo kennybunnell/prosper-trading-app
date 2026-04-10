@@ -262,7 +262,6 @@ export const rollsRouter = router({
       const tradierApiKey = credentials.tradierApiKey || process.env.TRADIER_API_KEY;
       if (!tradierApiKey) throw new Error('Tradier API key not configured');
 
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
       const tradier = new TradierAPI(tradierApiKey, false);
 
       const accounts = await getTastytradeAccounts(ctx.user.id);
@@ -275,6 +274,14 @@ export const rollsRouter = router({
         const found = accounts.find(acc => acc.accountId === input.accountId);
         if (found) targetAccounts = [found];
       }
+
+      // Load all option positions from DB cache
+      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+      const allCachedPos = await getCachedPositions(ctx.user.id);
+      const wirePositions = allCachedPos.map(p => ({
+        ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }),
+        'account-number': p.accountNumber,
+      }));
 
       // Build a dog map from the latest WTR history scan for cross-checking ITM CCs.
       // If no WTR history exists yet (first scan), the map will be empty and no CCs will be tagged.
@@ -322,12 +329,9 @@ export const rollsRouter = router({
         accountNumber: string;
       }> = [];
 
-      // First pass: collect ALL option legs (long and short) across all accounts
-      for (const account of targetAccounts) {
-        const positions = await api.getPositions(account.accountNumber);
-        if (!positions) continue;
-
-        for (const pos of positions) {
+      // First pass: collect ALL option legs from DB cache
+      for (const _pos of wirePositions) {
+          const pos = _pos as any;
           // TT position data returns 'Index Option' for SPX/SPXW/NDX/NDXP/RUT/XSP/VIX etc.
           // Accept BOTH types so index spreads/CCs appear in the roll scanner.
           // NOTE: When SUBMITTING orders, always use 'Equity Option' — TT order API never accepts 'Index Option'.
@@ -355,22 +359,24 @@ export const rollsRouter = router({
             signedQty,
             openPrice,
             closePrice,
-            accountNumber: account.accountNumber,
+            accountNumber: (pos as any)['account-number'] || '',
           });
-        }
       }
 
       // Batch fetch LIVE mark prices from Tastytrade for all option symbols
       // This is the critical fix: close-price is stale (previous day), mark is real-time
+      // Live option marks must remain a live API call — these are real-time prices
       const liveOptionMarks: Record<string, number> = {};
       if (optionSymbolsToFetch.size > 0) {
         try {
+          const { authenticateTastytrade: authTT } = await import('./tastytrade');
+          const liveApi = await authTT(credentials, ctx.user.id);
           const allSymbols = Array.from(optionSymbolsToFetch);
           // Tastytrade batch endpoint handles up to ~200 symbols
           const BATCH_SIZE = 100;
           for (let i = 0; i < allSymbols.length; i += BATCH_SIZE) {
             const batch = allSymbols.slice(i, i + BATCH_SIZE);
-            const quotes = await api.getOptionQuotesBatch(batch);
+            const quotes = await liveApi.getOptionQuotesBatch(batch);
             for (const [sym, q] of Object.entries(quotes)) {
               // Prefer mark > mid > last as the best current price estimate
               const mark = (q as any).mark || (q as any).mid || (q as any).last || 0;

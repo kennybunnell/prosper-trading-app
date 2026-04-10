@@ -122,7 +122,6 @@ export const iraSafetyRouter = router({
         return { violations: [], accountsScanned: 0, hasViolations: false, criticalCount: 0, warningCount: 0 };
       }
 
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
       const dbAccounts = await getTastytradeAccounts(ctx.user.id);
       if (!dbAccounts || dbAccounts.length === 0) {
         return { violations: [], accountsScanned: 0, hasViolations: false, criticalCount: 0, warningCount: 0 };
@@ -134,20 +133,24 @@ export const iraSafetyRouter = router({
         if (found) targetAccounts = [found];
       }
 
+      // Load all positions from DB cache (keyed by accountNumber)
+      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+      const allCachedPos = await getCachedPositions(ctx.user.id);
+      const positionsByAccount = new Map<string, any[]>();
+      for (const p of allCachedPos) {
+        const wire = cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' });
+        if (!positionsByAccount.has(p.accountNumber)) positionsByAccount.set(p.accountNumber, []);
+        positionsByAccount.get(p.accountNumber)!.push(wire);
+      }
+
       const violations: IraViolation[] = [];
 
       for (const account of targetAccounts) {
         const accountType = account.accountType || '';
         const isRestricted = isRestrictedAccount(accountType);
 
-        // Fetch all positions for this account
-        let positions: any[] = [];
-        try {
-          positions = await api.getPositions(account.accountNumber) || [];
-        } catch (e) {
-          console.warn(`[IRA Safety] Could not fetch positions for ${account.accountNumber}:`, e);
-          continue;
-        }
+        // Use cached positions for this account
+        const positions: any[] = positionsByAccount.get(account.accountNumber) || [];
 
         // Separate into stock and option positions
         const stockPositions = positions.filter(p => p['instrument-type'] === 'Equity');

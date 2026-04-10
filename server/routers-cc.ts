@@ -65,10 +65,8 @@ export const ccRouter = router({
         };
       }
 
-      // Live mode - fetch from Tastytrade
+      // Live mode — positions from DB cache, working orders still live
       const { getApiCredentials } = await import('./db');
-      
-
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
         throw new Error('Tastytrade OAuth2 credentials not configured. Please add them in Settings.');
@@ -77,19 +75,20 @@ export const ccRouter = router({
       const { authenticateTastytrade } = await import('./tastytrade');
       const api = await authenticateTastytrade(credentials, ctx.user.id);
 
-      // Fetch all positions
-      const positions = await api.getPositions(input.accountNumber);
+      // ── Positions: read from DB cache ─────────────────────────────────────────
+      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+      const cachedPos = await getCachedPositions(ctx.user.id);
+      const positions: any[] = cachedPos
+        .filter(p => input.accountNumber === 'ALL' || p.accountNumber === input.accountNumber)
+        .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
 
-      // Fetch working orders to account for pending short calls
+      // Fetch working orders to account for pending short calls (must be live)
       const workingOrders = await api.getWorkingOrders(input.accountNumber);
 
-      // Separate stock positions and option positions
-      // Tastytrade API returns hyphenated field names like 'instrument-type', not camelCase
-      // ⛔ Exclude cash-settled European-style indexes — no stock assignment, cannot write covered calls
+      // ⛔ Exclude cash-settled European-style indexes
       const stockPositions = positions
         .filter((p: any) => p['instrument-type'] === 'Equity')
         .filter((p: any) => !CASH_SETTLED_INDEXES.has((p.symbol as string).toUpperCase()));
-      // Include both 'Equity Option' and 'Index Option' (e.g., SPXW, NDXP, MRUT)
       const optionPositions = positions.filter((p: any) =>
         p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
       );
@@ -262,7 +261,7 @@ export const ccRouter = router({
         };
       }
 
-      // Live mode — fetch all accounts then scan in parallel
+      // Live mode — positions from DB cache, working orders still live
       const { getApiCredentials } = await import('./db');
       const { authenticateTastytrade } = await import('./tastytrade');
       const credentials = await getApiCredentials(ctx.user.id);
@@ -270,24 +269,34 @@ export const ccRouter = router({
         throw new Error('Tastytrade OAuth2 credentials not configured. Please add them in Settings.');
       }
       const api = await authenticateTastytrade(credentials, ctx.user.id);
-      const allAccounts = await api.getAccounts();
-      // Tastytrade API returns accounts as { account: { 'account-number': '...' } }
-      // Must handle nested structure same as automation scan
-      const accountNumbers: string[] = allAccounts
-        .map((a: any) => a.account?.['account-number'] || a['account-number'] || a.accountNumber)
-        .filter(Boolean);
-      console.log(`[CC getEligible] Resolved account numbers:`, accountNumbers);
 
-      // Per-account: fetch positions + working orders in parallel
-      const perAccountResults = await Promise.allSettled(
+      // ── Positions: read from DB cache ─────────────────────────────────────────
+      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+      const allCachedPos = await getCachedPositions(ctx.user.id);
+      const accountNumbers: string[] = Array.from(new Set(allCachedPos.map(p => p.accountNumber)));
+      console.log(`[CC getEligible] Accounts from cache:`, accountNumbers);
+
+      // Working orders must still be fetched live (order status changes in real time)
+      const workingOrdersByAccount = await Promise.allSettled(
         accountNumbers.map(async (acctNum: string) => {
-          const [positions, workingOrders] = await Promise.all([
-            api.getPositions(acctNum),
-            api.getWorkingOrders(acctNum).catch(() => [] as any[]),
-          ]);
-          return { acctNum, positions, workingOrders };
+          const workingOrders = await api.getWorkingOrders(acctNum).catch(() => [] as any[]);
+          return { acctNum, workingOrders };
         })
       );
+
+      // Build per-account results using cached positions + live working orders
+      const perAccountResults: Array<{ status: 'fulfilled'; value: { acctNum: string; positions: any[]; workingOrders: any[] } }> =
+        accountNumbers.map(acctNum => {
+          const positions = allCachedPos
+            .filter(p => p.accountNumber === acctNum)
+            .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
+          const woResult = workingOrdersByAccount.find(
+            r => r.status === 'fulfilled' && r.value.acctNum === acctNum
+          );
+          const workingOrders = woResult?.status === 'fulfilled' ? woResult.value.workingOrders : [];
+          return { status: 'fulfilled' as const, value: { acctNum, positions, workingOrders } };
+        });
+      console.log(`[CC getEligible] Loaded positions from cache for ${accountNumbers.length} accounts`);
 
       // Merged maps across all accounts
       const shortCallsAll: Record<string, { contracts: number; details: any[] }> = {};
@@ -301,7 +310,6 @@ export const ccRouter = router({
       let totalRawPositions = 0;
 
       for (const result of perAccountResults) {
-        if (result.status === 'rejected') continue;
         const { acctNum, positions, workingOrders } = result.value;
          totalRawPositions += positions.length;
         // ⛔ Exclude cash-settled European-style indexes — no stock assignment, cannot write covered calls

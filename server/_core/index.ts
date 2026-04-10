@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleStripeWebhook } from "../webhooks/stripe.js";
 import { initializeAutomationScheduler } from "../automation-scheduler";
+import { initializePortfolioSyncScheduler } from "../portfolio-sync-scheduler";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -158,6 +159,8 @@ async function startServer() {
     
     // Initialize automation scheduler
     initializeAutomationScheduler();
+    // Initialize portfolio sync scheduler (15-min incremental sync during market hours)
+    initializePortfolioSyncScheduler();
   });
 }
 
