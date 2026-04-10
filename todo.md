@@ -9110,3 +9110,7 @@ ROC Fix Mar 18 2026
 - [ ] Add per-row price sliders to Confirm Order Replacement modal so user can adjust limit price toward mid/bid/ask before confirming
 - [x] Fix Order Preview slider: 'Reset All to Good Fill Zone' now correctly sets sliders to mid price (symmetric range fix)
 - [x] Roll/Close Positions: add urgency score (DTE-based), default sort by urgency, colored DTE badges, EXPIRES TODAY pin for DTE=0
+- [ ] Roll/Close: Add filter mismatch callout showing "X of Y losers match current filters"
+- [ ] Roll/Close: Add collapsible "Hidden Losers" section with per-position reason tags for why each is filtered out
+- [x] Add filter mismatch callout: show "X of Y losers hidden by active filters" banner in Roll/Close Positions
+- [x] Add collapsible Hidden Losers section with per-position reason tags and suggested actions

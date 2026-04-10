@@ -416,8 +416,8 @@ export default function AutomationDashboard() {
   // Positions that the user has explicitly overridden to allow re-rolling today
   const [overrideRolledPositions, setOverrideRolledPositions] = useState<Set<string>>(new Set());
   // Filter to show only positions flagged for close (CLOSE or STOP action label)
-  const [rollCloseFilter, setRollCloseFilter] = useState(false);
-
+   const [rollCloseFilter, setRollCloseFilter] = useState(false);
+  const [showHiddenLosers, setShowHiddenLosers] = useState(false);
   // Open the BTC close modal for a single Roll position (from the Roll/Close dashboard)
   const handleOpenRollPositionClose = useCallback((pos: RollAnalysis) => {
     const isSpread = ['BPS', 'BCS', 'IC'].includes(pos.strategy);
@@ -3191,6 +3191,127 @@ export default function AutomationDashboard() {
                 </Card>
               </div>
 
+              {/* Filter mismatch callout: show when active filters hide some losers */}
+              {(() => {
+                const allLosers = rollScanResults.red;
+                const visibleLosers = allLosers.filter(pos => {
+                  if (rollStrategyFilters.size > 0 && !rollStrategyFilters.has(pos.strategy)) return false;
+                  if (rollPnlFilters.size > 0 && !rollPnlFilters.has((pos as any).pnlStatus ?? '')) return false;
+                  if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
+                  if (hideRolledToday && rolledTodaySet.has(pos.positionId) && !overrideRolledPositions.has(pos.positionId)) return false;
+                  if (creditDirectionFilter) {
+                    const bf = bestFitCache[pos.positionId];
+                    if (!bf) return false;
+                    const isCredit = (bf.candidate.netCredit ?? 0) >= 0;
+                    const isPut = pos.strategy === 'CSP' || pos.strategy === 'BPS';
+                    const currentStrike = pos.metrics.strikePrice;
+                    const newStrike = bf.candidate.strike ?? currentStrike;
+                    const movesOtm = isPut ? newStrike < currentStrike : newStrike > currentStrike;
+                    if (!isCredit || !movesOtm) return false;
+                  }
+                  if (rollCloseFilter) {
+                    const al = (pos as any).actionLabel;
+                    if (al !== 'CLOSE' && al !== 'STOP') return false;
+                  }
+                  return true;
+                });
+                const hiddenLosers = allLosers.filter(pos => !visibleLosers.find(v => v.positionId === pos.positionId));
+                if (hiddenLosers.length === 0) return null;
+                return (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-3 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-amber-400 text-sm font-semibold">⚠ Active filters are hiding {hiddenLosers.length} of {allLosers.length} losers</span>
+                        <span className="text-xs text-muted-foreground">— {visibleLosers.length} match current filters</span>
+                      </div>
+                      <button
+                        onClick={() => setShowHiddenLosers(v => !v)}
+                        className="text-xs text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors"
+                      >
+                        {showHiddenLosers ? 'Hide' : 'Show all hidden'}
+                      </button>
+                    </div>
+                    {showHiddenLosers && (
+                      <div className="mt-1 overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-amber-500/20 text-left">
+                              <th className="p-2 text-muted-foreground font-medium">Symbol</th>
+                              <th className="p-2 text-muted-foreground font-medium">Strategy</th>
+                              <th className="p-2 text-muted-foreground font-medium text-right">DTE</th>
+                              <th className="p-2 text-muted-foreground font-medium text-right">ITM</th>
+                              <th className="p-2 text-muted-foreground font-medium text-right">Unreal. P&L</th>
+                              <th className="p-2 text-muted-foreground font-medium">Why hidden</th>
+                              <th className="p-2 text-muted-foreground font-medium">Suggested action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {hiddenLosers.map(pos => {
+                              // Determine the specific reason(s) this position is filtered out
+                              const reasons: string[] = [];
+                              if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5)
+                                reasons.push(`Deep ITM (${pos.metrics.itmDepth.toFixed(1)}%) — credit roll unlikely`);
+                              if (hideRolledToday && rolledTodaySet.has(pos.positionId) && !overrideRolledPositions.has(pos.positionId))
+                                reasons.push('Already rolled today');
+                              if (creditDirectionFilter) {
+                                const bf = bestFitCache[pos.positionId];
+                                if (!bf) reasons.push('No roll candidate loaded yet');
+                                else {
+                                  const isCredit = (bf.candidate.netCredit ?? 0) >= 0;
+                                  const isPut = pos.strategy === 'CSP' || pos.strategy === 'BPS';
+                                  const movesOtm = isPut
+                                    ? (bf.candidate.strike ?? pos.metrics.strikePrice) < pos.metrics.strikePrice
+                                    : (bf.candidate.strike ?? pos.metrics.strikePrice) > pos.metrics.strikePrice;
+                                  if (!isCredit) reasons.push('Best roll candidate is a debit (costs money to roll)');
+                                  else if (!movesOtm) reasons.push('Best roll candidate moves strike further ITM, not OTM');
+                                }
+                              }
+                              if (rollStrategyFilters.size > 0 && !rollStrategyFilters.has(pos.strategy))
+                                reasons.push(`Strategy filter active (${pos.strategy} excluded)`);
+                              if (rollCloseFilter) {
+                                const al = (pos as any).actionLabel;
+                                if (al !== 'CLOSE' && al !== 'STOP') reasons.push('Close-only filter active — this position is flagged for ROLL not CLOSE');
+                              }
+                              // Suggested action based on reason
+                              const suggestion = reasons.some(r => r.includes('credit roll unlikely') || r.includes('debit'))
+                                ? '💸 Consider closing for a loss or waiting for a bounce'
+                                : reasons.some(r => r.includes('rolled today'))
+                                ? '🔄 Already managed today — re-check tomorrow'
+                                : reasons.some(r => r.includes('no candidate') || r.includes('No roll candidate'))
+                                ? '⏳ Expand Best Fit search or check options chain manually'
+                                : reasons.some(r => r.includes('further ITM'))
+                                ? '📉 Stock is moving against you — consider closing or accepting assignment'
+                                : '🔍 Adjust filters to include this position';
+                              return (
+                                <tr key={pos.positionId} className="border-b border-amber-500/10 hover:bg-amber-500/5">
+                                  <td className="p-2 font-semibold">{pos.symbol}</td>
+                                  <td className="p-2">
+                                    <span className="px-1.5 py-0.5 rounded text-xs border border-purple-400/40 text-purple-400">{pos.strategy}</span>
+                                  </td>
+                                  <td className={`p-2 text-right font-mono ${
+                                    pos.metrics.dte === 0 ? 'text-red-400 font-bold' :
+                                    pos.metrics.dte <= 7 ? 'text-orange-400' : 'text-muted-foreground'
+                                  }`}>{pos.metrics.dte === 0 ? '⚡0' : pos.metrics.dte}</td>
+                                  <td className={`p-2 text-right font-mono ${
+                                    pos.metrics.itmDepth > 5 ? 'text-red-400' : pos.metrics.itmDepth > 0 ? 'text-yellow-400' : 'text-muted-foreground'
+                                  }`}>{pos.metrics.itmDepth > 0 ? `▲${pos.metrics.itmDepth.toFixed(1)}%` : '—'}</td>
+                                  <td className={`p-2 text-right font-mono ${
+                                    ((pos as any).unrealizedPnl ?? 0) < 0 ? 'text-red-400' : 'text-green-400'
+                                  }`}>{(pos as any).unrealizedPnl != null ? `$${Math.abs((pos as any).unrealizedPnl).toFixed(0)}` : '—'}</td>
+                                  <td className="p-2 text-amber-300/80">
+                                    {reasons.length > 0 ? reasons.join(' · ') : 'Unknown filter'}
+                                  </td>
+                                  <td className="p-2 text-muted-foreground">{suggestion}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               {rollScanResults.total === 0 ? (
                 <Card className="border-green-500/20 bg-green-500/5">
                   <CardContent className="py-8 text-center">
