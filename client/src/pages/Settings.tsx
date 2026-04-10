@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { Loader2, CheckCircle2, XCircle, AlertCircle, Trash2, Wand2 } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, AlertCircle, Trash2, Wand2, RefreshCw, Database } from "lucide-react";
 import { useState, useEffect } from "react";
 import TastytradeWizard from "@/components/TastytradeWizard";
 import { toast } from "sonner";
@@ -730,6 +730,9 @@ export default function Settings() {
           </CardContent>
         </Card>
 
+        {/* Portfolio Data Cache */}
+        <PortfolioSyncCard />
+
         {/* Background Texture */}
         <BackgroundTextureSection 
           opacity={opacity}
@@ -1258,5 +1261,138 @@ function PresetEditor({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Portfolio Sync Card ──────────────────────────────────────────────────────
+
+function PortfolioSyncCard() {
+  const utils = trpc.useUtils();
+
+  const { data: syncData, isLoading: syncStateLoading } = trpc.portfolioSync.getSyncState.useQuery(undefined, {
+    refetchInterval: 5000, // Poll every 5 seconds to show live sync progress
+  });
+
+  const triggerSync = trpc.portfolioSync.triggerSync.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      utils.portfolioSync.getSyncState.invalidate();
+    },
+    onError: (err: any) => {
+      toast.error(`Sync failed: ${err.message}`);
+    },
+  });
+
+  const fullRefresh = trpc.portfolioSync.triggerSync.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      utils.portfolioSync.getSyncState.invalidate();
+    },
+    onError: (err: any) => {
+      toast.error(`Full refresh failed: ${err.message}`);
+    },
+  });
+
+  const states = syncData?.states ?? [];
+  const isSyncing = states.some((s) => s.syncStatus === 'syncing') || triggerSync.isPending || fullRefresh.isPending;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Database className="h-5 w-5 text-emerald-500" />
+          Portfolio Data Cache
+        </CardTitle>
+        <CardDescription>
+          Positions and transaction history are cached locally for fast AI analysis.
+          The cache syncs automatically on login and can be refreshed manually here.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {syncStateLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading sync status...
+          </div>
+        ) : states.length === 0 ? (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-600 dark:text-amber-400">
+            No sync data found. Click "Sync Now" to populate the portfolio cache for the first time.
+            This will fetch 3 years of transaction history.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {states.map((state) => (
+              <div key={state.accountNumber} className="rounded-md border bg-muted/30 p-3 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Account: {state.accountNumber}</span>
+                  <span className={cn(
+                    "text-xs px-2 py-0.5 rounded-full font-medium",
+                    state.syncStatus === 'idle' && "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
+                    state.syncStatus === 'syncing' && "bg-blue-500/20 text-blue-600 dark:text-blue-400",
+                    state.syncStatus === 'error' && "bg-red-500/20 text-red-600 dark:text-red-400",
+                  )}>
+                    {state.syncStatus === 'syncing' ? (
+                      <span className="flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Syncing...
+                      </span>
+                    ) : state.syncStatus === 'idle' ? '✓ Up to date' : '⚠ Error'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                  <div>
+                    <span className="font-medium">Transactions cached:</span>{' '}
+                    {state.totalTransactionsCached?.toLocaleString() ?? 0}
+                  </div>
+                  <div>
+                    <span className="font-medium">Last synced:</span>{' '}
+                    {state.lastTransactionsSyncAt
+                      ? new Date(state.lastTransactionsSyncAt).toLocaleString()
+                      : 'Never'}
+                  </div>
+                  {state.lastTransactionDate && (
+                    <div>
+                      <span className="font-medium">Latest transaction:</span>{' '}
+                      {state.lastTransactionDate}
+                    </div>
+                  )}
+                  {state.lastSyncError && (
+                    <div className="col-span-2 text-red-500">
+                      Error: {state.lastSyncError}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-2">
+          <Button
+            onClick={() => triggerSync.mutate({ forceFullRefresh: false })}
+            disabled={isSyncing}
+            size="sm"
+            className="gap-2"
+          >
+            {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {isSyncing ? 'Syncing...' : 'Sync Now'}
+          </Button>
+          <Button
+            onClick={() => fullRefresh.mutate({ forceFullRefresh: true })}
+            disabled={isSyncing}
+            size="sm"
+            variant="outline"
+            className="gap-2"
+          >
+            <Database className="h-4 w-4" />
+            Full Refresh (3 years)
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          <strong>Sync Now</strong> fetches only new transactions since the last sync (fast).{' '}
+          <strong>Full Refresh</strong> re-fetches all 3 years of history (takes 30–60 seconds on first run).
+        </p>
+      </CardContent>
+    </Card>
   );
 }

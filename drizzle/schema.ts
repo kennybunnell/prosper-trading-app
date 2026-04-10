@@ -1050,3 +1050,131 @@ export const paperTradingOrders = mysqlTable('paperTradingOrders', {
 }));
 export type PaperTradingOrder = typeof paperTradingOrders.$inferSelect;
 export type InsertPaperTradingOrder = typeof paperTradingOrders.$inferInsert;
+
+/**
+ * Cached Tastytrade Positions
+ * Mirrors live positions from Tastytrade. Synced on login and on-demand.
+ * AI advisors and all analytics read from this table — no live API calls needed.
+ *
+ * Sync strategy:
+ *   - Full refresh: replace all rows for userId on first sync or manual refresh
+ *   - Incremental: upsert by (userId, accountNumber, symbol) on subsequent syncs
+ */
+export const cachedPositions = mysqlTable('cached_positions', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  accountNumber: varchar('account_number', { length: 64 }).notNull(),
+
+  // Core position fields (mirrors Tastytrade API field names)
+  symbol: varchar('symbol', { length: 30 }).notNull(),           // OCC symbol or equity symbol
+  underlyingSymbol: varchar('underlying_symbol', { length: 10 }).notNull(), // e.g. 'APLD'
+  instrumentType: varchar('instrument_type', { length: 30 }).notNull(), // 'Equity' | 'Equity Option'
+  quantity: varchar('quantity', { length: 20 }).notNull(),       // signed string (negative = short)
+  quantityDirection: varchar('quantity_direction', { length: 10 }), // 'Long' | 'Short'
+  averageOpenPrice: varchar('average_open_price', { length: 20 }).notNull(),
+  closePrice: varchar('close_price', { length: 20 }),            // Current market close price
+  multiplier: int('multiplier').default(1).notNull(),            // 100 for options, 1 for equity
+
+  // Option-specific fields (null for equity positions)
+  optionType: varchar('option_type', { length: 5 }),             // 'C' | 'P' | null
+  strikePrice: varchar('strike_price', { length: 20 }),
+  expiresAt: varchar('expires_at', { length: 30 }),              // ISO date string
+
+  // Sync metadata
+  syncedAt: timestamp('synced_at').defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  userAccountSymbolIdx: unique('cached_positions_unique').on(table.userId, table.accountNumber, table.symbol),
+  userUnderlyingIdx: index('cached_positions_underlying_idx').on(table.userId, table.underlyingSymbol),
+  userAccountIdx: index('cached_positions_account_idx').on(table.userId, table.accountNumber),
+}));
+
+export type CachedPosition = typeof cachedPositions.$inferSelect;
+export type InsertCachedPosition = typeof cachedPositions.$inferInsert;
+
+/**
+ * Cached Tastytrade Transactions
+ * Stores the full transaction history from Tastytrade.
+ * Synced incrementally: only fetches transactions newer than the last sync date.
+ * AI advisors read from this table for cost basis, premium income, and trade history.
+ *
+ * Sync strategy:
+ *   - Initial load: fetch last 3 years on first sync
+ *   - Incremental: fetch only since lastSyncedTransactionDate on subsequent syncs
+ */
+export const cachedTransactions = mysqlTable('cached_transactions', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  accountNumber: varchar('account_number', { length: 64 }).notNull(),
+
+  // Tastytrade transaction fields
+  tastytradeId: varchar('tastytrade_id', { length: 64 }).notNull(), // Tastytrade's own transaction ID
+  transactionType: varchar('transaction_type', { length: 50 }).notNull(), // 'Trade' | 'Receive Deliver' | 'Money Movement'
+  transactionSubType: varchar('transaction_sub_type', { length: 50 }),
+  action: varchar('action', { length: 50 }),                     // 'Sell to Open' | 'Buy to Close' | etc.
+  symbol: varchar('symbol', { length: 30 }),                     // OCC symbol or equity symbol
+  underlyingSymbol: varchar('underlying_symbol', { length: 10 }), // e.g. 'APLD'
+  instrumentType: varchar('instrument_type', { length: 30 }),    // 'Equity' | 'Equity Option'
+  description: text('description'),
+
+  // Financial fields — stored as strings to preserve precision
+  value: varchar('value', { length: 20 }).notNull(),             // Signed dollar amount (negative = debit)
+  netValue: varchar('net_value', { length: 20 }),                // After fees
+  quantity: varchar('quantity', { length: 20 }),
+  price: varchar('price', { length: 20 }),
+  commissions: varchar('commissions', { length: 20 }),
+  fees: varchar('fees', { length: 20 }),
+
+  // Option fields (null for equity transactions)
+  optionType: varchar('option_type', { length: 5 }),             // 'C' | 'P'
+  strikePrice: varchar('strike_price', { length: 20 }),
+  expiresAt: varchar('expires_at', { length: 30 }),
+
+  // Execution timestamp
+  executedAt: timestamp('executed_at').notNull(),                 // When the trade was executed
+
+  // Sync metadata
+  syncedAt: timestamp('synced_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  // Unique constraint prevents duplicate imports
+  uniqueTxn: unique('cached_transactions_unique').on(table.userId, table.accountNumber, table.tastytradeId),
+  userUnderlyingIdx: index('cached_transactions_underlying_idx').on(table.userId, table.underlyingSymbol),
+  userAccountIdx: index('cached_transactions_account_idx').on(table.userId, table.accountNumber),
+  executedAtIdx: index('cached_transactions_executed_at_idx').on(table.userId, table.executedAt),
+}));
+
+export type CachedTransaction = typeof cachedTransactions.$inferSelect;
+export type InsertCachedTransaction = typeof cachedTransactions.$inferInsert;
+
+/**
+ * Portfolio Sync State
+ * Tracks the last successful sync time per user per account.
+ * Used by the incremental sync engine to know how far back to fetch.
+ */
+export const portfolioSyncState = mysqlTable('portfolio_sync_state', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  accountNumber: varchar('account_number', { length: 64 }).notNull(),
+
+  // Last time positions were synced (full refresh)
+  lastPositionsSyncAt: timestamp('last_positions_sync_at'),
+  // Last time transactions were synced
+  lastTransactionsSyncAt: timestamp('last_transactions_sync_at'),
+  // The most recent transaction date we have cached (for incremental sync)
+  lastTransactionDate: varchar('last_transaction_date', { length: 10 }), // YYYY-MM-DD
+  // Total transactions cached for this account
+  totalTransactionsCached: int('total_transactions_cached').default(0).notNull(),
+  // Sync status
+  syncStatus: mysqlEnum('sync_status', ['idle', 'syncing', 'error']).default('idle').notNull(),
+  lastSyncError: text('last_sync_error'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  uniqueUserAccount: unique('portfolio_sync_state_unique').on(table.userId, table.accountNumber),
+  userIdIdx: index('portfolio_sync_state_user_idx').on(table.userId),
+}));
+
+export type PortfolioSyncState = typeof portfolioSyncState.$inferSelect;
+export type InsertPortfolioSyncState = typeof portfolioSyncState.$inferInsert;

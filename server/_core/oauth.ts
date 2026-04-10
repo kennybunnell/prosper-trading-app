@@ -73,6 +73,19 @@ export function registerOAuthRoutes(app: Express) {
       // and sends it as an Authorization header on all API requests.
       console.log('[OAuth] Redirecting to / with new session cookie (Partitioned) + URL token fallback');
       res.redirect(302, `/?_t=${encodeURIComponent(sessionToken)}`);
+
+      // Fire background portfolio sync after login (non-blocking)
+      // This populates the DB cache so AI advisors have fresh data immediately
+      const userRecord = await db.getUserByOpenId(userInfo.openId);
+      const userId = userRecord?.id;
+      if (userId) {
+        import('../portfolio-sync').then(({ syncPortfolio }) => {
+          syncPortfolio(userId, false).catch((err) => {
+            console.error('[OAuth] Background portfolio sync failed:', err.message);
+          });
+        }).catch(() => {/* ignore import errors */});
+        console.log(`[OAuth] Background portfolio sync triggered for user ${userId}`);
+      }
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });

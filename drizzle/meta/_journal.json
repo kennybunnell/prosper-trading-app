@@ -491,6 +491,13 @@
       "when": 1775685365761,
       "tag": "0070_old_enchantress",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "5",
+      "when": 1775843324224,
+      "tag": "0071_majestic_zaran",
+      "breakpoints": true
     }
   ]
 }

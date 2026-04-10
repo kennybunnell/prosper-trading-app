@@ -30,6 +30,7 @@ import { iraSafetyRouter } from './routers-ira-safety';
 import { chartsRouter } from './routers-charts';
 import { positionAnalyzerRouter } from './routers-position-analyzer';
 import { safeguardsRouter } from './routers-safeguards';
+import { portfolioSyncRouter } from './routers-portfolio-sync';
 
 // Helper function to parse OCC option symbols
 function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
@@ -327,6 +328,7 @@ export const appRouter = router({
   safeguards: safeguardsRouter,
   rolls: rollsRouter,
   rollRecommendations: rollRecommendationsRouter,
+  portfolioSync: portfolioSyncRouter,
   orders: ordersRouter,
   market: marketRouter,
   dashboard: router({

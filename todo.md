@@ -9122,3 +9122,14 @@ ROC Fix Mar 18 2026
 - [x] Wire getSymbolContext into PMCC AI panel (explainScore)
 - [x] Wire getSymbolContext into Roll Recommendations router (getRecommendation)
 - [x] Apply Prosper AI Philosophy: AI always pulls from full portfolio context, never just summarizes current screen
+
+## ✅ Portfolio Data Cache Architecture (Apr 10, 2026)
+- [x] Add cached_positions, cached_transactions, portfolio_sync_state tables to DB schema
+- [x] Create tables directly in DB (SQL) since migration pipeline was blocked
+- [x] Build portfolio-sync.ts: full initial load (3 years) + incremental updates engine
+- [x] Rewrite ai-context.ts to read from DB cache (no live API calls on AI requests)
+- [x] Create routers-portfolio-sync.ts: getSyncState, triggerSync, triggerSyncAndWait endpoints
+- [x] Register portfolioSyncRouter in main appRouter
+- [x] Wire auto-sync on login (OAuth callback fires background sync after successful auth)
+- [x] Add Portfolio Data Cache card to Settings page with sync status, Sync Now, Full Refresh buttons
+- [x] Fix TypeScript errors across all modified files
