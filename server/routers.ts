@@ -3712,12 +3712,12 @@ Summary: [One sentence overall assessment]`;
           const txnSymbol: string = txn.symbol || '';
           const isOptionSymbol = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol);
           if (!isOptionSymbol) continue;
-          const netValue = Math.abs(parseFloat(txn.netValue || '0'));
+          const netValue = Math.abs(parseFloat(txn.netValue || txn.value || '0'));
           if (netValue === 0) continue;
-          // Positive value = credit (STO), negative = debit (BTC)
-          const rawValue = parseFloat(txn.value || '0');
-          if (rawValue > 0) credits += netValue;
-          else if (rawValue < 0) debits += netValue;
+          // Use action field — value is always stored as positive in DB
+          const action = txn.action || '';
+          if (action === 'Sell to Open' || action === 'Sell to Close') credits += netValue;
+          else if (action === 'Buy to Close' || action === 'Buy to Open') debits += netValue;
         }
         const collected = Math.round((credits - debits) * 100) / 100;
         return {
