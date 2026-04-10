@@ -690,9 +690,12 @@ export const appRouter = router({
           if (!/[A-Z0-9]+\s*\d{6}[CP]\d+/.test(sym)) continue;
           const val = Math.abs(parseFloat(String(t.netValue || '0')));
           if (!val) continue;
-          const isCredit = parseFloat(String(t.value || '0')) > 0;
+          // Use action field for direction — value is always stored positive in DB
+          const act = (t.action || '').toLowerCase();
+          const isCredit = act.startsWith('sell');
+          const isDebit = act.startsWith('buy');
           if (isCredit) credits += val;
-          else debits += val;
+          else if (isDebit) debits += val;
         }
         collected = Math.round((credits - debits) * 100) / 100;
       } catch { /* skip */ }
@@ -755,7 +758,8 @@ export const appRouter = router({
           const isSpx = ['SPX', 'SPXW', 'NDX', 'XSP', 'RUT'].includes(underlying);
           const isPut = sym.includes('P') && !sym.includes('C');
           const isCall = sym.includes('C') && !sym.includes('P');
-          const isSTO = parseFloat(String(t.value || '0')) > 0;
+          // Use action field for direction — value is always stored positive in DB
+          const isSTO = (t.action || '').toLowerCase().startsWith('sell');
           if (isSpx && isSTO) strategyHistory.spxSpreads++;
           else if (!isSpx && isPut && isSTO) {
             strategyHistory.csps++;
@@ -1057,9 +1061,12 @@ Answer concisely and specifically. Stay conservative — capital preservation fi
           if (!/[A-Z0-9]+\s*\d{6}[CP]\d+/.test(sym)) continue;
           const val = Math.abs(parseFloat(String(t.netValue || '0')));
           if (!val) continue;
-          const isCredit = parseFloat(String(t.value || '0')) > 0;
+          // Use action field for direction — value is always stored positive in DB
+          const act2 = (t.action || '').toLowerCase();
+          const isCredit = act2.startsWith('sell');
+          const isDebit2 = act2.startsWith('buy');
           if (isCredit) credits += val;
-          else debits += val;
+          else if (isDebit2) debits += val;
         }
         monthlyCollected = Math.round((credits - debits) * 100) / 100;
       } catch { /* non-fatal */ }

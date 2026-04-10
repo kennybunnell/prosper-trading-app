@@ -546,9 +546,15 @@ export function cachedTxnToWireFormat(txn: {
 }): Record<string, any> {
   const netVal = parseFloat(txn.netValue || txn.value || '0');
   const rawVal = parseFloat(txn.value || '0');
-  // Derive net-value-effect from the sign of the raw value
-  // Positive value = Credit (STO received money), Negative = Debit (BTC paid money)
-  const netValueEffect = rawVal >= 0 ? 'Credit' : 'Debit';
+  // Derive net-value-effect from the action field.
+  // The DB stores value as always-positive (absolute cash amount), so sign cannot be used.
+  // Sell to Open / Sell to Close = Credit (money received)
+  // Buy to Close / Buy to Open = Debit (money paid)
+  // Money Movement credits (dividends, interest) = Credit
+  const action = txn.action ?? '';
+  const isSell = action.toLowerCase().startsWith('sell') ||
+    txn.transactionType === 'Money Movement';
+  const netValueEffect = isSell ? 'Credit' : 'Debit';
 
   return {
     'transaction-type': txn.transactionType,

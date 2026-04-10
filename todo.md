@@ -9149,3 +9149,7 @@ ROC Fix Mar 18 2026
 - [x] Wire scheduler into server startup (index.ts)
 - [x] Add cachedPosToWireFormat and cachedTxnToWireFormat mappers for performance-utils compatibility
 - [x] Tenant isolation confirmed: all cache tables have user_id FK + WHERE user_id filter on every read
+
+## 🐛 Bug Fix: Value Inflation After Cache Migration (Apr 10 2026)
+- [ ] Fix 10x value inflation in monthly premium earnings chart (April shows $287K, should be ~$28K)
+- [ ] Audit all migrated procedures for incorrect value field usage in cachedTxnToWireFormat mapper
