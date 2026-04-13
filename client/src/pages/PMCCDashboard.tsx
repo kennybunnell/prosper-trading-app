@@ -143,6 +143,7 @@ export default function PMCCDashboard() {
   
   const [isScanning, setIsScanning] = useState(false);
   const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState(false);
+  const [watchlistMode, setWatchlistMode] = useState<'equity' | 'index'>('equity');
   const [scanStartTime, setScanStartTime] = useState<number | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
   const [selectedLeaps, setSelectedLeaps] = useState<Set<string>>(new Set());
@@ -169,16 +170,26 @@ export default function PMCCDashboard() {
   
   // Fetch selected watchlist symbols for filtering
   const { data: selectedSymbolsData = [] } = trpc.watchlist.getSelections.useQuery();
-  // Filter to only get equity symbols where isSelected === 1 (PMCC is equity-only, never indexes)
+  // Filter symbols based on current watchlist mode — equities OR indexes
   const selectedSymbols = useMemo(() => {
-    // Cross-reference with watchlist to exclude index tickers
-    const equitySymbols = new Set(
-      watchlist.filter((w: any) => !w.isIndex).map((w: any) => w.symbol)
-    );
-    return selectedSymbolsData
-      .filter((s: any) => s.isSelected === 1 && equitySymbols.has(s.symbol))
-      .map((s: any) => s.symbol);
-  }, [selectedSymbolsData, watchlist]);
+    if (watchlistMode === 'index') {
+      // Index mode: only include symbols marked as index
+      const indexSymbols = new Set(
+        watchlist.filter((w: any) => w.isIndex === true || w.isIndex === 1).map((w: any) => w.symbol)
+      );
+      return selectedSymbolsData
+        .filter((s: any) => s.isSelected === 1 && indexSymbols.has(s.symbol))
+        .map((s: any) => s.symbol);
+    } else {
+      // Equity mode: exclude index tickers
+      const equitySymbols = new Set(
+        watchlist.filter((w: any) => !w.isIndex).map((w: any) => w.symbol)
+      );
+      return selectedSymbolsData
+        .filter((s: any) => s.isSelected === 1 && equitySymbols.has(s.symbol))
+        .map((s: any) => s.symbol);
+    }
+  }, [selectedSymbolsData, watchlist, watchlistMode]);
   
   // Countdown timer effect
   useEffect(() => {
@@ -415,6 +426,8 @@ export default function PMCCDashboard() {
           <EnhancedWatchlist 
             isCollapsed={isWatchlistCollapsed}
             onToggleCollapse={() => setIsWatchlistCollapsed(!isWatchlistCollapsed)}
+            contextMode={watchlistMode}
+            onContextModeChange={setWatchlistMode}
           />
         </div>
 

@@ -9166,3 +9166,5 @@ ROC Fix Mar 18 2026
 - [x] Added strike price horizontal line to IndexChart (Lightweight Charts) and distance bar to equity (TradingView) chart panels
 - [x] Fixed SPY CC roll failing in IRA account (5WZ80418) — Traditional IRA cannot submit 2-leg roll orders; implemented automatic split into sequential BTC + STO orders for IRA accounts
 - [x] Fix UBER order replacement failing — UBER was incorrectly in Penny Pilot list; removed UBER/LYFT/ABNB/DASH/SNAP/PINS/SPOT/HOOD/COIN/ORCL/WDAY/SAP; added $0.05 auto-retry in cancelReplaceOrder
+- [ ] Fix NEM (and potentially other symbols) incorrectly showing as CC-eligible without 100 owned shares — eligibility check is not properly requiring owned stock positions
+- [x] Fix PMCC LEAP scanner not recognizing selected index symbols — watchlistMode state now wired from EnhancedWatchlist to PMCCDashboard; selectedSymbols now includes index symbols when in index mode
