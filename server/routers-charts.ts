@@ -15,6 +15,8 @@ import { TradierAPI } from './tradier';
 import { getApiCredentials } from './db';
 
 // Map from option root / display symbol → Tradier-quotable underlying
+// NOTE: Tradier's /markets/history does NOT support RUT or MRUT directly (returns null).
+// We use IWM (iShares Russell 2000 ETF) as a proxy — it tracks RUT with >0.99 correlation.
 const INDEX_UNDERLYING_MAP: Record<string, string> = {
   SPXW:  'SPX',
   SPX:   'SPX',
@@ -23,8 +25,8 @@ const INDEX_UNDERLYING_MAP: Record<string, string> = {
   NDX:   'NDX',
   NDXP:  'NDX',
   XND:   'XND',
-  RUT:   'RUT',
-  MRUT:  'RUT',
+  RUT:   'IWM',   // Tradier does not support RUT history; IWM is the Russell 2000 ETF proxy
+  MRUT:  'IWM',   // Same proxy for mini-Russell
   DJX:   'DJX',
   VIX:   'VIX',
   VIXW:  'VIX',

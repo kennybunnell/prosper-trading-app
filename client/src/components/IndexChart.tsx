@@ -31,8 +31,8 @@ const INDEX_DISPLAY_NAMES: Record<string, string> = {
   SPX:  'S&P 500 (SPX)',
   NDXP: 'Nasdaq-100 Weekly (NDXP)',
   NDX:  'Nasdaq-100 (NDX)',
-  MRUT: 'Russell 2000 Mini (MRUT)',
-  RUT:  'Russell 2000 (RUT)',
+  MRUT: 'Russell 2000 Mini — via IWM',
+  RUT:  'Russell 2000 — via IWM',
   VIX:  'CBOE VIX',
   DJX:  'Dow Jones (DJX)',
   XSP:  'Mini-SPX (XSP)',
@@ -257,6 +257,7 @@ export function IndexChart({ symbol }: IndexChartProps) {
 
   // ── Render ────────────────────────────────────────────────────────────────
   const displayName = INDEX_DISPLAY_NAMES[symbol.toUpperCase()] ?? symbol.toUpperCase();
+  const isRutProxy = ['RUT', 'MRUT'].includes(symbol.toUpperCase());
 
   if (isLoading) {
     return (
@@ -345,7 +346,7 @@ export function IndexChart({ symbol }: IndexChartProps) {
           <span className="w-3 h-px bg-slate-400 inline-block border-dotted" /> SMA20
         </span>
         <span className="text-muted-foreground/40 text-xs ml-auto">
-          Data: Tradier · Chart: Lightweight Charts (MIT)
+          {isRutProxy ? 'Data: IWM proxy (Tradier) · Chart: Lightweight Charts (MIT)' : 'Data: Tradier · Chart: Lightweight Charts (MIT)'}
         </span>
       </div>
 
