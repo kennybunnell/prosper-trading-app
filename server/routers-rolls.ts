@@ -796,6 +796,32 @@ export const rollsRouter = router({
 
       const api = await authenticateTastytrade(credentials, ctx.user.id);
 
+      // ── Load account types so we can detect IRA accounts ────────────────────
+      // IRA accounts cannot submit 2-leg roll orders (BTC + STO simultaneously)
+      // because Tastytrade's risk engine evaluates the STO in isolation and
+      // rejects it as an uncovered call. For IRA CCs, we split into two
+      // sequential single-leg orders: BTC first, then STO.
+      const iraAccountNumbers = new Set<string>();
+      try {
+        const { tastytradeAccounts: ttAccts } = await import('../drizzle/schema.js');
+        const { eq: eqAcct } = await import('drizzle-orm');
+        const dbForAccts = await _getDb();
+        if (dbForAccts) {
+          const accts = await dbForAccts.select().from(ttAccts).where(eqAcct(ttAccts.userId, ctx.user.id));
+          for (const acct of accts) {
+            const t = (acct.accountType || '').toLowerCase();
+            if (t.includes('ira') || t.includes('roth') || t.includes('traditional') || t.includes('sep') || t.includes('simple')) {
+              iraAccountNumbers.add(acct.accountNumber);
+            }
+          }
+        }
+      } catch (_e) {
+        // If we can't load account types, proceed without IRA split (non-fatal)
+        console.warn('[Roll] Could not load account types for IRA detection:', _e);
+      }
+      console.log('[Roll] IRA accounts detected:', Array.from(iraAccountNumbers));
+      // ────────────────────────────────────────────────────────────────────────
+
       const results: Array<{
         symbol: string;
         accountNumber: string;
@@ -992,6 +1018,96 @@ export const rollsRouter = router({
             priceEffect,
             legs,
           };
+
+          // ── IRA Split-Order Logic ─────────────────────────────────────────
+          // For CC rolls in IRA accounts: submit BTC and STO as separate orders
+          // so Tastytrade evaluates each leg independently (IRA cannot do 2-leg rolls).
+          const isIraAccount = iraAccountNumbers.has(order.accountNumber);
+          const isCCRoll = order.strategyType === 'CC' && order.action === 'roll' && legs.length === 2;
+          const shouldSplitForIra = isIraAccount && isCCRoll;
+
+          if (shouldSplitForIra) {
+            console.log(`[Roll] IRA account ${order.accountNumber} — splitting CC roll into 2 sequential orders for ${order.symbol}`);
+            const btcLeg = legs.find(l => l.action === 'Buy to Close')!;
+            const stoLeg = legs.find(l => l.action === 'Sell to Open')!;
+
+            if (input.dryRun) {
+              // Dry-run both legs
+              await api.dryRunOrder({ ...orderRequest, legs: [btcLeg], price: (parseFloat(price) / 2).toFixed(2), priceEffect: 'Debit' });
+              await api.dryRunOrder({ ...orderRequest, legs: [stoLeg], price: (parseFloat(price) / 2).toFixed(2), priceEffect: 'Credit' });
+              results.push({
+                symbol: order.symbol,
+                accountNumber: order.accountNumber,
+                strategyType: order.strategyType,
+                action: order.action,
+                success: true,
+                orderId: `dry-run-ira-split-${order.symbol}-${order.strategyType}`,
+                dryRun: true,
+                legCount: 2,
+              });
+            } else {
+              // Step 1: BTC — use current mark as the limit price for the close leg
+              // currentValue is the total dollar value (e.g. 3739.5 = $37.395/share)
+              const btcPriceNum = order.currentValue !== undefined
+                ? Math.abs(order.currentValue) / 100
+                : parseFloat(price);
+              const btcPrice = btcPriceNum.toFixed(2);
+              const btcOrder = await api.submitOrder({
+                accountNumber: order.accountNumber,
+                timeInForce: 'Day',
+                orderType: 'Limit',
+                price: btcPrice,
+                priceEffect: 'Debit',
+                legs: [btcLeg],
+              });
+              console.log(`[Roll] IRA BTC submitted for ${order.symbol}: orderId=${btcOrder.id}, price=${btcPrice}`);
+
+              // Step 2: STO — derive STO price from BTC price + net credit per share
+              // STO price = BTC price + (limitPrice or netCredit/100)
+              // This ensures the STO captures the same net credit as the combined roll
+              const netCreditPerShare = order.limitPrice !== undefined
+                ? order.limitPrice
+                : (order.netCredit !== undefined ? order.netCredit / 100 : 0);
+              const stoPriceNum = Math.max(0.01, btcPriceNum + netCreditPerShare);
+              const stoPrice = stoPriceNum.toFixed(2);
+              const stoOrder = await api.submitOrder({
+                accountNumber: order.accountNumber,
+                timeInForce: 'Day',
+                orderType: 'Limit',
+                price: stoPrice,
+                priceEffect: 'Credit',
+                legs: [stoLeg],
+              });
+              console.log(`[Roll] IRA STO submitted for ${order.symbol}: orderId=${stoOrder.id}`);
+
+              results.push({
+                symbol: order.symbol,
+                accountNumber: order.accountNumber,
+                strategyType: order.strategyType,
+                action: order.action,
+                success: true,
+                orderId: `${btcOrder.id},${stoOrder.id}`,
+                dryRun: false,
+                legCount: 2,
+              });
+              if (order.positionId) {
+                const { recordSubmittedRoll } = await import('./db');
+                await recordSubmittedRoll({
+                  userId: ctx.user.id,
+                  accountId: order.accountNumber,
+                  positionId: order.positionId,
+                  symbol: order.symbol,
+                  strategy: order.strategyType.toLowerCase(),
+                  orderId: `${btcOrder.id},${stoOrder.id}`,
+                  newExpiration: order.newExpiration,
+                  newStrike: order.newStrike !== undefined ? String(order.newStrike) : undefined,
+                  netCredit: order.netCredit !== undefined ? String(order.netCredit) : undefined,
+                });
+              }
+            }
+            continue; // Skip the standard order submission below
+          }
+          // ─────────────────────────────────────────────────────────────────────
 
           if (input.dryRun) {
             await api.dryRunOrder(orderRequest);

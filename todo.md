@@ -9158,3 +9158,10 @@ ROC Fix Mar 18 2026
 - [x] Fixed false "Pending STO" badge on CC Dashboard — working order loops now filter by active status (Received/Routed/Live/Working/Pending only). The /orders/live endpoint can return Contingent, Cancelled, and Filled orders that haven't been purged; these were being counted as live pending orders and reducing available contracts incorrectly.
 - [x] Fixed RUT/MRUT chart showing "No data available" — Tradier's /markets/history does not support RUT as a direct symbol (returns null). Mapped RUT and MRUT to IWM (iShares Russell 2000 ETF, >0.99 correlation) as a proxy. Chart label updated to "Russell 2000 — via IWM" and footer shows "Data: IWM proxy (Tradier)".
 - [x] Add horizontal strike price line to both TradingView equity chart and Lightweight Charts index chart panels
+- [ ] Fix SPY roll failures — investigate logs and root cause
+
+## Bug Fixes (Apr 13, 2026 — Session 2)
+- [x] Fixed false "Pending STO" badge on TSLA — stale/cancelled orders were being counted as working orders; added active-status filter to CC eligible positions procedure
+- [x] Fixed RUT/MRUT chart showing "No data available" — Tradier does not support RUT history; mapped to IWM proxy with label
+- [x] Added strike price horizontal line to IndexChart (Lightweight Charts) and distance bar to equity (TradingView) chart panels
+- [x] Fixed SPY CC roll failing in IRA account (5WZ80418) — Traditional IRA cannot submit 2-leg roll orders; implemented automatic split into sequential BTC + STO orders for IRA accounts
