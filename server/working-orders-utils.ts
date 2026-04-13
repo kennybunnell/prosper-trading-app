@@ -37,9 +37,10 @@ const PENNY_PILOT_SYMBOLS = new Set([
   'XOM', 'CVX', 'COP', 'OXY', 'SLB', 'HAL',
   'BA', 'CAT', 'DE', 'HON', 'LMT', 'RTX', 'GE', 'MMM',
   'COST', 'WMT', 'TGT', 'HD', 'LOW', 'AMZN',
-  'UBER', 'LYFT', 'ABNB', 'DASH', 'SNAP', 'PINS', 'TWTR', 'SPOT',
-  'CRM', 'ORCL', 'SAP', 'NOW', 'WDAY', 'ADBE', 'INTU',
-  'HOOD', 'COIN', 'MSTR', 'RIOT', 'MARA', 'IREN',
+  // Note: UBER, LYFT, ABNB, DASH, SNAP, PINS, SPOT are NOT in Penny Pilot — removed
+  // Note: HOOD, COIN, MSTR, RIOT, MARA, IREN are NOT in Penny Pilot — removed
+  // Note: ORCL, SAP, WDAY are NOT in Penny Pilot — removed
+  'CRM', 'NOW', 'ADBE', 'INTU',  // confirmed Penny Pilot SaaS names
   // Index options (always penny)
   'SPX', 'NDX', 'RUT', 'VIX',
 ]);

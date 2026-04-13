@@ -818,7 +818,23 @@ export class TastytradeAPI {
       console.log(`[Tastytrade] New order payload:`, JSON.stringify(newOrderPayload, null, 2));
       
       // Step 3: Submit the new order
-      const newOrder = await this.submitOrder(newOrderPayload);
+      let newOrder;
+      try {
+        newOrder = await this.submitOrder(newOrderPayload);
+      } catch (submitError: any) {
+        const submitMsg = submitError.response?.data?.error?.message || submitError.message || '';
+        // Auto-retry: if Tastytrade rejects due to $0.05 increment requirement,
+        // snap the price to the nearest $0.05 and retry once.
+        if (submitMsg.toLowerCase().includes('increments of $0.05') || submitMsg.toLowerCase().includes('increment')) {
+          const snappedNickel = Math.round(newPrice * 20) / 20;
+          console.warn(`[Tastytrade] Price $${newPrice.toFixed(2)} rejected for $0.05 increment — auto-retrying with $${snappedNickel.toFixed(2)}`);
+          newOrderPayload.price = snappedNickel.toFixed(2);
+          newOrder = await this.submitOrder(newOrderPayload);
+          console.log(`[Tastytrade] Retry succeeded with snapped price $${snappedNickel.toFixed(2)}`);
+        } else {
+          throw submitError;
+        }
+      }
       
       console.log(`[Tastytrade] New order submitted successfully. Order ID: ${newOrder.id}, Status: ${newOrder.status}`);
       

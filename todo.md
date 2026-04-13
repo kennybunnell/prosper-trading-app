@@ -9165,3 +9165,4 @@ ROC Fix Mar 18 2026
 - [x] Fixed RUT/MRUT chart showing "No data available" — Tradier does not support RUT history; mapped to IWM proxy with label
 - [x] Added strike price horizontal line to IndexChart (Lightweight Charts) and distance bar to equity (TradingView) chart panels
 - [x] Fixed SPY CC roll failing in IRA account (5WZ80418) — Traditional IRA cannot submit 2-leg roll orders; implemented automatic split into sequential BTC + STO orders for IRA accounts
+- [x] Fix UBER order replacement failing — UBER was incorrectly in Penny Pilot list; removed UBER/LYFT/ABNB/DASH/SNAP/PINS/SPOT/HOOD/COIN/ORCL/WDAY/SAP; added $0.05 auto-retry in cancelReplaceOrder
