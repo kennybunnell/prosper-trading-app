@@ -843,6 +843,9 @@ export default function PMCCDashboard() {
                               {sortColumn === 'volume' && (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                             </div>
                           </th>
+                          <th className="p-2 text-center">Earnings</th>
+                          <th className="p-2 text-right">Extrinsic%</th>
+                          <th className="p-2 text-right">Mos. Recover</th>
                           <th className="p-2 text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('score')}>
                             <div className="flex items-center justify-end gap-1">
                               Score
@@ -876,6 +879,44 @@ export default function PMCCDashboard() {
                               <td className="p-2 text-right">{leap.bidAskSpread.toFixed(2)}%</td>
                               <td className="p-2 text-right">{leap.openInterest.toLocaleString()}</td>
                               <td className="p-2 text-right">{leap.volume.toLocaleString()}</td>
+                              {/* Earnings warning */}
+                              <td className="p-2 text-center">
+                                {leap.earningsWarning ? (
+                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-red-400 bg-red-900/30 px-1.5 py-0.5 rounded" title={`Earnings in ${leap.daysToEarnings} days (${leap.earningsDate})`}>
+                                    ⚠ {leap.daysToEarnings}d
+                                  </span>
+                                ) : leap.daysToEarnings !== null && leap.daysToEarnings !== undefined && leap.daysToEarnings <= 45 ? (
+                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded" title={`Earnings in ${leap.daysToEarnings} days (${leap.earningsDate})`}>
+                                    {leap.daysToEarnings}d
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">{leap.daysToEarnings !== null && leap.daysToEarnings !== undefined ? `${leap.daysToEarnings}d` : '—'}</span>
+                                )}
+                              </td>
+                              {/* Extrinsic % */}
+                              <td className="p-2 text-right">
+                                {leap.extrinsicPercent !== undefined ? (
+                                  <span className={`text-xs font-medium ${
+                                    leap.extrinsicWarning ? 'text-red-400' :
+                                    leap.extrinsicPercent > 15 ? 'text-amber-400' :
+                                    'text-green-400'
+                                  }`}>
+                                    {leap.extrinsicPercent.toFixed(1)}%
+                                  </span>
+                                ) : '—'}
+                              </td>
+                              {/* Months to Recover */}
+                              <td className="p-2 text-right">
+                                {leap.monthsToRecover !== null && leap.monthsToRecover !== undefined ? (
+                                  <span className={`text-xs font-medium ${
+                                    leap.monthsToRecover <= 12 ? 'text-green-400' :
+                                    leap.monthsToRecover <= 18 ? 'text-amber-400' :
+                                    'text-red-400'
+                                  }`}>
+                                    {leap.monthsToRecover.toFixed(1)}
+                                  </span>
+                                ) : '—'}
+                              </td>
                               <td className="p-2 text-right">
                                 <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full font-bold ${
                                   leap.score >= 80 ? 'bg-green-900/50 text-green-400' :

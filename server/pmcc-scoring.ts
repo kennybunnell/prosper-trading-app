@@ -2,11 +2,16 @@
  * PMCC (Poor Man's Covered Call) Scoring System - Phase 1: LEAP Purchase
  * Evaluates LEAP options as synthetic stock positions
  * 
- * Scoring Criteria (100 points total):
+ * Scoring Criteria (100 points total, with penalties):
  * - Stock Quality & Growth (35 pts): RSI, BB %B, Price Trend
  * - LEAP Structure (30 pts): Delta, DTE, Strike positioning
  * - Cost & Liquidity (25 pts): Premium efficiency, OI, Volume, Spread
  * - Risk Management (10 pts): IV Rank, Theta decay
+ * 
+ * Penalties (applied after scoring):
+ * - Earnings within 30 days: -15 pts (earnings warning)
+ * - Extrinsic value > 20% of premium: -10 pts (paying too much time value)
+ * - Short call strike rule violated (no room above LEAP strike): -20 pts
  */
 
 import { LeapOpportunity } from './routers-pmcc';
@@ -16,7 +21,10 @@ export interface PMCCScoreBreakdown {
   leapStructure: number;   // Delta + DTE + Strike (30 points)
   costLiquidity: number;   // Premium + OI + Volume + Spread (25 points)
   riskManagement: number;  // IV Rank + Theta (10 points)
-  total: number;           // Sum of all (0-100)
+  earningsPenalty: number; // Penalty for earnings within 30 days (-15)
+  extrinsicPenalty: number; // Penalty for high extrinsic value (-10)
+  strikeRulePenalty: number; // Penalty for short call strike rule violation (-20)
+  total: number;           // Sum of all after penalties (0-100)
 }
 
 export interface PMCCScoredOpportunity extends LeapOpportunity {
@@ -240,8 +248,41 @@ export function calculatePMCCScore(leap: LeapOpportunity): { score: number; brea
     riskManagementScore += 2; // Neutral if no data
   }
 
+  // ===== PENALTIES =====
+
+  // Earnings within 30 days: -15 points (IV crush risk)
+  let earningsPenalty = 0;
+  if (leap.earningsWarning) {
+    earningsPenalty = -15;
+  } else if (leap.daysToEarnings !== null && leap.daysToEarnings >= 0 && leap.daysToEarnings <= 45) {
+    earningsPenalty = -7; // Caution zone: 31-45 days to earnings
+  }
+
+  // Extrinsic value > 20% of premium: -10 points (paying too much time value)
+  let extrinsicPenalty = 0;
+  if (leap.extrinsicWarning) {
+    if (leap.extrinsicPercent > 35) {
+      extrinsicPenalty = -10; // Severe: > 35% extrinsic
+    } else if (leap.extrinsicPercent > 25) {
+      extrinsicPenalty = -7;  // Moderate: 25-35% extrinsic
+    } else {
+      extrinsicPenalty = -4;  // Mild: 20-25% extrinsic
+    }
+  }
+
+  // Short call strike rule: LEAP strike must leave room above for short calls
+  // If LEAP strike is >= 95% of current price, there's almost no room for short calls
+  let strikeRulePenalty = 0;
+  const strikeToCurrentPrice = leap.strike / leap.currentPrice;
+  if (strikeToCurrentPrice >= 0.98) {
+    strikeRulePenalty = -20; // Critical: LEAP strike is at or above current price — no room for short calls
+  } else if (strikeToCurrentPrice >= 0.95) {
+    strikeRulePenalty = -10; // Warning: very little room for short calls above LEAP strike
+  }
+
   // ===== CALCULATE TOTAL =====
-  const totalScore = stockQualityScore + leapStructureScore + costLiquidityScore + riskManagementScore;
+  const rawScore = stockQualityScore + leapStructureScore + costLiquidityScore + riskManagementScore;
+  const totalScore = Math.max(0, rawScore + earningsPenalty + extrinsicPenalty + strikeRulePenalty);
 
   return {
     score: Math.round(totalScore),
@@ -250,6 +291,9 @@ export function calculatePMCCScore(leap: LeapOpportunity): { score: number; brea
       leapStructure: Math.round(leapStructureScore),
       costLiquidity: Math.round(costLiquidityScore),
       riskManagement: Math.round(riskManagementScore),
+      earningsPenalty: Math.round(earningsPenalty),
+      extrinsicPenalty: Math.round(extrinsicPenalty),
+      strikeRulePenalty: Math.round(strikeRulePenalty),
       total: Math.round(totalScore),
     },
   };

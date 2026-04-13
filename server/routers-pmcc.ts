@@ -30,6 +30,15 @@ export type LeapOpportunity = {
   ivRank: number | null;
   bbPercent: number | null;
   score: number;
+  // New criteria fields
+  earningsDate: string | null;       // Next earnings date (YYYY-MM-DD)
+  daysToEarnings: number | null;     // Days until next earnings
+  earningsWarning: boolean;          // true if earnings within 30 days
+  extrinsicValue: number;            // Extrinsic (time) value of the LEAP
+  extrinsicPercent: number;          // Extrinsic as % of total premium
+  extrinsicWarning: boolean;         // true if extrinsic > 20% of premium
+  shortCallStrikeMin: number;        // Minimum valid short call strike (must be > LEAP strike)
+  monthsToRecover: number | null;    // Estimated months to recover LEAP cost via short calls
 };
 
 export const pmccRouter = router({
@@ -108,6 +117,15 @@ export const pmccRouter = router({
 
       console.log(`[PMCC] Scanning ${symbols.length} symbols for LEAP opportunities with ${input.presetName} preset`);
 
+      // Fetch earnings calendar for all symbols upfront (batch call)
+      let earningsMap = new Map<string, string>();
+      try {
+        earningsMap = await api.getEarningsCalendar(symbols);
+        console.log(`[PMCC] Fetched earnings dates for ${earningsMap.size} symbols`);
+      } catch (e) {
+        console.warn('[PMCC] Could not fetch earnings calendar, skipping earnings check');
+      }
+
       // Parallel processing with 10 concurrent workers (Tradier rate limit: 120 req/min)
       const CONCURRENT_WORKERS = 10;
       const allOpportunities: LeapOpportunity[] = [];
@@ -170,6 +188,32 @@ export const pmccRouter = router({
                     // Import new scoring system
                     const { calculatePMCCScore } = await import('./pmcc-scoring');
                     
+                    // --- Earnings avoidance ---
+                    const earningsDateStr = earningsMap.get(symbol) || null;
+                    const daysToEarnings = earningsDateStr
+                      ? Math.ceil((new Date(earningsDateStr).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+                      : null;
+                    const earningsWarning = daysToEarnings !== null && daysToEarnings >= 0 && daysToEarnings <= 30;
+
+                    // --- Extrinsic value check ---
+                    const mid = (call.bid + call.ask) / 2;
+                    const intrinsic = Math.max(0, currentPrice - call.strike);
+                    const extrinsicValue = Math.max(0, mid - intrinsic);
+                    const extrinsicPercent = mid > 0 ? (extrinsicValue / mid) * 100 : 0;
+                    const extrinsicWarning = extrinsicPercent > 20;
+
+                    // --- Short call strike rule ---
+                    // Short call strike must ALWAYS be above LEAP strike
+                    const shortCallStrikeMin = call.strike + 0.50; // At least $0.50 above LEAP strike
+
+                    // --- Months to recover estimate ---
+                    // Estimate based on typical short call premium at 30 DTE, 0.30 delta
+                    // Rough estimate: ~1.5% of stock price per month in short call premium
+                    const estimatedMonthlyPremium = currentPrice * 0.015;
+                    const monthsToRecover = estimatedMonthlyPremium > 0
+                      ? Math.ceil(mid / estimatedMonthlyPremium)
+                      : null;
+
                     // Build LEAP opportunity object for scoring
                     const leapOpp: LeapOpportunity = {
                       symbol,
@@ -193,6 +237,15 @@ export const pmccRouter = router({
                       ivRank: indicators.ivRank,
                       bbPercent: indicators.bollingerBands?.percentB || null,
                       score: 0, // Will be calculated next
+                      // New criteria fields
+                      earningsDate: earningsDateStr,
+                      daysToEarnings,
+                      earningsWarning,
+                      extrinsicValue,
+                      extrinsicPercent,
+                      extrinsicWarning,
+                      shortCallStrikeMin,
+                      monthsToRecover,
                     };
                     
                     // Calculate score using new PMCC scoring system
@@ -561,6 +614,15 @@ export const pmccRouter = router({
           ivRank: z.number().nullable(),
           bbPercent: z.number().nullable(),
           score: z.number(),
+          // New criteria fields (optional for backward compat)
+          earningsDate: z.string().nullable().optional(),
+          daysToEarnings: z.number().nullable().optional(),
+          earningsWarning: z.boolean().optional(),
+          extrinsicValue: z.number().optional(),
+          extrinsicPercent: z.number().optional(),
+          extrinsicWarning: z.boolean().optional(),
+          shortCallStrikeMin: z.number().optional(),
+          monthsToRecover: z.number().nullable().optional(),
         }),
       })
     )
@@ -573,10 +635,22 @@ export const pmccRouter = router({
       const symbolCtx = await getSymbolContext(ctx.user.id, input.leap.symbol, input.leap.currentPrice);
 
       // Recalculate score to get breakdown
-      const { score, breakdown } = calculatePMCCScore(input.leap);
+      // Provide defaults for new criteria fields (optional in Zod schema for backward compat)
+      const leapWithDefaults = {
+        ...input.leap,
+        earningsDate: input.leap.earningsDate ?? null,
+        daysToEarnings: input.leap.daysToEarnings ?? null,
+        earningsWarning: input.leap.earningsWarning ?? false,
+        extrinsicValue: input.leap.extrinsicValue ?? 0,
+        extrinsicPercent: input.leap.extrinsicPercent ?? 0,
+        extrinsicWarning: input.leap.extrinsicWarning ?? false,
+        shortCallStrikeMin: input.leap.shortCallStrikeMin ?? (input.leap.strike + 0.50),
+        monthsToRecover: input.leap.monthsToRecover ?? null,
+      };
+      const { score, breakdown } = calculatePMCCScore(leapWithDefaults);
 
       // Generate detailed explanation using scoring breakdown
-      const technicalExplanation = explainPMCCScore(input.leap, breakdown);
+      const technicalExplanation = explainPMCCScore(leapWithDefaults, breakdown);
 
       // Use AI to provide conversational explanation with company context and portfolio history
       const response = await invokeLLM({
