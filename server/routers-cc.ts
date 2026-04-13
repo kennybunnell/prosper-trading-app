@@ -134,8 +134,17 @@ export const ccRouter = router({
       }
 
       // Identify short calls in WORKING ORDERS (pending, not yet filled)
+      // IMPORTANT: Filter to only truly active statuses — /orders/live can return Contingent,
+      // Cancelled, Filled, and Rejected orders that have not yet been purged from the feed.
+      const ACTIVE_ORDER_STATUSES = new Set(['received', 'routed', 'live', 'working', 'pending']);
       const workingShortCalls: Record<string, { contracts: number; details: any[] }> = {};
       for (const order of workingOrders) {
+        // Skip any order that is not in a genuinely active/pending state
+        const orderStatus = ((order as any).status || '').toLowerCase();
+        if (!ACTIVE_ORDER_STATUSES.has(orderStatus)) {
+          console.log(`[CC getEligible single] Skipping order ${(order as any).id} with status=${orderStatus}`);
+          continue;
+        }
         // Check if order has legs (multi-leg orders)
         const legs = (order as any).legs || [];
         for (const leg of legs) {
@@ -368,7 +377,15 @@ export const ccRouter = router({
         }
 
         // Accumulate short calls from working orders
+        // IMPORTANT: Filter to only truly active statuses — /orders/live can return Contingent,
+        // Cancelled, Filled, and Rejected orders that have not yet been purged from the feed.
+        const ACTIVE_ORDER_STATUSES_ALL = new Set(['received', 'routed', 'live', 'working', 'pending']);
         for (const order of workingOrders) {
+          const orderStatus = ((order as any).status || '').toLowerCase();
+          if (!ACTIVE_ORDER_STATUSES_ALL.has(orderStatus)) {
+            console.log(`[CC getEligible all] Skipping order ${(order as any).id} with status=${orderStatus} for ${acctNum}`);
+            continue;
+          }
           for (const leg of ((order as any).legs || [])) {
             if (leg.action === 'Sell to Open' &&
                 (leg['instrument-type'] === 'Equity Option' || leg['instrument-type'] === 'Index Option') &&

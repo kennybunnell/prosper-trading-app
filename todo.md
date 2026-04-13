@@ -9153,3 +9153,6 @@ ROC Fix Mar 18 2026
 ## 🐛 Bug Fix: Value Inflation After Cache Migration (Apr 10 2026)
 - [ ] Fix 10x value inflation in monthly premium earnings chart (April shows $287K, should be ~$28K)
 - [ ] Audit all migrated procedures for incorrect value field usage in cachedTxnToWireFormat mapper
+
+## Bug Fixes (Apr 13, 2026)
+- [x] Fixed false "Pending STO" badge on CC Dashboard — working order loops now filter by active status (Received/Routed/Live/Working/Pending only). The /orders/live endpoint can return Contingent, Cancelled, and Filled orders that haven't been purged; these were being counted as live pending orders and reducing available contracts incorrectly.
