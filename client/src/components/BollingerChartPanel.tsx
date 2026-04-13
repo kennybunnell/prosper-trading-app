@@ -240,10 +240,53 @@ export function BollingerChartPanel({ symbol, strikePrice, currentPrice, onClose
         </div>
       </div>
 
+      {/* Strike distance bar — only for equity (TradingView) charts when both prices are known */}
+      {!isIndex && strikePrice && currentPrice && (() => {
+        const isOTM = currentPrice < strikePrice;
+        const pctDiff = Math.abs((strikePrice - currentPrice) / currentPrice * 100);
+        // Clamp bar fill to 0–40% range for visual clarity
+        const barPct = Math.min(pctDiff / 40 * 100, 100);
+        return (
+          <div className="px-4 py-2 border-b border-slate-700/40 bg-[#0a0d13] shrink-0">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-slate-400 font-medium">Distance to Strike</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-cyan-300">${currentPrice.toFixed(2)} current</span>
+                <span className="text-slate-600 text-xs">→</span>
+                <span className="text-xs font-mono text-amber-300">${strikePrice.toFixed(2)} strike</span>
+                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                  isOTM ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
+                }`}>
+                  {isOTM ? '▲' : '▼'} {pctDiff.toFixed(2)}% {isOTM ? 'OTM' : 'ITM'}
+                </span>
+                <span className="text-xs font-mono text-slate-400">
+                  ${Math.abs(strikePrice - currentPrice).toFixed(2)} gap
+                </span>
+              </div>
+            </div>
+            <div className="relative h-2 bg-slate-800 rounded-full overflow-hidden">
+              {/* Filled portion representing distance */}
+              <div
+                className={`absolute left-0 top-0 h-full rounded-full transition-all duration-500 ${
+                  isOTM ? 'bg-emerald-500/70' : 'bg-red-500/70'
+                }`}
+                style={{ width: `${barPct}%` }}
+              />
+              {/* Current price marker */}
+              <div className="absolute left-0 top-0 h-full w-0.5 bg-cyan-400" />
+            </div>
+            <div className="flex justify-between mt-0.5">
+              <span className="text-[10px] text-slate-600">Current</span>
+              <span className="text-[10px] text-slate-600">Strike at {pctDiff.toFixed(1)}% {isOTM ? 'above' : 'below'}</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Chart — fills remaining height */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {isIndex
-          ? <IndexChart symbol={symbol} />
+          ? <IndexChart symbol={symbol} strikePrice={strikePrice} />
           : <EquityAdvancedChart tvSymbol={tvSymbol} />
         }
       </div>

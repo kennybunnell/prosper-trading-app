@@ -57,6 +57,8 @@ const THEME = {
 
 interface IndexChartProps {
   symbol: string;
+  /** Optional strike price — draws a dashed horizontal line on the main chart */
+  strikePrice?: number;
 }
 
 type Interval = 'daily' | 'weekly' | 'monthly';
@@ -69,7 +71,7 @@ const RANGE_OPTIONS: { label: string; days: Days; interval: Interval }[] = [
   { label: '2Y',  days: 730, interval: 'weekly' },
 ];
 
-export function IndexChart({ symbol }: IndexChartProps) {
+export function IndexChart({ symbol, strikePrice }: IndexChartProps) {
   const [range, setRange] = useState<{ days: Days; interval: Interval }>({ days: 365, interval: 'daily' });
 
   const { data, isLoading, isError, error, refetch } = trpc.charts.getIndexOHLC.useQuery(
@@ -164,6 +166,31 @@ export function IndexChart({ symbol }: IndexChartProps) {
     });
     bbLower.setData(candles.filter(c => c.bb).map(c => ({ time: c.time as any, value: c.bb!.lower })));
 
+    // ── Strike price line ────────────────────────────────────────────────────
+    if (strikePrice && strikePrice > 0) {
+      const strikeLine = mainChart.addSeries(LineSeries, {
+        color: 'rgba(251, 191, 36, 0.9)',  // amber-400
+        lineWidth: 2,
+        lineStyle: LineStyle.Dashed,
+        priceLineVisible: true,
+        lastValueVisible: true,
+        title: `Strike $${strikePrice.toFixed(2)}`,
+      });
+      strikeLine.setData([
+        { time: candles[0].time as any,                  value: strikePrice },
+        { time: candles[candles.length - 1].time as any, value: strikePrice },
+      ]);
+      // Also add a permanent price line so the label stays pinned to the right axis
+      strikeLine.createPriceLine({
+        price: strikePrice,
+        color: 'rgba(251, 191, 36, 0.9)',
+        lineWidth: 2,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `Strike`,
+      });
+    }
+
     mainChart.timeScale().fitContent();
 
     // ── RSI chart ─────────────────────────────────────────────────────────────
@@ -253,7 +280,7 @@ export function IndexChart({ symbol }: IndexChartProps) {
       ro.disconnect();
       destroyCharts();
     };
-  }, [data, destroyCharts]);
+  }, [data, destroyCharts, strikePrice]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   const displayName = INDEX_DISPLAY_NAMES[symbol.toUpperCase()] ?? symbol.toUpperCase();
