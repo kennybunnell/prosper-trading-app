@@ -3640,8 +3640,8 @@ export default function AutomationDashboard() {
                                         <button
                                           title={
                                             ['BPS','BCS','IC'].includes(pos.strategy)
-                                              ? `${pos.strategy} spread is ITM — loss is capped. Click to open close order.`
-                                              : 'ITM with ≤5 DTE — click to open close order'
+                                              ? `${pos.strategy} spread is ITM — loss is capped. Click to close immediately, or expand the row ↓ to pick a roll candidate instead.`
+                                              : 'Recommended: close. Click to open BTC order — or expand the row ↓ to pick a roll candidate if you prefer to roll for credit.'
                                           }
                                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600/25 text-red-300 text-[10px] font-bold tracking-wide hover:bg-red-600/40 hover:text-red-200 transition-colors cursor-pointer"
                                           onClick={e => { e.stopPropagation(); handleOpenRollPositionClose(pos); }}
@@ -3658,7 +3658,7 @@ export default function AutomationDashboard() {
                                       )}
                                       {(pos as any).actionLabel === 'STOP' && (
                                         <button
-                                          title={`2x STOP-LOSS: Cost to close is ${(pos as any).stopLossRatio || '2'}x the original credit. Click to open close order immediately.`}
+                                          title={`2x STOP-LOSS: Cost to close is ${(pos as any).stopLossRatio || '2'}x the original credit. Click to close immediately — or expand the row ↓ to pick a roll candidate if you want to roll instead.`}
                                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600/25 text-red-400 text-[10px] font-bold tracking-wide animate-pulse hover:bg-red-600/40 hover:text-red-300 transition-colors cursor-pointer"
                                           onClick={e => { e.stopPropagation(); handleOpenRollPositionClose(pos); }}
                                         >⛔ 2X STOP</button>
@@ -3990,10 +3990,13 @@ export default function AutomationDashboard() {
                 const effectiveCount = effectiveSelected.length;
                 const rollCount = effectiveSelected.filter(k => rollCandidateSelections[k]?.action === 'roll').length;
                 const closeCount = effectiveSelected.filter(k => rollCandidateSelections[k]?.action === 'close').length;
-                // CLOSE/STOP rows that are CHECKED by the user (selected but no roll candidate = close-only)
+                // CLOSE/STOP rows that are CHECKED by the user AND have NO roll candidate selected
+                // (i.e. user wants a plain BTC close — not a roll)
+                // If a CLOSE/STOP row has a roll candidate selected, it flows into the Review & Submit path above
                 const checkedClosePositions = rollScanResults?.all.filter(pos => {
                   const al = (pos as any).actionLabel;
-                  return (al === 'CLOSE' || al === 'STOP') && selectedRollPositions.has(pos.positionId);
+                  const hasRollCandidateSelected = !!rollCandidateSelections[pos.positionId];
+                  return (al === 'CLOSE' || al === 'STOP') && selectedRollPositions.has(pos.positionId) && !hasRollCandidateSelected;
                 }) ?? [];
                 // All CLOSE/STOP positions visible (for the footer count hint)
                 const allClosePositions = rollScanResults?.all.filter(pos => {
@@ -4016,7 +4019,7 @@ export default function AutomationDashboard() {
                       )}
                       {checkedClosePositions.length > 0 && (
                         <span className="text-sm text-red-400 ml-2">
-                          {checkedClosePositions.length} of {allClosePositions.length} close-flagged position{checkedClosePositions.length !== 1 ? 's' : ''} selected
+                          {checkedClosePositions.length} BTC close{checkedClosePositions.length !== 1 ? 's' : ''} (no roll selected)
                         </span>
                       )}
                     </div>
@@ -4040,10 +4043,10 @@ export default function AutomationDashboard() {
                             handleOpenRollPositionClose(checkedClosePositions[0]);
                           }}
                           disabled={killSwitchActive}
-                          title={`Close ${checkedClosePositions.length} selected position${checkedClosePositions.length !== 1 ? 's' : ''}`}
+                          title={`BTC close ${checkedClosePositions.length} position${checkedClosePositions.length !== 1 ? 's' : ''} — no roll candidate selected. Expand the row and pick a roll candidate to roll instead.`}
                         >
                           <X className="h-4 w-4 mr-1" />
-                          Close Selected ({checkedClosePositions.length})
+                          BTC Close ({checkedClosePositions.length})
                         </Button>
                       )}
                       {effectiveCount > 0 && (

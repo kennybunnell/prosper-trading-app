@@ -9168,3 +9168,9 @@ ROC Fix Mar 18 2026
 - [x] Fix UBER order replacement failing — UBER was incorrectly in Penny Pilot list; removed UBER/LYFT/ABNB/DASH/SNAP/PINS/SPOT/HOOD/COIN/ORCL/WDAY/SAP; added $0.05 auto-retry in cancelReplaceOrder
 - [ ] Fix NEM (and potentially other symbols) incorrectly showing as CC-eligible without 100 owned shares — eligibility check is not properly requiring owned stock positions
 - [x] Fix PMCC LEAP scanner not recognizing selected index symbols — watchlistMode state now wired from EnhancedWatchlist to PMCCDashboard; selectedSymbols now includes index symbols when in index mode
+
+## Roll/Close Action Bar — Remove Prescriptive Close-Only Constraint
+- [x] Allow CLOSE/STOP-labeled positions to also show roll candidates when expanded
+- [x] Update action bar so CLOSE-labeled positions with a selected roll candidate use the "Review & Submit Orders" path (not just "Close Selected")
+- [x] Change "Close Selected" button to only appear for positions where user explicitly chose close (no roll candidate selected)
+- [x] Add "Roll Selected" option for CLOSE/STOP positions that have a roll candidate selected
