@@ -208,15 +208,14 @@ export function UnifiedOrderPreviewModal({
   // Auto-corrected OCC symbols: key = original optionSymbol, value = corrected symbol
   // Used when SPX is on a non-3rd-Friday date → auto-swap to SPXW (and NDX→NDXP, RUT→RUTW)
   const [correctedSymbols, setCorrectedSymbols] = useState<Map<string, string>>(new Map());
-  // Live bid/ask quotes fetched at modal open time
-  // Collect all option symbols from orders (for BTC, BPS, BCS, IC strategies)
-  const SPREAD_STRATEGIES_WITH_LIVE_QUOTES = new Set(['btc', 'bps', 'bcs', 'iron_condor']);
+  // Live bid/ask quotes fetched at modal open time — for ALL strategies
+  const SPREAD_STRATEGIES_WITH_LIVE_QUOTES = new Set(['btc', 'bps', 'bcs', 'iron_condor', 'csp', 'cc', 'roll', 'pmcc']);
   const optionSymbolsForQuotes = useMemo(() => {
-    if (!open || !SPREAD_STRATEGIES_WITH_LIVE_QUOTES.has(strategy)) return [];
+    if (!open) return [];
     const syms: string[] = [];
     orders.forEach(o => {
-      if (o.optionSymbol) syms.push(o.optionSymbol);       // Short leg OCC symbol
-      if (o.spreadLongSymbol) syms.push(o.spreadLongSymbol); // Long leg OCC symbol
+      if (o.optionSymbol) syms.push(o.optionSymbol);         // Short leg OCC symbol (all strategies)
+      if (o.spreadLongSymbol) syms.push(o.spreadLongSymbol); // Long leg OCC symbol (spreads)
     });
     return Array.from(new Set(syms.filter(Boolean))); // deduplicate and remove empty
   }, [open, strategy, orders]);
@@ -235,7 +234,7 @@ export function UnifiedOrderPreviewModal({
   };
 
   useEffect(() => {
-    if (!open || !SPREAD_STRATEGIES_WITH_LIVE_QUOTES.has(strategy) || optionSymbolsForQuotes.length === 0) return;
+    if (!open || optionSymbolsForQuotes.length === 0) return;
     doFetchLiveQuotes(optionSymbolsForQuotes);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, strategy, optionSymbolsForQuotes.join('|')]);
@@ -372,10 +371,9 @@ export function UnifiedOrderPreviewModal({
   };
 
   // Re-initialize prices when live quotes arrive (overrides the estimated bid/ask fallback)
-  // Works for BTC (single-leg) and spread strategies (BPS, BCS, IC)
+  // Works for ALL strategies: BTC, CSP, CC, BPS, BCS, IC, roll, PMCC
   useEffect(() => {
     if (!open || Object.keys(liveQuotes).length === 0) return;
-    if (!SPREAD_STRATEGIES_WITH_LIVE_QUOTES.has(strategy)) return;
     setAdjustedPrices(prev => {
       const updated = new Map(prev);
       orders.forEach(order => {
@@ -1421,38 +1419,33 @@ export function UnifiedOrderPreviewModal({
                 : "Adjust quantities and prices before submitting"
               }
             </span>
-            {SPREAD_STRATEGIES_WITH_LIVE_QUOTES.has(strategy) && optionSymbolsForQuotes.length > 0 && (
-              isQuotesFetching ? (
-                <span className="flex items-center gap-1 text-xs text-yellow-400">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Fetching live quotes…
-                </span>
-              ) : Object.keys(liveQuotes).length > 0 ? (
-                <span className="flex items-center gap-1 text-xs text-green-400">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Live quotes loaded
-                  <button
-                    onClick={() => doFetchLiveQuotes(optionSymbolsForQuotes)}
-                    className="ml-1 text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
-                    disabled={isQuotesFetching}
-                  >
-                    Refresh
-                  </button>
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-xs text-yellow-500">
-                  Using estimated prices
-                  {optionSymbolsForQuotes.length > 0 && (
-                    <button
-                      onClick={() => doFetchLiveQuotes(optionSymbolsForQuotes)}
-                      className="ml-1 text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
-                      disabled={isQuotesFetching}
-                    >
-                      Fetch live quotes
-                    </button>
-                  )}
-                </span>
-              )
+            {optionSymbolsForQuotes.length > 0 && (
+              <span
+                className={[
+                  "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all",
+                  isQuotesFetching
+                    ? "bg-yellow-500/10 border-yellow-500/40 text-yellow-300 animate-pulse"
+                    : Object.keys(liveQuotes).length > 0
+                      ? "bg-green-500/10 border-green-500/40 text-green-300"
+                      : "bg-red-500/10 border-red-500/40 text-red-300",
+                ].join(' ')}
+              >
+                {isQuotesFetching ? (
+                  <><Loader2 className="h-3 w-3 animate-spin" /> Pulling live quotes…</>
+                ) : Object.keys(liveQuotes).length > 0 ? (
+                  <><CheckCircle2 className="h-3 w-3" /> Live quotes active</>
+                ) : (
+                  <><AlertCircle className="h-3 w-3" /> Estimated prices—no live data</>
+                )}
+                <button
+                  onClick={() => doFetchLiveQuotes(optionSymbolsForQuotes)}
+                  disabled={isQuotesFetching}
+                  title="Force-refresh live bid/ask from Tradier"
+                  className="ml-0.5 rounded px-1 py-0 text-[10px] font-bold bg-white/10 hover:bg-white/20 disabled:opacity-40 cursor-pointer transition-colors"
+                >
+                  {isQuotesFetching ? '...' : '↻ Refresh'}
+                </button>
+              </span>
             )}
           </DialogDescription>
         </DialogHeader>
@@ -1925,12 +1918,11 @@ export function UnifiedOrderPreviewModal({
                               </div>
                             </div>
                           )}
-                          {strategy === 'btc' && (
-                            hasLiveQuote ? (
-                              <span className="text-[10px] text-green-400 font-medium">● Live</span>
-                            ) : (
-                              <span className="text-[10px] text-yellow-500">~ Est.</span>
-                            )
+                          {/* Live/Estimated indicator for ALL strategies */}
+                          {hasLiveQuote ? (
+                            <span className="text-[10px] text-green-400 font-medium">● Live</span>
+                          ) : (
+                            <span className="text-[10px] text-yellow-500">~ Est.</span>
                           )}
                         </div>
                       </TableCell>
@@ -1966,6 +1958,36 @@ export function UnifiedOrderPreviewModal({
                                 />
                               </div>
                               
+                              {/* Live bid/ask range bar — shows real-time market range */}
+                              {hasLiveQuote && (() => {
+                                const liveShortQ = liveQ!;
+                                const liveLongQ = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
+                                const isSpreadOrder = !!(order.spreadLongSymbol || order.longStrike);
+                                if (isSpreadOrder && liveLongQ && liveLongQ.bid > 0 && liveLongQ.ask > 0) {
+                                  // Spread: show net credit range
+                                  const netBid = Math.max(0.01, liveShortQ.bid - liveLongQ.ask);
+                                  const netAsk = Math.max(0.01, liveShortQ.ask - liveLongQ.bid);
+                                  const netMid = (netBid + netAsk) / 2;
+                                  return (
+                                    <div className="flex items-center justify-between text-[10px] mb-1 px-1">
+                                      <span className="text-red-400 font-mono">${netBid.toFixed(2)}</span>
+                                      <span className="text-blue-400 font-mono font-bold">mid ${netMid.toFixed(2)}</span>
+                                      <span className="text-green-400 font-mono">${netAsk.toFixed(2)}</span>
+                                    </div>
+                                  );
+                                } else if (!isSpreadOrder) {
+                                  // Single leg: show raw bid/ask
+                                  const mid = (liveShortQ.bid + liveShortQ.ask) / 2;
+                                  return (
+                                    <div className="flex items-center justify-between text-[10px] mb-1 px-1">
+                                      <span className="text-red-400 font-mono">${liveShortQ.bid.toFixed(2)}</span>
+                                      <span className="text-blue-400 font-mono font-bold">mid ${mid.toFixed(2)}</span>
+                                      <span className="text-green-400 font-mono">${liveShortQ.ask.toFixed(2)}</span>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
                               {/* Current Price and Position Indicator */}
                               <div className="flex justify-between items-center mt-2">
                                 <div className="flex items-center gap-2">

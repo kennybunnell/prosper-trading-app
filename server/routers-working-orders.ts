@@ -305,9 +305,38 @@ export const workingOrdersRouter = router({
 
         console.log(`[WorkingOrders] Fetching quotes for ${optionSymbols.length} symbols`);
 
-        // Fetch quotes for all symbols
-        const quotes = await api.getOptionQuotesBatch(optionSymbols);
-        console.log(`[WorkingOrders] Quote data sample:`, JSON.stringify(Object.entries(quotes).slice(0, 2), null, 2));
+        // Fetch real-time quotes from Tradier (Tastytrade /market-data/by-type returns empty for index options)
+        // OCC symbols from Tastytrade have spaces (e.g. "SPXW  260424P06750000");
+        // Tradier requires compact format ("SPXW260424P06750000").
+        const quotes: Record<string, { bid: number; ask: number; mid: number; last: number }> = {};
+        try {
+          const { createTradierAPI } = await import('./tradier');
+          const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+          if (tradierKey) {
+            const tradierApi = createTradierAPI(tradierKey);
+            const occToCompact = (s: string) => s.replace(/\s+/g, '');
+            // Build reverse map: compact → original (with spaces)
+            const compactToOcc: Record<string, string> = {};
+            const compactSymbols = optionSymbols.map(occ => {
+              const c = occToCompact(occ);
+              compactToOcc[c] = occ;
+              return c;
+            });
+            const rawQuotes = await tradierApi.getQuotes(compactSymbols);
+            for (const q of rawQuotes) {
+              if (!q.symbol) continue;
+              const entry = { bid: q.bid ?? 0, ask: q.ask ?? 0, mid: ((q.bid ?? 0) + (q.ask ?? 0)) / 2, last: q.last ?? 0 };
+              quotes[q.symbol] = entry;                          // compact key
+              const origOcc = compactToOcc[q.symbol];
+              if (origOcc && origOcc !== q.symbol) quotes[origOcc] = entry; // OCC key with spaces
+            }
+            console.log(`[WorkingOrders] Tradier quotes fetched: ${Object.keys(quotes).length / 2} symbols (sample: ${JSON.stringify(Object.entries(quotes).slice(0, 2))})`);
+          } else {
+            console.warn('[WorkingOrders] No Tradier API key — quotes will be empty');
+          }
+        } catch (quoteErr: any) {
+          console.warn('[WorkingOrders] Tradier quote fetch failed:', quoteErr.message);
+        }
 
         // Fetch replacement counts from DB for all working orders
         const { getReplacementCounts } = await import('./db');

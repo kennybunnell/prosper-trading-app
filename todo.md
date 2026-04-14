@@ -9193,3 +9193,10 @@ ROC Fix Mar 18 2026
 - [x] Also key the result map by the INPUT symbol (not the response symbol) so callers always find their quote
 - [x] Verify fix works for SPXW index options AND equity options (AAPL, TSLA, etc.)
 - [x] Confirm live quotes now populate the order review modal for CSP, CC, BPS, BCS, IC, and roll strategies
+
+## Working Orders Live Quote Fix + Review Panel Indicator (Apr 14, 2026)
+- [x] Fix Working Orders bid/ask showing net$0.00 and "Unable to calculate" — OCC symbol space-stripping missing in working orders quote fetch
+- [x] Add live quote status indicator to order review panel (green dot = live quotes loaded, spinner = loading, red = failed)
+- [x] Add "Refresh Quotes" force-refresh button to review panel header
+- [x] Auto-move slider to best fill location when live quotes load (25% toward mid for spreads, mid for single-leg)
+- [x] Show real net bid/ask range in the limit price cell of the review panel
