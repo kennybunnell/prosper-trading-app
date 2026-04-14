@@ -184,7 +184,7 @@ export class TradierAPI {
             const errMsg = error.response?.data?.fault?.faultstring || error.message || 'Unknown Tradier API error';
             const isAuthError = status === 401 || status === 403;
             if (!isAuthError) {
-              await writeTradingLog({ userId: this.userId, action: 'API_ERROR', strategy: 'Tradier', symbol: '', optionSymbol: '', accountNumber: '', price: '', strike: '', expiration: '', quantity: 0, outcome: 'api_error', errorMessage: `[${status}] ${endpoint}: ${errMsg}`, source: 'Tradier API Interceptor' });
+              await writeTradingLog({ userId: this.userId, action: 'API_ERROR', strategy: 'api_interceptor', symbol: endpoint.split('/').pop() || 'api', optionSymbol: '', accountNumber: '', price: '', strike: '', expiration: '', quantity: 0, outcome: 'api_error', errorMessage: `[${status}] ${endpoint}: ${errMsg}`, source: 'Tradier API Interceptor' });
             }
           } catch (_logErr) { /* never block the main error path */ }
         }

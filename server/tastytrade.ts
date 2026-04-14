@@ -181,7 +181,7 @@ export class TastytradeAPI {
             const isAuthError = status === 401 || status === 403;
             const isRateLimit = (error as any).isRateLimit || errMsg.toLowerCase().includes('rate');
             if (!isAuthError && !isRateLimit) {
-              await writeTradingLog({ userId: this.userId, action: 'API_ERROR', strategy: 'Tastytrade', symbol: '', optionSymbol: '', accountNumber: '', price: '', strike: '', expiration: '', quantity: 0, outcome: 'api_error', errorMessage: `[${status}] ${endpoint}: ${errMsg}`, source: 'Tastytrade API Interceptor' });
+              await writeTradingLog({ userId: this.userId, action: 'API_ERROR', strategy: 'api_interceptor', symbol: endpoint.split('/').pop() || 'api', optionSymbol: '', accountNumber: '', price: '', strike: '', expiration: '', quantity: 0, outcome: 'api_error', errorMessage: `[${status}] ${endpoint}: ${errMsg}`, source: 'Tastytrade API Interceptor' });
             }
           } catch (_logErr) { /* never block the main error path */ }
         }
