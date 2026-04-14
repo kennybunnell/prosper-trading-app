@@ -247,7 +247,7 @@ export const strategyAdvisorRouter = router({
       const { createTradierAPI } = await import('./tradier');
       const tradierCreds = await getApiCredentials(ctx.user.id);
       const tradierApi = tradierCreds?.tradierApiKey
-        ? createTradierAPI(tradierCreds.tradierApiKey, false)
+        ? createTradierAPI(tradierCreds.tradierApiKey, false, ctx.user.id)
         : null;
 
       const spy = marketData['SPY'];

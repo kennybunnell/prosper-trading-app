@@ -1,0 +1,1 @@
+ALTER TABLE `trading_log` MODIFY COLUMN `outcome` enum('success','rejected','error','dry_run','api_error') NOT NULL;

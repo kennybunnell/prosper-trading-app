@@ -20,6 +20,7 @@
 import { router, protectedProcedure } from './_core/trpc';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
+import { writeTradingLog } from './routers-trading-log';
 
 export type PositionRecommendation = 'KEEP' | 'HARVEST' | 'MONITOR' | 'LIQUIDATE';
 
@@ -827,6 +828,21 @@ export const positionAnalyzerRouter = router({
           },
         ],
       });
+      await writeTradingLog({
+        userId: ctx.user.id,
+        action: 'STO',
+        strategy: 'CC',
+        symbol: input.symbol,
+        optionSymbol,
+        accountNumber: input.accountNumber,
+        price: finalLimitPrice.toFixed(2),
+        strike: String(input.strike),
+        expiration: input.expiration,
+        quantity: input.quantity,
+        outcome: 'success',
+        orderId: String(result.id),
+        source: 'Position Analyzer / Portfolio Advisor',
+      });
 
       return {
         success: true,
@@ -1072,10 +1088,39 @@ export const positionAnalyzerRouter = router({
               legs: [{ instrumentType: 'Equity Option', symbol: optionSymbol,
                 quantity: order.quantity.toString(), action: 'Sell to Open' }],
             });
+            await writeTradingLog({
+              userId: ctx.user.id,
+              action: 'STO',
+              strategy: 'CC-Batch',
+              symbol: order.symbol,
+              optionSymbol,
+              accountNumber: order.accountNumber,
+              price: order.limitPrice.toFixed(2),
+              strike: String(order.strike),
+              expiration: order.expiration,
+              quantity: order.quantity,
+              outcome: 'success',
+              orderId: String(result.id),
+              source: 'Portfolio Advisor batch CC sell',
+            });
             results.push({ symbol: order.symbol, strike: order.strike, expiration: order.expiration,
               quantity: order.quantity, limitPrice: order.limitPrice, estimatedCredit, success: true, orderId: result.id });
           }
         } catch (e: any) {
+          await writeTradingLog({
+            userId: ctx.user.id,
+            action: 'STO',
+            strategy: 'CC-Batch',
+            symbol: order.symbol,
+            accountNumber: order.accountNumber,
+            price: order.limitPrice.toFixed(2),
+            strike: String(order.strike),
+            expiration: order.expiration,
+            quantity: order.quantity,
+            outcome: 'error',
+            errorMessage: e.message,
+            source: 'Portfolio Advisor batch CC sell',
+          });
           results.push({ symbol: order.symbol, strike: order.strike, expiration: order.expiration,
             quantity: order.quantity, limitPrice: order.limitPrice, estimatedCredit: 0, success: false, error: e.message });
         }

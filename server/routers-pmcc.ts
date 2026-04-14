@@ -7,6 +7,7 @@ import { protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { withRateLimit } from './tradierRateLimiter';
+import { writeTradingLog } from './routers-trading-log';
 
 export type LeapOpportunity = {
   symbol: string;
@@ -108,7 +109,7 @@ export const pmccRouter = router({
         return { opportunities: [], message: "Watchlist is empty" };
       }
 
-      const api = createTradierAPI(tradierApiKey);
+      const api = createTradierAPI(tradierApiKey, false, ctx.user.id);
       
       // Use provided symbols if available, otherwise use full watchlist
       const symbols = input.symbols && input.symbols.length > 0 
@@ -572,6 +573,18 @@ export const pmccRouter = router({
             });
           } else {
             const submittedOrder = await api.submitOrder(order);
+            await writeTradingLog({
+              userId: ctx.user.id,
+              action: 'BTO',
+              strategy: 'PMCC',
+              symbol: leap.symbol,
+              accountNumber,
+              price: String(leap.premium),
+              quantity: 1,
+              outcome: 'success',
+              orderId: String(submittedOrder.id),
+              source: `LEAP BTO: ${optionSymbol} @ $${roundedPrice}`,
+            });
             results.push({
               symbol: leap.symbol,
               status: "success",
@@ -581,6 +594,18 @@ export const pmccRouter = router({
           }
         } catch (error: any) {
           console.error(`[PMCC Order Error] Symbol: ${leap.symbol}`, error.response?.data || error.message);
+          await writeTradingLog({
+            userId: ctx.user.id,
+            action: 'BTO',
+            strategy: 'PMCC',
+            symbol: leap.symbol,
+            accountNumber,
+            price: String(leap.premium),
+            quantity: 1,
+            outcome: 'error',
+            errorMessage: error.response?.data?.error?.message || error.message || 'Order submission failed',
+            source: `LEAP BTO failed: ${leap.symbol} @ $${leap.premium}`,
+          });
           results.push({
             symbol: leap.symbol,
             status: "failed",
@@ -751,7 +776,7 @@ ${symbolCtx.contextBlock}`,
         });
       }
 
-      const api = createTradierAPI(tradierApiKey);
+      const api = createTradierAPI(tradierApiKey, false, ctx.user.id);
       const allOpportunities: any[] = [];
 
       console.log(`[PMCC Short Call Scanner] Scanning ${input.leapPositions.length} LEAP positions...`);

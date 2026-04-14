@@ -27,7 +27,7 @@ export const marketRouter = router({
       }
       
       console.log('[Market Status] Fetching market status from Tradier API...');
-      const tradier = createTradierAPI(tradierApiKey, false);
+      const tradier = createTradierAPI(tradierApiKey, false, undefined);
       // Race the Tradier call against a 4-second timeout so the server responds
       // well within the client's 10-second AbortController window.
       const status = await Promise.race([

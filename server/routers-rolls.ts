@@ -17,6 +17,7 @@ import {
   type StrategyType,
 } from "./spreadDetection";
 // Note: db, wtrHistory, and drizzle-orm are imported dynamically inside procedures to match project patterns
+import { writeTradingLog } from './routers-trading-log';
 
 // ─── Dog Cross-Check Helper ───────────────────────────────────────────────────
 // Returns true if an ITM CC's underlying is a LIQUIDATE or deep-MONITOR dog.
@@ -1093,6 +1094,18 @@ export const rollsRouter = router({
                 legs: [stoLeg],
               });
               console.log(`[Roll] IRA STO submitted for ${order.symbol}: orderId=${stoOrder.id}`);
+              await writeTradingLog({
+                userId: ctx.user.id,
+                action: 'ROLL',
+                strategy: order.strategyType,
+                symbol: order.symbol,
+                accountNumber: order.accountNumber,
+                price: String(order.limitPrice ?? order.netCredit ?? 0),
+                quantity: order.currentQuantity ?? 1,
+                outcome: 'success',
+                orderId: `${btcOrder.id},${stoOrder.id}`,
+                source: `IRA split-leg roll: BTC $${btcPrice} + STO $${stoPrice}`,
+              });
 
               results.push({
                 symbol: order.symbol,
@@ -1137,6 +1150,18 @@ export const rollsRouter = router({
             });
           } else {
             const submitted = await api.submitOrder(orderRequest);
+            await writeTradingLog({
+              userId: ctx.user.id,
+              action: 'ROLL',
+              strategy: order.strategyType,
+              symbol: order.symbol,
+              accountNumber: order.accountNumber,
+              price: String(order.limitPrice ?? order.netCredit ?? 0),
+              quantity: order.currentQuantity ?? 1,
+              outcome: 'success',
+              orderId: String(submitted.id),
+              source: `${order.strategyType} roll — ${legs.length} leg(s)`,
+            });
             results.push({
               symbol: order.symbol,
               accountNumber: order.accountNumber,
@@ -1165,6 +1190,18 @@ export const rollsRouter = router({
             }
           }
         } catch (error: any) {
+          await writeTradingLog({
+            userId: ctx.user.id,
+            action: 'ROLL',
+            strategy: order.strategyType,
+            symbol: order.symbol,
+            accountNumber: order.accountNumber,
+            price: String(order.limitPrice ?? order.netCredit ?? 0),
+            quantity: order.currentQuantity ?? 1,
+            outcome: 'error',
+            errorMessage: error.message,
+            source: `Roll failed — ${order.strategyType} ${order.action}`,
+          });
           results.push({
             symbol: order.symbol,
             accountNumber: order.accountNumber,

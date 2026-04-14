@@ -1,5 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { withRateLimit } from './tradierRateLimiter';
+import { writeTradingLog } from './routers-trading-log';
 import { addPartitionedAttribute, getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
@@ -790,7 +791,7 @@ export const appRouter = router({
       try {
         if (credentials?.tradierApiKey) {
           const { createTradierAPI } = await import('./tradier');
-          const tradierApi = createTradierAPI(credentials.tradierApiKey);
+          const tradierApi = createTradierAPI(credentials.tradierApiKey, false, ctx.user.id);
           const vixQuote = await tradierApi.getQuote('VIX');
           const vixLast = vixQuote?.last ?? vixQuote?.close ?? null;
           if (vixLast && !isNaN(Number(vixLast))) {
@@ -1030,7 +1031,7 @@ Answer concisely and specifically. Stay conservative — capital preservation fi
         const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
         if (tradierKey) {
           const { createTradierAPI } = await import('./tradier');
-          const tradierApi = createTradierAPI(tradierKey);
+          const tradierApi = createTradierAPI(tradierKey, false, ctx.user.id);
           const vixQuote = await tradierApi.getQuote('VIX');
           const vixLast = vixQuote?.last ?? vixQuote?.close ?? null;
           if (vixLast && !isNaN(Number(vixLast))) {
@@ -1532,7 +1533,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       }
 
       console.log('[Settings] Tradier API key found, testing connection...');
-      const api = createTradierAPI(credentials.tradierApiKey);
+      const api = createTradierAPI(credentials.tradierApiKey, false, ctx.user.id);
       
       try {
         // Test with a simple quote request
@@ -1625,7 +1626,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         throw new Error('Tradier account ID not configured');
       }
       
-      const api = createTradierAPI(credentials.tradierApiKey);
+      const api = createTradierAPI(credentials.tradierApiKey, false, ctx.user.id);
       
       try {
         // Fetch account balance
@@ -2069,7 +2070,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
           }
         }
 
-        const api = createTradierAPI(tradierApiKey);
+        const api = createTradierAPI(tradierApiKey, false, ctx.user.id);
         const symbols = input.symbols || [];
         
         if (symbols.length === 0) {
@@ -2620,8 +2621,8 @@ Summary: [One sentence overall assessment]`;
 
               // LIVE MODE ONLY - no dry run parameter
               const result = await api.submitOrder(orderRequest);
-
-              // Build GTC legs (mirror of STO legs: Sell→Buy to Close, Buy→Sell to Close)
+              await writeTradingLog({ userId: ctx.user.id, action: 'STO', strategy: (order as any).isIronCondor ? 'Iron Condor' : ((order as any).isSpread ? ((order as any).spreadType || 'Spread') : 'CSP'), symbol: order.symbol, optionSymbol: (order as any).optionSymbol || (order as any).shortLeg?.optionSymbol || '', accountNumber: input.accountId, price: limitPrice.toFixed(2), strike: String((order as any).strike || ''), expiration: order.expiration || '', quantity: 1, outcome: 'success', orderId: String(result.id), source: 'Spread / CSP / Iron Condor STO' });
+              // Build GTC legs (mirror of STO legs: Sell→Buy to Close, Buy→Sell to Close))
               const gtcLegs = legs.map(leg => ({
                 symbol: leg.symbol,
                 action: (leg.action === 'Sell to Open' ? 'Buy to Close' : 'Sell to Close') as 'Buy to Close' | 'Sell to Close',
@@ -2658,6 +2659,7 @@ Summary: [One sentence overall assessment]`;
                 detailedError = 'Insufficient buying power. Check for working orders or account restrictions.';
               }
               
+              await writeTradingLog({ userId: ctx.user.id, action: 'STO', strategy: (order as any).isIronCondor ? 'Iron Condor' : ((order as any).isSpread ? ((order as any).spreadType || 'Spread') : 'CSP'), symbol: order.symbol, optionSymbol: (order as any).optionSymbol || (order as any).shortLeg?.optionSymbol || '', accountNumber: input.accountId, price: String(order.premium || '0'), strike: String((order as any).strike || ''), expiration: order.expiration || '', quantity: 1, outcome: 'error', errorMessage: detailedError, source: 'Spread / CSP / Iron Condor STO' });
               return {
                 symbol: order.symbol,
                 success: false,
@@ -2924,7 +2926,7 @@ Summary: [One sentence overall assessment]`;
           }
         }
 
-        const api = createTradierAPI(tradierApiKey);
+        const api = createTradierAPI(tradierApiKey, false, ctx.user.id);
         const symbols = input.symbols || [];
         
         if (symbols.length === 0) {
@@ -3318,7 +3320,7 @@ Summary: [One sentence overall assessment]`;
           }
         }
 
-        const api = createTradierAPI(tradierApiKey);
+        const api = createTradierAPI(tradierApiKey, false, ctx.user.id);
         const symbols = input.symbols || [];
         
         if (symbols.length === 0) {

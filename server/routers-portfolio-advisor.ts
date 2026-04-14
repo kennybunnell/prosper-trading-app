@@ -839,7 +839,7 @@ async function fetchPortfolioData(userId: number) {
   if (uniqueUnderlyings.length > 0 && credentials.tradierApiKey) {
     try {
       const { createTradierAPI } = await import('./tradier');
-      const tradier = createTradierAPI(credentials.tradierApiKey);
+      const tradier = createTradierAPI(credentials.tradierApiKey, false, ctx.user.id);
       for (let i = 0; i < uniqueUnderlyings.length; i += 50) {
         const batch = uniqueUnderlyings.slice(i, i + 50);
         const quotes = await tradier.getQuotes(batch);

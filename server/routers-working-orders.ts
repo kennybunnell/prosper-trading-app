@@ -15,6 +15,7 @@ import {
   isSafeToReplaceOrders,
   roundToTickSize
 } from './working-orders-utils';
+import { writeTradingLog } from './routers-trading-log';
 
 export interface ProcessedWorkingOrder {
   orderId: string;
@@ -166,6 +167,19 @@ export const workingOrdersRouter = router({
                   submittedAt: new Date(),
                 });
 
+                await writeTradingLog({
+                  userId,
+                  action: order.action,
+                  strategy: 'Auto-Resubmit',
+                  symbol: order.underlyingSymbol,
+                  optionSymbol: order.symbol,
+                  accountNumber: order.accountId,
+                  price: quote.ask.toFixed(2),
+                  quantity: order.quantity,
+                  outcome: 'success',
+                  orderId: String(resubmittedOrder.id),
+                  source: `Stuck order resubmitted at ask (was stuck ${minutesThreshold}+ min)`,
+                });
                 results.push({
                   orderId: order.orderId,
                   symbol: order.underlyingSymbol,
@@ -176,6 +190,18 @@ export const workingOrdersRouter = router({
                   message: `Canceled and resubmitted at ask price $${quote.ask.toFixed(2)}`,
                 });
               } catch (resubmitError: any) {
+                await writeTradingLog({
+                  userId,
+                  action: order.action,
+                  strategy: 'Auto-Resubmit',
+                  symbol: order.underlyingSymbol,
+                  optionSymbol: order.symbol,
+                  accountNumber: order.accountId,
+                  quantity: order.quantity,
+                  outcome: 'error',
+                  errorMessage: resubmitError.message,
+                  source: 'Stuck order canceled but resubmit failed',
+                });
                 results.push({
                   orderId: order.orderId,
                   symbol: order.underlyingSymbol,

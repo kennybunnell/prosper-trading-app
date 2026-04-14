@@ -25,7 +25,7 @@ export interface TradingLogEntry {
   price?: string;
   priceEffect?: string;
   instrumentType?: string;
-  outcome: 'success' | 'rejected' | 'error' | 'dry_run';
+  outcome: 'success' | 'rejected' | 'error' | 'dry_run' | 'api_error';
   orderId?: string;
   errorMessage?: string;
   errorPayload?: string;
@@ -74,7 +74,7 @@ export const tradingLogRouter = router({
   getEntries: protectedProcedure
     .input(z.object({
       limit: z.number().min(1).max(200).default(50),
-      outcomeFilter: z.enum(['all', 'success', 'rejected', 'error', 'dry_run']).default('all'),
+      outcomeFilter: z.enum(['all', 'success', 'rejected', 'error', 'dry_run', 'api_error']).default('all'),
     }))
     .query(async ({ ctx, input }) => {
       const userId = ctx.user.id;

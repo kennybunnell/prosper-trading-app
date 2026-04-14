@@ -9275,3 +9275,16 @@ ROC Fix Mar 18 2026
 - [x] Consolidate AutomationDashboard header controls (Test Friday Sweep, Auto-Sweep, Last Swept, Test Daily Scan, Daily Scan, Kill Switch) into compact Controls dropdown
 - [x] Keep Kill Switch always visible as a prominent pill in the header
 - [x] Add Support item inside the Controls dropdown on AutomationDashboard
+
+## Full API Coverage - Trading Activity Log (Apr 14, 2026)
+- [x] Instrument routers-rolls.ts all roll submission paths
+- [x] Instrument routers-pmcc.ts LEAP submitOrder
+- [x] Instrument routers-working-orders.ts resubmit/cancel paths
+- [x] Instrument routers-position-analyzer.ts CC STO and batch submit
+- [x] Instrument routers-ira-safety.ts all 4 remediation order paths
+- [x] Instrument routers.ts BPS/BCS/Iron Condor spread STO
+- [x] Add api_error outcome type to TradingLogEntry schema and DB enum
+- [x] Add Tastytrade API-level error interceptor (auto-captures all API failures)
+- [x] Add Tradier API-level error interceptor with userId propagation
+- [x] Pass ctx.user.id to all createTradierAPI() call sites (17 files)
+- [x] Fix routers-market.ts publicProcedure - use undefined for userId

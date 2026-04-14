@@ -29,6 +29,7 @@ import { router, protectedProcedure } from './_core/trpc';
 import { z } from 'zod';
 import { getDb } from './db';
 import { eq, and, gt } from 'drizzle-orm';
+import { writeTradingLog } from './routers-trading-log';
 
 // IRA/cash account type names from Tastytrade API
 const IRA_ACCOUNT_TYPES = [
@@ -411,7 +412,7 @@ export const iraSafetyRouter = router({
         const tradierApiKey = (storedKey && storedKey.length > 15 ? storedKey : null) || process.env.TRADIER_API_KEY;
         if (tradierApiKey) {
           const { createTradierAPI } = await import('./tradier');
-          const tradierApi = createTradierAPI(tradierApiKey);
+          const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
           const symbolsNeedingPrice = Array.from(new Set(
             filteredViolations
               .filter(v => v.strike && v.strike > 0)
@@ -514,7 +515,7 @@ export const iraSafetyRouter = router({
           ],
         });
         console.log(`[IRA Safety] BUY TO COVER order submitted:`, result);
-
+        await writeTradingLog({ userId: ctx.user.id, action: 'BTO', strategy: 'IRA-Safety', symbol: input.symbol, accountNumber: input.accountNumber, quantity: input.sharesShort, outcome: 'success', orderId: String(result?.id || ''), source: 'IRA Safety: Buy to Cover short stock' });
         return {
           success: true,
           dryRun: false,
@@ -522,6 +523,7 @@ export const iraSafetyRouter = router({
           orderId: result?.id || null,
         };
       } catch (err: any) {
+        await writeTradingLog({ userId: ctx.user.id, action: 'BTO', strategy: 'IRA-Safety', symbol: input.symbol, accountNumber: input.accountNumber, quantity: input.sharesShort, outcome: 'error', errorMessage: err.message, source: 'IRA Safety: Buy to Cover short stock' });
         console.error(`[IRA Safety] BUY TO COVER failed:`, err);
         throw new Error(`Failed to submit buy order: ${err.message}`);
       }
@@ -605,7 +607,7 @@ export const iraSafetyRouter = router({
           ],
         });
         console.log(`[IRA Safety] CLOSE SHORT OPTION order submitted:`, result);
-
+        await writeTradingLog({ userId: ctx.user.id, action: 'BTC', strategy: 'IRA-Safety', symbol: input.symbol, optionSymbol: input.optionSymbol, accountNumber: input.accountNumber, quantity: input.quantity, outcome: 'success', orderId: String(result?.id || ''), source: 'IRA Safety: Close Short Option' });
         return {
           success: true,
           dryRun: false,
@@ -613,6 +615,7 @@ export const iraSafetyRouter = router({
           orderId: result?.id || null,
         };
       } catch (err: any) {
+        await writeTradingLog({ userId: ctx.user.id, action: 'BTC', strategy: 'IRA-Safety', symbol: input.symbol, optionSymbol: input.optionSymbol, accountNumber: input.accountNumber, quantity: input.quantity, outcome: 'error', errorMessage: err.message, source: 'IRA Safety: Close Short Option' });
         console.error(`[IRA Safety] CLOSE SHORT OPTION failed:`, err);
         throw new Error(`Failed to submit close order: ${err.message}`);
       }
@@ -681,12 +684,14 @@ export const iraSafetyRouter = router({
           orderType: 'Market',
           legs: [{ instrumentType: 'Equity Option', symbol: protectivePutSymbol, quantity: String(input.quantity), action: 'Buy to Open' }],
         });
+        await writeTradingLog({ userId: ctx.user.id, action: 'BTO', strategy: 'IRA-Safety', symbol: input.symbol, optionSymbol: protectivePutSymbol, accountNumber: input.accountNumber, quantity: input.quantity, outcome: 'success', orderId: String(result?.id || ''), source: 'IRA Safety: Buy Protective Put' });
         return {
           success: true, dryRun: false, protectiveStrike, protectivePutSymbol,
           message: `Market order submitted: Buy ${input.quantity}x $${protectiveStrike} put to restore protection on ${input.symbol}`,
           orderId: result?.id || null,
         };
       } catch (err: any) {
+        await writeTradingLog({ userId: ctx.user.id, action: 'BTO', strategy: 'IRA-Safety', symbol: input.symbol, accountNumber: input.accountNumber, quantity: input.quantity, outcome: 'error', errorMessage: err.message, source: 'IRA Safety: Buy Protective Put' });
         throw new Error(`Failed to submit protective put order: ${err.message}`);
       }
     }),
@@ -753,12 +758,14 @@ export const iraSafetyRouter = router({
           orderType: 'Market',
           legs: [{ instrumentType: 'Equity Option', symbol: longCallSymbol, quantity: String(input.quantity), action: 'Buy to Open' }],
         });
+        await writeTradingLog({ userId: ctx.user.id, action: 'BTO', strategy: 'IRA-Safety', symbol: input.symbol, optionSymbol: longCallSymbol, accountNumber: input.accountNumber, quantity: input.quantity, outcome: 'success', orderId: String(result?.id || ''), source: 'IRA Safety: Buy Long Call (BCS fix)' });
         return {
           success: true, dryRun: false, longStrike, longCallSymbol,
           message: `Market order submitted: Buy ${input.quantity}x $${longStrike} call to create Bear Call Spread on ${input.symbol}`,
           orderId: result?.id || null,
         };
       } catch (err: any) {
+        await writeTradingLog({ userId: ctx.user.id, action: 'BTO', strategy: 'IRA-Safety', symbol: input.symbol, accountNumber: input.accountNumber, quantity: input.quantity, outcome: 'error', errorMessage: err.message, source: 'IRA Safety: Buy Long Call (BCS fix)' });
         throw new Error(`Failed to submit long call order: ${err.message}`);
       }
     }),

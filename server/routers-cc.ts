@@ -467,7 +467,7 @@ export const ccRouter = router({
       const tradierKeyForHoldings = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
       if (tradierKeyForHoldings && holdings.length > 0) {
         try {
-          const tradierApiForHoldings = createTradierAPI(tradierKeyForHoldings);
+          const tradierApiForHoldings = createTradierAPI(tradierKeyForHoldings, false, ctx.user.id);
           const holdingSymbols = holdings.map(h => h.symbol);
           const BATCH_SIZE_H = 100;
           for (let i = 0; i < holdingSymbols.length; i += BATCH_SIZE_H) {
@@ -553,7 +553,7 @@ export const ccRouter = router({
         }
       }
 
-      const api = createTradierAPI(tradierApiKey);
+      const api = createTradierAPI(tradierApiKey, false, ctx.user.id);
       const opportunities: any[] = [];
 
       // Build holdings map for quick lookup
@@ -865,7 +865,7 @@ export const ccRouter = router({
         }
       }
 
-      const api = createTradierAPI(tradierApiKey);
+      const api = createTradierAPI(tradierApiKey, false, ctx.user.id);
       const spreadOpportunities: any[] = [];
 
       // Fetch 14-day historical trend for each unique symbol

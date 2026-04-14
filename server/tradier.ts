@@ -159,9 +159,11 @@ export interface CSPOpportunity {
 export class TradierAPI {
   private client: AxiosInstance;
   private apiKey: string;
+  private userId: number | null = null;
 
-  constructor(apiKey: string, useSandbox: boolean = false) {
+  constructor(apiKey: string, useSandbox: boolean = false, userId?: number) {
     this.apiKey = apiKey;
+    this.userId = userId ?? null;
     this.client = axios.create({
       baseURL: useSandbox ? TRADIER_SANDBOX_BASE : TRADIER_API_BASE,
       headers: {
@@ -170,6 +172,25 @@ export class TradierAPI {
       },
       timeout: 30000, // 30 second timeout per request
     });
+    // Auto-capture all Tradier API errors to the Trading Activity Log
+    this.client.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        if (this.userId) {
+          try {
+            const { writeTradingLog } = await import('./routers-trading-log');
+            const endpoint = error.config?.url || 'unknown';
+            const status = error.response?.status || 0;
+            const errMsg = error.response?.data?.fault?.faultstring || error.message || 'Unknown Tradier API error';
+            const isAuthError = status === 401 || status === 403;
+            if (!isAuthError) {
+              await writeTradingLog({ userId: this.userId, action: 'API_ERROR', strategy: 'Tradier', symbol: '', optionSymbol: '', accountNumber: '', price: '', strike: '', expiration: '', quantity: 0, outcome: 'api_error', errorMessage: `[${status}] ${endpoint}: ${errMsg}`, source: 'Tradier API Interceptor' });
+            }
+          } catch (_logErr) { /* never block the main error path */ }
+        }
+        return Promise.reject(error);
+      }
+    );
   }
 
   /**
@@ -902,6 +923,6 @@ export class TradierAPI {
 }
 
 // Factory function for creating Tradier API instances
-export function createTradierAPI(apiKey: string, useSandbox: boolean = false): TradierAPI {
-  return new TradierAPI(apiKey, useSandbox);
+export function createTradierAPI(apiKey: string, useSandbox: boolean = false, userId?: number): TradierAPI {
+  return new TradierAPI(apiKey, useSandbox, userId);
 }

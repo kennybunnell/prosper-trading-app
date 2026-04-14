@@ -1083,7 +1083,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                   if (!tradierApiKey) {
                     console.warn('[Automation CC] No Tradier API key available, skipping CC scan');
                   } else {
-                    const tradierApi = createTradierAPI(tradierApiKey);
+                    const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
                     const minDelta = parseFloat(settings.ccDeltaMin);
                     const maxDelta = parseFloat(settings.ccDeltaMax);
                     // Use DTE override if provided (Tranche 2 rescan with AI-recommended DTE)
@@ -1344,7 +1344,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             const storedKey = credentials?.tradierApiKey;
             const tradierApiKey = (storedKey && storedKey.length > 15 ? storedKey : null) || process.env.TRADIER_API_KEY;
             if (tradierApiKey) {
-              const tradierApi = createTradierAPI(tradierApiKey);
+              const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
               const quotes = await tradierApi.getQuotes(uniqueSymbols);
               const priceMap = new Map<string, number>();
               for (const q of quotes) {
@@ -1372,7 +1372,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             const storedKey = credentials?.tradierApiKey;
             const tradierApiKey = (storedKey && storedKey.length > 15 ? storedKey : null) || process.env.TRADIER_API_KEY;
             if (tradierApiKey) {
-              const tradierApi = createTradierAPI(tradierApiKey);
+              const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
               const today = new Date();
               const targetMinDte = 21;
               const targetMaxDte = 42;
@@ -1934,7 +1934,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
     }
 
     const tradierApiKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
-    const tradierApi = tradierApiKey ? createTradierAPI(tradierApiKey) : null;
+    const tradierApi = tradierApiKey ? createTradierAPI(tradierApiKey, false, ctx.user.id) : null;
 
     const tt = await authenticateTastytrade(credentials, ctx.user.id);
     if (!tt) {
@@ -2225,7 +2225,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
       const tradierApiKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
       if (!tradierApiKey) return { greeks: {} };
 
-      const tradierApi = createTradierAPI(tradierApiKey);
+      const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
 
       // Fetch all chains in this batch concurrently
       const results = await Promise.allSettled(
@@ -2308,7 +2308,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         const credentials = await getApiCredentials(ctx.user.id);
         const tradierApiKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
         if (tradierApiKey) {
-          const tradierApi = createTradierAPI(tradierApiKey);
+          const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
           const quote = await tradierApi.getQuote(input.symbol);
           underlyingPrice = quote?.last ?? null;
         }
@@ -2578,7 +2578,7 @@ For howToExecute, write 3-5 numbered steps that teach the student EXACTLY how to
       const tradierApiKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
       if (!tradierApiKey) return { candidates: [] };
 
-      const tradierApi = createTradierAPI(tradierApiKey);
+      const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
 
       // Determine strategy direction
       const isBCS = input.strategyType.includes('BCS') || input.strategyType.includes('Bear Call');
@@ -2995,7 +2995,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       }
 
       const { createTradierAPI } = await import('./tradier');
-      const tradierApi = createTradierAPI(tradierApiKey);
+      const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
 
       // Collect unique option symbols
       const symbolSet = new Set<string>();
@@ -3065,7 +3065,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         ? credentials.tradierApiKey : null) || process.env.TRADIER_API_KEY;
       if (!tradierApiKey) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tradier API key not configured.' });
       const { createTradierAPI } = await import('./tradier');
-      const tradierApi = createTradierAPI(tradierApiKey);
+      const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
 
       // Build the OCC symbol for the new strike
       // Use UTC methods to avoid timezone off-by-one (expiration strings are YYYY-MM-DD, parsed as UTC midnight)
@@ -3157,7 +3157,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         ? credentials.tradierApiKey : null) || process.env.TRADIER_API_KEY;
       if (!tradierApiKey) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tradier API key not configured.' });
       const { createTradierAPI } = await import('./tradier');
-      const tradierApi = createTradierAPI(tradierApiKey);
+      const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
 
       // Get all expirations and find the one closest to targetDte
       const allExps = await tradierApi.getExpirations(input.symbol);

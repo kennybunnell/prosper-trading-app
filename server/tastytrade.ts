@@ -171,7 +171,20 @@ export class TastytradeAPI {
         if (error.response?.data) {
           console.error('[Tastytrade API] Error response:', JSON.stringify(error.response.data));
         }
-        
+        // Auto-capture all Tastytrade API errors to the Trading Activity Log
+        if (this.userId) {
+          try {
+            const { writeTradingLog } = await import('./routers-trading-log');
+            const endpoint = error.config?.url || 'unknown';
+            const status = error.response?.status || 0;
+            const errMsg = error.response?.data?.error?.message || error.response?.data?.errors?.[0]?.message || error.message || 'Unknown API error';
+            const isAuthError = status === 401 || status === 403;
+            const isRateLimit = (error as any).isRateLimit || errMsg.toLowerCase().includes('rate');
+            if (!isAuthError && !isRateLimit) {
+              await writeTradingLog({ userId: this.userId, action: 'API_ERROR', strategy: 'Tastytrade', symbol: '', optionSymbol: '', accountNumber: '', price: '', strike: '', expiration: '', quantity: 0, outcome: 'api_error', errorMessage: `[${status}] ${endpoint}: ${errMsg}`, source: 'Tastytrade API Interceptor' });
+            }
+          } catch (_logErr) { /* never block the main error path */ }
+        }
         const originalRequest = error.config;
         
         // Check if this is a token expiration error
