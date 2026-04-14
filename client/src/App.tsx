@@ -34,6 +34,7 @@ import { Sidebar } from "./components/Sidebar";
 import { PaperTradingBanner } from "./components/PaperTradingBanner";
 import { TrialStatusBanner } from "./components/TrialStatusBanner";
 import { SupportWidget } from "./components/SupportWidget";
+import { TradingActivityLog } from "./components/TradingActivityLog";
 import { LegalAcceptanceModal } from "./components/LegalAcceptanceModal";
 import { TrialExpirationModal } from "./components/TrialExpirationModal";
 import { useState, useEffect } from "react";
@@ -150,7 +151,9 @@ function Router() {
         <div className="flex-1 overflow-auto relative">
           <TrialStatusBanner />
           <PaperTradingBanner />
-          <SupportWidget />        <Switch>
+          <SupportWidget />
+          <TradingActivityLog />
+        <Switch>
           <Route path={"/"} component={Home} />
           <Route path={"/screener"} component={StockScreener} />
           <Route path={"/portfolio"} component={PortfolioCommandCenter} />

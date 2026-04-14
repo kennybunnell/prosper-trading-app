@@ -1178,3 +1178,66 @@ export const portfolioSyncState = mysqlTable('portfolio_sync_state', {
 
 export type PortfolioSyncState = typeof portfolioSyncState.$inferSelect;
 export type InsertPortfolioSyncState = typeof portfolioSyncState.$inferInsert;
+
+/**
+ * Trading Activity Log
+ * Captures every order attempt with its outcome and full error payload.
+ * Used by the floating Trading Activity Log panel and AI diagnosis feature.
+ */
+export const tradingLog = mysqlTable('trading_log', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+
+  // Order identification
+  /** The underlying symbol (e.g., SPXW, AAPL, SPY) */
+  symbol: varchar('symbol', { length: 20 }).notNull(),
+  /** Full OCC option symbol (e.g., SPXW  260418P05500000) */
+  optionSymbol: varchar('option_symbol', { length: 64 }),
+  /** Account number the order was submitted to */
+  accountNumber: varchar('account_number', { length: 64 }),
+
+  // Order details
+  /** Strategy type: csp, cc, bcs, bps, pmcc, close, roll, automation */
+  strategy: varchar('strategy', { length: 32 }).notNull(),
+  /** Order action: STO, BTC, BTO, STC, ROLL */
+  action: varchar('action', { length: 16 }).notNull(),
+  /** Strike price */
+  strike: varchar('strike', { length: 20 }),
+  /** Expiration date string */
+  expiration: varchar('expiration', { length: 20 }),
+  /** Number of contracts */
+  quantity: int('quantity'),
+  /** Limit price submitted */
+  price: varchar('price', { length: 20 }),
+  /** Credit or Debit */
+  priceEffect: varchar('price_effect', { length: 16 }),
+  /** Instrument type used: Equity Option or Index Option */
+  instrumentType: varchar('instrument_type', { length: 32 }),
+
+  // Outcome
+  /** success | rejected | error | dry_run */
+  outcome: mysqlEnum('outcome', ['success', 'rejected', 'error', 'dry_run']).notNull(),
+  /** Tastytrade order ID on success */
+  orderId: varchar('order_id', { length: 64 }),
+  /** Full error message from Tastytrade API on failure */
+  errorMessage: text('error_message'),
+  /** Full JSON payload of the error response for AI diagnosis */
+  errorPayload: text('error_payload'),
+  /** AI-generated diagnosis (populated on demand via diagnose button) */
+  aiDiagnosis: text('ai_diagnosis'),
+
+  // Source context
+  /** Which page/procedure triggered this order */
+  source: varchar('source', { length: 64 }),
+  /** Whether this was a dry run */
+  isDryRun: boolean('is_dry_run').default(false).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index('trading_log_user_idx').on(table.userId),
+  outcomeIdx: index('trading_log_outcome_idx').on(table.outcome),
+  createdAtIdx: index('trading_log_created_at_idx').on(table.createdAt),
+}));
+
+export type TradingLog = typeof tradingLog.$inferSelect;
+export type InsertTradingLog = typeof tradingLog.$inferInsert;

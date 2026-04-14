@@ -9254,3 +9254,17 @@ ROC Fix Mar 18 2026
 ## Instrument-Type Consistency Fix (Apr 14 2026)
 - [x] Fix routers-performance.ts spread close: change Index Option to Equity Option for all spread legs (confirmed correct by live rejection 2026-03-20)
 - [x] Verified all other submission paths use correct instrument-type per order type
+
+## Trading Activity Log (Session Apr 14, 2026)
+- [x] Add tradingLog database table (trading_log) with all order fields + aiDiagnosis column
+- [x] Create routers-trading-log.ts with writeTradingLog helper, getEntries, clearEntries, diagnose procedures
+- [x] Register tradingLogRouter in routers.ts
+- [x] Instrument routers-cc.ts submitOrders success/failure paths with writeTradingLog
+- [x] Instrument routers-performance.ts submitCloseOrders success/failure paths with writeTradingLog
+- [x] Instrument routers-automation.ts submitCloseOrders success/failure paths with writeTradingLog
+- [x] Build TradingActivityLog floating panel component with hide/show toggle
+- [x] Auto-opens on recent errors (within 5 minutes)
+- [x] AI Diagnose button on failed entries calls LLM and caches result
+- [x] Clear all logs button with confirmation
+- [x] Auto-polls every 30 seconds when panel is open
+- [x] Wired into App.tsx (authenticated area only, appears on all pages)

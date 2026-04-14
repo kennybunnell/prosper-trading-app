@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { router, protectedProcedure } from './_core/trpc';
 import { TRPCError } from '@trpc/server';
 import { notifyOwner } from './_core/notification';
+import { writeTradingLog } from './routers-trading-log';
 import { randomUUID } from 'crypto';
 import {
   getAutomationSettings,
@@ -1723,8 +1724,11 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
       }
 
       for (const order of input.orders) {
+        let _isSpreadOrder = !!order.spreadLongSymbol;
+        let _limitPrice = 0;
+        let _isNetCreditClose = false;
         try {
-          const isSpreadOrder = !!order.spreadLongSymbol;
+          const isSpreadOrder = _isSpreadOrder;
           // Net debit for spread = short leg cost - long leg credit
           // For single-leg: just the short leg cost
           const shortLegCostPerShare = order.buyBackCost / (order.quantity * 100);
@@ -1732,7 +1736,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             ? Math.abs(parseFloat(order.spreadLongPrice || '0'))
             : 0;
 
-          let limitPrice: number;
+          let limitPrice: number; _limitPrice = 0;
           if (order.userLimitPrice !== undefined && order.userLimitPrice > 0) {
             // ── User explicitly set a limit price via the slider — honour it exactly ──
             // Snap to tick size to satisfy Tastytrade's server-side validation.
@@ -1841,7 +1845,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
 
           // For BTC spread closes: if long leg credit > short leg cost, the spread closes at a net credit.
           // Tastytrade requires priceEffect: 'Credit' in this case, not 'Debit'.
-          const isNetCreditClose = !!(order as any)._netCreditSpread;
+          const isNetCreditClose = !!(order as any)._netCreditSpread; _isNetCreditClose = isNetCreditClose;
           const result = await tt.submitOrder({
             accountNumber: order.accountNumber,
             timeInForce: 'Day',
@@ -1866,6 +1870,15 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               ? `Spread order submitted (net ${isNetCreditClose ? 'credit' : 'debit'} $${limitPrice.toFixed(2)}) — 2 legs atomic`
               : `Order submitted (limit $${limitPrice.toFixed(2)})`,
           });
+          await writeTradingLog({
+            userId: ctx.user.id, symbol: order.symbol,
+            optionSymbol: order.optionSymbol, accountNumber: order.accountNumber,
+            strategy: isSpreadOrder ? 'spread-close' : 'single-close', action: 'BTC',
+            quantity: order.quantity, price: limitPrice.toFixed(2),
+            priceEffect: isNetCreditClose ? 'Credit' : 'Debit',
+            instrumentType: 'Equity Option', outcome: 'success', orderId: String(result.id),
+            source: 'routers-automation/submitCloseOrders',
+          });
         } catch (error: any) {
           console.error('[Automation submitCloseOrders] Order failed:', {
             symbol: order.symbol,
@@ -1883,6 +1896,17 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             ttErrors: (error.ttErrors || []) as Array<{ code: string; message: string }>,
             ttCode: (error.ttCode || null) as string | null,
             ttStatus: (error.ttStatus || null) as number | null,
+          });
+          await writeTradingLog({
+            userId: ctx.user.id, symbol: order.symbol,
+            optionSymbol: order.optionSymbol, accountNumber: order.accountNumber,
+            strategy: _isSpreadOrder ? 'spread-close' : 'single-close', action: 'BTC',
+            quantity: order.quantity, price: _limitPrice.toFixed(2),
+            priceEffect: _isNetCreditClose ? 'Credit' : 'Debit',
+            instrumentType: 'Equity Option', outcome: 'error',
+            errorMessage: error.message,
+            errorPayload: JSON.stringify({ ttErrors: error.ttErrors, ttCode: error.ttCode }),
+            source: 'routers-automation/submitCloseOrders',
           });
         }
       }

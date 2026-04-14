@@ -2,6 +2,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getApiCredentials } from "./db";
+import { writeTradingLog } from './routers-trading-log';
 
 
 /**
@@ -1003,6 +1004,15 @@ export const performanceRouter = router({
                 strike: pos.strike,
                 quantity: pos.quantity,
               });
+              await writeTradingLog({
+                userId: ctx.user.id, symbol: pos.underlying,
+                optionSymbol: formattedShortSymbol, accountNumber: pos.accountId,
+                strategy: 'spread-close', action: 'BTC',
+                strike: String(pos.strike),
+                quantity: pos.quantity, price: formattedPrice, priceEffect: 'Debit',
+                instrumentType: 'Equity Option', outcome: 'success', orderId: String(orderId),
+                source: 'routers-performance/submitCloseOrders',
+              });
             }
           } catch (error: any) {
             console.error(`[Performance] Failed to close spread for ${pos.underlying}:`, error);
@@ -1012,6 +1022,14 @@ export const performanceRouter = router({
               underlying: pos.underlying,
               strike: pos.strike,
               quantity: pos.quantity,
+            });
+            await writeTradingLog({
+              userId: ctx.user.id, symbol: pos.underlying,
+              accountNumber: pos.accountId, strategy: 'spread-close', action: 'BTC',
+              strike: String(pos.strike), quantity: pos.quantity, priceEffect: 'Debit', instrumentType: 'Equity Option',
+              outcome: 'error', errorMessage: error.message,
+              errorPayload: JSON.stringify(error?.response?.data ?? {}),
+              source: 'routers-performance/submitCloseOrders',
             });
           }
         } else {
@@ -1037,6 +1055,19 @@ export const performanceRouter = router({
             strike: pos.strike,
             quantity: pos.quantity,
           });
+          if (!dryRun) {
+            await writeTradingLog({
+              userId: ctx.user.id, symbol: pos.underlying,
+              optionSymbol: pos.optionSymbol, accountNumber: pos.accountId,
+              strategy: 'spread-close', action: 'BTC',
+              strike: String(pos.strike),
+              quantity: pos.quantity, price: aggressivePrice.toFixed(2), priceEffect: 'Debit',
+              outcome: result.success ? 'success' : 'error',
+              orderId: result.success ? String((result as any).orderId) : undefined,
+              errorMessage: result.success ? undefined : (result as any).message,
+              source: 'routers-performance/submitCloseOrders',
+            });
+          }
         }
       }
 

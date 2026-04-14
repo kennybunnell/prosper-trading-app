@@ -9,6 +9,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from "zod";
 import * as schema from '../drizzle/schema';
 import { eq } from 'drizzle-orm';
+import { writeTradingLog } from './routers-trading-log';
 
 // Cash-settled European-style indexes — cannot be used for covered calls (no stock assignment possible)
 const CASH_SETTLED_INDEXES = new Set(['SPX', 'SPXW', 'NDXP', 'NDX', 'MRUT', 'RUT', 'VIX', 'DJX', 'XSP', 'XND']);
@@ -1326,14 +1327,35 @@ export const ccRouter = router({
             orderId: result.id,
             message: 'Order submitted successfully',
           });
+          await writeTradingLog({
+            userId: ctx.user.id, symbol: order.symbol, optionSymbol,
+            accountNumber: order.effectiveAccount, strategy: 'cc', action: 'STO',
+            strike: String(order.strike), expiration: order.expiration,
+            quantity: order.quantity, price: order.price.toFixed(2), priceEffect: 'Credit',
+            instrumentType: ccInstrumentType, outcome: 'success', orderId: String(result.id),
+            source: 'routers-cc/submitOrders',
+          });
         } catch (error: any) {
           results.push({
             success: false,
             symbol: order.symbol,
             strike: order.strike,
             quantity: order.quantity,
-          message: error.message,
-        });
+            message: error.message,
+          });
+          const expDate2 = new Date(order.expiration);
+          const expStr2 = expDate2.toISOString().slice(2, 10).replace(/-/g, '');
+          const strikeStr2 = (order.strike * 1000).toFixed(0).padStart(8, '0');
+          const failOptSym = `${order.symbol.padEnd(6)}${expStr2}C${strikeStr2}`;
+          await writeTradingLog({
+            userId: ctx.user.id, symbol: order.symbol, optionSymbol: failOptSym,
+            accountNumber: order.effectiveAccount, strategy: 'cc', action: 'STO',
+            strike: String(order.strike), expiration: order.expiration,
+            quantity: order.quantity, price: order.price.toFixed(2), priceEffect: 'Credit',
+            outcome: 'error', errorMessage: error.message,
+            errorPayload: JSON.stringify(error?.response?.data ?? error?.cause ?? {}),
+            source: 'routers-cc/submitOrders',
+          });
       }
     }
 

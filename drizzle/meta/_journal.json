@@ -498,6 +498,13 @@
       "when": 1775843324224,
       "tag": "0071_majestic_zaran",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "5",
+      "when": 1776203248407,
+      "tag": "0072_majestic_skreet",
+      "breakpoints": true
     }
   ]
 }

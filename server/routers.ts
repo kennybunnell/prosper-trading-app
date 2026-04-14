@@ -31,6 +31,7 @@ import { chartsRouter } from './routers-charts';
 import { positionAnalyzerRouter } from './routers-position-analyzer';
 import { safeguardsRouter } from './routers-safeguards';
 import { portfolioSyncRouter } from './routers-portfolio-sync';
+import { tradingLogRouter } from './routers-trading-log';
 
 // Helper function to parse OCC option symbols
 function parseOptionSymbol(symbol: string): { underlying: string; expiration: string; optionType: string; strike: number } | null {
@@ -293,6 +294,7 @@ export const appRouter = router({
   rolls: rollsRouter,
   rollRecommendations: rollRecommendationsRouter,
   portfolioSync: portfolioSyncRouter,
+  tradingLog: tradingLogRouter,
   orders: ordersRouter,
   market: marketRouter,
   dashboard: router({
