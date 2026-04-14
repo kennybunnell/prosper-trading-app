@@ -1674,17 +1674,30 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         const tradierKeyForQuotes = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
         if (tradierKeyForQuotes) {
           const tradierForQuotes = new TradierAPIForQuotes(tradierKeyForQuotes);
-          const allOptionSymbols = Array.from(new Set([
+          const allOccSymbols = Array.from(new Set([
             ...input.orders.map(o => o.optionSymbol),
             ...input.orders.filter(o => o.spreadLongSymbol).map(o => o.spreadLongSymbol!),
           ]));
-          const quotes = await tradierForQuotes.getQuotes(allOptionSymbols);
+          // Tradier /markets/quotes requires compact format (no spaces): "SPXW260424P06750000"
+          // OCC format has spaces: "SPXW  260424P06750000"
+          const occToTradierFmt = (occ: string) => occ.replace(/\s+/g, '');
+          const tradierToOccRevMap: Record<string, string> = {};
+          const tradierSymsForClose = allOccSymbols.map(occ => {
+            const t = occToTradierFmt(occ);
+            tradierToOccRevMap[t] = occ;
+            return t;
+          });
+          const quotes = await tradierForQuotes.getQuotes(tradierSymsForClose);
           for (const q of quotes) {
             if (q.bid > 0 && q.ask > 0) {
-              liveQuoteMap.set(q.symbol, { bid: q.bid, ask: q.ask, mid: (q.bid + q.ask) / 2 });
+              const entry = { bid: q.bid, ask: q.ask, mid: (q.bid + q.ask) / 2 };
+              // Store under Tradier compact symbol AND original OCC symbol (with spaces)
+              liveQuoteMap.set(q.symbol, entry);
+              const origOcc = tradierToOccRevMap[q.symbol];
+              if (origOcc && origOcc !== q.symbol) liveQuoteMap.set(origOcc, entry);
             }
           }
-          console.log(`[submitCloseOrders] Fetched live quotes for ${liveQuoteMap.size}/${allOptionSymbols.length} option symbols`);
+          console.log(`[submitCloseOrders] Fetched live quotes for ${liveQuoteMap.size}/${allOccSymbols.length} option symbols`);
         }
       } catch (quoteErr: any) {
         console.warn('[submitCloseOrders] Live quote fetch failed, falling back to close-price:', quoteErr.message);

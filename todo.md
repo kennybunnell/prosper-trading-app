@@ -9181,3 +9181,15 @@ ROC Fix Mar 18 2026
 - [x] Add "Refresh Quotes" button in UnifiedOrderPreviewModal for spread strategies
 - [x] Add fill aggressiveness presets (Bid Side / 25% / Mid / 75% / Ask Side)
 - [x] Show real net credit range (netBid to netAsk) in the limit price cell
+
+## Live Quote Source Fix (Apr 14, 2026)
+- [ ] Switch fetchOptionQuotes procedure from Tradier to Tastytrade real-time quotes API
+- [ ] Verify Tastytrade option quote endpoint returns bid/ask for both equity and index options (SPX, NDX, etc.)
+- [ ] Update the procedure to use the authenticated Tastytrade session (same auth as order submission)
+
+## Live Quote Fix — ALL Submissions (Apr 14, 2026)
+- [x] Fix getOptionQuotesBatch: Tastytrade returns 200 OK but parsed quotes always empty — OCC symbol spacing mismatch between request and response keys
+- [x] Normalize OCC symbol spacing in response parser (strip/re-pad to canonical 21-char OCC format)
+- [x] Also key the result map by the INPUT symbol (not the response symbol) so callers always find their quote
+- [x] Verify fix works for SPXW index options AND equity options (AAPL, TSLA, etc.)
+- [x] Confirm live quotes now populate the order review modal for CSP, CC, BPS, BCS, IC, and roll strategies

@@ -2523,85 +2523,11 @@ Summary: [One sentence overall assessment]`;
                 longLeg: order.longLeg,
               });
               
-              // For spreads and Iron Condors, fetch fresh quotes to get current market prices
-              let freshNetCredit = order.premium; // Default to cached value
-              
-              if (order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg) {
-                try {
-                  // Fetch fresh quotes for all 4 legs
-                  const quotes = await api.getOptionQuotesBatch([
-                    order.putShortLeg.optionSymbol,
-                    order.putLongLeg.optionSymbol,
-                    order.callShortLeg.optionSymbol,
-                    order.callLongLeg.optionSymbol,
-                  ]);
-                  
-                  const putShortQuote = quotes[order.putShortLeg.optionSymbol];
-                  const putLongQuote = quotes[order.putLongLeg.optionSymbol];
-                  const callShortQuote = quotes[order.callShortLeg.optionSymbol];
-                  const callLongQuote = quotes[order.callLongLeg.optionSymbol];
-                  
-                  if (putShortQuote && putLongQuote && callShortQuote && callLongQuote &&
-                      putShortQuote.bid > 0 && putLongQuote.ask > 0 &&
-                      callShortQuote.bid > 0 && callLongQuote.ask > 0) {
-                    // Calculate fresh net credit for Iron Condor:
-                    // (Put Short Bid - Put Long Ask) + (Call Short Bid - Call Long Ask)
-                    const putSpreadCredit = putShortQuote.bid - putLongQuote.ask;
-                    const callSpreadCredit = callShortQuote.bid - callLongQuote.ask;
-                    freshNetCredit = putSpreadCredit + callSpreadCredit;
-                    console.log('[Iron Condor Debug] Fresh quotes:', {
-                      putShortBid: putShortQuote.bid,
-                      putLongAsk: putLongQuote.ask,
-                      putSpreadCredit,
-                      callShortBid: callShortQuote.bid,
-                      callLongAsk: callLongQuote.ask,
-                      callSpreadCredit,
-                      freshNetCredit,
-                      cachedPremium: order.premium,
-                      difference: freshNetCredit - order.premium,
-                    });
-                  } else {
-                    console.warn('[Iron Condor Debug] Invalid quotes, using cached premium:', {
-                      putShortQuote,
-                      putLongQuote,
-                      callShortQuote,
-                      callLongQuote,
-                    });
-                  }
-                } catch (error) {
-                  console.error('[Iron Condor Debug] Failed to fetch fresh quotes, using cached premium:', error);
-                }
-              } else if (order.isSpread && order.shortLeg && order.longLeg) {
-                try {
-                  // Fetch fresh quotes for both legs
-                  const quotes = await api.getOptionQuotesBatch([
-                    order.shortLeg.optionSymbol,
-                    order.longLeg.optionSymbol,
-                  ]);
-                  
-                  const shortQuote = quotes[order.shortLeg.optionSymbol];
-                  const longQuote = quotes[order.longLeg.optionSymbol];
-                  
-                  if (shortQuote && longQuote && shortQuote.bid > 0 && longQuote.ask > 0) {
-                    // Calculate fresh net credit: bid (what we receive) - ask (what we pay)
-                    freshNetCredit = shortQuote.bid - longQuote.ask;
-                    console.log('[BPS Debug] Fresh quotes:', {
-                      shortBid: shortQuote.bid,
-                      longAsk: longQuote.ask,
-                      freshNetCredit,
-                      cachedPremium: order.premium,
-                      difference: freshNetCredit - order.premium,
-                    });
-                  } else {
-                    console.warn('[BPS Debug] Invalid quotes, using cached premium:', {
-                      shortQuote,
-                      longQuote,
-                    });
-                  }
-                } catch (error) {
-                  console.error('[BPS Debug] Failed to fetch fresh quotes, using cached premium:', error);
-                }
-              }
+              // For spreads and Iron Condors, the limit price comes directly from the user's
+              // modal slider (order.premium). We do NOT override it with a server-side
+              // freshNetCredit calculation — the user already set their desired fill price.
+              // freshNetCredit is kept as a variable name for logging/GTC premium tracking only.
+              const freshNetCredit = order.premium;
               
               // Build legs based on order type
               // NOTE: Tastytrade order submission API requires 'Equity Option' for ALL option legs.
@@ -2665,17 +2591,10 @@ Summary: [One sentence overall assessment]`;
                   ];
               
               // Determine limit price:
-              // - Single-leg (CSP/CC): use order.premium exactly as adjusted by the user in the modal
-              // - Spreads/IC: use freshNetCredit (market price at submission time) with a 5% buffer
+              // Always use order.premium — the user's chosen price from the modal slider.
+              // No server-side buffer or override: the user controls the fill aggressiveness.
               const { snapToTick } = await import('../shared/orderUtils');
-              let rawLimitPrice: number;
-              if (order.isSpread || order.isIronCondor) {
-                const buffer = Math.max(freshNetCredit * 0.05, 0.05);
-                rawLimitPrice = Math.max(freshNetCredit - buffer, 0.01);
-              } else {
-                // Use the user's adjusted price from the modal — already snapped to tick on the frontend
-                rawLimitPrice = Math.max(order.premium, 0.01);
-              }
+              const rawLimitPrice = Math.max(order.premium, 0.01);
               // Re-snap on server side using integer arithmetic to eliminate any FP drift from JSON serialization
               const limitPrice = snapToTick(rawLimitPrice, order.symbol);
               

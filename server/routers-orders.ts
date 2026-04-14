@@ -16,6 +16,17 @@ export const ordersRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      /**
+       * Live option quote fetch via Tradier /markets/quotes
+       * 
+       * Why Tradier instead of Tastytrade /market-data/by-type:
+       *   Tastytrade's REST endpoint returns items:[] for index options (SPXW, NDXP, etc.)
+       *   Tradier's /markets/quotes returns real-time bid/ask for ALL option types.
+       *
+       * OCC symbol format (what we store): "SPXW  260424P06750000" (spaces for padding)
+       * Tradier quote format:              "SPXW260424P06750000"  (no spaces)
+       * We convert before the request and map results back by original OCC symbol.
+       */
       try {
         const { getDb } = await import('./db');
         const db = await getDb();
@@ -24,18 +35,43 @@ export const ordersRouter = router({
         const { eq } = await import('drizzle-orm');
         const [creds] = await db.select().from(apiCredentials).where(eq(apiCredentials.userId, ctx.user.id));
         if (!creds) return {} as Record<string, { bid: number; ask: number }>;
-        const api = await authenticateTastytrade(creds, ctx.user.id);
-        const quotes = await api.getOptionQuotesBatch(input.symbols);
-        // quotes is Record<symbol, {bid, ask, mark?, mid?, last?}>
-        // Normalise to a simple map of symbol -> {bid, ask}
-        const result: Record<string, { bid: number; ask: number }> = {};
-        for (const [sym, q] of Object.entries(quotes)) {
-          const qAny = q as any;
-          result[sym] = {
-            bid: typeof qAny.bid === 'number' ? qAny.bid : 0,
-            ask: typeof qAny.ask === 'number' ? qAny.ask : 0,
-          };
+
+        // Convert OCC symbols (with spaces) → Tradier compact format (no spaces)
+        // OCC: "SPXW  260424P06750000" → Tradier: "SPXW260424P06750000"
+        // OCC: "AAPL  260117C00150000" → Tradier: "AAPL260117C00150000"
+        const occToTradier = (occ: string): string => occ.replace(/\s+/g, '');
+        // Build a reverse map: tradierSymbol → originalOccSymbol
+        const tradierToOcc: Record<string, string> = {};
+        const tradierSymbols: string[] = [];
+        for (const sym of input.symbols) {
+          const tradierSym = occToTradier(sym);
+          tradierToOcc[tradierSym] = sym;
+          tradierSymbols.push(tradierSym);
         }
+
+        const { TradierAPI } = await import('./tradier.js');
+        const tradierKey = creds.tradierApiKey || process.env.TRADIER_API_KEY || '';
+        if (!tradierKey) {
+          console.warn('[fetchOptionQuotes] No Tradier API key — falling back to empty quotes');
+          return {} as Record<string, { bid: number; ask: number }>;
+        }
+        const tradierApi = new TradierAPI(tradierKey);
+        const rawQuotes = await tradierApi.getQuotes(tradierSymbols);
+
+        // Map results back to original OCC symbols
+        const result: Record<string, { bid: number; ask: number }> = {};
+        for (const q of rawQuotes) {
+          const qAny = q as any;
+          const tradierSym: string = qAny.symbol || '';
+          const originalOcc = tradierToOcc[tradierSym] || tradierSym;
+          const bid = typeof qAny.bid === 'number' ? qAny.bid : parseFloat(qAny.bid) || 0;
+          const ask = typeof qAny.ask === 'number' ? qAny.ask : parseFloat(qAny.ask) || 0;
+          if (bid > 0 || ask > 0) {
+            result[originalOcc] = { bid, ask };
+          }
+        }
+
+        console.log(`[fetchOptionQuotes] Tradier returned ${Object.keys(result).length}/${input.symbols.length} quotes`);
         return result;
       } catch (err: any) {
         console.error('[fetchOptionQuotes] Failed:', err.message);
