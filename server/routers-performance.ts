@@ -336,39 +336,21 @@ export const performanceRouter = router({
           allOptionSymbols.add(pos.symbol);
         }
         
-        // Fetch current quotes for all options via Tradier (real-time, works for SPXW index options)
-        // Tastytrade's /market-data/by-type endpoint returns empty items[] for index options like SPXW.
-        // OCC symbols from Tastytrade have spaces (e.g. "SPXW  260424P06750000");
-        // Tradier requires compact format ("SPXW260424P06750000").
-        console.log(`[Performance] Fetching quotes for ${allOptionSymbols.size} option symbols via Tradier`);
+        // Fetch current quotes for all options via Tastytrade /market-data/by-type.
+        // This endpoint supports both equity options (equity-option param) and index options
+        // (index-option param for SPXW, NDX, XSP, RUT, etc.) — the correct param type is
+        // applied automatically inside getOptionQuotesBatch.
+        console.log(`[Performance] Fetching quotes for ${allOptionSymbols.size} option symbols via Tastytrade`);
         const quotes: Record<string, { bid: number; ask: number; mid: number; mark: number; last: number }> = {};
         try {
-          const { createTradierAPI } = await import('./tradier');
-          const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
-          if (tradierKey) {
-            const tradierApi = createTradierAPI(tradierKey);
-            const occToCompact = (s: string) => s.replace(/\s+/g, '');
-            const compactToOcc: Record<string, string> = {};
-            const compactSymbols = Array.from(allOptionSymbols).map(occ => {
-              const c = occToCompact(occ);
-              compactToOcc[c] = occ;
-              return c;
-            });
-            const rawQuotes = await tradierApi.getQuotes(compactSymbols);
-            for (const q of rawQuotes) {
-              if (!q.symbol) continue;
-              const mid = ((q.bid ?? 0) + (q.ask ?? 0)) / 2;
-              const entry = { bid: q.bid ?? 0, ask: q.ask ?? 0, mid, mark: mid, last: q.last ?? 0 };
-              quotes[q.symbol] = entry;                          // compact key
-              const origOcc = compactToOcc[q.symbol];
-              if (origOcc && origOcc !== q.symbol) quotes[origOcc] = entry; // OCC key with spaces
-            }
-            console.log(`[Performance] Tradier quotes fetched: ${Object.keys(quotes).length / 2} symbols`);
-          } else {
-            console.warn('[Performance] No Tradier API key — falling back to close-price for quotes');
+          const rawQuotes = await api.getOptionQuotesBatch(Array.from(allOptionSymbols));
+          for (const [sym, q] of Object.entries(rawQuotes)) {
+            const mid = q.mid || ((q.bid + q.ask) / 2);
+            quotes[sym] = { bid: q.bid, ask: q.ask, mid, mark: q.mark || mid, last: q.last };
           }
+          console.log(`[Performance] Tastytrade quotes fetched: ${Object.keys(quotes).length} symbols`);
         } catch (quoteErr: any) {
-          console.warn('[Performance] Tradier quote fetch failed, falling back to close-price:', quoteErr.message);
+          console.warn('[Performance] Tastytrade quote fetch failed, falling back to close-price:', quoteErr.message);
         }
         
         // Collect unique underlying symbols for stock price fetching
@@ -525,8 +507,8 @@ export const performanceRouter = router({
             dte,
             premium: premiumReceived,
             current: currentCost,
-            // Use live Tradier quote for currentPrice (feeds into order modal slider initial position)
-            // Fall back to close-price only if Tradier quote is unavailable
+            // Use live Tastytrade quote for currentPrice (feeds into order modal slider initial position)
+            // Fall back to close-price only if Tastytrade quote is unavailable
             currentPrice: quote ? (quote.mark || quote.mid || quote.last) : parseFloat(pos['close-price']),
             underlyingPrice: underlyingPrices[pos['underlying-symbol']],
             realizedPercent: Math.round(realizedPercent * 100) / 100, // Round to 2 decimals

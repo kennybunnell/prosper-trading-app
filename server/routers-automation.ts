@@ -1200,9 +1200,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         // This prevents ITM options (stock gapped up overnight) from showing as
         // "Ready to Close" when the actual buyback cost exceeds the premium collected.
         try {
-          // OCC symbols from Tastytrade contain spaces (e.g. "NBIS  260320C00103000").
-          // Tradier requires space-free OCC symbols (e.g. "NBIS260320C00103000").
-          // Build a map: normalizedSymbol → originalSymbol so we can look up results.
+          // Fetch live option marks via Tastytrade /market-data/by-type.
+          // Supports both equity options and index options (SPXW, NDX, XSP, RUT, etc.)
           const normalizeOCC = (s: string) => s.replace(/\s+/g, '');
           const rawOptionSymbols = Array.from(
             new Set(
@@ -1214,33 +1213,21 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 ])
             )
           );
-          // Map normalized → original for reverse lookup after Tradier responds
-          const normToOrig = new Map<string, string>();
-          for (const sym of rawOptionSymbols) {
-            normToOrig.set(normalizeOCC(sym), sym);
-          }
-          const normalizedSymbols = Array.from(normToOrig.keys());
 
-          if (normalizedSymbols.length > 0) {
-            const { createTradierAPI } = await import('./tradier');
-            const storedKey = credentials?.tradierApiKey;
-            const tradierApiKey = (storedKey && storedKey.length > 15 ? storedKey : null) || process.env.TRADIER_API_KEY;
-            if (tradierApiKey) {
-              const tradierApi = createTradierAPI(tradierApiKey);
-              console.log(`[Automation] Fetching live option marks for ${normalizedSymbols.length} symbols (sample: ${normalizedSymbols.slice(0, 3).join(', ')})`);
-              const liveOptionQuotes = await tradierApi.getQuotes(normalizedSymbols);
-              // Build mark map keyed by ORIGINAL symbol (with spaces) for easy lookup
-              const liveMarkMap = new Map<string, number>();
-              for (const q of liveOptionQuotes) {
-                const mid = (q.bid + q.ask) / 2;
-                const mark = mid > 0 ? mid : (q.last > 0 ? q.last : 0);
-                if (q.symbol && mark > 0) {
-                  const origSym = normToOrig.get(q.symbol) ?? q.symbol;
-                  liveMarkMap.set(origSym, mark);   // original (with spaces)
-                  liveMarkMap.set(q.symbol, mark);  // normalized (no spaces)
-                }
+          if (rawOptionSymbols.length > 0) {
+            console.log(`[Automation] Fetching live option marks for ${rawOptionSymbols.length} symbols via Tastytrade`);
+            const rawQuoteMap = await tt.getOptionQuotesBatch(rawOptionSymbols);
+            // Build mark map keyed by both original (with spaces) and normalized (no spaces)
+            const liveMarkMap = new Map<string, number>();
+            for (const [sym, q] of Object.entries(rawQuoteMap) as [string, any][]) {
+              const mid = (q.bid + q.ask) / 2;
+              const mark = (q.mark && q.mark > 0) ? q.mark : (mid > 0 ? mid : (q.last > 0 ? q.last : 0));
+              if (mark > 0) {
+                liveMarkMap.set(sym, mark);                        // original (with spaces)
+                liveMarkMap.set(normalizeOCC(sym), mark);          // normalized (no spaces)
               }
-              console.log(`[Automation] Live option marks fetched for ${liveMarkMap.size / 2}/${normalizedSymbols.length} option symbols`);
+            }
+            console.log(`[Automation] Live option marks fetched for ${Object.keys(rawQuoteMap).length}/${rawOptionSymbols.length} option symbols`);
 
               // Re-compute buyBackCost and realizedPercent from live marks.
               // Re-evaluate action: if realizedPercent drops below threshold, demote to BELOW_THRESHOLD.
@@ -1309,7 +1296,6 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               totalProfitRealized = scanResults
                 .filter(r => r.action === 'WOULD_CLOSE')
                 .reduce((sum, r) => sum + (r.premiumCollected - r.buyBackCost), 0);
-            }
           }
         } catch (optionQuoteErr) {
           console.warn('[Automation] Failed to refresh live option marks — using stale close-price values:', optionQuoteErr);

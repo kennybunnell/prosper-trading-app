@@ -30,7 +30,7 @@ import {
 
 function MonthlyPremiumChartSection() {
   const [selectedYear, setSelectedYear] = useState<number | undefined>(new Date().getFullYear());
-  const { data, isLoading, error } = trpc.dashboard.getMonthlyPremiumData.useQuery(
+  const { data, isLoading, error, refetch, isFetching } = trpc.dashboard.getMonthlyPremiumData.useQuery(
     selectedYear ? { year: selectedYear } : undefined,
     { retry: false, refetchOnWindowFocus: false }
   );
@@ -71,15 +71,27 @@ function MonthlyPremiumChartSection() {
             <p className="text-xs text-muted-foreground">All Accounts — Income Overview</p>
           </div>
         </div>
-        <select
-          value={selectedYear || 'all'}
-          onChange={(e) => setSelectedYear(e.target.value === 'all' ? undefined : Number(e.target.value))}
-          className="px-3 py-1.5 rounded-lg border border-border/50 bg-background/60 text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-green-500/50"
-        >
-          <option value="all">Last 6 Months</option>
-          <option value="2026">2026</option>
-          <option value="2025">2025</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+            title="Refresh earnings data"
+          >
+            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+          </Button>
+          <select
+            value={selectedYear || 'all'}
+            onChange={(e) => setSelectedYear(e.target.value === 'all' ? undefined : Number(e.target.value))}
+            className="px-3 py-1.5 rounded-lg border border-border/50 bg-background/60 text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-green-500/50"
+          >
+            <option value="all">Last 6 Months</option>
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+          </select>
+        </div>
       </div>
       <MonthlyPremiumChart data={data.monthlyData} />
     </div>

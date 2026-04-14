@@ -118,17 +118,13 @@ export const workingOrdersRouter = router({
             // Record cancellation in database
             await recordOrderCanceled(order.orderId, true); // wasAutoCanceled = true
 
-            // Fetch current quote to get ask price via Tradier (Tastytrade endpoint returns empty for index options)
-            const compactSym = order.symbol.replace(/\s+/g, '');
+            // Fetch current quote to get ask price via Tastytrade /market-data/by-type.
+            // Supports both equity options and index options (SPXW, NDX, XSP, etc.)
             let quote: { bid?: number; ask?: number; mid?: number } | undefined;
             try {
-              const { createTradierAPI } = await import('./tradier');
-              const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
-              if (tradierKey) {
-                const tradierApi = createTradierAPI(tradierKey);
-                const rawQ = await tradierApi.getQuotes([compactSym]);
-                if (rawQ[0]) quote = { bid: rawQ[0].bid ?? 0, ask: rawQ[0].ask ?? 0, mid: ((rawQ[0].bid ?? 0) + (rawQ[0].ask ?? 0)) / 2 };
-              }
+              const rawQuotes = await api.getOptionQuotesBatch([order.symbol]);
+              const q = rawQuotes[order.symbol];
+              if (q) quote = { bid: q.bid, ask: q.ask, mid: q.mid || ((q.bid + q.ask) / 2) };
             } catch (qErr: any) {
               console.warn('[WorkingOrders] Failed to fetch quote for aggressive fill:', qErr.message);
             }
@@ -316,37 +312,18 @@ export const workingOrdersRouter = router({
 
         console.log(`[WorkingOrders] Fetching quotes for ${optionSymbols.length} symbols`);
 
-        // Fetch real-time quotes from Tradier (Tastytrade /market-data/by-type returns empty for index options)
-        // OCC symbols from Tastytrade have spaces (e.g. "SPXW  260424P06750000");
-        // Tradier requires compact format ("SPXW260424P06750000").
+        // Fetch real-time quotes from Tastytrade /market-data/by-type.
+        // Supports both equity options and index options (SPXW, NDX, XSP, RUT, etc.)
+        // using the correct 'index-option' vs 'equity-option' parameter type automatically.
         const quotes: Record<string, { bid: number; ask: number; mid: number; last: number }> = {};
         try {
-          const { createTradierAPI } = await import('./tradier');
-          const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
-          if (tradierKey) {
-            const tradierApi = createTradierAPI(tradierKey);
-            const occToCompact = (s: string) => s.replace(/\s+/g, '');
-            // Build reverse map: compact → original (with spaces)
-            const compactToOcc: Record<string, string> = {};
-            const compactSymbols = optionSymbols.map(occ => {
-              const c = occToCompact(occ);
-              compactToOcc[c] = occ;
-              return c;
-            });
-            const rawQuotes = await tradierApi.getQuotes(compactSymbols);
-            for (const q of rawQuotes) {
-              if (!q.symbol) continue;
-              const entry = { bid: q.bid ?? 0, ask: q.ask ?? 0, mid: ((q.bid ?? 0) + (q.ask ?? 0)) / 2, last: q.last ?? 0 };
-              quotes[q.symbol] = entry;                          // compact key
-              const origOcc = compactToOcc[q.symbol];
-              if (origOcc && origOcc !== q.symbol) quotes[origOcc] = entry; // OCC key with spaces
-            }
-            console.log(`[WorkingOrders] Tradier quotes fetched: ${Object.keys(quotes).length / 2} symbols (sample: ${JSON.stringify(Object.entries(quotes).slice(0, 2))})`);
-          } else {
-            console.warn('[WorkingOrders] No Tradier API key — quotes will be empty');
+          const rawQuotes = await api.getOptionQuotesBatch(optionSymbols);
+          for (const [sym, q] of Object.entries(rawQuotes)) {
+            quotes[sym] = { bid: q.bid, ask: q.ask, mid: q.mid || ((q.bid + q.ask) / 2), last: q.last };
           }
+          console.log(`[WorkingOrders] Tastytrade quotes fetched: ${Object.keys(quotes).length} symbols`);
         } catch (quoteErr: any) {
-          console.warn('[WorkingOrders] Tradier quote fetch failed:', quoteErr.message);
+          console.warn('[WorkingOrders] Tastytrade quote fetch failed:', quoteErr.message);
         }
 
         // Fetch replacement counts from DB for all working orders

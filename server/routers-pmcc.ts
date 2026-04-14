@@ -314,12 +314,27 @@ export const pmccRouter = router({
 
       if (leapPositions.length === 0) return { positions: [] };
 
-      // Enrich with live market data from Tradier (current prices only — this IS needed live)
+      // Enrich with live market data from Tastytrade (current prices — this IS needed live)
       const credentials = await getApiCredentials(ctx.user.id);
-      const { getEffectiveTier: _getETleap } = await import('./middleware/subscriptionEnforcement');
-      const isFreeTrialUser = _getETleap(ctx.user) === 'free_trial';
-      const tradierApiKey = credentials?.tradierApiKey || (isFreeTrialUser ? process.env.TRADIER_API_KEY : null) || '';
-      const tradierApi = createTradierAPI(tradierApiKey);
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const ttApi = credentials ? await authenticateTastytrade(credentials, ctx.user.id) : null;
+
+      // Fetch all LEAP option quotes in one batch call via Tastytrade /market-data/by-type
+      const leapSymbols = leapPositions.map(p => p.symbol).filter(Boolean) as string[];
+      const leapQuoteMap = ttApi ? await ttApi.getOptionQuotesBatch(leapSymbols).catch(() => ({})) : {};
+
+      // Fetch underlying stock prices in batch via Tastytrade
+      const underlyingSet = new Set(leapPositions.map(p => p.underlyingSymbol).filter(Boolean) as string[]);
+      const underlyingSymbols = Array.from(underlyingSet);
+      const underlyingPriceMap: Record<string, number> = {};
+      if (ttApi && underlyingSymbols.length > 0) {
+        try {
+          const stockQuotes = await ttApi.getUnderlyingQuotesBatch(underlyingSymbols);
+          for (const [sym, q] of Object.entries(stockQuotes) as [string, any][]) {
+            underlyingPriceMap[sym] = q.mark || q.last || 0;
+          }
+        } catch { /* non-fatal */ }
+      }
 
       const enrichedPositions = await Promise.all(
         leapPositions.map(async (pos) => {
@@ -330,20 +345,12 @@ export const pmccRouter = router({
             const dte = Math.floor((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
             const qty = parseFloat(pos.quantity);
 
-            // Fetch live LEAP option price AND underlying stock price from Tradier in parallel.
-            // OCC symbols from Tastytrade have spaces (e.g. "AAPL  260117C00150000");
-            // Tradier requires compact format ("AAPL260117C00150000").
-            const compactOptionSymbol = (pos.symbol || '').replace(/\s+/g, '');
-            const [optionQuotes, stockQuote] = await Promise.all([
-              tradierApi.getQuotes([compactOptionSymbol]).catch(() => [] as any[]),
-              tradierApi.getQuote(underlying).catch(() => null),
-            ]);
-            const optionQuote = optionQuotes[0];
-            const liveOptionMid = optionQuote ? ((optionQuote.bid ?? 0) + (optionQuote.ask ?? 0)) / 2 : 0;
-            const liveOptionMark = liveOptionMid || optionQuote?.last || 0;
-            // Fall back to close-price only if Tradier returns no live quote
+            // Get live LEAP option price from Tastytrade batch quote map
+            const liveQ = (leapQuoteMap as any)[pos.symbol];
+            const liveOptionMark = liveQ ? (liveQ.mark || liveQ.mid || ((liveQ.bid + liveQ.ask) / 2) || liveQ.last || 0) : 0;
+            // Fall back to close-price only if Tastytrade returns no live quote
             const currentPrice = liveOptionMark > 0 ? liveOptionMark : parseFloat(pos.closePrice || '0');
-            const stockPrice = stockQuote?.last || 0;
+            const stockPrice = underlyingPriceMap[underlying] || 0;
 
             const costBasis = Math.abs(parseFloat(pos.averageOpenPrice)) * 100 * qty;
             const currentValue = currentPrice * 100 * qty;

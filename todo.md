@@ -9233,3 +9233,20 @@ ROC Fix Mar 18 2026
 - [x] Confirmed routers-portfolio-advisor.ts: no order submission, display/analysis only
 - [x] Confirmed routers-tax.ts: no order submission, reporting only
 - [x] Confirmed submitCloseOrders (automation): uses calcBtcLimitPrice() with live Tradier quotes; close-price only as fallback
+
+## Restore Tastytrade as Live Quote Source (Apr 14, 2026)
+
+- [ ] Fix routers-performance.ts: replace Tradier quote fetch with Tastytrade getOptionQuotesBatch
+- [ ] Fix routers-working-orders.ts: replace Tradier quote fetch with Tastytrade getOptionQuotesBatch
+- [ ] Fix routers-automation.ts: replace Tradier liveMarkMap with Tastytrade getOptionQuotesBatch
+- [ ] Fix routers-pmcc.ts getLeapPositions: replace Tradier option quote with Tastytrade getOptionQuotesBatch
+- [ ] Add refresh button to monthly premium earnings dashboard card
+
+## Tastytrade Live Quote Restoration (Apr 14 2026)
+- [x] Restore Tastytrade getOptionQuotesBatch as live quote source in routers-performance.ts getActivePositions
+- [x] Restore Tastytrade getOptionQuotesBatch as live quote source in routers-working-orders.ts (both stuck-order resubmit and getWorkingOrdersWithQuotes)
+- [x] Restore Tastytrade getOptionQuotesBatch as live quote source in routers-automation.ts liveMarkMap enrichment
+- [x] Restore Tastytrade getOptionQuotesBatch as live quote source in routers-pmcc.ts getLeapPositions (replacing Tradier)
+- [x] Add refresh button to Monthly Premium Earnings chart on main dashboard
+- [x] Fix all stale "Tradier" comments in submission-path code to say "Tastytrade"
+- [x] Confirm Tradier is still used only for option chains, Greeks, stock quotes, expirations, earnings checks (correct uses)
