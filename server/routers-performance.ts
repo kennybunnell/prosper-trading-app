@@ -911,14 +911,15 @@ export const performanceRouter = router({
           console.log(`[Performance] Detected ${pos.spreadType} spread: ${pos.strike}/${pos.longStrike}`);
           
           try {
-            // Import price formatting utility and index-option classifier
-            const { formatPriceForSubmission, isTrueIndexOption, snapToTick } = await import('../shared/orderUtils');
+            // Import price formatting utility
+            const { formatPriceForSubmission, snapToTick } = await import('../shared/orderUtils');
             
-            // Determine instrument type: CBOE/Nasdaq cash-settled index options require
-            // 'Index Option'; equity options use 'Equity Option'.
-            // Sending the wrong type causes Order_disallowed_by_exchange_rules rejection.
-            const instrumentType: 'Index Option' | 'Equity Option' =
-              isTrueIndexOption(pos.underlying) ? 'Index Option' : 'Equity Option';
+            // IMPORTANT: Tastytrade order submission API requires 'Equity Option' for ALL option legs
+            // in ALL multi-leg spread orders, including cash-settled index options (SPX, SPXW, NDX, RUT, etc.).
+            // Using 'Index Option' in spread legs causes validation_error: "does not have a valid value".
+            // This was confirmed via live rejection on 2026-03-20 for an SPX BCS order.
+            // 'Index Option' is only valid for SINGLE-LEG orders (new STOs on index options).
+            const instrumentType: 'Equity Option' = 'Equity Option';
 
             // Construct option symbols for both legs
             // Parse the short leg symbol to extract components

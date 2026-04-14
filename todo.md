@@ -9250,3 +9250,7 @@ ROC Fix Mar 18 2026
 - [x] Add refresh button to Monthly Premium Earnings chart on main dashboard
 - [x] Fix all stale "Tradier" comments in submission-path code to say "Tastytrade"
 - [x] Confirm Tradier is still used only for option chains, Greeks, stock quotes, expirations, earnings checks (correct uses)
+
+## Instrument-Type Consistency Fix (Apr 14 2026)
+- [x] Fix routers-performance.ts spread close: change Index Option to Equity Option for all spread legs (confirmed correct by live rejection 2026-03-20)
+- [x] Verified all other submission paths use correct instrument-type per order type
