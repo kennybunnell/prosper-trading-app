@@ -9174,3 +9174,10 @@ ROC Fix Mar 18 2026
 - [x] Update action bar so CLOSE-labeled positions with a selected roll candidate use the "Review & Submit Orders" path (not just "Close Selected")
 - [x] Change "Close Selected" button to only appear for positions where user explicitly chose close (no roll candidate selected)
 - [x] Add "Roll Selected" option for CLOSE/STOP positions that have a roll candidate selected
+
+## BPS/SPX Order Fill Rate Improvements
+- [x] Fetch live bid/ask for both legs of spread close orders when review modal opens
+- [x] Replace fake estimated bid/ask (currentValue * 0.95/1.05) with real Tradier quotes
+- [x] Add "Refresh Quotes" button in UnifiedOrderPreviewModal for spread strategies
+- [x] Add fill aggressiveness presets (Bid Side / 25% / Mid / 75% / Ask Side)
+- [x] Show real net credit range (netBid to netAsk) in the limit price cell

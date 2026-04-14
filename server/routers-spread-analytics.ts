@@ -756,11 +756,19 @@ export const spreadAnalyticsRouter = router({
         profitLossPercent: pos.realizedPercent,
         capitalAtRisk: pos.capitalAtRisk!,
         roc: pos.capitalAtRisk ? ((pos.premium - pos.current) / pos.capitalAtRisk) * 100 : 0,
+        // OCC option symbols for live quote fetching
+        shortOptionSymbol: pos.optionSymbol,
+        longOptionSymbol: pos.longOptionSymbol,
         // Iron Condor specific fields
         putShortStrike: pos.putShortStrike,
         putLongStrike: pos.putLongStrike,
         callShortStrike: pos.callShortStrike,
         callLongStrike: pos.callLongStrike,
+        putShortOptionSymbol: pos.putShortOptionSymbol,
+        putLongOptionSymbol: pos.putLongOptionSymbol,
+        callShortOptionSymbol: pos.callShortOptionSymbol,
+        callLongOptionSymbol: pos.callLongOptionSymbol,
+        accountId: pos.accountId,
         };
       });
     }),

@@ -738,20 +738,19 @@ function ActiveSpreadsTab({
     
     // For Iron Condor, we need to create two separate orders (put spread + call spread)
     if (spread.strategy === 'Iron Condor') {
+      // Note: bid/ask start as undefined — live quotes will be fetched by the modal
       const putSpreadOrder: UnifiedOrder = {
         symbol: spread.symbol,
         strike: parseFloat(spread.putShortStrike),
         expiration: spread.expiration,
-        premium: spread.currentValue / 2, // Estimate half for put spread
+        premium: spread.currentValue / 2, // Estimate half for put spread (will be overridden by live quotes)
         action: "BTC" as const,
         optionType: 'PUT' as const,
-        bid: (spread.currentValue / 2) * 0.95,
-        ask: (spread.currentValue / 2) * 1.05,
         currentPrice: spread.currentValue / 2,
         longStrike: parseFloat(spread.putLongStrike),
-        longPremium: (spread.currentValue / 2) * 0.6,
-        longBid: (spread.currentValue / 2) * 0.6 * 0.95,
-        longAsk: (spread.currentValue / 2) * 0.6 * 1.05,
+        // Pass OCC symbols so the modal can fetch live bid/ask
+        optionSymbol: spread.putShortOptionSymbol,
+        spreadLongSymbol: spread.putLongOptionSymbol,
         perOrderPremiumCollected: (spread.premiumReceived || 0) / 2, // Half for put side of IC
       };
       
@@ -759,22 +758,21 @@ function ActiveSpreadsTab({
         symbol: spread.symbol,
         strike: parseFloat(spread.callShortStrike),
         expiration: spread.expiration,
-        premium: spread.currentValue / 2, // Estimate half for call spread
+        premium: spread.currentValue / 2, // Estimate half for call spread (will be overridden by live quotes)
         action: "BTC" as const,
         optionType: 'CALL' as const,
-        bid: (spread.currentValue / 2) * 0.95,
-        ask: (spread.currentValue / 2) * 1.05,
         currentPrice: spread.currentValue / 2,
         longStrike: parseFloat(spread.callLongStrike),
-        longPremium: (spread.currentValue / 2) * 0.6,
-        longBid: (spread.currentValue / 2) * 0.6 * 0.95,
-        longAsk: (spread.currentValue / 2) * 0.6 * 1.05,
+        // Pass OCC symbols so the modal can fetch live bid/ask
+        optionSymbol: spread.callShortOptionSymbol,
+        spreadLongSymbol: spread.callLongOptionSymbol,
         perOrderPremiumCollected: (spread.premiumReceived || 0) / 2, // Half for call side of IC
       };
       
       setUnifiedOrders([putSpreadOrder, callSpreadOrder]);
     } else {
       // Single spread (Bull Put or Bear Call)
+      // Note: bid/ask start as undefined — live quotes will be fetched by the modal
       const order: UnifiedOrder = {
         symbol: spread.symbol,
         strike: parseFloat(spread.shortStrike),
@@ -782,13 +780,11 @@ function ActiveSpreadsTab({
         premium: spread.currentValue,
         action: "BTC" as const,
         optionType,
-        bid: spread.currentValue * 0.95,
-        ask: spread.currentValue * 1.05,
         currentPrice: spread.currentValue,
         longStrike: spread.longStrike ? parseFloat(spread.longStrike) : undefined,
-        longPremium: spread.currentValue * 0.6,
-        longBid: spread.currentValue * 0.6 * 0.95,
-        longAsk: spread.currentValue * 0.6 * 1.05,
+        // Pass OCC symbols so the modal can fetch live bid/ask
+        optionSymbol: spread.shortOptionSymbol,
+        spreadLongSymbol: spread.longOptionSymbol,
         perOrderPremiumCollected: spread.premiumReceived || 0,
       };
       

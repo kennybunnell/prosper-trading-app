@@ -209,26 +209,34 @@ export function UnifiedOrderPreviewModal({
   // Used when SPX is on a non-3rd-Friday date → auto-swap to SPXW (and NDX→NDXP, RUT→RUTW)
   const [correctedSymbols, setCorrectedSymbols] = useState<Map<string, string>>(new Map());
   // Live bid/ask quotes fetched at modal open time
-  // Collect all option symbols from orders (for BTC strategy, use optionSymbol; for others use OCC symbol if available)
+  // Collect all option symbols from orders (for BTC, BPS, BCS, IC strategies)
+  const SPREAD_STRATEGIES_WITH_LIVE_QUOTES = new Set(['btc', 'bps', 'bcs', 'iron_condor']);
   const optionSymbolsForQuotes = useMemo(() => {
-    if (!open || strategy !== 'btc') return [];
+    if (!open || !SPREAD_STRATEGIES_WITH_LIVE_QUOTES.has(strategy)) return [];
     const syms: string[] = [];
     orders.forEach(o => {
-      if (o.optionSymbol) syms.push(o.optionSymbol);       // BTC short leg
-      if (o.spreadLongSymbol) syms.push(o.spreadLongSymbol); // STC long leg (spread)
+      if (o.optionSymbol) syms.push(o.optionSymbol);       // Short leg OCC symbol
+      if (o.spreadLongSymbol) syms.push(o.spreadLongSymbol); // Long leg OCC symbol
     });
-    return Array.from(new Set(syms)); // deduplicate
+    return Array.from(new Set(syms.filter(Boolean))); // deduplicate and remove empty
   }, [open, strategy, orders]);
-  const [liveQuotesData, setLiveQuotesData] = useState<Record<string, { bid: number; ask: number }>>({});
+  const [liveQuotesData, setLiveQuotesData] = useState<Record<string, { bid: number; ask: number }>>({}); 
   const [isQuotesFetching, setIsQuotesFetching] = useState(false);
   const fetchQuotesMutation = trpc.orders.fetchOptionQuotes.useMutation();
-  useEffect(() => {
-    if (!open || strategy !== 'btc' || optionSymbolsForQuotes.length === 0) return;
+
+  // Fetch live quotes on modal open (for BTC and spread strategies)
+  const doFetchLiveQuotes = (symbols: string[]) => {
+    if (symbols.length === 0) return;
     setIsQuotesFetching(true);
-    fetchQuotesMutation.mutateAsync({ symbols: optionSymbolsForQuotes })
+    fetchQuotesMutation.mutateAsync({ symbols })
       .then(data => { setLiveQuotesData(data ?? {}); })
       .catch(() => { setLiveQuotesData({}); })
       .finally(() => { setIsQuotesFetching(false); });
+  };
+
+  useEffect(() => {
+    if (!open || !SPREAD_STRATEGIES_WITH_LIVE_QUOTES.has(strategy) || optionSymbolsForQuotes.length === 0) return;
+    doFetchLiveQuotes(optionSymbolsForQuotes);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, strategy, optionSymbolsForQuotes.join('|')]);
   const liveQuotes = liveQuotesData;
@@ -364,18 +372,49 @@ export function UnifiedOrderPreviewModal({
   };
 
   // Re-initialize prices when live quotes arrive (overrides the estimated bid/ask fallback)
+  // Works for BTC (single-leg) and spread strategies (BPS, BCS, IC)
   useEffect(() => {
-    if (!open || strategy !== 'btc' || Object.keys(liveQuotes).length === 0) return;
+    if (!open || Object.keys(liveQuotes).length === 0) return;
+    if (!SPREAD_STRATEGIES_WITH_LIVE_QUOTES.has(strategy)) return;
     setAdjustedPrices(prev => {
       const updated = new Map(prev);
       orders.forEach(order => {
         const key = getOrderKey(order);
-        const sym = order.optionSymbol;
-        if (!sym) return;
-        const q = liveQuotes[sym];
-        if (!q || q.bid === 0 || q.ask === 0) return;
-        const price = computeGoodFillPrice(q.bid, q.ask, order.action === 'BTC', order.symbol);
-        if (price > 0) updated.set(key, price);
+        const shortSym = order.optionSymbol;
+        const longSym = order.spreadLongSymbol;
+        const isBTC = order.action === 'BTC';
+
+        // Spread close: compute net debit range from live quotes for both legs
+        if (shortSym && longSym && order.longStrike) {
+          const shortQ = liveQuotes[shortSym];
+          const longQ = liveQuotes[longSym];
+          if (shortQ && longQ && shortQ.bid > 0 && shortQ.ask > 0 && longQ.bid > 0 && longQ.ask > 0) {
+            if (isBTC) {
+              // BTC spread: net debit = short ask - long bid (worst) to short bid - long ask (best)
+              // Good fill zone = mid + 25% toward max debit
+              const minDebit = Math.max(0.01, shortQ.bid - longQ.ask);
+              const maxDebit = Math.max(0.01, shortQ.ask - longQ.bid);
+              const midDebit = (minDebit + maxDebit) / 2;
+              const rawPrice = Math.max(0.01, midDebit + (maxDebit - midDebit) * 0.25);
+              updated.set(key, snapToTick(rawPrice, order.symbol));
+            } else {
+              // STO spread: net credit = short bid - long ask (conservative) to short ask - long bid (aggressive)
+              const minCredit = Math.max(0.01, shortQ.bid - longQ.ask);
+              const maxCredit = Math.max(0.01, shortQ.ask - longQ.bid);
+              const midCredit = (minCredit + maxCredit) / 2;
+              updated.set(key, snapToTick(midCredit, order.symbol));
+            }
+            return; // Don't fall through to single-leg logic
+          }
+        }
+
+        // Single-leg BTC (no long leg)
+        if (shortSym) {
+          const q = liveQuotes[shortSym];
+          if (!q || q.bid === 0 || q.ask === 0) return;
+          const price = computeGoodFillPrice(q.bid, q.ask, isBTC, order.symbol);
+          if (price > 0) updated.set(key, price);
+        }
       });
       return updated;
     });
@@ -1382,7 +1421,7 @@ export function UnifiedOrderPreviewModal({
                 : "Adjust quantities and prices before submitting"
               }
             </span>
-            {strategy === 'btc' && optionSymbolsForQuotes.length > 0 && (
+            {SPREAD_STRATEGIES_WITH_LIVE_QUOTES.has(strategy) && optionSymbolsForQuotes.length > 0 && (
               isQuotesFetching ? (
                 <span className="flex items-center gap-1 text-xs text-yellow-400">
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -1392,9 +1431,27 @@ export function UnifiedOrderPreviewModal({
                 <span className="flex items-center gap-1 text-xs text-green-400">
                   <CheckCircle2 className="h-3 w-3" />
                   Live quotes loaded
+                  <button
+                    onClick={() => doFetchLiveQuotes(optionSymbolsForQuotes)}
+                    className="ml-1 text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                    disabled={isQuotesFetching}
+                  >
+                    Refresh
+                  </button>
                 </span>
               ) : (
-                <span className="text-xs text-muted-foreground">Using estimated prices</span>
+                <span className="flex items-center gap-1 text-xs text-yellow-500">
+                  Using estimated prices
+                  {optionSymbolsForQuotes.length > 0 && (
+                    <button
+                      onClick={() => doFetchLiveQuotes(optionSymbolsForQuotes)}
+                      className="ml-1 text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                      disabled={isQuotesFetching}
+                    >
+                      Fetch live quotes
+                    </button>
+                  )}
+                </span>
               )
             )}
           </DialogDescription>
@@ -2323,15 +2380,53 @@ export function UnifiedOrderPreviewModal({
         </div>
         
         <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button 
-            variant="outline" 
-            onClick={handleResetAllToMidpoint}
-            disabled={isSubmitting || submissionComplete}
-            className="w-full sm:w-auto"
-          >
-            <span className="mr-2">↔</span>
-            ⚡ Reset All to Good Fill Zone
-          </Button>
+          {/* Fill Aggressiveness Presets — quick-set all order prices at once */}
+          <div className="flex flex-wrap items-center gap-1 w-full sm:w-auto">
+            <span className="text-xs text-muted-foreground mr-1 whitespace-nowrap">Fill speed:</span>
+            {([
+              { label: 'Bid', pct: 0,   title: 'Set all prices to bid side — highest fill chance, least favorable price' },
+              { label: '25%', pct: 25,  title: 'Set all prices 25% from bid toward mid' },
+              { label: 'Mid', pct: 50,  title: 'Set all prices to midpoint — balanced fill/price' },
+              { label: '75%', pct: 75,  title: 'Set all prices 75% from bid toward ask — better price, slower fill' },
+              { label: 'Ask', pct: 100, title: 'Set all prices to ask side — best price, least likely to fill' },
+            ] as const).map(({ label, pct, title }) => (
+              <Button
+                key={label}
+                size="sm"
+                variant="outline"
+                className={`h-7 px-2 text-xs ${
+                  label === 'Bid' ? 'border-green-600/50 text-green-400 hover:bg-green-600/10' :
+                  label === 'Mid' ? 'border-blue-600/50 text-blue-400 hover:bg-blue-600/10' :
+                  label === 'Ask' ? 'border-orange-600/50 text-orange-400 hover:bg-orange-600/10' :
+                  'border-muted text-muted-foreground hover:bg-muted/30'
+                }`}
+                title={title}
+                disabled={isSubmitting || submissionComplete}
+                onClick={() => {
+                  const newPrices = new Map(adjustedPrices);
+                  orders.forEach(order => {
+                    const key = getOrderKey(order);
+                    const { minPrice, maxPrice } = getOrderPriceRange(order);
+                    const rawPrice = minPrice + (maxPrice - minPrice) * (pct / 100);
+                    newPrices.set(key, snapToTick(Math.max(0.01, rawPrice), order.symbol));
+                  });
+                  setAdjustedPrices(newPrices);
+                }}
+              >
+                {label}
+              </Button>
+            ))}
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleResetAllToMidpoint}
+              disabled={isSubmitting || submissionComplete}
+              className="h-7 px-2 text-xs border-blue-600/50 text-blue-400 hover:bg-blue-600/10 whitespace-nowrap"
+              title="Reset all prices to the Good Fill Zone (mid + 25% toward ask for BTC, mid for STO)"
+            >
+              ⚡ Good Fill Zone
+            </Button>
+          </div>
           <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel

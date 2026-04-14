@@ -27,6 +27,7 @@ interface ProcessedPosition {
   // Spread-specific fields
   spreadType?: 'bull_put' | 'bear_call' | 'iron_condor';
   longStrike?: number;
+  longOptionSymbol?: string;  // OCC symbol of the long leg (for live quote fetching)
   spreadWidth?: number;
   capitalAtRisk?: number;
   // Iron Condor specific fields (4 legs)
@@ -34,6 +35,10 @@ interface ProcessedPosition {
   callLongStrike?: number;
   putShortStrike?: number;
   putLongStrike?: number;
+  callShortOptionSymbol?: string;  // OCC symbol of call short leg
+  callLongOptionSymbol?: string;   // OCC symbol of call long leg
+  putShortOptionSymbol?: string;   // OCC symbol of put short leg
+  putLongOptionSymbol?: string;    // OCC symbol of put long leg
 }
 
 export const performanceRouter = router({
@@ -380,9 +385,11 @@ export const performanceRouter = router({
           let longStrike: number | undefined;
           let spreadWidth: number | undefined;
           let capitalAtRisk: number | undefined;
+          let longOptionSymbol: string | undefined;
           // ── Spread detection: Order-ID-first, then heuristic fallback ────────────
           // Helper to apply spread metrics once a long leg is found
           const applySpreadMatch = (longPos: any): boolean => {
+            longOptionSymbol = longPos.symbol;
             const longStrikeMatch = longPos.symbol.match(/[CP](\d+)/);
             const longStrikeValue = longStrikeMatch ? parseFloat(longStrikeMatch[1]) / 1000 : 0;
             const longOpenPrice = Math.abs(parseFloat(longPos['average-open-price']));
@@ -409,6 +416,9 @@ export const performanceRouter = router({
               currentCost = (currentPrice * quantity * pos.multiplier) - (longCurrentPrice * quantity * longPos.multiplier);
               console.log(`[Performance] BCS: ${pos['underlying-symbol']} ${strike}/${longStrike} (${spreadWidth}pt, netCredit=$${premiumReceived.toFixed(2)}, capitalAtRisk=$${capitalAtRisk?.toFixed(2)}, netCurrentCost=$${currentCost.toFixed(2)})`);
               return true;
+            } else {
+              // Reset if no match
+              longOptionSymbol = undefined;
             }
             return false;
           };
@@ -493,6 +503,7 @@ export const performanceRouter = router({
             // Spread fields (only populated if spread detected)
             spreadType,
             longStrike,
+            longOptionSymbol,
             spreadWidth,
             capitalAtRisk,
           });
@@ -536,6 +547,11 @@ export const performanceRouter = router({
                   putLongStrike: bullPut.longStrike,
                   callShortStrike: bearCall.strike,
                   callLongStrike: bearCall.longStrike,
+                  // Store all 4 OCC symbols for live quote fetching
+                  putShortOptionSymbol: bullPut.optionSymbol,
+                  putLongOptionSymbol: bullPut.longOptionSymbol,
+                  callShortOptionSymbol: bearCall.optionSymbol,
+                  callLongOptionSymbol: bearCall.longOptionSymbol,
                   // Combined premium and current value
                   premium: bullPut.premium + bearCall.premium,
                   current: bullPut.current + bearCall.current,
