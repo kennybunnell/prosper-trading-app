@@ -9200,3 +9200,9 @@ ROC Fix Mar 18 2026
 - [x] Add "Refresh Quotes" force-refresh button to review panel header
 - [x] Auto-move slider to best fill location when live quotes load (25% toward mid for spreads, mid for single-leg)
 - [x] Show real net bid/ask range in the limit price cell of the review panel
+
+## BPS Preview Panel + Working Orders Quote Fix (Apr 14, 2026)
+- [ ] Fix SpreadAnalyticsTab to pass OCC optionSymbol (short leg) and spreadLongSymbol (long leg) into UnifiedOrder for BPS/BCS orders
+- [ ] Confirm live quote badge and bid/ask range bar appear in BPS order preview panel
+- [ ] Fix Working Orders still showing net$0.00 — confirm server restart picked up the OCC space-strip fix
+- [ ] Add "Best Fill" auto-select button to BPS preview panel that picks the optimal price tier and moves the slider

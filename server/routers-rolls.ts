@@ -363,29 +363,43 @@ export const rollsRouter = router({
           });
       }
 
-      // Batch fetch LIVE mark prices from Tastytrade for all option symbols
-      // This is the critical fix: close-price is stale (previous day), mark is real-time
-      // Live option marks must remain a live API call — these are real-time prices
+      // Batch fetch LIVE mark prices via Tradier (Tastytrade /market-data/by-type returns empty for SPXW index options)
+      // OCC symbols from Tastytrade have spaces (e.g. "SPXW  260424P06750000");
+      // Tradier requires compact format ("SPXW260424P06750000").
       const liveOptionMarks: Record<string, number> = {};
       if (optionSymbolsToFetch.size > 0) {
         try {
-          const { authenticateTastytrade: authTT } = await import('./tastytrade');
-          const liveApi = await authTT(credentials, ctx.user.id);
-          const allSymbols = Array.from(optionSymbolsToFetch);
-          // Tastytrade batch endpoint handles up to ~200 symbols
-          const BATCH_SIZE = 100;
-          for (let i = 0; i < allSymbols.length; i += BATCH_SIZE) {
-            const batch = allSymbols.slice(i, i + BATCH_SIZE);
-            const quotes = await liveApi.getOptionQuotesBatch(batch);
-            for (const [sym, q] of Object.entries(quotes)) {
-              // Prefer mark > mid > last as the best current price estimate
-              const mark = (q as any).mark || (q as any).mid || (q as any).last || 0;
-              if (mark > 0) liveOptionMarks[sym] = mark;
+          const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+          if (tradierKey) {
+            const allSymbols = Array.from(optionSymbolsToFetch);
+            const occToCompact = (s: string) => s.replace(/\s+/g, '');
+            const compactToOcc: Record<string, string> = {};
+            const compactSymbols = allSymbols.map(occ => {
+              const c = occToCompact(occ);
+              compactToOcc[c] = occ;
+              return c;
+            });
+            const BATCH_SIZE = 100;
+            for (let i = 0; i < compactSymbols.length; i += BATCH_SIZE) {
+              const batch = compactSymbols.slice(i, i + BATCH_SIZE);
+              const rawQuotes = await tradier.getQuotes(batch);
+              for (const q of rawQuotes) {
+                if (!q.symbol) continue;
+                const mid = ((q.bid ?? 0) + (q.ask ?? 0)) / 2;
+                const mark = mid || q.last || 0;
+                if (mark > 0) {
+                  liveOptionMarks[q.symbol] = mark;                // compact key
+                  const origOcc = compactToOcc[q.symbol];
+                  if (origOcc && origOcc !== q.symbol) liveOptionMarks[origOcc] = mark; // OCC key with spaces
+                }
+              }
             }
+            console.log(`[scanRollPositions] Tradier quotes fetched for ${Object.keys(liveOptionMarks).length / 2} options`);
+          } else {
+            console.warn('[scanRollPositions] No Tradier API key — falling back to close-price');
           }
-          console.log(`[scanRollPositions] Fetched live marks for ${Object.keys(liveOptionMarks).length}/${optionSymbolsToFetch.size} options`);
         } catch (e) {
-          console.warn('[scanRollPositions] Failed to fetch live option marks, falling back to close-price:', e);
+          console.warn('[scanRollPositions] Failed to fetch live option marks via Tradier, falling back to close-price:', e);
         }
       }
 

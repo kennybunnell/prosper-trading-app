@@ -118,9 +118,20 @@ export const workingOrdersRouter = router({
             // Record cancellation in database
             await recordOrderCanceled(order.orderId, true); // wasAutoCanceled = true
 
-            // Fetch current quote to get ask price
-            const quotes = await api.getOptionQuotesBatch([order.symbol]);
-            const quote = quotes[order.symbol];
+            // Fetch current quote to get ask price via Tradier (Tastytrade endpoint returns empty for index options)
+            const compactSym = order.symbol.replace(/\s+/g, '');
+            let quote: { bid?: number; ask?: number; mid?: number } | undefined;
+            try {
+              const { createTradierAPI } = await import('./tradier');
+              const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+              if (tradierKey) {
+                const tradierApi = createTradierAPI(tradierKey);
+                const rawQ = await tradierApi.getQuotes([compactSym]);
+                if (rawQ[0]) quote = { bid: rawQ[0].bid ?? 0, ask: rawQ[0].ask ?? 0, mid: ((rawQ[0].bid ?? 0) + (rawQ[0].ask ?? 0)) / 2 };
+              }
+            } catch (qErr: any) {
+              console.warn('[WorkingOrders] Failed to fetch quote for aggressive fill:', qErr.message);
+            }
 
             if (quote && quote.ask) {
               // Resubmit at ask price for immediate fill
