@@ -328,10 +328,21 @@ export const pmccRouter = router({
             const strike = parseFloat(pos.strikePrice || '0');
             const expiration = new Date(pos.expiresAt!);
             const dte = Math.floor((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            const currentPrice = parseFloat(pos.closePrice || '0');
             const qty = parseFloat(pos.quantity);
 
-            const stockQuote = await tradierApi.getQuote(underlying);
+            // Fetch live LEAP option price AND underlying stock price from Tradier in parallel.
+            // OCC symbols from Tastytrade have spaces (e.g. "AAPL  260117C00150000");
+            // Tradier requires compact format ("AAPL260117C00150000").
+            const compactOptionSymbol = (pos.symbol || '').replace(/\s+/g, '');
+            const [optionQuotes, stockQuote] = await Promise.all([
+              tradierApi.getQuotes([compactOptionSymbol]).catch(() => [] as any[]),
+              tradierApi.getQuote(underlying).catch(() => null),
+            ]);
+            const optionQuote = optionQuotes[0];
+            const liveOptionMid = optionQuote ? ((optionQuote.bid ?? 0) + (optionQuote.ask ?? 0)) / 2 : 0;
+            const liveOptionMark = liveOptionMid || optionQuote?.last || 0;
+            // Fall back to close-price only if Tradier returns no live quote
+            const currentPrice = liveOptionMark > 0 ? liveOptionMark : parseFloat(pos.closePrice || '0');
             const stockPrice = stockQuote?.last || 0;
 
             const costBasis = Math.abs(parseFloat(pos.averageOpenPrice)) * 100 * qty;

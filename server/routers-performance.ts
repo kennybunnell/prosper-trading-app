@@ -525,7 +525,9 @@ export const performanceRouter = router({
             dte,
             premium: premiumReceived,
             current: currentCost,
-            currentPrice: parseFloat(pos['close-price']),
+            // Use live Tradier quote for currentPrice (feeds into order modal slider initial position)
+            // Fall back to close-price only if Tradier quote is unavailable
+            currentPrice: quote ? (quote.mark || quote.mid || quote.last) : parseFloat(pos['close-price']),
             underlyingPrice: underlyingPrices[pos['underlying-symbol']],
             realizedPercent: Math.round(realizedPercent * 100) / 100, // Round to 2 decimals
             action,

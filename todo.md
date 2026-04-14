@@ -9206,3 +9206,30 @@ ROC Fix Mar 18 2026
 - [ ] Confirm live quote badge and bid/ask range bar appear in BPS order preview panel
 - [ ] Fix Working Orders still showing net$0.00 — confirm server restart picked up the OCC space-strip fix
 - [ ] Add "Best Fill" auto-select button to BPS preview panel that picks the optimal price tier and moves the slider
+
+## Live Submission Endpoint Audit (April 14)
+
+- [ ] Audit all submission-related routers for stale close-price usage
+- [ ] Fix routers-spread-analytics.ts: currentPrice uses close-price (stale) — replace with Tradier live quotes for spread positions fed into order modal
+- [ ] Fix routers-spread-analytics.ts: getActiveSpreads() P/L calculation uses close-price — add live Tradier quote enrichment
+- [ ] Verify routers-performance.ts: confirm Tradier live quotes are used (already fixed last session)
+- [ ] Verify routers-orders.ts fetchOptionQuotes: confirm Tradier live quotes (already fixed)
+- [ ] Verify routers-automation.ts submitCloseOrders/submitRollOrders: confirm Tradier live quotes (already fixed)
+- [ ] Verify routers-working-orders.ts: confirm Tradier live quotes (already fixed)
+- [ ] Verify routers-rolls.ts: confirm no stale close-price used for submission pricing
+- [ ] Verify routers-cc.ts: confirm no stale close-price used for submission pricing
+- [ ] Verify routers-pmcc.ts: confirm no stale close-price used for submission pricing
+
+## Live Submission Endpoint Audit (Apr 14, 2026)
+
+- [x] Audit all router files for close-price usage in submission-related paths
+- [x] Fix routers-performance.ts: currentPrice in returned position object now uses live Tradier quote (was stale close-price)
+- [x] Fix routers-pmcc.ts getLeapPositions: LEAP currentPrice/currentValue now uses live Tradier option quote (was stale closePrice)
+- [x] Fix routers-cc.ts getEligiblePositionsAllAccounts: holdings currentPrice now enriched with live Tradier stock quotes before returning
+- [x] Confirmed routers-automation.ts: already has full Tradier live mark enrichment step (liveMarkMap) that re-evaluates all pending orders after initial close-price scan
+- [x] Confirmed routers-rolls.ts: already fetches live Tradier marks before building rawLegs (close-price only used as fallback)
+- [x] Confirmed routers-working-orders.ts: already uses live Tradier quotes for order modal
+- [x] Confirmed routers-spread-analytics.ts classifyActiveSpreads: dead code (never called by any procedure)
+- [x] Confirmed routers-portfolio-advisor.ts: no order submission, display/analysis only
+- [x] Confirmed routers-tax.ts: no order submission, reporting only
+- [x] Confirmed submitCloseOrders (automation): uses calcBtcLimitPrice() with live Tradier quotes; close-price only as fallback

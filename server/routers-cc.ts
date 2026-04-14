@@ -460,6 +460,36 @@ export const ccRouter = router({
         };
       });
 
+      // Enrich holdings with live Tradier stock quotes (replaces stale close-price from Tastytrade positions)
+      // This ensures OTM filtering in the CC scanner uses accurate current stock prices.
+      const { createTradierAPI } = await import('./tradier');
+      const tradierKeyForHoldings = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+      if (tradierKeyForHoldings && holdings.length > 0) {
+        try {
+          const tradierApiForHoldings = createTradierAPI(tradierKeyForHoldings);
+          const holdingSymbols = holdings.map(h => h.symbol);
+          const BATCH_SIZE_H = 100;
+          for (let i = 0; i < holdingSymbols.length; i += BATCH_SIZE_H) {
+            const batch = holdingSymbols.slice(i, i + BATCH_SIZE_H);
+            const rawQuotes = await tradierApiForHoldings.getQuotes(batch);
+            for (const q of rawQuotes) {
+              if (!q.symbol) continue;
+              const livePrice = q.last || q.close || 0;
+              if (livePrice > 0) {
+                const holding = holdings.find(h => h.symbol.toUpperCase() === q.symbol.toUpperCase());
+                if (holding) {
+                  holding.currentPrice = livePrice;
+                  holding.marketValue = holding.quantity * livePrice;
+                }
+              }
+            }
+          }
+          console.log(`[CC getEligible] Tradier live prices applied to ${holdings.length} holdings`);
+        } catch (tradierErr: any) {
+          console.warn('[CC getEligible] Tradier price enrichment failed, using close-price fallback:', tradierErr.message);
+        }
+      }
+
       const breakdown = {
         totalPositions: totalRawPositions,
         stockPositions: Object.keys(stockMap).length,
