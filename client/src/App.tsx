@@ -36,6 +36,7 @@ import { TrialStatusBanner } from "./components/TrialStatusBanner";
 import { SupportWidget } from "./components/SupportWidget";
 import { TradingActivityLog } from "./components/TradingActivityLog";
 import { LegalAcceptanceModal } from "./components/LegalAcceptanceModal";
+import { SupportProvider } from "./contexts/SupportContext";
 import { TrialExpirationModal } from "./components/TrialExpirationModal";
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
@@ -196,12 +197,14 @@ function App() {
         defaultTheme="dark"
         switchable
       >
-        <AccountProvider>
-          <TooltipProvider>
-            <Toaster position="bottom-left" />
-            <Router />
-          </TooltipProvider>
-        </AccountProvider>
+        <SupportProvider>
+          <AccountProvider>
+            <TooltipProvider>
+              <Toaster position="bottom-left" />
+              <Router />
+            </TooltipProvider>
+          </AccountProvider>
+        </SupportProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

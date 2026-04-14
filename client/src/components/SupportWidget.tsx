@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useSupportWidget } from "@/contexts/SupportContext";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export function SupportWidget() {
   const { toast } = useToast();
+  const { isOpen, closeSupport } = useSupportWidget();
 
   // Check if screen recording is available
   useEffect(() => {
@@ -41,7 +43,7 @@ export function SupportWidget() {
   const recordedChunksRef = useRef<Blob[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   
-  const [isOpen, setIsOpen] = useState(false);
+  // isOpen and closeSupport come from SupportContext
   const [activeTab, setActiveTab] = useState("chat");
   
   // Chat state
@@ -137,7 +139,7 @@ export function SupportWidget() {
     setChatMessage("");
     setChatHistory([]);
     setConversationId(null);
-    setIsOpen(false);
+    closeSupport();
     setActiveTab("chat");
   };
 
@@ -466,19 +468,9 @@ export function SupportWidget() {
 
   return (
     <>
-      {/* Floating Button */}
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-4 py-3 shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-105"
-      >
-        <MessageCircle className="h-5 w-5" />
-        <span className="font-medium">Support</span>
-      </button>
-
-      {/* Support Dialog */}
+      {/* Support Dialog — trigger button is in the page header */}
       <Dialog open={isOpen} onOpenChange={(open) => {
         if (!open) resetAll();
-        setIsOpen(open);
       }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>

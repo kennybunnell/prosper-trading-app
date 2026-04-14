@@ -14,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { getLoginUrl } from "@/const";
 import { Link, useLocation } from "wouter";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useSupportWidget } from "@/contexts/SupportContext";
+import { MessageCircle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { MonthlyPremiumChart } from "@/components/MonthlyPremiumChart";
 import { TradingViewEconomicCalendar } from "@/components/TradingViewEconomicCalendar";
@@ -1237,8 +1239,8 @@ function RolledTodayCard() {
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
-
+   const { theme, toggleTheme } = useTheme();
+  const { openSupport } = useSupportWidget();
   const { data: backgroundPrefs } = trpc.settings.getBackgroundPreferences.useQuery();
   const backgroundOpacity = backgroundPrefs?.opacity ?? 8;
   const backgroundPattern = backgroundPrefs?.pattern ?? 'diagonal';
@@ -1329,6 +1331,10 @@ export default function Home() {
                 <SettingsIcon className="h-4 w-4 mr-2" />
                 Settings
               </Link>
+            </Button>
+            <Button variant="outline" size="sm" onClick={openSupport} className="gap-1.5">
+              <MessageCircle className="h-4 w-4" />
+              Support
             </Button>
             <Button variant="outline" onClick={logout}>Sign Out</Button>
           </div>

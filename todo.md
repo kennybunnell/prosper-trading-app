@@ -9268,3 +9268,10 @@ ROC Fix Mar 18 2026
 - [x] Clear all logs button with confirmation
 - [x] Auto-polls every 30 seconds when panel is open
 - [x] Wired into App.tsx (authenticated area only, appears on all pages)
+
+## Support Button & Automation Controls Cleanup (Apr 14, 2026)
+- [x] Move Support button from floating bottom-right into Home.tsx header (between Settings and Sign Out)
+- [x] Create SupportContext so any page can open the support dialog via useSupportWidget()
+- [x] Consolidate AutomationDashboard header controls (Test Friday Sweep, Auto-Sweep, Last Swept, Test Daily Scan, Daily Scan, Kill Switch) into compact Controls dropdown
+- [x] Keep Kill Switch always visible as a prominent pill in the header
+- [x] Add Support item inside the Controls dropdown on AutomationDashboard

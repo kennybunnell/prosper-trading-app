@@ -35,6 +35,17 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { useSupportWidget } from '@/contexts/SupportContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { MessageCircle } from 'lucide-react';
 import { ConnectionStatusIndicator } from '@/components/ConnectionStatusIndicator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Link } from 'wouter';
@@ -238,6 +249,7 @@ export default function AutomationDashboard() {
   const [killSwitchActive, setKillSwitchActive] = useState(false);
   const [isSweeping, setIsSweeping] = useState(false);
   const [isDailyScanning, setIsDailyScanning] = useState(false);
+  const { openSupport } = useSupportWidget();
 
   // Persistent daily scan badge counts from cache
   const { data: dailyCounts, refetch: refetchDailyCounts } = trpc.dashboard.getDailyActionCounts.useQuery(undefined, {
@@ -1613,90 +1625,7 @@ export default function AutomationDashboard() {
         </div>
         <div className="flex items-center gap-3 mt-1">
           <ConnectionStatusIndicator />
-          {/* Test Friday Sweep */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setIsSweeping(true);
-              triggerFridaySweepMutation.mutate();
-            }}
-            disabled={isSweeping}
-            className="flex items-center gap-2 text-xs border-blue-500/40 text-blue-400 hover:bg-blue-600/10"
-            title="Manually run the Friday expiration sweep and send a notification if short calls are found within 7 DTE"
-          >
-            {isSweeping ? (
-              <><Loader2 className="h-3.5 w-3.5 animate-spin" />Sweeping...</>
-            ) : (
-              <><RefreshCw className="h-3.5 w-3.5" />Test Friday Sweep</>
-            )}
-          </Button>
-          {/* Friday Sweep Schedule Toggle */}
-          <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer select-none ${
-              fridaySweepEnabled
-                ? 'bg-blue-600/10 border-blue-500/30 text-blue-400 hover:bg-blue-600/20'
-                : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50'
-            }`}
-            title={fridaySweepEnabled
-              ? 'Friday sweep is scheduled — runs every Friday at 9:30 AM ET. Click to disable.'
-              : 'Friday sweep is disabled — click to enable automatic Friday 9:30 AM scan'}
-            onClick={() => setSweepEnabledMutation.mutate({ enabled: !fridaySweepEnabled })}
-          >
-            <span className={`h-2 w-2 rounded-full ${fridaySweepEnabled ? 'bg-blue-400 animate-pulse' : 'bg-muted-foreground'}`} />
-            {fridaySweepEnabled ? 'Auto-Sweep ON' : 'Auto-Sweep OFF'}
-          </div>
-          {/* Last Swept Audit Trail */}
-          {lastSweepInfo?.lastSweepAt ? (
-            <div
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium ${
-                lastSweepInfo.lastSweepAlertCount > 0
-                  ? 'bg-amber-600/10 border-amber-500/30 text-amber-400'
-                  : 'bg-emerald-600/10 border-emerald-500/30 text-emerald-400'
-              }`}
-              title={`Last sweep: ${new Date(lastSweepInfo.lastSweepAt).toLocaleString()} — ${lastSweepInfo.lastSweepAlertCount} alert${lastSweepInfo.lastSweepAlertCount !== 1 ? 's' : ''} found`}
-            >
-              <CheckCircle2 className="h-3 w-3" />
-              <span>Last swept {new Date(lastSweepInfo.lastSweepAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
-              {lastSweepInfo.lastSweepAlertCount > 0 && (
-                <span className="bg-amber-500/20 text-amber-300 rounded px-1">{lastSweepInfo.lastSweepAlertCount} alert{lastSweepInfo.lastSweepAlertCount !== 1 ? 's' : ''}</span>
-              )}
-            </div>
-          ) : null}
-          {/* Test Daily Scan */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setIsDailyScanning(true);
-              triggerDailyScanMutation.mutate();
-            }}
-            disabled={isDailyScanning}
-            className="flex items-center gap-2 text-xs border-violet-500/40 text-violet-400 hover:bg-violet-600/10"
-            title="Manually run the daily ITM assignment risk scan (5 DTE cutoff) and send a notification if uncovered short calls are found"
-          >
-            {isDailyScanning ? (
-              <><Loader2 className="h-3.5 w-3.5 animate-spin" />Scanning...</>
-            ) : (
-              <><BarChart3 className="h-3.5 w-3.5" />Test Daily Scan</>
-            )}
-          </Button>
-          {/* Daily Scan Schedule Toggle */}
-          <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer select-none ${
-              dailyScanEnabled
-                ? 'bg-violet-600/10 border-violet-500/30 text-violet-400 hover:bg-violet-600/20'
-                : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50'
-            }`}
-            title={dailyScanEnabled
-              ? 'Daily scan is scheduled — runs every weekday at 9:00 AM ET. Click to disable.'
-              : 'Daily scan is disabled — click to enable automatic 9:00 AM weekday scan'}
-            onClick={() => setDailyScanEnabledMutation.mutate({ enabled: !dailyScanEnabled })}
-          >
-            <span className={`h-2 w-2 rounded-full ${dailyScanEnabled ? 'bg-violet-400 animate-pulse' : 'bg-muted-foreground'}`} />
-            {dailyScanEnabled ? 'Daily Scan ON' : 'Daily Scan OFF'}
-          </div>
-          {/* Kill Switch — pill button matching Auto-Sweep/Daily Scan style */}
+          {/* Kill Switch — always visible as a prominent pill */}
           <div
             onClick={() => {
               setKillSwitchActive(v => !v);
@@ -1713,6 +1642,67 @@ export default function AutomationDashboard() {
             <Power className="h-3.5 w-3.5" />
             {killSwitchActive ? 'Kill Switch ON' : 'Kill Switch'}
           </div>
+          {/* Automation Controls dropdown — sweep/scan toggles + support */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                <Settings2 className="h-3.5 w-3.5" />
+                Controls
+                <ChevronDown className="h-3 w-3 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Friday Sweep</DropdownMenuLabel>
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  onClick={() => { setIsSweeping(true); triggerFridaySweepMutation.mutate(); }}
+                  disabled={isSweeping}
+                  className="gap-2 text-blue-400 focus:text-blue-300"
+                >
+                  {isSweeping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  {isSweeping ? 'Sweeping…' : 'Test Friday Sweep'}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setSweepEnabledMutation.mutate({ enabled: !fridaySweepEnabled })}
+                  className="gap-2"
+                >
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${fridaySweepEnabled ? 'bg-blue-400 animate-pulse' : 'bg-muted-foreground'}`} />
+                  {fridaySweepEnabled ? 'Auto-Sweep: ON — click to disable' : 'Auto-Sweep: OFF — click to enable'}
+                </DropdownMenuItem>
+                {lastSweepInfo?.lastSweepAt && (
+                  <DropdownMenuItem disabled className="gap-2 text-xs opacity-60 cursor-default">
+                    <CheckCircle2 className="h-3 w-3 shrink-0" />
+                    Last swept {new Date(lastSweepInfo.lastSweepAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                    {lastSweepInfo.lastSweepAlertCount > 0 && ` — ${lastSweepInfo.lastSweepAlertCount} alert${lastSweepInfo.lastSweepAlertCount !== 1 ? 's' : ''}`}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Daily Scan</DropdownMenuLabel>
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  onClick={() => { setIsDailyScanning(true); triggerDailyScanMutation.mutate(); }}
+                  disabled={isDailyScanning}
+                  className="gap-2 text-violet-400 focus:text-violet-300"
+                >
+                  {isDailyScanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BarChart3 className="h-3.5 w-3.5" />}
+                  {isDailyScanning ? 'Scanning…' : 'Test Daily Scan'}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setDailyScanEnabledMutation.mutate({ enabled: !dailyScanEnabled })}
+                  className="gap-2"
+                >
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${dailyScanEnabled ? 'bg-violet-400 animate-pulse' : 'bg-muted-foreground'}`} />
+                  {dailyScanEnabled ? 'Daily Scan: ON — click to disable' : 'Daily Scan: OFF — click to enable'}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={openSupport} className="gap-2">
+                <MessageCircle className="h-3.5 w-3.5" />
+                Support
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {/* Master Run All button */}
           <Button
             onClick={handleRunAutomation}
