@@ -1009,9 +1009,35 @@ export default function CSPDashboard() {
           }
         }
         
-        // Log failed orders for debugging
+        // Show individual broker rejection reasons as actionable toasts
         const failedOrders = data.results.filter(r => !r.success);
-        console.error('[Order Submission] Failed orders:', JSON.stringify(failedOrders, null, 2));
+        failedOrders.forEach(order => {
+          const sym = order.symbol || 'Unknown';
+          const msg: string = (order as any).error || 'Order rejected by broker';
+          // Classify known broker restriction messages for clean user-facing display
+          const isClosingOnly = msg.toLowerCase().includes('closing only') || msg.toLowerCase().includes('closing trades');
+          const isHalted = msg.toLowerCase().includes('halted') || msg.toLowerCase().includes('not available for trading');
+          const isMargin = msg.toLowerCase().includes('margin') || msg.toLowerCase().includes('buying power');
+          const isInvalidSymbol = msg.toLowerCase().includes('invalid symbol') || msg.toLowerCase().includes('not found');
+          const isValidationFailed = msg.toLowerCase().includes('validation failed') || msg.toLowerCase().includes('request validation');
+          if (isClosingOnly) {
+            toast.warning(
+              `⚠️ ${sym}: Broker restriction — closing transactions only. You can only close existing ${sym} positions right now.`,
+              { duration: 10000 }
+            );
+          } else if (isHalted) {
+            toast.warning(`⚠️ ${sym}: Trading is currently halted. Try again when the market reopens.`, { duration: 8000 });
+          } else if (isMargin) {
+            toast.error(`❌ ${sym}: Insufficient buying power or margin. Check your account balance.`, { duration: 8000 });
+          } else if (isInvalidSymbol) {
+            toast.error(`❌ ${sym}: Symbol not recognized by broker. Verify the ticker is correct.`, { duration: 8000 });
+          } else if (isValidationFailed) {
+            toast.error(`❌ ${sym}: Order validation failed — ${msg}`, { duration: 8000 });
+          } else {
+            // Generic broker rejection — show the raw message formatted cleanly
+            toast.error(`❌ ${sym} rejected: ${msg}`, { duration: 8000 });
+          }
+        });
       }
       setShowProgressDialog(false);
     },
