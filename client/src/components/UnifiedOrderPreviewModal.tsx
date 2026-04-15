@@ -407,31 +407,37 @@ export function UnifiedOrderPreviewModal({
         const longSym = order.spreadLongSymbol;
         const isBTC = order.action === 'BTC';
 
-        // Spread close: compute net debit range from live quotes for both legs
-        if (shortSym && longSym && order.longStrike) {
-          const shortQ = liveQuotes[shortSym];
-          const longQ = liveQuotes[longSym];
-          if (shortQ && longQ && shortQ.bid > 0 && shortQ.ask > 0 && longQ.bid > 0 && longQ.ask > 0) {
-            if (isBTC) {
-              // BTC spread: net debit = short ask - long bid (worst) to short bid - long ask (best)
-              // Good fill zone = mid + 25% toward max debit
-              const minDebit = Math.max(0.01, shortQ.bid - longQ.ask);
-              const maxDebit = Math.max(0.01, shortQ.ask - longQ.bid);
-              const midDebit = (minDebit + maxDebit) / 2;
-              const rawPrice = Math.max(0.01, midDebit + (maxDebit - midDebit) * 0.25);
-              updated.set(key, snapToTick(rawPrice, order.symbol));
-            } else {
-              // STO spread: net credit = short bid - long ask (conservative) to short ask - long bid (aggressive)
-              const minCredit = Math.max(0.01, shortQ.bid - longQ.ask);
-              const maxCredit = Math.max(0.01, shortQ.ask - longQ.bid);
-              const midCredit = (minCredit + maxCredit) / 2;
-              updated.set(key, snapToTick(midCredit, order.symbol));
+        // Spread: compute net credit/debit from live quotes for BOTH legs
+        // CRITICAL: If this is a spread order (has longStrike), NEVER fall through to
+        // single-leg pricing — that would use the short leg's individual price (~$16)
+        // instead of the net spread credit (~$4.35).
+        if (order.longStrike) {
+          if (shortSym && longSym) {
+            const shortQ = liveQuotes[shortSym];
+            const longQ = liveQuotes[longSym];
+            if (shortQ && longQ && shortQ.bid > 0 && shortQ.ask > 0 && longQ.bid > 0 && longQ.ask > 0) {
+              if (isBTC) {
+                // BTC spread: net debit = short ask - long bid (worst) to short bid - long ask (best)
+                const minDebit = Math.max(0.01, shortQ.bid - longQ.ask);
+                const maxDebit = Math.max(0.01, shortQ.ask - longQ.bid);
+                const midDebit = (minDebit + maxDebit) / 2;
+                const rawPrice = Math.max(0.01, midDebit + (maxDebit - midDebit) * 0.25);
+                updated.set(key, snapToTick(rawPrice, order.symbol));
+              } else {
+                // STO spread: net credit = short bid - long ask (conservative) to short ask - long bid (aggressive)
+                const minCredit = Math.max(0.01, shortQ.bid - longQ.ask);
+                const maxCredit = Math.max(0.01, shortQ.ask - longQ.bid);
+                const midCredit = (minCredit + maxCredit) / 2;
+                updated.set(key, snapToTick(midCredit, order.symbol));
+              }
             }
-            return; // Don't fall through to single-leg logic
+            // If live quotes are missing/incomplete for a spread, do NOT update the price.
+            // The initial price (order.premium = net credit from scanner) is already correct.
           }
+          return; // Always stop here for spread orders — never apply single-leg logic
         }
 
-        // Single-leg BTC (no long leg)
+        // Single-leg only (no longStrike)
         if (shortSym) {
           const q = liveQuotes[shortSym];
           if (!q || q.bid === 0 || q.ask === 0) return;

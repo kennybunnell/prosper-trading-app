@@ -64,15 +64,18 @@ export const ordersRouter = router({
         for (const q of rawQuotes) {
           const qAny = q as any;
           const tradierSym: string = qAny.symbol || '';
-          const originalOcc = tradierToOcc[tradierSym] || tradierSym;
+          // Tradier may return compact symbol (SPXW260423P06825000) or with spaces
+          // Try exact match first, then strip spaces from the returned symbol
+          const originalOcc = tradierToOcc[tradierSym] || tradierToOcc[tradierSym.replace(/\s+/g, '')] || tradierSym;
           const bid = typeof qAny.bid === 'number' ? qAny.bid : parseFloat(qAny.bid) || 0;
           const ask = typeof qAny.ask === 'number' ? qAny.ask : parseFloat(qAny.ask) || 0;
+          console.log(`[fetchOptionQuotes] Tradier symbol: ${JSON.stringify(tradierSym)} → OCC: ${JSON.stringify(originalOcc)} bid=${bid} ask=${ask} type=${qAny.type}`);
           if (bid > 0 || ask > 0) {
             result[originalOcc] = { bid, ask };
           }
         }
 
-        console.log(`[fetchOptionQuotes] Tradier returned ${Object.keys(result).length}/${input.symbols.length} quotes`);
+        console.log(`[fetchOptionQuotes] Tradier returned ${Object.keys(result).length}/${input.symbols.length} quotes. Keys: ${Object.keys(result).join(', ')}`);
         return result;
       } catch (err: any) {
         console.error('[fetchOptionQuotes] Failed:', err.message);
