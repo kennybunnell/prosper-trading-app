@@ -3,6 +3,7 @@ import { publicProcedure, protectedProcedure, router } from './_core/trpc.js';
 import { TRPCError } from '@trpc/server';
 import { submitRollOrder, submitCloseOrder, authenticateTastytrade } from './tastytrade.js';
 import { checkOrderStatus, pollOrderStatus, checkOrderStatusBatch } from './tastytrade-order-status.js';
+import { invokeLLM } from './_core/llm.js';
 
 export const ordersRouter = router({
   /**
@@ -380,6 +381,99 @@ export const ordersRouter = router({
           code: 'INTERNAL_SERVER_ERROR',
           message: error.message || 'Failed to submit close order',
         });
+      }
+    }),
+
+  /**
+   * AI-powered price optimization for limit orders.
+   * Given live bid/ask/mid and strategy context, suggests the best limit price.
+   */
+  optimizeOrderPrice: protectedProcedure
+    .input(z.object({
+      symbol: z.string(),
+      action: z.enum(['STO', 'BTC', 'BTO', 'STC']),
+      strategy: z.string(),
+      bid: z.number(),
+      ask: z.number(),
+      mid: z.number(),
+      currentLimitPrice: z.number(),
+      expiration: z.string(),
+      strike: z.number().optional(),
+      optionType: z.enum(['CALL', 'PUT']).optional(),
+      isSpread: z.boolean().optional(),
+      spreadWidth: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const bidAskSpread = input.ask - input.bid;
+      const sliderPct = bidAskSpread > 0
+        ? Math.round(((input.currentLimitPrice - input.bid) / bidAskSpread) * 100)
+        : 50;
+
+      const prompt = `You are an expert options market maker and execution specialist.
+
+Order context:
+- Symbol: ${input.symbol}
+- Action: ${input.action} (${input.action === 'STO' ? 'Sell to Open' : input.action === 'BTC' ? 'Buy to Close' : input.action})
+- Strategy: ${input.strategy}
+- Option type: ${input.optionType ?? 'N/A'}, Strike: $${input.strike ?? 'N/A'}, Expiration: ${input.expiration}
+- Is spread: ${input.isSpread ? 'Yes' : 'No'}${input.spreadWidth ? `, spread width: $${input.spreadWidth}` : ''}
+
+Live market data:
+- Bid: $${input.bid.toFixed(2)}
+- Ask: $${input.ask.toFixed(2)}
+- Mid: $${input.mid.toFixed(2)}
+- Bid-ask spread: $${bidAskSpread.toFixed(2)} (${bidAskSpread > 0 ? ((bidAskSpread / input.mid) * 100).toFixed(1) : 'N/A'}% of mid)
+- Current limit price: $${input.currentLimitPrice.toFixed(2)} (${sliderPct}% of bid-ask range)
+
+Suggest the single best limit price that maximizes fill probability within 2-5 minutes while capturing good premium.
+For STO (sell): closer to bid = faster fill, closer to ask = more premium but slower.
+For BTC (buy to close): closer to ask = faster fill, closer to bid = cheaper but slower.
+Index options (SPX, SPXW, NDX, RUT) typically fill near mid.
+
+Respond with JSON only.`;
+
+      try {
+        const response = await invokeLLM({
+          messages: [
+            { role: 'system', content: 'You are an expert options execution specialist. Respond only with valid JSON.' },
+            { role: 'user', content: prompt },
+          ],
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'price_optimization',
+              strict: true,
+              schema: {
+                type: 'object',
+                properties: {
+                  suggestedPrice: { type: 'number' },
+                  fillProbability: { type: 'string', enum: ['high', 'medium', 'low'] },
+                  reasoning: { type: 'string' },
+                },
+                required: ['suggestedPrice', 'fillProbability', 'reasoning'],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const content = response.choices?.[0]?.message?.content;
+        const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+        return {
+          symbol: input.symbol,
+          suggestedPrice: parsed.suggestedPrice as number,
+          fillProbability: parsed.fillProbability as 'high' | 'medium' | 'low',
+          reasoning: parsed.reasoning as string,
+        };
+      } catch (err: any) {
+        console.error('[optimizeOrderPrice] LLM error:', err.message);
+        const fallbackPrice = input.action === 'STO' ? input.mid : input.mid + (input.ask - input.mid) * 0.25;
+        return {
+          symbol: input.symbol,
+          suggestedPrice: Math.round(fallbackPrice * 100) / 100,
+          fillProbability: 'medium' as const,
+          reasoning: 'AI advisor unavailable. Defaulting to mid price for STO orders.',
+        };
       }
     }),
 });

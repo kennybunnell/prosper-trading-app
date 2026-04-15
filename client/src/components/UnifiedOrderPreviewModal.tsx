@@ -16,7 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Minus, Plus, AlertCircle, CheckCircle2, DollarSign, ShieldAlert, Copy, Check } from "lucide-react";
+import { Loader2, Minus, Plus, AlertCircle, CheckCircle2, DollarSign, ShieldAlert, Copy, Check, RefreshCw, Sparkles, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { trpc } from "@/lib/trpc";
 
@@ -219,16 +219,27 @@ export function UnifiedOrderPreviewModal({
     });
     return Array.from(new Set(syms.filter(Boolean))); // deduplicate and remove empty
   }, [open, strategy, orders]);
-  const [liveQuotesData, setLiveQuotesData] = useState<Record<string, { bid: number; ask: number }>>({}); 
+  const [liveQuotesData, setLiveQuotesData] = useState<Record<string, { bid: number; ask: number }>>({});
   const [isQuotesFetching, setIsQuotesFetching] = useState(false);
+  const [quoteFetchedAt, setQuoteFetchedAt] = useState<Date | null>(null);
+  const [quoteAgeSeconds, setQuoteAgeSeconds] = useState<number>(0);
+  // AI price optimization state
+  const [isOptimizingPrice, setIsOptimizingPrice] = useState(false);
+  const [priceAdvice, setPriceAdvice] = useState<{ symbol: string; suggestedPrice: number; fillProbability: 'high' | 'medium' | 'low'; reasoning: string } | null>(null);
   const fetchQuotesMutation = trpc.orders.fetchOptionQuotes.useMutation();
+  const optimizePriceMutation = trpc.orders.optimizeOrderPrice.useMutation();
 
   // Fetch live quotes on modal open (for BTC and spread strategies)
   const doFetchLiveQuotes = (symbols: string[]) => {
     if (symbols.length === 0) return;
     setIsQuotesFetching(true);
+    setPriceAdvice(null); // clear stale advice when refreshing
     fetchQuotesMutation.mutateAsync({ symbols })
-      .then(data => { setLiveQuotesData(data ?? {}); })
+      .then(data => {
+        setLiveQuotesData(data ?? {});
+        setQuoteFetchedAt(new Date());
+        setQuoteAgeSeconds(0);
+      })
       .catch(() => { setLiveQuotesData({}); })
       .finally(() => { setIsQuotesFetching(false); });
   };
@@ -238,6 +249,16 @@ export function UnifiedOrderPreviewModal({
     doFetchLiveQuotes(optionSymbolsForQuotes);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, strategy, optionSymbolsForQuotes.join('|')]);
+
+  // Quote age timer — increments every second when modal is open
+  useEffect(() => {
+    if (!open || !quoteFetchedAt) return;
+    const interval = setInterval(() => {
+      setQuoteAgeSeconds(Math.floor((Date.now() - quoteFetchedAt.getTime()) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [open, quoteFetchedAt]);
+
   const liveQuotes = liveQuotesData;
 
   // ── Pre-submission close order validator ─────────────────────────────────
@@ -1433,7 +1454,19 @@ export function UnifiedOrderPreviewModal({
                 {isQuotesFetching ? (
                   <><Loader2 className="h-3 w-3 animate-spin" /> Pulling live quotes…</>
                 ) : Object.keys(liveQuotes).length > 0 ? (
-                  <><CheckCircle2 className="h-3 w-3" /> Live quotes active</>
+                  <>
+                    <CheckCircle2 className="h-3 w-3" />
+                    Live quotes
+                    {quoteFetchedAt && (
+                      <span className={[
+                        "ml-1 font-normal",
+                        quoteAgeSeconds >= 120 ? "text-red-400" : quoteAgeSeconds >= 60 ? "text-yellow-400" : "text-green-300/70"
+                      ].join(' ')}>
+                        <Clock className="inline h-2.5 w-2.5 mr-0.5" />
+                        {quoteAgeSeconds < 60 ? `${quoteAgeSeconds}s ago` : quoteAgeSeconds < 120 ? `${Math.floor(quoteAgeSeconds/60)}m ${quoteAgeSeconds%60}s ago` : `${Math.floor(quoteAgeSeconds/60)}m ago — stale`}
+                      </span>
+                    )}
+                  </>
                 ) : (
                   <><AlertCircle className="h-3 w-3" /> Estimated prices—no live data</>
                 )}
@@ -2026,9 +2059,92 @@ export function UnifiedOrderPreviewModal({
                                   {(() => {
                                     const sliderPos = getSliderPosition(orderWithLive)[0];
                                     const guidance = getFillZoneGuidance(sliderPos, order.action);
-                                    return <span className={guidance.color}>{guidance.text}</span>;
+                                    // Fill probability: linear interpolation based on slider position
+                                    const fillPct = order.action === 'STO'
+                                      ? Math.min(95, Math.max(10, Math.round(sliderPos * 0.85 + 5)))
+                                      : Math.min(95, Math.max(10, Math.round((100 - sliderPos) * 0.85 + 5)));
+                                    return (
+                                      <div className="flex flex-col gap-1">
+                                        <span className={guidance.color}>{guidance.text}</span>
+                                        <span className="text-muted-foreground/70">
+                                          Est. fill probability: <span className={fillPct >= 65 ? 'text-green-400' : fillPct >= 40 ? 'text-yellow-400' : 'text-red-400'}>{fillPct}%</span>
+                                        </span>
+                                      </div>
+                                    );
                                   })()}
                                 </div>
+                                {/* AI Optimize Price button */}
+                                {hasMarketData && (() => {
+                                  const adviceForOrder = priceAdvice?.symbol === order.symbol ? priceAdvice : null;
+                                  return (
+                                    <div className="mt-2 flex flex-col gap-1.5">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 text-[10px] px-2 gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200"
+                                        disabled={isOptimizingPrice || isSubmitting}
+                                        onClick={async () => {
+                                          const liveQ = liveQuotes[order.optionSymbol ?? ''];
+                                          const eBid = liveQ?.bid ?? effectiveBid ?? 0;
+                                          const eAsk = liveQ?.ask ?? effectiveAsk ?? 0;
+                                          const eMid = (eBid + eAsk) / 2;
+                                          const currentPrice = adjustedPrices.get(order.symbol) ?? order.premium;
+                                          if (!eBid || !eAsk) return;
+                                          setIsOptimizingPrice(true);
+                                          try {
+                                            const result = await optimizePriceMutation.mutateAsync({
+                                              symbol: order.symbol,
+                                              action: order.action as 'STO' | 'BTC' | 'BTO' | 'STC',
+                                              strategy,
+                                              bid: eBid,
+                                              ask: eAsk,
+                                              mid: eMid,
+                                              currentLimitPrice: currentPrice,
+                                              expiration: order.expiration,
+                                              strike: order.strike,
+                                              optionType: order.optionType,
+                                              isSpread: !!(order.longStrike),
+                                              spreadWidth: order.longStrike ? Math.abs(order.strike - order.longStrike) : undefined,
+                                            });
+                                            setPriceAdvice(result);
+                                          } catch (e) {
+                                            // ignore
+                                          } finally {
+                                            setIsOptimizingPrice(false);
+                                          }
+                                        }}
+                                      >
+                                        {isOptimizingPrice ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                                        {isOptimizingPrice ? 'Analyzing...' : 'AI Optimize Price'}
+                                      </Button>
+                                      {adviceForOrder && (
+                                        <div className="rounded border border-purple-500/30 bg-purple-500/10 px-2 py-1.5 text-[10px] text-purple-200">
+                                          <div className="flex items-center justify-between gap-2 mb-1">
+                                            <span className="font-semibold text-purple-100">Suggested: <span className="text-green-300">${adviceForOrder.suggestedPrice.toFixed(2)}</span></span>
+                                            <span className={`font-semibold ${
+                                              adviceForOrder.fillProbability === 'high' ? 'text-green-400' :
+                                              adviceForOrder.fillProbability === 'medium' ? 'text-yellow-400' : 'text-red-400'
+                                            }`}>{adviceForOrder.fillProbability === 'high' ? 'High fill chance' : adviceForOrder.fillProbability === 'medium' ? 'Medium fill chance' : 'Low fill chance'}</span>
+                                          </div>
+                                          <p className="text-purple-300/80 leading-tight">{adviceForOrder.reasoning}</p>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="mt-1.5 h-5 text-[10px] px-2 border-green-500/40 text-green-300 hover:bg-green-500/10"
+                                            onClick={() => {
+                                              const newPrices = new Map(adjustedPrices);
+                                              newPrices.set(order.symbol, adviceForOrder.suggestedPrice);
+                                              setAdjustedPrices(newPrices);
+                                              setPriceAdvice(null);
+                                            }}
+                                          >
+                                            Apply ${adviceForOrder.suggestedPrice.toFixed(2)}
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </div>
                           </div>
