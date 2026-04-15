@@ -2088,11 +2088,26 @@ export function UnifiedOrderPreviewModal({
                                   className="h-7 text-[10px] px-2 gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200"
                                   disabled={isOptimizingPrice || isSubmitting}
                                   onClick={async () => {
-                                    const liveQ = liveQuotes[order.optionSymbol ?? ''];
-                                    const eBid = liveQ?.bid ?? effectiveBid ?? 0;
-                                    const eAsk = liveQ?.ask ?? effectiveAsk ?? 0;
+                                    const liveShortQ = liveQuotes[order.optionSymbol ?? ''];
+                                    const rawShortBid = liveShortQ?.bid ?? effectiveBid ?? 0;
+                                    const rawShortAsk = liveShortQ?.ask ?? effectiveAsk ?? 0;
+                                    const isSpreadOrder = !!(order.longStrike);
+                                    // For spread orders: compute net credit bid/ask from both legs
+                                    let eBid: number;
+                                    let eAsk: number;
+                                    if (isSpreadOrder) {
+                                      const liveLongQ = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
+                                      const longBidVal = (liveLongQ && liveLongQ.bid > 0) ? liveLongQ.bid : (order.longBid ?? 0);
+                                      const longAskVal = (liveLongQ && liveLongQ.ask > 0) ? liveLongQ.ask : (order.longAsk ?? 0);
+                                      // Net credit: short bid - long ask (conservative) to short ask - long bid (aggressive)
+                                      eBid = Math.max(0.01, rawShortBid - longAskVal);
+                                      eAsk = Math.max(0.01, rawShortAsk - longBidVal);
+                                    } else {
+                                      eBid = rawShortBid;
+                                      eAsk = rawShortAsk;
+                                    }
                                     const eMid = (eBid + eAsk) / 2;
-                                    const currentPrice = adjustedPrices.get(order.symbol) ?? order.premium;
+                                    const currentPrice = adjustedPrices.get(getOrderKey(order)) ?? order.premium;
                                     if (!eBid || !eAsk) return;
                                     setIsOptimizingPrice(true);
                                     try {
@@ -2107,11 +2122,11 @@ export function UnifiedOrderPreviewModal({
                                         expiration: order.expiration,
                                         strike: order.strike,
                                         optionType: order.optionType,
-                                        isSpread: !!(order.longStrike),
+                                        isSpread: isSpreadOrder,
                                         spreadWidth: order.longStrike ? Math.abs(order.strike - order.longStrike) : undefined,
                                       });
                                       const newPrices = new Map(adjustedPrices);
-                                      newPrices.set(order.symbol, result.suggestedPrice);
+                                      newPrices.set(getOrderKey(order), result.suggestedPrice);
                                       setAdjustedPrices(newPrices);
                                       setPriceAdvice(result);
                                     } catch (e) {
