@@ -1917,6 +1917,12 @@ export function UnifiedOrderPreviewModal({
                       {/* Limit Price */}
                       <TableCell className="text-right">
                         <div className="flex flex-col items-end gap-0.5">
+                          {/* Net Credit badge for STO spread orders */}
+                          {(isBPSOrder || isBCSOrder || (!!order.longStrike && order.action !== 'BTC')) && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400/80 bg-emerald-400/10 border border-emerald-400/20 rounded px-1 py-0.5 mb-0.5">
+                              Net Credit
+                            </span>
+                          )}
                           <span className="font-semibold text-green-600">
                             ${price.toFixed(2)}
                           </span>
@@ -2050,9 +2056,16 @@ export function UnifiedOrderPreviewModal({
                                       >
                                         <Minus className="h-3 w-3" />
                                       </Button>
-                                      <span className="text-sm font-mono font-bold text-blue-400 min-w-[52px] text-center">
-                                        ${price.toFixed(2)}
-                                      </span>
+                                      <div className="flex flex-col items-center min-w-[52px]">
+                                        {(isBPSOrder || isBCSOrder || (!!order.longStrike && order.action !== 'BTC')) && (
+                                          <span className="text-[8px] font-semibold uppercase tracking-wider text-emerald-400/70 leading-none mb-0.5">
+                                            Net Credit
+                                          </span>
+                                        )}
+                                        <span className="text-sm font-mono font-bold text-blue-400 text-center">
+                                          ${price.toFixed(2)}
+                                        </span>
+                                      </div>
                                       <Button
                                         size="sm"
                                         variant="outline"
