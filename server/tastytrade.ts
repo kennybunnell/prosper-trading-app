@@ -180,7 +180,10 @@ export class TastytradeAPI {
             const errMsg = error.response?.data?.error?.message || error.response?.data?.errors?.[0]?.message || error.message || 'Unknown API error';
             const isAuthError = status === 401 || status === 403;
             const isRateLimit = (error as any).isRateLimit || errMsg.toLowerCase().includes('rate');
-            if (!isAuthError && !isRateLimit) {
+            // Skip order submission endpoints — those are already logged by the router with full context
+            // (symbol, strategy, strike, expiration, etc.). Logging them here produces empty/duplicate entries.
+            const isOrderEndpoint = endpoint.includes('/orders');
+            if (!isAuthError && !isRateLimit && !isOrderEndpoint) {
               await writeTradingLog({ userId: this.userId, action: 'API_ERROR', strategy: 'api_interceptor', symbol: endpoint.split('/').pop() || 'api', optionSymbol: '', accountNumber: '', price: '', strike: '', expiration: '', quantity: 0, outcome: 'api_error', errorMessage: `[${status}] ${endpoint}: ${errMsg}`, source: 'Tastytrade API Interceptor' });
             }
           } catch (_logErr) { /* never block the main error path */ }
