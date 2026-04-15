@@ -1165,7 +1165,7 @@ export default function CSPDashboard() {
       // Map to expected format.
       // 'Unknown' means the API couldn't confirm yet — return 'Working' so the
       // client keeps polling instead of showing a false 'Rejected' badge.
-      return statuses.map((s: any) => {
+      const mappedStatuses = statuses.map((s: any) => {
         const rawStatus = s.status;
         const mappedStatus =
           rawStatus === 'Filled' ? 'Filled' as const
@@ -1178,8 +1178,28 @@ export default function CSPDashboard() {
           symbol: s.symbol || 'Unknown',
           status: mappedStatus,
           message: s.message || (rawStatus === 'Unknown' ? 'Checking order status...' : 'Status unknown'),
+          filledPrice: (s as any).filledPrice,
         };
       });
+
+      // ♥ Fill-confirmation heartbeat: update Activity Log when order is confirmed filled or rejected
+      const terminalStatuses = mappedStatuses.filter(s => s.status === 'Filled' || s.status === 'Rejected' || s.status === 'Cancelled');
+      for (const s of terminalStatuses) {
+        if (!s.orderId) continue;
+        try {
+          await utils.client.tradingLog.updateOutcome.mutate({
+            orderId: s.orderId,
+            outcome: s.status === 'Filled' ? 'filled' : 'rejected',
+            ...(s.filledPrice ? { filledPrice: String(s.filledPrice) } : {}),
+          });
+          console.log(`[FillHeartbeat] Updated log for order ${s.orderId} → ${s.status}`);
+        } catch (logErr) {
+          // Non-critical: log update failure should not block the UI
+          console.warn('[FillHeartbeat] Failed to update trading log:', logErr);
+        }
+      }
+
+      return mappedStatuses;
     } catch (error: any) {
       console.error('[handlePollStatuses] Error:', error);
       // Return Working on error so the interval keeps retrying

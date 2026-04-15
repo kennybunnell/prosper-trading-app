@@ -1215,8 +1215,8 @@ export const tradingLog = mysqlTable('trading_log', {
   instrumentType: varchar('instrument_type', { length: 32 }),
 
   // Outcome
-  /** success | rejected | error | dry_run | api_error */
-  outcome: mysqlEnum('outcome', ['success', 'rejected', 'error', 'dry_run', 'api_error']).notNull(),
+  /** pending | filled | success | rejected | error | dry_run | api_error */
+  outcome: mysqlEnum('outcome', ['pending', 'filled', 'success', 'rejected', 'error', 'dry_run', 'api_error']).notNull(),
   /** Tastytrade order ID on success */
   orderId: varchar('order_id', { length: 64 }),
   /** Full error message from Tastytrade API on failure */

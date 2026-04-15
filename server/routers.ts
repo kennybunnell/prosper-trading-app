@@ -2621,7 +2621,7 @@ Summary: [One sentence overall assessment]`;
 
               // LIVE MODE ONLY - no dry run parameter
               const result = await api.submitOrder(orderRequest);
-              await writeTradingLog({ userId: ctx.user.id, action: 'STO', strategy: (order as any).isIronCondor ? 'Iron Condor' : ((order as any).isSpread ? ((order as any).spreadType || 'Spread') : 'CSP'), symbol: order.symbol, optionSymbol: (order as any).optionSymbol || (order as any).shortLeg?.optionSymbol || '', accountNumber: input.accountId, price: limitPrice.toFixed(2), strike: String((order as any).strike || ''), expiration: order.expiration || '', quantity: 1, outcome: 'success', orderId: String(result.id), source: 'Spread / CSP / Iron Condor STO' });
+              await writeTradingLog({ userId: ctx.user.id, action: 'STO', strategy: (order as any).isIronCondor ? 'Iron Condor' : ((order as any).isSpread ? ((order as any).spreadType || 'Spread') : 'CSP'), symbol: order.symbol, optionSymbol: (order as any).optionSymbol || (order as any).shortLeg?.optionSymbol || '', accountNumber: input.accountId, price: limitPrice.toFixed(2), strike: String((order as any).strike || ''), expiration: order.expiration || '', quantity: 1, outcome: 'pending', orderId: String(result.id), source: 'Spread / CSP / Iron Condor STO' });
               // Build GTC legs (mirror of STO legs: Sell→Buy to Close, Buy→Sell to Close))
               const gtcLegs = legs.map(leg => ({
                 symbol: leg.symbol,

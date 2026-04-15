@@ -2886,7 +2886,16 @@ export function WorkingOrdersTab() {
                                 </div>
                               </>
                             ) : (
-                              <div className="text-xs text-amber-400">Fetching live quote…</div>
+                              <div className="space-y-1">
+                                <div className="text-xs text-amber-400">⚠️ No live quote</div>
+                                <div className="text-xs text-muted-foreground">Token may be expired.</div>
+                                <button
+                                  className="text-xs text-blue-400 hover:text-blue-300 underline"
+                                  onClick={() => { refetch(); toast.info('Refreshing quotes… This may take a few seconds.'); }}
+                                >
+                                  🔄 Refresh quotes
+                                </button>
+                              </div>
                             )}
                           </div>
                         </td>

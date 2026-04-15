@@ -512,6 +512,13 @@
       "when": 1776206362645,
       "tag": "0073_calm_omega_flight",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "5",
+      "when": 1776273562482,
+      "tag": "0074_daily_luminals",
+      "breakpoints": true
     }
   ]
 }

@@ -82,8 +82,10 @@ function isBackgroundNoise(entry: LogEntry): boolean {
   return !entry.strategy || entry.strategy === 'api_interceptor' || entry.strategy === '';
 }
 
-function getSeverity(entry: LogEntry): 'success' | 'rejected' | 'error' | 'api_noise' | 'dry_run' | 'working' {
+function getSeverity(entry: LogEntry): 'filled' | 'pending' | 'success' | 'rejected' | 'error' | 'api_noise' | 'dry_run' | 'working' {
   if (entry.isDryRun || entry.outcome === 'dry_run') return 'dry_run';
+  if (entry.outcome === 'filled') return 'filled';
+  if (entry.outcome === 'pending') return 'pending';
   if (entry.outcome === 'success') return 'success';
   if (entry.outcome === 'working') return 'working';
   if (entry.outcome === 'rejected') return 'rejected';
@@ -94,7 +96,9 @@ function getSeverity(entry: LogEntry): 'success' | 'rejected' | 'error' | 'api_n
 
 function getSeverityIcon(severity: ReturnType<typeof getSeverity>) {
   switch (severity) {
-    case 'success':   return <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />;
+    case 'filled':    return <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />;
+    case 'pending':   return <Clock className="h-4 w-4 text-sky-400 animate-pulse shrink-0 mt-0.5" />;
+    case 'success':   return <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />;
     case 'rejected':  return <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />;
     case 'error':     return <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />;
     case 'api_noise': return <Wifi className="h-4 w-4 text-yellow-500/60 shrink-0 mt-0.5" />;
@@ -105,7 +109,9 @@ function getSeverityIcon(severity: ReturnType<typeof getSeverity>) {
 
 function getSeverityRowClass(severity: ReturnType<typeof getSeverity>) {
   switch (severity) {
-    case 'success':   return 'hover:bg-green-500/5';
+    case 'filled':    return 'hover:bg-green-500/5';
+    case 'pending':   return 'bg-sky-500/5 hover:bg-sky-500/8 border-l-2 border-sky-500/40';
+    case 'success':   return 'hover:bg-emerald-500/5';
     case 'rejected':  return 'bg-amber-500/5 hover:bg-amber-500/8';
     case 'error':     return 'bg-red-500/8 hover:bg-red-500/12';
     case 'api_noise': return 'opacity-50 hover:opacity-80 hover:bg-muted/20';
@@ -116,7 +122,9 @@ function getSeverityRowClass(severity: ReturnType<typeof getSeverity>) {
 
 function getSeverityLabel(entry: LogEntry, severity: ReturnType<typeof getSeverity>) {
   switch (severity) {
-    case 'success':   return 'Filled';
+    case 'filled':    return 'Filled ✓';
+    case 'pending':   return 'Pending…';
+    case 'success':   return 'Accepted';
     case 'rejected':  return 'Rejected';
     case 'error':     return 'Failed';
     case 'api_noise': return 'API Background';
@@ -127,7 +135,9 @@ function getSeverityLabel(entry: LogEntry, severity: ReturnType<typeof getSeveri
 
 function getSeverityBadgeClass(severity: ReturnType<typeof getSeverity>) {
   switch (severity) {
-    case 'success':   return 'bg-green-600/20 text-green-400 border-green-600/30';
+    case 'filled':    return 'bg-green-600/20 text-green-400 border-green-600/30';
+    case 'pending':   return 'bg-sky-500/20 text-sky-400 border-sky-500/30 animate-pulse';
+    case 'success':   return 'bg-emerald-600/20 text-emerald-400 border-emerald-600/30';
     case 'rejected':  return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
     case 'error':     return 'bg-red-500/20 text-red-400 border-red-500/30';
     case 'api_noise': return 'bg-yellow-500/10 text-yellow-500/60 border-yellow-500/20';
@@ -172,13 +182,15 @@ export function TradingActivityLog() {
   const [diagnosisState, setDiagnosisState] = useState<DiagnosisState>({});
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [hasPendingOrders, setHasPendingOrders] = useState(false);
 
   const { data, isLoading, refetch } = trpc.tradingLog.getEntries.useQuery(
     { limit: 50 },
     {
       enabled: isOpen,
-      refetchInterval: isOpen ? 30_000 : false,
-      staleTime: 10_000,
+      // Refresh every 5s when there are pending orders, 30s otherwise
+      refetchInterval: isOpen ? (hasPendingOrders ? 5_000 : 30_000) : false,
+      staleTime: 4_000,
     }
   );
 
@@ -200,14 +212,14 @@ export function TradingActivityLog() {
   const backgroundEntries = allLogs.filter(l => getSeverity(l) === 'api_noise');
   const orderEntries = allLogs.filter(l => {
     const s = getSeverity(l);
-    return s === 'success' || s === 'working' || s === 'dry_run';
+    return s === 'filled' || s === 'pending' || s === 'success' || s === 'working' || s === 'dry_run';
   });
 
   // Filtered list based on active tab
   const logs = (() => {
     switch (activeTab) {
       case 'errors':     return allLogs.filter(l => { const s = getSeverity(l); return s === 'error' || s === 'rejected'; });
-      case 'orders':     return allLogs.filter(l => { const s = getSeverity(l); return s === 'success' || s === 'working' || s === 'dry_run'; });
+      case 'orders':     return allLogs.filter(l => { const s = getSeverity(l); return s === 'filled' || s === 'pending' || s === 'success' || s === 'working' || s === 'dry_run'; });
       case 'background': return backgroundEntries;
       default:           return allLogs.filter(l => getSeverity(l) !== 'api_noise'); // hide noise in "All"
     }
@@ -243,6 +255,11 @@ export function TradingActivityLog() {
       setTimeout(() => setCopiedId(null), 2000);
     });
   }, [diagnosisState]);
+
+  // Keep hasPendingOrders in sync so refetchInterval adjusts dynamically
+  useEffect(() => {
+    setHasPendingOrders(allLogs.some(l => l.outcome === 'pending'));
+  }, [allLogs]);
 
   // Auto-open only for real order errors (not background noise)
   useEffect(() => {

@@ -25,7 +25,7 @@ export interface TradingLogEntry {
   price?: string;
   priceEffect?: string;
   instrumentType?: string;
-  outcome: 'success' | 'rejected' | 'error' | 'dry_run' | 'api_error';
+  outcome: 'pending' | 'filled' | 'success' | 'rejected' | 'error' | 'dry_run' | 'api_error';
   orderId?: string;
   errorMessage?: string;
   errorPayload?: string;
@@ -74,7 +74,7 @@ export const tradingLogRouter = router({
   getEntries: protectedProcedure
     .input(z.object({
       limit: z.number().min(1).max(200).default(50),
-      outcomeFilter: z.enum(['all', 'success', 'rejected', 'error', 'dry_run', 'api_error']).default('all'),
+      outcomeFilter: z.enum(['all', 'pending', 'filled', 'success', 'rejected', 'error', 'dry_run', 'api_error']).default('all'),
     }))
     .query(async ({ ctx, input }) => {
       const userId = ctx.user.id;
@@ -91,6 +91,32 @@ export const tradingLogRouter = router({
         .orderBy(desc(tradingLog.createdAt))
         .limit(input.limit);
       return entries;
+    }),
+
+  /**
+   * Update the outcome of a trading log entry by orderId.
+   * Called by the fill-polling heartbeat when Tastytrade confirms an order filled or rejected.
+   */
+  updateOutcome: protectedProcedure
+    .input(z.object({
+      orderId: z.string(),
+      outcome: z.enum(['pending', 'filled', 'success', 'rejected', 'error']),
+      filledPrice: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { success: false };
+      await db.update(tradingLog)
+        .set({
+          outcome: input.outcome,
+          ...(input.filledPrice ? { price: input.filledPrice } : {}),
+        })
+        .where(and(
+          eq(tradingLog.userId, ctx.user.id),
+          eq(tradingLog.orderId, input.orderId),
+        ));
+      console.log(`[TradingLog] Updated order ${input.orderId} outcome → ${input.outcome}`);
+      return { success: true };
     }),
 
   /**
