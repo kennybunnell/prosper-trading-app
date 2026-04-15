@@ -2073,69 +2073,54 @@ export function UnifiedOrderPreviewModal({
                                     );
                                   })()}
                                 </div>
-                                {/* AI Optimize Price button */}
-                                {hasMarketData && (() => {
-                                  const adviceForOrder = priceAdvice?.symbol === order.symbol ? priceAdvice : null;
-                                  return (
-                                    <div className="mt-2 flex flex-col gap-1.5">
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-6 text-[10px] px-2 gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200"
-                                        disabled={isOptimizingPrice || isSubmitting}
-                                        onClick={async () => {
-                                          const liveQ = liveQuotes[order.optionSymbol ?? ''];
-                                          const eBid = liveQ?.bid ?? effectiveBid ?? 0;
-                                          const eAsk = liveQ?.ask ?? effectiveAsk ?? 0;
-                                          const eMid = (eBid + eAsk) / 2;
-                                          const currentPrice = adjustedPrices.get(order.symbol) ?? order.premium;
-                                          if (!eBid || !eAsk) return;
-                                          setIsOptimizingPrice(true);
-                                          try {
-                                            const result = await optimizePriceMutation.mutateAsync({
-                                              symbol: order.symbol,
-                                              action: order.action as 'STO' | 'BTC' | 'BTO' | 'STC',
-                                              strategy,
-                                              bid: eBid,
-                                              ask: eAsk,
-                                              mid: eMid,
-                                              currentLimitPrice: currentPrice,
-                                              expiration: order.expiration,
-                                              strike: order.strike,
-                                              optionType: order.optionType,
-                                              isSpread: !!(order.longStrike),
-                                              spreadWidth: order.longStrike ? Math.abs(order.strike - order.longStrike) : undefined,
-                                            });
-                                            // Auto-apply the suggested price immediately
-                                            const newPrices = new Map(adjustedPrices);
-                                            newPrices.set(order.symbol, result.suggestedPrice);
-                                            setAdjustedPrices(newPrices);
-                                            setPriceAdvice(result);
-                                          } catch (e) {
-                                            // ignore
-                                          } finally {
-                                            setIsOptimizingPrice(false);
-                                          }
-                                        }}
-                                      >
-                                        {isOptimizingPrice ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                                        {isOptimizingPrice ? 'Analyzing...' : 'AI Optimize Price'}
-                                      </Button>
-                                      {adviceForOrder && (
-                                        <div className="rounded border border-purple-500/30 bg-purple-500/10 px-2 py-1.5 text-[10px] text-purple-200 w-full overflow-hidden">
-                                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                                            <span className="font-semibold text-purple-100">✓ Applied: <span className="text-green-300">${adviceForOrder.suggestedPrice.toFixed(2)}</span></span>
-                                            <span className={`font-semibold ${
-                                              adviceForOrder.fillProbability === 'high' ? 'text-green-400' :
-                                              adviceForOrder.fillProbability === 'medium' ? 'text-yellow-400' : 'text-red-400'
-                                            }`}>{adviceForOrder.fillProbability === 'high' ? '↑ High' : adviceForOrder.fillProbability === 'medium' ? '→ Medium' : '↓ Low'} fill</span>
-                                          </div>
-                                          <p className="text-purple-300/80 leading-tight" style={{wordBreak:'break-word', overflowWrap:'break-word', whiteSpace:'normal'}}>{adviceForOrder.reasoning}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })()}
+                                {/* AI Optimize Price button — advice panel shown below the table */}
+                                {hasMarketData && (
+                                  <div className="mt-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-6 text-[10px] px-2 gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200"
+                                      disabled={isOptimizingPrice || isSubmitting}
+                                      onClick={async () => {
+                                        const liveQ = liveQuotes[order.optionSymbol ?? ''];
+                                        const eBid = liveQ?.bid ?? effectiveBid ?? 0;
+                                        const eAsk = liveQ?.ask ?? effectiveAsk ?? 0;
+                                        const eMid = (eBid + eAsk) / 2;
+                                        const currentPrice = adjustedPrices.get(order.symbol) ?? order.premium;
+                                        if (!eBid || !eAsk) return;
+                                        setIsOptimizingPrice(true);
+                                        try {
+                                          const result = await optimizePriceMutation.mutateAsync({
+                                            symbol: order.symbol,
+                                            action: order.action as 'STO' | 'BTC' | 'BTO' | 'STC',
+                                            strategy,
+                                            bid: eBid,
+                                            ask: eAsk,
+                                            mid: eMid,
+                                            currentLimitPrice: currentPrice,
+                                            expiration: order.expiration,
+                                            strike: order.strike,
+                                            optionType: order.optionType,
+                                            isSpread: !!(order.longStrike),
+                                            spreadWidth: order.longStrike ? Math.abs(order.strike - order.longStrike) : undefined,
+                                          });
+                                          // Auto-apply the suggested price immediately
+                                          const newPrices = new Map(adjustedPrices);
+                                          newPrices.set(order.symbol, result.suggestedPrice);
+                                          setAdjustedPrices(newPrices);
+                                          setPriceAdvice(result);
+                                        } catch (e) {
+                                          // ignore
+                                        } finally {
+                                          setIsOptimizingPrice(false);
+                                        }
+                                      }}
+                                    >
+                                      {isOptimizingPrice ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                                      {isOptimizingPrice ? 'Analyzing...' : 'AI Optimize Price'}
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -2255,6 +2240,31 @@ export function UnifiedOrderPreviewModal({
             </div>
           )}
           
+          {/* AI Price Advice Panel — full-width band between table and summary */}
+          {priceAdvice && (
+            <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-sm text-purple-200">
+              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                <span className="flex items-center gap-1.5 font-semibold text-purple-100">
+                  <Sparkles className="h-4 w-4 text-purple-400" />
+                  AI Price Advice
+                </span>
+                <span className="font-semibold">✓ Applied: <span className="text-green-300">${priceAdvice.suggestedPrice.toFixed(2)}</span></span>
+                <span className={`font-semibold ${
+                  priceAdvice.fillProbability === 'high' ? 'text-green-400' :
+                  priceAdvice.fillProbability === 'medium' ? 'text-yellow-400' : 'text-red-400'
+                }`}>
+                  {priceAdvice.fillProbability === 'high' ? '↑ High fill probability' : priceAdvice.fillProbability === 'medium' ? '→ Medium fill probability' : '↓ Low fill probability'}
+                </span>
+                <button
+                  onClick={() => setPriceAdvice(null)}
+                  className="ml-auto text-purple-400/60 hover:text-purple-300 text-xs"
+                  title="Dismiss"
+                >✕</button>
+              </div>
+              <p className="text-purple-300/80 leading-relaxed text-xs">{priceAdvice.reasoning}</p>
+            </div>
+          )}
+
           {/* Summary */}
           {!isPolling && (
             <div className="p-4 bg-muted/30 rounded-lg border space-y-2">
