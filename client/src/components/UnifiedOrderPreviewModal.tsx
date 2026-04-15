@@ -1961,12 +1961,45 @@ export function UnifiedOrderPreviewModal({
                       </TableCell>
                       
                       {/* Price Adjustment Slider */}
-                      <TableCell className="max-w-[280px] w-[280px]">
+                      <TableCell className="min-w-[320px] w-[320px]">
                         {hasMarketData ? (
-                          <div className="flex flex-col gap-3 py-2 overflow-hidden">
-                            {/* Visual Continuum with Markers */}
+                          <div className="flex flex-col gap-2 py-3 px-1 overflow-hidden">
+                            {/* Row 1: Bid / Mid / Ask labels */}
+                            <div className="flex items-center justify-between text-[10px] px-0.5">
+                              <span className="text-red-400 font-mono font-medium">Bid</span>
+                              <span className="text-blue-400 font-mono font-medium">Mid</span>
+                              <span className="text-green-400 font-mono font-medium">Ask</span>
+                            </div>
+                            {/* Row 2: Live prices */}
+                            {hasLiveQuote && (() => {
+                              const liveShortQ = liveQ!;
+                              const liveLongQ = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
+                              const isSpreadOrder = !!(order.spreadLongSymbol || order.longStrike);
+                              if (isSpreadOrder && liveLongQ && liveLongQ.bid > 0 && liveLongQ.ask > 0) {
+                                const netBid = Math.max(0.01, liveShortQ.bid - liveLongQ.ask);
+                                const netAsk = Math.max(0.01, liveShortQ.ask - liveLongQ.bid);
+                                const netMid = (netBid + netAsk) / 2;
+                                return (
+                                  <div className="flex items-center justify-between text-xs px-0.5">
+                                    <span className="text-red-400 font-mono">${netBid.toFixed(2)}</span>
+                                    <span className="text-blue-400 font-mono font-bold">${netMid.toFixed(2)}</span>
+                                    <span className="text-green-400 font-mono">${netAsk.toFixed(2)}</span>
+                                  </div>
+                                );
+                              } else if (!isSpreadOrder) {
+                                const mid = (liveShortQ.bid + liveShortQ.ask) / 2;
+                                return (
+                                  <div className="flex items-center justify-between text-xs px-0.5">
+                                    <span className="text-red-400 font-mono">${liveShortQ.bid.toFixed(2)}</span>
+                                    <span className="text-blue-400 font-mono font-bold">${mid.toFixed(2)}</span>
+                                    <span className="text-green-400 font-mono">${liveShortQ.ask.toFixed(2)}</span>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                            {/* Row 3: Slider with mid marker */}
                             <div className="relative">
-                              {/* Slider with Visual Zones */}
                               <div className="relative px-1">
                                 {/* Mid Marker */}
                                 <div 
@@ -1978,7 +2011,6 @@ export function UnifiedOrderPreviewModal({
                                     zIndex: 0
                                   }}
                                 />
-                                
                                 {/* Slider */}
                                 <Slider
                                   value={getSliderPosition(orderWithLive)}
@@ -1991,138 +2023,107 @@ export function UnifiedOrderPreviewModal({
                                 />
                               </div>
                               
-                              {/* Live bid/ask range bar — shows real-time market range */}
-                              {hasLiveQuote && (() => {
-                                const liveShortQ = liveQ!;
-                                const liveLongQ = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
-                                const isSpreadOrder = !!(order.spreadLongSymbol || order.longStrike);
-                                if (isSpreadOrder && liveLongQ && liveLongQ.bid > 0 && liveLongQ.ask > 0) {
-                                  // Spread: show net credit range
-                                  const netBid = Math.max(0.01, liveShortQ.bid - liveLongQ.ask);
-                                  const netAsk = Math.max(0.01, liveShortQ.ask - liveLongQ.bid);
-                                  const netMid = (netBid + netAsk) / 2;
-                                  return (
-                                    <div className="flex items-center justify-between text-[10px] mb-1 px-1">
-                                      <span className="text-red-400 font-mono">${netBid.toFixed(2)}</span>
-                                      <span className="text-blue-400 font-mono font-bold">mid ${netMid.toFixed(2)}</span>
-                                      <span className="text-green-400 font-mono">${netAsk.toFixed(2)}</span>
-                                    </div>
-                                  );
-                                } else if (!isSpreadOrder) {
-                                  // Single leg: show raw bid/ask
-                                  const mid = (liveShortQ.bid + liveShortQ.ask) / 2;
-                                  return (
-                                    <div className="flex items-center justify-between text-[10px] mb-1 px-1">
-                                      <span className="text-red-400 font-mono">${liveShortQ.bid.toFixed(2)}</span>
-                                      <span className="text-blue-400 font-mono font-bold">mid ${mid.toFixed(2)}</span>
-                                      <span className="text-green-400 font-mono">${liveShortQ.ask.toFixed(2)}</span>
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              })()}
-                              {/* Current Price and Position Indicator */}
-                              <div className="flex justify-between items-center mt-2">
-                                <div className="flex items-center gap-2">
-                                  {(() => {
-                                    const tick = getTickSize(price, order.symbol);
-                                    return (
-                                      <>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="h-6 w-6 p-0"
-                                          onClick={() => adjustPrice(orderWithLive, -tick)}
-                                          disabled={isSubmitting}
-                                          title={`-$${tick.toFixed(2)}`}
-                                        >
-                                          <Minus className="h-3 w-3" />
-                                        </Button>
-                                        <span className="text-xs font-mono font-bold text-blue-400">
-                                          ${price.toFixed(2)}
-                                        </span>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="h-6 w-6 p-0"
-                                          onClick={() => adjustPrice(orderWithLive, tick)}
-                                          disabled={isSubmitting}
-                                          title={`+$${tick.toFixed(2)}`}
-                                        >
-                                          <Plus className="h-3 w-3" />
-                                        </Button>
-                                      </>
-                                    );
-                                  })()}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {(() => {
-                                    const sliderPos = getSliderPosition(orderWithLive)[0];
-                                    const guidance = getFillZoneGuidance(sliderPos, order.action);
-                                    // Fill probability: linear interpolation based on slider position
-                                    const fillPct = order.action === 'STO'
-                                      ? Math.min(95, Math.max(10, Math.round(sliderPos * 0.85 + 5)))
-                                      : Math.min(95, Math.max(10, Math.round((100 - sliderPos) * 0.85 + 5)));
-                                    return (
-                                      <div className="flex flex-col gap-1">
-                                        <span className={guidance.color}>{guidance.text}</span>
-                                        <span className="text-muted-foreground/70">
-                                          Est. fill probability: <span className={fillPct >= 65 ? 'text-green-400' : fillPct >= 40 ? 'text-yellow-400' : 'text-red-400'}>{fillPct}%</span>
-                                        </span>
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
-                                {/* AI Optimize Price button — advice panel shown below the table */}
-                                {hasMarketData && (
-                                  <div className="mt-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-6 text-[10px] px-2 gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200"
-                                      disabled={isOptimizingPrice || isSubmitting}
-                                      onClick={async () => {
-                                        const liveQ = liveQuotes[order.optionSymbol ?? ''];
-                                        const eBid = liveQ?.bid ?? effectiveBid ?? 0;
-                                        const eAsk = liveQ?.ask ?? effectiveAsk ?? 0;
-                                        const eMid = (eBid + eAsk) / 2;
-                                        const currentPrice = adjustedPrices.get(order.symbol) ?? order.premium;
-                                        if (!eBid || !eAsk) return;
-                                        setIsOptimizingPrice(true);
-                                        try {
-                                          const result = await optimizePriceMutation.mutateAsync({
-                                            symbol: order.symbol,
-                                            action: order.action as 'STO' | 'BTC' | 'BTO' | 'STC',
-                                            strategy,
-                                            bid: eBid,
-                                            ask: eAsk,
-                                            mid: eMid,
-                                            currentLimitPrice: currentPrice,
-                                            expiration: order.expiration,
-                                            strike: order.strike,
-                                            optionType: order.optionType,
-                                            isSpread: !!(order.longStrike),
-                                            spreadWidth: order.longStrike ? Math.abs(order.strike - order.longStrike) : undefined,
-                                          });
-                                          // Auto-apply the suggested price immediately
-                                          const newPrices = new Map(adjustedPrices);
-                                          newPrices.set(order.symbol, result.suggestedPrice);
-                                          setAdjustedPrices(newPrices);
-                                          setPriceAdvice(result);
-                                        } catch (e) {
-                                          // ignore
-                                        } finally {
-                                          setIsOptimizingPrice(false);
-                                        }
-                                      }}
-                                    >
-                                      {isOptimizingPrice ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                                      {isOptimizingPrice ? 'Analyzing...' : 'AI Optimize Price'}
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
                             </div>
+                            {/* Row 4: Price controls — centered with +/- buttons */}
+                            <div className="flex items-center justify-between gap-2 pt-1">
+                              <div className="flex items-center gap-2">
+                                {(() => {
+                                  const tick = getTickSize(price, order.symbol);
+                                  return (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 w-7 p-0 rounded-full"
+                                        onClick={() => adjustPrice(orderWithLive, -tick)}
+                                        disabled={isSubmitting}
+                                        title={`Decrease by $${tick.toFixed(2)}`}
+                                      >
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <span className="text-sm font-mono font-bold text-blue-400 min-w-[52px] text-center">
+                                        ${price.toFixed(2)}
+                                      </span>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 w-7 p-0 rounded-full"
+                                        onClick={() => adjustPrice(orderWithLive, tick)}
+                                        disabled={isSubmitting}
+                                        title={`Increase by $${tick.toFixed(2)}`}
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                              {/* AI Optimize Price button */}
+                              {hasMarketData && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-[10px] px-2 gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200"
+                                  disabled={isOptimizingPrice || isSubmitting}
+                                  onClick={async () => {
+                                    const liveQ = liveQuotes[order.optionSymbol ?? ''];
+                                    const eBid = liveQ?.bid ?? effectiveBid ?? 0;
+                                    const eAsk = liveQ?.ask ?? effectiveAsk ?? 0;
+                                    const eMid = (eBid + eAsk) / 2;
+                                    const currentPrice = adjustedPrices.get(order.symbol) ?? order.premium;
+                                    if (!eBid || !eAsk) return;
+                                    setIsOptimizingPrice(true);
+                                    try {
+                                      const result = await optimizePriceMutation.mutateAsync({
+                                        symbol: order.symbol,
+                                        action: order.action as 'STO' | 'BTC' | 'BTO' | 'STC',
+                                        strategy,
+                                        bid: eBid,
+                                        ask: eAsk,
+                                        mid: eMid,
+                                        currentLimitPrice: currentPrice,
+                                        expiration: order.expiration,
+                                        strike: order.strike,
+                                        optionType: order.optionType,
+                                        isSpread: !!(order.longStrike),
+                                        spreadWidth: order.longStrike ? Math.abs(order.strike - order.longStrike) : undefined,
+                                      });
+                                      const newPrices = new Map(adjustedPrices);
+                                      newPrices.set(order.symbol, result.suggestedPrice);
+                                      setAdjustedPrices(newPrices);
+                                      setPriceAdvice(result);
+                                    } catch (e) {
+                                      // ignore
+                                    } finally {
+                                      setIsOptimizingPrice(false);
+                                    }
+                                  }}
+                                >
+                                  {isOptimizingPrice ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                                  {isOptimizingPrice ? 'Analyzing...' : 'AI Optimize'}
+                                </Button>
+                              )}
+                            </div>
+                            {/* Row 5: Fill zone + probability with tooltip */}
+                            {(() => {
+                              const sliderPos = getSliderPosition(orderWithLive)[0];
+                              const guidance = getFillZoneGuidance(sliderPos, order.action);
+                              const fillPct = order.action === 'STO'
+                                ? Math.min(95, Math.max(10, Math.round(sliderPos * 0.85 + 5)))
+                                : Math.min(95, Math.max(10, Math.round((100 - sliderPos) * 0.85 + 5)));
+                              const fillColor = fillPct >= 65 ? 'text-green-400' : fillPct >= 40 ? 'text-yellow-400' : 'text-red-400';
+                              return (
+                                <div className="flex items-center justify-between text-[10px] pt-0.5 border-t border-border/30">
+                                  <span className={guidance.color}>{guidance.text}</span>
+                                  <span
+                                    className={`${fillColor} cursor-help`}
+                                    title="Estimated fill probability: how likely your limit order fills based on where your price sits in the bid-ask range. Near the ask = faster fill, lower premium. Near the bid = slower fill, more premium captured."
+                                  >
+                                    ~{fillPct}% fill
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">No market data</span>
