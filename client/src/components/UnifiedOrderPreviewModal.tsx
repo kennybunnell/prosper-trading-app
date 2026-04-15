@@ -2106,6 +2106,10 @@ export function UnifiedOrderPreviewModal({
                                               isSpread: !!(order.longStrike),
                                               spreadWidth: order.longStrike ? Math.abs(order.strike - order.longStrike) : undefined,
                                             });
+                                            // Auto-apply the suggested price immediately
+                                            const newPrices = new Map(adjustedPrices);
+                                            newPrices.set(order.symbol, result.suggestedPrice);
+                                            setAdjustedPrices(newPrices);
                                             setPriceAdvice(result);
                                           } catch (e) {
                                             // ignore
@@ -2118,28 +2122,15 @@ export function UnifiedOrderPreviewModal({
                                         {isOptimizingPrice ? 'Analyzing...' : 'AI Optimize Price'}
                                       </Button>
                                       {adviceForOrder && (
-                                        <div className="rounded border border-purple-500/30 bg-purple-500/10 px-2 py-1.5 text-[10px] text-purple-200">
-                                          <div className="flex items-center justify-between gap-2 mb-1">
-                                            <span className="font-semibold text-purple-100">Suggested: <span className="text-green-300">${adviceForOrder.suggestedPrice.toFixed(2)}</span></span>
+                                        <div className="rounded border border-purple-500/30 bg-purple-500/10 px-2 py-1.5 text-[10px] text-purple-200 max-w-full">
+                                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            <span className="font-semibold text-purple-100">✓ Applied: <span className="text-green-300">${adviceForOrder.suggestedPrice.toFixed(2)}</span></span>
                                             <span className={`font-semibold ${
                                               adviceForOrder.fillProbability === 'high' ? 'text-green-400' :
                                               adviceForOrder.fillProbability === 'medium' ? 'text-yellow-400' : 'text-red-400'
-                                            }`}>{adviceForOrder.fillProbability === 'high' ? 'High fill chance' : adviceForOrder.fillProbability === 'medium' ? 'Medium fill chance' : 'Low fill chance'}</span>
+                                            }`}>{adviceForOrder.fillProbability === 'high' ? '↑ High fill chance' : adviceForOrder.fillProbability === 'medium' ? '→ Medium fill chance' : '↓ Low fill chance'}</span>
                                           </div>
-                                          <p className="text-purple-300/80 leading-tight">{adviceForOrder.reasoning}</p>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="mt-1.5 h-5 text-[10px] px-2 border-green-500/40 text-green-300 hover:bg-green-500/10"
-                                            onClick={() => {
-                                              const newPrices = new Map(adjustedPrices);
-                                              newPrices.set(order.symbol, adviceForOrder.suggestedPrice);
-                                              setAdjustedPrices(newPrices);
-                                              setPriceAdvice(null);
-                                            }}
-                                          >
-                                            Apply ${adviceForOrder.suggestedPrice.toFixed(2)}
-                                          </Button>
+                                          <p className="text-purple-300/80 leading-tight break-words">{adviceForOrder.reasoning}</p>
                                         </div>
                                       )}
                                     </div>
