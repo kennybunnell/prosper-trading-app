@@ -338,18 +338,53 @@ export const workingOrdersRouter = router({
 
         console.log(`[WorkingOrders] Fetching quotes for ${optionSymbols.length} symbols`);
 
-        // Fetch real-time quotes from Tastytrade /market-data/by-type.
-        // Supports both equity options and index options (SPXW, NDX, XSP, RUT, etc.)
-        // using the correct 'index-option' vs 'equity-option' parameter type automatically.
+        // Fetch real-time quotes via Tradier /markets/quotes.
+        // Tastytrade /market-data/by-type returns items:[] for index options (SPXW, NDXP, etc.)
+        // Tradier returns real-time bid/ask for ALL option types including SPXW.
+        //
+        // Symbol format conversion:
+        //   Tastytrade/OCC: "SPXW  260424P06750000" (spaces for root padding)
+        //   Tradier:        "SPXW260424P06750000"   (no spaces, compact)
         const quotes: Record<string, { bid: number; ask: number; mid: number; last: number }> = {};
         try {
-          const rawQuotes = await api.getOptionQuotesBatch(optionSymbols);
-          for (const [sym, q] of Object.entries(rawQuotes)) {
-            quotes[sym] = { bid: q.bid, ask: q.ask, mid: q.mid || ((q.bid + q.ask) / 2), last: q.last };
+          const { getDb } = await import('./db');
+          const db = await getDb();
+          if (db) {
+            const { apiCredentials } = await import('../drizzle/schema.js');
+            const { eq } = await import('drizzle-orm');
+            const [creds] = await db.select().from(apiCredentials).where(eq(apiCredentials.userId, ctx.user.id));
+            const tradierKey = creds?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+            if (tradierKey) {
+              const { TradierAPI } = await import('./tradier.js');
+              const tradierApi = new TradierAPI(tradierKey);
+              // Convert OCC symbols (with spaces) → Tradier compact format (no spaces)
+              const occToTradier = (occ: string): string => occ.replace(/\s+/g, '');
+              const tradierToOcc: Record<string, string> = {};
+              const tradierSymbols: string[] = [];
+              for (const sym of optionSymbols) {
+                const tradierSym = occToTradier(sym);
+                tradierToOcc[tradierSym] = sym;
+                tradierSymbols.push(tradierSym);
+              }
+              const rawQuotes = await tradierApi.getQuotes(tradierSymbols);
+              for (const q of rawQuotes) {
+                const qAny = q as any;
+                const tradierSym: string = qAny.symbol || '';
+                const originalOcc = tradierToOcc[tradierSym] || tradierToOcc[tradierSym.replace(/\s+/g, '')] || tradierSym;
+                const bid = typeof qAny.bid === 'number' ? qAny.bid : parseFloat(qAny.bid) || 0;
+                const ask = typeof qAny.ask === 'number' ? qAny.ask : parseFloat(qAny.ask) || 0;
+                const mid = (bid + ask) / 2;
+                if (bid > 0 || ask > 0) {
+                  quotes[originalOcc] = { bid, ask, mid, last: qAny.last || mid };
+                }
+              }
+              console.log(`[WorkingOrders] Tradier quotes fetched: ${Object.keys(quotes).length}/${optionSymbols.length} symbols`);
+            } else {
+              console.warn('[WorkingOrders] No Tradier API key — quotes will be empty');
+            }
           }
-          console.log(`[WorkingOrders] Tastytrade quotes fetched: ${Object.keys(quotes).length} symbols`);
         } catch (quoteErr: any) {
-          console.warn('[WorkingOrders] Tastytrade quote fetch failed:', quoteErr.message);
+          console.warn('[WorkingOrders] Tradier quote fetch failed:', quoteErr.message);
         }
 
         // Fetch replacement counts from DB for all working orders

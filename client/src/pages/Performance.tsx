@@ -1436,6 +1436,7 @@ export function WorkingOrdersTab() {
       enabled: true,
       refetchOnWindowFocus: false,
       retry: false,
+      staleTime: 0, // Always treat data as stale so Refresh button forces a real API call
     }
   );
 
@@ -1960,13 +1961,14 @@ export function WorkingOrdersTab() {
                   return;
                 }
                 if (!safeToReplace) {
-                  toast.error('Not safe to replace orders after 3:55 PM ET');
+                  toast.error('Order replacement is disabled outside market hours (before 3:55 PM ET). Orders can only be replaced when the market is open.');
                   return;
                 }
                 setShowReplaceDialog(true);
               }}
               disabled={selectedOrders.size === 0 || !safeToReplace || replaceOrdersMutation.isPending}
               className="border-green-500/50 hover:bg-green-500/20 text-green-400"
+              title={!safeToReplace ? 'Order replacement disabled outside market hours (9:30 AM – 3:55 PM ET)' : selectedOrders.size === 0 ? 'Select orders to replace' : 'Replace selected orders at new limit price'}
             >
               {replaceOrdersMutation.isPending ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
