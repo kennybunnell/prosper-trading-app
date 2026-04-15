@@ -338,7 +338,6 @@ export function UnifiedOrderPreviewModal({
       orders.forEach(order => {
         const key = getOrderKey(order);
         const isBTC = order.action === 'BTC';
-        
         // For spreads, calculate net credit/debit range from both legs
         if (order.longStrike && order.bid && order.ask && order.longBid && order.longAsk) {
           if (isBTC) {

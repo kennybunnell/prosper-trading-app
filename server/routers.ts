@@ -2294,7 +2294,10 @@ Summary: [One sentence overall assessment]`;
             : (order.strike > 0 ? order.strike * 100 : 0);
           
           console.log(`[validateOrders] ${order.symbol} - isSpread: ${order.isSpread}, capitalAtRisk: ${order.capitalAtRisk}, strike: ${order.strike}, calculated collateral: ${collateral}`);
-          const midpoint = (order.bid + order.ask) / 2;
+          // For spreads, use the net credit passed in (order.premium) as the midpoint.
+          // Do NOT recalculate from (shortBid + shortAsk) / 2 — that gives the short leg's
+          // individual price (~$17.60), not the net spread credit (~$4.35).
+          const midpoint = order.isSpread ? order.premium : (order.bid + order.ask) / 2;
           
           // Validation checks
           let status: 'valid' | 'warning' = 'valid';
@@ -2319,7 +2322,9 @@ Summary: [One sentence overall assessment]`;
             strike: order.strike,
             expiration: order.expiration,
             quantity: 1,
-            premium: midpoint * 100, // Premium per contract
+            // For spreads: premium is already the net credit (per share), multiply by 100 for per-contract.
+            // For single-leg: midpoint is (bid+ask)/2 per share, multiply by 100 for per-contract.
+            premium: midpoint * 100, // Premium per contract (net credit for spreads, mid for single-leg)
             collateral,
             status,
             message,
