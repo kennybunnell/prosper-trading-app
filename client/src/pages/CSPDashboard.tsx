@@ -1109,34 +1109,58 @@ export default function CSPDashboard() {
     }
 
     // Validate orders and show preview dialog
-    const orders = selectedOppsList.map((opp: any) => ({
-      symbol: opp.symbol,
-      strike: opp.strike,
-      expiration: opp.expiration,
-      quantity: 1, // Default quantity, can be adjusted in preview dialog
-      // For spreads, use netCredit; for CSP, use premium
-      premium: strategyType === 'spread' ? (opp as any).netCredit : opp.premium,
-      // For spreads, pass both legs' bid/ask so modal can calculate net credit range
-      bid: opp.bid, // Short leg bid
-      ask: opp.ask, // Short leg ask
-      mid: strategyType === 'spread' ? (opp as any).netCredit : (opp.bid + opp.ask) / 2,
-      collateral: strategyType === 'spread' ? (opp as any).capitalAtRisk : (opp.strike * 100),
-      status: 'valid' as const,
-      currentPrice: opp.currentPrice,
-      ivRank: opp.ivRank,
-      // Spread-specific fields
-      isSpread: strategyType === 'spread',
-      spreadType: strategyType === 'spread' ? 'bull_put' as const : undefined,
-      longStrike: strategyType === 'spread' ? (opp as any).longStrike : undefined,
-      longBid: strategyType === 'spread' ? (opp as any).longBid : undefined,
-      longAsk: strategyType === 'spread' ? (opp as any).longAsk : undefined,
-      spreadWidth: strategyType === 'spread' ? spreadWidth : undefined,
-      capitalAtRisk: strategyType === 'spread' ? (opp as any).capitalAtRisk : undefined,
-      // Pass through the Tradier option symbol so executeOrderSubmission can derive the correct
-      // OCC ticker (e.g. SPXW) instead of re-building from opp.symbol (which may be SPX, the
-      // tradierOptionRoot, causing Tastytrade to reject the order).
-      scanOptionSymbol: (opp as any).optionSymbol as string | undefined,
-    }));
+    // Helper to build OCC option symbol for live quote fetching in the modal
+    const buildPreviewOccSymbol = (
+      sym: string, exp: string, strike: number, type: 'P' | 'C', tradierSym?: string
+    ): string => {
+      const expShort = exp.replace(/-/g, '').substring(2); // YYMMDD
+      const strikeFormatted = (strike * 1000).toString().padStart(8, '0');
+      let ticker = sym;
+      if (tradierSym && tradierSym.length > 15) {
+        ticker = tradierSym.slice(0, tradierSym.length - 15);
+      }
+      const occRoot = getOccRoot(ticker, exp);
+      return `${occRoot.padEnd(6, ' ')}${expShort}${type}${strikeFormatted}`;
+    };
+    const isSpreadOrder = strategyType === 'spread';
+    const orders = selectedOppsList.map((opp: any) => {
+      const tradierSym = (opp as any).optionSymbol as string | undefined;
+      const shortOccSym = buildPreviewOccSymbol(opp.symbol, opp.expiration, opp.strike, 'P', tradierSym);
+      const longOccSym = isSpreadOrder && (opp as any).longStrike
+        ? buildPreviewOccSymbol(opp.symbol, opp.expiration, (opp as any).longStrike, 'P', tradierSym)
+        : undefined;
+      return {
+        symbol: opp.symbol,
+        strike: opp.strike,
+        expiration: opp.expiration,
+        quantity: 1, // Default quantity, can be adjusted in preview dialog
+        // For spreads, use netCredit; for CSP, use premium
+        premium: isSpreadOrder ? (opp as any).netCredit : opp.premium,
+        // For spreads, pass both legs' bid/ask so modal can calculate net credit range
+        bid: opp.bid, // Short leg bid
+        ask: opp.ask, // Short leg ask
+        mid: isSpreadOrder ? (opp as any).netCredit : (opp.bid + opp.ask) / 2,
+        collateral: isSpreadOrder ? (opp as any).capitalAtRisk : (opp.strike * 100),
+        status: 'valid' as const,
+        currentPrice: opp.currentPrice,
+        ivRank: opp.ivRank,
+        // Spread-specific fields
+        isSpread: isSpreadOrder,
+        spreadType: isSpreadOrder ? 'bull_put' as const : undefined,
+        longStrike: isSpreadOrder ? (opp as any).longStrike : undefined,
+        longBid: isSpreadOrder ? (opp as any).longBid : undefined,
+        longAsk: isSpreadOrder ? (opp as any).longAsk : undefined,
+        spreadWidth: isSpreadOrder ? spreadWidth : undefined,
+        capitalAtRisk: isSpreadOrder ? (opp as any).capitalAtRisk : undefined,
+        // OCC symbols for live quote fetching in the modal (both legs for spreads)
+        optionSymbol: shortOccSym,
+        spreadLongSymbol: longOccSym,
+        // Pass through the Tradier option symbol so executeOrderSubmission can derive the correct
+        // OCC ticker (e.g. SPXW) instead of re-building from opp.symbol (which may be SPX, the
+        // tradierOptionRoot, causing Tastytrade to reject the order).
+        scanOptionSymbol: tradierSym,
+      };
+    });
 
     validateOrders.mutate({
       orders,

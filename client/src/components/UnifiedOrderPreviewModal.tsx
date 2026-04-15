@@ -355,17 +355,21 @@ export function UnifiedOrderPreviewModal({
             initialPrices.set(key, snapToTick(rawPrice, order.symbol));
           }
         }
-        // For single-leg options, use bid/ask
-        else if (order.bid && order.ask && order.bid > 0 && order.ask > 0) {
+        // For single-leg options (no longStrike), use bid/ask
+        // CRITICAL: Do NOT use short leg bid/ask for spread orders — that gives the individual leg
+        // price (~$15.80), not the net spread credit (~$4.20). For spreads with missing long leg
+        // quotes, always fall back to order.premium (net credit from scanner).
+        else if (!order.longStrike && order.bid && order.ask && order.bid > 0 && order.ask > 0) {
           const mid = (order.bid + order.ask) / 2;
           // BTC: set to mid + 25% toward ask = Good Fill Zone
           const rawPrice = Math.max(0.01, isBTC ? mid + (order.ask - mid) * 0.25 : mid);
           // Apply Tastytrade tick-size rules: $0.05 for >= $3, $0.01 for < $3
           initialPrices.set(key, snapToTick(rawPrice, order.symbol));
         }
-        // Fallback to premium if no market data
+        // Fallback: use order.premium (net credit for spreads, scanned premium for CSPs)
+        // This is always correct: for spreads it's short_mid - long_mid = net credit
         else {
-          initialPrices.set(key, order.premium);
+          initialPrices.set(key, Math.max(0.01, order.premium));
         }
       });
       setAdjustedPrices(initialPrices);
