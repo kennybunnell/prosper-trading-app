@@ -1,9 +1,10 @@
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { trpc } from '@/lib/trpc';
-import { DollarSign, TrendingUp, Calendar, Wallet } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, Wallet, RefreshCw } from 'lucide-react';
 
 export function LockedInIncomeCards() {
-  const { data, isLoading } = trpc.projections.getLockedInIncome.useQuery();
+  const { data, isLoading, isFetching, refetch } = trpc.projections.getLockedInIncome.useQuery();
 
   if (isLoading) {
     return (
@@ -53,31 +54,39 @@ export function LockedInIncomeCards() {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      {cards.map((card) => {
-        const Icon = card.icon;
-        return (
-          <Card
-            key={card.title}
-            className={`p-6 bg-gradient-to-br ${card.gradient} border-border/50 backdrop-blur`}
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">{card.title}</p>
-                <p className="text-2xl font-bold text-foreground">
-                  ${card.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {cards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <Card
+              key={card.title}
+              className={`p-6 bg-gradient-to-br ${card.gradient} border-border/50 backdrop-blur`}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">{card.title}</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    ${card.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className={`p-3 rounded-lg bg-background/50 ${card.iconColor}`}>
+                  <Icon className="w-5 h-5" />
+                </div>
               </div>
-              <div className={`p-3 rounded-lg bg-background/50 ${card.iconColor}`}>
-                <Icon className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {card.count} position{card.count !== 1 ? 's' : ''}
-            </p>
-          </Card>
-        );
-      })}
+              <p className="text-xs text-muted-foreground">
+                {card.count} position{card.count !== 1 ? 's' : ''}
+              </p>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

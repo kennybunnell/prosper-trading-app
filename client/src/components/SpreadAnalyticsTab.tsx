@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowUpDown, Download, TrendingUp, TrendingDown } from 'lucide-react';
+import { ArrowUpDown, Download, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -148,8 +148,27 @@ export function SpreadAnalyticsTab() {
   const bearCallData = strategyMetrics.data?.find(s => s.strategy === 'Bear Call Spread');
   const ironCondorData = strategyMetrics.data?.find(s => s.strategy === 'Iron Condor');
 
+  const isRefreshing = strategyMetrics.isFetching || activeSpreads.isFetching || closedSpreads.isFetching || symbolMetrics.isFetching;
+  const handleRefreshAll = () => {
+    strategyMetrics.refetch();
+    activeSpreads.refetch();
+    closedSpreads.refetch();
+    symbolMetrics.refetch();
+  };
+
   return (
     <div className="space-y-6">
+      {/* Header with Refresh */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Spread Analytics</h2>
+          <p className="text-sm text-muted-foreground mt-1">Performance metrics for spread strategies</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleRefreshAll} disabled={isRefreshing}>
+          <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="p-6 bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20">

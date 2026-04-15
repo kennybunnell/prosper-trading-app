@@ -9288,3 +9288,12 @@ ROC Fix Mar 18 2026
 - [x] Add Tradier API-level error interceptor with userId propagation
 - [x] Pass ctx.user.id to all createTradierAPI() call sites (17 files)
 - [x] Fix routers-market.ts publicProcedure - use undefined for userId
+
+## PMCC LEAP Order Modal + Performance Sync Buttons (Apr 15, 2026)
+- [x] Fix LEAP order modal: rename "Test Order" button to "Dry Run" and add separate "Submit Live Order" button
+- [x] Remove the toggle-style Dry Run/Live Mode button; replace with two clear action buttons: "Dry Run" and "Submit Live Order"
+- [x] Add Refresh buttons to Projections tab (LockedInIncomeCards + ThetaDecayCards)
+- [x] Add Refresh All button to SpreadAnalyticsTab header
+- [x] Verify LEAP purchase → CC scanner linkage: getLeapPositions reads from DB cache, ShortCallScanner receives those positions correctly
+- [x] Add submitShortCallOrders procedure (STO) to pmcc router with Dry Run + Live Order support
+- [x] Wire ShortCallScanner Preview Orders button to new submitShortCallOrders procedure with full order preview dialog

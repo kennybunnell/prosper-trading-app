@@ -1009,20 +1009,16 @@ export default function PMCCDashboard() {
             </DialogHeader>
             
             <div className="space-y-4">
-              {/* Dry Run Toggle */}
-              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+              {/* Order Mode Info Banner */}
+              <div className="flex items-start gap-3 p-3 bg-amber-900/20 border border-amber-700/40 rounded-lg">
+                <span className="text-amber-400 text-lg mt-0.5">&#9888;&#65039;</span>
                 <div>
-                  <p className="font-semibold">Dry Run Mode</p>
-                  <p className="text-sm text-muted-foreground">Test orders without executing them</p>
+                  <p className="text-sm font-semibold text-amber-300">Review before submitting</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Use <strong className="text-amber-300">Dry Run</strong> to validate orders without executing them.
+                    Use <strong className="text-green-400">Submit Live Order</strong> to send real orders to Tastytrade.
+                  </p>
                 </div>
-                <Button
-                  variant={isDryRun ? "default" : "outline"}
-                  onClick={() => setIsDryRun(!isDryRun)}
-                  disabled={tradingMode === 'paper'}
-                >
-                  {isDryRun ? "Dry Run" : "Live Mode"}
-                  {tradingMode === 'paper' && <span className="ml-2 text-xs">(Forced)</span>}
-                </Button>
               </div>
 
               {/* Selected LEAPs Table */}
@@ -1111,9 +1107,13 @@ export default function PMCCDashboard() {
                   <Button variant="outline" onClick={() => setShowOrderPreview(false)} disabled={isSubmittingOrders}>
                     Cancel
                   </Button>
+
+                  {/* Dry Run — validates without executing */}
                   <Button
+                    variant="outline"
                     onClick={() => {
                       const selectedLeapsArray = sortedLeaps.filter(leap => selectedLeaps.has(getLeapKey(leap)));
+                      setIsDryRun(true);
                       setIsSubmittingOrders(true);
                       submitLeapOrdersMutation.mutate({
                         leaps: selectedLeapsArray.map(leap => ({
@@ -1122,22 +1122,45 @@ export default function PMCCDashboard() {
                           expiration: leap.expiration,
                           premium: leap.premium,
                         })),
-                        isDryRun,
+                        isDryRun: true,
+                      });
+                    }}
+                    disabled={isSubmittingOrders}
+                    className="border-amber-600 text-amber-400 hover:bg-amber-900/30"
+                  >
+                    {isSubmittingOrders && isDryRun ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Validating...</>
+                    ) : (
+                      <>&#129514; Dry Run</>
+                    )}
+                  </Button>
+
+                  {/* Submit Live Order — sends real order to Tastytrade */}
+                  <Button
+                    onClick={() => {
+                      const selectedLeapsArray = sortedLeaps.filter(leap => selectedLeaps.has(getLeapKey(leap)));
+                      setIsDryRun(false);
+                      setIsSubmittingOrders(true);
+                      submitLeapOrdersMutation.mutate({
+                        leaps: selectedLeapsArray.map(leap => ({
+                          symbol: leap.symbol,
+                          strike: leap.strike,
+                          expiration: leap.expiration,
+                          premium: leap.premium,
+                        })),
+                        isDryRun: false,
                       });
                     }}
                     disabled={isSubmittingOrders || tradingMode === 'paper'}
                     className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
                     title={tradingMode === 'paper' ? 'Order submission is disabled in Paper Trading mode' : undefined}
                   >
-                  {isSubmittingOrders ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {isDryRun ? "Testing..." : "Submitting..."}
-                    </>
-                  ) : (
-                    <>{isDryRun ? "Test Order" : "Submit Order"}</>
-                  )}
-                </Button>
+                    {isSubmittingOrders && !isDryRun ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Submitting...</>
+                    ) : (
+                      <>&#128640; Submit Live Order</>
+                    )}
+                  </Button>
                 </div>
               </div>
             </div>

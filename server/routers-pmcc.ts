@@ -941,6 +941,117 @@ ${symbolCtx.contextBlock}`,
     }),
 
   /**
+   * Submit short call (covered call) Sell-to-Open orders via Tastytrade API.
+   * Supports dry run mode for validation without execution.
+   */
+  submitShortCallOrders: protectedProcedure
+    .input(
+      z.object({
+        orders: z.array(
+          z.object({
+            underlyingSymbol: z.string(),
+            optionSymbol: z.string(),
+            strike: z.number(),
+            expiration: z.string(),
+            premium: z.number(),
+            leapStrike: z.number(),
+            quantity: z.number().default(1),
+          })
+        ),
+        isDryRun: z.boolean().default(true),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Tastytrade credentials not configured. Please add them in Settings.',
+        });
+      }
+      // Market hours check (ET)
+      const now = new Date();
+      const etOffset = -5 * 60;
+      const etTime = new Date(now.getTime() + (now.getTimezoneOffset() + etOffset) * 60000);
+      const etMinutes = etTime.getHours() * 60 + etTime.getMinutes();
+      if (etMinutes < 9 * 60 + 30 || etMinutes >= 16 * 60) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Market is closed. Orders can only be submitted between 9:30 AM - 4:00 PM ET.',
+        });
+      }
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+      const accounts = await api.getAccounts();
+      if (!accounts || accounts.length === 0) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'No Tastytrade accounts found.' });
+      }
+      const accountNumber = accounts[0].account['account-number'];
+      const results = [];
+      for (const order of input.orders) {
+        try {
+          const roundedPrice = order.premium >= 3
+            ? (Math.round(order.premium / 0.10) * 0.10).toFixed(2)
+            : (Math.round(order.premium / 0.05) * 0.05).toFixed(2);
+          const ttOrder = {
+            accountNumber,
+            timeInForce: 'Day' as const,
+            orderType: 'Limit' as const,
+            price: roundedPrice,
+            priceEffect: 'Credit' as const,
+            legs: [
+              {
+                instrumentType: 'Equity Option' as const,
+                symbol: order.optionSymbol,
+                quantity: String(order.quantity),
+                action: 'Sell to Open' as const,
+              },
+            ],
+          };
+          if (input.isDryRun) {
+            await api.dryRunOrder(ttOrder);
+            results.push({ symbol: order.underlyingSymbol, status: 'dry_run_success', message: 'Order validated successfully', orderId: null });
+          } else {
+            const submitted = await api.submitOrder(ttOrder);
+            await writeTradingLog({
+              userId: ctx.user.id,
+              action: 'STO',
+              strategy: 'PMCC',
+              symbol: order.underlyingSymbol,
+              accountNumber,
+              price: String(order.premium),
+              quantity: order.quantity,
+              outcome: 'success',
+              orderId: String(submitted.id),
+              source: `Short Call STO: ${order.optionSymbol} @ $${roundedPrice}`,
+            });
+            results.push({ symbol: order.underlyingSymbol, status: 'success', message: 'Order submitted successfully', orderId: submitted.id });
+          }
+        } catch (error: any) {
+          await writeTradingLog({
+            userId: ctx.user.id,
+            action: 'STO',
+            strategy: 'PMCC',
+            symbol: order.underlyingSymbol,
+            accountNumber,
+            price: String(order.premium),
+            quantity: order.quantity,
+            outcome: 'error',
+            errorMessage: error.response?.data?.error?.message || error.message || 'Order submission failed',
+            source: `Short Call STO failed: ${order.optionSymbol}`,
+          });
+          results.push({ symbol: order.underlyingSymbol, status: 'failed', message: error.response?.data?.error?.message || error.message || 'Order submission failed', orderId: null });
+        }
+      }
+      const successCount = results.filter(r => r.status === 'success' || r.status === 'dry_run_success').length;
+      return {
+        results,
+        summary: { total: input.orders.length, success: successCount, failed: results.length - successCount, isDryRun: input.isDryRun },
+      };
+    }),
+
+  /**
    * Get PMCC profitability metrics for a specific LEAP
    * MVP: Returns placeholder data. Full implementation pending transaction history API.
    */
