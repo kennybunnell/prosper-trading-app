@@ -421,6 +421,21 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
     setAiLoading(true);
     setAiAnalysis(null);
     setAiConversation([]);
+    // IMPORTANT: use the CURRENT candidate (c = item.candidate) so the AI analyzes
+    // the live adjusted strike/premium after any nudge — NOT the original loaded values.
+    const targetStrike    = c.strike ?? item.currentStrike;
+    const targetExp       = c.expiration ?? item.currentExpiration;
+    const targetDte       = c.dte ?? item.currentDte;
+    const targetNewPremium = c.newPremium;    // STO premium at current strike (updated by nudge)
+    const targetNetCredit  = c.netCredit;    // net credit per contract
+    const targetLimitPrice = c.limitPrice;   // slider-adjusted limit price
+    // Human-readable description of the current roll target for the AI
+    const rollDescription = [
+      `Roll to $${targetStrike} ${targetExp} (${targetDte}d DTE)`,
+      targetNewPremium != null ? `STO premium: $${targetNewPremium.toFixed(2)}` : null,
+      targetNetCredit  != null ? `Net credit: $${(targetNetCredit / 100).toFixed(2)}/share` : null,
+      targetLimitPrice != null ? `Limit price: $${targetLimitPrice.toFixed(2)}` : null,
+    ].filter(Boolean).join(' | ');
     aiRollAdvisorMutation.mutate({
       position: {
         positionId: item.positionId,
@@ -431,36 +446,60 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
           ? Math.round(((item.openPremium - Math.abs(item.currentValue)) / item.openPremium) * 100)
           : 0,
         itmDepth: 0,
-        strikePrice: item.currentStrike,
+        strikePrice: item.currentStrike,  // original short strike (for context)
         currentPrice: stockPrice ?? item.currentStrike,
         expiration: item.currentExpiration,
         openPremium: item.openPremium,
         currentValue: item.currentValue,
         unrealizedPnl: item.currentValue,
-        reasons: [item.candidate.description],
+        // Pass the CURRENT roll target as the primary reason so the AI focuses on it
+        reasons: [rollDescription, c.description].filter((s): s is string => Boolean(s)),
         actionLabel: 'ROLL',
-        rollCandidates: item.allCandidates.slice(0, 5).map(ca => ({
-          action: ca.action,
-          strike: ca.strike,
-          expiration: ca.expiration,
-          dte: ca.dte,
-          netCredit: ca.netCredit,
-          newPremium: ca.newPremium,
-          delta: ca.delta,
-          score: ca.score,
-          description: ca.description,
-        })),
+        // Put the current (possibly nudged) candidate FIRST so the AI analyzes it
+        rollCandidates: [
+          {
+            action: c.action,
+            strike: targetStrike,
+            expiration: targetExp,
+            dte: targetDte,
+            netCredit: targetNetCredit,
+            newPremium: targetNewPremium,
+            delta: c.delta,
+            score: c.score,
+            description: rollDescription,
+          },
+          // Include other candidates as context (skip the one we already added)
+          ...item.allCandidates
+            .filter(ca => !(ca.strike === targetStrike && ca.expiration === targetExp))
+            .slice(0, 4)
+            .map(ca => ({
+              action: ca.action,
+              strike: ca.strike,
+              expiration: ca.expiration,
+              dte: ca.dte,
+              netCredit: ca.netCredit,
+              newPremium: ca.newPremium,
+              delta: ca.delta,
+              score: ca.score,
+              description: ca.description,
+            })),
+        ],
       },
     });
-  }, [item, stockPrice, aiRollAdvisorMutation]);
+  }, [item, c, stockPrice, aiRollAdvisorMutation]);
 
   const handleAiFollowUp = useCallback(() => {
     const q = aiFollowUp.trim();
     if (!q || aiRollAdvisorFollowUpMutation.isPending) return;
     const updatedConv = [...aiConversation, { role: 'user' as const, content: q }];
     setAiConversation(updatedConv);
+    // Use current candidate values for follow-up context so it matches what was analyzed
+    const followUpStrike = c.strike ?? item.currentStrike;
+    const followUpExp    = c.expiration ?? item.currentExpiration;
+    const followUpDte    = c.dte ?? item.currentDte;
+    const followUpPremium = c.newPremium != null ? ` | STO Premium: $${c.newPremium.toFixed(2)}` : '';
     aiRollAdvisorFollowUpMutation.mutate({
-      positionContext: `${item.symbol} ${item.strategy} | Strike: $${item.currentStrike} | Exp: ${item.currentExpiration} (${item.currentDte}d) | Open Premium: $${item.openPremium} | Current Value: $${item.currentValue}`,
+      positionContext: `${item.symbol} ${item.strategy} | Current short strike: $${item.currentStrike} | Roll target: $${followUpStrike} ${followUpExp} (${followUpDte}d DTE)${followUpPremium} | Open Premium: $${item.openPremium} | Current Value: $${item.currentValue}`,
       initialAnalysis: aiAnalysis ?? '',
       conversationHistory: aiConversation,
       userMessage: q,
