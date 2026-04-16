@@ -292,44 +292,58 @@ export function detectSpreadStrategies(legs: RawOptionLeg[]): SpreadPosition[] {
     }
 
     // ── Standalone CSP: short put(s) with no matching long put ──
+    // Group by strike — multiple contracts at the same strike merge into one position
+    // so we never generate duplicate IDs (e.g. 5x AAPL $150 CSP → one entry, qty=5).
+    const cspByStrike = new Map<number, RawOptionLeg[]>();
     for (const sp of shortPuts) {
-      const openPremium = sp.openPrice * Math.abs(sp.quantity) * 100;
-      const unrealizedPnl = legPnl(sp);
+      if (!cspByStrike.has(sp.strike)) cspByStrike.set(sp.strike, []);
+      cspByStrike.get(sp.strike)!.push(sp);
+    }
+    for (const [strike, cspLegs] of Array.from(cspByStrike.entries())) {
+      const openPremium = cspLegs.reduce((sum, l) => sum + l.openPrice * Math.abs(l.quantity) * 100, 0);
+      const unrealizedPnl = cspLegs.reduce((sum, l) => sum + legPnl(l), 0);
       spreads.push({
-        id: `${accountNumber}::${underlying}::${expiration}::CSP::${sp.strike}`,
+        id: `${accountNumber}::${underlying}::${expiration}::CSP::${strike}`,
         underlying,
         expiration,
         strategyType: 'CSP',
         accountNumber,
-        legs: [{ ...sp, role: 'short' }],
+        legs: cspLegs.map(l => ({ ...l, quantity: -Math.abs(l.quantity), role: 'short' as const })),
         openPremium,
         currentValue: openPremium - unrealizedPnl,
         unrealizedPnl,
         profitCaptured: calcProfitCaptured(openPremium, unrealizedPnl),
         dte,
-        hasStaleMarks: sp.isStale === true,
-        shortStrike: sp.strike,
+        hasStaleMarks: cspLegs.some(l => l.isStale === true),
+        shortStrike: strike,
       });
     }
 
     // ── Standalone CC: short call(s) with no matching long call ──
+    // Group by strike — multiple contracts at the same strike merge into one position
+    // so we never generate duplicate IDs (e.g. 5x QCOM $133 CC → one entry, qty=5).
+    const ccByStrike = new Map<number, RawOptionLeg[]>();
     for (const sc of shortCalls) {
-      const openPremium = sc.openPrice * Math.abs(sc.quantity) * 100;
-      const unrealizedPnl = legPnl(sc);
+      if (!ccByStrike.has(sc.strike)) ccByStrike.set(sc.strike, []);
+      ccByStrike.get(sc.strike)!.push(sc);
+    }
+    for (const [strike, ccLegs] of Array.from(ccByStrike.entries())) {
+      const openPremium = ccLegs.reduce((sum, l) => sum + l.openPrice * Math.abs(l.quantity) * 100, 0);
+      const unrealizedPnl = ccLegs.reduce((sum, l) => sum + legPnl(l), 0);
       spreads.push({
-        id: `${accountNumber}::${underlying}::${expiration}::CC::${sc.strike}`,
+        id: `${accountNumber}::${underlying}::${expiration}::CC::${strike}`,
         underlying,
         expiration,
         strategyType: 'CC',
         accountNumber,
-        legs: [{ ...sc, role: 'short' }],
+        legs: ccLegs.map(l => ({ ...l, quantity: -Math.abs(l.quantity), role: 'short' as const })),
         openPremium,
         currentValue: openPremium - unrealizedPnl,
         unrealizedPnl,
         profitCaptured: calcProfitCaptured(openPremium, unrealizedPnl),
         dte,
-        hasStaleMarks: sc.isStale === true,
-        shortStrike: sc.strike,
+        hasStaleMarks: ccLegs.some(l => l.isStale === true),
+        shortStrike: strike,
       });
     }
   }
