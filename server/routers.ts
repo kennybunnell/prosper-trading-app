@@ -309,169 +309,135 @@ export const appRouter = router({
         year: z.number().optional(),
       }).optional())
       .query(async ({ ctx, input }) => {
-        // ── Read from DB cache ────────────────────────────────────────────────────────────────
+        // ── LIVE API — bypasses DB cache entirely ─────────────────────────────────────────────
+        // Fetches transactions directly from Tastytrade for every account on every request.
+        // No caching layer — always reflects the current state of your accounts.
         try {
-        const { getCachedTransactions, cachedTxnToWireFormat } = await import('./portfolio-sync');
-        const allCachedTxns = await getCachedTransactions(ctx.user.id);
-        if (allCachedTxns.length === 0) {
-          return { monthlyData: [], error: 'No cached transaction data. Please run a portfolio sync from Settings.' };
-        }
-
-        const now = new Date();
-        const selectedYear = input?.year;
-        let startDate: Date;
-        let endDate: Date;
-
-        if (selectedYear) {
-          startDate = new Date(selectedYear, 0, 1);
-          endDate = new Date(selectedYear, 11, 31);
-        } else {
-          const startMonth = now.getMonth() - 5;
-          const startYear = now.getFullYear() + Math.floor(startMonth / 12);
-          const adjustedStartMonth = ((startMonth % 12) + 12) % 12;
-          startDate = new Date(startYear, adjustedStartMonth, 1);
-          endDate = now;
-        }
-
-        const startMs = startDate.getTime();
-        const endMs = endDate.getTime();
-
-        // Filter by date range and convert to wire format
-        const transactions = allCachedTxns
-          .filter(t => {
-            if (!t.executedAt) return false;
-            const ms = new Date(t.executedAt).getTime();
-            return ms >= startMs && ms <= endMs;
-          })
-          .map(t => cachedTxnToWireFormat(t));
-
-        const monthlyData: Record<string, { credits: number; debits: number }> = {};
-        const failedAccounts: string[] = [];
-
-        for (const account of [null]) {
-          const accountNumber = 'cache';
-          const accountName = 'All Accounts';
-
-          try {
-            // transactions already filtered above — no inner API call needed
-            
-            // Track this account's contribution separately for debugging
-            const accountMonthlyData: Record<string, { credits: number; debits: number }> = {};
-          
-          // Log first few transactions to understand data structure
-          if (transactions.length > 0) {
-            console.log('[Dashboard] Sample transactions:', JSON.stringify(transactions.slice(0, 3), null, 2));
+          const { getApiCredentials } = await import('./db');
+          const { authenticateTastytrade } = await import('./tastytrade');
+          const credentials = await getApiCredentials(ctx.user.id);
+          if (!credentials?.tastytradeRefreshToken) {
+            return { monthlyData: [], error: 'Tastytrade credentials not configured. Please add them in Settings.' };
           }
-          
-          // Process each transaction individually
-          // Each leg of a multi-leg order has its own cash impact and should be counted separately
-          // The CSV export shows each leg as a separate transaction with its own net value
-          for (const txn of transactions) {
-            const txnType = txn['transaction-type'];
-            // Only count Trade transactions (actual trades, not money movements or transfers)
-            if (txnType !== 'Trade') continue;
-            
-            // Skip stock (equity) transactions — these are capital events (assignments,
-            // reconciliations, liquidations, harvest exits), NOT premium income/expense.
-            // An option symbol always has a date+C/P+strike suffix after the ticker.
-            // A plain stock ticker (e.g. "ADBE", "CVX", "TSM") has no such suffix.
-            const txnSymbol: string = txn['symbol'] || '';
-            const isOptionSymbol = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol);
-            if (!isOptionSymbol) {
-              console.log(`[Dashboard] Skipping stock transaction: ${txnSymbol} (${txn['description']?.substring(0, 50)})`);
-              continue;
+          const tt = await authenticateTastytrade(credentials, ctx.user.id);
+          if (!tt) {
+            return { monthlyData: [], error: 'Failed to authenticate with Tastytrade.' };
+          }
+
+          // Get all accounts
+          const accounts = await tt.getAccounts();
+          const accountNumbers: string[] = accounts
+            .map((acc: any) => acc.account?.['account-number'] || acc['account-number'] || acc.accountNumber)
+            .filter(Boolean);
+
+          if (accountNumbers.length === 0) {
+            return { monthlyData: [], error: 'No Tastytrade accounts found.' };
+          }
+
+          const now = new Date();
+          const selectedYear = input?.year;
+          let startDateStr: string;
+          let endDateStr: string;
+          let startDate: Date;
+          let endDate: Date;
+
+          if (selectedYear) {
+            startDate = new Date(selectedYear, 0, 1);
+            endDate = new Date(selectedYear, 11, 31);
+            startDateStr = `${selectedYear}-01-01`;
+            endDateStr = `${selectedYear}-12-31`;
+          } else {
+            // Last 6 months
+            const sm = now.getMonth() - 5;
+            const sy = now.getFullYear() + Math.floor(sm / 12);
+            const am = ((sm % 12) + 12) % 12;
+            startDate = new Date(sy, am, 1);
+            endDate = now;
+            startDateStr = `${sy}-${String(am + 1).padStart(2, '0')}-01`;
+            endDateStr = now.toISOString().split('T')[0];
+          }
+
+          const startMs = startDate.getTime();
+          const endMs = endDate.getTime();
+
+          console.log(`[Dashboard] Live fetch: ${accountNumbers.length} accounts, ${startDateStr} → ${endDateStr}`);
+
+          const monthlyData: Record<string, { credits: number; debits: number }> = {};
+
+          // Fetch all accounts in parallel for speed
+          await Promise.all(accountNumbers.map(async (accountNumber: string) => {
+            try {
+              const rawTxns = await tt.getTransactionHistory(accountNumber, startDateStr, endDateStr);
+              console.log(`[Dashboard] Account ${accountNumber}: ${rawTxns.length} raw transactions from TT API`);
+
+              for (const txn of rawTxns) {
+                const txnType = txn['transaction-type'];
+                if (txnType !== 'Trade') continue;
+
+                const txnSymbol: string = txn['symbol'] || '';
+                const isOptionSymbol = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol);
+                if (!isOptionSymbol) continue;
+
+                const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
+                const netValueEffect = txn['net-value-effect'];
+                const executedAt = txn['executed-at'];
+
+                if (!executedAt || netValue === 0 || !netValueEffect) continue;
+
+                const txnDate = new Date(executedAt);
+                if (txnDate.getTime() < startMs || txnDate.getTime() > endMs) continue;
+
+                const monthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
+                if (!monthlyData[monthKey]) monthlyData[monthKey] = { credits: 0, debits: 0 };
+
+                if (netValueEffect === 'Credit') {
+                  monthlyData[monthKey].credits += netValue;
+                } else if (netValueEffect === 'Debit') {
+                  monthlyData[monthKey].debits += netValue;
+                }
+              }
+            } catch (err: any) {
+              console.error(`[Dashboard] Live fetch failed for account ${accountNumber}:`, err.message);
             }
-            
-            const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
-            const netValueEffect = txn['net-value-effect'];
-            const executedAt = txn['executed-at'];
-            
-            if (!executedAt || netValue === 0 || !netValueEffect) continue;
-            
-            // Parse date and create month key
-            const txnDate = new Date(executedAt);
-            const monthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
-            
-            if (!monthlyData[monthKey]) {
-              monthlyData[monthKey] = { credits: 0, debits: 0 };
+          }));
+
+          // Generate month list
+          const months: string[] = [];
+          if (selectedYear) {
+            for (let m = 0; m < 12; m++) {
+              months.push(`${selectedYear}-${String(m + 1).padStart(2, '0')}`);
             }
-            if (!accountMonthlyData[monthKey]) {
-              accountMonthlyData[monthKey] = { credits: 0, debits: 0 };
-            }
-            
-            // Use net-value-effect to determine if this is income or expense
-            // Credit = money received (selling options, assignments, etc.)
-            // Debit = money paid (buying to close, buying options, etc.)
-            if (netValueEffect === 'Credit') {
-              monthlyData[monthKey].credits += netValue;
-              accountMonthlyData[monthKey].credits += netValue;
-            } else if (netValueEffect === 'Debit') {
-              monthlyData[monthKey].debits += netValue;
-              accountMonthlyData[monthKey].debits += netValue;
+          } else {
+            for (let i = 5; i >= 0; i--) {
+              const m = now.getMonth() - i;
+              const y = now.getFullYear() + Math.floor(m / 12);
+              const am = ((m % 12) + 12) % 12;
+              months.push(`${y}-${String(am + 1).padStart(2, '0')}`);
             }
           }
-          
-          // Log this account's contribution after processing all transactions
-          console.log(`[Dashboard] Account ${accountName} (${accountNumber}) contribution:`);
-          for (const [month, data] of Object.entries(accountMonthlyData)) {
+
+          let cumulative = 0;
+          const result = months.map(month => {
+            const data = monthlyData[month] || { credits: 0, debits: 0 };
+            const netPremium = data.credits - data.debits;
+            cumulative += netPremium;
             if (data.credits > 0 || data.debits > 0) {
-              const net = data.credits - data.debits;
-              console.log(`  ${month}: Credits=$${data.credits.toFixed(2)}, Debits=$${data.debits.toFixed(2)}, Net=$${net.toFixed(2)}`);
+              console.log(`[Dashboard] ${month}: Credits=$${data.credits.toFixed(2)}, Debits=$${data.debits.toFixed(2)}, Net=$${netPremium.toFixed(2)}`);
             }
-          }
-            
-          } catch (error: any) {
-            console.error(`[Dashboard] Failed to fetch transactions for account ${accountNumber}:`, error.message);
-            failedAccounts.push(accountNumber);
-          }
+            return {
+              month,
+              netPremium: Math.round(netPremium * 100) / 100,
+              cumulative: Math.round(cumulative * 100) / 100,
+            };
+          });
+
+          console.log('[Dashboard] Live monthly premium result:', result.filter(r => r.netPremium !== 0));
+          return { monthlyData: result };
+        } catch (error: any) {
+          console.error('[Dashboard] Error fetching live monthly premium data:', error);
+          return { monthlyData: [], error: error.message };
         }
-        
-        // Generate month list based on filter
-        const months: string[] = [];
-        
-        if (selectedYear) {
-          // Generate all 12 months for the selected year
-          for (let month = 0; month < 12; month++) {
-            const monthKey = `${selectedYear}-${String(month + 1).padStart(2, '0')}`;
-            months.push(monthKey);
-          }
-        } else {
-          // Generate last 6 months
-          for (let i = 5; i >= 0; i--) {
-            const m = now.getMonth() - i;
-            const y = now.getFullYear() + Math.floor(m / 12);
-            const adjustedM = ((m % 12) + 12) % 12;
-            const monthKey = `${y}-${String(adjustedM + 1).padStart(2, '0')}`;
-            months.push(monthKey);
-          }
-        }
-        
-        // Build result with cumulative calculation
-        let cumulative = 0;
-        const result = months.map(month => {
-          const data = monthlyData[month] || { credits: 0, debits: 0 };
-          const netPremium = data.credits - data.debits;
-          cumulative += netPremium;
-          
-          // Log detailed breakdown for debugging
-          if (data.credits > 0 || data.debits > 0) {
-            console.log(`[Dashboard] ${month}: Credits=$${data.credits.toFixed(2)}, Debits=$${data.debits.toFixed(2)}, Net=$${netPremium.toFixed(2)}`);
-          }
-          
-          return {
-            month,
-            netPremium: Math.round(netPremium * 100) / 100,
-            cumulative: Math.round(cumulative * 100) / 100,
-          };
-        });
-        
-        console.log('[Dashboard] Monthly premium data:', result);
-        return { monthlyData: result };
-      } catch (error: any) {
-        console.error('[Dashboard] Error fetching monthly premium data:', error);
-        return { monthlyData: [], error: error.message };
-      }
-    }),
+      }),
 
     /**
      * Get capital events (stock transactions) across all accounts
@@ -3780,28 +3746,54 @@ Summary: [One sentence overall assessment]`;
       const prefs = await getUserPreferences(ctx.user.id);
       const target = prefs?.monthlyIncomeTarget ?? 150000;
 
-      // Read from DB cache — no live API call needed for monthly premium totals
+      // LIVE API — bypasses DB cache, fetches directly from Tastytrade
       try {
-        const { getCachedTransactions } = await import('./portfolio-sync');
+        const { authenticateTastytrade } = await import('./tastytrade');
+        const credentials = await getApiCredentials(ctx.user.id);
+        if (!credentials?.tastytradeRefreshToken) {
+          return { collected: 0, target, remaining: target, pct: 0, error: 'Tastytrade credentials not configured.' };
+        }
+        const tt = await authenticateTastytrade(credentials, ctx.user.id);
+        if (!tt) {
+          return { collected: 0, target, remaining: target, pct: 0, error: 'Failed to authenticate with Tastytrade.' };
+        }
+
+        const accounts = await tt.getAccounts();
+        const accountNumbers: string[] = accounts
+          .map((acc: any) => acc.account?.['account-number'] || acc['account-number'] || acc.accountNumber)
+          .filter(Boolean);
+
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        const allTxns = await getCachedTransactions(ctx.user.id);
+        const startDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        const endDateStr = now.toISOString().split('T')[0];
+
         let credits = 0;
         let debits = 0;
-        for (const txn of allTxns) {
-          if (!txn.executedAt || txn.executedAt < monthStart) continue;
-          if (txn.transactionType !== 'Trade') continue;
-          const txnSymbol: string = txn.symbol || '';
-          const isOptionSymbol = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol);
-          if (!isOptionSymbol) continue;
-          const netValue = Math.abs(parseFloat(txn.netValue || txn.value || '0'));
-          if (netValue === 0) continue;
-          // Use action field — value is always stored as positive in DB
-          const action = txn.action || '';
-          if (action === 'Sell to Open' || action === 'Sell to Close') credits += netValue;
-          else if (action === 'Buy to Close' || action === 'Buy to Open') debits += netValue;
-        }
+
+        await Promise.all(accountNumbers.map(async (accountNumber: string) => {
+          try {
+            const rawTxns = await tt.getTransactionHistory(accountNumber, startDateStr, endDateStr);
+            for (const txn of rawTxns) {
+              if (txn['transaction-type'] !== 'Trade') continue;
+              const txnSymbol: string = txn['symbol'] || '';
+              const isOptionSymbol = /[A-Z0-9]+\s*\d{6}[CP]\d+/.test(txnSymbol);
+              if (!isOptionSymbol) continue;
+              const netValue = Math.abs(parseFloat(txn['net-value'] || '0'));
+              if (netValue === 0) continue;
+              const executedAt = txn['executed-at'];
+              if (!executedAt || new Date(executedAt) < monthStart) continue;
+              const effect = txn['net-value-effect'];
+              if (effect === 'Credit') credits += netValue;
+              else if (effect === 'Debit') debits += netValue;
+            }
+          } catch (err: any) {
+            console.error(`[getMonthlyCollected] Live fetch failed for account ${accountNumber}:`, err.message);
+          }
+        }));
+
         const collected = Math.round((credits - debits) * 100) / 100;
+        console.log(`[getMonthlyCollected] Live: credits=$${credits.toFixed(2)}, debits=$${debits.toFixed(2)}, net=$${collected}`);
         return {
           collected,
           target,
