@@ -303,11 +303,11 @@ async function syncTransactions(
     startDate = threeYearsAgo.toISOString().split('T')[0];
     console.log(`[PortfolioSync] Account ${accountNumber}: Initial load — fetching 3 years of transactions`);
   } else {
-    // Start from the day after the last transaction we have
-    const nextDay = new Date(lastTransactionDate);
-    nextDay.setDate(nextDay.getDate() + 1);
-    startDate = nextDay.toISOString().split('T')[0];
-    console.log(`[PortfolioSync] Account ${accountNumber}: Incremental sync from ${startDate}`);
+    // Re-fetch from the SAME day as the last transaction (not the day after).
+    // This ensures same-day fills that arrived after the last sync are always captured.
+    // The insert uses onDuplicateKeyUpdate so re-fetching the same day never creates duplicates.
+    startDate = lastTransactionDate;
+    console.log(`[PortfolioSync] Account ${accountNumber}: Incremental sync from ${startDate} (same-day re-fetch to catch new fills)`);
   }
 
   // If startDate is today or in the future, nothing to fetch

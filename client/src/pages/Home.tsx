@@ -35,7 +35,13 @@ function MonthlyPremiumChartSection() {
   const [isSyncing, setIsSyncing] = useState(false);
   const { data, isLoading, error, refetch, isFetching } = trpc.dashboard.getMonthlyPremiumData.useQuery(
     selectedYear ? { year: selectedYear } : undefined,
-    { retry: false, refetchOnWindowFocus: false }
+    {
+      retry: false,
+      refetchOnWindowFocus: false,
+      // Auto-refresh every 5 minutes so new fills appear without a manual sync click
+      refetchInterval: 5 * 60 * 1000,
+      staleTime: 4 * 60 * 1000,
+    }
   );
   const { data: syncState } = trpc.portfolioSync.getSyncState.useQuery(undefined, {
     refetchInterval: isSyncing ? 3000 : false,
@@ -762,7 +768,9 @@ function AIMorningBriefing() {
 
 function MonthlyIncomeTracker() {
   const { data: monthlyData, refetch: refetchMonthly } = trpc.userPreferences.getMonthlyCollected.useQuery(undefined, {
-    refetchInterval: 10 * 60_000,
+    // Match the 5-minute sync cadence so the collected amount stays current
+    refetchInterval: 5 * 60_000,
+    staleTime: 4 * 60_000,
     retry: false,
   });
   const setMonthlyTarget = trpc.userPreferences.setMonthlyTarget.useMutation({
