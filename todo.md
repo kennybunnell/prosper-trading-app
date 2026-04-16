@@ -9297,3 +9297,9 @@ ROC Fix Mar 18 2026
 - [x] Verify LEAP purchase → CC scanner linkage: getLeapPositions reads from DB cache, ShortCallScanner receives those positions correctly
 - [x] Add submitShortCallOrders procedure (STO) to pmcc router with Dry Run + Live Order support
 - [x] Wire ShortCallScanner Preview Orders button to new submitShortCallOrders procedure with full order preview dialog
+
+## Order Price Sourcing Fix — Tastytrade always for prices (Apr 16, 2026)
+- [ ] LEAP scanner: after Tradier identifies candidates, fetch live bid/ask/mid from Tastytrade and use TT mid as limit price
+- [ ] Short Call scanner: same fix — use Tastytrade bid/ask/mid for limit price, not Tradier
+- [ ] Audit all other scanners (CSP, CC, Spreads) to ensure order prices come from Tastytrade, not Tradier
+- [ ] Add server-side log showing Tradier mid vs TT mid for each order to make mismatches visible

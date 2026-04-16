@@ -2103,7 +2103,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         console.log('[CSP Router] Risk assessments Map keys:', Array.from(riskAssessments.keys()));
         console.log('[CSP Router] Sample assessment for GS:', riskAssessments.get('GS'));
         
-        // Attach risk badges to opportunities
+          // Attach risk badges to opportunities
         const scoredWithBadges = scored.map(opp => {
           const badges = riskAssessments.get(opp.symbol)?.badges || [];
           console.log(`[CSP Router] Attaching badges to ${opp.symbol}:`, badges);
@@ -2113,9 +2113,42 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
           };
         });
 
+        // ── ENRICH WITH LIVE TASTYTRADE PRICES ──────────────────────────────────
+        // Tradier = scan/screen only. All order prices MUST come from Tastytrade.
+        if (scoredWithBadges.length > 0 && credentials?.tastytradeClientSecret) {
+          try {
+            const { authenticateTastytrade: authTT_CSP } = await import('./tastytrade');
+            const ttApiCSP = await authTT_CSP(credentials, ctx.user.id).catch(() => null);
+            if (ttApiCSP) {
+              const occSymbolsCSP = scoredWithBadges.map(o => o.optionSymbol).filter(Boolean) as string[];
+              const ttQuotesCSP = await ttApiCSP.getOptionQuotesBatch(occSymbolsCSP).catch(() => ({}));
+              for (const opp of scoredWithBadges) {
+                const q = (ttQuotesCSP as any)[opp.optionSymbol];
+                if (q) {
+                  const ttBid = typeof q.bid === 'number' ? q.bid : parseFloat(q.bid || '0');
+                  const ttAsk = typeof q.ask === 'number' ? q.ask : parseFloat(q.ask || '0');
+                  const ttMid = (q.mark > 0 ? q.mark : null) ?? (q.mid > 0 ? q.mid : null) ?? ((ttBid + ttAsk) / 2);
+                  console.log(`[CSP TT Price] ${opp.symbol} ${opp.strike} ${opp.expiration}: Tradier mid=$${opp.premium.toFixed(2)}, TT mid=$${ttMid.toFixed(2)}`);
+                  if (ttBid > 0 || ttAsk > 0) {
+                    (opp as any).bid = ttBid;
+                    (opp as any).ask = ttAsk;
+                    (opp as any).premium = ttMid; // STO: true mid-price from Tastytrade
+                  }
+                } else {
+                  console.warn(`[CSP TT Price] No TT quote for ${opp.optionSymbol} — keeping Tradier price`);
+                }
+              }
+            } else {
+              console.warn('[CSP TT Price] Could not authenticate Tastytrade — keeping Tradier prices');
+            }
+          } catch (ttErrCSP: any) {
+            console.warn('[CSP TT Price] Enrichment failed, keeping Tradier prices:', ttErrCSP.message);
+          }
+        }
+        // ────────────────────────────────────────────────────────────────────────
+
         // Increment scan count for Tier 1 users (after successful scan)
         await incrementScanCount(ctx.user.id, _effTier, ctx.user.role);
-
         return scoredWithBadges;
       }),
     
@@ -3064,6 +3097,9 @@ Summary: [One sentence overall assessment]`;
             const bpsWidth = spreadOpp.spreadWidth || effectiveWidth;
             const bpsCreditRatio = bpsWidth > 0 ? spreadOpp.netCredit / bpsWidth : 0;
             if (spreadOpp.netCredit > 0 && bpsCreditRatio <= 0.80) {
+              // Attach OCC symbols so TT price enrichment can batch-fetch live prices
+              (spreadOpp as any).shortOptionSymbol = cspOpp.optionSymbol;
+              (spreadOpp as any).longOptionSymbol = longPut.symbol;
               bullPutSpreads.set(key, spreadOpp);
             } else {
               if (bpsCreditRatio > 0.80) console.log(`[IC BPS] Rejecting ${cspOpp.symbol} strike ${cspOpp.strike}: credit/width ${(bpsCreditRatio*100).toFixed(0)}% > 80%`);
@@ -3155,6 +3191,9 @@ Summary: [One sentence overall assessment]`;
             const bcsWidth = spreadOpp.spreadWidth || bcsEffectiveWidth;
             const bcsCreditRatio = bcsWidth > 0 ? spreadOpp.netCredit / bcsWidth : 0;
             if (spreadOpp.netCredit > 0 && bcsCreditRatio <= 0.80) {
+              // Attach OCC symbols for TT price enrichment
+              (spreadOpp as any).shortOptionSymbol = shortCall.symbol;
+              (spreadOpp as any).longOptionSymbol = longCall.symbol;
               bearCallSpreads.set(key, spreadOpp);
             } else if (bcsCreditRatio > 0.80) {
               console.log(`[IC BCS] Rejecting ${bps.symbol} strike ${ccOpp.strike}: credit/width ${(bcsCreditRatio*100).toFixed(0)}% > 80%`);
@@ -3239,6 +3278,12 @@ Summary: [One sentence overall assessment]`;
             // Net Delta (sum of all 4 legs) - measures directional exposure
             // Ideally close to 0 for delta-neutral Iron Condors
             netDelta: (bps.delta || 0) + (bps.longDelta || 0) + (bcs.delta || 0) + (bcs.longDelta || 0),
+
+            // OCC symbols for each leg — used by TT price enrichment
+            putShortOptionSymbol: (bps as any).shortOptionSymbol,
+            putLongOptionSymbol: (bps as any).longOptionSymbol,
+            callShortOptionSymbol: (bcs as any).shortOptionSymbol,
+            callLongOptionSymbol: (bcs as any).longOptionSymbol,
           });
         }
 
@@ -3272,14 +3317,77 @@ Summary: [One sentence overall assessment]`;
           riskBadges: riskAssessments.get(opp.symbol)?.badges || [],
         }));
 
+        // ── ENRICH WITH LIVE TASTYTRADE PRICES (IC) ──────────────────────────────
+        // Tradier = scan/screen only. All order prices MUST come from Tastytrade.
+        if (scoredWithBadges.length > 0 && credentials?.tastytradeClientSecret) {
+          try {
+            const { authenticateTastytrade: authTT_IC } = await import('./tastytrade');
+            const ttApiIC = await authTT_IC(credentials, ctx.user.id).catch(() => null);
+            if (ttApiIC) {
+              const allLegSymbols = new Set<string>();
+              for (const ic of scoredWithBadges) {
+                if ((ic as any).putShortOptionSymbol) allLegSymbols.add((ic as any).putShortOptionSymbol);
+                if ((ic as any).putLongOptionSymbol) allLegSymbols.add((ic as any).putLongOptionSymbol);
+                if ((ic as any).callShortOptionSymbol) allLegSymbols.add((ic as any).callShortOptionSymbol);
+                if ((ic as any).callLongOptionSymbol) allLegSymbols.add((ic as any).callLongOptionSymbol);
+              }
+              const ttQuotesIC = await ttApiIC.getOptionQuotesBatch(Array.from(allLegSymbols)).catch(() => ({}));
+              for (const ic of scoredWithBadges) {
+                const psSym = (ic as any).putShortOptionSymbol;
+                const plSym = (ic as any).putLongOptionSymbol;
+                const csSym = (ic as any).callShortOptionSymbol;
+                const clSym = (ic as any).callLongOptionSymbol;
+                const psQ = psSym ? (ttQuotesIC as any)[psSym] : null;
+                const plQ = plSym ? (ttQuotesIC as any)[plSym] : null;
+                const csQ = csSym ? (ttQuotesIC as any)[csSym] : null;
+                const clQ = clSym ? (ttQuotesIC as any)[clSym] : null;
+                const ttPSBid = psQ ? (parseFloat(psQ.bid) || 0) : 0;
+                const ttPSAsk = psQ ? (parseFloat(psQ.ask) || 0) : 0;
+                const ttPLBid = plQ ? (parseFloat(plQ.bid) || 0) : 0;
+                const ttPLAsk = plQ ? (parseFloat(plQ.ask) || 0) : 0;
+                const ttCSBid = csQ ? (parseFloat(csQ.bid) || 0) : 0;
+                const ttCSAsk = csQ ? (parseFloat(csQ.ask) || 0) : 0;
+                const ttCLBid = clQ ? (parseFloat(clQ.bid) || 0) : 0;
+                const ttCLAsk = clQ ? (parseFloat(clQ.ask) || 0) : 0;
+                if (ttPSBid > 0 || ttPSAsk > 0) {
+                  (ic as any).putShortBid = ttPSBid;
+                  (ic as any).putShortAsk = ttPSAsk;
+                }
+                if (ttPLBid > 0 || ttPLAsk > 0) {
+                  (ic as any).putLongBid = ttPLBid;
+                  (ic as any).putLongAsk = ttPLAsk;
+                }
+                if (ttCSBid > 0 || ttCSAsk > 0) {
+                  (ic as any).callShortBid = ttCSBid;
+                  (ic as any).callShortAsk = ttCSAsk;
+                }
+                if (ttCLBid > 0 || ttCLAsk > 0) {
+                  (ic as any).callLongBid = ttCLBid;
+                  (ic as any).callLongAsk = ttCLAsk;
+                }
+                // Recalculate net credits from TT prices
+                const ttPutNetCredit = ((ttPSBid + ttPSAsk) / 2) - ((ttPLBid + ttPLAsk) / 2);
+                const ttCallNetCredit = ((ttCSBid + ttCSAsk) / 2) - ((ttCLBid + ttCLAsk) / 2);
+                if (ttPutNetCredit > 0) (ic as any).putNetCredit = ttPutNetCredit;
+                if (ttCallNetCredit > 0) (ic as any).callNetCredit = ttCallNetCredit;
+                if (ttPutNetCredit > 0 || ttCallNetCredit > 0) {
+                  (ic as any).totalNetCredit = (ttPutNetCredit > 0 ? ttPutNetCredit : (ic as any).putNetCredit) +
+                                               (ttCallNetCredit > 0 ? ttCallNetCredit : (ic as any).callNetCredit);
+                }
+              }
+            }
+          } catch (ttErrIC: any) {
+            console.warn('[IC TT Price] Enrichment failed, keeping Tradier prices:', ttErrIC.message);
+          }
+        }
+        // ────────────────────────────────────────────────────────────────────────
+
         // Increment scan count for Tier 1 users (after successful scan)
         await incrementScanCount(ctx.user.id, _effTier, ctx.user.role);
-
         return scoredWithBadges;
       }),
   }),
-
-  // Bull Put Spreads (Phase 2: Backend Pricing)
+  // Bull Put Spreads (Phase 2: Backend Pricing)g)
   spread: router({
     opportunities: protectedProcedure
       .input(
@@ -3510,6 +3618,9 @@ Summary: [One sentence overall assessment]`;
             // (A fair OTM credit spread typically collects 15-40% of width.)
             const creditToWidthRatio = actualSpreadWidth > 0 ? spreadOpp.netCredit / actualSpreadWidth : 0;
             if (spreadOpp.netCredit > 0 && creditToWidthRatio <= 0.80) {
+              // Attach OCC symbols for TT price enrichment
+              (spreadOpp as any).shortOptionSymbol = cspOpp.optionSymbol;
+              (spreadOpp as any).longOptionSymbol = longPut.symbol;
               spreadOpportunities.push(spreadOpp);
             } else if (creditToWidthRatio > 0.80) {
               console.log(`[BPS Standalone] Rejecting ${cspOpp.symbol} strike ${cspOpp.strike}: credit/width ${(creditToWidthRatio*100).toFixed(0)}% > 80% (ITM or stale prices)`);
@@ -3569,13 +3680,56 @@ Summary: [One sentence overall assessment]`;
           riskBadges: riskAssessments.get(opp.symbol)?.badges || [],
         }));
 
+        // ── ENRICH WITH LIVE TASTYTRADE PRICES (BPS) ─────────────────────────────
+        // Tradier = scan/screen only. All order prices MUST come from Tastytrade.
+        if (scoredWithBadges.length > 0 && credentials?.tastytradeClientSecret) {
+          try {
+            const { authenticateTastytrade: authTT_BPS } = await import('./tastytrade');
+            const ttApiBPS = await authTT_BPS(credentials, ctx.user.id).catch(() => null);
+            if (ttApiBPS) {
+              const legSymbols: string[] = [];
+              for (const opp of scoredWithBadges) {
+                if ((opp as any).shortOptionSymbol) legSymbols.push((opp as any).shortOptionSymbol);
+                if ((opp as any).longOptionSymbol) legSymbols.push((opp as any).longOptionSymbol);
+              }
+              const ttQuotesBPS = await ttApiBPS.getOptionQuotesBatch(legSymbols).catch(() => ({}));
+              for (const opp of scoredWithBadges) {
+                const sQ = (ttQuotesBPS as any)[(opp as any).shortOptionSymbol];
+                const lQ = (ttQuotesBPS as any)[(opp as any).longOptionSymbol];
+                const sBid = sQ ? (parseFloat(sQ.bid) || 0) : 0;
+                const sAsk = sQ ? (parseFloat(sQ.ask) || 0) : 0;
+                const lBid = lQ ? (parseFloat(lQ.bid) || 0) : 0;
+                const lAsk = lQ ? (parseFloat(lQ.ask) || 0) : 0;
+                if (sBid > 0 || sAsk > 0) {
+                  (opp as any).bid = sBid;
+                  (opp as any).ask = sAsk;
+                }
+                if (lBid > 0 || lAsk > 0) {
+                  (opp as any).longBid = lBid;
+                  (opp as any).longAsk = lAsk;
+                }
+                // Recalculate net credit from TT prices (mid of short - mid of long)
+                const ttShortMid = (sBid + sAsk) / 2;
+                const ttLongMid = (lBid + lAsk) / 2;
+                const ttNetCredit = ttShortMid - ttLongMid;
+                if (ttNetCredit > 0) {
+                  (opp as any).netCredit = ttNetCredit;
+                  (opp as any).premium = ttNetCredit;
+                  console.log(`[BPS TT Price] ${opp.symbol} ${opp.strike}/${(opp as any).longStrike}: Tradier net=$${(opp as any).netCredit?.toFixed(2)}, TT net=$${ttNetCredit.toFixed(2)}`);
+                }
+              }
+            }
+          } catch (ttErrBPS: any) {
+            console.warn('[BPS TT Price] Enrichment failed, keeping Tradier prices:', ttErrBPS.message);
+          }
+        }
+        // ────────────────────────────────────────────────────────────────────────
+
         // Increment scan count for Tier 1 users (after successful scan)
         await incrementScanCount(ctx.user.id, _effTier, ctx.user.role);
-
         return scoredWithBadges;
       }),
   }),
-
   userPreferences: router({
     get: protectedProcedure.query(async ({ ctx }) => {
       const { getUserPreferences } = await import('./db');

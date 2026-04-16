@@ -743,6 +743,8 @@ export const ccRouter = router({
                       sharesOwned: holding.quantity,
                       maxContracts: holding.maxContracts,
                       distanceOtm: distanceOtmPct,
+                      // OCC symbol for TT price enrichment (Tradier = scan only, TT = order price)
+                      optionSymbol: option.symbol,
                     });
                     console.log(`[CC Scanner DEBUG] ${symbol} ${expiration}: Added opportunity ${oppKey} (total so far: ${symbolOpportunities.length})`);
                   }
@@ -824,6 +826,41 @@ export const ccRouter = router({
         ...opp,
         riskBadges: riskAssessments.get(opp.symbol)?.badges || [],
       }));
+
+      // ── ENRICH WITH LIVE TASTYTRADE PRICES (CC) ─────────────────────────────
+      // Tradier = scan/screen only. All order prices MUST come from Tastytrade.
+      if (scoredWithBadges.length > 0 && credentials?.tastytradeClientSecret) {
+        try {
+          const { authenticateTastytrade: authTT_CC } = await import('./tastytrade');
+          const ttApiCC = await authTT_CC(credentials, ctx.user.id).catch(() => null);
+          if (ttApiCC) {
+            const occSymbols = scoredWithBadges
+              .map(o => (o as any).optionSymbol)
+              .filter(Boolean) as string[];
+            if (occSymbols.length > 0) {
+              const ttQuotesCC = await ttApiCC.getOptionQuotesBatch(occSymbols).catch(() => ({}));
+              for (const opp of scoredWithBadges) {
+                const sym = (opp as any).optionSymbol;
+                const q = sym ? (ttQuotesCC as any)[sym] : null;
+                if (!q) continue;
+                const ttBid = parseFloat(q.bid) || 0;
+                const ttAsk = parseFloat(q.ask) || 0;
+                if (ttBid > 0 || ttAsk > 0) {
+                  const ttMid = (ttBid + ttAsk) / 2;
+                  console.log(`[CC TT Price] ${opp.symbol} ${(opp as any).strike}/${(opp as any).expiration}: Tradier mid=$${(opp as any).premium?.toFixed(2)}, TT mid=$${ttMid.toFixed(2)}`);
+                  (opp as any).bid = ttBid;
+                  (opp as any).ask = ttAsk;
+                  (opp as any).mid = ttMid;
+                  (opp as any).premium = ttMid;
+                }
+              }
+            }
+          }
+        } catch (ttErrCC: any) {
+          console.warn('[CC TT Price] Enrichment failed, keeping Tradier prices:', ttErrCC.message);
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       // Increment scan count for Tier 1 users (after successful scan)
       await incrementScanCount(ctx.user.id, _effTierCC, ctx.user.role);
@@ -1033,6 +1070,8 @@ export const ccRouter = router({
                   spreadOpp.score = score;
                   (spreadOpp as any).scoreBreakdown = breakdown;
                   (spreadOpp as any).trendBias = breakdown.trendBias;
+                  // Add long leg OCC symbol for TT price enrichment
+                  (spreadOpp as any).longOptionSymbol = longCall.symbol;
                   spreadOpportunities.push(spreadOpp);
                 } else if (bcsCreditRatio > 0.80) {
                   console.log(`[BCS] Rejecting ${ccOpp.symbol} strike ${ccOpp.strike}: credit/width ${(bcsCreditRatio*100).toFixed(0)}% > 80% (ITM or stale prices)`);
@@ -1061,19 +1100,72 @@ export const ccRouter = router({
         }
       }
       
-      const deduplicatedSpreads = Array.from(uniqueSpreads.values());
+         const deduplicatedSpreads = Array.from(uniqueSpreads.values());
       const duplicateCount = spreadOpportunities.length - deduplicatedSpreads.length;
       
       if (duplicateCount > 0) {
         console.log(`[BearCallSpread] Removed ${duplicateCount} duplicate spreads (kept highest score for each unique spread)`);
       }
-
       // Sort by score descending
       deduplicatedSpreads.sort((a, b) => b.score - a.score);
 
+      // ── ENRICH WITH LIVE TASTYTRADE PRICES (BCS) ─────────────────────────────
+      // Tradier = scan/screen only. All order prices MUST come from Tastytrade.
+      if (deduplicatedSpreads.length > 0) {
+        try {
+          const { getApiCredentials: getCredsBCS } = await import('./db');
+          const credsBCS = await getCredsBCS(ctx.user.id);
+          if (credsBCS?.tastytradeClientSecret) {
+            const { authenticateTastytrade: authTT_BCS } = await import('./tastytrade');
+            const ttApiBCS = await authTT_BCS(credsBCS, ctx.user.id).catch(() => null);
+            if (ttApiBCS) {
+              const occSymsBCS = new Set<string>();
+              deduplicatedSpreads.forEach(s => {
+                if ((s as any).optionSymbol) occSymsBCS.add((s as any).optionSymbol);
+                if ((s as any).longOptionSymbol) occSymsBCS.add((s as any).longOptionSymbol);
+              });
+              const ttQuotesBCS = await ttApiBCS.getOptionQuotesBatch(Array.from(occSymsBCS)).catch(() => ({}));
+              for (const spread of deduplicatedSpreads) {
+                const shortSym = (spread as any).optionSymbol;
+                const longSym = (spread as any).longOptionSymbol;
+                const qShort = shortSym ? (ttQuotesBCS as any)[shortSym] : null;
+                const qLong = longSym ? (ttQuotesBCS as any)[longSym] : null;
+                if (qShort) {
+                  const ttShortBid = parseFloat(qShort.bid) || 0;
+                  const ttShortAsk = parseFloat(qShort.ask) || 0;
+                  const ttShortMid = (ttShortBid + ttShortAsk) / 2;
+                  (spread as any).bid = ttShortBid;
+                  (spread as any).ask = ttShortAsk;
+                }
+                if (qLong) {
+                  const ttLongBid = parseFloat(qLong.bid) || 0;
+                  const ttLongAsk = parseFloat(qLong.ask) || 0;
+                  const ttLongMid = (ttLongBid + ttLongAsk) / 2;
+                  (spread as any).longBid = ttLongBid;
+                  (spread as any).longAsk = ttLongAsk;
+                  (spread as any).longPremium = ttLongMid;
+                }
+                if (qShort && qLong) {
+                  const ttShortMid = ((parseFloat(qShort.bid)||0) + (parseFloat(qShort.ask)||0)) / 2;
+                  const ttLongMid = ((parseFloat(qLong.bid)||0) + (parseFloat(qLong.ask)||0)) / 2;
+                  const ttNetCredit = ttShortMid - ttLongMid;
+                  if (ttNetCredit > 0) {
+                    (spread as any).netCredit = ttNetCredit;
+                    (spread as any).premium = ttNetCredit;
+                    console.log(`[BCS TT Price] ${(spread as any).symbol} ${(spread as any).strike}/${(spread as any).longStrike}: TT net credit=$${ttNetCredit.toFixed(2)}`);
+                  }
+                }
+              }
+            }
+          }
+        } catch (ttErrBCS: any) {
+          console.warn('[BCS TT Price] Enrichment failed, keeping Tradier prices:', ttErrBCS.message);
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       return deduplicatedSpreads;
     }),
-
   /**
    * Submit covered call orders (with dry run support)
    */

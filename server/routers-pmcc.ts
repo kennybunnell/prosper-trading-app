@@ -279,6 +279,55 @@ export const pmccRouter = router({
 
       console.log(`[PMCC] Found ${allOpportunities.length} LEAP opportunities across ${symbols.length} symbols`);
 
+      // ── ENRICH WITH LIVE TASTYTRADE PRICES ──────────────────────────────────
+      // Tradier is used for scanning/screening only (greeks, chains, technicals).
+      // ALL prices used in orders MUST come from Tastytrade.
+      // Fetch live bid/ask/mid from Tastytrade for each candidate and overwrite
+      // the Tradier-derived premium so the order preview and limit price are accurate.
+      if (allOpportunities.length > 0) {
+        try {
+          const { authenticateTastytrade } = await import('./tastytrade');
+          const ttApi = credentials ? await authenticateTastytrade(credentials, ctx.user.id).catch(() => null) : null;
+          if (ttApi) {
+            // Build OCC symbols: SYMBOL(6) + YYMMDD + C + STRIKE(8)
+            const buildOCC = (opp: LeapOpportunity): string => {
+              const expDate = opp.expiration.replace(/-/g, '').slice(2); // YYMMDD
+              const strikeStr = (opp.strike * 1000).toFixed(0).padStart(8, '0');
+              return `${opp.symbol.padEnd(6)}${expDate}C${strikeStr}`;
+            };
+            const occSymbols = allOpportunities.map(buildOCC);
+            const ttQuotes = await ttApi.getOptionQuotesBatch(occSymbols).catch(() => ({}));
+            for (let i = 0; i < allOpportunities.length; i++) {
+              const occ = occSymbols[i];
+              const q = (ttQuotes as any)[occ];
+              if (q) {
+                const ttBid = typeof q.bid === 'number' ? q.bid : parseFloat(q.bid || '0');
+                const ttAsk = typeof q.ask === 'number' ? q.ask : parseFloat(q.ask || '0');
+                // Prefer mark (TT's official mid), then explicit mid, then computed mid
+                const ttMid = (q.mark > 0 ? q.mark : null) ?? (q.mid > 0 ? q.mid : null) ?? ((ttBid + ttAsk) / 2);
+                const tradierMid = allOpportunities[i].premium;
+                console.log(`[PMCC TT Price] ${allOpportunities[i].symbol} ${allOpportunities[i].strike} ${allOpportunities[i].expiration}: Tradier mid=$${tradierMid.toFixed(2)}, TT mark/mid=$${ttMid.toFixed(2)}`);
+                if (ttMid > 0) {
+                  allOpportunities[i].bid = ttBid;
+                  allOpportunities[i].ask = ttAsk;
+                  allOpportunities[i].premium = ttMid;
+                  allOpportunities[i].bidAskSpread = ttAsk - ttBid;
+                  allOpportunities[i].bidAskSpreadPercent = ttAsk > 0 ? ((ttAsk - ttBid) / ttAsk) * 100 : 0;
+                }
+              } else {
+                console.warn(`[PMCC TT Price] No TT quote for ${occSymbols[i]} — keeping Tradier mid`);
+              }
+            }
+          } else {
+            console.warn('[PMCC TT Price] Could not authenticate Tastytrade — keeping Tradier mid prices');
+          }
+        } catch (ttErr: any) {
+          // Non-fatal: if TT enrichment fails, fall back to Tradier mid
+          console.warn('[PMCC TT Price] Enrichment failed, keeping Tradier mid:', ttErr.message);
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       // Increment scan count for Tier 1 users (after successful scan)
       await incrementScanCount(ctx.user.id, _effTierPMCC, ctx.user.role);
 
@@ -937,15 +986,56 @@ ${symbolCtx.contextBlock}`,
         }
       }
 
-      // Sort by score descending
+       // Sort by score descending
       allOpportunities.sort((a, b) => b.score - a.score);
-
       console.log(`[PMCC Short Call Scanner] Found ${allOpportunities.length} total short call opportunities`);
+
+      // ── ENRICH WITH LIVE TASTYTRADE PRICES ──────────────────────────────────
+      // Tradier is for scanning/screening only. All prices used in orders MUST
+      // come from Tastytrade. Fetch live bid/ask/mark from TT for each candidate.
+      if (allOpportunities.length > 0) {
+        try {
+          const { getApiCredentials: getCredsSC } = await import('./db');
+          const credsSC = await getCredsSC(ctx.user.id);
+          const { authenticateTastytrade } = await import('./tastytrade');
+          const ttApiSC = credsSC ? await authenticateTastytrade(credsSC, ctx.user.id).catch(() => null) : null;
+          if (ttApiSC) {
+            // Use the Tradier optionSymbol (OCC format) for the TT batch quote call
+            const occSymbols = allOpportunities.map(o => o.optionSymbol).filter(Boolean) as string[];
+            const ttQuotesSC = await ttApiSC.getOptionQuotesBatch(occSymbols).catch(() => ({}));
+            for (let i = 0; i < allOpportunities.length; i++) {
+              const occ = allOpportunities[i].optionSymbol;
+              const q = (ttQuotesSC as any)[occ];
+              if (q) {
+                const ttBid = typeof q.bid === 'number' ? q.bid : parseFloat(q.bid || '0');
+                const ttAsk = typeof q.ask === 'number' ? q.ask : parseFloat(q.ask || '0');
+                const ttMid = (q.mark > 0 ? q.mark : null) ?? (q.mid > 0 ? q.mid : null) ?? ((ttBid + ttAsk) / 2);
+                const tradierPremium = allOpportunities[i].premium;
+                console.log(`[PMCC SC TT Price] ${allOpportunities[i].underlyingSymbol} ${allOpportunities[i].strike} ${allOpportunities[i].expiration}: Tradier bid=$${tradierPremium.toFixed(2)}, TT mark/mid=$${ttMid.toFixed(2)}`);
+                if (ttMid > 0) {
+                  allOpportunities[i].bid = ttBid;
+                  allOpportunities[i].ask = ttAsk;
+                  allOpportunities[i].premium = ttMid; // STO: true mid-price from Tastytrade
+                  allOpportunities[i].bidAskSpread = ttAsk - ttBid;
+                  allOpportunities[i].bidAskSpreadPercent = ttAsk > 0 ? ((ttAsk - ttBid) / ttAsk) * 100 : 0;
+                }
+              } else {
+                console.warn(`[PMCC SC TT Price] No TT quote for ${occ} — keeping Tradier price`);
+              }
+            }
+          } else {
+            console.warn('[PMCC SC TT Price] Could not authenticate Tastytrade — keeping Tradier prices');
+          }
+        } catch (ttErrSC: any) {
+          console.warn('[PMCC SC TT Price] Enrichment failed, keeping Tradier prices:', ttErrSC.message);
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       return {
         opportunities: allOpportunities,
         scannedLeaps: input.leapPositions.length,
-      };
+      };;
     }),
 
   /**
