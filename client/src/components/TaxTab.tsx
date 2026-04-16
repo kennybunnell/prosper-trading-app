@@ -112,7 +112,7 @@ export function TaxTab() {
   );
   
   // Portfolio sync state — for last-refreshed timestamp
-  const { data: syncStateData } = trpc.portfolioSync.getSyncState.useQuery(undefined, {
+  const { data: syncStateData, refetch: refetchSyncState } = trpc.portfolioSync.getSyncState.useQuery(undefined, {
     refetchInterval: 30_000,
   });
   const lastSyncAt: Date | null = (syncStateData?.states ?? []).reduce((latest: Date | null, s: any) => {
@@ -120,6 +120,25 @@ export function TaxTab() {
     if (!t) return latest;
     return !latest || t > latest ? t : latest;
   }, null);
+
+  // Portfolio sync mutation — wired to the "Refresh data" button
+  const [isSyncing, setIsSyncing] = useState(false);
+  const triggerSyncMutation = trpc.portfolioSync.triggerSync.useMutation();
+  const handleRefreshData = async () => {
+    setIsSyncing(true);
+    try {
+      await triggerSyncMutation.mutateAsync({ forceFullRefresh: false });
+      // Wait a moment then re-fetch tax data and sync state
+      setTimeout(async () => {
+        await Promise.all([refetch(), refetchSyncState()]);
+        setIsSyncing(false);
+        toast.success('Tax data refreshed from latest portfolio sync');
+      }, 2000);
+    } catch (err: any) {
+      setIsSyncing(false);
+      toast.error(`Sync failed: ${err.message || 'Unknown error'}`);
+    }
+  };
 
   // Check if authentication error occurred
   const isAuthError = taxError?.message?.includes('token is invalid') || 
@@ -161,11 +180,12 @@ export function TaxTab() {
                   Last synced: {lastSyncAt.toLocaleString()}
                 </p>
                 <button
-                  onClick={() => refetch()}
-                  className="text-xs text-blue-400 hover:text-blue-300 mt-0.5 flex items-center gap-1 ml-auto"
+                  onClick={handleRefreshData}
+                  disabled={isSyncing}
+                  className="text-xs text-blue-400 hover:text-blue-300 mt-0.5 flex items-center gap-1 ml-auto disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <RefreshCw className="h-3 w-3" />
-                  Refresh data
+                  <RefreshCw className={`h-3 w-3 ${isSyncing ? 'animate-spin' : ''}`} />
+                  {isSyncing ? 'Syncing…' : 'Refresh data'}
                 </button>
               </div>
             )}

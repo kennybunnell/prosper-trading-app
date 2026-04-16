@@ -3398,6 +3398,29 @@ function PerformanceOverviewTab() {
         </Card>
       )}
 
+      {/* Sync-age warning banner: shown when last portfolio sync is >24 hours old */}
+      {lastSyncAt && (() => {
+        const ageMs = Date.now() - lastSyncAt.getTime();
+        const ageHours = ageMs / (1000 * 60 * 60);
+        if (ageHours < 24) return null;
+        const ageLabel = ageHours >= 48
+          ? `${Math.floor(ageHours / 24)} days`
+          : `${Math.floor(ageHours)} hours`;
+        return (
+          <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+            <svg className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-400">Stale Data — Last sync was {ageLabel} ago</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                P&amp;L figures may not reflect recent trades. Use the <strong>Sync &amp; Refresh</strong> button above to pull the latest data.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Header with Time Period Selector and Refresh */}
       <div className="flex items-center justify-between">
         <div>

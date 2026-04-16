@@ -9303,3 +9303,6 @@ ROC Fix Mar 18 2026
 - [ ] Short Call scanner: same fix — use Tastytrade bid/ask/mid for limit price, not Tradier
 - [ ] Audit all other scanners (CSP, CC, Spreads) to ensure order prices come from Tastytrade, not Tradier
 - [ ] Add server-side log showing Tradier mid vs TT mid for each order to make mismatches visible
+- [x] Show merged contract count (total qty) in roll scanner Qty column for CC/CSP positions
+- [x] Wire Tax tab "Refresh data" link to trigger portfolio sync
+- [x] Add sync-age warning banner on Performance page (>24h old = yellow alert)

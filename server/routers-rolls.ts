@@ -532,8 +532,13 @@ export const rollsRouter = router({
             openPremium: spread.openPremium,
             expiration: spread.expiration,
           },
-          // Number of contracts (absolute value of short leg quantity) — needed for per-contract netCredit math in getRollCandidates
-          quantity: Math.abs(shortLeg?.quantity ?? 1),
+          // Number of contracts: sum ALL short legs' absolute quantities.
+          // After the duplicate-ID fix, a merged CC/CSP position may have multiple
+          // legs (e.g. 5 separate -1 contracts) that all belong to the same strike.
+          // Using only shortLeg.quantity would return 1 instead of 5.
+          quantity: spread.legs
+            .filter(l => l.role === 'short')
+            .reduce((sum, l) => sum + Math.abs(l.quantity), 0) || 1,
           // Spread-specific fields for the UI
           hasStaleMarks: spread.hasStaleMarks ?? false,
           spreadDetails: {
