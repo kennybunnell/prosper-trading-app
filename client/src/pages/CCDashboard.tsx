@@ -862,29 +862,37 @@ export default function CCDashboard() {
 
         // Attach the source account to each opportunity for multi-account order routing.
         // Use accountBreakdown to pick the account that actually has available contracts.
-        // This prevents Coverage Ratio Violations when a symbol is held in multiple accounts
-        // but only one account has uncovered shares.
-        finalOpportunities = rawOpportunities.map((opp: CCOpportunity) => {
-          const holding = holdings.find(h => h.symbol === opp.symbol);
-          let bestAccount: string | undefined = selectedAccountId ?? undefined;
-          if (holding?.accountBreakdown) {
-            // Pick the first account with available contracts (maxContracts > 0)
-            const accountWithContracts = Object.entries(holding.accountBreakdown)
-              .find(([, available]) => available > 0);
-            if (accountWithContracts) {
-              bestAccount = accountWithContracts[0];
+        // CRITICAL: If no account has available contracts, the opportunity is filtered OUT.
+        // Falling back to a wrong account causes Tastytrade to reject the order as
+        // "uncovered options" (e.g. NEM held in HELOC but order routed to Main Cash).
+        finalOpportunities = rawOpportunities
+          .map((opp: CCOpportunity) => {
+            const holding = holdings.find(h => h.symbol === opp.symbol);
+            let bestAccount: string | undefined = undefined;
+            if (holding?.accountBreakdown) {
+              // Pick the first account with available contracts (maxContracts > 0)
+              const accountWithContracts = Object.entries(holding.accountBreakdown)
+                .find(([, available]) => available > 0);
+              if (accountWithContracts) {
+                bestAccount = accountWithContracts[0];
+              }
+              // If no account has available contracts, bestAccount stays undefined
+              // and this opportunity will be filtered out below.
+            } else if (holding?.accounts?.[0]) {
+              // No breakdown available — use the first account that holds the symbol
+              bestAccount = holding.accounts[0];
             } else {
-              // All accounts fully covered — fall back to first account in list
-              bestAccount = holding.accounts?.[0] ?? selectedAccountId ?? undefined;
+              // No holding info at all — use the selected account as last resort
+              bestAccount = selectedAccountId ?? undefined;
             }
-          } else if (holding?.accounts?.[0]) {
-            bestAccount = holding.accounts[0];
-          }
-          return {
-            ...opp,
-            accountNumber: bestAccount,
-          };
-        });
+            return {
+              ...opp,
+              accountNumber: bestAccount,
+            };
+          })
+          // Remove opportunities where no account has available contracts.
+          // These are fully-covered positions — showing them only leads to TT rejections.
+          .filter((opp: CCOpportunity) => opp.accountNumber !== undefined);
       }
 
       setOpportunities(finalOpportunities);

@@ -1294,10 +1294,17 @@ export const ccRouter = router({
       }
       // ──────────────────────────────────────────────────────────────────────
 
-      // Filter out orders where maxContracts is insufficient (prevents uncovered options)
+      // Filter out orders where maxContracts is insufficient (prevents uncovered options).
+      // CRITICAL: A key missing from maxContractsMap means the account has NO shares of that
+      // symbol at all — submitting such an order causes Tastytrade to reject it as "uncovered".
       const filteredOrders = resolvedOrders.filter(order => {
         const key = `${order.effectiveAccount}:${order.symbol}`;
         const maxContracts = maxContractsMap[key] ?? 0;
+        if (!(key in maxContractsMap)) {
+          // Account does not hold this symbol at all — hard block
+          console.error(`[CC submitOrders] BLOCKED ${order.effectiveAccount}:${order.symbol}: Account has no shares of this symbol. Order would be uncovered. Check account routing.`);
+          return false;
+        }
         if (order.quantity > maxContracts) {
           console.log(`[CC submitOrders] FILTERED OUT ${order.effectiveAccount}:${order.symbol}: Requested ${order.quantity} contracts but only ${maxContracts} available (would be uncovered)`);
           return false;
@@ -1305,9 +1312,14 @@ export const ccRouter = router({
         return true;
       });
 
-      // If all orders were filtered out, return error
+      // If all orders were filtered out, return error with actionable message
       if (filteredOrders.length === 0) {
-        throw new Error('All orders filtered out: insufficient shares to cover requested contracts. Please ensure you have at least 100 shares per contract.');
+        const blockedSymbols = resolvedOrders.map(o => `${o.symbol} (acct ${o.effectiveAccount})`).join(', ');
+        throw new Error(
+          `All orders blocked: the target account does not hold shares for: ${blockedSymbols}. ` +
+          `Covered calls require 100 shares per contract in the same account. ` +
+          `Re-scan to refresh account routing.`
+        );
       }
 
       // Validate each order doesn't exceed maxContracts for its account
