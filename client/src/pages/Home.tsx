@@ -32,10 +32,39 @@ import {
 
 function MonthlyPremiumChartSection() {
   const [selectedYear, setSelectedYear] = useState<number | undefined>(new Date().getFullYear());
+  const [isSyncing, setIsSyncing] = useState(false);
   const { data, isLoading, error, refetch, isFetching } = trpc.dashboard.getMonthlyPremiumData.useQuery(
     selectedYear ? { year: selectedYear } : undefined,
     { retry: false, refetchOnWindowFocus: false }
   );
+  const { data: syncState } = trpc.portfolioSync.getSyncState.useQuery(undefined, {
+    refetchInterval: isSyncing ? 3000 : false,
+    refetchOnWindowFocus: false,
+  });
+  const triggerSync = trpc.portfolioSync.triggerSync.useMutation({
+    onSuccess: () => {
+      setTimeout(() => {
+        setIsSyncing(false);
+        refetch();
+      }, 5000);
+    },
+    onError: () => setIsSyncing(false),
+  });
+  // Auto-sync on mount if last transaction sync was more than 15 minutes ago
+  useEffect(() => {
+    if (syncState === undefined) return;
+    const firstState = syncState?.states?.[0];
+    const lastSync = firstState?.lastTransactionsSyncAt ? new Date(firstState.lastTransactionsSyncAt).getTime() : 0;
+    const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
+    if (lastSync < fifteenMinutesAgo && !isSyncing) {
+      setIsSyncing(true);
+      triggerSync.mutate({ forceFullRefresh: false });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!syncState]);
+  const lastSyncLabel = syncState?.states?.[0]?.lastTransactionsSyncAt
+    ? new Date(syncState.states[0].lastTransactionsSyncAt).toLocaleString()
+    : null;
 
   if (isLoading) {
     return (
@@ -70,19 +99,26 @@ function MonthlyPremiumChartSection() {
           </div>
           <div>
             <h2 className="text-xl font-bold text-foreground">Monthly Premium Earnings</h2>
-            <p className="text-xs text-muted-foreground">All Accounts — Income Overview</p>
+            <p className="text-xs text-muted-foreground">
+              All Accounts — Income Overview
+              {isSyncing && <span className="ml-2 text-amber-400 animate-pulse">⟳ Syncing latest trades…</span>}
+              {!isSyncing && lastSyncLabel && <span className="ml-2 text-muted-foreground/60">· Synced {lastSyncLabel}</span>}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
+            onClick={() => {
+              setIsSyncing(true);
+              triggerSync.mutate({ forceFullRefresh: false });
+            }}
+            disabled={isFetching || isSyncing}
             className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-            title="Refresh earnings data"
+            title="Sync latest trades from Tastytrade and refresh chart"
           >
-            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${(isFetching || isSyncing) ? 'animate-spin' : ''}`} />
           </Button>
           <select
             value={selectedYear || 'all'}
