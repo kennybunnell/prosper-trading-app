@@ -107,9 +107,9 @@ export const safeguardsRouter = router({
 
       try {
         // ── Read from DB cache ────────────────────────────────────────────────────────────────
-        const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-        const rawPositions = await getCachedPositions(ctx.user.id, input.accountNumber);
-        const positions = rawPositions.map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
+        const { getLivePositions } = await import('./portfolio-sync');
+        const rawPositions = await getLivePositions(ctx.user.id, input.accountNumber);
+        const positions = rawPositions.map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }) }));
         const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
 
         // Find active short calls against this symbol
@@ -180,9 +180,9 @@ export const safeguardsRouter = router({
 
       try {
         // ── Read from DB cache ────────────────────────────────────────────────────────────────
-        const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-        const rawPositions = await getCachedPositions(ctx.user.id, input.accountNumber);
-        const positions = rawPositions.map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
+        const { getLivePositions } = await import('./portfolio-sync');
+        const rawPositions = await getLivePositions(ctx.user.id, input.accountNumber);
+        const positions = rawPositions.map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }) }));
         const optionPositions = positions.filter((p: any) =>
           p['instrument-type'] === 'Equity Option' &&
           (p['underlying-symbol'] || '') === input.symbol
@@ -274,9 +274,9 @@ export const safeguardsRouter = router({
 
       try {
         // ── Read from DB cache ────────────────────────────────────────────────────────────────
-        const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-        const rawPositions = await getCachedPositions(ctx.user.id, input.accountNumber);
-        const positions = rawPositions.map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
+        const { getLivePositions } = await import('./portfolio-sync');
+        const rawPositions = await getLivePositions(ctx.user.id, input.accountNumber);
+        const positions = rawPositions.map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }) }));
         const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
         const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
 
@@ -388,8 +388,8 @@ export const safeguardsRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       // ── Read from DB cache ────────────────────────────────────────────────────────────────
-      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-      const allCachedPos = await getCachedPositions(ctx.user.id);
+      const { getLivePositions } = await import('./portfolio-sync');
+      const allCachedPos = await getLivePositions(ctx.user.id);
       if (allCachedPos.length === 0) {
         return { alerts: [], accountsScanned: 0, hasAlerts: false };
       }
@@ -397,7 +397,7 @@ export const safeguardsRouter = router({
       // Build account list from cache
       const { getTastytradeAccounts } = await import('./db');
       const dbAccounts = await getTastytradeAccounts(ctx.user.id) || [];
-      const cacheAccountNumbers = Array.from(new Set(allCachedPos.map(p => p.accountNumber)));
+      const cacheAccountNumbers = Array.from(new Set(allCachedPos.map(p => p['account-number'])));
       // Build targetAccounts list from cache account numbers, enriched with accountType from DB
       const allTargetAccounts = cacheAccountNumbers.map(acctNum => {
         const dbAcct = dbAccounts.find((a: any) => a.accountNumber === acctNum || a.accountId === acctNum);
@@ -434,8 +434,8 @@ export const safeguardsRouter = router({
 
         // Use cached positions for this account
         const positions = allCachedPos
-          .filter(p => p.accountNumber === account.accountNumber)
-          .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
+          .filter(p => p['account-number'] === account.accountNumber)
+          .map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }) }));
 
         const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
         const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
@@ -556,11 +556,11 @@ export const safeguardsRouter = router({
 
       try {
         // Use DB cache for pre-trade checks — cache is synced on login and after every order
-        const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-        const cachedPos = await getCachedPositions(ctx.user.id);
+        const { getLivePositions } = await import('./portfolio-sync');
+        const cachedPos = await getLivePositions(ctx.user.id);
         const positions: any[] = cachedPos
-          .filter(p => p.accountNumber === input.accountNumber)
-          .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }), 'account-number': p.accountNumber }));
+          .filter(p => p['account-number'] === input.accountNumber)
+          .map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }), 'account-number': p['account-number'] }));
         const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
         const optionPositions = positions.filter((p: any) =>
           p['instrument-type'] === 'Equity Option' &&
@@ -720,9 +720,9 @@ export const safeguardsRouter = router({
       // Run the Friday sweep scan (mode='friday' looks 7 DTE out)
       const { getTastytradeAccounts } = await import('./db');
       const { notifyOwner } = await import('./_core/notification');
-      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+      const { getLivePositions } = await import('./portfolio-sync');
 
-      const allCachedPos = await getCachedPositions(ctx.user.id);
+      const allCachedPos = await getLivePositions(ctx.user.id);
       if (allCachedPos.length === 0) {
         return { alertCount: 0, notificationSent: false, message: 'No portfolio data in cache. Please run a sync from Settings first.' };
       }
@@ -731,13 +731,13 @@ export const safeguardsRouter = router({
       const dteCutoff = 7; // Friday sweep looks 7 days out
       const allAlerts: Array<{ symbol: string; accountId: string; accountName?: string; strike: number; expiration: string; dte: number; violationType: string }> = [];
 
-      const accountNumbers = Array.from(new Set(allCachedPos.map(p => p.accountNumber)));
+      const accountNumbers = Array.from(new Set(allCachedPos.map(p => p['account-number'])));
       for (const accountNumber of accountNumbers) {
         const dbAcct = accounts.find((a: any) => a.accountNumber === accountNumber || a.accountId === accountNumber);
         try {
           const positions = allCachedPos
-            .filter(p => p.accountNumber === accountNumber)
-            .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
+            .filter(p => p['account-number'] === accountNumber)
+            .map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }) }));
           const shortCalls = positions.filter((p: any) =>
             p['instrument-type'] === 'Equity Option' &&
             p['quantity-direction']?.toLowerCase() === 'short' &&
@@ -913,20 +913,20 @@ export const safeguardsRouter = router({
   triggerDailyScan: protectedProcedure.mutation(async ({ ctx }) => {
     try {
       const { notifyOwner } = await import('./_core/notification');
-      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+      const { getLivePositions } = await import('./portfolio-sync');
 
-      const allCachedPos = await getCachedPositions(ctx.user.id);
+      const allCachedPos = await getLivePositions(ctx.user.id);
       if (allCachedPos.length === 0) {
         throw new Error('No portfolio data in cache. Please run a sync from Settings first.');
       }
 
-      const accountNumbers = Array.from(new Set(allCachedPos.map(p => p.accountNumber)));
+      const accountNumbers = Array.from(new Set(allCachedPos.map(p => p['account-number'])));
       const allAlerts: Array<{ symbol: string; accountId: string; strike: number; expiration: string; dte: number; optionSymbol: string; sharesOwned: number; sharesNeeded: number }> = [];
 
       for (const accountNumber of accountNumbers) {
         const positions = allCachedPos
-          .filter(p => p.accountNumber === accountNumber)
-          .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
+          .filter(p => p['account-number'] === accountNumber)
+          .map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }) }));
         const today = new Date();
 
         for (const pos of positions) {

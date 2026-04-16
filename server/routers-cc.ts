@@ -77,11 +77,11 @@ export const ccRouter = router({
       const api = await authenticateTastytrade(credentials, ctx.user.id);
 
       // ── Positions: read from DB cache ─────────────────────────────────────────
-      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-      const cachedPos = await getCachedPositions(ctx.user.id);
+      const { getLivePositions } = await import('./portfolio-sync');
+      const cachedPos = await getLivePositions(ctx.user.id);
       const positions: any[] = cachedPos
-        .filter(p => input.accountNumber === 'ALL' || p.accountNumber === input.accountNumber)
-        .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
+        .filter(p => input.accountNumber === 'ALL' || p['account-number'] === input.accountNumber)
+        .map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }) }));
 
       // Fetch working orders to account for pending short calls (must be live)
       const workingOrders = await api.getWorkingOrders(input.accountNumber);
@@ -281,9 +281,9 @@ export const ccRouter = router({
       const api = await authenticateTastytrade(credentials, ctx.user.id);
 
       // ── Positions: read from DB cache ─────────────────────────────────────────
-      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-      const allCachedPos = await getCachedPositions(ctx.user.id);
-      const accountNumbers: string[] = Array.from(new Set(allCachedPos.map(p => p.accountNumber)));
+      const { getLivePositions } = await import('./portfolio-sync');
+      const allCachedPos = await getLivePositions(ctx.user.id);
+      const accountNumbers: string[] = Array.from(new Set(allCachedPos.map(p => p['account-number'])));
       console.log(`[CC getEligible] Accounts from cache:`, accountNumbers);
 
       // Working orders must still be fetched live (order status changes in real time)
@@ -298,8 +298,8 @@ export const ccRouter = router({
       const perAccountResults: Array<{ status: 'fulfilled'; value: { acctNum: string; positions: any[]; workingOrders: any[] } }> =
         accountNumbers.map(acctNum => {
           const positions = allCachedPos
-            .filter(p => p.accountNumber === acctNum)
-            .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
+            .filter(p => p['account-number'] === acctNum)
+            .map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }) }));
           const woResult = workingOrdersByAccount.find(
             r => r.status === 'fulfilled' && r.value.acctNum === acctNum
           );

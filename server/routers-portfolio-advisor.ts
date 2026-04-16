@@ -160,15 +160,15 @@ interface AccountBalance {
 function parsePositions(rawPositions: any[], accountNumber: string): ParsedPosition[] {
   const results: ParsedPosition[] = [];
   for (const pos of rawPositions) {
-    const instrumentType = pos['instrument-type'] || '';
+    const instrumentType = pos.instrumentType || '';
     const symbol = pos.symbol || '';
-    const underlyingSymbol = pos['underlying-symbol'] || symbol;
+    const underlyingSymbol = pos.underlyingSymbol || symbol;
     const qty = parseInt(String(pos.quantity || '0'));
-    const direction = (pos['quantity-direction']?.toLowerCase() === 'short' || qty < 0) ? 'short' as const : 'long' as const;
+    const direction = (pos.quantityDirection?.toLowerCase() === 'short' || qty < 0) ? 'short' as const : 'long' as const;
     const quantity = Math.abs(qty);
     const multiplier = parseInt(String(pos.multiplier || '100'));
-    const closePrice = parseFloat(String(pos['close-price'] || '0'));
-    const averageOpenPrice = parseFloat(String(pos['average-open-price'] || '0'));
+    const closePrice = parseFloat(String(pos.closePrice || '0'));
+    const averageOpenPrice = parseFloat(String(pos.averageOpenPrice || '0'));
     const delta = parseFloat(String(pos.delta || '0'));
 
     if (instrumentType === 'Equity Option') {
@@ -796,9 +796,9 @@ async function fetchPortfolioData(userId: number) {
   if (!accounts || accounts.length === 0) throw new Error('No accounts found');
 
   // Load positions from DB cache
-  const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-  const cachedPos = await getCachedPositions(userId);
-  const wirePositions = cachedPos.map(p => cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }));
+  const { getLivePositions } = await import('./portfolio-sync');
+  const cachedPos = await getLivePositions(userId);
+  const wirePositions = cachedPos;
 
   // Parse cached positions
   const allParsed: ParsedPosition[] = [];

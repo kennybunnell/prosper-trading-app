@@ -297,35 +297,39 @@ export const pmccRouter = router({
       const { getApiCredentials } = await import("./db");
       const { createTradierAPI } = await import("./tradier");
 
-      // Read LEAP positions from DB cache — no live Tastytrade API call needed
-      const { getCachedPositions } = await import('./portfolio-sync');
-      const cachedPos = await getCachedPositions(ctx.user.id);
+      // Fetch LIVE positions directly from Tastytrade (no DB cache)
+      const { getLivePositions } = await import('./portfolio-sync');
+      const allLivePos = await getLivePositions(ctx.user.id);
 
       const now = new Date();
       // Filter for LEAP calls (long call options with 270+ DTE)
-      const leapPositions = cachedPos.filter(pos => {
-        if (pos.instrumentType !== 'Equity Option') return false;
-        if (pos.quantityDirection !== 'Long') return false;
-        if (pos.optionType !== 'C') return false;
-        if (!pos.expiresAt) return false;
-        const expiration = new Date(pos.expiresAt);
+      const leapPositions = allLivePos.filter((pos: any) => {
+        if (pos['instrument-type'] !== 'Equity Option') return false;
+        if (pos['quantity-direction'] !== 'Long') return false;
+        // Determine option type from OCC symbol
+        const sym = (pos.symbol || '').replace(/\s+/g, '');
+        const occMatch = sym.match(/^[A-Z]+\d{6}([CP])\d+$/);
+        if (!occMatch || occMatch[1] !== 'C') return false;
+        const expiresAt = pos['expires-at'];
+        if (!expiresAt) return false;
+        const expiration = new Date(expiresAt);
         const dte = Math.floor((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
         return dte >= 270;
       });
 
       if (leapPositions.length === 0) return { positions: [] };
 
-      // Enrich with live market data from Tastytrade (current prices — this IS needed live)
+      // Enrich with live market data from Tastytrade (current prices)
       const credentials = await getApiCredentials(ctx.user.id);
       const { authenticateTastytrade } = await import('./tastytrade');
       const ttApi = credentials ? await authenticateTastytrade(credentials, ctx.user.id) : null;
 
       // Fetch all LEAP option quotes in one batch call via Tastytrade /market-data/by-type
-      const leapSymbols = leapPositions.map(p => p.symbol).filter(Boolean) as string[];
+      const leapSymbols = leapPositions.map((p: any) => p.symbol).filter(Boolean) as string[];
       const leapQuoteMap = ttApi ? await ttApi.getOptionQuotesBatch(leapSymbols).catch(() => ({})) : {};
 
       // Fetch underlying stock prices in batch via Tastytrade
-      const underlyingSet = new Set(leapPositions.map(p => p.underlyingSymbol).filter(Boolean) as string[]);
+      const underlyingSet = new Set(leapPositions.map((p: any) => p['underlying-symbol']).filter(Boolean) as string[]);
       const underlyingSymbols = Array.from(underlyingSet);
       const underlyingPriceMap: Record<string, number> = {};
       if (ttApi && underlyingSymbols.length > 0) {
@@ -338,22 +342,26 @@ export const pmccRouter = router({
       }
 
       const enrichedPositions = await Promise.all(
-        leapPositions.map(async (pos) => {
+        leapPositions.map(async (pos: any) => {
           try {
-            const underlying = pos.underlyingSymbol;
-            const strike = parseFloat(pos.strikePrice || '0');
-            const expiration = new Date(pos.expiresAt!);
+            const underlying = pos['underlying-symbol'];
+            // Parse strike and expiration from wire format
+            const expiresAt = pos['expires-at'] || '';
+            const expiration = new Date(expiresAt);
             const dte = Math.floor((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            const qty = parseFloat(pos.quantity);
+            const occSym = (pos.symbol || '').replace(/\s+/g, '');
+            const occM = occSym.match(/^[A-Z]+(\d{6})([CP])(\d+)$/);
+            const strike = occM ? parseInt(occM[3]) / 1000 : 0;
+            const qty = parseFloat(String(pos.quantity ?? '0'));
 
             // Get live LEAP option price from Tastytrade batch quote map
             const liveQ = (leapQuoteMap as any)[pos.symbol];
             const liveOptionMark = liveQ ? (liveQ.mark || liveQ.mid || ((liveQ.bid + liveQ.ask) / 2) || liveQ.last || 0) : 0;
             // Fall back to close-price only if Tastytrade returns no live quote
-            const currentPrice = liveOptionMark > 0 ? liveOptionMark : parseFloat(pos.closePrice || '0');
+            const currentPrice = liveOptionMark > 0 ? liveOptionMark : parseFloat(pos['close-price'] || '0');
             const stockPrice = underlyingPriceMap[underlying] || 0;
 
-            const costBasis = Math.abs(parseFloat(pos.averageOpenPrice)) * 100 * qty;
+            const costBasis = Math.abs(parseFloat(pos['average-open-price'])) * 100 * qty;
             const currentValue = currentPrice * 100 * qty;
             const profitLoss = currentValue - costBasis;
             const profitLossPercent = costBasis !== 0 ? (profitLoss / costBasis) * 100 : 0;
@@ -362,7 +370,7 @@ export const pmccRouter = router({
               symbol: underlying,
               optionSymbol: pos.symbol,
               strike,
-              expiration: pos.expiresAt!,
+              expiration: expiresAt,
               dte,
               quantity: qty,
               costBasis,

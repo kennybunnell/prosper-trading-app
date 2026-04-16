@@ -240,11 +240,11 @@ export const performanceRouter = router({
       const { authenticateTastytrade } = await import('./tastytrade');
       const api = await authenticateTastytrade(credentials, ctx.user.id);
 
-      // ── Positions: read from DB cache (no live API call) ──────────────────────
-      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-      const cachedPos = await getCachedPositions(ctx.user.id);
+      // ── Positions: fetch LIVE from Tastytrade (no DB cache) ──────────────────────
+      const { getLivePositions } = await import('./portfolio-sync');
+      const livePos = await getLivePositions(ctx.user.id, accountId === 'ALL_ACCOUNTS' ? undefined : accountId);
 
-      if (cachedPos.length === 0) {
+      if (livePos.length === 0) {
         return {
           positions: [],
           summary: { openPositions: 0, totalPremiumAtRisk: 0, avgRealizedPercent: 0, readyToClose: 0 },
@@ -253,19 +253,19 @@ export const performanceRouter = router({
 
       // Determine which accounts to use
       const accountsToFetch = accountId === 'ALL_ACCOUNTS'
-        ? Array.from(new Set(cachedPos.map(p => p.accountNumber)))
+        ? Array.from(new Set(livePos.map((p: any) => p['account-number'] || p['account-number'])))
         : [accountId];
 
-      // Convert cached rows to wire format and filter by account
-      const positions: any[] = cachedPos
-        .filter(p => accountId === 'ALL_ACCOUNTS' || p.accountNumber === accountId)
-        .map(p => ({
-          ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }),
-          _accountNumber: p.accountNumber,
+      // Filter by account and add multiplier
+      const positions: any[] = livePos
+        .filter((p: any) => accountId === 'ALL_ACCOUNTS' || (p['account-number'] || p['account-number']) === accountId)
+        .map((p: any) => ({
+          ...p,
+          _accountNumber: p['account-number'] || p['account-number'],
           multiplier: 100,
         }));
 
-      console.log(`[Performance] Loaded ${positions.length} positions from cache`);
+      console.log(`[Performance] Loaded ${positions.length} LIVE positions from Tastytrade`);
 
       // Filter for option positions (both short and long)
       const optionPositions = positions.filter((pos) =>
@@ -1106,25 +1106,25 @@ export const performanceRouter = router({
       console.log(`[Performance] Fetching expiration calendar for account ${accountId} (from cache)`);
 
       // Read from DB cache — no live API call needed
-      const { getCachedPositions } = await import('./portfolio-sync');
-      const cachedPos = await getCachedPositions(userId);
+      const { getLivePositions } = await import('./portfolio-sync');
+      const cachedPos = await getLivePositions(userId);
 
       // Filter to short options for the requested account
       const allPositions = cachedPos
         .filter(p =>
-          p.instrumentType === 'Equity Option' &&
+          p['instrument-type'] === 'Equity Option' &&
           parseFloat(p.quantity) < 0 &&
-          (accountId === 'ALL_ACCOUNTS' || p.accountNumber === accountId)
+          (accountId === 'ALL_ACCOUNTS' || p['account-number'] === accountId)
         )
         .map(p => ({
           symbol: p.symbol,
-          'underlying-symbol': p.underlyingSymbol,
-          'instrument-type': p.instrumentType,
+          'underlying-symbol': p['underlying-symbol'],
+          'instrument-type': p['instrument-type'],
           quantity: parseFloat(p.quantity),
           'expiration-date': p.expiresAt,
           'strike-price': p.strikePrice,
-          accountNumber: p.accountNumber,
-          accountName: p.accountNumber,
+          accountNumber: p['account-number'],
+          accountName: p['account-number'],
         }));
 
       // Group by expiration date

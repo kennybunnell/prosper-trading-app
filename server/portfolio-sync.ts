@@ -607,3 +607,60 @@ export function cachedPosToWireFormat(pos: {
     'account-number': pos.accountNumber,
   };
 }
+
+// ─── Live Positions Helper ─────────────────────────────────────────────────────
+/**
+ * Fetch live positions directly from Tastytrade API (no DB cache).
+ * Use this for any scan, pre-trade check, or position display that needs real-time accuracy.
+ *
+ * Returns positions in the same wire format as cachedPosToWireFormat() so callers
+ * can swap getCachedPositions → getLivePositions without changing downstream logic.
+ *
+ * Falls back to DB cache ONLY if Tastytrade credentials are not configured.
+ */
+export async function getLivePositions(
+  userId: number,
+  accountNumber?: string
+): Promise<Record<string, any>[]> {
+  try {
+    const { getApiCredentials, getTastytradeAccounts } = await import('./db');
+    const credentials = await getApiCredentials(userId);
+    if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+      // No credentials — fall back to cache so the UI still renders
+      console.warn('[getLivePositions] No Tastytrade credentials — falling back to DB cache');
+      const cached = await getCachedPositions(userId, accountNumber);
+      return cached.map(p => cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }));
+    }
+    const { authenticateTastytrade } = await import('./tastytrade');
+    const api = await authenticateTastytrade(credentials, userId);
+    const accounts = await getTastytradeAccounts(userId) || [];
+    const targetAccounts = accountNumber
+      ? accounts.filter((a: any) => a.accountNumber === accountNumber)
+      : accounts;
+    const allPositions: Record<string, any>[] = [];
+    await Promise.all(
+      targetAccounts.map(async (acc: any) => {
+        const accNum: string = acc.accountNumber;
+        try {
+          const positions = await api.getPositions(accNum);
+          for (const pos of positions) {
+            // TastytradePosition already uses kebab-case field names
+            // Just ensure account-number is set and provide safe defaults
+            const wirePos: Record<string, any> = { ...pos };
+            wirePos['account-number'] = pos['account-number'] || accNum;
+            wirePos['close-price'] = pos['close-price'] ?? '0';
+            wirePos['expires-at'] = pos['expires-at'] ?? '';
+            allPositions.push(wirePos);
+          }
+        } catch (err: any) {
+          console.error(`[getLivePositions] Failed to fetch positions for account ${accNum}:`, err.message);
+        }
+      })
+    );
+    return allPositions;
+  } catch (err: any) {
+    console.error('[getLivePositions] Unexpected error — falling back to DB cache:', err.message);
+    const cached = await getCachedPositions(userId, accountNumber);
+    return cached.map(p => cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }));
+  }
+}

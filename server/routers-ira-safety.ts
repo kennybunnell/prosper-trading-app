@@ -135,13 +135,13 @@ export const iraSafetyRouter = router({
       }
 
       // Load all positions from DB cache (keyed by accountNumber)
-      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-      const allCachedPos = await getCachedPositions(ctx.user.id);
+      const { getLivePositions } = await import('./portfolio-sync');
+      const allCachedPos = await getLivePositions(ctx.user.id);
       const positionsByAccount = new Map<string, any[]>();
       for (const p of allCachedPos) {
-        const wire = cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' });
-        if (!positionsByAccount.has(p.accountNumber)) positionsByAccount.set(p.accountNumber, []);
-        positionsByAccount.get(p.accountNumber)!.push(wire);
+        const wire = ((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' });
+        if (!positionsByAccount.has(p['account-number'])) positionsByAccount.set(p['account-number'], []);
+        positionsByAccount.get(p['account-number'])!.push(wire);
       }
 
       const violations: IraViolation[] = [];

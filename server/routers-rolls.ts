@@ -277,10 +277,10 @@ export const rollsRouter = router({
       }
 
       // Load all option positions from DB cache
-      const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-      const allCachedPos = await getCachedPositions(ctx.user.id);
+      const { getLivePositions } = await import('./portfolio-sync');
+      const allCachedPos = await getLivePositions(ctx.user.id);
       const wirePositions = allCachedPos.map(p => ({
-        ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }),
+        ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }),
         'account-number': p.accountNumber,
       }));
 

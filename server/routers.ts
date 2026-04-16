@@ -59,8 +59,8 @@ function parseOptionSymbol(symbol: string): { underlying: string; expiration: st
 const projectionsRouter = router({
   getLockedInIncome: protectedProcedure.query(async ({ ctx }) => {
     // ── Read from DB cache ────────────────────────────────────────────────────────────────
-    const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-    const allCachedPos = await getCachedPositions(ctx.user.id);
+    const { getLivePositions } = await import('./portfolio-sync');
+    const allCachedPos = await getLivePositions(ctx.user.id);
     if (allCachedPos.length === 0) {
       return {
         thisWeek: { premium: 0, positions: 0 },
@@ -84,11 +84,11 @@ const projectionsRouter = router({
     };
 
     // Group by account number (reuse same loop structure)
-    const accountNumbers = Array.from(new Set(allCachedPos.map(p => p.accountNumber)));
+    const accountNumbers = Array.from(new Set(allCachedPos.map(p => p['account-number'])));
     for (const accountNumber of accountNumbers) {
       const positions = allCachedPos
-        .filter(p => p.accountNumber === accountNumber)
-        .map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
+        .filter(p => p['account-number'] === accountNumber)
+        .map(p => ({ ...p }));
       if (!positions) continue;
 
       for (const pos of positions) {
@@ -133,15 +133,15 @@ const projectionsRouter = router({
 
   getThetaDecay: protectedProcedure.query(async ({ ctx }) => {
     // ── Read from DB cache ────────────────────────────────────────────────────────────────
-    const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-    const allCachedPos = await getCachedPositions(ctx.user.id);
+    const { getLivePositions } = await import('./portfolio-sync');
+    const allCachedPos = await getLivePositions(ctx.user.id);
     if (allCachedPos.length === 0) {
       return { dailyTheta: 0, weeklyTheta: 0, monthlyTheta: 0, positionCount: 0 };
     }
 
     let totalTheta = 0;
     let positionCount = 0;
-    const positions = allCachedPos.map(p => ({ ...cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }) }));
+    const positions = allCachedPos.map(p => ({ ...p }));
 
     // Dummy loop to match original structure
     for (const accountNumber of [null]) {
@@ -650,12 +650,12 @@ export const appRouter = router({
       }
 
       // ── Load from DB cache (positions + transactions) ───────────────────────────────────────
-      const { getCachedPositions, getCachedTransactions, cachedPosToWireFormat, cachedTxnToWireFormat } = await import('./portfolio-sync');
+      const { getLivePositions, getCachedTransactions, cachedTxnToWireFormat } = await import('./portfolio-sync');
       const [cachedPositions, allCachedTxns] = await Promise.all([
-        getCachedPositions(ctx.user.id),
+        getLivePositions(ctx.user.id),
         getCachedTransactions(ctx.user.id),
       ]);
-      const wirePositions = cachedPositions.map(p => cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }));
+      const wirePositions = cachedPositions; // Live positions already in wire format
 
       // ── 1. Buying power — MUST stay live (real-time balance) ──────────────────────────────
       let totalBuyingPower = 0;
@@ -1002,23 +1002,23 @@ Answer concisely and specifically. Stay conservative — capital preservation fi
       let openPositionsCount = 0;
       let upcomingExpirations: { symbol: string; expiration: string; dte: number; strategy: string; accountNumber: string }[] = [];
       try {
-        const { getCachedPositions } = await import('./portfolio-sync');
-        const cachedPos = await getCachedPositions(ctx.user.id);
+        const { getLivePositions } = await import('./portfolio-sync');
+        const cachedPos = await getLivePositions(ctx.user.id);
         openPositionsCount = cachedPos.length;
         const nowMs = Date.now();
         for (const pos of cachedPos) {
-          if (pos.instrumentType !== 'Equity Option') continue;
-          const sym = pos.underlyingSymbol || '';
-          const expStr = pos.expiresAt || '';
+          if (pos['instrument-type'] !== 'Equity Option') continue;
+          const sym = pos['underlying-symbol'] || '';
+          const expStr = pos['expires-at'] || '';
           if (!expStr) continue;
           const expMs = new Date(expStr).getTime();
           const dte = Math.max(0, Math.round((expMs - nowMs) / 86400000));
           if (dte <= 21) {
-            const direction = pos.quantityDirection || '';
+            const direction = pos['quantity-direction'] || '';
             const optSym = pos.symbol || '';
             const isCall = optSym.includes('C');
             const strategy = direction === 'Short' ? (isCall ? 'CC' : 'CSP') : (isCall ? 'Long Call' : 'Long Put');
-            upcomingExpirations.push({ symbol: sym, expiration: expStr, dte, strategy, accountNumber: pos.accountNumber });
+            upcomingExpirations.push({ symbol: sym, expiration: expStr, dte, strategy, accountNumber: pos['account-number'] });
           }
         }
         upcomingExpirations.sort((a, b) => a.dte - b.dte);
@@ -1245,8 +1245,8 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         let workingOrdersCount: number | null = null;
         let openPositionsCount: number | null = null;
         try {
-          const { getCachedPositions } = await import('./portfolio-sync');
-          const cachedPos = await getCachedPositions(ctx.user.id);
+          const { getLivePositions } = await import('./portfolio-sync');
+          const cachedPos = await getLivePositions(ctx.user.id);
           openPositionsCount = cachedPos.length;
           // Working orders: still live (order status changes in real time)
           // Only attempt if credentials are configured
@@ -3933,15 +3933,15 @@ Summary: [One sentence overall assessment]`;
         }
 
         // Use DB cache for stock positions
-        const { getCachedPositions: getCachedPosStk } = await import('./portfolio-sync');
+        const { getLivePositions: getCachedPosStk } = await import('./portfolio-sync');
         const cachedPosStk = await getCachedPosStk(ctx.user.id);
         const allPositions = cachedPosStk
-          .filter(p => p.instrumentType === 'Equity')
+          .filter(p => p['instrument-type'] === 'Equity')
           .map(p => {
             const quantity = typeof p.quantity === 'number' ? p.quantity : parseInt(String(p.quantity || '0'));
             const avgCost = parseFloat(String(p.averageOpenPrice || '0'));
             const currentPrice = parseFloat(String(p.closePrice || '0'));
-            const acct = accounts.find(a => a.accountNumber === p.accountNumber);
+            const acct = accounts.find(a => a.accountNumber === p['account-number']);
             return {
               symbol: p.symbol,
               quantity,
@@ -3950,8 +3950,8 @@ Summary: [One sentence overall assessment]`;
               costBasis: quantity * avgCost,
               marketValue: quantity * currentPrice,
               unrealizedPL: (quantity * currentPrice) - (quantity * avgCost),
-              accountNumber: p.accountNumber,
-              accountNickname: acct?.nickname || p.accountNumber,
+              accountNumber: p['account-number'],
+              accountNickname: acct?.nickname || p['account-number'],
             };
           });
 
@@ -4039,10 +4039,10 @@ Summary: [One sentence overall assessment]`;
         }
 
         // Use DB cache for positions and transactions
-        const { getCachedPositions: getCachedPosRec, getCachedTransactions: getCachedTxnsRec, cachedTxnToWireFormat: toWireRec } = await import('./portfolio-sync');
+        const { getLivePositions: getCachedPosRec, getCachedTransactions: getCachedTxnsRec, cachedTxnToWireFormat: toWireRec } = await import('./portfolio-sync');
         const cachedPosRec = await getCachedPosRec(ctx.user.id);
         const allPositions = cachedPosRec
-          .filter(p => p.instrumentType === 'Equity')
+          .filter(p => p['instrument-type'] === 'Equity')
           .map(p => {
             const quantity = typeof p.quantity === 'number' ? p.quantity : parseInt(String(p.quantity || '0'));
             const avgCost = parseFloat(String(p.averageOpenPrice || '0'));
