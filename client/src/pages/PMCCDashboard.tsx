@@ -18,6 +18,7 @@ import { useTradingMode } from "@/contexts/TradingModeContext";
 import { toast } from "sonner";
 import { cn, exportToCSV } from "@/lib/utils";
 import { Streamdown } from "streamdown";
+import { PositionCardsSkeleton } from "@/components/PositionTableSkeleton";
 
 type SortColumn = 'symbol' | 'strike' | 'expiration' | 'dte' | 'delta' | 'premium' | 'bidAskSpread' | 'openInterest' | 'volume' | 'score';
 type SortDirection = 'asc' | 'desc';
@@ -43,9 +44,7 @@ function ActivePositionsSection({ positionsData, isLoading, refetch }: ActivePos
           <CardDescription>Your current LEAP call positions</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-          </div>
+          <PositionCardsSkeleton cards={3} />
         </CardContent>
       </Card>
     );

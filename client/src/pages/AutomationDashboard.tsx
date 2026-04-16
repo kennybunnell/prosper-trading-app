@@ -58,6 +58,7 @@ import { AISellCallAdvisorPanel, SellCallCandidate } from '@/components/AISellCa
 import { AIRowIcon } from '@/components/AIRowIcon';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { PositionTableSkeleton } from '@/components/PositionTableSkeleton';
 
 type ScanResult = {
   account: string;
@@ -3135,9 +3136,12 @@ export default function AutomationDashboard() {
           {/* Loading state */}
           {isRollScanning && (
             <Card className="border-orange-500/20">
-              <CardContent className="py-12 text-center space-y-3">
-                <Loader2 className="h-10 w-10 mx-auto animate-spin text-orange-400" />
-                <p className="text-sm text-muted-foreground">Fetching positions from all accounts and analyzing roll opportunities...</p>
+              <CardHeader>
+                <CardTitle className="text-base">Scanning Roll Positions</CardTitle>
+                <p className="text-sm text-muted-foreground">Fetching live positions from Tastytrade and analyzing roll opportunities…</p>
+              </CardHeader>
+              <CardContent>
+                <PositionTableSkeleton rows={5} cols={7} showHeader={false} />
               </CardContent>
             </Card>
           )}

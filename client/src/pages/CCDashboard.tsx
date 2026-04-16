@@ -62,6 +62,7 @@ import { RiskBadgeList } from "@/components/RiskBadge";
 import { SafeguardWarningModal, SafeguardWarning } from "@/components/SafeguardWarningModal";
 import { getIndexExchange, getMinSpreadWidth, validateMultiIndexSelection } from "@shared/orderUtils";
 import { ColumnVisibilityToggle, useColumnVisibility, type ColumnDef } from "@/components/ColumnVisibilityToggle";
+import { PositionTableSkeleton } from '@/components/PositionTableSkeleton';
 
 // BCS column definitions (unified schema)
 const BCS_COLUMNS: ColumnDef[] = [
@@ -1720,6 +1721,18 @@ export default function CCDashboard() {
               </div>
             )}
 
+            {/* Skeleton loader while fetching live positions */}
+            {isLoadingPositions && holdings.length === 0 && isPositionsSectionExpanded && (
+              <Card className="bg-card/50 backdrop-blur border-amber-500/20">
+                <CardHeader>
+                  <CardTitle className="text-xl">Portfolio Positions</CardTitle>
+                  <p className="text-sm text-muted-foreground">Fetching live positions from Tastytrade…</p>
+                </CardHeader>
+                <CardContent>
+                  <PositionTableSkeleton rows={6} cols={6} showHeader={false} />
+                </CardContent>
+              </Card>
+            )}
             {/* Stock Selection Table */}
             {holdings.length > 0 && isPositionsSectionExpanded && (
               <Card className="bg-card/50 backdrop-blur border-amber-500/20">

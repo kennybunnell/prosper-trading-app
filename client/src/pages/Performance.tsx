@@ -28,6 +28,28 @@ import { TaxTab } from '@/components/TaxTab';
 
 export default function Performance() {
   const [activeTab, setActiveTab] = useState('overview');
+  const [autoSyncDone, setAutoSyncDone] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // Auto-trigger incremental portfolio sync on mount so cached data is fresh
+  const triggerSyncMutation = trpc.portfolioSync.triggerSync.useMutation({
+    onSuccess: () => {
+      setAutoSyncDone(true);
+      setIsSyncing(false);
+    },
+    onError: () => {
+      setAutoSyncDone(true);
+      setIsSyncing(false);
+    },
+  });
+
+  useEffect(() => {
+    if (!autoSyncDone && !isSyncing) {
+      setIsSyncing(true);
+      triggerSyncMutation.mutate({ forceFullRefresh: false });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
 
   return (
@@ -43,14 +65,30 @@ export default function Performance() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {isSyncing && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Syncing portfolio…</span>
+            </div>
+          )}
+          {autoSyncDone && !isSyncing && (
+            <div className="flex items-center gap-1.5 text-xs text-green-400">
+              <span>✓ Portfolio synced</span>
+            </div>
+          )}
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              setAutoSyncDone(false);
+              setIsSyncing(true);
+              triggerSyncMutation.mutate({ forceFullRefresh: false });
+            }}
+            disabled={isSyncing}
             className="flex items-center gap-2"
           >
-            <RefreshCw className="w-4 h-4" />
-            Refresh Page
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'Syncing…' : 'Sync & Refresh'}
           </Button>
           <ConnectionStatusIndicator />
         </div>
@@ -3237,6 +3275,16 @@ function PerformanceOverviewTab() {
   const isLoading = tradingMode === 'paper' ? paperLoading : liveLoading;
   const data = tradingMode === 'paper' ? (paperData ? transformPaperDataToOverview(paperData) : null) : liveData;
 
+  // Portfolio sync state — for last-refreshed timestamp
+  const { data: syncStateData } = trpc.portfolioSync.getSyncState.useQuery(undefined, {
+    refetchInterval: 30_000,
+  });
+  const lastSyncAt: Date | null = (syncStateData?.states ?? []).reduce((latest: Date | null, s: any) => {
+    const t = s.lastTransactionsSyncAt ? new Date(s.lastTransactionsSyncAt) : null;
+    if (!t) return latest;
+    return !latest || t > latest ? t : latest;
+  }, null);
+
   if (tradingMode === 'live' && !selectedAccountId) {
     return (
       <Card className="p-8 text-center">
@@ -3357,6 +3405,11 @@ function PerformanceOverviewTab() {
           <p className="text-sm text-muted-foreground mt-1">
             {dateRange.firstMonth} - {dateRange.lastMonth} ({dateRange.monthsWithActivity} months with activity)
           </p>
+          {lastSyncAt && (
+            <p className="text-xs text-muted-foreground/70 mt-0.5">
+              Data cached — last portfolio sync: {lastSyncAt.toLocaleString()}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <select

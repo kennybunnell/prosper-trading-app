@@ -111,6 +111,16 @@ export function TaxTab() {
     }
   );
   
+  // Portfolio sync state — for last-refreshed timestamp
+  const { data: syncStateData } = trpc.portfolioSync.getSyncState.useQuery(undefined, {
+    refetchInterval: 30_000,
+  });
+  const lastSyncAt: Date | null = (syncStateData?.states ?? []).reduce((latest: Date | null, s: any) => {
+    const t = s.lastTransactionsSyncAt ? new Date(s.lastTransactionsSyncAt) : null;
+    if (!t) return latest;
+    return !latest || t > latest ? t : latest;
+  }, null);
+
   // Check if authentication error occurred
   const isAuthError = taxError?.message?.includes('token is invalid') || 
                       taxError?.message?.includes('expired') ||
@@ -137,10 +147,29 @@ export function TaxTab() {
       {/* Tax Year & Rate Configuration */}
       <Card>
         <CardHeader>
-          <CardTitle>Tax Configuration</CardTitle>
-          <CardDescription>
-            Select tax year and configure your marginal tax rate for accurate calculations
-          </CardDescription>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle>Tax Configuration</CardTitle>
+              <CardDescription>
+                Select tax year and configure your marginal tax rate for accurate calculations
+              </CardDescription>
+            </div>
+            {lastSyncAt && (
+              <div className="text-right shrink-0">
+                <p className="text-xs text-muted-foreground">Data cached from portfolio sync</p>
+                <p className="text-xs font-medium text-foreground mt-0.5">
+                  Last synced: {lastSyncAt.toLocaleString()}
+                </p>
+                <button
+                  onClick={() => refetch()}
+                  className="text-xs text-blue-400 hover:text-blue-300 mt-0.5 flex items-center gap-1 ml-auto"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Refresh data
+                </button>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex items-end gap-4 flex-wrap">
