@@ -3061,12 +3061,17 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
     .mutation(async ({ ctx, input }) => {
       const { getApiCredentials } = await import('./db');
       const credentials = await getApiCredentials(ctx.user.id);
+      // ── Tastytrade (primary price source — ALL order prices come from here) ──
+      const { authenticateTastytrade } = await import('./tastytrade');
+      if (!credentials?.tastytradeRefreshToken && !credentials?.tastytradePassword) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tastytrade credentials not configured.' });
+      }
+      const ttApi = await authenticateTastytrade(credentials);
+      // ── Tradier (greeks + chain fallback only — never used for order prices) ──
       const tradierApiKey = (credentials?.tradierApiKey && credentials.tradierApiKey.length > 15
         ? credentials.tradierApiKey : null) || process.env.TRADIER_API_KEY;
-      if (!tradierApiKey) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tradier API key not configured.' });
       const { createTradierAPI } = await import('./tradier');
-      const tradierApi = createTradierAPI(tradierApiKey, false, ctx.user.id);
-
+      const tradierApi = tradierApiKey ? createTradierAPI(tradierApiKey, false, ctx.user.id) : null;
       // Build the OCC symbol for the new strike
       // Use UTC methods to avoid timezone off-by-one (expiration strings are YYYY-MM-DD, parsed as UTC midnight)
       const d = new Date(input.expiration);
@@ -3076,60 +3081,72 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       const typeChar = input.optionType === 'call' ? 'C' : 'P';
       const strikeStr = (input.strike * 1000).toFixed(0).padStart(8, '0');
       const newSymbol = `${input.symbol.padEnd(6)}${yy}${mm}${dd}${typeChar}${strikeStr}`;
-      console.log(`[fetchStrikeQuote] Building OCC symbol: underlying=${input.symbol} exp=${input.expiration} strike=${input.strike} type=${input.optionType} → ${newSymbol.trim()}`);
+      console.log(`[fetchStrikeQuote] OCC symbol: ${input.symbol} ${input.expiration} ${input.strike} ${input.optionType} → ${newSymbol.trim()}`);
       const newSymbolTrimmed = newSymbol.trim();
       const currentSymbolTrimmed = input.currentOptionSymbol.trim();
-      const quotes = await tradierApi.getQuotes([input.currentOptionSymbol, newSymbol]);
-      // Build map with both padded and trimmed keys — Tradier may return symbols either way
-      const qMap = new Map<string, (typeof quotes)[0]>();
-      for (const q of quotes) {
-        if (q.symbol) {
-          qMap.set(q.symbol, q);
-          qMap.set(q.symbol.trim(), q);
-        }
+      // ── Fetch live prices from Tastytrade ────────────────────────────────────
+      const ttQuotes = await ttApi.getOptionQuotesBatch([input.currentOptionSymbol, newSymbol]);
+      const ttCurrentQ = ttQuotes[input.currentOptionSymbol] ?? ttQuotes[currentSymbolTrimmed];
+      const ttNewQ = ttQuotes[newSymbol] ?? ttQuotes[newSymbolTrimmed];
+      console.log(`[fetchStrikeQuote] TT quotes — current=${JSON.stringify(ttCurrentQ)} new=${JSON.stringify(ttNewQ)}`);
+      // BTC cost = ask of current position (cost to close the short)
+      let btcCost: number | null = (ttCurrentQ?.ask > 0) ? ttCurrentQ.ask : null;
+      // STO premium = Tastytrade mid (prefer mark, fallback to (bid+ask)/2)
+      let stoPremium: number | null = null;
+      if (ttNewQ) {
+        stoPremium = ttNewQ.mark > 0
+          ? ttNewQ.mark
+          : (ttNewQ.bid > 0 && ttNewQ.ask > 0 ? (ttNewQ.bid + ttNewQ.ask) / 2 : null);
       }
-      console.log(`[fetchStrikeQuote] symbol=${newSymbol} trimmed=${newSymbolTrimmed} found=${qMap.has(newSymbol) || qMap.has(newSymbolTrimmed)} keys=[${Array.from(qMap.keys()).join('|')}]`);
-      const currentQ = qMap.get(input.currentOptionSymbol) ?? qMap.get(currentSymbolTrimmed);
-      const newQ = qMap.get(newSymbol) ?? qMap.get(newSymbolTrimmed);
-      const btcCost = currentQ?.ask ?? null;   // cost to buy back current
-      let stoPremium = newQ?.bid ?? null;    // credit from new STO
       let resolvedStrike = input.strike;
       let resolvedSymbol = newSymbol;
-
-      // Fallback: if direct quote lookup returned nothing, fetch the option chain
-      // and find the closest available strike with a non-zero bid
-      let resolvedDelta: number | null = newQ?.greeks?.delta ?? null;
-      if (stoPremium === null) {
-        console.log(`[fetchStrikeQuote] Direct quote not found for ${newSymbol}, falling back to option chain lookup`);
+      let resolvedDelta: number | null = null;
+      // ── Tradier fallback: use only if TT returned no price ───────────────────
+      if ((stoPremium === null || btcCost === null) && tradierApi) {
+        console.log(`[fetchStrikeQuote] TT incomplete (sto=${stoPremium} btc=${btcCost}), using Tradier chain as fallback`);
         try {
-          const chain = await tradierApi.getOptionChain(input.symbol, input.expiration, true); // true = include greeks
+          const chain = await tradierApi.getOptionChain(input.symbol, input.expiration, true);
           const typeFilter = input.optionType === 'call' ? 'call' : 'put';
           const candidates = chain
             .filter(c => c.option_type === typeFilter && c.bid > 0)
             .sort((a, b) => Math.abs(a.strike - input.strike) - Math.abs(b.strike - input.strike));
           if (candidates.length > 0) {
             const best = candidates[0];
-            stoPremium = best.bid;
-            resolvedStrike = best.strike;
-            resolvedSymbol = best.symbol;
             resolvedDelta = best.greeks?.delta ?? null;
-            console.log(`[fetchStrikeQuote] Chain fallback found: ${best.symbol} bid=${best.bid} delta=${resolvedDelta}`);
+            if (stoPremium === null) {
+              stoPremium = best.bid > 0 && best.ask > 0 ? (best.bid + best.ask) / 2 : best.bid;
+              resolvedStrike = best.strike;
+              resolvedSymbol = best.symbol;
+              console.log(`[fetchStrikeQuote] Tradier fallback STO mid: ${best.symbol} mid=${stoPremium}`);
+            }
+            if (btcCost === null) {
+              const tradierQuotes = await tradierApi.getQuotes([input.currentOptionSymbol]);
+              const tq = tradierQuotes.find((q: any) => q.symbol?.trim() === currentSymbolTrimmed);
+              btcCost = tq?.ask ?? null;
+            }
           }
         } catch (chainErr) {
-          console.warn(`[fetchStrikeQuote] Chain fallback failed: ${chainErr}`);
+          console.warn(`[fetchStrikeQuote] Tradier fallback failed: ${chainErr}`);
         }
+      } else if (tradierApi) {
+        // Get delta from Tradier (greeks only — not for price)
+        try {
+          const chain = await tradierApi.getOptionChain(input.symbol, input.expiration, true);
+          const typeFilter = input.optionType === 'call' ? 'call' : 'put';
+          const match = chain.find((c: any) => c.option_type === typeFilter && Math.abs(c.strike - resolvedStrike) < 0.01);
+          resolvedDelta = match?.greeks?.delta ?? null;
+        } catch { /* greeks are optional */ }
       }
-
-      const netCreditPerContract = btcCost !== null && stoPremium !== null ? stoPremium - btcCost : null;
+      const netCreditPerContract = (btcCost !== null && stoPremium !== null) ? stoPremium - btcCost : null;
       const netCreditTotal = netCreditPerContract !== null ? netCreditPerContract * input.quantity : null;
-
+      console.log(`[fetchStrikeQuote] FINAL: strike=${resolvedStrike} stoPremium=${stoPremium} btcCost=${btcCost} netCredit=${netCreditPerContract} delta=${resolvedDelta}`);
       return {
         positionId: input.positionId,
         newSymbol: resolvedSymbol,
         strike: resolvedStrike,
-        bid: stoPremium,
-        ask: newQ?.ask ?? null,
-        mid: stoPremium !== null ? stoPremium : null,
+        bid: ttNewQ?.bid ?? stoPremium,
+        ask: ttNewQ?.ask ?? null,
+        mid: stoPremium,
         btcCost,
         stoPremium,
         netCreditPerContract,
@@ -3137,7 +3154,6 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         delta: resolvedDelta,
       };
     }),
-
   // ─── Fetch available expirations + best strike for a target DTE ───────────────────
   fetchRollTargetForDTE: protectedProcedure
     .input(z.object({
@@ -3153,6 +3169,13 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
     .mutation(async ({ ctx, input }) => {
       const { getApiCredentials } = await import('./db');
       const credentials = await getApiCredentials(ctx.user.id);
+      // ── Tastytrade (primary price source) ────────────────────────────────────
+      const { authenticateTastytrade } = await import('./tastytrade');
+      if (!credentials?.tastytradeRefreshToken && !credentials?.tastytradePassword) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tastytrade credentials not configured.' });
+      }
+      const ttApi = await authenticateTastytrade(credentials);
+      // ── Tradier (chain data + greeks + fallback only) ─────────────────────────
       const tradierApiKey = (credentials?.tradierApiKey && credentials.tradierApiKey.length > 15
         ? credentials.tradierApiKey : null) || process.env.TRADIER_API_KEY;
       if (!tradierApiKey) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Tradier API key not configured.' });
@@ -3198,29 +3221,49 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         Math.abs(curr.strike - input.currentShortStrike) < Math.abs(prev.strike - input.currentShortStrike) ? curr : prev
       );
 
-      // Get BTC cost for current position (handle padded/trimmed symbol variants)
-      const currentQuotes = await tradierApi.getQuotes([input.currentOptionSymbol]);
+      // ── Fetch live prices from Tastytrade for BTC + STO ────────────────────────
+      // Build OCC symbol for the new option (needed for TT quote lookup)
+      const dNew = new Date(best.exp);
+      const yyNew = dNew.getUTCFullYear().toString().slice(2);
+      const mmNew = String(dNew.getUTCMonth() + 1).padStart(2, '0');
+      const ddNew = String(dNew.getUTCDate()).padStart(2, '0');
+      const typeCharNew = input.optionType === 'call' ? 'C' : 'P';
+      const strikeStrNew = (closestStrike.strike * 1000).toFixed(0).padStart(8, '0');
+      const newOccSymbol = `${input.symbol.padEnd(6)}${yyNew}${mmNew}${ddNew}${typeCharNew}${strikeStrNew}`;
       const currentSymTrimmed = input.currentOptionSymbol.trim();
-      const currentQ = (currentQuotes as Array<{ symbol: string; ask?: number }>).find(
-        q => q.symbol === input.currentOptionSymbol || q.symbol?.trim() === currentSymTrimmed
-      );
-      const btcCost = currentQ?.ask ?? null;
-      console.log(`[fetchRollTargetForDTE] BTC lookup: sym=${input.currentOptionSymbol.trim()} found=${!!currentQ} ask=${currentQ?.ask}`);
-      const rawBid = closestStrike.bid ?? 0;
-      const rawAsk = closestStrike.ask ?? 0;
-      const stoPremium = rawBid > 0 ? rawBid : (rawAsk > 0 ? rawAsk / 2 : null);
+      const ttQuotesDTE = await ttApi.getOptionQuotesBatch([input.currentOptionSymbol, newOccSymbol]);
+      const ttCurrentQDTE = ttQuotesDTE[input.currentOptionSymbol] ?? ttQuotesDTE[currentSymTrimmed];
+      const ttNewQDTE = ttQuotesDTE[newOccSymbol] ?? ttQuotesDTE[newOccSymbol.trim()];
+      console.log(`[fetchRollTargetForDTE] TT quotes — current=${JSON.stringify(ttCurrentQDTE)} new=${JSON.stringify(ttNewQDTE)}`);
+      // BTC cost = TT ask of current position
+      let btcCost: number | null = (ttCurrentQDTE?.ask > 0) ? ttCurrentQDTE.ask : null;
+      // STO premium = TT mid (prefer mark)
+      let stoPremium: number | null = null;
+      if (ttNewQDTE) {
+        stoPremium = ttNewQDTE.mark > 0
+          ? ttNewQDTE.mark
+          : (ttNewQDTE.bid > 0 && ttNewQDTE.ask > 0 ? (ttNewQDTE.bid + ttNewQDTE.ask) / 2 : null);
+      }
+      // Tradier fallback if TT returned nothing
+      if (stoPremium === null) {
+        const rawBid = closestStrike.bid ?? 0;
+        const rawAsk = closestStrike.ask ?? 0;
+        stoPremium = rawBid > 0 ? (rawBid + rawAsk) / 2 : (rawAsk > 0 ? rawAsk / 2 : null);
+        console.log(`[fetchRollTargetForDTE] TT STO unavailable, using Tradier mid fallback: ${stoPremium}`);
+      }
+      if (btcCost === null) {
+        const currentQuotes = await tradierApi.getQuotes([input.currentOptionSymbol]);
+        const currentQ = (currentQuotes as Array<{ symbol: string; ask?: number }>).find(
+          q => q.symbol === input.currentOptionSymbol || q.symbol?.trim() === currentSymTrimmed
+        );
+        btcCost = currentQ?.ask ?? null;
+        console.log(`[fetchRollTargetForDTE] TT BTC unavailable, Tradier fallback: ask=${btcCost}`);
+      }
       const netCreditPerContract = (stoPremium !== null && btcCost !== null) ? stoPremium - btcCost : null;
 
-      // Build OCC symbol for the new option
-      // Use UTC methods to avoid timezone off-by-one (expiration strings are YYYY-MM-DD, parsed as UTC midnight)
-      const d = new Date(best.exp);
-      const yy = d.getUTCFullYear().toString().slice(2);
-      const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-      const dd = String(d.getUTCDate()).padStart(2, '0');
-      const typeChar = input.optionType === 'call' ? 'C' : 'P';
-      const strikeStr = (closestStrike.strike * 1000).toFixed(0).padStart(8, '0');
-      const newSymbol = `${input.symbol.padEnd(6)}${yy}${mm}${dd}${typeChar}${strikeStr}`;
-      console.log(`[fetchRollTargetForDTE] Built OCC symbol: ${newSymbol.trim()} strike=${closestStrike.strike} bid=${closestStrike.bid} ask=${closestStrike.ask} stoPremium=${stoPremium} btcCost=${btcCost}`);
+      // OCC symbol already built above as newOccSymbol (used for TT quote lookup)
+      const newSymbol = newOccSymbol;
+      console.log(`[fetchRollTargetForDTE] FINAL: symbol=${newSymbol.trim()} strike=${closestStrike.strike} stoPremium=${stoPremium} btcCost=${btcCost}`);
 
       // Return nearby expirations for the DTE picker UI
       const nearbyExps = expsWithDte
