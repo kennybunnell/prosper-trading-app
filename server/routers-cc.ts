@@ -278,8 +278,31 @@ export const ccRouter = router({
       if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
         throw new Error('Tastytrade OAuth2 credentials not configured. Please add them in Settings.');
       }
-      const api = await authenticateTastytrade(credentials, ctx.user.id);
-
+       const api = await authenticateTastytrade(credentials, ctx.user.id);
+      // ── Fetch account options levels to filter out accounts not approved for CC writing ──
+      let accountOptionsLevels: Record<string, string> = {};
+      try {
+        const allAccounts = await api.getAccounts();
+        for (const acctObj of allAccounts) {
+          const acct = acctObj.account || acctObj as any;
+          const acctNum: string = acct['account-number'] || acct.accountNumber || '';
+          const level: string = (acct['suitable-options-level'] || '').toLowerCase();
+          if (acctNum) accountOptionsLevels[acctNum] = level;
+          console.log(`[CC getEligible] Account ${acctNum} options level: "${level}"`);
+        }
+      } catch (err: any) {
+        console.warn('[CC getEligible] Could not fetch account options levels:', err.message);
+      }
+      // Accounts approved for covered calls must have options level >= 'covered writes' or 'no level 2'
+      // Tastytrade levels: 'no level 1', 'no level 2', 'covered writes', 'defined risk spreads',
+      //                    'speculative', 'no restrictions'
+      // Covered calls require at minimum 'covered writes' level.
+      const CC_APPROVED_LEVELS = new Set(['covered writes', 'defined risk spreads', 'speculative', 'no restrictions']);
+      const isCCApproved = (acctNum: string): boolean => {
+        const level = accountOptionsLevels[acctNum];
+        if (!level) return true; // unknown level — allow and let TT reject if needed
+        return CC_APPROVED_LEVELS.has(level);
+      };
       // ── Positions: read from DB cache ─────────────────────────────────────────
       const { getLivePositions } = await import('./portfolio-sync');
       const allCachedPos = await getLivePositions(ctx.user.id);
@@ -441,7 +464,12 @@ export const ccRouter = router({
           const acctNakedCalls = perAccountNakedCalls[acct]?.[symbol] || 0;
           const acctCovered = acctNakedCalls * 100;
           const acctAvailable = Math.max(0, acctShares - acctCovered);
-          accountBreakdown[acct] = Math.floor(acctAvailable / 100);
+          // Only include accounts approved for covered call writing
+          if (isCCApproved(acct)) {
+            accountBreakdown[acct] = Math.floor(acctAvailable / 100);
+          } else {
+            console.log(`[CC getEligible] Skipping account ${acct} for ${symbol} — not approved for covered calls (level: ${accountOptionsLevels[acct] || 'unknown'})`);
+          }
         }
 
         return {

@@ -16,7 +16,7 @@
  */
 
 import { cachedPositions, cachedTransactions, portfolioSyncState } from '../drizzle/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { getDb } from './db';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -386,12 +386,14 @@ async function syncTransactions(
   for (let i = 0; i < rows.length; i += 100) {
     const batch = rows.slice(i, i + 100);
     try {
-      // No-op on duplicate: if the tastytrade_id already exists, skip silently
+      // No-op on duplicate: if the tastytrade_id already exists, skip silently.
+      // Use sql`VALUES(tastytrade_id)` so each row references its own incoming value
+      // (using a static value like batch[0] causes MySQL to reject the query for multi-row batches)
       await db
         .insert(cachedTransactions)
         .values(batch)
         .onDuplicateKeyUpdate({
-          set: { tastytradeId: batch[0].tastytradeId },
+          set: { tastytradeId: sql`VALUES(tastytrade_id)` },
         });
       inserted += batch.length;
     } catch (err: any) {
