@@ -240,18 +240,41 @@ export default function IronCondorDashboard() {
     watchlist.some((w: any) => w.symbol === 'SPXW' || w.symbol === 'SPX'),
   [watchlist]);
 
-  // Fetch Iron Condor opportunities
-  const { data: opportunities = [], isLoading: loadingOpportunities, refetch: refetchOpportunities } = trpc.ironCondor.opportunities.useQuery(
-    { 
-      symbols: filteredWatchlist.map((w: any) => w.symbol),
-      minDte,
-      maxDte,
-      spreadWidth,
-      symbolWidths: Object.keys(symbolWidths).length > 0 ? symbolWidths : undefined,
-      isIndexMode,
+  // Async IC scan: startScan fires background job, pollScan polls every 3s until done
+  const [scanJobId, setScanJobId] = useState<string | null>(null);
+  const [icOpportunities, setIcOpportunities] = useState<any[]>([]);
+  const startScanMutation = trpc.ironCondor.startScan.useMutation({
+    onSuccess: (data) => {
+      setScanJobId(data.jobId);
     },
-    { enabled: false }
+    onError: (err) => {
+      toast.error(`Scan failed: ${err.message}`);
+      setFetchProgress(prev => ({ ...prev, isOpen: false }));
+    },
+  });
+  const { data: pollData } = trpc.ironCondor.pollScan.useQuery(
+    { jobId: scanJobId || '' },
+    { enabled: !!scanJobId, refetchInterval: 3000, refetchIntervalInBackground: true }
   );
+  // Handle poll results
+  useEffect(() => {
+    if (!pollData) return;
+    if (pollData.status === 'done' && pollData.results) {
+      setIcOpportunities(pollData.results as any[]);
+      setScanJobId(null);
+      setFetchProgress(prev => ({ ...prev, endTime: Date.now() }));
+      toast.success(`Found ${(pollData.results as any[]).length} Iron Condor opportunities`);
+    } else if (pollData.status === 'error') {
+      setScanJobId(null);
+      setFetchProgress(prev => ({ ...prev, isOpen: false }));
+      toast.error(`Scan error: ${(pollData as any).error || 'Unknown error'}`);
+    } else if (pollData.progress) {
+      setFetchProgress(prev => ({ ...prev, current: pollData.progress?.symbolsDone || 0, total: pollData.progress?.symbolsTotal || prev.total }));
+    }
+  }, [pollData]);
+  const opportunities = icOpportunities;
+  const loadingOpportunities = !!scanJobId || startScanMutation.isPending;
+  const refetchOpportunities = () => {}; // no-op, use handleFetchOpportunities
 
   // Fetch buying power
   const { data: buyingPowerData } = trpc.accounts.getBuyingPower.useQuery(

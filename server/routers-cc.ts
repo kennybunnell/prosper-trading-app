@@ -594,9 +594,9 @@ export const ccRouter = router({
       const isBearCallSpreadMode = input.holdings.length === 0;
       console.log(`[CC Scanner] Mode: ${isBearCallSpreadMode ? 'Bear Call Spread (no holdings required)' : 'Covered Call (requires holdings)'}`);
 
-      // Process symbols in parallel with concurrency limit of 5 (matches CSP Dashboard)
-      const CONCURRENCY = 5;
-      const API_TIMEOUT_MS = 15000; // 15 second timeout per API call (increased for spread scanning)
+      // Process symbols in parallel with concurrency limit of 20 (aligned with BPS scan)
+      const CONCURRENCY = 20;
+      const API_TIMEOUT_MS = 90000; // 90 second timeout per symbol (allows semaphore queue to drain)
       console.log(`[CC Scanner] Processing ${input.symbols.length} symbols with ${CONCURRENCY} concurrent workers...`);
       
       // Helper function to add timeout to promises
@@ -1007,8 +1007,8 @@ export const ccRouter = router({
       };
 
       // Process each group (fetch option chain once, process all strikes)
-      const CONCURRENCY_LIMIT = 5; // Process 5 groups at a time
-      const API_TIMEOUT_MS = 15000; // 15 second timeout per API call
+      const CONCURRENCY_LIMIT = 20; // Process 20 groups at a time (aligned with BPS scan)
+      const API_TIMEOUT_MS = 90000; // 90 second timeout per group (allows semaphore queue to drain)
       
       // Helper function to add timeout to promises
       const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {

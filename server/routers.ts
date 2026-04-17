@@ -2052,12 +2052,12 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
           input.minDte || 7,
           input.maxDte || 45,
           input.minVolume || 5,
-          input.minOI || 50
+          input.minOI || 50,
+          true // skipTechnicals: RSI/BB are display-only, skip 200-day history calls to avoid Tradier overload
         );
-
         // Score all opportunities
         const scored = scoreOpportunities(opportunities);
-        console.log(`[CSP Router] Scored ${scored.length} opportunities, preparing to calculate risk badges...`);
+        console.log(`[CSP Router] Scored ${scored.length} opportunities, preparing to calculate risk badges...`);;
 
         // Calculate risk badges for all opportunities
         const { calculateBulkRiskAssessments } = await import('./riskAssessment');
@@ -3375,6 +3375,230 @@ Summary: [One sentence overall assessment]`;
         // Increment scan count for Tier 1 users (after successful scan)
         await incrementScanCount(ctx.user.id, _effTier, ctx.user.role);
         return scoredWithBadges;
+      }),
+
+    // ── ASYNC SCAN: startScan fires background job, pollScan returns progress/results ──
+    startScan: protectedProcedure
+      .input(z.object({
+        symbols: z.array(z.string()).optional(),
+        minDelta: z.number().optional(),
+        maxDelta: z.number().optional(),
+        minDte: z.number().optional(),
+        maxDte: z.number().optional(),
+        minVolume: z.number().optional(),
+        minOI: z.number().optional(),
+        spreadWidth: z.number(),
+        symbolWidths: z.record(z.string(), z.number()).optional(),
+        isIndexMode: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { createScanJob, updateScanJobProgress } = await import('./scanJobManager');
+        const { checkRateLimit } = await import('./middleware/rateLimiting');
+        const { getEffectiveTier } = await import('./middleware/subscriptionEnforcement');
+        const effTier = getEffectiveTier(ctx.user);
+        const rateLimit = await checkRateLimit(ctx.user.id, effTier, ctx.user.role);
+        if (!rateLimit.allowed) throw new Error(rateLimit.message || 'Rate limit exceeded');
+
+        const symbols = input.symbols || [];
+        const totalSymbols = symbols.length;
+        const job = createScanJob(ctx.user.id, totalSymbols);
+        const jobId = job.id;
+
+        // Fire scan in background — do NOT await
+        setImmediate(async () => {
+          try {
+            updateScanJobProgress(jobId, { batchCurrent: 0, batchTotal: 3, symbolsDone: 0, symbolsTotal: totalSymbols, opportunitiesFound: 0 });
+            // Reuse the blocking opportunities logic in background
+            const { getApiCredentials } = await import('./db');
+            const { createTradierAPI } = await import('./tradier');
+            const { scoreOpportunities } = await import('./scoring');
+            const { calculateBullPutSpread, calculateBearCallSpread } = await import('./spread-pricing');
+            const { incrementScanCount } = await import('./middleware/rateLimiting');
+            const { calculateBulkRiskAssessments } = await import('./riskAssessment');
+            const credentials = await getApiCredentials(ctx.user.id);
+            const isPaperOrFreeTrial = effTier === 'free_trial' || ctx.user.tradingMode === 'paper';
+            const tradierApiKey = credentials?.tradierApiKey || (isPaperOrFreeTrial ? process.env.TRADIER_API_KEY : null);
+            if (!tradierApiKey || symbols.length === 0) {
+              const { failScanJob } = await import('./scanJobManager');
+              failScanJob(jobId, 'No Tradier API key or no symbols');
+              return;
+            }
+            const api = createTradierAPI(tradierApiKey, false, ctx.user.id);
+
+            // Batch progress callback
+            const onBatchComplete = (batchNum: number, totalBatches: number, symbolsDone: number) => {
+              updateScanJobProgress(jobId, { batchCurrent: batchNum, batchTotal: totalBatches, symbolsDone, symbolsTotal: totalSymbols, opportunitiesFound: 0 });
+            };
+
+            const cspOpportunities = await api.fetchCSPOpportunities(
+              symbols,
+              input.minDelta || 0.15,
+              input.maxDelta || 0.35,
+              input.minDte || 7,
+              input.maxDte || 45,
+              input.minVolume || 5,
+              input.minOI || 50,
+              true,
+              onBatchComplete
+            );
+
+            updateScanJobProgress(jobId, { batchCurrent: 2, batchTotal: 3, symbolsDone: totalSymbols, symbolsTotal: totalSymbols, opportunitiesFound: cspOpportunities.length });
+
+            // Chain cache
+            const chainCache = new Map<string, any[]>();
+            const uniqueChains = new Map<string, { symbol: string; expiration: string }>();
+            for (const opp of cspOpportunities) {
+              const key = `${opp.symbol}|${opp.expiration}`;
+              if (!uniqueChains.has(key)) uniqueChains.set(key, { symbol: opp.symbol, expiration: opp.expiration });
+            }
+            const IC_CHAIN_ROOT_MAP: Record<string, string> = { SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX' };
+            const chainEntries = Array.from(uniqueChains.entries());
+            await Promise.allSettled(chainEntries.map(async ([key, { symbol, expiration }]) => {
+              try {
+                const chainRoot = IC_CHAIN_ROOT_MAP[symbol.toUpperCase()] || symbol;
+                const options = await withRateLimit(() => api.getOptionChain(chainRoot, expiration, true));
+                chainCache.set(key, options);
+              } catch { chainCache.set(key, []); }
+            }));
+
+            // Build spreads (simplified — reuse same logic as blocking procedure)
+            const symbolPriceMap = new Map<string, number>();
+            for (const opp of cspOpportunities) {
+              if (!symbolPriceMap.has(opp.symbol)) symbolPriceMap.set(opp.symbol, opp.currentPrice);
+            }
+            const SYMBOL_WIDTH_ALIAS_IC: Record<string, string> = { SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX' };
+            const getEffectiveWidth = (sym: string): number => {
+              const symUpper = sym.toUpperCase();
+              if (input.symbolWidths) {
+                if (input.symbolWidths[symUpper] !== undefined) return input.symbolWidths[symUpper];
+                const alias = SYMBOL_WIDTH_ALIAS_IC[symUpper];
+                if (alias && input.symbolWidths[alias] !== undefined) return input.symbolWidths[alias];
+              }
+              const price = symbolPriceMap.get(sym) || 0;
+              if (price < 500) return input.spreadWidth;
+              return Math.max(input.spreadWidth, Math.round((price * 0.004) / 5) * 5);
+            };
+
+            // Build Bull Put Spreads (mirrors blocking procedure chain-lookup logic)
+            const bullPutSpreads = new Map<string, any>();
+            for (const cspOpp of cspOpportunities) {
+              try {
+                if (cspOpp.strike >= cspOpp.currentPrice) continue;
+                const effectiveWidth = getEffectiveWidth(cspOpp.symbol);
+                const longStrike = cspOpp.strike - effectiveWidth;
+                const key = `${cspOpp.symbol}|${cspOpp.expiration}`;
+                const options = chainCache.get(key) || [];
+                if (options.length === 0) continue;
+                const putStrikes = options.filter((o: any) => o.option_type === 'put' && o.bid && o.ask).map((o: any) => o.strike).sort((a: number, b: number) => a - b);
+                const bestLongPutStrike = putStrikes.filter((s: number) => s <= longStrike).pop();
+                const longPut = bestLongPutStrike !== undefined ? options.find((o: any) => o.option_type === 'put' && o.strike === bestLongPutStrike && o.bid && o.ask) : undefined;
+                if (!longPut) continue;
+                const spreadOpp = calculateBullPutSpread(cspOpp, effectiveWidth, { bid: longPut.bid, ask: longPut.ask, delta: Math.abs(longPut.greeks?.delta || 0) });
+                const bpsCreditRatio = effectiveWidth > 0 ? spreadOpp.netCredit / effectiveWidth : 0;
+                if (spreadOpp.netCredit > 0 && bpsCreditRatio <= 0.80) {
+                  (spreadOpp as any).shortOptionSymbol = cspOpp.optionSymbol;
+                  (spreadOpp as any).longOptionSymbol = longPut.symbol;
+                  bullPutSpreads.set(`${cspOpp.symbol}|${cspOpp.expiration}`, spreadOpp);
+                }
+              } catch {}
+            }
+
+            // Build Bear Call Spreads (mirrors blocking procedure chain-lookup logic)
+            const bearCallSpreads = new Map<string, any>();
+            for (const bps of Array.from(bullPutSpreads.values())) {
+              try {
+                const key = `${bps.symbol}|${bps.expiration}`;
+                const options = chainCache.get(key) || [];
+                if (options.length === 0) continue;
+                const bcsEffectiveWidth = getEffectiveWidth(bps.symbol);
+                const isHighPriceIndex = (symbolPriceMap.get(bps.symbol) || 0) > 500;
+                const callCandidates = options.filter((opt: any) =>
+                  opt.option_type === 'call' && opt.strike > bps.currentPrice &&
+                  Math.abs(opt.greeks?.delta || 0) >= (input.minDelta || 0.15) &&
+                  Math.abs(opt.greeks?.delta || 0) <= (input.maxDelta || 0.35) &&
+                  (isHighPriceIndex || (opt.volume || 0) >= (input.minVolume || 5)) &&
+                  (isHighPriceIndex || (opt.open_interest || 0) >= (input.minOI || 50)) &&
+                  opt.bid && opt.ask
+                );
+                if (callCandidates.length === 0) continue;
+                const targetDelta = Math.abs(bps.delta);
+                const shortCall = callCandidates.reduce((best: any, curr: any) => {
+                  return Math.abs(Math.abs(curr.greeks?.delta || 0) - targetDelta) < Math.abs(Math.abs(best.greeks?.delta || 0) - targetDelta) ? curr : best;
+                });
+                const callStrikes = options.filter((o: any) => o.option_type === 'call' && o.bid && o.ask).map((o: any) => o.strike).sort((a: number, b: number) => a - b);
+                const targetLongCallStrike = shortCall.strike + bcsEffectiveWidth;
+                const bestLongCallStrike = callStrikes.find((s: number) => s >= targetLongCallStrike);
+                const longCall = bestLongCallStrike !== undefined ? options.find((o: any) => o.option_type === 'call' && o.strike === bestLongCallStrike && o.bid && o.ask) : undefined;
+                if (!longCall) continue;
+                const ccOpp: any = { symbol: bps.symbol, currentPrice: bps.currentPrice, strike: shortCall.strike, expiration: bps.expiration, dte: bps.dte, premium: shortCall.bid, bid: shortCall.bid, ask: shortCall.ask, delta: Math.abs(shortCall.greeks?.delta || 0), volume: shortCall.volume || 0, openInterest: shortCall.open_interest || 0, ivRank: bps.ivRank };
+                const spreadOpp = calculateBearCallSpread(ccOpp, bcsEffectiveWidth, { bid: longCall.bid, ask: longCall.ask, delta: Math.abs(longCall.greeks?.delta || 0) });
+                const bcsCreditRatio = bcsEffectiveWidth > 0 ? spreadOpp.netCredit / bcsEffectiveWidth : 0;
+                if (spreadOpp.netCredit > 0 && bcsCreditRatio <= 0.80) {
+                  (spreadOpp as any).shortOptionSymbol = shortCall.symbol;
+                  (spreadOpp as any).longOptionSymbol = longCall.symbol;
+                  bearCallSpreads.set(key, spreadOpp);
+                }
+              } catch {}
+            }
+
+            // Build iron condors by pairing BPS and BCS on same symbol/expiration
+            const ironCondors: any[] = [];
+            for (const [key, bps] of Array.from(bullPutSpreads.entries())) {
+              const bcs = bearCallSpreads.get(key);
+              if (!bcs) continue;
+              if (bcs.shortStrike <= bps.shortStrike) continue;
+              const totalCredit = bps.netCredit + bcs.netCredit;
+              if (totalCredit <= 0) continue;
+              const [sym, exp] = key.split('|');
+              ironCondors.push({
+                symbol: sym, expiration: exp,
+                putShortStrike: bps.shortStrike, putLongStrike: bps.longStrike,
+                callShortStrike: bcs.shortStrike, callLongStrike: bcs.longStrike,
+                putNetCredit: bps.netCredit, callNetCredit: bcs.netCredit,
+                totalNetCredit: totalCredit,
+                putShortOptionSymbol: (bps as any).shortOptionSymbol, putLongOptionSymbol: (bps as any).longOptionSymbol,
+                callShortOptionSymbol: (bcs as any).shortOptionSymbol, callLongOptionSymbol: (bcs as any).longOptionSymbol,
+                dte: bps.dte, currentPrice: bps.currentPrice,
+                spreadWidth: getEffectiveWidth(sym),
+                putShortDelta: bps.delta, callShortDelta: bcs.delta,
+                putShortBid: bps.shortBid, putShortAsk: bps.shortAsk,
+                callShortBid: bcs.shortBid, callShortAsk: bcs.shortAsk,
+              });
+            }
+
+            const scoredIronCondors = scoreOpportunities(ironCondors);
+            const riskAssessments = await calculateBulkRiskAssessments(symbols, api);
+            const scoredWithBadges = scoredIronCondors.map((opp: any) => ({
+              ...opp,
+              riskBadges: riskAssessments.get(opp.symbol)?.badges || [],
+            }));
+
+            updateScanJobProgress(jobId, { batchCurrent: 3, batchTotal: 3, symbolsDone: totalSymbols, symbolsTotal: totalSymbols, opportunitiesFound: scoredWithBadges.length });
+            await incrementScanCount(ctx.user.id, effTier, ctx.user.role);
+
+            const { completeScanJob } = await import('./scanJobManager');
+            completeScanJob(jobId, scoredWithBadges);
+          } catch (err: any) {
+            const { failScanJob } = await import('./scanJobManager');
+            failScanJob(jobId, err?.message || 'IC scan failed');
+          }
+        });
+
+        return { jobId, totalSymbols };
+      }),
+
+    pollScan: protectedProcedure
+      .input(z.object({ jobId: z.string() }))
+      .query(({ input }) => {
+        const { getScanJob } = require('./scanJobManager');
+        const job = getScanJob(input.jobId);
+        if (!job) return { status: 'not_found' as const, progress: null, results: null };
+        return {
+          status: job.status as 'running' | 'done' | 'error',
+          progress: job.progress,
+          results: job.status === 'done' ? job.results : null,
+          error: job.status === 'error' ? job.error : null,
+        };
       }),
   }),
   // Bull Put Spreads (Phase 2: Backend Pricing)g)

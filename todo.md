@@ -9346,3 +9346,13 @@ ROC Fix Mar 18 2026
 - [x] Add spread.startScan mutation (returns jobId immediately, fires background setImmediate)
 - [x] Add spread.pollScan query (polls every 3s until done/error)
 - [x] Update CSPDashboard.tsx to use async start/poll pattern instead of blocking useQuery
+
+## IC Async Scan + TypeScript Fixes (Apr 17, 2026)
+- [x] Add ironCondor.startScan mutation (returns jobId immediately, fires background setImmediate)
+- [x] Add ironCondor.pollScan query (polls every 3s until done/error)
+- [x] Update IronCondorDashboard.tsx to use async start/poll pattern
+- [x] Fix IC startScan: createScanJob(userId, totalSymbols) returns job object — use job.id for jobId
+- [x] Fix IC startScan BPS construction: use correct calculateBullPutSpread(cspOpp, width, {bid, ask, delta}) signature with chain lookup
+- [x] Fix IC startScan BCS construction: use correct calculateBearCallSpread(ccOpp, width, {bid, ask, delta}) signature with chain lookup
+- [x] Fix IC startScan: calculateBulkRiskAssessments(symbols, api) — was incorrectly passing ctx.user.id (number) instead of TradierAPI instance
+- [x] TypeScript: 0 errors after all IC startScan fixes
