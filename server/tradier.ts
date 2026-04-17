@@ -614,7 +614,8 @@ export class TradierAPI {
     maxDte: number = 30,
     minVolume: number = 5,
     minOI: number = 50,
-    skipTechnicals: boolean = false
+    skipTechnicals: boolean = false,
+    onBatchComplete?: (batchNum: number, totalBatches: number, symbolsDone: number, oppsFound: number) => void
   ): Promise<CSPOpportunity[]> {
     console.log(`[Tradier API] Fetching CSP opportunities for ${symbols.length} symbols with parallel processing (skipTechnicals=${skipTechnicals})...`);
     
@@ -671,6 +672,10 @@ export class TradierAPI {
       });
       
       console.log(`[Tradier API] Batch ${batchNum}/${totalBatches} complete. Running total: ${allOpportunities.length} opportunities.`);
+      // Fire progress callback so the scan job manager can update the job status
+      if (onBatchComplete) {
+        onBatchComplete(batchNum, totalBatches, Math.min((batchNum * BATCH_SIZE), symbols.length), allOpportunities.length);
+      }
     }
     
     console.log(`[Tradier API] Completed: ${allOpportunities.length} total opportunities from ${symbols.length} symbols`);

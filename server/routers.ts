@@ -3457,7 +3457,11 @@ Summary: [One sentence overall assessment]`;
               capturedInput.maxDte || 45,
               capturedInput.minVolume || 5,
               capturedInput.minOI || 50,
-              true
+              true,
+              // Per-batch progress callback — updates job so pollScan returns live batch/symbol counts
+              (batchNum, totalBatches, symbolsDone, oppsFound) => {
+                updateScanJobProgress(jobId, { batchCurrent: batchNum, batchTotal: totalBatches, symbolsDone, opportunitiesFound: oppsFound });
+              }
             );
             updateScanJobProgress(jobId, { symbolsDone: symbols.length, opportunitiesFound: cspOpportunities.length });
             // Pre-fetch unique option chains

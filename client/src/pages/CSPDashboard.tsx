@@ -111,38 +111,59 @@ function getLiquidityColor(value: number, type: 'oi' | 'vol'): string {
 }
 
 // Live countdown component for progress dialog
-function LiveCountdown({ startTime, totalSymbols, strategyType }: { startTime: number; totalSymbols: number; strategyType?: 'csp' | 'spread' }) {
-  const [remainingSeconds, setRemainingSeconds] = useState(0);
-  const [estimatedTotal, setEstimatedTotal] = useState(0);
+function LiveCountdown({ startTime, totalSymbols, strategyType, liveProgress }: {
+  startTime: number;
+  totalSymbols: number;
+  strategyType?: 'csp' | 'spread';
+  liveProgress?: { batchCurrent: number; batchTotal: number; symbolsDone: number; symbolsTotal: number; opportunitiesFound: number } | null;
+}) {
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   
   useEffect(() => {
-    // Time estimates based on real performance data:
-    // CSP: 1.32 seconds per symbol (single-leg options)
-    // Spread: 4.8 seconds per symbol (two-leg options with optimization)
-    const secondsPerSymbol = strategyType === 'spread' ? 4.8 : 1.32;
-    const estimatedTotalSeconds = totalSymbols * secondsPerSymbol;
-    setEstimatedTotal(estimatedTotalSeconds);
-    
     const interval = setInterval(() => {
-      const elapsed = (Date.now() - startTime) / 1000;
-      const remaining = Math.max(0, estimatedTotalSeconds - elapsed);
-      setRemainingSeconds(remaining);
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
     }, 1000);
-    
     return () => clearInterval(interval);
-  }, [startTime, totalSymbols, strategyType]);
+  }, [startTime]);
   
+  // Use real server progress if available, else fall back to time estimate
+  const hasLiveProgress = liveProgress && (liveProgress.batchTotal > 0 || liveProgress.symbolsDone > 0);
+  const secondsPerSymbol = strategyType === 'spread' ? 4.8 : 1.32;
+  const estimatedTotalSeconds = totalSymbols * secondsPerSymbol;
+  
+  let progressPercent = 0;
+  let statusLine = '';
+  let subLine = '';
+  
+  if (hasLiveProgress && liveProgress) {
+    // Real progress from server
+    const symbolsDone = liveProgress.symbolsDone;
+    const symbolsTotal = liveProgress.symbolsTotal || totalSymbols;
+    progressPercent = symbolsTotal > 0 ? Math.min(95, (symbolsDone / symbolsTotal) * 100) : 0;
+    const batchLabel = liveProgress.batchTotal > 0
+      ? `Batch ${liveProgress.batchCurrent}/${liveProgress.batchTotal}`
+      : 'Scanning...';
+    statusLine = `${batchLabel} — ${symbolsDone}/${symbolsTotal} symbols`;
+    subLine = liveProgress.opportunitiesFound > 0
+      ? `${liveProgress.opportunitiesFound} opportunities found so far`
+      : strategyType === 'spread' ? 'Fetching spread chains...' : 'Fetching option chains...';
+  } else {
+    // Time-estimate fallback (before first batch completes)
+    progressPercent = estimatedTotalSeconds > 0 ? Math.min(30, (elapsedSeconds / estimatedTotalSeconds) * 100) : 5;
+    statusLine = `Scanning ${totalSymbols} symbols...`;
+    subLine = strategyType === 'spread' ? 'Fetching spread chains...' : 'Fetching option chains...';
+  }
+
+  const remainingSeconds = Math.max(0, estimatedTotalSeconds - elapsedSeconds);
   const minutes = Math.floor(remainingSeconds / 60);
-  const seconds = Math.floor(remainingSeconds % 60);
-  const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
-  const progressPercent = estimatedTotal > 0 ? Math.min(100, (elapsedSeconds / estimatedTotal) * 100) : 0;
+  const secs = Math.floor(remainingSeconds % 60);
   
   return (
     <div className="flex flex-col items-center justify-center space-y-4">
       <Loader2 className="w-12 h-12 animate-spin text-primary" />
       <div className="w-full space-y-2">
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Processing {totalSymbols} symbols...</span>
+          <span>{statusLine}</span>
           <span>{Math.round(progressPercent)}%</span>
         </div>
         <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
@@ -152,16 +173,21 @@ function LiveCountdown({ startTime, totalSymbols, strategyType }: { startTime: n
           />
         </div>
       </div>
-      <p className="text-lg font-semibold text-primary">
-        {remainingSeconds > 0 ? (
-          <>{minutes}:{seconds.toString().padStart(2, '0')} remaining</>
-        ) : (
-          <>Finishing up...</>
-        )}
-      </p>
-      <p className="text-xs text-muted-foreground">
-        {strategyType === 'spread' ? 'Fetching spread chains...' : 'Fetching option chains...'}
-      </p>
+      {hasLiveProgress && liveProgress && liveProgress.opportunitiesFound > 0 ? (
+        <p className="text-lg font-semibold text-green-500">
+          🟢 {liveProgress.opportunitiesFound} opportunities found
+        </p>
+      ) : (
+        <p className="text-lg font-semibold text-primary">
+          {remainingSeconds > 0 ? (
+            <>{minutes}:{secs.toString().padStart(2, '0')} remaining</>
+          ) : (
+            <>Finishing up...</>
+          )}
+        </p>
+      )}
+      <p className="text-xs text-muted-foreground">{subLine}</p>
+      <p className="text-xs text-muted-foreground opacity-60">{elapsedSeconds}s elapsed</p>
     </div>
   );
 }
@@ -3443,6 +3469,7 @@ export default function CSPDashboard() {
                 startTime={fetchProgress.startTime || Date.now()} 
                 totalSymbols={fetchProgress.total}
                 strategyType={strategyType}
+                liveProgress={strategyType === 'spread' && pollData?.progress ? pollData.progress : null}
               />
             ) : (
               <div className="text-center space-y-4">

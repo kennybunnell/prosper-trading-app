@@ -184,7 +184,9 @@ export class TastytradeAPI {
             // (symbol, strategy, strike, expiration, etc.). Logging them here produces empty/duplicate entries.
             const isOrderEndpoint = endpoint.includes('/orders');
             if (!isAuthError && !isRateLimit && !isOrderEndpoint) {
-              await writeTradingLog({ userId: this.userId, action: 'API_ERROR', strategy: 'api_interceptor', symbol: endpoint.split('/').pop() || 'api', optionSymbol: '', accountNumber: '', price: '', strike: '', expiration: '', quantity: 0, outcome: 'api_error', errorMessage: `[${status}] ${endpoint}: ${errMsg}`, source: 'Tastytrade API Interceptor' });
+              // Truncate symbol to 50 chars to avoid DB column overflow (endpoint can be very long for batch quote requests)
+            const symbolForLog = (endpoint.split('/').pop() || 'api').substring(0, 50);
+            await writeTradingLog({ userId: this.userId, action: 'API_ERROR', strategy: 'api_interceptor', symbol: symbolForLog, optionSymbol: '', accountNumber: '', price: '', strike: '', expiration: '', quantity: 0, outcome: 'api_error', errorMessage: `[${status}] ${endpoint.substring(0, 200)}: ${errMsg}`, source: 'Tastytrade API Interceptor' });
             }
           } catch (_logErr) { /* never block the main error path */ }
         }
@@ -729,60 +731,47 @@ export class TastytradeAPI {
       return m ? m[1] : '';
     };
 
-    try {
-      // Build query string: index options use 'index-option', equity options use 'equity-option'
-      // Example: ?index-option=SPXW  260408C06550000&equity-option=AAPL  260220C00150000
-      // Build query string manually using %20 for spaces (NOT + from URLSearchParams.toString())
-      // The Tastytrade API requires OCC symbols with spaces encoded as %20, not +
-      // e.g. "XSP   260417P00660000" must become "XSP%20%20%20260417P00660000"
-      const queryParts: string[] = [];
-      symbols.forEach(symbol => {
-        const underlying = getUnderlying(symbol);
-        const paramType = INDEX_UNDERLYINGS.has(underlying) ? 'index-option' : 'equity-option';
-        // encodeURIComponent encodes spaces as %20 (correct), not + (incorrect)
-        queryParts.push(`${paramType}=${encodeURIComponent(symbol)}`);
-      });
-      const queryString = queryParts.join('&');
-      
-      console.log(`[Tastytrade] Requesting quotes for symbols:`, symbols);
-      console.log(`[Tastytrade] Query string:`, queryString);
-      
-      const response = await this.client.get(`/market-data/by-type?${queryString}`);
-      
-      console.log(`[Tastytrade] API response status:`, response.status);
-      console.log(`[Tastytrade] API response data:`, JSON.stringify(response.data, null, 2));
-      
-      // Convert array response to map keyed by symbol
-      const quotes: Record<string, any> = {};
-      
-      // Access the items array from response.data.data.items
-      let items = response.data?.data?.items || response.data?.data || [];
-      
-      // Handle both array and object responses
-      const itemsArray = Array.isArray(items) ? items : [items];
-      
-      for (const item of itemsArray) {
-        if (item && item.symbol) {
-          // Convert string values to numbers (Tastytrade API returns strings)
-          quotes[item.symbol] = {
-            bid: parseFloat(item.bid) || 0,
-            ask: parseFloat(item.ask) || 0,
-            mid: parseFloat(item.mid) || 0,
-            last: parseFloat(item.last) || 0,
-            mark: parseFloat(item.mark) || 0,
-          };
+    // Deduplicate symbols to avoid redundant API calls
+    const uniqueSymbols = Array.from(new Set(symbols));
+    // Chunk into batches of 100 to avoid HTTP 414 (Request-URI Too Large)
+    // With 692 BPS opportunities × 2 legs = 1384 symbols, batching is essential
+    const BATCH_SIZE = 100;
+    const allQuotes: Record<string, any> = {};
+    for (let i = 0; i < uniqueSymbols.length; i += BATCH_SIZE) {
+      const batch = uniqueSymbols.slice(i, i + BATCH_SIZE);
+      try {
+        // Build query string: index options use 'index-option', equity options use 'equity-option'
+        // Build query string manually using %20 for spaces (NOT + from URLSearchParams.toString())
+        // The Tastytrade API requires OCC symbols with spaces encoded as %20, not +
+        const queryParts: string[] = [];
+        batch.forEach(symbol => {
+          const underlying = getUnderlying(symbol);
+          const paramType = INDEX_UNDERLYINGS.has(underlying) ? 'index-option' : 'equity-option';
+          queryParts.push(`${paramType}=${encodeURIComponent(symbol)}`);
+        });
+        const queryString = queryParts.join('&');
+        const response = await this.client.get(`/market-data/by-type?${queryString}`);
+        // Access the items array from response.data.data.items
+        const items = response.data?.data?.items || response.data?.data || [];
+        const itemsArray = Array.isArray(items) ? items : [items];
+        for (const item of itemsArray) {
+          if (item && item.symbol) {
+            allQuotes[item.symbol] = {
+              bid: parseFloat(item.bid) || 0,
+              ask: parseFloat(item.ask) || 0,
+              mid: parseFloat(item.mid) || 0,
+              last: parseFloat(item.last) || 0,
+              mark: parseFloat(item.mark) || 0,
+            };
+          }
         }
+      } catch (error: any) {
+        console.error(`[Tastytrade] Failed to fetch option quotes batch ${Math.floor(i / BATCH_SIZE) + 1}:`, error.message);
+        // Continue with remaining batches — partial results are better than none
       }
-      
-      console.log(`[Tastytrade] Parsed quotes:`, JSON.stringify(quotes, null, 2));
-      console.log(`[Tastytrade] Fetched ${Object.keys(quotes).length}/${symbols.length} option quotes`);
-      return quotes;
-    } catch (error: any) {
-      console.error('[Tastytrade] Failed to fetch option quotes:');
-      console.error('[Tastytrade] Error response:', error.response?.data);
-      console.error('[Tastytrade] Error message:', error.message);
-      return {}; // Return empty object on error to allow graceful degradation
     }
+    console.log(`[Tastytrade] Fetched ${Object.keys(allQuotes).length}/${uniqueSymbols.length} option quotes (${Math.ceil(uniqueSymbols.length / BATCH_SIZE)} batches)`);
+    return allQuotes;
   }
 
   /**
