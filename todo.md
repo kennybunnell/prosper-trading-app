@@ -9313,3 +9313,7 @@ ROC Fix Mar 18 2026
 - [x] Telegram notifications on CSP/BPS/IC order submission (success + rejection)
 - [x] Daily morning briefing cron (8:30 AM MT, weekdays) — positions expiring ≤7 DTE + open premium summary
 - [x] Dev endpoint /api/dev/trigger-telegram-briefing for manual testing
+
+## Telegram Enhancements (Apr 2026)
+- [x] Add "Test Telegram" button to Settings page (calls /api/dev/trigger-telegram-briefing)
+- [x] Enrich daily briefing with P&L data — unrealized P&L and % premium captured per expiring position

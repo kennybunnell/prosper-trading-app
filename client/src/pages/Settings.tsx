@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { Loader2, CheckCircle2, XCircle, AlertCircle, Trash2, Wand2, RefreshCw, Database } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, AlertCircle, Trash2, Wand2, RefreshCw, Database, Send, BellRing } from "lucide-react";
 import { useState, useEffect } from "react";
 import TastytradeWizard from "@/components/TastytradeWizard";
 import { toast } from "sonner";
@@ -730,6 +730,9 @@ export default function Settings() {
           </CardContent>
         </Card>
 
+        {/* Telegram Notifications */}
+        <TelegramTestCard />
+
         {/* Portfolio Data Cache */}
         <PortfolioSyncCard />
 
@@ -1264,8 +1267,56 @@ function PresetEditor({
   );
 }
 
-// ─── Portfolio Sync Card ──────────────────────────────────────────────────────
+// ─── Telegram Test Card ─────────────────────────────────────────────────────
+function TelegramTestCard() {
+  const testTelegram = trpc.system.testTelegram.useMutation({
+    onSuccess: () => {
+      toast.success('Test message sent! Check your Telegram bot.');
+    },
+    onError: (err: any) => {
+      toast.error(`Telegram test failed: ${err.message}`);
+    },
+  });
 
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <BellRing className="h-5 w-5 text-blue-400" />
+          Telegram Notifications
+        </CardTitle>
+        <CardDescription>
+          Receive order confirmations and a daily morning briefing (8:30 AM MT, weekdays)
+          directly in your Telegram bot. Use the button below to verify connectivity.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="rounded-md border border-muted bg-muted/20 p-3 space-y-1 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">What you'll receive:</p>
+          <ul className="list-disc list-inside space-y-0.5">
+            <li>✅ Order filled / ❌ Order rejected — for every CC, Roll, and CSP/BPS submission</li>
+            <li>🌅 Daily briefing at 8:30 AM MT — open positions, expiring ≤7 DTE, P&L snapshot</li>
+          </ul>
+        </div>
+        <Button
+          onClick={() => testTelegram.mutate()}
+          disabled={testTelegram.isPending}
+          size="sm"
+          className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+        >
+          {testTelegram.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+          {testTelegram.isPending ? 'Sending...' : 'Send Test Message'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Portfolio Sync Card ──────────────────────────────────────────────────────
 function PortfolioSyncCard() {
   const utils = trpc.useUtils();
 
