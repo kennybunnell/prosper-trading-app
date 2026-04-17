@@ -9328,3 +9328,6 @@ ROC Fix Mar 18 2026
 
 ## Close Modal UX (Apr 17, 2026)
 - [x] Add Net Credit / Net Debit badge next to limit price in Close for Profit modal
+
+## Bug Fix: BPS Scan 504 Timeout (Apr 17, 2026)
+- [x] Fix spread.opportunities 504 Gateway Timeout — parallelize chain fetches with concurrency limit and per-symbol timeout

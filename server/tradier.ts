@@ -617,17 +617,18 @@ export class TradierAPI {
   ): Promise<CSPOpportunity[]> {
     console.log(`[Tradier API] Fetching CSP opportunities for ${symbols.length} symbols with parallel processing...`);
     
-    // Process symbols in parallel with concurrency limit of 5
-    const CONCURRENCY = 5;
+    // Process ALL symbols fully in parallel (no sequential batching).
+    // Previous batching of 5 caused 13 sequential rounds for 62 symbols (~260s total).
+    // Now all symbols are dispatched at once; the tradierRateLimiter semaphore (MAX_CONCURRENT=12)
+    // inside fetchSymbolOpportunities already prevents Tradier from being overwhelmed.
+    // Per-symbol timeout reduced from 90s → 30s: each symbol needs at most 3 chain fetches
+    // (each 30s axios timeout), so 30s per symbol is sufficient for all but the largest indexes.
     const allOpportunities: CSPOpportunity[] = [];
     
-    for (let i = 0; i < symbols.length; i += CONCURRENCY) {
-      const batch = symbols.slice(i, i + CONCURRENCY);
-      console.log(`[Tradier API] Processing batch ${Math.floor(i / CONCURRENCY) + 1}/${Math.ceil(symbols.length / CONCURRENCY)} (symbols: ${batch.join(', ')})`);
-      
-      // Wrap each symbol fetch with a timeout to prevent hanging.
-      // SPX/NDX chains can have 300+ contracts per expiration — allow 90s for large index chains.
-      const batchPromises = batch.map(symbol => 
+    console.log(`[Tradier API] Dispatching all ${symbols.length} symbols in parallel (rate-limited by semaphore)...`);
+    
+    const allResults = await Promise.allSettled(
+      symbols.map(symbol =>
         Promise.race([
           this.fetchSymbolOpportunities(
             symbol,
@@ -638,23 +639,21 @@ export class TradierAPI {
             minVolume,
             minOI
           ),
-          new Promise<CSPOpportunity[]>((_, reject) => 
-            setTimeout(() => reject(new Error(`Timeout after 90s`)), 90000)
+          new Promise<CSPOpportunity[]>((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout after 30s`)), 30000)
           )
         ])
-      );
-      
-      const batchResults = await Promise.allSettled(batchPromises);
-      
-      batchResults.forEach((result, idx) => {
-        if (result.status === 'fulfilled') {
-          allOpportunities.push(...result.value);
-          console.log(`[Tradier API] ✓ ${batch[idx]}: found ${result.value.length} opportunities`);
-        } else {
-          console.error(`[Tradier API] ✗ ${batch[idx]}: ${result.reason}`);
-        }
-      });
-    }
+      )
+    );
+    
+    allResults.forEach((result, idx) => {
+      if (result.status === 'fulfilled') {
+        allOpportunities.push(...result.value);
+        console.log(`[Tradier API] ✓ ${symbols[idx]}: found ${result.value.length} opportunities`);
+      } else {
+        console.error(`[Tradier API] ✗ ${symbols[idx]}: ${result.reason}`);
+      }
+    });
     
     console.log(`[Tradier API] Completed: ${allOpportunities.length} total opportunities from ${symbols.length} symbols`);
     return allOpportunities;
