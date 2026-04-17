@@ -910,7 +910,10 @@ export const performanceRouter = router({
         if (pos.spreadType && pos.longStrike) {
           // Spread position - need to close both legs
           console.log(`[Performance] Detected ${pos.spreadType} spread: ${pos.strike}/${pos.longStrike}`);
-          
+
+          // Hoist price-effect outside try so it's accessible in catch for logging
+          const spreadPriceEffect: 'Credit' | 'Debit' = pos.longStrike > pos.strike ? 'Credit' : 'Debit';
+
           try {
             // Import price formatting utility
             const { formatPriceForSubmission, snapToTick } = await import('../shared/orderUtils');
@@ -941,26 +944,52 @@ export const performanceRouter = router({
             const longSymbol = `${ticker.padEnd(6, ' ')}${dateStr}${optionType}${longStrikeStr}`;
             const formattedShortSymbol = `${ticker.padEnd(6, ' ')}${dateStr}${optionType}${shortStrikeStr}`;
             
-            // Use the user-adjusted price from the modal (pos.currentPrice) with a small
-            // aggressive buffer so the order fills quickly. For BTC spreads we pay a net
-            // debit, so we add a buffer (10% or $0.05 min) above the current mark.
+            // ── Determine price-effect direction ──────────────────────────────────
+            // [6063] Vertical DebitCredit Check: Tastytrade validates that the declared
+            // price-effect matches the actual net cash flow of the two legs.
+            //
+            // Bull Put Spread (BPS) close:
+            //   - BTC the short put (lower strike, e.g. 6625P) — costs money
+            //   - STC the long put  (higher strike, e.g. 6675P) — receives money
+            //   The long put (higher strike) is worth MORE than the short put.
+            //   When the spread has decayed, STC the long put > BTC the short put
+            //   → net cash flow is a CREDIT (we receive money to close).
+            //
+            // Bear Call Spread (BCS) close:
+            //   - BTC the short call (lower strike) — costs more (lower strike call is pricier)
+            //   - STC the long call  (higher strike) — receives less
+            //   → net cash flow is a DEBIT (we pay to close).
+            //
+            // Rule: if longStrike > shortStrike (bull put spread), closing is a Credit.
+            //       if longStrike < shortStrike (bear call spread), closing is a Debit.
+            const isBullPutSpread = pos.longStrike > pos.strike;
+            const netPriceEffect = spreadPriceEffect; // Already computed above
+
+            // For the limit price:
+            //   Credit close (BPS): we want to receive AT LEAST this much.
+            //     Use a slightly aggressive (lower) limit so the order fills quickly.
+            //     Buffer: subtract 10% or $0.05 min from the mark (accept slightly less).
+            //   Debit close (BCS): we want to pay AT MOST this much.
+            //     Buffer: add 10% or $0.05 min above the mark (willing to pay slightly more).
             const pricePremium = Math.max(pos.currentPrice * 0.10, 0.05);
-            const rawDebitPrice = pos.currentPrice + pricePremium;
+            const rawPrice = isBullPutSpread
+              ? Math.max(0.01, pos.currentPrice - pricePremium) // Credit: accept slightly less
+              : pos.currentPrice + pricePremium;                // Debit: pay slightly more
             // Snap to the correct tick size for this symbol (index options use $0.10 ticks)
-            const snappedDebitPrice = snapToTick(rawDebitPrice, pos.underlying);
-            const formattedPrice = formatPriceForSubmission(snappedDebitPrice);
-            
+            const snappedPrice = snapToTick(rawPrice, pos.underlying);
+            const formattedPrice = formatPriceForSubmission(snappedPrice);
+
             console.log(`[Performance] Closing ${instrumentType} spread: Short=${formattedShortSymbol}, Long=${longSymbol}`);
-            console.log(`[Performance] Net debit price: $${formattedPrice} (mark=$${pos.currentPrice.toFixed(2)} + $${pricePremium.toFixed(2)})`);
-            
+            console.log(`[Performance] Spread type: ${isBullPutSpread ? 'Bull Put (BPS)' : 'Bear Call (BCS)'} → price-effect: ${netPriceEffect}`);
+            console.log(`[Performance] Limit price: $${formattedPrice} (mark=$${pos.currentPrice.toFixed(2)}, buffer=$${pricePremium.toFixed(2)})`);
+
             // Build two-leg order payload
-            // price-effect is always 'Debit' for BTC spread closes (we pay to close)
             const orderPayload = {
               'time-in-force': 'Day',
               'order-type': 'Limit',
               'underlying-symbol': pos.underlying,
               price: formattedPrice,
-              'price-effect': 'Debit', // We pay a net debit to buy back the spread
+              'price-effect': netPriceEffect, // Dynamically determined: Credit for BPS, Debit for BCS
               legs: [
                 {
                   'instrument-type': instrumentType,
@@ -1009,7 +1038,7 @@ export const performanceRouter = router({
                 optionSymbol: formattedShortSymbol, accountNumber: pos.accountId,
                 strategy: 'spread-close', action: 'BTC',
                 strike: String(pos.strike),
-                quantity: pos.quantity, price: formattedPrice, priceEffect: 'Debit',
+                quantity: pos.quantity, price: formattedPrice, priceEffect: netPriceEffect,
                 instrumentType: 'Equity Option', outcome: 'success', orderId: String(orderId),
                 source: 'routers-performance/submitCloseOrders',
               });
@@ -1026,7 +1055,10 @@ export const performanceRouter = router({
             await writeTradingLog({
               userId: ctx.user.id, symbol: pos.underlying,
               accountNumber: pos.accountId, strategy: 'spread-close', action: 'BTC',
-              strike: String(pos.strike), quantity: pos.quantity, priceEffect: 'Debit', instrumentType: 'Equity Option',
+              strike: String(pos.strike), quantity: pos.quantity,
+              // netPriceEffect may not be defined if the error occurred before it was computed
+              priceEffect: spreadPriceEffect,
+              instrumentType: 'Equity Option',
               outcome: 'error', errorMessage: error.message,
               errorPayload: JSON.stringify(error?.response?.data ?? {}),
               source: 'routers-performance/submitCloseOrders',

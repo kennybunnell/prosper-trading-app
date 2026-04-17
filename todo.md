@@ -9317,3 +9317,6 @@ ROC Fix Mar 18 2026
 ## Telegram Enhancements (Apr 2026)
 - [x] Add "Test Telegram" button to Settings page (calls /api/dev/trigger-telegram-briefing)
 - [x] Enrich daily briefing with P&L data — unrealized P&L and % premium captured per expiring position
+
+## Bug Fixes (Apr 17, 2026)
+- [x] Fix [6063] Vertical DebitCredit Check rejection for BPS close-for-profit — dynamically determine price-effect (Credit for BPS, Debit for BCS) instead of hardcoding 'Debit'
