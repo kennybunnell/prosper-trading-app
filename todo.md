@@ -9325,3 +9325,6 @@ ROC Fix Mar 18 2026
 - [x] Audit all price-effect settings for BCS spread close orders
 - [x] Audit all price-effect settings for Iron Condor (IC) spread close orders
 - [x] Ensure consistent dynamic Credit/Debit logic across all spread types (BPS, BCS, IC)
+
+## Close Modal UX (Apr 17, 2026)
+- [x] Add Net Credit / Net Debit badge next to limit price in Close for Profit modal

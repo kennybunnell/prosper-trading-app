@@ -1923,6 +1923,33 @@ export function UnifiedOrderPreviewModal({
                               Net Credit
                             </span>
                           )}
+                          {/* Net Credit / Net Debit badge for BTC spread close orders */}
+                          {strategy === 'btc' && isBTCSpread && (() => {
+                            // Mirror the server-side determinePriceEffect() logic:
+                            //   BPS close: STC the long PUT (higher strike) → net CREDIT received
+                            //   BCS close: BTC the short CALL (lower strike) → net DEBIT paid
+                            //   IC close (4-leg): BCS debit dominates → net DEBIT
+                            // Detection: read option type from OCC symbol at char index 12 (C or P)
+                            const isIronCondorClose = !!(order.callShortStrike && order.callLongStrike);
+                            let isCreditClose = false;
+                            if (!isIronCondorClose) {
+                              // Prefer spreadLongSymbol (most reliable — it's the actual long leg OCC symbol)
+                              const longSym = order.spreadLongSymbol || order.optionSymbol || '';
+                              const optChar = longSym.charAt(12);
+                              // If spreadLongSymbol: optChar === 'P' means selling back a long PUT → Credit
+                              // If optionSymbol (short leg): optChar === 'P' means it's a BPS → Credit
+                              isCreditClose = optChar === 'P';
+                            }
+                            return isCreditClose ? (
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/15 border border-emerald-400/30 rounded px-1.5 py-0.5 mb-0.5 inline-flex items-center gap-0.5">
+                                ↑ Net Credit
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-400/15 border border-amber-400/30 rounded px-1.5 py-0.5 mb-0.5 inline-flex items-center gap-0.5">
+                                ↓ Net Debit
+                              </span>
+                            );
+                          })()}
                           <span className="font-semibold text-green-600">
                             ${price.toFixed(2)}
                           </span>
