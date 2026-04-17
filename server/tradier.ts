@@ -617,43 +617,59 @@ export class TradierAPI {
   ): Promise<CSPOpportunity[]> {
     console.log(`[Tradier API] Fetching CSP opportunities for ${symbols.length} symbols with parallel processing...`);
     
-    // Process ALL symbols fully in parallel (no sequential batching).
-    // Previous batching of 5 caused 13 sequential rounds for 62 symbols (~260s total).
-    // Now all symbols are dispatched at once; the tradierRateLimiter semaphore (MAX_CONCURRENT=12)
-    // inside fetchSymbolOpportunities already prevents Tradier from being overwhelmed.
-    // Per-symbol timeout reduced from 90s → 30s: each symbol needs at most 3 chain fetches
-    // (each 30s axios timeout), so 30s per symbol is sufficient for all but the largest indexes.
+    // Smart batching: process symbols in batches of BATCH_SIZE.
+    // 
+    // Why not fully parallel (all 62 at once):
+    //   With 62 symbols dispatched simultaneously and only 20 semaphore slots, symbols
+    //   queued after position ~20 wait 20-25s just to START their first API call.
+    //   A 30s per-symbol timeout fires before they even begin → 58 of 62 symbols time out.
+    //
+    // Why batches of 20 with 120s timeout:
+    //   Batch 1 (20 symbols): all 20 start immediately, complete in ~15-20s.
+    //   Batch 2 (20 symbols): start after batch 1, complete in ~15-20s.
+    //   Batch 3 (22 symbols): start after batch 2, complete in ~15-20s.
+    //   Total: ~45-60s for 62 symbols — well under the 5-min gateway limit.
+    //   120s timeout per symbol: generous enough for large index chains (SPX has 300+ contracts)
+    //   while still catching genuinely hung requests.
+    const BATCH_SIZE = 20;
     const allOpportunities: CSPOpportunity[] = [];
     
-    console.log(`[Tradier API] Dispatching all ${symbols.length} symbols in parallel (rate-limited by semaphore)...`);
-    
-    const allResults = await Promise.allSettled(
-      symbols.map(symbol =>
-        Promise.race([
-          this.fetchSymbolOpportunities(
-            symbol,
-            minDelta,
-            maxDelta,
-            minDte,
-            maxDte,
-            minVolume,
-            minOI
-          ),
-          new Promise<CSPOpportunity[]>((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout after 30s`)), 30000)
-          )
-        ])
-      )
-    );
-    
-    allResults.forEach((result, idx) => {
-      if (result.status === 'fulfilled') {
-        allOpportunities.push(...result.value);
-        console.log(`[Tradier API] ✓ ${symbols[idx]}: found ${result.value.length} opportunities`);
-      } else {
-        console.error(`[Tradier API] ✗ ${symbols[idx]}: ${result.reason}`);
-      }
-    });
+    for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
+      const batch = symbols.slice(i, i + BATCH_SIZE);
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(symbols.length / BATCH_SIZE);
+      console.log(`[Tradier API] Batch ${batchNum}/${totalBatches}: dispatching ${batch.length} symbols in parallel (${batch.join(', ')})`);
+      
+      const batchResults = await Promise.allSettled(
+        batch.map(symbol =>
+          Promise.race([
+            this.fetchSymbolOpportunities(
+              symbol,
+              minDelta,
+              maxDelta,
+              minDte,
+              maxDte,
+              minVolume,
+              minOI
+            ),
+            new Promise<CSPOpportunity[]>((_, reject) =>
+              setTimeout(() => reject(new Error(`Timeout after 120s`)), 120000)
+            )
+          ])
+        )
+      );
+      
+      batchResults.forEach((result, idx) => {
+        if (result.status === 'fulfilled') {
+          allOpportunities.push(...result.value);
+          console.log(`[Tradier API] ✓ ${batch[idx]}: found ${result.value.length} opportunities`);
+        } else {
+          console.error(`[Tradier API] ✗ ${batch[idx]}: ${result.reason}`);
+        }
+      });
+      
+      console.log(`[Tradier API] Batch ${batchNum}/${totalBatches} complete. Running total: ${allOpportunities.length} opportunities.`);
+    }
     
     console.log(`[Tradier API] Completed: ${allOpportunities.length} total opportunities from ${symbols.length} symbols`);
     return allOpportunities;

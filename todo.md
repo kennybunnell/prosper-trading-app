@@ -9331,3 +9331,7 @@ ROC Fix Mar 18 2026
 
 ## Bug Fix: BPS Scan 504 Timeout (Apr 17, 2026)
 - [x] Fix spread.opportunities 504 Gateway Timeout — parallelize chain fetches with concurrency limit and per-symbol timeout
+
+## BPS Scan Optimization Round 2 (Apr 17, 2026)
+- [x] Diagnose remaining BPS scan slowness and low opportunity count (30 found for 62 symbols)
+- [x] Optimize further to reduce scan time and increase opportunity yield

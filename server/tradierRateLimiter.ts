@@ -5,11 +5,14 @@
  * This semaphore limits concurrent option chain fetches to MAX_CONCURRENT across
  * ALL scanners (CC, BCS, CSP/BPS, IC, PMCC) to prevent rate-limit timeouts.
  *
- * Raised from 6 → 12 after profiling showed sequential chain fetches per position
- * were the primary bottleneck. 12 concurrent = ~2x faster without overwhelming Tradier.
+ * Raised from 6 → 12 → 20 after profiling:
+ * - 6: too slow, sequential chain fetches per position were the bottleneck
+ * - 12: 2x faster but still caused 30s timeouts when 62 symbols queued simultaneously
+ * - 20: allows 62-symbol BPS scan to complete in ~4 batches of 20 × ~20s = ~80s total
+ * Tradier allows ~120 req/min; 20 concurrent well within that limit.
  */
 
-const MAX_CONCURRENT = 12;
+const MAX_CONCURRENT = 20;
 
 let activeCount = 0;
 const queue: Array<() => void> = [];
