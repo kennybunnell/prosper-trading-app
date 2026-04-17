@@ -3379,6 +3379,217 @@ Summary: [One sentence overall assessment]`;
   }),
   // Bull Put Spreads (Phase 2: Backend Pricing)g)
   spread: router({
+    // ── ASYNC SCAN: startScan fires background job, pollScan returns progress/results ──
+    // This pattern bypasses the 300s gateway timeout by returning a jobId immediately.
+    startScan: protectedProcedure
+      .input(
+        z.object({
+          symbols: z.array(z.string()).optional(),
+          minDelta: z.number().optional(),
+          maxDelta: z.number().optional(),
+          minDte: z.number().optional(),
+          maxDte: z.number().optional(),
+          minVolume: z.number().optional(),
+          minOI: z.number().optional(),
+          spreadWidth: z.number(),
+          symbolWidths: z.record(z.string(), z.number()).optional(),
+          isIndexMode: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { getApiCredentials } = await import('./db');
+        const { checkRateLimit, incrementScanCount } = await import('./middleware/rateLimiting');
+        const { getEffectiveTier: _getETx } = await import('./middleware/subscriptionEnforcement');
+        const { createScanJob, updateScanJobProgress, completeScanJob, failScanJob } = await import('./scanJobManager');
+        const _effTier = _getETx(ctx.user);
+        const rateLimit = await checkRateLimit(ctx.user.id, _effTier, ctx.user.role);
+        if (!rateLimit.allowed) throw new Error(rateLimit.message || 'Rate limit exceeded');
+        const credentials = await getApiCredentials(ctx.user.id);
+        const isPaperOrFreeTrial = _effTier === 'free_trial' || ctx.user.tradingMode === 'paper';
+        const tradierApiKey = credentials?.tradierApiKey || (isPaperOrFreeTrial ? process.env.TRADIER_API_KEY : null);
+        if (!tradierApiKey) {
+          throw new Error(isPaperOrFreeTrial
+            ? 'System Tradier API key not configured. Please contact support.'
+            : 'Please configure your Tradier API key in Settings to access live market data.');
+        }
+        const symbols = input.symbols || [];
+        if (symbols.length === 0) return { jobId: 'empty', status: 'done' as const, results: [] };
+        // Create job and return immediately
+        const job = createScanJob(ctx.user.id, symbols.length);
+        const jobId = job.id;
+        // Capture all needed values before async background work
+        const capturedCtxUser = { ...ctx.user };
+        const capturedInput = { ...input };
+        const capturedCredentials = credentials;
+        // Fire background scan — does NOT block the HTTP response
+        setImmediate(async () => {
+          try {
+            updateScanJobProgress(jobId, { status: 'running' });
+            const { createTradierAPI } = await import('./tradier');
+            const { scoreBPSOpportunities } = await import('./scoring');
+            const { calculateBullPutSpread } = await import('./spread-pricing');
+            const api = createTradierAPI(tradierApiKey, false, capturedCtxUser.id);
+            // Fetch 14-day historical trend
+            const trend14dMap = new Map<string, number>();
+            const today2 = new Date();
+            const trendStart2 = new Date(today2);
+            trendStart2.setDate(trendStart2.getDate() - 16);
+            const fmtDate2 = (d: Date) => d.toISOString().split('T')[0];
+            const BPS_HIST_ROOT_MAP2: Record<string, string> = { SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX' };
+            await Promise.all(symbols.map(async (sym) => {
+              try {
+                const histSym = BPS_HIST_ROOT_MAP2[sym.toUpperCase()] || sym;
+                const history = await api.getHistoricalData(histSym, 'daily', fmtDate2(trendStart2), fmtDate2(today2));
+                if (history && history.length >= 2) {
+                  const oldest = history[0].close;
+                  const newest = history[history.length - 1].close;
+                  trend14dMap.set(sym, oldest > 0 ? ((newest - oldest) / oldest) * 100 : 0);
+                }
+              } catch { /* neutral trend */ }
+            }));
+            updateScanJobProgress(jobId, { batchCurrent: 0, symbolsDone: 0 });
+            // Fetch CSP opportunities (skipTechnicals=true for speed)
+            const cspOpportunities = await api.fetchCSPOpportunities(
+              symbols,
+              capturedInput.minDelta || 0.15,
+              capturedInput.maxDelta || 0.35,
+              capturedInput.minDte || 7,
+              capturedInput.maxDte || 45,
+              capturedInput.minVolume || 5,
+              capturedInput.minOI || 50,
+              true
+            );
+            updateScanJobProgress(jobId, { symbolsDone: symbols.length, opportunitiesFound: cspOpportunities.length });
+            // Pre-fetch unique option chains
+            const chainCache2 = new Map<string, any[]>();
+            const uniqueChains2 = new Map<string, { symbol: string; expiration: string }>();
+            for (const cspOpp of cspOpportunities) {
+              const key2 = `${cspOpp.symbol}|${cspOpp.expiration}`;
+              if (!uniqueChains2.has(key2)) uniqueChains2.set(key2, { symbol: cspOpp.symbol, expiration: cspOpp.expiration });
+            }
+            const SPREAD_CHAIN_ROOT_MAP2: Record<string, string> = { SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX' };
+            const chainEntries3 = Array.from(uniqueChains2.entries());
+            await Promise.allSettled(chainEntries3.map(async ([key2, { symbol, expiration }]) => {
+              try {
+                const chainRoot2 = SPREAD_CHAIN_ROOT_MAP2[symbol.toUpperCase()] || symbol;
+                const options2 = await withRateLimit(() => api.getOptionChain(chainRoot2, expiration, true));
+                chainCache2.set(key2, options2);
+              } catch { chainCache2.set(key2, []); }
+            }));
+            // Build spreads
+            const symbolPriceMap2 = new Map<string, number>();
+            for (const opp of cspOpportunities) {
+              if (!symbolPriceMap2.has(opp.symbol)) symbolPriceMap2.set(opp.symbol, opp.currentPrice);
+            }
+            const SPREAD_WIDTH_ALIAS2: Record<string, string> = { SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX' };
+            const getEffectiveSpreadWidth2 = (sym: string): number => {
+              const symUpper = sym.toUpperCase();
+              if (capturedInput.symbolWidths) {
+                if (capturedInput.symbolWidths[symUpper] !== undefined) return capturedInput.symbolWidths[symUpper];
+                const alias2 = SPREAD_WIDTH_ALIAS2[symUpper];
+                if (alias2 && capturedInput.symbolWidths[alias2] !== undefined) return capturedInput.symbolWidths[alias2];
+              }
+              const price2 = symbolPriceMap2.get(sym) || 0;
+              if (price2 < 500) return capturedInput.spreadWidth;
+              return Math.max(capturedInput.spreadWidth, Math.round((price2 * 0.004) / 5) * 5);
+            };
+            const spreadOpportunities2: any[] = [];
+            for (const cspOpp of cspOpportunities) {
+              try {
+                if (cspOpp.strike >= cspOpp.currentPrice) continue;
+                const effectiveWidth2 = getEffectiveSpreadWidth2(cspOpp.symbol);
+                const longStrike2 = cspOpp.strike - effectiveWidth2;
+                const key2 = `${cspOpp.symbol}|${cspOpp.expiration}`;
+                const options2 = chainCache2.get(key2) || [];
+                if (options2.length === 0) continue;
+                const exactLongPut2 = options2.find(opt => opt.option_type === 'put' && opt.strike === longStrike2);
+                const longPut2 = exactLongPut2 || (() => {
+                  const puts2 = options2.filter(opt => opt.option_type === 'put' && opt.strike < cspOpp.strike && opt.strike > 0);
+                  if (puts2.length === 0) return null;
+                  const sorted2 = puts2.sort((a, b) => Math.abs(a.strike - longStrike2) - Math.abs(b.strike - longStrike2));
+                  const nearest2 = sorted2[0];
+                  const maxDev2 = Math.max(capturedInput.spreadWidth * 10, 200);
+                  return Math.abs(nearest2.strike - longStrike2) <= maxDev2 ? nearest2 : null;
+                })();
+                if (!longPut2 || !longPut2.bid || !longPut2.ask) continue;
+                const actualLongStrike2 = longPut2.strike;
+                const actualSpreadWidth2 = cspOpp.strike - actualLongStrike2;
+                const spreadOpp2 = calculateBullPutSpread(cspOpp, actualSpreadWidth2, { bid: longPut2.bid, ask: longPut2.ask, delta: Math.abs(longPut2.greeks?.delta || 0) });
+                const creditToWidthRatio2 = actualSpreadWidth2 > 0 ? spreadOpp2.netCredit / actualSpreadWidth2 : 0;
+                if (spreadOpp2.netCredit > 0 && creditToWidthRatio2 <= 0.80) {
+                  (spreadOpp2 as any).shortOptionSymbol = cspOpp.optionSymbol;
+                  (spreadOpp2 as any).longOptionSymbol = longPut2.symbol;
+                  spreadOpportunities2.push(spreadOpp2);
+                }
+              } catch { continue; }
+            }
+            // Dedup
+            const uniqueSpreads2 = new Map<string, any>();
+            for (const spread of spreadOpportunities2) {
+              const key2 = `${spread.symbol}-${spread.strike}-${spread.longStrike}-${spread.expiration}`;
+              if (!uniqueSpreads2.has(key2)) uniqueSpreads2.set(key2, spread);
+            }
+            const dedupedSpreads2 = Array.from(uniqueSpreads2.values());
+            const spreadsWithTrend2 = dedupedSpreads2.map((spread: any) => ({ ...spread, trend14d: trend14dMap.get(spread.symbol) }));
+            const scored2 = scoreBPSOpportunities(spreadsWithTrend2, { isIndexMode: capturedInput.isIndexMode ?? false }) as any;
+            // Risk badges
+            const { calculateBulkRiskAssessments } = await import('./riskAssessment');
+            const symbolSet2 = new Set<string>();
+            scored2.forEach((opp: any) => symbolSet2.add(opp.symbol));
+            const riskAssessments2 = await calculateBulkRiskAssessments(Array.from(symbolSet2), api);
+            const scoredWithBadges2 = scored2.map((opp: any) => ({ ...opp, riskBadges: riskAssessments2.get(opp.symbol)?.badges || [] }));
+            // TT price enrichment
+            if (scoredWithBadges2.length > 0 && capturedCredentials?.tastytradeClientSecret) {
+              try {
+                const { authenticateTastytrade: authTT2 } = await import('./tastytrade');
+                const ttApi2 = await authTT2(capturedCredentials, capturedCtxUser.id).catch(() => null);
+                if (ttApi2) {
+                  const legSymbols2: string[] = [];
+                  for (const opp of scoredWithBadges2) {
+                    if (opp.shortOptionSymbol) legSymbols2.push(opp.shortOptionSymbol);
+                    if (opp.longOptionSymbol) legSymbols2.push(opp.longOptionSymbol);
+                  }
+                  const ttQuotes2 = await ttApi2.getOptionQuotesBatch(legSymbols2).catch(() => ({}));
+                  for (const opp of scoredWithBadges2) {
+                    const sQ2 = (ttQuotes2 as any)[opp.shortOptionSymbol];
+                    const lQ2 = (ttQuotes2 as any)[opp.longOptionSymbol];
+                    const sBid2 = sQ2 ? (parseFloat(sQ2.bid) || 0) : 0;
+                    const sAsk2 = sQ2 ? (parseFloat(sQ2.ask) || 0) : 0;
+                    const lBid2 = lQ2 ? (parseFloat(lQ2.bid) || 0) : 0;
+                    const lAsk2 = lQ2 ? (parseFloat(lQ2.ask) || 0) : 0;
+                    if (sBid2 > 0 || sAsk2 > 0) { opp.bid = sBid2; opp.ask = sAsk2; }
+                    if (lBid2 > 0 || lAsk2 > 0) { opp.longBid = lBid2; opp.longAsk = lAsk2; }
+                    const ttNetCredit2 = (sBid2 + sAsk2) / 2 - (lBid2 + lAsk2) / 2;
+                    if (ttNetCredit2 > 0) { opp.netCredit = ttNetCredit2; opp.premium = ttNetCredit2; }
+                  }
+                }
+              } catch { /* keep Tradier prices */ }
+            }
+            await incrementScanCount(capturedCtxUser.id, _effTier, capturedCtxUser.role);
+            completeScanJob(jobId, scoredWithBadges2);
+            console.log(`[Spread startScan] Job ${jobId} completed: ${scoredWithBadges2.length} opportunities`);
+          } catch (err: any) {
+            failScanJob(jobId, err?.message || 'Scan failed');
+            console.error(`[Spread startScan] Job ${jobId} failed:`, err);
+          }
+        });
+        return { jobId, status: 'running' as const };
+      }),
+    pollScan: protectedProcedure
+      .input(z.object({ jobId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const { getScanJob } = await import('./scanJobManager');
+        const job = getScanJob(input.jobId);
+        if (!job) return { status: 'error' as const, error: 'Job not found or expired', progress: null, results: null };
+        if (job.userId !== ctx.user.id) throw new Error('Unauthorized');
+        return {
+          status: job.status,
+          progress: job.progress,
+          results: job.status === 'done' ? job.results : null,
+          error: job.error,
+        };
+      }),
+    // Legacy blocking scan (kept for fallback — will 504 on large symbol lists)
     opportunities: protectedProcedure
       .input(
         z.object({

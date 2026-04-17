@@ -9340,3 +9340,9 @@ ROC Fix Mar 18 2026
 - [x] Root cause: getTechnicalIndicators fetches 200-day history per symbol (62 calls × 1-2s = 60-120s overhead)
 - [x] Fix: skipTechnicals=true for BPS and IC scans (RSI/BB are display-only, not used in scoring)
 - [x] CSP scan retains technicals (RSI/BB shown in CSP opportunity table)
+
+## BPS Scan Async Job Pattern (Apr 17, 2026)
+- [x] Implement scanJobManager.ts with in-memory job store (createScanJob, completeScanJob, failScanJob)
+- [x] Add spread.startScan mutation (returns jobId immediately, fires background setImmediate)
+- [x] Add spread.pollScan query (polls every 3s until done/error)
+- [x] Update CSPDashboard.tsx to use async start/poll pattern instead of blocking useQuery

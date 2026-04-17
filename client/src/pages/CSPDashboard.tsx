@@ -417,6 +417,9 @@ export default function CSPDashboard() {
     startTime: number | null;
     endTime: number | null;
   }>({ isOpen: false, current: 0, total: 0, completed: 0, startTime: null, endTime: null });
+  // Async BPS scan state — bypasses 300s gateway timeout
+  const [scanJobId, setScanJobId] = useState<string | null>(null);
+  const [asyncSpreadOpportunities, setAsyncSpreadOpportunities] = useState<any[]>([]);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [unifiedOrders, setUnifiedOrders] = useState<UnifiedOrder[]>([]);
   const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
@@ -641,18 +644,59 @@ export default function CSPDashboard() {
     { enabled: false } // Disabled by default, only fetch when user clicks button
   );
 
-  // Fetch spread opportunities (Phase 2)
-  const { data: spreadOpportunities = [], isLoading: loadingSpread, refetch: refetchSpread, error: spreadError } = trpc.spread.opportunities.useQuery(
-    { 
-      symbols: filteredWatchlist.map((w: any) => w.symbol),
+  // Async BPS scan: startScan fires background job, pollScan polls every 3s until done
+  const startScanMutation = trpc.spread.startScan.useMutation({
+    onSuccess: (data) => {
+      if (data.status === 'done' && data.results) {
+        // Empty symbol list edge case
+        setAsyncSpreadOpportunities(data.results as any[]);
+        setFetchProgress(prev => ({ ...prev, endTime: Date.now() }));
+        setScanJobId(null);
+      } else {
+        setScanJobId(data.jobId);
+      }
+    },
+    onError: (err) => {
+      toast.error('Failed to start scan', { description: err.message });
+      setFetchProgress(prev => ({ ...prev, isOpen: false }));
+      setScanJobId(null);
+    },
+  });
+  // Poll for results every 3 seconds while scanJobId is set
+  const { data: pollData } = trpc.spread.pollScan.useQuery(
+    { jobId: scanJobId || '' },
+    { enabled: !!scanJobId, refetchInterval: 3000, refetchIntervalInBackground: true }
+  );
+  // Handle poll results
+  useEffect(() => {
+    if (!pollData) return;
+    if (pollData.status === 'done' && pollData.results) {
+      setAsyncSpreadOpportunities(pollData.results as any[]);
+      setFetchProgress(prev => ({ ...prev, endTime: Date.now() }));
+      setScanJobId(null);
+      toast.success(`Found ${pollData.results.length} BPS opportunities`);
+    } else if (pollData.status === 'error') {
+      toast.error('Scan failed', { description: pollData.error || 'Unknown error' });
+      setFetchProgress(prev => ({ ...prev, isOpen: false }));
+      setScanJobId(null);
+    }
+  }, [pollData]);
+  const spreadOpportunities = asyncSpreadOpportunities;
+  const loadingSpread = !!scanJobId || startScanMutation.isPending;
+  const spreadError = startScanMutation.error;
+  const refetchSpread = () => {
+    const symbols = filteredWatchlist.map((w: any) => w.symbol);
+    if (symbols.length === 0) return;
+    setAsyncSpreadOpportunities([]);
+    startScanMutation.mutate({
+      symbols,
       minDte,
       maxDte,
       spreadWidth,
       symbolWidths: Object.keys(symbolWidths).length > 0 ? symbolWidths : undefined,
-      isIndexMode, // Pass index mode flag so server uses index-appropriate scoring
-    },
-    { enabled: false } // Disabled by default, only fetch when user clicks button
-  );
+      isIndexMode,
+    });
+  };
 
   // Use appropriate data based on strategy type
   const opportunities = strategyType === 'spread' ? spreadOpportunities : cspOpportunities;
@@ -1857,7 +1901,7 @@ export default function CSPDashboard() {
                     startTime: Date.now(),
                     endTime: null,
                   });
-                  setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
+                  setTimeout(() => { void (refetchOpportunities() as any)?.then?.(() => setWatchlistCollapsed(true)); setWatchlistCollapsed(true); }, 100);
                 }}
                 disabled={loadingOpportunities}
                 className="relative overflow-hidden rounded-full px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-500/50 hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1885,7 +1929,7 @@ export default function CSPDashboard() {
                     startTime: Date.now(),
                     endTime: null,
                   });
-                  setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
+                  setTimeout(() => { void (refetchOpportunities() as any)?.then?.(() => setWatchlistCollapsed(true)); setWatchlistCollapsed(true); }, 100);
                 }}
                 disabled={loadingOpportunities}
                 className="relative overflow-hidden rounded-full px-4 py-2 bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1913,7 +1957,7 @@ export default function CSPDashboard() {
                     startTime: Date.now(),
                     endTime: null,
                   });
-                  setTimeout(() => refetchOpportunities().then(() => setWatchlistCollapsed(true)), 100);
+                  setTimeout(() => { void (refetchOpportunities() as any)?.then?.(() => setWatchlistCollapsed(true)); setWatchlistCollapsed(true); }, 100);
                 }}
                 disabled={loadingOpportunities}
                 className="relative overflow-hidden rounded-full px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20 hover:border-rose-500/50 hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
