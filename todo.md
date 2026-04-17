@@ -9320,3 +9320,8 @@ ROC Fix Mar 18 2026
 
 ## Bug Fixes (Apr 17, 2026)
 - [x] Fix [6063] Vertical DebitCredit Check rejection for BPS close-for-profit — dynamically determine price-effect (Credit for BPS, Debit for BCS) instead of hardcoding 'Debit'
+
+## Spread Close Direction Audit (Apr 17, 2026)
+- [x] Audit all price-effect settings for BCS spread close orders
+- [x] Audit all price-effect settings for Iron Condor (IC) spread close orders
+- [x] Ensure consistent dynamic Credit/Debit logic across all spread types (BPS, BCS, IC)

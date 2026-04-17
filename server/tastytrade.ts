@@ -1234,11 +1234,27 @@ export class TastytradeAPI {
       // NOTE: Tastytrade order submission API requires 'Equity Option' for ALL option legs.
       const rollInstrumentType: 'Equity Option' = 'Equity Option'; // Always Equity Option for TT order submission
 
+      // ── Determine price-effect for roll order ──────────────────────────────────
+      // Tastytrade [6063] Vertical DebitCredit Check validates that the declared
+      // price-effect matches the actual net cash flow of the two legs.
+      //
+      // A standard roll is: BTC (close short) + STO (open new short).
+      // The new STO typically collects MORE premium than the BTC costs
+      // (rolling out in time or down in strike) → net cash flow is a CREDIT.
+      //
+      // An unwind roll is: STC (close long) + BTO (open new long).
+      // The BTO typically costs MORE than the STC receives → net cash flow is a DEBIT.
+      //
+      // Rule: BTC + STO → Credit (standard roll-out of a short position)
+      //       STC + BTO → Debit  (rolling a long position)
+      const rollPriceEffect: 'Credit' | 'Debit' =
+        params.closeLeg.action === 'BTC' ? 'Credit' : 'Debit';
+
       // Build 2-leg order
       const orderPayload = {
         'time-in-force': 'Day',
         'order-type': 'Limit',
-        'price-effect': 'Debit', // Will be calculated by Tastytrade based on legs
+        'price-effect': rollPriceEffect, // Credit for BTC+STO roll; Debit for STC+BTO
         legs: [
           {
             'instrument-type': rollInstrumentType,

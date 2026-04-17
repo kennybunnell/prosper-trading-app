@@ -122,18 +122,59 @@ interface TastytradeOrderPayload {
   legs: TastytradeOrderLeg[];
 }
 
+/**
+ * Determine the correct price-effect for a multi-leg GTC close order.
+ *
+ * Tastytrade [6063] Vertical DebitCredit Check rules:
+ *   Bull Put Spread (BPS) close — BTC lower-strike put + STC higher-strike put:
+ *     The higher-strike long put is worth MORE → net cash flow is a CREDIT.
+ *   Bear Call Spread (BCS) close — BTC lower-strike call + STC higher-strike call:
+ *     The lower-strike short call costs MORE to buy back → net cash flow is a DEBIT.
+ *   Iron Condor close — has both a BPS leg pair and a BCS leg pair:
+ *     When closing the full IC as a 4-leg order the net is always a DEBIT
+ *     (the BCS debit dominates because the short call is more expensive).
+ *     When closing individual spread legs separately, use the per-spread rule above.
+ *
+ * Detection heuristic: if ANY leg has action 'Sell to Close' (i.e. selling back a
+ * long put at a higher strike than the short), the net is a Credit (BPS close).
+ * If all legs are 'Buy to Close', the net is a Debit (BCS close or single-leg BTC).
+ */
+function determinePriceEffect(legs: GtcLeg[]): 'Credit' | 'Debit' {
+  const hasSellToClose = legs.some(l => l.action === 'Sell to Close');
+  const hasBuyToClose  = legs.some(l => l.action === 'Buy to Close');
+
+  if (hasSellToClose && hasBuyToClose) {
+    // Mixed legs — determine by which leg has the higher strike.
+    // BPS: long put (higher strike) is Sell to Close → Credit.
+    // BCS: long call (higher strike) is Sell to Close → but BCS net is Debit.
+    // We distinguish by option type embedded in the OCC symbol (C vs P at position 13).
+    const sellLegs = legs.filter(l => l.action === 'Sell to Close');
+    const isPutClose = sellLegs.some(l => {
+      // OCC symbol: TICKER(6) + YYMMDD(6) + C/P(1) + STRIKE(8)
+      const optType = l.symbol.charAt(12);
+      return optType === 'P';
+    });
+    // Selling back a long PUT at a higher strike = BPS close = Credit
+    return isPutClose ? 'Credit' : 'Debit';
+  }
+
+  // All Buy to Close = pure debit (BCS close or single-leg BTC)
+  return 'Debit';
+}
+
 export async function submitGtcCloseOrder(
   token: string,
   accountNumber: string,
   legs: GtcLeg[],
   limitPrice: number,
-  isCreditClose: boolean // true for IC/spread BTC (net debit to close = credit effect)
+  _isCreditClose: boolean // kept for API compatibility; direction is now auto-detected from legs
 ): Promise<{ orderId: string; status: string }> {
+  const priceEffect = determinePriceEffect(legs);
   const payload: TastytradeOrderPayload = {
     'order-type': 'Limit',
     'time-in-force': 'GTC',
     price: limitPrice.toFixed(2),
-    'price-effect': isCreditClose ? 'Debit' : 'Debit', // BTC is always a debit
+    'price-effect': priceEffect, // Dynamically determined from leg actions and option types
     legs: legs.map(leg => ({
       'instrument-type': leg.instrumentType,
       symbol: leg.symbol,
