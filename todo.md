@@ -9306,3 +9306,10 @@ ROC Fix Mar 18 2026
 - [x] Show merged contract count (total qty) in roll scanner Qty column for CC/CSP positions
 - [x] Wire Tax tab "Refresh data" link to trigger portfolio sync
 - [x] Add sync-age warning banner on Performance page (>24h old = yellow alert)
+
+## Telegram Bot Notifications (Apr 2026)
+- [x] Telegram notifications on CC order submission (success + rejection)
+- [x] Telegram notifications on Roll order submission (success + rejection)
+- [x] Telegram notifications on CSP/BPS/IC order submission (success + rejection)
+- [x] Daily morning briefing cron (8:30 AM MT, weekdays) — positions expiring ≤7 DTE + open premium summary
+- [x] Dev endpoint /api/dev/trigger-telegram-briefing for manual testing

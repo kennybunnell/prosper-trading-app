@@ -18,6 +18,7 @@ import {
 } from "./spreadDetection";
 // Note: db, wtrHistory, and drizzle-orm are imported dynamically inside procedures to match project patterns
 import { writeTradingLog } from './routers-trading-log';
+import { sendTelegramMessage, fmtRollSubmitted, fmtOrderRejected } from './telegram';
 
 // ─── Dog Cross-Check Helper ───────────────────────────────────────────────────
 // Returns true if an ITM CC's underlying is a LIQUIDATE or deep-MONITOR dog.
@@ -1167,6 +1168,17 @@ export const rollsRouter = router({
               orderId: String(submitted.id),
               source: `${order.strategyType} roll — ${legs.length} leg(s)`,
             });
+            // Telegram notification — fire-and-forget
+            sendTelegramMessage(
+              fmtRollSubmitted({
+                symbol: order.symbol,
+                fromStrike: order.newStrike ?? 0, // best approximation without currentStrike field
+                toStrike: order.newStrike ?? 0,
+                toExpiration: order.newExpiration ?? '',
+                netCredit: (order.netCredit ?? 0) * (order.currentQuantity ?? 1),
+                accountLabel: order.accountNumber,
+              })
+            ).catch(() => {});
             results.push({
               symbol: order.symbol,
               accountNumber: order.accountNumber,
@@ -1207,6 +1219,16 @@ export const rollsRouter = router({
             errorMessage: error.message,
             source: `Roll failed — ${order.strategyType} ${order.action}`,
           });
+          // Telegram notification — fire-and-forget
+          sendTelegramMessage(
+            fmtOrderRejected({
+              symbol: order.symbol,
+              strategy: order.strategyType,
+              strike: order.newStrike,
+              reason: error.message,
+              accountLabel: order.accountNumber,
+            })
+          ).catch(() => {});
           results.push({
             symbol: order.symbol,
             accountNumber: order.accountNumber,

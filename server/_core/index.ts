@@ -10,6 +10,9 @@ import { serveStatic, setupVite } from "./vite";
 import { handleStripeWebhook } from "../webhooks/stripe.js";
 import { initializeAutomationScheduler } from "../automation-scheduler";
 import { initializePortfolioSyncScheduler } from "../portfolio-sync-scheduler";
+import { registerTelegramWebhook, answerCallbackQuery, editTelegramMessage, sendTelegramMessage } from "../telegram";
+import { handleTelegramCallback } from "../telegram-callbacks";
+import { initializeTelegramBriefingScheduler } from "../telegram-briefing";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -42,6 +45,15 @@ async function startServer() {
   // Stripe webhook endpoint (MUST be before body parser middleware)
   // Stripe requires raw body for signature verification
   app.post("/api/webhooks/stripe", express.raw({ type: 'application/json' }), handleStripeWebhook);
+
+  // Telegram webhook endpoint (receives button taps and messages from Telegram)
+  app.post("/api/telegram/webhook", express.json(), async (req, res) => {
+    res.sendStatus(200); // Always respond 200 immediately to Telegram
+    const update = req.body;
+    if (update?.callback_query) {
+      await handleTelegramCallback(update.callback_query);
+    }
+  });
   
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
@@ -81,6 +93,16 @@ async function startServer() {
         const { runDailyScanForAllUsersExport } = await import('../automation-scheduler');
         await runDailyScanForAllUsersExport();
         res.json({ success: true, message: 'Daily scan triggered for all users' });
+      } catch (e: any) {
+        res.status(500).json({ success: false, error: e?.message });
+      }
+    });
+
+    app.post("/api/dev/trigger-telegram-briefing", async (req, res) => {
+      try {
+        const { triggerDailyBriefingNow } = await import('../telegram-briefing');
+        await triggerDailyBriefingNow();
+        res.json({ success: true, message: 'Telegram briefing triggered' });
       } catch (e: any) {
         res.status(500).json({ success: false, error: e?.message });
       }
@@ -161,6 +183,11 @@ async function startServer() {
     initializeAutomationScheduler();
     // Initialize portfolio sync scheduler (15-min incremental sync during market hours)
     initializePortfolioSyncScheduler();
+    // Register Telegram webhook (idempotent — safe to call every startup)
+    const appBaseUrl = process.env.APP_BASE_URL || 'https://prospertrading.biz';
+    registerTelegramWebhook(appBaseUrl).catch(console.error);
+    // Initialize Telegram daily briefing scheduler (8:30 AM MT weekdays)
+    initializeTelegramBriefingScheduler();
   });
 }
 
