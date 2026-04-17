@@ -9335,3 +9335,8 @@ ROC Fix Mar 18 2026
 ## BPS Scan Optimization Round 2 (Apr 17, 2026)
 - [x] Diagnose remaining BPS scan slowness and low opportunity count (30 found for 62 symbols)
 - [x] Optimize further to reduce scan time and increase opportunity yield
+
+## BPS/IC Scan Optimization Round 3 (Apr 17, 2026)
+- [x] Root cause: getTechnicalIndicators fetches 200-day history per symbol (62 calls × 1-2s = 60-120s overhead)
+- [x] Fix: skipTechnicals=true for BPS and IC scans (RSI/BB are display-only, not used in scoring)
+- [x] CSP scan retains technicals (RSI/BB shown in CSP opportunity table)

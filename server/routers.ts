@@ -2961,6 +2961,8 @@ Summary: [One sentence overall assessment]`;
         console.log(`[Iron Condor] Scanning ${symbols.length} symbols for Iron Condor opportunities...`);
 
         // Fetch CSP opportunities (these will be the put side short strikes)
+        // skipTechnicals=true: RSI/BB are not used in IC scoring — skip 200-day history calls
+        // to avoid overwhelming Tradier with 62 parallel history requests (saves ~60s)
         const cspOpportunities = await api.fetchCSPOpportunities(
           symbols,
           input.minDelta || 0.15,
@@ -2968,7 +2970,8 @@ Summary: [One sentence overall assessment]`;
           input.minDte || 7,
           input.maxDte || 45,
           input.minVolume || 5,
-          input.minOI || 50
+          input.minOI || 50,
+          true // skipTechnicals
         );
 
         console.log(`[Iron Condor] Found ${cspOpportunities.length} CSP opportunities`);
@@ -3452,6 +3455,8 @@ Summary: [One sentence overall assessment]`;
         }));
 
         // Fetch CSP opportunities first (these are the short puts)
+        // skipTechnicals=true: RSI/BB are not used in BPS scoring — skip 200-day history calls
+        // to avoid overwhelming Tradier with 62 parallel history requests (saves ~60s per scan)
         const cspOpportunities = await api.fetchCSPOpportunities(
           symbols,
           input.minDelta || 0.15,
@@ -3459,7 +3464,8 @@ Summary: [One sentence overall assessment]`;
           input.minDte || 7,
           input.maxDte || 45,
           input.minVolume || 5,
-          input.minOI || 50
+          input.minOI || 50,
+          true // skipTechnicals
         );
 
         // OPTIMIZATION: Group opportunities by symbol+expiration to batch API calls

@@ -613,9 +613,10 @@ export class TradierAPI {
     minDte: number = 7,
     maxDte: number = 30,
     minVolume: number = 5,
-    minOI: number = 50
+    minOI: number = 50,
+    skipTechnicals: boolean = false
   ): Promise<CSPOpportunity[]> {
-    console.log(`[Tradier API] Fetching CSP opportunities for ${symbols.length} symbols with parallel processing...`);
+    console.log(`[Tradier API] Fetching CSP opportunities for ${symbols.length} symbols with parallel processing (skipTechnicals=${skipTechnicals})...`);
     
     // Smart batching: process symbols in batches of BATCH_SIZE.
     // 
@@ -650,7 +651,8 @@ export class TradierAPI {
               minDte,
               maxDte,
               minVolume,
-              minOI
+              minOI,
+              skipTechnicals
             ),
             new Promise<CSPOpportunity[]>((_, reject) =>
               setTimeout(() => reject(new Error(`Timeout after 120s`)), 120000)
@@ -721,7 +723,8 @@ export class TradierAPI {
     minDte: number,
     maxDte: number,
     minVolume: number,
-    minOI: number
+    minOI: number,
+    skipTechnicals: boolean = false
   ): Promise<CSPOpportunity[]> {
     console.log(`[CSP fetchSymbolOpportunities] === ENTRY === Symbol: ${symbol}`);
     const opportunities: CSPOpportunity[] = [];
@@ -762,12 +765,18 @@ export class TradierAPI {
 
         // Get technical indicators — skip for pure index series (no price history on option root)
         // For ETF proxies (SPY, QQQ, IWM) the symbol itself is quotable, so use it directly.
+        // skipTechnicals=true bypasses the 200-day history API call (saves ~1-2s per symbol).
+        // RSI and Bollinger %B are display-only in the opportunity table; not used in scoring.
         const indicatorSymbol = isIndexSeries ? underlyingSymbol : symbol;
         let indicators: any = { rsi: null, bollingerBands: null };
-        try {
-          indicators = await this.getTechnicalIndicators(indicatorSymbol);
-        } catch (indErr: any) {
-          console.warn(`[CSP fetchSymbolOpportunities] ${symbol}: getTechnicalIndicators failed for ${indicatorSymbol}: ${indErr.message} — continuing without technicals`);
+        if (!skipTechnicals) {
+          try {
+            indicators = await this.getTechnicalIndicators(indicatorSymbol);
+          } catch (indErr: any) {
+            console.warn(`[CSP fetchSymbolOpportunities] ${symbol}: getTechnicalIndicators failed for ${indicatorSymbol}: ${indErr.message} — continuing without technicals`);
+          }
+        } else {
+          console.log(`[CSP fetchSymbolOpportunities] ${symbol}: skipping technical indicators (skipTechnicals=true)`);
         }
 
         // Collect IV values from all options to calculate IV Rank
