@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Streamdown } from 'streamdown';
 import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
+import { useAccountNicknames } from '@/hooks/useAccountNicknames';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -202,6 +203,7 @@ type DetailPanelProps = {
 };
 
 function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne, isSubmitting, initialSliderPos, onSliderChange }: DetailPanelProps) {
+  const getAccountLabel = useAccountNicknames();
   const c = item.candidate;
   const isRoll = c.action === 'roll';
   const optionType: 'call' | 'put' = (item.strategy === 'CC' || item.strategy === 'BCS') ? 'call' : 'put';
@@ -1025,7 +1027,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
           <div className="border-t border-border/30" />
           <section>
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">Account</p>
-            <p className="font-mono text-xs text-muted-foreground break-all">{item.accountNumber}</p>
+            <p className="text-xs text-muted-foreground" title={item.accountNumber}>{getAccountLabel(item.accountNumber)}</p>
           </section>
 
           {/* ── AI Advisor ── */}
@@ -1176,7 +1178,7 @@ function DetailPanel({ item, liveCredit, onClose, onUpdateCandidate, onSubmitOne
             <p className="text-sm font-semibold text-orange-300">Confirm Live Order</p>
             <div className="text-xs text-muted-foreground space-y-0.5">
               <p><span className="text-foreground font-semibold">{item.symbol}</span> · {item.strategy} · {item.quantity}× contracts</p>
-              <p>Account: <span className="font-mono text-foreground">{item.accountNumber}</span></p>
+              <p>Account: <span className="text-foreground" title={item.accountNumber}>{getAccountLabel(item.accountNumber)}</span></p>
               {c.action === 'roll' && c.strike && c.expiration && (
                 <p>Roll to: <span className="text-orange-300 font-mono">${c.strike != null ? (Number.isInteger(c.strike) ? c.strike.toFixed(0) : c.strike.toFixed(2)) : '?'}</span> · {c.expiration} · {c.dte}d</p>
               )}
@@ -1546,6 +1548,7 @@ function TableRow({ item, index, total, isSelected, isChecked, isSorted, onSelec
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function RollOrderReviewModal({ open, onClose, items: initialItems, onSubmit, isSubmitting, bestFitCache }: Props) {
+  const getAccountLabel = useAccountNicknames();
   const [items, setItems] = useState<RollOrderItem[]>(initialItems);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Checkbox selection: only checked rows are included in submission

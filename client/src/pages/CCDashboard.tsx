@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { useAccount } from "@/contexts/AccountContext";
 import { useTradingMode } from "@/contexts/TradingModeContext";
+import { useAccountNicknames } from "@/hooks/useAccountNicknames";
 import {
   Loader2,
   RefreshCw,
@@ -288,7 +289,8 @@ type CCOpportunity = {
 };
 
 export default function CCDashboard() {
-  const { selectedAccountId } = useAccount();
+   const { selectedAccountId } = useAccount();
+  const getAccountLabel = useAccountNicknames();
   const { mode: tradingMode } = useTradingMode();
   const utils = trpc.useUtils();
   const [isLoadingPositions, setIsLoadingPositions] = useState(false);
@@ -1846,8 +1848,8 @@ export default function CCDashboard() {
                           <TableCell>
                             <div className="flex flex-wrap gap-1">
                               {(holding.accounts ?? [selectedAccountId ?? 'N/A']).map((acct: string) => (
-                                <Badge key={acct} variant="outline" className="text-[10px] px-1.5 py-0 font-mono border-amber-500/30 text-amber-300/80">
-                                  {acct}
+                                <Badge key={acct} variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/30 text-amber-300/80" title={acct}>
+                                  {getAccountLabel(acct)}
                                 </Badge>
                               ))}
                             </div>

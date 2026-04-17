@@ -42,6 +42,7 @@ import {
   Wifi,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAccountNicknames } from '@/hooks/useAccountNicknames';
 
 interface LogEntry {
   id: number;
@@ -176,6 +177,7 @@ function buildCopyText(entry: LogEntry, diagnosis?: string | null): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function TradingActivityLog() {
+  const getAccountLabel = useAccountNicknames();
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -469,7 +471,7 @@ export function TradingActivityLog() {
                               <div><span className="text-muted-foreground">Effect: </span><span className="text-card-foreground">{entry.priceEffect}</span></div>
                             )}
                             {entry.accountNumber && (
-                              <div><span className="text-muted-foreground">Account: </span><span className="text-card-foreground">{entry.accountNumber}</span></div>
+                              <div><span className="text-muted-foreground">Account: </span><span className="text-card-foreground" title={entry.accountNumber ?? undefined}>{entry.accountNumber ? getAccountLabel(entry.accountNumber) : ''}</span></div>
                             )}
                             {entry.orderId && (
                               <div><span className="text-muted-foreground">Order ID: </span><span className="text-green-400">{entry.orderId}</span></div>

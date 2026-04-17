@@ -8,9 +8,11 @@ import { trpc } from '@/lib/trpc';
 import { DollarSign, TrendingDown, TrendingUp, AlertTriangle, Save, RefreshCw, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAccount } from '@/contexts/AccountContext';
+import { useAccountNicknames } from '@/hooks/useAccountNicknames';
 
 export function TaxTab() {
   const { selectedAccountId } = useAccount();
+  const getAccountLabel = useAccountNicknames();
   const [taxRate, setTaxRate] = useState(24);
   const [isSaving, setIsSaving] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -646,7 +648,7 @@ export function TaxTab() {
                         <td className="text-right p-3 text-red-500 font-medium">
                           ${(ws.disallowedLoss * (taxRate / 100)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </td>
-                        <td className="p-3 text-sm text-muted-foreground">{ws.accountNumber}</td>
+                        <td className="p-3 text-sm text-muted-foreground" title={ws.accountNumber}>{getAccountLabel(ws.accountNumber)}</td>
                       </tr>
                     ))}
                   </tbody>
