@@ -714,6 +714,16 @@ export default function CSPDashboard() {
     const symbols = filteredWatchlist.map((w: any) => w.symbol);
     if (symbols.length === 0) return;
     setAsyncSpreadOpportunities([]);
+    // Ensure progress dialog state is initialized for spread mode
+    setFetchProgress(prev => ({
+      ...prev,
+      isOpen: true,
+      current: 0,
+      total: symbols.length,
+      completed: 0,
+      startTime: Date.now(),
+      endTime: null,
+    }));
     startScanMutation.mutate({
       symbols,
       minDte,
@@ -3446,7 +3456,7 @@ export default function CSPDashboard() {
       </Card>
 
       {/* Fetch Progress Dialog */}
-      <Dialog open={fetchProgress.isOpen} onOpenChange={(open) => {
+      <Dialog open={fetchProgress.isOpen || (strategyType === 'spread' && loadingOpportunities)} onOpenChange={(open) => {
         if (!open) {
           // Cancel button clicked
           if (loadingOpportunities) {
