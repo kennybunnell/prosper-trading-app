@@ -363,56 +363,56 @@ async function handleAiQuestion(userId: number, question: string): Promise<strin
       positionContext = `Could not fetch live positions: ${posErr.message}`;
     }
 
-    // ── Monthly and YTD premium from trading log ──────────────────────────────
+    // ── Monthly and YTD premium from cached_transactions (real Tastytrade fills) ─
     try {
       const db = await getDb();
       if (db) {
-        const { tradingLog } = await import('../drizzle/schema');
-        const { eq, and, gte, inArray } = await import('drizzle-orm');
+        const { cachedTransactions } = await import('../drizzle/schema');
+        const { eq, and, gte, sql } = await import('drizzle-orm');
 
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const startOfYear = new Date(now.getFullYear(), 0, 1);
 
-        const allLogs = await db
+        // Fetch all YTD option trades for this user
+        const ytdTxns = await db
           .select()
-          .from(tradingLog)
+          .from(cachedTransactions)
           .where(
             and(
-              eq(tradingLog.userId, userId),
-              gte(tradingLog.createdAt, startOfYear),
-              inArray(tradingLog.outcome, ['filled', 'success']),
+              eq(cachedTransactions.userId, userId),
+              gte(cachedTransactions.executedAt, startOfYear),
+              eq(cachedTransactions.transactionType, 'Trade'),
             ),
           );
 
-        // STO orders = premium collected; BTC orders = premium paid to close
-        const stoOrders = allLogs.filter(l => l.action === 'STO' || l.action === 'STC');
-        const btcOrders = allLogs.filter(l => l.action === 'BTC' || l.action === 'BTO');
+        // STO = premium collected; BTC = premium paid to close
+        const sumNetValue = (txns: typeof ytdTxns) =>
+          txns.reduce((sum, t) => sum + Math.abs(parseFloat(t.netValue || t.value || '0')), 0);
 
-        const sumPremium = (orders: typeof allLogs) =>
-          orders.reduce((sum, l) => {
-            const price = parseFloat(String(l.price || '0'));
-            const qty = l.quantity || 1;
-            return sum + price * qty * 100;
-          }, 0);
-
-        const ytdCollected = sumPremium(stoOrders);
-        const ytdPaid = sumPremium(btcOrders);
+        const ytdSto = ytdTxns.filter(t => t.action === 'Sell to Open');
+        const ytdBtc = ytdTxns.filter(t => t.action === 'Buy to Close');
+        const ytdCollected = sumNetValue(ytdSto);
+        const ytdPaid = sumNetValue(ytdBtc);
         const ytdNet = ytdCollected - ytdPaid;
 
-        const monthLogs = allLogs.filter(l => l.createdAt && new Date(l.createdAt) >= startOfMonth);
-        const monthSto = monthLogs.filter(l => l.action === 'STO' || l.action === 'STC');
-        const monthBtc = monthLogs.filter(l => l.action === 'BTC' || l.action === 'BTO');
-        const monthCollected = sumPremium(monthSto);
-        const monthPaid = sumPremium(monthBtc);
+        const monthTxns = ytdTxns.filter(t => t.executedAt && new Date(t.executedAt) >= startOfMonth);
+        const monthSto = monthTxns.filter(t => t.action === 'Sell to Open');
+        const monthBtc = monthTxns.filter(t => t.action === 'Buy to Close');
+        const monthCollected = sumNetValue(monthSto);
+        const monthPaid = sumNetValue(monthBtc);
         const monthNet = monthCollected - monthPaid;
 
-        premiumContext = `Premium collected this month (${now.toLocaleString('en-US', { month: 'long' })}): $${monthCollected.toFixed(0)} gross, $${monthNet.toFixed(0)} net (after buybacks)\n` +
-          `Premium collected YTD (${now.getFullYear()}): $${ytdCollected.toFixed(0)} gross, $${ytdNet.toFixed(0)} net\n` +
-          `Total orders this month: ${monthLogs.length} | YTD: ${allLogs.length}`;
+        const monthName = now.toLocaleString('en-US', { month: 'long' });
+        premiumContext =
+          `Premium collected this month (${monthName} ${now.getFullYear()}): $${monthCollected.toFixed(0)} gross STO, $${monthNet.toFixed(0)} net (after buybacks)\n` +
+          `STO trades this month: ${monthSto.length} | BTC trades this month: ${monthBtc.length}\n` +
+          `Premium collected YTD (${now.getFullYear()}): $${ytdCollected.toFixed(0)} gross STO, $${ytdNet.toFixed(0)} net\n` +
+          `YTD STO trades: ${ytdSto.length} | YTD BTC trades: ${ytdBtc.length}\n` +
+          `Data source: Tastytrade transaction history (${ytdTxns.length} trades YTD)`;
       }
     } catch (dbErr: any) {
-      premiumContext = `Could not fetch order history: ${dbErr.message}`;
+      premiumContext = `Could not fetch transaction history: ${dbErr.message}`;
     }
 
     // ── Current date/time context ─────────────────────────────────────────────
