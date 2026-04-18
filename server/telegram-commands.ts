@@ -16,6 +16,7 @@
  */
 
 import { sendTelegramMessage } from './telegram';
+import { invokeLLM } from './_core/llm';
 
 const OWNER_CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? '';
 
@@ -55,18 +56,17 @@ const fmtCurrency = (n: number): string =>
 
 async function handleHelp(): Promise<string> {
   return (
-    `🤖 <b>Prosper Trading Bot — Commands</b>\n\n` +
-    `<b>Portfolio</b>\n` +
+    `🤖 <b>Prosper Trading Bot</b>\n\n` +
+    `You can ask me anything in plain English — no commands needed!\n` +
+    `<i>Example: "What's my total premium this month?" or "Which positions are expiring soon?"</i>\n\n` +
+    `<b>Quick Commands</b>\n` +
     `  /briefing — Full morning briefing\n` +
     `  /positions — All open short positions\n` +
     `  /pnl — P&amp;L summary (% captured)\n` +
     `  /expiring — Positions expiring ≤7 DTE\n` +
-    `  /close — Ready to close (≥90% captured)\n\n` +
-    `<b>Orders</b>\n` +
-    `  /orders — Recent working orders\n\n` +
-    `<b>System</b>\n` +
-    `  /status — Server status &amp; next briefing time\n` +
-    `  /help — Show this message\n\n` +
+    `  /close — Ready to close (≥90% captured)\n` +
+    `  /orders — Recent working orders\n` +
+    `  /status — Server status &amp; next briefing time\n\n` +
     `<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`
   );
 }
@@ -309,6 +309,152 @@ async function handleOrders(userId: number): Promise<string> {
   }
 }
 
+// ─── AI Free-Form Question Handler ──────────────────────────────────────────
+
+async function handleAiQuestion(userId: number, question: string): Promise<string> {
+  try {
+    // ── Build portfolio context snapshot ──────────────────────────────────────
+    const { getLivePositions } = await import('./portfolio-sync');
+    const { getDb } = await import('./db');
+
+    let positionContext = 'No position data available.';
+    let premiumContext = 'No order history available.';
+
+    try {
+      const positions = await getLivePositions(userId);
+      const shortOptions = positions.filter(
+        (p: Record<string, any>) =>
+          (p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option') &&
+          (p['quantity-direction'] || '').toLowerCase() === 'short',
+      );
+
+      if (shortOptions.length > 0) {
+        let totalOpen = 0;
+        let totalCurrent = 0;
+        const bySymbol: string[] = [];
+
+        for (const p of shortOptions) {
+          const qty = Math.abs(parseFloat(p.quantity || '1'));
+          const mult = parseFloat(p.multiplier || '100');
+          const openPrice = parseFloat(p['average-open-price'] || '0');
+          const mark = parseFloat(p['close-price'] || '0');
+          const openPremium = openPrice * qty * mult;
+          const currentValue = mark * qty * mult;
+          totalOpen += openPremium;
+          totalCurrent += currentValue;
+          const sym = (p['underlying-symbol'] || p.symbol || '?').trim();
+          const exp = p['expiration-date'] || p['expires-at'] || '';
+          const dte = getDTE(exp);
+          const pct = openPrice > 0 ? ((openPrice - mark) / openPrice * 100).toFixed(0) : '?';
+          bySymbol.push(`${sym} x${qty} exp ${exp} (${dte}d) open=$${openPrice.toFixed(2)} mark=$${mark.toFixed(2)} ${pct}% captured`);
+        }
+
+        const totalCaptured = totalOpen - totalCurrent;
+        const totalPct = totalOpen > 0 ? (totalCaptured / totalOpen * 100).toFixed(0) : '0';
+        positionContext = `Open short option positions: ${shortOptions.length}\n` +
+          `Total original premium: $${totalOpen.toFixed(0)}\n` +
+          `Total captured so far: $${totalCaptured.toFixed(0)} (${totalPct}%)\n` +
+          `Remaining at risk (cost to close all): $${totalCurrent.toFixed(0)}\n\n` +
+          `Individual positions:\n` + bySymbol.slice(0, 30).join('\n');
+      } else {
+        positionContext = 'No open short option positions found.';
+      }
+    } catch (posErr: any) {
+      positionContext = `Could not fetch live positions: ${posErr.message}`;
+    }
+
+    // ── Monthly and YTD premium from trading log ──────────────────────────────
+    try {
+      const db = await getDb();
+      if (db) {
+        const { tradingLog } = await import('../drizzle/schema');
+        const { eq, and, gte, inArray } = await import('drizzle-orm');
+
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+        const allLogs = await db
+          .select()
+          .from(tradingLog)
+          .where(
+            and(
+              eq(tradingLog.userId, userId),
+              gte(tradingLog.createdAt, startOfYear),
+              inArray(tradingLog.outcome, ['filled', 'success']),
+            ),
+          );
+
+        // STO orders = premium collected; BTC orders = premium paid to close
+        const stoOrders = allLogs.filter(l => l.action === 'STO' || l.action === 'STC');
+        const btcOrders = allLogs.filter(l => l.action === 'BTC' || l.action === 'BTO');
+
+        const sumPremium = (orders: typeof allLogs) =>
+          orders.reduce((sum, l) => {
+            const price = parseFloat(String(l.price || '0'));
+            const qty = l.quantity || 1;
+            return sum + price * qty * 100;
+          }, 0);
+
+        const ytdCollected = sumPremium(stoOrders);
+        const ytdPaid = sumPremium(btcOrders);
+        const ytdNet = ytdCollected - ytdPaid;
+
+        const monthLogs = allLogs.filter(l => l.createdAt && new Date(l.createdAt) >= startOfMonth);
+        const monthSto = monthLogs.filter(l => l.action === 'STO' || l.action === 'STC');
+        const monthBtc = monthLogs.filter(l => l.action === 'BTC' || l.action === 'BTO');
+        const monthCollected = sumPremium(monthSto);
+        const monthPaid = sumPremium(monthBtc);
+        const monthNet = monthCollected - monthPaid;
+
+        premiumContext = `Premium collected this month (${now.toLocaleString('en-US', { month: 'long' })}): $${monthCollected.toFixed(0)} gross, $${monthNet.toFixed(0)} net (after buybacks)\n` +
+          `Premium collected YTD (${now.getFullYear()}): $${ytdCollected.toFixed(0)} gross, $${ytdNet.toFixed(0)} net\n` +
+          `Total orders this month: ${monthLogs.length} | YTD: ${allLogs.length}`;
+      }
+    } catch (dbErr: any) {
+      premiumContext = `Could not fetch order history: ${dbErr.message}`;
+    }
+
+    // ── Current date/time context ─────────────────────────────────────────────
+    const now = new Date();
+    const mtNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Denver' }));
+    const isWeekday = mtNow.getDay() >= 1 && mtNow.getDay() <= 5;
+    const hour = mtNow.getHours();
+    const isMarketOpen = isWeekday && hour >= 9 && hour < 16;
+    const dateContext = `Current date/time: ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} ${mtNow.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}\nMarket status: ${isMarketOpen ? 'Open' : 'Closed'}`;
+
+    // ── Call LLM with full context ────────────────────────────────────────────
+    const systemPrompt = `You are the Prosper Trading Bot, a personal options trading assistant for Kenny Bunnell. Kenny runs a premium-selling wheel strategy (CSPs, Covered Calls, Bull Put Spreads, Bear Call Spreads, Iron Condors) across multiple Tastytrade accounts (IRA, Cash, LLC).
+
+You have access to Kenny's live portfolio data below. Answer his question concisely and specifically. Use dollar amounts, percentages, and contract counts where relevant. Keep responses under 300 words. Format using plain text — no markdown headers, use line breaks for readability. Use emojis sparingly for emphasis.
+
+If the question is about something you don't have data for, say so clearly and suggest he check the dashboard.
+
+--- PORTFOLIO CONTEXT ---
+${positionContext}
+
+--- PREMIUM HISTORY ---
+${premiumContext}
+
+--- DATE/TIME ---
+${dateContext}`;
+
+    const result = await invokeLLM({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: question },
+      ],
+    });
+
+    const answer = result.choices?.[0]?.message?.content || 'I could not generate a response. Please try again.';
+    return `🤖 ${answer}\n\n<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`;
+
+  } catch (err: any) {
+    console.error('[Telegram AI] Error handling question:', err.message);
+    return `⚠️ I ran into an error while answering your question: ${err.message}\n\nTry a slash command like /briefing or /pnl instead.`;
+  }
+}
+
 async function handleStatus(): Promise<string> {
   const uptime = process.uptime();
   const hours = Math.floor(uptime / 3600);
@@ -423,9 +569,9 @@ export async function handleTelegramCommand(update: {
         response = await handleStatus();
         break;
       default:
-        response =
-          `❓ Unknown command: <code>${rawCommand}</code>\n\n` +
-          `Send /help to see all available commands.`;
+        // Free-form natural language question — route to AI handler
+        await sendTelegramMessage(`🤔 Let me check that for you...`);
+        response = await handleAiQuestion(ownerUserId, text);
     }
   } catch (err: any) {
     console.error(`[Telegram] Command handler error for ${rawCommand}:`, err.message);

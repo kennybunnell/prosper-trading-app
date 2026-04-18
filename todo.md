@@ -9380,3 +9380,9 @@ ROC Fix Mar 18 2026
 - [x] Fix: duplicate briefings — was looping all users with credentials; now resolves single owner via OWNER_OPEN_ID
 - [x] Allow negative captured % (losers show ⛔ badge) — previously clamped to 0 which hid real losses
 - [x] TypeScript: 0 errors
+
+## Telegram AI Free-Form Chat (Apr 18, 2026)
+- [x] Add handleAiQuestion(userId, question) — builds portfolio context snapshot, calls invokeLLM, returns conversational answer
+- [x] Replace default "unknown command" handler with AI fallback for any non-slash-command text
+- [x] Include open positions summary, monthly/YTD premium from tradingLog, and market status in AI context
+- [x] Update /help to mention free-form questions are supported
