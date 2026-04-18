@@ -9356,3 +9356,19 @@ ROC Fix Mar 18 2026
 - [x] Fix IC startScan BCS construction: use correct calculateBearCallSpread(ccOpp, width, {bid, ask, delta}) signature with chain lookup
 - [x] Fix IC startScan: calculateBulkRiskAssessments(symbols, api) — was incorrectly passing ctx.user.id (number) instead of TradierAPI instance
 - [x] TypeScript: 0 errors after all IC startScan fixes
+
+## Telegram Inbound Command Handler (Apr 18, 2026)
+- [x] Audit Telegram setup — confirmed bot token + chat ID valid, webhook registered at prospertrading.biz
+- [x] Root cause: /api/dev/trigger-telegram-briefing was dev-only; moved to all environments so Settings "Test Telegram" button works in production
+- [x] Create server/telegram-commands.ts — full inbound command handler with security guard (owner chat ID only)
+- [x] /test — verify bot is working
+- [x] /help — list all available commands
+- [x] /briefing — trigger full morning briefing immediately
+- [x] /positions — list all open short option positions grouped by underlying
+- [x] /pnl — portfolio P&L summary (% captured, dollar amounts, by symbol)
+- [x] /expiring — positions expiring ≤7 DTE with DTE badge + P&L
+- [x] /close — positions ≥90% captured (ready to close for profit)
+- [x] /orders — last 10 orders from trading_log with outcome icon
+- [x] /status — server uptime, market hours status, next briefing time
+- [x] Wire handleTelegramCommand into Express webhook route (index.ts)
+- [x] TypeScript: 0 errors

@@ -12,6 +12,7 @@ import { initializeAutomationScheduler } from "../automation-scheduler";
 import { initializePortfolioSyncScheduler } from "../portfolio-sync-scheduler";
 import { registerTelegramWebhook, answerCallbackQuery, editTelegramMessage, sendTelegramMessage } from "../telegram";
 import { handleTelegramCallback } from "../telegram-callbacks";
+import { handleTelegramCommand } from "../telegram-commands";
 import { initializeTelegramBriefingScheduler } from "../telegram-briefing";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -53,6 +54,12 @@ async function startServer() {
     if (update?.callback_query) {
       await handleTelegramCallback(update.callback_query);
     }
+    // Handle inbound text commands (/help, /briefing, /positions, etc.)
+    if (update?.message?.text) {
+      await handleTelegramCommand(update).catch(err =>
+        console.error('[Telegram] Command handler error:', err.message)
+      );
+    }
   });
   
   // Configure body parser with larger size limit for file uploads
@@ -85,6 +92,17 @@ async function startServer() {
     });
   });
   
+  // Telegram briefing trigger (available in all environments — used by Settings page)
+  app.post("/api/dev/trigger-telegram-briefing", async (req, res) => {
+    try {
+      const { triggerDailyBriefingNow } = await import('../telegram-briefing');
+      await triggerDailyBriefingNow();
+      res.json({ success: true, message: 'Telegram briefing triggered' });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e?.message });
+    }
+  });
+
   // Dev utilities endpoint (development only)
   if (process.env.NODE_ENV === "development") {
     // Dev endpoint to trigger daily scan immediately (no auth required in dev)
@@ -93,16 +111,6 @@ async function startServer() {
         const { runDailyScanForAllUsersExport } = await import('../automation-scheduler');
         await runDailyScanForAllUsersExport();
         res.json({ success: true, message: 'Daily scan triggered for all users' });
-      } catch (e: any) {
-        res.status(500).json({ success: false, error: e?.message });
-      }
-    });
-
-    app.post("/api/dev/trigger-telegram-briefing", async (req, res) => {
-      try {
-        const { triggerDailyBriefingNow } = await import('../telegram-briefing');
-        await triggerDailyBriefingNow();
-        res.json({ success: true, message: 'Telegram briefing triggered' });
       } catch (e: any) {
         res.status(500).json({ success: false, error: e?.message });
       }
