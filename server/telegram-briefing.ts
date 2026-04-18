@@ -9,6 +9,11 @@
  *  - Short positions expiring within 7 days with DTE badge + P&L (% premium captured)
  *  - "Close for Profit" alert for positions ≥ 90% captured
  *  - Link to open the dashboard
+ *
+ * Data accuracy:
+ *  - Uses LIVE marks from Tastytrade getOptionQuotesBatch (not stale close-price)
+ *  - Falls back to close-price only when live marks are unavailable
+ *  - Sends ONE briefing per owner user (not one per credential row)
  */
 import * as cron from 'node-cron';
 import { sendTelegramMessage } from './telegram';
@@ -30,27 +35,29 @@ const getDTE = (expDateStr: string): number => {
  *
  * Formula: (openPrice - currentMark) / openPrice * 100
  *   - openPrice  = average-open-price (original STO credit received)
- *   - currentMark = close-price (current market price to buy back)
+ *   - currentMark = live mark price (bid/ask midpoint from Tastytrade)
  *
  * 0%  = position just opened (full premium still at risk)
  * 50% = half the premium has decayed away
  * 100% = option worth $0 (full premium captured, expires worthless)
+ * <0% = position has moved against us (ITM or expanded)
  */
 const calcPremiumCaptured = (
   openPrice: number,
   currentMark: number,
 ): number | null => {
   if (openPrice <= 0) return null;
-  const pct = ((openPrice - currentMark) / openPrice) * 100;
-  return Math.min(100, Math.max(0, pct)); // clamp 0–100
+  // Do NOT clamp — negative values are real and important (losers)
+  return ((openPrice - currentMark) / openPrice) * 100;
 };
 
-/** Emoji badge for % captured */
+/** Emoji badge for % captured (allows negative for losers) */
 const pctBadge = (pct: number): string => {
   if (pct >= 90) return '🟢';  // Close for profit territory
   if (pct >= 50) return '🟡';  // Halfway there
   if (pct >= 25) return '🟠';  // Early stage
-  return '🔴';                  // Still at risk / ITM
+  if (pct >= 0)  return '🔴';  // Still at risk
+  return '⛔';                  // Loser — position moved against us
 };
 
 // ─── Briefing Content Builder ─────────────────────────────────────────────────
@@ -74,6 +81,48 @@ async function buildBriefing(userId: number): Promise<string> {
         (p['quantity-direction'] || '').toLowerCase() === 'short',
     );
 
+    // ── Fetch live marks via Tastytrade getOptionQuotesBatch ──────────────────
+    // close-price from the positions endpoint is yesterday's close — NOT live.
+    // We need live marks for accurate P&L calculation.
+    const liveMarkMap = new Map<string, number>();
+    let usingLiveMarks = false;
+
+    try {
+      const { getApiCredentials } = await import('./db');
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const credentials = await getApiCredentials(userId);
+      if (credentials?.tastytradeRefreshToken) {
+        const api = await authenticateTastytrade(credentials, userId);
+        const optionSymbols = shortPositions
+          .map((p: Record<string, any>) => (p.symbol || '').trim())
+          .filter(Boolean);
+        if (optionSymbols.length > 0) {
+          const quoteMap = await api.getOptionQuotesBatch(optionSymbols);
+          for (const [sym, q] of Object.entries(quoteMap) as [string, any][]) {
+            const mid = (q.bid + q.ask) / 2;
+            const mark = (q.mark && q.mark > 0) ? q.mark : (mid > 0 ? mid : (q.last > 0 ? q.last : 0));
+            if (mark > 0) {
+              liveMarkMap.set(sym, mark);
+              liveMarkMap.set(sym.replace(/\s/g, ''), mark); // also store without spaces
+            }
+          }
+          usingLiveMarks = liveMarkMap.size > 0;
+          console.log(`[Telegram Briefing] Live marks fetched: ${liveMarkMap.size}/${optionSymbols.length}`);
+        }
+      }
+    } catch (markErr: any) {
+      console.warn('[Telegram Briefing] Could not fetch live marks, falling back to close-price:', markErr.message);
+    }
+
+    /** Get the best available mark for a position */
+    const getMark = (p: Record<string, any>): number => {
+      const sym = (p.symbol || '').trim();
+      const live = liveMarkMap.get(sym) ?? liveMarkMap.get(sym.replace(/\s/g, ''));
+      if (live !== undefined) return live;
+      // Fallback: use close-price (stale — yesterday's close)
+      return parseFloat(p['close-price'] || '0');
+    };
+
     // ── Total open premium ────────────────────────────────────────────────────
     // Sum of original credit received: openPrice × qty × multiplier
     const totalOpenPremium = shortPositions.reduce(
@@ -86,11 +135,11 @@ async function buildBriefing(userId: number): Promise<string> {
       0,
     );
 
-    // ── Remaining value (what it would cost to close all) ─────────────────────
+    // ── Remaining value (what it would cost to close all right now) ───────────
     const totalCurrentValue = shortPositions.reduce(
       (sum: number, p: Record<string, any>) => {
         const qty = Math.abs(parseFloat(p.quantity || '1'));
-        const mark = parseFloat(p['close-price'] || p.mark || '0');
+        const mark = getMark(p);
         const multiplier = parseFloat(p.multiplier || '100');
         return sum + mark * qty * multiplier;
       },
@@ -119,7 +168,7 @@ async function buildBriefing(userId: number): Promise<string> {
     const expiringSoon: ExpiringPos[] = shortPositions
       .map((p: Record<string, any>) => {
         const openPrice = parseFloat(p['average-open-price'] || '0');
-        const currentMark = parseFloat(p['close-price'] || p.mark || '0');
+        const currentMark = getMark(p);
         const qty = Math.abs(parseFloat(p.quantity || '1'));
         const multiplier = parseFloat(p.multiplier || '100');
         return {
@@ -143,7 +192,7 @@ async function buildBriefing(userId: number): Promise<string> {
     const closeForProfit = shortPositions
       .map((p: Record<string, any>) => {
         const openPrice = parseFloat(p['average-open-price'] || '0');
-        const currentMark = parseFloat(p['close-price'] || p.mark || '0');
+        const currentMark = getMark(p);
         const capturedPct = calcPremiumCaptured(openPrice, currentMark);
         return {
           underlying: (p['underlying-symbol'] || '').trim() as string,
@@ -167,15 +216,18 @@ async function buildBriefing(userId: number): Promise<string> {
       day: 'numeric',
     });
 
+    const marksNote = usingLiveMarks ? '' : ' <i>(stale marks)</i>';
+
     let msg = `🌅 <b>Good morning, Kenny!</b>\n`;
     msg += `📅 <b>${dateStr}</b> — Daily Briefing\n\n`;
 
     // Portfolio summary
     msg += `📊 <b>Open Short Positions:</b> ${shortPositions.length}\n`;
-    msg += `💰 <b>Original Premium:</b> $${totalOpenPremium.toFixed(0)}\n`;
+    msg += `💰 <b>Original Premium:</b> $${totalOpenPremium.toLocaleString('en-US', { maximumFractionDigits: 0 })}\n`;
     if (totalOpenPremium > 0) {
       const badge = pctBadge(totalCapturedPct);
-      msg += `${badge} <b>Captured:</b> $${totalCaptured.toFixed(0)} (${totalCapturedPct.toFixed(0)}%)\n`;
+      const capturedSign = totalCaptured >= 0 ? '' : '';
+      msg += `${badge} <b>Captured:</b> $${totalCaptured.toLocaleString('en-US', { maximumFractionDigits: 0 })} (${totalCapturedPct.toFixed(0)}%)${marksNote}\n`;
     }
     msg += '\n';
 
@@ -199,8 +251,8 @@ async function buildBriefing(userId: number): Promise<string> {
         let pnlStr = '';
         if (p.capturedPct !== null && p.openPremiumTotal > 0) {
           const badge = pctBadge(p.capturedPct);
-          const capturedDollar = p.capturedTotal.toFixed(0);
-          const openDollar = p.openPremiumTotal.toFixed(0);
+          const capturedDollar = p.capturedTotal.toLocaleString('en-US', { maximumFractionDigits: 0 });
+          const openDollar = p.openPremiumTotal.toLocaleString('en-US', { maximumFractionDigits: 0 });
           pnlStr = ` ${badge} ${p.capturedPct.toFixed(0)}% ($${capturedDollar}/$${openDollar})`;
         }
 
@@ -226,8 +278,15 @@ async function buildBriefing(userId: number): Promise<string> {
   }
 }
 
-// ─── Run Briefing for All Users ───────────────────────────────────────────────
-
+// ─── Run Briefing — Owner Only ────────────────────────────────────────────────
+/**
+ * Sends ONE briefing to the Telegram bot for the owner user.
+ *
+ * Previous version looped through ALL users with credentials, which caused
+ * duplicate briefings when the owner has multiple credential rows (e.g., two
+ * accounts with separate refresh tokens stored). Fixed: resolve the owner's
+ * single user ID via OWNER_OPEN_ID env var, fall back to the first user in DB.
+ */
 async function runDailyBriefing(): Promise<void> {
   console.log('[Telegram Briefing] Running daily morning briefing...');
   try {
@@ -238,24 +297,38 @@ async function runDailyBriefing(): Promise<void> {
       return;
     }
 
-    const { apiCredentials } = await import('../drizzle/schema');
-    const { isNotNull } = await import('drizzle-orm');
-    const usersWithCreds: Array<{ userId: number }> = await db
-      .select({ userId: apiCredentials.userId })
-      .from(apiCredentials)
-      .where(isNotNull(apiCredentials.tastytradeRefreshToken));
+    // Resolve owner user ID — use OWNER_OPEN_ID to find the single owner row
+    const { users } = await import('../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+    const ownerOpenId = process.env.OWNER_OPEN_ID;
+    let ownerUserId: number | null = null;
 
-    for (const user of usersWithCreds) {
-      try {
-        const message = await buildBriefing(user.userId);
-        await sendTelegramMessage(message);
-        console.log(`[Telegram Briefing] Sent briefing for user ${user.userId}`);
-      } catch (err: any) {
-        console.error(
-          `[Telegram Briefing] Failed for user ${user.userId}:`,
-          err.message,
-        );
-      }
+    if (ownerOpenId) {
+      const ownerRows = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.openId, ownerOpenId))
+        .limit(1);
+      if (ownerRows.length > 0) ownerUserId = ownerRows[0].id;
+    }
+
+    // Fallback: first user in DB
+    if (!ownerUserId) {
+      const firstUser = await db.select({ id: users.id }).from(users).limit(1);
+      if (firstUser.length > 0) ownerUserId = firstUser[0].id;
+    }
+
+    if (!ownerUserId) {
+      console.error('[Telegram Briefing] No owner user found — skipping briefing');
+      return;
+    }
+
+    try {
+      const message = await buildBriefing(ownerUserId);
+      await sendTelegramMessage(message);
+      console.log(`[Telegram Briefing] Sent briefing for owner userId=${ownerUserId}`);
+    } catch (err: any) {
+      console.error('[Telegram Briefing] Failed to send briefing:', err.message);
     }
   } catch (err: any) {
     console.error('[Telegram Briefing] Unexpected error:', err.message);

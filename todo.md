@@ -9372,3 +9372,11 @@ ROC Fix Mar 18 2026
 - [x] /status — server uptime, market hours status, next briefing time
 - [x] Wire handleTelegramCommand into Express webhook route (index.ts)
 - [x] TypeScript: 0 errors
+
+## Telegram Briefing Accuracy Fixes (Apr 18, 2026)
+- [x] Root cause: close-price field = yesterday's close, NOT live mark — causes wildly wrong P&L
+- [x] Fix: fetch live marks via getOptionQuotesBatch before calculating captured P&L
+- [x] Fix: fall back to close-price only when live marks unavailable, show (stale marks) note
+- [x] Fix: duplicate briefings — was looping all users with credentials; now resolves single owner via OWNER_OPEN_ID
+- [x] Allow negative captured % (losers show ⛔ badge) — previously clamped to 0 which hid real losses
+- [x] TypeScript: 0 errors
