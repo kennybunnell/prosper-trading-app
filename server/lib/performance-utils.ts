@@ -22,9 +22,14 @@ export interface MonthlyData {
   cspDebits: number;
   ccCredits: number;
   ccDebits: number;
+  // Spread legs: BTO cost (long leg opening) and STC credit (long leg closing)
+  spreadBtoCost: number;   // Buy to Open — cost of long legs in spreads
+  spreadStcCredit: number; // Sell to Close — credit when closing long legs
+  spreadNet: number;       // spreadStcCredit - spreadBtoCost (usually negative = net cost)
+  spreadTrades: number;    // Number of BTO trades (spread long legs opened)
   cspNet: number;
   ccNet: number;
-  totalNet: number;
+  totalNet: number;        // cspNet + ccNet + spreadNet
   cspTrades: number;
   ccTrades: number;
   assignments: number;
@@ -43,6 +48,9 @@ export interface SymbolPerformance {
   ccTrades: number;
   cspNet: number;
   ccNet: number;
+  spreadBtoCost: number;
+  spreadStcCredit: number;
+  spreadNet: number;
 }
 
 export interface PerformanceMetrics {
@@ -123,17 +131,14 @@ export function aggregateMonthlyData(transactions: Transaction[]): MonthlyData[]
     cspDebits: number;
     ccCredits: number;
     ccDebits: number;
+    spreadBtoCost: number;
+    spreadStcCredit: number;
+    spreadTrades: number;
     cspTrades: number;
     ccTrades: number;
     assignments: number;
     calledAway: number;
   }>();
-
-  // Debug counters for January 2026
-  let jan2026Total = 0;
-  let jan2026NoDate = 0;
-  let jan2026NoOptionType = 0;
-  let jan2026Processed = 0;
 
   for (const txn of transactions) {
     const txnType = txn['transaction-type'] || '';
@@ -142,14 +147,7 @@ export function aggregateMonthlyData(transactions: Transaction[]): MonthlyData[]
     const value = Math.abs(parseFloat(String(txn.value || 0)));
     const executedAt = txn['executed-at'] || '';
 
-    if (!executedAt) {
-      // Track January transactions with no date
-      const txnDate = new Date();
-      if (txn.symbol && txn.symbol.includes('260117')) {
-        jan2026NoDate++;
-      }
-      continue;
-    }
+    if (!executedAt) continue;
 
     // Parse date
     let txnDate: Date;
@@ -172,6 +170,9 @@ export function aggregateMonthlyData(transactions: Transaction[]): MonthlyData[]
         cspDebits: 0,
         ccCredits: 0,
         ccDebits: 0,
+        spreadBtoCost: 0,
+        spreadStcCredit: 0,
+        spreadTrades: 0,
         cspTrades: 0,
         ccTrades: 0,
         assignments: 0,
@@ -181,28 +182,23 @@ export function aggregateMonthlyData(transactions: Transaction[]): MonthlyData[]
 
     const monthData = monthlyTotals.get(monthKey)!;
 
-    // Track January 2026 transactions
-    if (monthKey === '2026-01') {
-      jan2026Total++;
-    }
-
-    // Determine option type
-    const optionType = parseOptionType(symbol);
-    if (!optionType) {
-      // Track January transactions that fail option type parsing
-      if (monthKey === '2026-01') {
-        jan2026NoOptionType++;
-      }
-      continue;
-    }
-    
-    // Track successfully processed January transactions
-    if (monthKey === '2026-01') {
-      jan2026Processed++;
-    }
-
-    // Track trades
     if (txnType === 'Trade') {
+      // Handle spread legs first (Buy to Open / Sell to Close)
+      if (action === 'Buy to Open') {
+        // Long leg of a spread — this is a cost
+        monthData.spreadBtoCost += value;
+        monthData.spreadTrades += 1;
+        continue; // Don't double-count as CSP/CC
+      } else if (action === 'Sell to Close') {
+        // Closing a long leg — this is a credit
+        monthData.spreadStcCredit += value;
+        continue;
+      }
+
+      // Determine option type for STO/BTC
+      const optionType = parseOptionType(symbol);
+      if (!optionType) continue;
+
       if (action === 'Sell to Open') {
         if (optionType === 'PUT') {
           monthData.cspCredits += value;
@@ -221,6 +217,8 @@ export function aggregateMonthlyData(transactions: Transaction[]): MonthlyData[]
     }
     // Track assignments and called away
     else if (txnType === 'Receive Deliver') {
+      const optionType = parseOptionType(symbol);
+      if (!optionType) continue;
       if (optionType === 'PUT' && (action === 'Buy' || action === 'Receive')) {
         monthData.assignments += 1;
       } else if (optionType === 'CALL' && (action === 'Sell' || action === 'Deliver')) {
@@ -238,10 +236,11 @@ export function aggregateMonthlyData(transactions: Transaction[]): MonthlyData[]
     
     const cspNet = data.cspCredits - data.cspDebits;
     const ccNet = data.ccCredits - data.ccDebits;
-    const totalNet = cspNet + ccNet;
+    const spreadNet = data.spreadStcCredit - data.spreadBtoCost;
+    const totalNet = cspNet + ccNet + spreadNet;
 
     // Only include months with actual data
-    if (data.cspCredits > 0 || data.ccCredits > 0) {
+    if (data.cspCredits > 0 || data.ccCredits > 0 || data.spreadBtoCost > 0) {
       const monthDate = new Date(data.year, data.month - 1, 1);
       const monthName = monthDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 
@@ -254,6 +253,10 @@ export function aggregateMonthlyData(transactions: Transaction[]): MonthlyData[]
         cspDebits: data.cspDebits,
         ccCredits: data.ccCredits,
         ccDebits: data.ccDebits,
+        spreadBtoCost: data.spreadBtoCost,
+        spreadStcCredit: data.spreadStcCredit,
+        spreadNet,
+        spreadTrades: data.spreadTrades,
         cspNet,
         ccNet,
         totalNet,
@@ -263,17 +266,6 @@ export function aggregateMonthlyData(transactions: Transaction[]): MonthlyData[]
         calledAway: data.calledAway,
       });
     }
-  }
-
-  // Log January 2026 filtering stats
-  if (jan2026Total > 0) {
-    console.log('[aggregateMonthlyData] January 2026 Transaction Filtering:', {
-      totalJan2026Transactions: jan2026Total,
-      noExecutedAt: jan2026NoDate,
-      failedOptionTypeParsing: jan2026NoOptionType,
-      successfullyProcessed: jan2026Processed,
-      droppedTransactions: jan2026Total - jan2026Processed,
-    });
   }
 
   return results;
@@ -290,6 +282,8 @@ export function aggregateBySymbol(transactions: Transaction[]): SymbolPerformanc
     ccTrades: number;
     cspNet: number;
     ccNet: number;
+    spreadBtoCost: number;
+    spreadStcCredit: number;
   }>();
 
   // Process transactions chronologically
@@ -323,12 +317,18 @@ export function aggregateBySymbol(transactions: Transaction[]): SymbolPerformanc
         ccTrades: 0,
         cspNet: 0,
         ccNet: 0,
+        spreadBtoCost: 0,
+        spreadStcCredit: 0,
       });
     }
 
     const data = symbolData.get(underlying)!;
 
-    if (action === 'Sell to Open') {
+    if (action === 'Buy to Open') {
+      data.spreadBtoCost += Math.abs(value);
+    } else if (action === 'Sell to Close') {
+      data.spreadStcCredit += Math.abs(value);
+    } else if (action === 'Sell to Open') {
       // Opening trade - store the credit received
       data.openTrades.set(symbol, { value: Math.abs(value), type: strategyType });
       if (strategyType === 'CSP') {
@@ -365,10 +365,11 @@ export function aggregateBySymbol(transactions: Transaction[]): SymbolPerformanc
     const winRate = totalClosed > 0 ? (wins / totalClosed) * 100 : 0;
 
     const totalTrades = data.cspTrades + data.ccTrades;
-    const netPremium = data.cspNet + data.ccNet;
+    const spreadNet = data.spreadStcCredit - data.spreadBtoCost;
+    const netPremium = data.cspNet + data.ccNet + spreadNet;
     const avgPremiumPerTrade = totalTrades > 0 ? netPremium / totalTrades : 0;
 
-    if (totalTrades > 0) {
+    if (totalTrades > 0 || data.spreadBtoCost > 0) {
       results.push({
         symbol,
         trades: totalTrades,
@@ -381,6 +382,9 @@ export function aggregateBySymbol(transactions: Transaction[]): SymbolPerformanc
         ccTrades: data.ccTrades,
         cspNet: data.cspNet,
         ccNet: data.ccNet,
+        spreadBtoCost: data.spreadBtoCost,
+        spreadStcCredit: data.spreadStcCredit,
+        spreadNet,
       });
     }
   }
@@ -439,7 +443,7 @@ export function calculatePerformanceMetrics(
     }
   }
 
-  const totalTrades = monthlyData.reduce((sum, m) => sum + m.cspTrades + m.ccTrades, 0);
+  const totalTrades = monthlyData.reduce((sum, m) => sum + m.cspTrades + m.ccTrades + m.spreadTrades, 0);
 
   return {
     totalTrades,

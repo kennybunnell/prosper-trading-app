@@ -179,8 +179,10 @@ export const performanceRouter = router({
 
       // Calculate totals
       const totals = {
-        totalCredits: monthlyData.reduce((sum, m) => sum + m.cspCredits + m.ccCredits, 0),
-        totalDebits: monthlyData.reduce((sum, m) => sum + m.cspDebits + m.ccDebits, 0),
+        // Total Credits = STO credits + STC credits (closing spread long legs)
+        totalCredits: monthlyData.reduce((sum, m) => sum + m.cspCredits + m.ccCredits + m.spreadStcCredit, 0),
+        // Total Debits = BTC costs + BTO costs (spread long leg purchases)
+        totalDebits: monthlyData.reduce((sum, m) => sum + m.cspDebits + m.ccDebits + m.spreadBtoCost, 0),
         totalNet: monthlyData.reduce((sum, m) => sum + m.totalNet, 0),
         cspCredits: monthlyData.reduce((sum, m) => sum + m.cspCredits, 0),
         cspDebits: monthlyData.reduce((sum, m) => sum + m.cspDebits, 0),
@@ -188,6 +190,10 @@ export const performanceRouter = router({
         ccCredits: monthlyData.reduce((sum, m) => sum + m.ccCredits, 0),
         ccDebits: monthlyData.reduce((sum, m) => sum + m.ccDebits, 0),
         ccNet: monthlyData.reduce((sum, m) => sum + m.ccNet, 0),
+        spreadBtoCost: monthlyData.reduce((sum, m) => sum + m.spreadBtoCost, 0),
+        spreadStcCredit: monthlyData.reduce((sum, m) => sum + m.spreadStcCredit, 0),
+        spreadNet: monthlyData.reduce((sum, m) => sum + m.spreadNet, 0),
+        spreadTrades: monthlyData.reduce((sum, m) => sum + m.spreadTrades, 0),
         cspTrades: monthlyData.reduce((sum, m) => sum + m.cspTrades, 0),
         ccTrades: monthlyData.reduce((sum, m) => sum + m.ccTrades, 0),
         assignments: monthlyData.reduce((sum, m) => sum + m.assignments, 0),

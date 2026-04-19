@@ -3369,12 +3369,17 @@ function PerformanceOverviewTab() {
     ? ((totals.totalNet / totals.totalCredits) * 100).toFixed(1)
     : '0.0';
 
-  // Calculate CSP and CC percentages of total
+  // Calculate CSP, CC, and Spread percentages of total
   const cspPercent = totals.totalNet > 0 
     ? ((totals.cspNet / totals.totalNet) * 100).toFixed(1)
     : '0.0';
   const ccPercent = totals.totalNet > 0 
     ? ((totals.ccNet / totals.totalNet) * 100).toFixed(1)
+    : '0.0';
+  const spreadNet = (totals as any).spreadNet ?? 0;
+  const spreadTrades = (totals as any).spreadTrades ?? 0;
+  const spreadPercent = totals.totalNet !== 0
+    ? ((spreadNet / totals.totalNet) * 100).toFixed(1)
     : '0.0';
 
   return (
@@ -3503,7 +3508,7 @@ function PerformanceOverviewTab() {
       )}
 
       {/* Summary Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {/* Total Credits */}
         <Card className="p-4 bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
           <div className="space-y-2">
@@ -3565,6 +3570,19 @@ function PerformanceOverviewTab() {
             </p>
             <p className="text-xs text-muted-foreground">
               {ccPercent}% of total
+            </p>
+          </div>
+        </Card>
+
+        {/* Spread Net */}
+        <Card className="p-4 bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 border-cyan-500/20">
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Spread Net</p>
+            <p className={`text-2xl font-bold ${spreadNet >= 0 ? 'text-cyan-400' : 'text-red-400'}`}>
+              ${spreadNet.toFixed(2)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {spreadTrades} long legs · {spreadPercent}% of total
             </p>
           </div>
         </Card>
@@ -3861,7 +3879,7 @@ function PerformanceOverviewTab() {
           <button
             onClick={() => {
               const csv = [
-                ['Month', 'CSP Credits', 'CSP Debits', 'CSP Net', 'CC Credits', 'CC Debits', 'CC Net', 'Total Net', 'Assignments'].join(','),
+                ['Month', 'CSP Credits', 'CSP Debits', 'CSP Net', 'CC Credits', 'CC Debits', 'CC Net', 'Spread BTO Cost', 'Spread STC Credit', 'Spread Net', 'Total Net', 'Trades'].join(','),
                 ...sortedMonthlyData.map(m => [
                   m.monthName,
                   m.cspCredits.toFixed(2),
@@ -3870,8 +3888,11 @@ function PerformanceOverviewTab() {
                   m.ccCredits.toFixed(2),
                   m.ccDebits.toFixed(2),
                   m.ccNet.toFixed(2),
+                  ((m as any).spreadBtoCost ?? 0).toFixed(2),
+                  ((m as any).spreadStcCredit ?? 0).toFixed(2),
+                  ((m as any).spreadNet ?? 0).toFixed(2),
                   m.totalNet.toFixed(2),
-                  m.assignments
+                  m.cspTrades + m.ccTrades + ((m as any).spreadTrades ?? 0)
                 ].join(','))
               ].join('\n');
               const blob = new Blob([csv], { type: 'text/csv' });
@@ -3938,6 +3959,11 @@ function PerformanceOverviewTab() {
                   CC Net {monthlySortKey === 'ccNet' && (monthlySortDir === 'asc' ? '↑' : '↓')}
                 </th>
                 <th 
+                  className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400 text-cyan-400"
+                >
+                  Spread Net
+                </th>
+                <th 
                   className="text-right py-2 px-2 text-sm font-semibold cursor-pointer hover:text-blue-400"
                   onClick={() => handleMonthlySort('totalNet')}
                 >
@@ -3973,13 +3999,18 @@ function PerformanceOverviewTab() {
                   <td className="py-2 px-2 text-sm text-right font-semibold">
                     ${month.ccNet.toFixed(2)}
                   </td>
+                  <td className={`py-2 px-2 text-sm text-right font-semibold ${
+                    ((month as any).spreadNet ?? 0) >= 0 ? 'text-cyan-400' : 'text-red-400'
+                  }`}>
+                    ${((month as any).spreadNet ?? 0).toFixed(2)}
+                  </td>
                   <td className={`py-2 px-2 text-sm text-right font-bold ${
                     month.totalNet > 0 ? 'text-green-400' : month.totalNet < 0 ? 'text-red-400' : ''
                   }`}>
                     ${month.totalNet.toFixed(2)}
                   </td>
                   <td className="py-2 px-2 text-sm text-right text-muted-foreground">
-                    {month.cspTrades + month.ccTrades}
+                    {month.cspTrades + month.ccTrades + ((month as any).spreadTrades ?? 0)}
                   </td>
                 </tr>
               ))}
