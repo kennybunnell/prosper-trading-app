@@ -9386,3 +9386,11 @@ ROC Fix Mar 18 2026
 - [x] Replace default "unknown command" handler with AI fallback for any non-slash-command text
 - [x] Include open positions summary, monthly/YTD premium from tradingLog, and market status in AI context
 - [x] Update /help to mention free-form questions are supported
+
+## Disaster Recovery
+- [x] Auto-push to GitHub after every checkpoint via post-commit hook (mirrors to kennybunnell/prosper-trading-app)
+- [x] Database export endpoint: GET /api/export/database — owner-only, dumps all critical tables to JSON, uploads to S3, returns download URL
+- [x] Export covers: watchlists, filter presets, automation settings, GTC orders, cached transactions, order history, paper trading, premium tracking
+- [x] Sensitive fields (session tokens) redacted from export
+- [ ] Add /export command to Telegram bot so you can trigger a backup from your phone
+- [ ] Add scheduled weekly database export (every Sunday) with Telegram notification containing download link

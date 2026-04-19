@@ -14,6 +14,7 @@ import { registerTelegramWebhook, answerCallbackQuery, editTelegramMessage, send
 import { handleTelegramCallback } from "../telegram-callbacks";
 import { handleTelegramCommand } from "../telegram-commands";
 import { initializeTelegramBriefingScheduler } from "../telegram-briefing";
+import { sdk } from "./sdk";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -92,6 +93,23 @@ async function startServer() {
     });
   });
   
+  // Database export endpoint — owner-only, returns a time-limited S3 download URL
+  app.get("/api/export/database", async (req, res) => {
+    try {
+      const user = await sdk.authenticateRequest(req).catch(() => null);
+      if (!user) return res.status(401).json({ error: 'Authentication required' });
+      const ownerOpenId = process.env.OWNER_OPEN_ID;
+      if (ownerOpenId && user.openId !== ownerOpenId) {
+        return res.status(403).json({ error: 'Owner access required' });
+      }
+      const { exportDatabase } = await import('../db-export');
+      const result = await exportDatabase(user.id);
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'Export failed' });
+    }
+  });
+
   // Telegram briefing trigger (available in all environments — used by Settings page)
   app.post("/api/dev/trigger-telegram-briefing", async (req, res) => {
     try {
