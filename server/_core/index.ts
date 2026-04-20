@@ -107,21 +107,23 @@ async function startServer() {
       }
       // Check credentials for user 1
       let hasCredentials = false, hasRefreshToken = false;
+      let ttAccounts: any[] = [];
       if (firstUserId) {
-        const { apiCredentials } = await import('../../drizzle/schema');
+        const { apiCredentials, tastytradeAccounts } = await import('../../drizzle/schema');
         const creds = await db.select({
           clientSecret: apiCredentials.tastytradeClientSecret,
           refreshToken: apiCredentials.tastytradeRefreshToken
         }).from(apiCredentials).where(eq(apiCredentials.userId, firstUserId)).limit(1);
         hasCredentials = creds.length > 0;
         hasRefreshToken = !!(creds[0]?.refreshToken);
+        ttAccounts = await db.select({ accountNumber: tastytradeAccounts.accountNumber, accountType: tastytradeAccounts.accountType }).from(tastytradeAccounts).where(eq(tastytradeAccounts.userId, firstUserId));
       }
       // Sample a few cached positions to check field names
       let samplePos: any[] = [];
       if (firstUserId && posCount > 0) {
         samplePos = await db.select().from(cachedPositions).where(eq(cachedPositions.userId, firstUserId)).limit(2);
       }
-      res.json({ users: allUsers, firstUserId, txnCount, posCount, aprilStoCount, hasCredentials, hasRefreshToken, samplePos });
+      res.json({ users: allUsers, firstUserId, txnCount, posCount, aprilStoCount, hasCredentials, hasRefreshToken, ttAccounts, samplePos });
     } catch (err: any) {
       res.json({ error: err.message });
     }
