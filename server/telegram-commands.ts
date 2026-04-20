@@ -97,7 +97,14 @@ async function handlePositions(userId: number): Promise<string> {
     return `📭 <b>No open short option positions found.</b>\n\n<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`;
   }
 
-  // Group by underlying
+  // Sort by DTE ascending (soonest expiry first)
+  shortOptions.sort((a: Record<string, any>, b: Record<string, any>) => {
+    const dteA = getDTE(a['expiration-date'] || a['expires-at'] || '');
+    const dteB = getDTE(b['expiration-date'] || b['expires-at'] || '');
+    return dteA - dteB;
+  });
+
+  // Group by underlying symbol
   const byUnderlying = new Map<string, typeof shortOptions>();
   for (const p of shortOptions) {
     const sym = (p['underlying-symbol'] || p.symbol || 'UNKNOWN').trim();
@@ -105,23 +112,53 @@ async function handlePositions(userId: number): Promise<string> {
     byUnderlying.get(sym)!.push(p);
   }
 
-  let msg = `📋 <b>Open Short Positions (${shortOptions.length})</b>\n\n`;
-  for (const [sym, posGroup] of Array.from(byUnderlying.entries()).slice(0, 15)) {
+  // Calculate totals
+  let totalOpenPremium = 0;
+  let totalCurrentValue = 0;
+  for (const p of shortOptions) {
+    const qty = Math.abs(parseFloat(p.quantity || '1'));
+    const mult = parseFloat(p.multiplier || '100');
+    const openPrice = parseFloat(p['average-open-price'] || '0');
+    const mark = parseFloat(p['close-price'] || '0');
+    totalOpenPremium += openPrice * qty * mult;
+    totalCurrentValue += mark * qty * mult;
+  }
+  const totalCaptured = totalOpenPremium - totalCurrentValue;
+  const totalPct = totalOpenPremium > 0 ? (totalCaptured / totalOpenPremium * 100) : 0;
+  const totalBadge = totalPct >= 50 ? '🟢' : totalPct >= 25 ? '🟡' : totalPct >= 0 ? '🟠' : '🔴';
+
+  let msg = `📋 <b>Open Short Positions (${shortOptions.length})</b>\n`;
+  msg += `${totalBadge} Portfolio: $${totalOpenPremium.toFixed(0)} open · $${totalCaptured.toFixed(0)} captured (${totalPct.toFixed(0)}%)\n\n`;
+
+  // Show up to 20 symbols, sorted by earliest expiry
+  const symEntries = Array.from(byUnderlying.entries());
+  let shown = 0;
+  for (const [sym, posGroup] of symEntries) {
+    if (shown >= 20) break;
+    msg += `<b>${sym}</b>\n`;
     for (const p of posGroup) {
       const qty = Math.abs(parseFloat(p.quantity || '1'));
+      const mult = parseFloat(p.multiplier || '100');
       const openPrice = parseFloat(p['average-open-price'] || '0');
-      const mark = parseFloat(p['close-price'] || p.mark || '0');
+      const mark = parseFloat(p['close-price'] || '0');
       const exp = p['expiration-date'] || p['expires-at'] || '';
       const dte = getDTE(exp);
+      const strike = parseFloat(p['strike-price'] || '0');
+      const optType = (p['option-type'] || '').toUpperCase();
       const capturedPct = calcPremiumCaptured(openPrice, mark);
       const badge = capturedPct !== null ? pctBadge(capturedPct) : '⚪';
-      const pctStr = capturedPct !== null ? ` ${badge}${capturedPct.toFixed(0)}%` : '';
-      const acct = (p['account-number'] || '').slice(-4);
-      msg += `  <b>${sym}</b> ×${qty} · ${dte}d · $${openPrice.toFixed(2)}→$${mark.toFixed(2)}${pctStr} [···${acct}]\n`;
+      const pctStr = capturedPct !== null
+        ? (capturedPct < 0 ? ` 🔴${capturedPct.toFixed(0)}%` : ` ${badge}${capturedPct.toFixed(0)}%`)
+        : '';
+      const strikeStr = strike > 0 ? `$${strike % 1 === 0 ? strike.toFixed(0) : strike.toFixed(1)}${optType}` : '';
+      const expShort = exp ? exp.slice(5) : '?'; // MM-DD
+      const premium = openPrice * qty * mult;
+      msg += `  ${strikeStr} ×${qty} exp ${expShort} (${dte}d) · open $${openPrice.toFixed(2)} → $${mark.toFixed(2)}${pctStr} · $${premium.toFixed(0)}\n`;
     }
+    shown++;
   }
-  if (shortOptions.length > 15) {
-    msg += `  <i>…and ${shortOptions.length - 15} more</i>\n`;
+  if (byUnderlying.size > 20) {
+    msg += `<i>…and ${byUnderlying.size - 20} more symbols</i>\n`;
   }
   msg += `\n<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`;
   return msg;
