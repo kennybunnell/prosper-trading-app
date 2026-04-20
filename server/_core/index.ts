@@ -123,7 +123,27 @@ async function startServer() {
       if (firstUserId && posCount > 0) {
         samplePos = await db.select().from(cachedPositions).where(eq(cachedPositions.userId, firstUserId)).limit(2);
       }
-      res.json({ users: allUsers, firstUserId, txnCount, posCount, aprilStoCount, hasCredentials, hasRefreshToken, ttAccounts, samplePos });
+      // Test getLivePositions directly
+      let livePositionsResult: any = { error: 'not tested' };
+      if (firstUserId) {
+        try {
+          const { getLivePositions } = await import('../portfolio-sync');
+          const livePos = await getLivePositions(firstUserId);
+          const shortOpts = livePos.filter((p: any) =>
+            (p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option') &&
+            (p['quantity-direction'] || '').toLowerCase() === 'short'
+          );
+          livePositionsResult = {
+            total: livePos.length,
+            shortOptions: shortOpts.length,
+            sampleFields: livePos[0] ? Object.keys(livePos[0]) : [],
+            sampleFirst: livePos[0] || null
+          };
+        } catch (liveErr: any) {
+          livePositionsResult = { error: liveErr.message };
+        }
+      }
+      res.json({ users: allUsers, firstUserId, txnCount, posCount, aprilStoCount, hasCredentials, hasRefreshToken, ttAccounts, samplePos, livePositionsResult });
     } catch (err: any) {
       res.json({ error: err.message });
     }
