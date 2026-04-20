@@ -659,6 +659,13 @@ export async function getLivePositions(
         }
       })
     );
+    // If live API returned 0 positions (market holiday, token expiry, or API outage),
+    // fall back to the DB cache so Telegram commands always show real data
+    if (allPositions.length === 0) {
+      console.warn('[getLivePositions] Live API returned 0 positions — falling back to DB cache (holiday/token issue)');
+      const cached = await getCachedPositions(userId, accountNumber);
+      return cached.map(p => cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }));
+    }
     return allPositions;
   } catch (err: any) {
     console.error('[getLivePositions] Unexpected error — falling back to DB cache:', err.message);
