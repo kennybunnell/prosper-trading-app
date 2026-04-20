@@ -511,17 +511,26 @@ export async function handleTelegramCommand(update: {
   const rawCommand = text.split(' ')[0].toLowerCase().replace(/@\w+$/, '');
   console.log(`[Telegram] Command received from ${chatId}: ${rawCommand}`);
 
-  // Find the owner's userId from DB (needed for position lookups)
+  // Find the owner's userId from DB — use OWNER_OPEN_ID for reliable resolution
   let ownerUserId = 1; // fallback
   try {
     const { getDb } = await import('./db');
     const db = await getDb();
     if (db) {
       const { users } = await import('../drizzle/schema');
-      const allUsers = await db.select({ id: users.id }).from(users).limit(1);
-      if (allUsers.length > 0) ownerUserId = allUsers[0].id;
+      const { eq, asc } = await import('drizzle-orm');
+      const ownerOpenId = process.env.OWNER_OPEN_ID;
+      if (ownerOpenId) {
+        const ownerRows = await db.select({ id: users.id }).from(users).where(eq(users.openId, ownerOpenId)).limit(1);
+        if (ownerRows.length > 0) ownerUserId = ownerRows[0].id;
+      } else {
+        // Fallback: lowest ID user (most likely the owner)
+        const firstUser = await db.select({ id: users.id }).from(users).orderBy(asc(users.id)).limit(1);
+        if (firstUser.length > 0) ownerUserId = firstUser[0].id;
+      }
     }
   } catch { /* use fallback */ }
+  console.log(`[Telegram] Resolved ownerUserId=${ownerUserId} for command ${rawCommand}`);
 
   let response = '';
   try {
