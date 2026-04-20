@@ -236,12 +236,15 @@ const projectionsRouter = router({
         const txnDate = new Date(executedAt);
         const monthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
 
-        if (action === 'Sell to Open') {
-          totalCredits += Math.abs(value);
-          monthlyPremiums[monthKey] = (monthlyPremiums[monthKey] || 0) + Math.abs(value);
-        } else if (action === 'Buy to Close') {
-          totalDebits += Math.abs(value);
-          monthlyPremiums[monthKey] = (monthlyPremiums[monthKey] || 0) - Math.abs(value);
+        // Credits: STO (opening short) + STC (closing long position for profit)
+        // Debits: BTC (closing short) + BTO (opening long/spread leg)
+        const absValue = Math.abs(value);
+        if (action === 'Sell to Open' || action === 'Sell to Close') {
+          totalCredits += absValue;
+          monthlyPremiums[monthKey] = (monthlyPremiums[monthKey] || 0) + absValue;
+        } else if (action === 'Buy to Close' || action === 'Buy to Open') {
+          totalDebits += absValue;
+          monthlyPremiums[monthKey] = (monthlyPremiums[monthKey] || 0) - absValue;
         }
       }
     }
