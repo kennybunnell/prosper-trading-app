@@ -74,7 +74,8 @@ async function handleHelp(): Promise<string> {
 ` +
     `  /orders — Recent working orders
 ` +
-    `  /status — Server status &amp; next briefing timeefing time\n\n` +
+    `  /status — Server status &amp; next briefing time\n` +
+  `  /sync — Force immediate cache refresh from Tastytrade\n\n` +
     `<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`
   );
 }
@@ -636,6 +637,36 @@ async function handleStatus(): Promise<string> {
   );
 }
 
+// ─── Sync Handler ────────────────────────────────────────────────────────────
+
+/**
+ * /sync — Force an immediate DB cache refresh from Tastytrade.
+ * Useful to get up-to-the-minute data before querying positions or premium.
+ */
+async function handleSync(userId: number): Promise<string> {
+  try {
+    await sendTelegramMessage(`🔄 <b>Syncing portfolio data...</b>\nFetching latest positions and transactions from Tastytrade. This may take 10–20 seconds.`);
+    const { syncPortfolio } = await import('./portfolio-sync');
+    const results = await syncPortfolio(userId, false);
+    const totalPositions = results.reduce((s, r) => s + r.positionsSynced, 0);
+    const totalTxns = results.reduce((s, r) => s + r.transactionsSynced, 0);
+    const accountCount = results.length;
+    const now = new Date().toLocaleString('en-US', { timeZone: 'America/Denver', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' });
+    return (
+      `✅ <b>Sync Complete!</b>\n\n` +
+      `📊 <b>Accounts synced:</b> ${accountCount}\n` +
+      `📋 <b>Positions updated:</b> ${totalPositions}\n` +
+      `💰 <b>Transactions synced:</b> ${totalTxns}\n` +
+      `🕐 <b>Synced at:</b> ${now}\n\n` +
+      `Data is now current. Try /positions, /pnl, or /premium for fresh results.\n` +
+      `<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`
+    );
+  } catch (err: any) {
+    console.error('[Telegram] /sync error:', err.message);
+    return `⚠️ Sync failed: ${err.message}\n\nThe cache may be stale. Check Tastytrade credentials in Settings.`;
+  }
+}
+
 // ─── Main entry point ─────────────────────────────────────────────────────────
 
 /**
@@ -736,6 +767,10 @@ export async function handleTelegramCommand(update: {
       case '/status':
       case 'status':
         response = await handleStatus();
+        break;
+      case '/sync':
+      case 'sync':
+        response = await handleSync(ownerUserId);
         break;
       default:
         // Free-form natural language question — route to AI handler

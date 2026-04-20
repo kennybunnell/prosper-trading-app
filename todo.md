@@ -9406,3 +9406,7 @@ ROC Fix Mar 18 2026
 ## Premium Command & Dashboard Breakdown (Apr 20, 2026)
 - [x] Add /premium Telegram command with monthly + YTD breakdown and progress bar
 - [x] Update dashboard Monthly Income Target to show STO/STC/BTC/BTO breakdown
+
+## Briefing Cache Fix & /sync Command (Apr 20, 2026)
+- [x] Fix /briefing to use DB cache instead of live Tastytrade API
+- [x] Add /sync Telegram command to force immediate DB cache refresh

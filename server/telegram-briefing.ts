@@ -11,8 +11,9 @@
  *  - Link to open the dashboard
  *
  * Data accuracy:
- *  - Uses LIVE marks from Tastytrade getOptionQuotesBatch (not stale close-price)
- *  - Falls back to close-price only when live marks are unavailable
+ *  - Uses DB cache for positions (synced every 15 min) — guaranteed fast, no auth needed
+ *  - Attempts live marks from Tastytrade getOptionQuotesBatch for accurate P&L
+ *  - Falls back to cached close-price if live marks fail (cold start / auth issue)
  *  - Sends ONE briefing per owner user (not one per credential row)
  */
 import * as cron from 'node-cron';
@@ -64,8 +65,9 @@ const pctBadge = (pct: number): string => {
 
 async function buildBriefing(userId: number): Promise<string> {
   try {
-    const { getLivePositions } = await import('./portfolio-sync');
-    const positions = await getLivePositions(userId);
+    const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+    const cachedRows = await getCachedPositions(userId);
+    const positions = cachedRows.map(p => cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }));
 
     const today = new Date();
 
