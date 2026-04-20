@@ -60,13 +60,21 @@ async function handleHelp(): Promise<string> {
     `You can ask me anything in plain English — no commands needed!\n` +
     `<i>Example: "What's my total premium this month?" or "Which positions are expiring soon?"</i>\n\n` +
     `<b>Quick Commands</b>\n` +
-    `  /briefing — Full morning briefing\n` +
-    `  /positions — All open short positions\n` +
-    `  /pnl — P&amp;L summary (% captured)\n` +
-    `  /expiring — Positions expiring ≤7 DTE\n` +
-    `  /close — Ready to close (≥90% captured)\n` +
-    `  /orders — Recent working orders\n` +
-    `  /status — Server status &amp; next briefing time\n\n` +
+    `  /briefing — Full morning briefing
+` +
+    `  /premium — Net premium summary (month &amp; YTD)
+` +
+    `  /positions — All open short positions
+` +
+    `  /pnl — P&amp;L summary (% captured)
+` +
+    `  /expiring — Positions expiring ≤7 DTE
+` +
+    `  /close — Ready to close (≥90% captured)
+` +
+    `  /orders — Recent working orders
+` +
+    `  /status — Server status &amp; next briefing timeefing time\n\n` +
     `<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`
   );
 }
@@ -350,6 +358,100 @@ async function handleOrders(userId: number): Promise<string> {
 
 // ─── AI Free-Form Question Handler ──────────────────────────────────────────
 
+// ─── /premium — Instant net premium summary ──────────────────────────────────
+
+async function handlePremium(userId: number): Promise<string> {
+  try {
+    const { getDb } = await import('./db');
+    const db = await getDb();
+    if (!db) return '⚠️ Database unavailable. Please try again shortly.';
+
+    const { cachedTransactions } = await import('../drizzle/schema');
+    const { eq, and, gte } = await import('drizzle-orm');
+
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear  = new Date(now.getFullYear(), 0, 1);
+    const monthName = now.toLocaleString('en-US', { month: 'long' });
+    const year = now.getFullYear();
+
+    // Fetch all YTD option trades (Trade type only)
+    const ytdTxns = await db
+      .select()
+      .from(cachedTransactions)
+      .where(
+        and(
+          eq(cachedTransactions.userId, userId),
+          gte(cachedTransactions.executedAt, startOfYear),
+          eq(cachedTransactions.transactionType, 'Trade'),
+        ),
+      );
+
+    const sumAbs = (txns: typeof ytdTxns) =>
+      txns.reduce((s, t) => s + Math.abs(parseFloat(t.netValue || t.value || '0')), 0);
+
+    // YTD breakdown
+    const ytdSto  = ytdTxns.filter(t => t.action === 'Sell to Open');
+    const ytdBtc  = ytdTxns.filter(t => t.action === 'Buy to Close');
+    const ytdStc  = ytdTxns.filter(t => t.action === 'Sell to Close');
+    const ytdBto  = ytdTxns.filter(t => t.action === 'Buy to Open');
+    const ytdGross      = sumAbs(ytdSto);
+    const ytdBtcPaid    = sumAbs(ytdBtc);
+    const ytdStcCredit  = sumAbs(ytdStc);
+    const ytdBtoPaid    = sumAbs(ytdBto);
+    const ytdNet = (ytdGross + ytdStcCredit) - (ytdBtcPaid + ytdBtoPaid);
+
+    // Current month breakdown
+    const monthTxns    = ytdTxns.filter(t => t.executedAt && new Date(t.executedAt) >= startOfMonth);
+    const monthSto     = monthTxns.filter(t => t.action === 'Sell to Open');
+    const monthBtc     = monthTxns.filter(t => t.action === 'Buy to Close');
+    const monthStc     = monthTxns.filter(t => t.action === 'Sell to Close');
+    const monthBto     = monthTxns.filter(t => t.action === 'Buy to Open');
+    const monthGross      = sumAbs(monthSto);
+    const monthBtcPaid    = sumAbs(monthBtc);
+    const monthStcCredit  = sumAbs(monthStc);
+    const monthBtoPaid    = sumAbs(monthBto);
+    const monthNet = (monthGross + monthStcCredit) - (monthBtcPaid + monthBtoPaid);
+
+    // Progress bar toward $100k monthly target (adjust if you change your target)
+    const TARGET = 100_000;
+    const pct = Math.min(100, (monthNet / TARGET) * 100);
+    const filledBars = Math.round(pct / 10);
+    const progressBar = '█'.repeat(filledBars) + '░'.repeat(10 - filledBars);
+
+    // Cache age
+    const lastTxn = ytdTxns.sort((a, b) =>
+      new Date(b.executedAt ?? 0).getTime() - new Date(a.executedAt ?? 0).getTime()
+    )[0];
+    const cacheAge = lastTxn?.executedAt
+      ? Math.round((Date.now() - new Date(lastTxn.executedAt).getTime()) / 60_000)
+      : null;
+    const cacheNote = cacheAge !== null
+      ? `\n<i>Cache: last fill ~${cacheAge}m ago · syncs every 15m</i>`
+      : '';
+
+    return (
+      `💰 <b>Premium Summary</b>\n\n` +
+      `<b>${monthName} ${year}</b>\n` +
+      `  📥 STO collected:  <b>$${monthGross.toLocaleString('en-US', {maximumFractionDigits:0})}</b> (${monthSto.length} trades)\n` +
+      `  📥 STC credits:   +$${monthStcCredit.toLocaleString('en-US', {maximumFractionDigits:0})} (${monthStc.length} trades)\n` +
+      `  📤 BTC buybacks:  -$${monthBtcPaid.toLocaleString('en-US', {maximumFractionDigits:0})} (${monthBtc.length} trades)\n` +
+      `  📤 BTO debits:    -$${monthBtoPaid.toLocaleString('en-US', {maximumFractionDigits:0})} (${monthBto.length} trades)\n` +
+      `  ─────────────────────────\n` +
+      `  ✅ <b>NET: $${monthNet.toLocaleString('en-US', {maximumFractionDigits:0})}</b>  (${pct.toFixed(1)}% of $100k target)\n` +
+      `  ${progressBar} ${pct.toFixed(0)}%\n\n` +
+      `<b>YTD ${year}</b>\n` +
+      `  STO: $${ytdGross.toLocaleString('en-US', {maximumFractionDigits:0})}  STC: +$${ytdStcCredit.toLocaleString('en-US', {maximumFractionDigits:0})}\n` +
+      `  BTC: -$${ytdBtcPaid.toLocaleString('en-US', {maximumFractionDigits:0})}  BTO: -$${ytdBtoPaid.toLocaleString('en-US', {maximumFractionDigits:0})}\n` +
+      `  ✅ <b>YTD NET: $${ytdNet.toLocaleString('en-US', {maximumFractionDigits:0})}</b>${cacheNote}\n\n` +
+      `<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`
+    );
+  } catch (err: any) {
+    console.error('[Telegram /premium] Error:', err.message);
+    return `⚠️ Could not fetch premium data: ${err.message}`;
+  }
+}
+
 async function handleAiQuestion(userId: number, question: string): Promise<string> {
   try {
     // ── Build portfolio context snapshot ──────────────────────────────────────
@@ -622,6 +724,10 @@ export async function handleTelegramCommand(update: {
       case '/close':
       case 'close':
         response = await handleClose(ownerUserId);
+        break;
+      case '/premium':
+      case 'premium':
+        response = await handlePremium(ownerUserId);
         break;
       case '/orders':
       case 'orders':

@@ -4239,6 +4239,11 @@ Summary: [One sentence overall assessment]`;
 
         let credits = 0;
         let debits = 0;
+        // Breakdown counters
+        let stoAmount = 0, stoCount = 0;
+        let btcAmount = 0, btcCount = 0;
+        let stcAmount = 0, stcCount = 0;
+        let btoAmount = 0, btoCount = 0;
 
         await Promise.all(accountNumbers.map(async (accountNumber: string) => {
           try {
@@ -4253,8 +4258,16 @@ Summary: [One sentence overall assessment]`;
               const executedAt = txn['executed-at'];
               if (!executedAt || new Date(executedAt) < monthStart) continue;
               const effect = txn['net-value-effect'];
-              if (effect === 'Credit') credits += netValue;
-              else if (effect === 'Debit') debits += netValue;
+              const action: string = txn['action'] || '';
+              if (effect === 'Credit') {
+                credits += netValue;
+                if (action === 'Sell to Open') { stoAmount += netValue; stoCount++; }
+                else if (action === 'Sell to Close') { stcAmount += netValue; stcCount++; }
+              } else if (effect === 'Debit') {
+                debits += netValue;
+                if (action === 'Buy to Close') { btcAmount += netValue; btcCount++; }
+                else if (action === 'Buy to Open') { btoAmount += netValue; btoCount++; }
+              }
             }
           } catch (err: any) {
             console.error(`[getMonthlyCollected] Live fetch failed for account ${accountNumber}:`, err.message);
@@ -4268,6 +4281,12 @@ Summary: [One sentence overall assessment]`;
           target,
           remaining: Math.max(0, target - collected),
           pct: target > 0 ? Math.min(100, (collected / target) * 100) : 0,
+          breakdown: {
+            stoAmount: Math.round(stoAmount * 100) / 100, stoCount,
+            stcAmount: Math.round(stcAmount * 100) / 100, stcCount,
+            btcAmount: Math.round(btcAmount * 100) / 100, btcCount,
+            btoAmount: Math.round(btoAmount * 100) / 100, btoCount,
+          },
         };
       } catch (e) {
         return { collected: 0, target, remaining: target, pct: 0, error: String(e) };

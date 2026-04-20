@@ -9402,3 +9402,7 @@ ROC Fix Mar 18 2026
 - [x] Cache is synced every 15 min so data is always fresh enough for Telegram queries
 - [x] Removed debug endpoint /api/telegram/debug (security risk — no auth)
 - [x] TypeScript: 0 errors
+
+## Premium Command & Dashboard Breakdown (Apr 20, 2026)
+- [x] Add /premium Telegram command with monthly + YTD breakdown and progress bar
+- [x] Update dashboard Monthly Income Target to show STO/STC/BTC/BTO breakdown

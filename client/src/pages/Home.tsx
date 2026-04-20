@@ -876,6 +876,31 @@ function MonthlyIncomeTracker() {
                 <span>${monthlyData.target.toLocaleString()}</span>
               </div>
             </div>
+            {/* Premium breakdown */}
+            {monthlyData.breakdown && (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1 border-t border-border/20">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">📥 STO collected</span>
+                  <span className="text-emerald-400 font-medium">+${monthlyData.breakdown.stoAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })} <span className="text-muted-foreground/60">({monthlyData.breakdown.stoCount})</span></span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">📤 BTC buybacks</span>
+                  <span className="text-red-400 font-medium">-${monthlyData.breakdown.btcAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })} <span className="text-muted-foreground/60">({monthlyData.breakdown.btcCount})</span></span>
+                </div>
+                {monthlyData.breakdown.stcCount > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">📥 STC credits</span>
+                    <span className="text-emerald-400 font-medium">+${monthlyData.breakdown.stcAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })} <span className="text-muted-foreground/60">({monthlyData.breakdown.stcCount})</span></span>
+                  </div>
+                )}
+                {monthlyData.breakdown.btoCount > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">📤 BTO debits</span>
+                    <span className="text-red-400 font-medium">-${monthlyData.breakdown.btoAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })} <span className="text-muted-foreground/60">({monthlyData.breakdown.btoCount})</span></span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-3 py-2">
