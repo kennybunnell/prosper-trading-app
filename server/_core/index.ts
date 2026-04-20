@@ -105,7 +105,23 @@ async function startServer() {
         const aprilSto = await db.select({ c: count() }).from(cachedTransactions).where(and(eq(cachedTransactions.userId, firstUserId), gte(cachedTransactions.executedAt, aprilStart), eq(cachedTransactions.action, 'Sell to Open')));
         aprilStoCount = Number(aprilSto[0]?.c ?? 0);
       }
-      res.json({ users: allUsers, firstUserId, txnCount, posCount, aprilStoCount });
+      // Check credentials for user 1
+      let hasCredentials = false, hasRefreshToken = false;
+      if (firstUserId) {
+        const { apiCredentials } = await import('../../drizzle/schema');
+        const creds = await db.select({
+          clientSecret: apiCredentials.tastytradeClientSecret,
+          refreshToken: apiCredentials.tastytradeRefreshToken
+        }).from(apiCredentials).where(eq(apiCredentials.userId, firstUserId)).limit(1);
+        hasCredentials = creds.length > 0;
+        hasRefreshToken = !!(creds[0]?.refreshToken);
+      }
+      // Sample a few cached positions to check field names
+      let samplePos: any[] = [];
+      if (firstUserId && posCount > 0) {
+        samplePos = await db.select().from(cachedPositions).where(eq(cachedPositions.userId, firstUserId)).limit(2);
+      }
+      res.json({ users: allUsers, firstUserId, txnCount, posCount, aprilStoCount, hasCredentials, hasRefreshToken, samplePos });
     } catch (err: any) {
       res.json({ error: err.message });
     }
