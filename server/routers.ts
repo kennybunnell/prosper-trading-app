@@ -405,6 +405,40 @@ export const appRouter = router({
             }
           }));
 
+          // ── Supplement current month with DB cache for same-day accuracy ──────────────────────
+          // The Tastytrade API can lag 15-30 min on same-day trades.
+          // The DB cache syncs every 15 min and captures today's trades faster.
+          // Strategy: use DB cache for the current month key, take whichever is HIGHER.
+          try {
+            const { getCachedTransactions } = await import('./portfolio-sync');
+            const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const cachedTxns = await getCachedTransactions(ctx.user.id);
+            let cacheCredits = 0;
+            let cacheDebits = 0;
+            for (const t of cachedTxns) {
+              if (!t.executedAt || t.transactionType !== 'Trade') continue;
+              if (t.instrumentType !== 'Equity Option' && t.instrumentType !== 'Index Option') continue;
+              const txnDate = new Date(t.executedAt);
+              const txnMonthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
+              if (txnMonthKey !== currentMonthKey) continue;
+              const act = (t.action || '').toLowerCase();
+              const val = Math.abs(parseFloat(t.netValue || t.value || '0'));
+              if (val === 0) continue;
+              if (act.startsWith('sell')) cacheCredits += val;
+              else if (act.startsWith('buy')) cacheDebits += val;
+            }
+            const cacheNet = cacheCredits - cacheDebits;
+            const liveNet = (monthlyData[currentMonthKey]?.credits || 0) - (monthlyData[currentMonthKey]?.debits || 0);
+            console.log(`[Dashboard] Current month ${currentMonthKey}: Live API net=$${liveNet.toFixed(2)}, DB cache net=$${cacheNet.toFixed(2)}`);
+            // Use whichever source gives the higher (more complete) value
+            if (cacheNet > liveNet) {
+              console.log(`[Dashboard] Using DB cache for ${currentMonthKey} (more current)`);
+              monthlyData[currentMonthKey] = { credits: cacheCredits, debits: cacheDebits };
+            }
+          } catch (cacheErr: any) {
+            console.warn('[Dashboard] DB cache supplement failed (non-fatal):', cacheErr.message);
+          }
+
           // Generate month list
           const months: string[] = [];
           if (selectedYear) {
