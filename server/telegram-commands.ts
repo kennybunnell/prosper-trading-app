@@ -424,30 +424,46 @@ async function handleAiQuestion(userId: number, question: string): Promise<strin
             ),
           );
 
-        // STO = premium collected; BTC = premium paid to close
-        const sumNetValue = (txns: typeof ytdTxns) =>
+        // Net premium = (STO + STC credits) - (BTC + BTO debits)
+        // All values stored as positive numbers in DB regardless of direction
+        const sumAbs = (txns: typeof ytdTxns) =>
           txns.reduce((sum, t) => sum + Math.abs(parseFloat(t.netValue || t.value || '0')), 0);
 
         const ytdSto = ytdTxns.filter(t => t.action === 'Sell to Open');
         const ytdBtc = ytdTxns.filter(t => t.action === 'Buy to Close');
-        const ytdCollected = sumNetValue(ytdSto);
-        const ytdPaid = sumNetValue(ytdBtc);
-        const ytdNet = ytdCollected - ytdPaid;
+        const ytdStc = ytdTxns.filter(t => t.action === 'Sell to Close');
+        const ytdBto = ytdTxns.filter(t => t.action === 'Buy to Open');
+        const ytdGross = sumAbs(ytdSto);  // gross STO only
+        const ytdBtcPaid = sumAbs(ytdBtc);
+        const ytdStcCredit = sumAbs(ytdStc);
+        const ytdBtoPaid = sumAbs(ytdBto);
+        // Net = all credits (STO + STC) minus all debits (BTC + BTO)
+        const ytdNet = (ytdGross + ytdStcCredit) - (ytdBtcPaid + ytdBtoPaid);
 
         const monthTxns = ytdTxns.filter(t => t.executedAt && new Date(t.executedAt) >= startOfMonth);
         const monthSto = monthTxns.filter(t => t.action === 'Sell to Open');
         const monthBtc = monthTxns.filter(t => t.action === 'Buy to Close');
-        const monthCollected = sumNetValue(monthSto);
-        const monthPaid = sumNetValue(monthBtc);
-        const monthNet = monthCollected - monthPaid;
+        const monthStc = monthTxns.filter(t => t.action === 'Sell to Close');
+        const monthBto = monthTxns.filter(t => t.action === 'Buy to Open');
+        const monthGross = sumAbs(monthSto);
+        const monthBtcPaid = sumAbs(monthBtc);
+        const monthStcCredit = sumAbs(monthStc);
+        const monthBtoPaid = sumAbs(monthBto);
+        const monthNet = (monthGross + monthStcCredit) - (monthBtcPaid + monthBtoPaid);
 
         const monthName = now.toLocaleString('en-US', { month: 'long' });
         premiumContext =
-          `Premium collected this month (${monthName} ${now.getFullYear()}): $${monthCollected.toFixed(0)} gross STO, $${monthNet.toFixed(0)} net (after buybacks)\n` +
-          `STO trades this month: ${monthSto.length} | BTC trades this month: ${monthBtc.length}\n` +
-          `Premium collected YTD (${now.getFullYear()}): $${ytdCollected.toFixed(0)} gross STO, $${ytdNet.toFixed(0)} net\n` +
-          `YTD STO trades: ${ytdSto.length} | YTD BTC trades: ${ytdBtc.length}\n` +
-          `Data source: Tastytrade transaction history (${ytdTxns.length} trades YTD)`;
+          `Premium for ${monthName} ${now.getFullYear()}:\n` +
+          `  Gross STO collected: $${monthGross.toFixed(0)} (${monthSto.length} trades)\n` +
+          `  STC credits: $${monthStcCredit.toFixed(0)} (${monthStc.length} trades)\n` +
+          `  BTC paid: $${monthBtcPaid.toFixed(0)} (${monthBtc.length} trades)\n` +
+          `  BTO paid: $${monthBtoPaid.toFixed(0)} (${monthBto.length} trades)\n` +
+          `  NET premium (STO+STC-BTC-BTO): $${monthNet.toFixed(0)}\n\n` +
+          `YTD ${now.getFullYear()} premium:\n` +
+          `  Gross STO: $${ytdGross.toFixed(0)} | STC credits: $${ytdStcCredit.toFixed(0)}\n` +
+          `  BTC paid: $${ytdBtcPaid.toFixed(0)} | BTO paid: $${ytdBtoPaid.toFixed(0)}\n` +
+          `  NET YTD: $${ytdNet.toFixed(0)}\n` +
+          `Data source: Tastytrade transaction history (${ytdTxns.length} option trades YTD)`;
       }
     } catch (dbErr: any) {
       premiumContext = `Could not fetch transaction history: ${dbErr.message}`;
