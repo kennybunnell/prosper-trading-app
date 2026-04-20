@@ -40,7 +40,8 @@ function MonthlyPremiumChartSection() {
       refetchOnWindowFocus: false,
       // Auto-refresh every 5 minutes so new fills appear without a manual sync click
       refetchInterval: 5 * 60 * 1000,
-      staleTime: 4 * 60 * 1000,
+      // staleTime: 0 ensures manual refresh always hits the live Tastytrade API
+      staleTime: 0,
     }
   );
   const { data: syncState } = trpc.portfolioSync.getSyncState.useQuery(undefined, {
@@ -49,10 +50,12 @@ function MonthlyPremiumChartSection() {
   });
   const triggerSync = trpc.portfolioSync.triggerSync.useMutation({
     onSuccess: () => {
+      // Refetch chart immediately (live API) and again after sync completes
+      refetch();
       setTimeout(() => {
         setIsSyncing(false);
         refetch();
-      }, 5000);
+      }, 8000);
     },
     onError: () => setIsSyncing(false),
   });
@@ -117,6 +120,8 @@ function MonthlyPremiumChartSection() {
             variant="ghost"
             size="sm"
             onClick={() => {
+              // Immediately refetch the live chart data AND trigger a DB cache sync
+              refetch();
               setIsSyncing(true);
               triggerSync.mutate({ forceFullRefresh: false });
             }}
@@ -770,7 +775,8 @@ function MonthlyIncomeTracker() {
   const { data: monthlyData, refetch: refetchMonthly } = trpc.userPreferences.getMonthlyCollected.useQuery(undefined, {
     // Match the 5-minute sync cadence so the collected amount stays current
     refetchInterval: 5 * 60_000,
-    staleTime: 4 * 60_000,
+    // staleTime: 0 ensures the live API is always hit on manual refresh
+    staleTime: 0,
     retry: false,
   });
   const setMonthlyTarget = trpc.userPreferences.setMonthlyTarget.useMutation({
