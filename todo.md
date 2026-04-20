@@ -9394,3 +9394,11 @@ ROC Fix Mar 18 2026
 - [x] Sensitive fields (session tokens) redacted from export
 - [ ] Add /export command to Telegram bot so you can trigger a backup from your phone
 - [ ] Add scheduled weekly database export (every Sunday) with Telegram notification containing download link
+
+## Telegram Bot Fix (Apr 20, 2026)
+- [x] Diagnosed Telegram commands returning $0 premium and 0 positions
+- [x] Root cause: getLivePositions() was making live Tastytrade API calls which timed out on cold server start
+- [x] Fix: Replaced all getLivePositions() calls in telegram-commands.ts with getCachedPositions() + cachedPosToWireFormat()
+- [x] Cache is synced every 15 min so data is always fresh enough for Telegram queries
+- [x] Removed debug endpoint /api/telegram/debug (security risk — no auth)
+- [x] TypeScript: 0 errors

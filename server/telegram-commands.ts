@@ -78,9 +78,14 @@ async function handleBriefing(userId: number): Promise<string> {
   return `📬 Briefing sent! Check above for the full report.`;
 }
 
+async function getPositionsFromCache(userId: number): Promise<Record<string, any>[]> {
+  const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
+  const cached = await getCachedPositions(userId);
+  return cached.map(p => cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }));
+}
+
 async function handlePositions(userId: number): Promise<string> {
-  const { getLivePositions } = await import('./portfolio-sync');
-  const positions = await getLivePositions(userId);
+  const positions = await getPositionsFromCache(userId);
 
   const shortOptions = positions.filter(
     (p: Record<string, any>) =>
@@ -123,8 +128,7 @@ async function handlePositions(userId: number): Promise<string> {
 }
 
 async function handlePnl(userId: number): Promise<string> {
-  const { getLivePositions } = await import('./portfolio-sync');
-  const positions = await getLivePositions(userId);
+  const positions = await getPositionsFromCache(userId);
 
   const shortOptions = positions.filter(
     (p: Record<string, any>) =>
@@ -179,8 +183,7 @@ async function handlePnl(userId: number): Promise<string> {
 }
 
 async function handleExpiring(userId: number): Promise<string> {
-  const { getLivePositions } = await import('./portfolio-sync');
-  const positions = await getLivePositions(userId);
+  const positions = await getPositionsFromCache(userId);
 
   const shortOptions = positions.filter(
     (p: Record<string, any>) =>
@@ -229,8 +232,7 @@ async function handleExpiring(userId: number): Promise<string> {
 }
 
 async function handleClose(userId: number): Promise<string> {
-  const { getLivePositions } = await import('./portfolio-sync');
-  const positions = await getLivePositions(userId);
+  const positions = await getPositionsFromCache(userId);
 
   const shortOptions = positions.filter(
     (p: Record<string, any>) =>
@@ -314,14 +316,13 @@ async function handleOrders(userId: number): Promise<string> {
 async function handleAiQuestion(userId: number, question: string): Promise<string> {
   try {
     // ── Build portfolio context snapshot ──────────────────────────────────────
-    const { getLivePositions } = await import('./portfolio-sync');
     const { getDb } = await import('./db');
 
     let positionContext = 'No position data available.';
     let premiumContext = 'No order history available.';
 
     try {
-      const positions = await getLivePositions(userId);
+      const positions = await getPositionsFromCache(userId);
       const shortOptions = positions.filter(
         (p: Record<string, any>) =>
           (p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option') &&
