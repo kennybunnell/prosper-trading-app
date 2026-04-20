@@ -85,6 +85,32 @@ async function startServer() {
   });
 
   // Heartbeat endpoint to keep server awake
+  // Temporary debug endpoint — checks what user + data the Telegram bot resolves in production
+  app.get("/api/telegram/debug", async (req, res) => {
+    try {
+      const { getDb } = await import('../db');
+      const db = await getDb();
+      if (!db) return res.json({ error: 'No DB connection' });
+      const { users, cachedTransactions, cachedPositions } = await import('../../drizzle/schema');
+      const { eq, and, gte, count } = await import('drizzle-orm');
+      const allUsers = await db.select({ id: users.id, name: users.name, openId: users.openId }).from(users);
+      const firstUserId = allUsers[0]?.id ?? null;
+      let txnCount = 0, posCount = 0, aprilStoCount = 0;
+      if (firstUserId) {
+        const txnResult = await db.select({ c: count() }).from(cachedTransactions).where(eq(cachedTransactions.userId, firstUserId));
+        txnCount = Number(txnResult[0]?.c ?? 0);
+        const posResult = await db.select({ c: count() }).from(cachedPositions).where(eq(cachedPositions.userId, firstUserId));
+        posCount = Number(posResult[0]?.c ?? 0);
+        const aprilStart = new Date('2026-04-01');
+        const aprilSto = await db.select({ c: count() }).from(cachedTransactions).where(and(eq(cachedTransactions.userId, firstUserId), gte(cachedTransactions.executedAt, aprilStart), eq(cachedTransactions.action, 'Sell to Open')));
+        aprilStoCount = Number(aprilSto[0]?.c ?? 0);
+      }
+      res.json({ users: allUsers, firstUserId, txnCount, posCount, aprilStoCount });
+    } catch (err: any) {
+      res.json({ error: err.message });
+    }
+  });
+
   app.get("/api/heartbeat", (req, res) => {
     res.json({ 
       status: "alive", 
