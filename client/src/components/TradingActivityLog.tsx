@@ -183,6 +183,7 @@ export function TradingActivityLog() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [diagnosisState, setDiagnosisState] = useState<DiagnosisState>({});
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
   const [clearConfirm, setClearConfirm] = useState(false);
   const [hasPendingOrders, setHasPendingOrders] = useState(false);
 
@@ -258,6 +259,18 @@ export function TradingActivityLog() {
     });
   }, [diagnosisState]);
 
+  const handleCopyAll = useCallback(() => {
+    if (logs.length === 0) return;
+    const allText = logs.map(entry => {
+      const diagText = diagnosisState[entry.id]?.text ?? entry.aiDiagnosis;
+      return buildCopyText(entry, diagText);
+    }).join('\n\n' + '='.repeat(40) + '\n\n');
+    navigator.clipboard.writeText(allText).then(() => {
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 2000);
+    });
+  }, [logs, diagnosisState]);
+
   // Keep hasPendingOrders in sync so refetchInterval adjusts dynamically
   useEffect(() => {
     setHasPendingOrders(allLogs.some(l => l.outcome === 'pending'));
@@ -305,6 +318,15 @@ export function TradingActivityLog() {
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => refetch()} title="Refresh">
                 <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost" size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-primary"
+                onClick={handleCopyAll}
+                disabled={logs.length === 0}
+                title="Copy all visible entries to clipboard"
+              >
+                {copiedAll ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
               </Button>
               {!clearConfirm ? (
                 <Button

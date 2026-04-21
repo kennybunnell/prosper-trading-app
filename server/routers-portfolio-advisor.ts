@@ -795,9 +795,9 @@ async function fetchPortfolioData(userId: number) {
   const accounts = await getTastytradeAccounts(userId);
   if (!accounts || accounts.length === 0) throw new Error('No accounts found');
 
-  // Load positions from DB cache
-  const { getLivePositions } = await import('./portfolio-sync');
-  const cachedPos = await getLivePositions(userId);
+  // Load positions from LIVE Tastytrade API (never cached for portfolio advisor)
+  const { getStrictLivePositions } = await import('./portfolio-sync');
+  const cachedPos = await getStrictLivePositions(userId);
   const wirePositions = cachedPos;
 
   // Parse cached positions

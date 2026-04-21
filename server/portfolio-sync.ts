@@ -620,6 +620,54 @@ export function cachedPosToWireFormat(pos: {
  *
  * Falls back to DB cache ONLY if Tastytrade credentials are not configured.
  */
+/**
+ * Fetch positions STRICTLY from the live Tastytrade API — NO cache fallback.
+ * Use this for roll scans and order submissions where stale data is unacceptable.
+ * Throws an error if credentials are missing or the API call fails.
+ */
+export async function getStrictLivePositions(
+  userId: number,
+  accountNumber?: string
+): Promise<Record<string, any>[]> {
+  const { getApiCredentials, getTastytradeAccounts } = await import('./db');
+  const credentials = await getApiCredentials(userId);
+  if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+    throw new Error('[getStrictLivePositions] No Tastytrade credentials configured — cannot fetch live positions for order submission');
+  }
+  const { authenticateTastytrade } = await import('./tastytrade');
+  const api = await authenticateTastytrade(credentials, userId);
+  const accounts = await getTastytradeAccounts(userId) || [];
+  const targetAccounts = accountNumber
+    ? accounts.filter((a: any) => a.accountNumber === accountNumber)
+    : accounts;
+  if (targetAccounts.length === 0) {
+    throw new Error('[getStrictLivePositions] No Tastytrade accounts found for this user');
+  }
+  const allPositions: Record<string, any>[] = [];
+  await Promise.all(
+    targetAccounts.map(async (acc: any) => {
+      const accNum: string = acc.accountNumber;
+      try {
+        const positions = await api.getPositions(accNum);
+        for (const pos of positions) {
+          const wirePos: Record<string, any> = { ...pos };
+          // ALWAYS set account-number from the loop variable — the API may not include it in items
+          wirePos['account-number'] = accNum;
+          wirePos['close-price'] = pos['close-price'] ?? '0';
+          wirePos['expires-at'] = pos['expires-at'] ?? '';
+          allPositions.push(wirePos);
+        }
+        console.log(`[getStrictLivePositions] Account ${accNum}: fetched ${positions.length} positions`);
+      } catch (err: any) {
+        console.error(`[getStrictLivePositions] Failed to fetch positions for account ${accNum}:`, err.message);
+        throw new Error(`Failed to fetch live positions for account ${accNum}: ${err.message}`);
+      }
+    })
+  );
+  console.log(`[getStrictLivePositions] Total live positions fetched: ${allPositions.length}`);
+  return allPositions;
+}
+
 export async function getLivePositions(
   userId: number,
   accountNumber?: string
@@ -646,10 +694,10 @@ export async function getLivePositions(
         try {
           const positions = await api.getPositions(accNum);
           for (const pos of positions) {
-            // TastytradePosition already uses kebab-case field names
-            // Just ensure account-number is set and provide safe defaults
             const wirePos: Record<string, any> = { ...pos };
-            wirePos['account-number'] = pos['account-number'] || accNum;
+            // ALWAYS set account-number from the loop variable — the Tastytrade API
+            // may NOT include account-number in position items, so we must inject it.
+            wirePos['account-number'] = accNum;
             wirePos['close-price'] = pos['close-price'] ?? '0';
             wirePos['expires-at'] = pos['expires-at'] ?? '';
             allPositions.push(wirePos);

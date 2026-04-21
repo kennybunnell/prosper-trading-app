@@ -67,7 +67,7 @@ export const ccRouter = router({
         };
       }
 
-      // Live mode — positions from DB cache, working orders still live
+      // Live mode — positions from LIVE Tastytrade API, working orders also live
       const { getApiCredentials } = await import('./db');
       const credentials = await getApiCredentials(ctx.user.id);
       if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
@@ -77,10 +77,10 @@ export const ccRouter = router({
       const { authenticateTastytrade } = await import('./tastytrade');
       const api = await authenticateTastytrade(credentials, ctx.user.id);
 
-      // ── Positions: read from DB cache ─────────────────────────────────────────
-      const { getLivePositions } = await import('./portfolio-sync');
-      const cachedPos = await getLivePositions(ctx.user.id);
-      const positions: any[] = cachedPos
+      // ── Positions: LIVE from Tastytrade API (never cached for CC scanning/submission) ────────────
+      const { getStrictLivePositions } = await import('./portfolio-sync');
+      const livePos = await getStrictLivePositions(ctx.user.id);
+      const positions: any[] = livePos
         .filter(p => input.accountNumber === 'ALL' || p['account-number'] === input.accountNumber)
         .map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }) }));
 
@@ -304,12 +304,11 @@ export const ccRouter = router({
         if (!level) return true; // unknown level — allow and let TT reject if needed
         return CC_APPROVED_LEVELS.has(level);
       };
-      // ── Positions: read from DB cache ─────────────────────────────────────────
-      const { getLivePositions } = await import('./portfolio-sync');
-      const allCachedPos = await getLivePositions(ctx.user.id);
-      const accountNumbers: string[] = Array.from(new Set(allCachedPos.map(p => p['account-number'])));
-      console.log(`[CC getEligible] Accounts from cache:`, accountNumbers);
-
+        // ── Positions: LIVE from Tastytrade API (never cached for CC scanning/submission) ────────────
+      const { getStrictLivePositions: getStrictLivePos2 } = await import('./portfolio-sync');
+      const allLivePos = await getStrictLivePos2(ctx.user.id);
+      const accountNumbers: string[] = Array.from(new Set(allLivePos.map(p => p['account-number']).filter(Boolean)));
+      console.log(`[CC getEligible] Accounts from live API:`, accountNumbers);
       // Working orders must still be fetched live (order status changes in real time)
       const workingOrdersByAccount = await Promise.allSettled(
         accountNumbers.map(async (acctNum: string) => {
@@ -317,11 +316,10 @@ export const ccRouter = router({
           return { acctNum, workingOrders };
         })
       );
-
-      // Build per-account results using cached positions + live working orders
+      // Build per-account results using live positions + live working orders
       const perAccountResults: Array<{ status: 'fulfilled'; value: { acctNum: string; positions: any[]; workingOrders: any[] } }> =
         accountNumbers.map(acctNum => {
-          const positions = allCachedPos
+          const positions = allLivePos
             .filter(p => p['account-number'] === acctNum)
             .map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }) }));
           const woResult = workingOrdersByAccount.find(
@@ -330,7 +328,7 @@ export const ccRouter = router({
           const workingOrders = woResult?.status === 'fulfilled' ? woResult.value.workingOrders : [];
           return { status: 'fulfilled' as const, value: { acctNum, positions, workingOrders } };
         });
-      console.log(`[CC getEligible] Loaded positions from cache for ${accountNumbers.length} accounts`);
+      console.log(`[CC getEligible] Loaded live positions for ${accountNumbers.length} accounts`);
 
       // Merged maps across all accounts
       const shortCallsAll: Record<string, { contracts: number; details: any[] }> = {};

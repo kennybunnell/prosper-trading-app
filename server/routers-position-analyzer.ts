@@ -267,9 +267,9 @@ export const positionAnalyzerRouter = router({
       }
       const tradierApi = new TradierAPI(tradierKey, false);
 
-      // Load positions from DB cache
-      const { getLivePositions } = await import('./portfolio-sync');
-      const cachedPositions = await getLivePositions(ctx.user.id);
+      // Load positions from LIVE Tastytrade API (never cached for position analysis)
+      const { getStrictLivePositions } = await import('./portfolio-sync');
+      const cachedPositions = await getStrictLivePositions(ctx.user.id);
       const wirePositions = cachedPositions;
 
       // Get accounts from DB

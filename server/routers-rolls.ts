@@ -277,13 +277,18 @@ export const rollsRouter = router({
         if (found) targetAccounts = [found];
       }
 
-      // Load all option positions from DB cache
-      const { getLivePositions } = await import('./portfolio-sync');
-      const allCachedPos = await getLivePositions(ctx.user.id);
-      const wirePositions = allCachedPos.map(p => ({
-        ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }),
-        'account-number': p.accountNumber,
-      }));
+      // Load all option positions from LIVE Tastytrade API (NEVER cached — roll orders must use live data)
+      // getStrictLivePositions throws if credentials are missing and never falls back to DB cache.
+      // It also ALWAYS sets account-number from the account loop variable (not from the API response
+      // which may omit it), guaranteeing every position has a valid account-number for order submission.
+      const { getStrictLivePositions } = await import('./portfolio-sync');
+      const wirePositions = await getStrictLivePositions(ctx.user.id);
+      // Log how many positions were fetched and which accounts have data
+      const accountsInPositions = new Set(wirePositions.map((p: any) => p['account-number']).filter(Boolean));
+      console.log(`[scanRollPositions] Live positions fetched: ${wirePositions.length} total, accounts: ${Array.from(accountsInPositions).join(', ')}`);
+      if (wirePositions.some((p: any) => !p['account-number'])) {
+        console.warn('[scanRollPositions] WARNING: Some positions are missing account-number — these will be skipped');
+      }
 
       // Build a dog map from the latest WTR history scan for cross-checking ITM CCs.
       // If no WTR history exists yet (first scan), the map will be empty and no CCs will be tagged.

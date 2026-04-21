@@ -134,11 +134,11 @@ export const iraSafetyRouter = router({
         if (found) targetAccounts = [found];
       }
 
-      // Load all positions from DB cache (keyed by accountNumber)
-      const { getLivePositions } = await import('./portfolio-sync');
-      const allCachedPos = await getLivePositions(ctx.user.id);
+      // Load all positions from LIVE Tastytrade API (never cached for IRA safety checks)
+      const { getStrictLivePositions } = await import('./portfolio-sync');
+      const allLivePos = await getStrictLivePositions(ctx.user.id);
       const positionsByAccount = new Map<string, any[]>();
-      for (const p of allCachedPos) {
+      for (const p of allLivePos) {
         const wire = ((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' });
         if (!positionsByAccount.has(p['account-number'])) positionsByAccount.set(p['account-number'], []);
         positionsByAccount.get(p['account-number'])!.push(wire);

@@ -107,8 +107,8 @@ export const safeguardsRouter = router({
 
       try {
         // ── Read from DB cache ────────────────────────────────────────────────────────────────
-        const { getLivePositions } = await import('./portfolio-sync');
-        const rawPositions = await getLivePositions(ctx.user.id, input.accountNumber);
+        const { getStrictLivePositions } = await import('./portfolio-sync');
+        const rawPositions = await getStrictLivePositions(ctx.user.id, input.accountNumber);
         const positions = rawPositions.map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }) }));
         const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
 
@@ -180,8 +180,8 @@ export const safeguardsRouter = router({
 
       try {
         // ── Read from DB cache ────────────────────────────────────────────────────────────────
-        const { getLivePositions } = await import('./portfolio-sync');
-        const rawPositions = await getLivePositions(ctx.user.id, input.accountNumber);
+        const { getStrictLivePositions } = await import('./portfolio-sync');
+        const rawPositions = await getStrictLivePositions(ctx.user.id, input.accountNumber);
         const positions = rawPositions.map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }) }));
         const optionPositions = positions.filter((p: any) =>
           p['instrument-type'] === 'Equity Option' &&
@@ -274,8 +274,8 @@ export const safeguardsRouter = router({
 
       try {
         // ── Read from DB cache ────────────────────────────────────────────────────────────────
-        const { getLivePositions } = await import('./portfolio-sync');
-        const rawPositions = await getLivePositions(ctx.user.id, input.accountNumber);
+        const { getStrictLivePositions } = await import('./portfolio-sync');
+        const rawPositions = await getStrictLivePositions(ctx.user.id, input.accountNumber);
         const positions = rawPositions.map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }) }));
         const stockPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity');
         const optionPositions = positions.filter((p: any) => p['instrument-type'] === 'Equity Option');
@@ -388,8 +388,8 @@ export const safeguardsRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       // ── Read from DB cache ────────────────────────────────────────────────────────────────
-      const { getLivePositions } = await import('./portfolio-sync');
-      const allCachedPos = await getLivePositions(ctx.user.id);
+      const { getStrictLivePositions } = await import('./portfolio-sync');
+      const allCachedPos = await getStrictLivePositions(ctx.user.id);
       if (allCachedPos.length === 0) {
         return { alerts: [], accountsScanned: 0, hasAlerts: false };
       }
@@ -556,8 +556,8 @@ export const safeguardsRouter = router({
 
       try {
         // Use DB cache for pre-trade checks — cache is synced on login and after every order
-        const { getLivePositions } = await import('./portfolio-sync');
-        const cachedPos = await getLivePositions(ctx.user.id);
+        const { getStrictLivePositions } = await import('./portfolio-sync');
+        const cachedPos = await getStrictLivePositions(ctx.user.id);
         const positions: any[] = cachedPos
           .filter(p => p['account-number'] === input.accountNumber)
           .map(p => ({ ...((p: any) => p)({ ...p, quantityDirection: p['quantity-direction'] ?? '' }), 'account-number': p['account-number'] }));
@@ -720,9 +720,9 @@ export const safeguardsRouter = router({
       // Run the Friday sweep scan (mode='friday' looks 7 DTE out)
       const { getTastytradeAccounts } = await import('./db');
       const { notifyOwner } = await import('./_core/notification');
-      const { getLivePositions } = await import('./portfolio-sync');
+      const { getStrictLivePositions } = await import('./portfolio-sync');
 
-      const allCachedPos = await getLivePositions(ctx.user.id);
+      const allCachedPos = await getStrictLivePositions(ctx.user.id);
       if (allCachedPos.length === 0) {
         return { alertCount: 0, notificationSent: false, message: 'No portfolio data in cache. Please run a sync from Settings first.' };
       }
@@ -913,9 +913,9 @@ export const safeguardsRouter = router({
   triggerDailyScan: protectedProcedure.mutation(async ({ ctx }) => {
     try {
       const { notifyOwner } = await import('./_core/notification');
-      const { getLivePositions } = await import('./portfolio-sync');
+      const { getStrictLivePositions } = await import('./portfolio-sync');
 
-      const allCachedPos = await getLivePositions(ctx.user.id);
+      const allCachedPos = await getStrictLivePositions(ctx.user.id);
       if (allCachedPos.length === 0) {
         throw new Error('No portfolio data in cache. Please run a sync from Settings first.');
       }

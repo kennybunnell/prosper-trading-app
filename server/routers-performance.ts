@@ -246,9 +246,9 @@ export const performanceRouter = router({
       const { authenticateTastytrade } = await import('./tastytrade');
       const api = await authenticateTastytrade(credentials, ctx.user.id);
 
-      // ── Positions: fetch LIVE from Tastytrade (no DB cache) ──────────────────────
-      const { getLivePositions } = await import('./portfolio-sync');
-      const livePos = await getLivePositions(ctx.user.id, accountId === 'ALL_ACCOUNTS' ? undefined : accountId);
+      // ── Positions: fetch LIVE from Tastytrade (NEVER cached) ───────────────────────────
+      const { getStrictLivePositions } = await import('./portfolio-sync');
+      const livePos = await getStrictLivePositions(ctx.user.id, accountId === 'ALL_ACCOUNTS' ? undefined : accountId);
 
       if (livePos.length === 0) {
         return {

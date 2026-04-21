@@ -347,8 +347,8 @@ export const pmccRouter = router({
       const { createTradierAPI } = await import("./tradier");
 
       // Fetch LIVE positions directly from Tastytrade (no DB cache)
-      const { getLivePositions } = await import('./portfolio-sync');
-      const allLivePos = await getLivePositions(ctx.user.id);
+      const { getStrictLivePositions } = await import('./portfolio-sync');
+      const allLivePos = await getStrictLivePositions(ctx.user.id);
 
       const now = new Date();
       // Filter for LEAP calls (long call options with 270+ DTE)
