@@ -65,6 +65,32 @@ export async function writeTradingLog(entry: TradingLogEntry): Promise<void> {
   }
 }
 
+// ─── Helper: update outcome of a log entry by orderId (server-side) ─────────
+
+export async function updateTradingLogOutcome(
+  userId: number,
+  orderId: string,
+  outcome: 'pending' | 'filled' | 'success' | 'rejected' | 'error' | 'dry_run' | 'api_error',
+  filledPrice?: string
+): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db.update(tradingLog)
+      .set({
+        outcome,
+        ...(filledPrice ? { price: filledPrice } : {}),
+      })
+      .where(and(
+        eq(tradingLog.userId, userId),
+        eq(tradingLog.orderId, orderId),
+      ));
+    console.log(`[TradingLog] Updated order ${orderId} outcome → ${outcome}`);
+  } catch (err) {
+    console.error('[TradingLog] Failed to update log entry outcome:', err);
+  }
+}
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export const tradingLogRouter = router({

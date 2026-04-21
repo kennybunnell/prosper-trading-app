@@ -94,8 +94,8 @@ export const ordersRouter = router({
         orderId: z.string(),
       })
     )
-    .query(async ({ input }) => {
-      return await checkOrderStatus(input.accountId, input.orderId);
+    .query(async ({ input, ctx }) => {
+      return await checkOrderStatus(input.accountId, input.orderId, 2, ctx.user.id);
     }),
 
   /**
@@ -127,7 +127,7 @@ export const ordersRouter = router({
 
       for (const accNum of accountsToTry) {
         try {
-          const status = await checkOrderStatus(accNum, input.orderId, 1);
+          const status = await checkOrderStatus(accNum, input.orderId, 1, ctx.user.id);
           return { ...status, orderId: input.orderId };
         } catch (error: any) {
           const msg: string = error.message || 'Unknown error';
@@ -157,8 +157,8 @@ export const ordersRouter = router({
         orderIds: z.array(z.string()),
       })
     )
-    .query(async ({ input }) => {
-      return await checkOrderStatusBatch(input.accountId, input.orderIds);
+    .query(async ({ input, ctx }) => {
+      return await checkOrderStatusBatch(input.accountId, input.orderIds, ctx.user.id);
     }),
 
   /**

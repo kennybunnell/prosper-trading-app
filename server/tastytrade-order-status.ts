@@ -168,13 +168,14 @@ export async function checkOrderStatus(
  */
 export async function checkOrderStatusBatch(
   accountId: string,
-  orderIds: string[]
+  orderIds: string[],
+  userId?: number
 ): Promise<Record<string, OrderStatus>> {
   const statusMap: Record<string, OrderStatus> = {};
 
   for (const orderId of orderIds) {
     try {
-      const status = await checkOrderStatus(accountId, orderId);
+      const status = await checkOrderStatus(accountId, orderId, 2, userId);
       statusMap[orderId] = status;
     } catch (error: any) {
       console.error(`[OrderStatus] Failed to check status for order ${orderId}:`, error.message);

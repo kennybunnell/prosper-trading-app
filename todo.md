@@ -9414,3 +9414,8 @@ ROC Fix Mar 18 2026
 ## RSI & Bollinger Band Fix (Apr 21, 2026)
 - [x] Diagnose RSI/BB showing N/A in CSP scanner (skipTechnicals=true was set)
 - [x] Fix CSP scan to fetch technical indicators in parallel and merge before scoring
+
+## Close Order Fixes (Apr 21, 2026)
+- [x] Fix submitCloseOrders: replace Tradier quote fetch with Tastytrade live bid/ask for limit pricing
+- [x] Fix order status polling: pass userId to checkOrderStatus/checkStatusBatch so 401 errors stop
+- [x] Fix activity log: poll final order status after submission and update outcome to Cancelled/Filled (not just Routed=success)

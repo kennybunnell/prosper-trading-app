@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { router, protectedProcedure } from './_core/trpc';
 import { TRPCError } from '@trpc/server';
 import { notifyOwner } from './_core/notification';
-import { writeTradingLog } from './routers-trading-log';
+import { writeTradingLog, updateTradingLogOutcome } from './routers-trading-log';
 import { randomUUID } from 'crypto';
 import {
   getAutomationSettings,
@@ -1652,42 +1652,25 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         });
       }
 
-      // ── Live bid/ask enrichment ────────────────────────────────────────────────
-      // Fetch live quotes from Tradier for all option symbols so we can use
+      // ── Live bid/ask enrichment (Tastytrade) ─────────────────────────────────
+      // Fetch live quotes from Tastytrade for all option symbols so we can use
       // spread-width tier pricing instead of stale close-price + ceil formula.
+      // CRITICAL: Must use Tastytrade (NOT Tradier) for all close-order pricing.
       const liveQuoteMap = new Map<string, { bid: number; ask: number; mid: number }>();
       try {
-        const { TradierAPI: TradierAPIForQuotes } = await import('./tradier');
-        const tradierKeyForQuotes = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
-        if (tradierKeyForQuotes) {
-          const tradierForQuotes = new TradierAPIForQuotes(tradierKeyForQuotes);
-          const allOccSymbols = Array.from(new Set([
-            ...input.orders.map(o => o.optionSymbol),
-            ...input.orders.filter(o => o.spreadLongSymbol).map(o => o.spreadLongSymbol!),
-          ]));
-          // Tradier /markets/quotes requires compact format (no spaces): "SPXW260424P06750000"
-          // OCC format has spaces: "SPXW  260424P06750000"
-          const occToTradierFmt = (occ: string) => occ.replace(/\s+/g, '');
-          const tradierToOccRevMap: Record<string, string> = {};
-          const tradierSymsForClose = allOccSymbols.map(occ => {
-            const t = occToTradierFmt(occ);
-            tradierToOccRevMap[t] = occ;
-            return t;
-          });
-          const quotes = await tradierForQuotes.getQuotes(tradierSymsForClose);
-          for (const q of quotes) {
-            if (q.bid > 0 && q.ask > 0) {
-              const entry = { bid: q.bid, ask: q.ask, mid: (q.bid + q.ask) / 2 };
-              // Store under Tradier compact symbol AND original OCC symbol (with spaces)
-              liveQuoteMap.set(q.symbol, entry);
-              const origOcc = tradierToOccRevMap[q.symbol];
-              if (origOcc && origOcc !== q.symbol) liveQuoteMap.set(origOcc, entry);
-            }
+        const allOccSymbols = Array.from(new Set([
+          ...input.orders.map(o => o.optionSymbol),
+          ...input.orders.filter(o => o.spreadLongSymbol).map(o => o.spreadLongSymbol!),
+        ]));
+        const ttQuotes = await tt.getOptionQuotesBatch(allOccSymbols);
+        for (const [sym, q] of Object.entries(ttQuotes)) {
+          if (q.bid > 0 || q.ask > 0) {
+            liveQuoteMap.set(sym, { bid: q.bid, ask: q.ask, mid: q.mid || (q.bid + q.ask) / 2 });
           }
-          console.log(`[submitCloseOrders] Fetched live quotes for ${liveQuoteMap.size}/${allOccSymbols.length} option symbols`);
         }
+        console.log(`[submitCloseOrders] Fetched live Tastytrade quotes for ${liveQuoteMap.size}/${allOccSymbols.length} option symbols`);
       } catch (quoteErr: any) {
-        console.warn('[submitCloseOrders] Live quote fetch failed, falling back to close-price:', quoteErr.message);
+        console.warn('[submitCloseOrders] Tastytrade live quote fetch failed, falling back to close-price:', quoteErr.message);
       }
 
       /**
@@ -1870,15 +1853,51 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
               ? `Spread order submitted (net ${isNetCreditClose ? 'credit' : 'debit'} $${limitPrice.toFixed(2)}) — 2 legs atomic`
               : `Order submitted (limit $${limitPrice.toFixed(2)})`,
           });
+          // Write log entry as 'pending' — will be updated once Tastytrade confirms final status
+          const submittedOrderId = String(result.id);
           await writeTradingLog({
             userId: ctx.user.id, symbol: order.symbol,
             optionSymbol: order.optionSymbol, accountNumber: order.accountNumber,
             strategy: isSpreadOrder ? 'spread-close' : 'single-close', action: 'BTC',
             quantity: order.quantity, price: limitPrice.toFixed(2),
             priceEffect: isNetCreditClose ? 'Credit' : 'Debit',
-            instrumentType: 'Equity Option', outcome: 'success', orderId: String(result.id),
+            instrumentType: 'Equity Option', outcome: 'pending', orderId: submittedOrderId,
             source: 'routers-automation/submitCloseOrders',
           });
+          // Background poll: check final order status from Tastytrade live API and update log
+          // Runs async — does NOT block the response to the client
+          const _userId = ctx.user.id;
+          const _accountNumber = order.accountNumber;
+          ;(async () => {
+            try {
+              const { checkOrderStatus } = await import('./tastytrade-order-status');
+              // Poll up to 12 times (5s apart = 60 seconds total) for a terminal status
+              for (let attempt = 0; attempt < 12; attempt++) {
+                await new Promise(r => setTimeout(r, 5000));
+                const status = await checkOrderStatus(_accountNumber, submittedOrderId, 2, _userId);
+                console.log(`[submitCloseOrders] Poll ${attempt + 1}/12 for order ${submittedOrderId}: ${status.status}`);
+                if (status.status === 'Filled') {
+                  await updateTradingLogOutcome(_userId, submittedOrderId, 'filled');
+                  console.log(`[submitCloseOrders] Order ${submittedOrderId} FILLED — log updated`);
+                  break;
+                } else if (status.status === 'Cancelled') {
+                  await updateTradingLogOutcome(_userId, submittedOrderId, 'error');
+                  console.log(`[submitCloseOrders] Order ${submittedOrderId} CANCELLED by Tastytrade — log updated to error`);
+                  break;
+                } else if (status.status === 'Rejected') {
+                  await updateTradingLogOutcome(_userId, submittedOrderId, 'rejected');
+                  console.log(`[submitCloseOrders] Order ${submittedOrderId} REJECTED — log updated`);
+                  break;
+                } else if (status.status === 'MarketClosed') {
+                  // Market closed — leave as pending
+                  break;
+                }
+                // status === 'Working' — keep polling
+              }
+            } catch (pollErr: any) {
+              console.error(`[submitCloseOrders] Background poll failed for order ${submittedOrderId}:`, pollErr.message);
+            }
+          })();
         } catch (error: any) {
           console.error('[Automation submitCloseOrders] Order failed:', {
             symbol: order.symbol,
