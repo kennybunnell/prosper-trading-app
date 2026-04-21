@@ -9410,3 +9410,7 @@ ROC Fix Mar 18 2026
 ## Briefing Cache Fix & /sync Command (Apr 20, 2026)
 - [x] Fix /briefing to use DB cache instead of live Tastytrade API
 - [x] Add /sync Telegram command to force immediate DB cache refresh
+
+## RSI & Bollinger Band Fix (Apr 21, 2026)
+- [x] Diagnose RSI/BB showing N/A in CSP scanner (skipTechnicals=true was set)
+- [x] Fix CSP scan to fetch technical indicators in parallel and merge before scoring

@@ -2081,7 +2081,29 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
           return [];
         }
 
-        // Fetch CSP opportunities with filters
+        // Fetch CSP opportunities and technical indicators in parallel
+        // skipTechnicals=false: RSI/BB are critical for score calculation
+        // Technical fetch runs in parallel with option chain fetching inside fetchCSPOpportunities
+        const INDEX_SYMBOLS = new Set(['SPXW', 'SPXPM', 'NDXP', 'MRUT', 'VIXW', 'SPX', 'NDX', 'RUT', 'VIX']);
+        const TECH_ROOT_MAP: Record<string, string> = { SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX' };
+        // Start technical indicators fetch in parallel with the main scan
+        const techIndicatorsPromise = Promise.allSettled(
+          symbols.map(async (sym) => {
+            // Skip technical indicators for index products — not meaningful signals
+            if (INDEX_SYMBOLS.has(sym.toUpperCase())) return { sym, rsi: null, bbPctB: null };
+            try {
+              const techSym = TECH_ROOT_MAP[sym.toUpperCase()] || sym;
+              const indicators = await api.getTechnicalIndicators(techSym);
+              return {
+                sym,
+                rsi: indicators.rsi,
+                bbPctB: indicators.bollingerBands ? Math.round(indicators.bollingerBands.percentB * 100) / 100 : null,
+              };
+            } catch {
+              return { sym, rsi: null, bbPctB: null };
+            }
+          })
+        );
         const opportunities = await api.fetchCSPOpportunities(
           symbols,
           input.minDelta || 0.15,
@@ -2090,8 +2112,24 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
           input.maxDte || 45,
           input.minVolume || 5,
           input.minOI || 50,
-          true // skipTechnicals: RSI/BB are display-only, skip 200-day history calls to avoid Tradier overload
+          true // skipTechnicals inside fetchCSPOpportunities — we fetch them separately in parallel above
         );
+        // Merge technical indicators into opportunities
+        const techResults = await techIndicatorsPromise;
+        const techMap = new Map<string, { rsi: number | null; bbPctB: number | null }>();
+        for (const result of techResults) {
+          if (result.status === 'fulfilled') {
+            techMap.set(result.value.sym, { rsi: result.value.rsi, bbPctB: result.value.bbPctB });
+          }
+        }
+        for (const opp of opportunities) {
+          const tech = techMap.get(opp.symbol);
+          if (tech) {
+            opp.rsi = tech.rsi;
+            opp.bbPctB = tech.bbPctB;
+          }
+        }
+        console.log(`[CSP Router] Technical indicators fetched: ${techMap.size} symbols, RSI/BB populated for ${opportunities.filter(o => o.rsi !== null).length} opportunities`);
         // Score all opportunities
         const scored = scoreOpportunities(opportunities);
         console.log(`[CSP Router] Scored ${scored.length} opportunities, preparing to calculate risk badges...`);;
