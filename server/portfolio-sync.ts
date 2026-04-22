@@ -636,7 +636,7 @@ export async function getStrictLivePositions(
   }
   const { authenticateTastytrade } = await import('./tastytrade');
   const api = await authenticateTastytrade(credentials, userId);
-  let accounts = await getTastytradeAccounts(userId) || [];
+  let accounts: any[] = await getTastytradeAccounts(userId) || [];
   // Fallback: if DB has no accounts, fetch them live from the Tastytrade API
   if (accounts.length === 0) {
     console.warn('[getStrictLivePositions] No accounts in DB — fetching accounts live from Tastytrade API');
