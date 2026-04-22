@@ -2964,6 +2964,15 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       }
       for (const order of input.orders) {
         try {
+          // Guard: reject orders with blank/missing accountNumber before hitting Tastytrade
+          if (!order.accountNumber || order.accountNumber.trim() === '') {
+            const errMsg = `Order blocked: accountNumber is blank for ${order.symbol} $${order.strike}. Cannot route order without a valid account.`;
+            console.error('[submitSellCCOrders] BLOCKED — blank accountNumber:', { symbol: order.symbol, strike: order.strike });
+            results.push({ success: false, symbol: order.symbol, strike: order.strike, quantity: order.quantity, message: errMsg });
+            const { sendTelegramMessage, fmtOrderRejected } = await import('./telegram');
+            sendTelegramMessage(fmtOrderRejected({ symbol: order.symbol, strategy: 'CC STO', strike: order.strike, reason: 'Blank account number — order blocked before submission', accountLabel: '(unknown)' })).catch(() => {});
+            continue;
+          }
           const expDate = new Date(order.expiration);
           const expStr = expDate.toISOString().slice(2, 10).replace(/-/g, '');
           const strikeStr = (order.strike * 1000).toFixed(0).padStart(8, '0');

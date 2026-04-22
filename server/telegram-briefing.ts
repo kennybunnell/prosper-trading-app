@@ -65,9 +65,9 @@ const pctBadge = (pct: number): string => {
 
 async function buildBriefing(userId: number): Promise<string> {
   try {
-    const { getCachedPositions, cachedPosToWireFormat } = await import('./portfolio-sync');
-    const cachedRows = await getCachedPositions(userId);
-    const positions = cachedRows.map(p => cachedPosToWireFormat({ ...p, quantityDirection: p.quantityDirection ?? '' }));
+    // LIVE positions from Tastytrade — never use cache for briefing accuracy
+    const { getStrictLivePositions } = await import('./portfolio-sync');
+    const positions = await getStrictLivePositions(userId);
 
     const today = new Date();
 

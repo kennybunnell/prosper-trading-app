@@ -43,6 +43,7 @@ export interface SellCallItem {
   currentPrice: number;
   avgCostBasis: number;
   recommendation: 'HARVEST' | 'MONITOR';
+  account: string; // account-number that holds this stock position
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -224,6 +225,7 @@ async function scanSellCalls(positions: any[]): Promise<{
       currentPrice,
       avgCostBasis,
       recommendation,
+      account: pos['account-number'] || '',
     });
   }
 
@@ -260,11 +262,13 @@ export async function runDailyScan(userId: number): Promise<{
     const allPositions: any[] = [];
 
     for (const acc of accounts) {
-      const accountNumber = acc.account?.['account-number'];
+      const accountNumber = acc.account?.['account-number'] || (acc as any)['account-number'] || (acc as any).accountNumber;
       if (!accountNumber) continue;
       try {
         const positions = await tt.getPositions(accountNumber);
-        allPositions.push(...positions);
+        // Inject account-number into each position (Tastytrade API omits it from items)
+        const tagged = positions.map((p: any) => ({ ...p, 'account-number': accountNumber }));
+        allPositions.push(...tagged);
       } catch {
         // Skip accounts that fail
       }
