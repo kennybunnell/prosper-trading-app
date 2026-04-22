@@ -9419,3 +9419,4 @@ ROC Fix Mar 18 2026
 - [x] Fix submitCloseOrders: replace Tradier quote fetch with Tastytrade live bid/ask for limit pricing
 - [x] Fix order status polling: pass userId to checkOrderStatus/checkStatusBatch so 401 errors stop
 - [x] Fix activity log: poll final order status after submission and update outcome to Cancelled/Filled (not just Routed=success)
+- [x] Fix daily Telegram briefing to aggregate positions and premium across ALL accounts (not single account)

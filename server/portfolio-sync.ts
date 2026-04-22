@@ -636,7 +636,21 @@ export async function getStrictLivePositions(
   }
   const { authenticateTastytrade } = await import('./tastytrade');
   const api = await authenticateTastytrade(credentials, userId);
-  const accounts = await getTastytradeAccounts(userId) || [];
+  let accounts = await getTastytradeAccounts(userId) || [];
+  // Fallback: if DB has no accounts, fetch them live from the Tastytrade API
+  if (accounts.length === 0) {
+    console.warn('[getStrictLivePositions] No accounts in DB — fetching accounts live from Tastytrade API');
+    const liveAccounts = await api.getAccounts();
+    accounts = liveAccounts
+      .map((a: any) => ({
+        accountNumber: a.account?.['account-number'] || (a as any)['account-number'],
+        accountId: a.account?.['external-id'] || '',
+        accountType: a.account?.['account-type-name'] || '',
+        nickname: a.account?.['nickname'] || '',
+      }))
+      .filter((a: any) => !!a.accountNumber);
+    console.log(`[getStrictLivePositions] Live API returned ${accounts.length} accounts`);
+  }
   const targetAccounts = accountNumber
     ? accounts.filter((a: any) => a.accountNumber === accountNumber)
     : accounts;
