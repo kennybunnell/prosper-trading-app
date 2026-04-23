@@ -9424,3 +9424,4 @@ ROC Fix Mar 18 2026
 ## Telegram & Auth Improvements (Apr 22, 2026)
 - [x] Add per-account breakdown to Telegram daily briefing (e.g., IRA ···8418: 32 positions | $12,400 premium)
 - [x] Auto-refresh Tastytrade token on 401 errors (re-authenticate instead of failing silently)
+- [x] Add immediate acknowledgment + estimated time + progress updates to slow Telegram bot commands

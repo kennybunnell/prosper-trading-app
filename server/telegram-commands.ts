@@ -80,11 +80,11 @@ async function handleHelp(): Promise<string> {
   );
 }
 
-async function handleBriefing(userId: number): Promise<string> {
+async function handleBriefing(userId: number): Promise<void> {
+  await sendTelegramMessage(`⏳ <b>Building your briefing...</b>\n📡 Fetching live positions from Tastytrade (~10–20 sec)`);
   const { triggerDailyBriefingNow } = await import('./telegram-briefing');
   await triggerDailyBriefingNow();
-  // triggerDailyBriefingNow sends the message itself — return a confirmation
-  return `📬 Briefing sent! Check above for the full report.`;
+  // triggerDailyBriefingNow sends the message itself
 }
 
 async function getPositionsFromCache(userId: number): Promise<Record<string, any>[]> {
@@ -580,6 +580,11 @@ async function handleAiQuestion(userId: number, question: string): Promise<strin
     const isMarketOpen = isWeekday && hour >= 9 && hour < 16;
     const dateContext = `Current date/time: ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} ${mtNow.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}\nMarket status: ${isMarketOpen ? 'Open' : 'Closed'}`;
 
+    // ── Send a mid-progress update before the slow LLM call ─────────────────
+    try {
+      await sendTelegramMessage(`🧠 <b>Analyzing your portfolio...</b>\n<i>Crunching numbers — response in ~10–20 seconds</i>`);
+    } catch {}
+
     // ── Call LLM with full context ────────────────────────────────────────────
     const systemPrompt = `You are the Prosper Trading Bot, a personal options trading assistant for Kenny Bunnell. Kenny runs a premium-selling wheel strategy (CSPs, Covered Calls, Bull Put Spreads, Bear Call Spreads, Iron Condors) across multiple Tastytrade accounts (IRA, Cash, LLC).
 
@@ -645,9 +650,14 @@ async function handleStatus(): Promise<string> {
  */
 async function handleSync(userId: number): Promise<string> {
   try {
-    await sendTelegramMessage(`🔄 <b>Syncing portfolio data...</b>\nFetching latest positions and transactions from Tastytrade. This may take 10–20 seconds.`);
+    await sendTelegramMessage(`🔄 <b>Syncing portfolio data...</b>\n📡 Connecting to Tastytrade (~15–30 sec)\n⏱️ Step 1/3: Authenticating...`);
     const { syncPortfolio } = await import('./portfolio-sync');
+    // Send a mid-progress update after a short delay
+    const progressTimer = setTimeout(async () => {
+      try { await sendTelegramMessage(`⏱️ Step 2/3: Downloading positions & transactions...\n<i>Still working — almost there!</i>`); } catch {}
+    }, 8000);
     const results = await syncPortfolio(userId, false);
+    clearTimeout(progressTimer);
     const totalPositions = results.reduce((s, r) => s + r.positionsSynced, 0);
     const totalTxns = results.reduce((s, r) => s + r.transactionsSynced, 0);
     const accountCount = results.length;
@@ -735,9 +745,8 @@ export async function handleTelegramCommand(update: {
         break;
       case '/briefing':
       case 'briefing':
-        await sendTelegramMessage(`⏳ Fetching your briefing...`);
         await handleBriefing(ownerUserId);
-        return; // briefing sends its own message
+        return; // briefing sends its own messages
       case '/positions':
       case 'positions':
         await sendTelegramMessage(`⏳ Loading positions...`);
@@ -750,18 +759,22 @@ export async function handleTelegramCommand(update: {
         break;
       case '/expiring':
       case 'expiring':
+        await sendTelegramMessage(`⏳ Checking expiring positions...`);
         response = await handleExpiring(ownerUserId);
         break;
       case '/close':
       case 'close':
+        await sendTelegramMessage(`⏳ Finding positions ready to close...`);
         response = await handleClose(ownerUserId);
         break;
       case '/premium':
       case 'premium':
+        await sendTelegramMessage(`⏳ Calculating premium summary...`);
         response = await handlePremium(ownerUserId);
         break;
       case '/orders':
       case 'orders':
+        await sendTelegramMessage(`⏳ Fetching recent orders...`);
         response = await handleOrders(ownerUserId);
         break;
       case '/status':
@@ -774,7 +787,7 @@ export async function handleTelegramCommand(update: {
         break;
       default:
         // Free-form natural language question — route to AI handler
-        await sendTelegramMessage(`🤔 Let me check that for you...`);
+        await sendTelegramMessage(`🤔 <b>On it!</b>\n📊 Pulling your portfolio data...`);
         response = await handleAiQuestion(ownerUserId, text);
     }
   } catch (err: any) {
