@@ -192,19 +192,19 @@ export class TastytradeAPI {
         }
         const originalRequest = error.config;
         
-        // Check if this is a token expiration error
-        const isTokenExpiredError = 
-          (error.response?.status === 401 || error.response?.status === 403) &&
-          (error.response?.data?.error?.message?.includes('invalid') ||
-           error.response?.data?.error?.message?.includes('expired') ||
-           error.message?.includes('invalid') ||
-           error.message?.includes('expired'));
+        // Check if this is a token expiration/auth error.
+        // Tastytrade frequently returns 401 with no body or a generic message,
+        // so we retry on ANY 401 (not just ones mentioning 'invalid'/'expired').
+        // 403 is a true permission error — do NOT retry those (would loop forever).
+        // Also skip retrying OAuth token endpoint itself to avoid infinite loops.
+        const isOAuthEndpoint = (error.config?.url || '').includes('/oauth/token');
+        const isTokenExpiredError = error.response?.status === 401 && !isOAuthEndpoint;
         
         // Prevent infinite retry loop
         if (isTokenExpiredError && !originalRequest._retry) {
           originalRequest._retry = true;
           
-          console.log('[Tastytrade API] Token expired, attempting automatic refresh...');
+          console.log('[Tastytrade API] 401 received, attempting automatic token refresh...');
           
           try {
             // Get credentials from database to refresh token

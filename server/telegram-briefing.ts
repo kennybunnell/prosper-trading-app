@@ -211,6 +211,36 @@ async function buildBriefing(userId: number): Promise<string> {
           (b.capturedPct ?? 0) - (a.capturedPct ?? 0),
       );
 
+    // ── Per-account breakdown ─────────────────────────────────────────────────
+    interface AccountSummary {
+      accountNumber: string;
+      label: string;
+      positionCount: number;
+      openPremium: number;
+      capturedPremium: number;
+    }
+
+    const accountMap = new Map<string, AccountSummary>();
+    for (const p of shortPositions) {
+      const accNum = (p['account-number'] || 'Unknown').trim();
+      const last4 = accNum.slice(-4);
+      const label = `···${last4}`;
+      if (!accountMap.has(accNum)) {
+        accountMap.set(accNum, { accountNumber: accNum, label, positionCount: 0, openPremium: 0, capturedPremium: 0 });
+      }
+      const entry = accountMap.get(accNum)!;
+      const qty = Math.abs(parseFloat(p.quantity || '1'));
+      const openPrice = parseFloat(p['average-open-price'] || '0');
+      const multiplier = parseFloat(p.multiplier || '100');
+      const mark = getMark(p);
+      entry.positionCount += 1;
+      entry.openPremium += openPrice * qty * multiplier;
+      entry.capturedPremium += (openPrice - mark) * qty * multiplier;
+    }
+    const accountSummaries = Array.from(accountMap.values()).sort(
+      (a, b) => b.openPremium - a.openPremium,
+    );
+
     // ── Format message ────────────────────────────────────────────────────────
     const dateStr = today.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -228,10 +258,26 @@ async function buildBriefing(userId: number): Promise<string> {
     msg += `💰 <b>Original Premium:</b> $${totalOpenPremium.toLocaleString('en-US', { maximumFractionDigits: 0 })}\n`;
     if (totalOpenPremium > 0) {
       const badge = pctBadge(totalCapturedPct);
-      const capturedSign = totalCaptured >= 0 ? '' : '';
       msg += `${badge} <b>Captured:</b> $${totalCaptured.toLocaleString('en-US', { maximumFractionDigits: 0 })} (${totalCapturedPct.toFixed(0)}%)${marksNote}\n`;
     }
     msg += '\n';
+
+    // Per-account breakdown
+    if (accountSummaries.length > 1) {
+      msg += `🏦 <b>By Account:</b>\n`;
+      for (const acc of accountSummaries) {
+        const accCapturedPct = acc.openPremium > 0
+          ? (acc.capturedPremium / acc.openPremium) * 100
+          : 0;
+        const accBadge = acc.openPremium > 0 ? pctBadge(accCapturedPct) : '⚪';
+        const premStr = `$${acc.openPremium.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+        const captStr = acc.openPremium > 0
+          ? ` | ${accBadge} ${accCapturedPct.toFixed(0)}% captured`
+          : '';
+        msg += `  <code>${acc.label}</code>: ${acc.positionCount} pos | ${premStr} premium${captStr}\n`;
+      }
+      msg += '\n';
+    }
 
     // Close-for-profit alert
     if (closeForProfit.length > 0) {
