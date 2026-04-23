@@ -9425,3 +9425,6 @@ ROC Fix Mar 18 2026
 - [x] Add per-account breakdown to Telegram daily briefing (e.g., IRA ···8418: 32 positions | $12,400 premium)
 - [x] Auto-refresh Tastytrade token on 401 errors (re-authenticate instead of failing silently)
 - [x] Add immediate acknowledgment + estimated time + progress updates to slow Telegram bot commands
+- [ ] Account nicknames in all Telegram messages (replace raw account numbers with friendly names from Tastytrade)
+- [x] Adaptive close order retry engine (mid+$0.05 increments, configurable ceiling, auto-resubmit on cancel)
+- [ ] /closeready Telegram command with two-step confirmation before executing close orders

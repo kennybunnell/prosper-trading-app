@@ -11,6 +11,7 @@ import * as schema from '../drizzle/schema';
 import { eq } from 'drizzle-orm';
 import { writeTradingLog } from './routers-trading-log';
 import { sendTelegramMessage, fmtOrderFilled, fmtOrderRejected } from './telegram';
+import { getAccountNickname } from './db';
 
 // Cash-settled European-style indexes — cannot be used for covered calls (no stock assignment possible)
 const CASH_SETTLED_INDEXES = new Set(['SPX', 'SPXW', 'NDXP', 'NDX', 'MRUT', 'RUT', 'VIX', 'DJX', 'XSP', 'XND']);
@@ -1459,15 +1460,15 @@ export const ccRouter = router({
             message: 'Order submitted successfully',
           });
           // Telegram notification — fire-and-forget, never block order flow
-          sendTelegramMessage(
-            fmtOrderFilled({
+          getAccountNickname(ctx.user.id, order.effectiveAccount).then(label =>
+            sendTelegramMessage(fmtOrderFilled({
               symbol: order.symbol,
               strategy: 'CC',
               strike: order.strike,
               expiration: order.expiration,
               premium: order.price * order.quantity * 100,
-              accountLabel: order.effectiveAccount,
-            })
+              accountLabel: label,
+            }))
           ).catch(() => {});
           await writeTradingLog({
             userId: ctx.user.id, symbol: order.symbol, optionSymbol,
@@ -1486,14 +1487,14 @@ export const ccRouter = router({
             message: error.message,
           });
           // Telegram notification — fire-and-forget, never block order flow
-          sendTelegramMessage(
-            fmtOrderRejected({
+          getAccountNickname(ctx.user.id, order.effectiveAccount).then(label =>
+            sendTelegramMessage(fmtOrderRejected({
               symbol: order.symbol,
               strategy: 'CC',
               strike: order.strike,
               reason: error.message,
-              accountLabel: order.effectiveAccount,
-            })
+              accountLabel: label,
+            }))
           ).catch(() => {});
           const expDate2 = new Date(order.expiration);
           const expStr2 = expDate2.toISOString().slice(2, 10).replace(/-/g, '');

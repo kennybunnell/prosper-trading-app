@@ -1864,38 +1864,110 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             instrumentType: 'Equity Option', outcome: 'pending', orderId: submittedOrderId,
             source: 'routers-automation/submitCloseOrders',
           });
-          // Background poll: check final order status from Tastytrade live API and update log
-          // Runs async — does NOT block the response to the client
+          // ── Adaptive Retry Engine ────────────────────────────────────────────
+          // Runs async — does NOT block the response to the client.
+          // If Tastytrade cancels the order, automatically resubmit at
+          // mid + $0.05 increments (up to MAX_RETRIES = 5, ceiling = mid + $0.25).
           const _userId = ctx.user.id;
           const _accountNumber = order.accountNumber;
+          const _initialLimitPrice = limitPrice;
+          const _isSpreadClose = isSpreadOrder;
+          const _isNetCredit = isNetCreditClose;
+          const _orderLegs = legs;
+          const _orderSymbol = order.symbol;
+          const _optionSymbol = order.optionSymbol;
+          const _spreadLongSymbol = order.spreadLongSymbol;
+          const _quantity = order.quantity;
           ;(async () => {
+            const MAX_RETRIES = 5;
+            const PRICE_INCREMENT = 0.05;
+            const POLL_INTERVAL_MS = 5000;
+            const POLL_ATTEMPTS = 12; // 60s per order attempt
+            let currentOrderId = submittedOrderId;
+            let currentPrice = _initialLimitPrice;
             try {
               const { checkOrderStatus } = await import('./tastytrade-order-status');
-              // Poll up to 12 times (5s apart = 60 seconds total) for a terminal status
-              for (let attempt = 0; attempt < 12; attempt++) {
-                await new Promise(r => setTimeout(r, 5000));
-                const status = await checkOrderStatus(_accountNumber, submittedOrderId, 2, _userId);
-                console.log(`[submitCloseOrders] Poll ${attempt + 1}/12 for order ${submittedOrderId}: ${status.status}`);
-                if (status.status === 'Filled') {
-                  await updateTradingLogOutcome(_userId, submittedOrderId, 'filled');
-                  console.log(`[submitCloseOrders] Order ${submittedOrderId} FILLED — log updated`);
-                  break;
-                } else if (status.status === 'Cancelled') {
-                  await updateTradingLogOutcome(_userId, submittedOrderId, 'error');
-                  console.log(`[submitCloseOrders] Order ${submittedOrderId} CANCELLED by Tastytrade — log updated to error`);
-                  break;
-                } else if (status.status === 'Rejected') {
-                  await updateTradingLogOutcome(_userId, submittedOrderId, 'rejected');
-                  console.log(`[submitCloseOrders] Order ${submittedOrderId} REJECTED — log updated`);
-                  break;
-                } else if (status.status === 'MarketClosed') {
-                  // Market closed — leave as pending
-                  break;
+              const { snapToTick } = await import('../shared/orderUtils');
+              for (let retry = 0; retry <= MAX_RETRIES; retry++) {
+                let filled = false;
+                // Poll for terminal status
+                for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
+                  await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+                  const status = await checkOrderStatus(_accountNumber, currentOrderId, 2, _userId);
+                  console.log(`[AdaptiveClose] Retry ${retry} Poll ${attempt + 1}/${POLL_ATTEMPTS} order ${currentOrderId}: ${status.status} @ $${currentPrice.toFixed(2)}`);
+                  if (status.status === 'Filled') {
+                    await updateTradingLogOutcome(_userId, currentOrderId, 'filled');
+                    console.log(`[AdaptiveClose] Order ${currentOrderId} FILLED @ $${currentPrice.toFixed(2)}`);
+                    filled = true;
+                    break;
+                  } else if (status.status === 'Cancelled') {
+                    await updateTradingLogOutcome(_userId, currentOrderId, 'error');
+                    console.log(`[AdaptiveClose] Order ${currentOrderId} CANCELLED @ $${currentPrice.toFixed(2)} — will retry if attempts remain`);
+                    break; // exit poll loop, check if we should retry
+                  } else if (status.status === 'Rejected') {
+                    await updateTradingLogOutcome(_userId, currentOrderId, 'rejected');
+                    console.log(`[AdaptiveClose] Order ${currentOrderId} REJECTED — no retry`);
+                    return; // hard rejection, don't retry
+                  } else if (status.status === 'MarketClosed') {
+                    console.log(`[AdaptiveClose] Market closed — leaving order ${currentOrderId} as pending`);
+                    return;
+                  }
+                  // status === 'Working' — keep polling
                 }
-                // status === 'Working' — keep polling
+                if (filled) return; // success
+                if (retry >= MAX_RETRIES) {
+                  console.log(`[AdaptiveClose] Max retries (${MAX_RETRIES}) reached for ${_orderSymbol} — giving up`);
+                  return;
+                }
+                // Increment price and resubmit
+                const nextPrice = snapToTick(currentPrice + PRICE_INCREMENT, _orderSymbol);
+                console.log(`[AdaptiveClose] Resubmitting ${_orderSymbol} at $${nextPrice.toFixed(2)} (retry ${retry + 1}/${MAX_RETRIES})`);
+                try {
+                  // Fetch fresh live quote before resubmitting
+                  const { getApiCredentials } = await import('./db');
+                  const { authenticateTastytrade } = await import('./tastytrade');
+                  const creds = await getApiCredentials(_userId);
+                  let freshPrice = nextPrice;
+                  if (creds?.tastytradeRefreshToken) {
+                    const ttRetry = await authenticateTastytrade(creds, _userId);
+                    const freshQuotes = await ttRetry.getOptionQuotesBatch([_optionSymbol]).catch(() => new Map());
+                    const freshQ = freshQuotes.get(_optionSymbol) || freshQuotes.get(_optionSymbol.replace(/\s/g, ''));
+                    if (freshQ) {
+                      const freshMid = (freshQ.bid + freshQ.ask) / 2;
+                      if (freshMid > 0) {
+                        // Use max(freshMid + increment, nextPrice) so we never go below market
+                        freshPrice = snapToTick(Math.max(freshMid + PRICE_INCREMENT * (retry + 1), nextPrice), _orderSymbol);
+                        console.log(`[AdaptiveClose] Fresh mid=$${freshMid.toFixed(2)}, using price=$${freshPrice.toFixed(2)}`);
+                      }
+                    }
+                    const retryResult = await ttRetry.submitOrder({
+                      accountNumber: _accountNumber,
+                      timeInForce: 'Day',
+                      orderType: 'Limit',
+                      price: freshPrice.toFixed(2),
+                      priceEffect: _isNetCredit ? 'Credit' : 'Debit',
+                      legs: _orderLegs,
+                    });
+                    currentOrderId = String(retryResult.id);
+                    currentPrice = freshPrice;
+                    await writeTradingLog({
+                      userId: _userId, symbol: _orderSymbol,
+                      optionSymbol: _optionSymbol, accountNumber: _accountNumber,
+                      strategy: _isSpreadClose ? 'spread-close' : 'single-close', action: 'BTC',
+                      quantity: _quantity, price: freshPrice.toFixed(2),
+                      priceEffect: _isNetCredit ? 'Credit' : 'Debit',
+                      instrumentType: 'Equity Option', outcome: 'pending', orderId: currentOrderId,
+                      source: `routers-automation/adaptiveRetry-${retry + 1}`,
+                    });
+                    console.log(`[AdaptiveClose] Resubmitted as order ${currentOrderId} @ $${freshPrice.toFixed(2)}`);
+                  }
+                } catch (retryErr: any) {
+                  console.error(`[AdaptiveClose] Retry ${retry + 1} submission failed:`, retryErr.message);
+                  return;
+                }
               }
             } catch (pollErr: any) {
-              console.error(`[submitCloseOrders] Background poll failed for order ${submittedOrderId}:`, pollErr.message);
+              console.error(`[AdaptiveClose] Background engine failed for order ${currentOrderId}:`, pollErr.message);
             }
           })();
         } catch (error: any) {

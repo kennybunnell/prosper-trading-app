@@ -220,12 +220,14 @@ async function buildBriefing(userId: number): Promise<string> {
       capturedPremium: number;
     }
 
+    // Pre-fetch account nicknames once to avoid N+1 DB calls
+    const { getAccountNickname, getTastytradeAccounts } = await import('./db');
+    const cachedAccounts = await getTastytradeAccounts(userId).catch(() => []);
     const accountMap = new Map<string, AccountSummary>();
     for (const p of shortPositions) {
       const accNum = (p['account-number'] || 'Unknown').trim();
-      const last4 = accNum.slice(-4);
-      const label = `···${last4}`;
       if (!accountMap.has(accNum)) {
+        const label = await getAccountNickname(userId, accNum, cachedAccounts);
         accountMap.set(accNum, { accountNumber: accNum, label, positionCount: 0, openPremium: 0, capturedPremium: 0 });
       }
       const entry = accountMap.get(accNum)!;

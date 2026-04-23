@@ -2711,16 +2711,17 @@ Summary: [One sentence overall assessment]`;
               }));
 
               // Telegram notification — fire-and-forget
-              sendTelegramMessage(
-                fmtOrderFilled({
-                  symbol: order.symbol,
-                  strategy: (order as any).isIronCondor ? 'IC' : ((order as any).isSpread ? ((order as any).spreadType === 'bear_call' ? 'BCS' : 'BPS') : 'CSP'),
-                  strike: (order as any).strike ?? (order as any).shortLeg?.strike ?? 0,
-                  expiration: order.expiration ?? '',
-                  premium: freshNetCredit,
-                  accountLabel: input.accountId,
-                })
-              ).catch(() => {});
+              { const { getAccountNickname } = await import('./db');
+                getAccountNickname(ctx.user.id, input.accountId).then(label =>
+                  sendTelegramMessage(fmtOrderFilled({
+                    symbol: order.symbol,
+                    strategy: (order as any).isIronCondor ? 'IC' : ((order as any).isSpread ? ((order as any).spreadType === 'bear_call' ? 'BCS' : 'BPS') : 'CSP'),
+                    strike: (order as any).strike ?? (order as any).shortLeg?.strike ?? 0,
+                    expiration: order.expiration ?? '',
+                    premium: freshNetCredit,
+                    accountLabel: label,
+                  }))
+                ).catch(() => {}); }
               return {
                 symbol: order.symbol,
                 success: true,
@@ -2752,15 +2753,16 @@ Summary: [One sentence overall assessment]`;
               
               await writeTradingLog({ userId: ctx.user.id, action: 'STO', strategy: (order as any).isIronCondor ? 'Iron Condor' : ((order as any).isSpread ? ((order as any).spreadType || 'Spread') : 'CSP'), symbol: order.symbol, optionSymbol: (order as any).optionSymbol || (order as any).shortLeg?.optionSymbol || '', accountNumber: input.accountId, price: String(order.premium || '0'), strike: String((order as any).strike || ''), expiration: order.expiration || '', quantity: 1, outcome: 'error', errorMessage: detailedError, source: 'Spread / CSP / Iron Condor STO' });
               // Telegram notification — fire-and-forget
-              sendTelegramMessage(
-                fmtOrderRejected({
-                  symbol: order.symbol,
-                  strategy: (order as any).isIronCondor ? 'IC' : ((order as any).isSpread ? ((order as any).spreadType === 'bear_call' ? 'BCS' : 'BPS') : 'CSP'),
-                  strike: (order as any).strike ?? (order as any).shortLeg?.strike,
-                  reason: detailedError,
-                  accountLabel: input.accountId,
-                })
-              ).catch(() => {});
+              { const { getAccountNickname } = await import('./db');
+                getAccountNickname(ctx.user.id, input.accountId).then(label =>
+                  sendTelegramMessage(fmtOrderRejected({
+                    symbol: order.symbol,
+                    strategy: (order as any).isIronCondor ? 'IC' : ((order as any).isSpread ? ((order as any).spreadType === 'bear_call' ? 'BCS' : 'BPS') : 'CSP'),
+                    strike: (order as any).strike ?? (order as any).shortLeg?.strike,
+                    reason: detailedError,
+                    accountLabel: label,
+                  }))
+                ).catch(() => {}); }
               return {
                 symbol: order.symbol,
                 success: false,

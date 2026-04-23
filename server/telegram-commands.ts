@@ -20,6 +20,11 @@ import { invokeLLM } from './_core/llm';
 
 const OWNER_CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? '';
 
+// ─── Pending confirmation state ───────────────────────────────────────────────
+// Stores pending /closeready confirmations keyed by chatId
+const pendingCloseConfirm = new Map<string, { expiresAt: number; summary: string }>();
+const CONFIRM_TTL_MS = 60_000; // 60 seconds to confirm
+
 // ─── Security guard ───────────────────────────────────────────────────────────
 
 function isAuthorized(chatId: number | string): boolean {
@@ -70,8 +75,9 @@ async function handleHelp(): Promise<string> {
 ` +
     `  /expiring — Positions expiring ≤7 DTE
 ` +
-    `  /close — Ready to close (≥90% captured)
-` +
+   `  /close — Ready to close (≥90% captured)\n`
+    +
+    `  /closeready — Submit close orders (with confirmation)\n` +
     `  /orders — Recent working orders
 ` +
     `  /status — Server status &amp; next briefing time\n` +
@@ -275,6 +281,133 @@ async function handleExpiring(userId: number): Promise<string> {
   }
   msg += `\n<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`;
   return msg;
+}
+
+async function handleCloseReady(userId: number, chatId: string): Promise<void> {
+  await sendTelegramMessage(`⏳ <b>Scanning for positions ready to close...</b>\n📡 Fetching live quotes from Tastytrade (~10–20 sec)`);
+  try {
+    const { getStrictLivePositions } = await import('./portfolio-sync');
+    const positions = await getStrictLivePositions(userId);
+    const shortOptions = positions.filter(
+      (p: Record<string, any>) =>
+        (p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option') &&
+        (p['quantity-direction'] || '').toLowerCase() === 'short',
+    );
+    const readyToClose = shortOptions
+      .map((p: Record<string, any>) => {
+        const openPrice = parseFloat(p['average-open-price'] || '0');
+        const mark = parseFloat(p['close-price'] || p.mark || '0');
+        const qty = Math.abs(parseFloat(p.quantity || '1'));
+        const mult = parseFloat(p.multiplier || '100');
+        const capturedPct = calcPremiumCaptured(openPrice, mark);
+        const captured = (openPrice - mark) * qty * mult;
+        const exp = p['expiration-date'] || p['expires-at'] || '';
+        const dte = getDTE(exp);
+        const acct = (p['account-number'] || '').slice(-4);
+        return { sym: (p['underlying-symbol'] || p.symbol || '?').trim(), dte, qty, capturedPct, captured, acct };
+      })
+      .filter((p: any) => p.capturedPct !== null && p.capturedPct >= 90)
+      .sort((a: any, b: any) => (b.capturedPct ?? 0) - (a.capturedPct ?? 0));
+    if (readyToClose.length === 0) {
+      await sendTelegramMessage(`📭 <b>No positions at ≥90% captured right now.</b>\n\nCheck back later or run /close to see current P&amp;L.\n\n<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`);
+      return;
+    }
+    let summary = '';
+    let totalLocked = 0;
+    for (const p of readyToClose) {
+      summary += `  🟢 <b>${p.sym}</b> ×${p.qty} — ${p.capturedPct?.toFixed(0)}% · $${p.captured.toFixed(0)} locked · ${p.dte}d [···${p.acct}]\n`;
+      totalLocked += p.captured;
+    }
+    // Store pending confirmation
+    pendingCloseConfirm.set(chatId, { expiresAt: Date.now() + CONFIRM_TTL_MS, summary });
+    const msg =
+      `💸 <b>Ready to Close — ${readyToClose.length} position${readyToClose.length === 1 ? '' : 's'}</b>\n` +
+      `<i>Total locked-in profit: $${totalLocked.toFixed(0)}</i>\n\n` +
+      summary +
+      `\n⚠️ <b>Reply <code>CONFIRM</code> within 60 seconds to submit all close orders.</b>\n` +
+      `Reply anything else to cancel.`;
+    await sendTelegramMessage(msg);
+  } catch (err: any) {
+    await sendTelegramMessage(`⚠️ Could not scan positions: ${err.message}`);
+  }
+}
+
+async function handleCloseConfirm(userId: number, chatId: string): Promise<void> {
+  const pending = pendingCloseConfirm.get(chatId);
+  if (!pending || Date.now() > pending.expiresAt) {
+    pendingCloseConfirm.delete(chatId);
+    await sendTelegramMessage(`⏰ Confirmation expired or no pending close. Run /closeready to start again.`);
+    return;
+  }
+  pendingCloseConfirm.delete(chatId);
+  await sendTelegramMessage(`✅ <b>Confirmed!</b> Submitting close orders now...\n⏳ This may take 20–30 seconds.`);
+  try {
+    const { getStrictLivePositions } = await import('./portfolio-sync');
+    const { getTastytradeAccounts, getApiCredentials } = await import('./db');
+    const { authenticateTastytrade } = await import('./tastytrade');
+    const positions = await getStrictLivePositions(userId);
+    const creds = await getApiCredentials(userId);
+    if (!creds?.tastytradeRefreshToken) {
+      await sendTelegramMessage(`⚠️ No Tastytrade credentials found. Please re-authenticate in the dashboard.`);
+      return;
+    }
+    const tt = await authenticateTastytrade(creds, userId);
+    const shortOptions = positions.filter(
+      (p: Record<string, any>) =>
+        (p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option') &&
+        (p['quantity-direction'] || '').toLowerCase() === 'short',
+    );
+    const readyToClose = shortOptions.filter((p: Record<string, any>) => {
+      const openPrice = parseFloat(p['average-open-price'] || '0');
+      const mark = parseFloat(p['close-price'] || p.mark || '0');
+      const pct = calcPremiumCaptured(openPrice, mark);
+      return pct !== null && pct >= 90;
+    });
+    if (readyToClose.length === 0) {
+      await sendTelegramMessage(`📭 No positions at ≥90% captured — nothing to close.`);
+      return;
+    }
+    const { snapToTick } = await import('../shared/orderUtils');
+    const { writeTradingLog } = await import('./routers-trading-log');
+    let filled = 0; let failed = 0;
+    for (const p of readyToClose) {
+      try {
+        const accountNumber = p['account-number'] || '';
+        if (!accountNumber) { failed++; continue; }
+        const optionSymbol = p.symbol || p['streamer-symbol'] || '';
+        const qty = Math.abs(parseFloat(p.quantity || '1'));
+        const mark = parseFloat(p['close-price'] || p.mark || '0');
+        const limitPrice = snapToTick(Math.max(0.01, mark * 1.05), p['underlying-symbol'] || '');
+        const result = await tt.submitOrder({
+          accountNumber,
+          timeInForce: 'Day',
+          orderType: 'Limit',
+          price: limitPrice.toFixed(2),
+          priceEffect: 'Debit',
+          legs: [{ instrumentType: 'Equity Option' as const, symbol: optionSymbol, quantity: qty.toString(), action: 'Buy to Close' as const }],
+        });
+        await writeTradingLog({
+          userId, symbol: p['underlying-symbol'] || '?', optionSymbol, accountNumber,
+          strategy: 'single-close', action: 'BTC', quantity: qty,
+          price: limitPrice.toFixed(2), priceEffect: 'Debit', instrumentType: 'Equity Option',
+          outcome: 'pending', orderId: String(result.id),
+          source: 'telegram/closeready',
+        });
+        filled++;
+      } catch (orderErr: any) {
+        console.error('[Telegram /closeready] Order failed:', orderErr.message);
+        failed++;
+      }
+    }
+    await sendTelegramMessage(
+      `📊 <b>Close Orders Submitted</b>\n` +
+      `✅ ${filled} submitted · ❌ ${failed} failed\n\n` +
+      `Orders will fill adaptively — check /orders for status.\n\n` +
+      `<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`
+    );
+  } catch (err: any) {
+    await sendTelegramMessage(`⚠️ Close submission failed: ${err.message}`);
+  }
 }
 
 async function handleClose(userId: number): Promise<string> {
@@ -766,6 +899,20 @@ export async function handleTelegramCommand(update: {
       case 'close':
         await sendTelegramMessage(`⏳ Finding positions ready to close...`);
         response = await handleClose(ownerUserId);
+        break;
+      case '/closeready':
+      case 'closeready':
+        await handleCloseReady(ownerUserId, String(chatId));
+        return; // sends its own messages
+      case 'confirm':
+        // Check if there's a pending close confirmation
+        if (pendingCloseConfirm.has(String(chatId))) {
+          await handleCloseConfirm(ownerUserId, String(chatId));
+          return;
+        }
+        // Not a pending confirmation — fall through to AI handler
+        await sendTelegramMessage(`🤔 <b>On it!</b>\n📊 Pulling your portfolio data...`);
+        response = await handleAiQuestion(ownerUserId, text);
         break;
       case '/premium':
       case 'premium':

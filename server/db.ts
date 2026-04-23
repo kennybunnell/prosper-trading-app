@@ -504,6 +504,26 @@ export async function upsertApiCredentials(userId: number, credentials: {
 }
 
 // Tastytrade Accounts queries
+
+/**
+ * Resolve a human-friendly label for an account number.
+ * Returns the Tastytrade nickname if set, otherwise falls back to "···XXXX" (last 4 digits).
+ * Pass a pre-fetched accounts array to avoid an extra DB round-trip.
+ */
+export async function getAccountNickname(
+  userId: number,
+  accountNumber: string,
+  cachedAccounts?: Array<{ accountNumber: string; nickname?: string | null }>,
+): Promise<string> {
+  try {
+    const accounts = cachedAccounts ?? await getTastytradeAccounts(userId);
+    const match = accounts.find((a: any) => a.accountNumber === accountNumber);
+    if (match?.nickname && match.nickname.trim()) return match.nickname.trim();
+  } catch { /* fall through */ }
+  const last4 = accountNumber.slice(-4);
+  return `···${last4}`;
+}
+
 export async function getTastytradeAccounts(userId: number) {
   const db = await getDb();
   if (!db) return [];
