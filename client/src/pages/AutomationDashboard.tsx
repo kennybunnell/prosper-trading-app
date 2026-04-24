@@ -430,6 +430,8 @@ export default function AutomationDashboard() {
   const [overrideRolledPositions, setOverrideRolledPositions] = useState<Set<string>>(new Set());
   // Filter to show only positions flagged for close (CLOSE or STOP action label)
    const [rollCloseFilter, setRollCloseFilter] = useState(false);
+  // Hide OTM positions (itmDepth < 0) — default OFF so user sees all, toggle to reduce noise
+  const [hideOTMPositions, setHideOTMPositions] = useState(false);
   const [showHiddenLosers, setShowHiddenLosers] = useState(false);
   // Open the BTC close modal for a single Roll position (from the Roll/Close dashboard)
   const handleOpenRollPositionClose = useCallback((pos: RollAnalysis) => {
@@ -3104,10 +3106,20 @@ export default function AutomationDashboard() {
                   : 'Click to show only positions that should be closed rather than rolled.'}
                 onClick={() => setRollCloseFilter(v => !v)}
               />
-              {(rollStrategyFilters.size > 0 || rollPnlFilters.size > 0 || rollCreditOnlyFilter || hideRolledToday || creditDirectionFilter || rollCloseFilter) && (
+              {/* Hide OTM toggle */}
+              <FilterPill
+                label={`🟢 Hide OTM${rollScanResults ? ` (${rollScanResults.all.filter(p => p.metrics.itmDepth < 0).length})` : ''}`}
+                selected={hideOTMPositions}
+                variant="green"
+                title={hideOTMPositions
+                  ? 'OTM positions are hidden. Click to show them.'
+                  : 'Click to hide OTM positions (strike is out-of-the-money) and reduce noise.'}
+                onClick={() => setHideOTMPositions(v => !v)}
+              />
+              {(rollStrategyFilters.size > 0 || rollPnlFilters.size > 0 || rollCreditOnlyFilter || hideRolledToday || creditDirectionFilter || rollCloseFilter || hideOTMPositions) && (
                 <button
                   className="text-[10px] text-orange-400/70 hover:text-orange-400 px-2 py-0.5 rounded border border-orange-500/20 hover:border-orange-500/40 transition-colors ml-1"
-                  onClick={() => { setRollStrategyFilters(new Set()); setRollPnlFilters(new Set()); setRollCreditOnlyFilter(true); setHideRolledToday(true); setCreditDirectionFilter(false); setRollCloseFilter(false); }}
+                  onClick={() => { setRollStrategyFilters(new Set()); setRollPnlFilters(new Set()); setRollCreditOnlyFilter(true); setHideRolledToday(true); setCreditDirectionFilter(false); setRollCloseFilter(false); setHideOTMPositions(false); }}
                   title="Reset all filters"
                 >Reset all filters</button>
               )}
@@ -3429,6 +3441,8 @@ export default function AutomationDashboard() {
                             if (rollPnlFilters.size > 0 && !rollPnlFilters.has((pos as any).pnlStatus ?? '')) return false;
                             // Credit-only filter: hide positions where a credit roll is unlikely (deep ITM)
                             if (rollCreditOnlyFilter && pos.metrics.itmDepth > 5) return false;
+                            // Hide OTM positions (itmDepth < 0 means OTM)
+                            if (hideOTMPositions && pos.metrics.itmDepth < 0) return false;
                             // Hide positions already rolled today to prevent accidental re-rolls
                             if (hideRolledToday && rolledTodaySet.has(pos.positionId) && !overrideRolledPositions.has(pos.positionId)) return false;
                             // Credit+Direction filter: keep only positions where Best Fit is a credit roll that moves strike further OTM
@@ -3753,12 +3767,23 @@ export default function AutomationDashboard() {
                                     pos.metrics.dte <= 7 ? 'text-orange-400' :
                                     pos.metrics.dte <= 14 ? 'text-yellow-400' : 'text-muted-foreground'
                                   }`}>{pos.metrics.dte === 0 ? '⚡0' : pos.metrics.dte}</td>
-                                  {/* ITM/OTM */}
-                                  <td className={`p-3 text-right font-mono text-xs ${
-                                    itmDepth > 5 ? 'text-red-400' : itmDepth > 0 ? 'text-yellow-400' :
-                                    itmDepth < -10 ? 'text-green-400' : 'text-muted-foreground'
-                                  }`}>
-                                    {itmDepth > 0 ? `▲${itmDepth.toFixed(1)}%` : itmDepth < 0 ? `▼${Math.abs(itmDepth).toFixed(1)}%` : '—'}
+                                  {/* ITM/OTM — badge + depth */}
+                                  <td className="p-3 text-right">
+                                    <div className="flex flex-col items-end gap-0.5">
+                                      {itmDepth > 2 ? (
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">ITM</span>
+                                      ) : itmDepth >= -2 ? (
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">ATM</span>
+                                      ) : (
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-green-400 border border-green-500/30">OTM</span>
+                                      )}
+                                      <span className={`font-mono text-[10px] ${
+                                        itmDepth > 5 ? 'text-red-400' : itmDepth > 0 ? 'text-yellow-400' :
+                                        itmDepth < -10 ? 'text-green-400' : 'text-muted-foreground'
+                                      }`}>
+                                        {itmDepth > 0 ? `▲${itmDepth.toFixed(1)}%` : itmDepth < 0 ? `▼${Math.abs(itmDepth).toFixed(1)}%` : '—'}
+                                      </span>
+                                    </div>
                                   </td>
                                   {/* Reason */}
                                   <td className="p-3 text-xs text-muted-foreground max-w-[160px] truncate">
