@@ -9428,3 +9428,9 @@ ROC Fix Mar 18 2026
 - [ ] Account nicknames in all Telegram messages (replace raw account numbers with friendly names from Tastytrade)
 - [x] Adaptive close order retry engine (mid+$0.05 increments, configurable ceiling, auto-resubmit on cancel)
 - [ ] /closeready Telegram command with two-step confirmation before executing close orders
+
+## Three New Features (Apr 24, 2026)
+- [x] /closeready [SYMBOL] — optional symbol filter: /closeready SPX only closes SPX positions; symbolFilter stored in pending confirmation map so CONFIRM step respects the filter
+- [x] Configurable close threshold — /close, /closeready, and daily briefing now read profitThresholdPercent from automationSettings DB (default 90%); editable from the Automation Settings panel in the dashboard
+- [x] Adaptive retry Telegram notification — when a close order fills on retry attempt 2+, sends Telegram message with symbol, original price, fill price, attempt number, and slippage per contract and total
+- [x] TypeScript: 0 errors

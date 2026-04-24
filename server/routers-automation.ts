@@ -1898,6 +1898,23 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                   if (status.status === 'Filled') {
                     await updateTradingLogOutcome(_userId, currentOrderId, 'filled');
                     console.log(`[AdaptiveClose] Order ${currentOrderId} FILLED @ $${currentPrice.toFixed(2)}`);
+                    // Notify via Telegram when fill happens on retry attempt 2+ (slippage tracking)
+                    if (retry >= 1) {
+                      try {
+                        const { sendTelegramMessage } = await import('./telegram');
+                        const slippage = currentPrice - _initialLimitPrice;
+                        const slippageDollar = slippage * _quantity * 100;
+                        const slippageSign = slippage >= 0 ? '+' : '';
+                        const msg =
+                          `⚡ <b>Adaptive Retry Filled</b> — <b>${_orderSymbol}</b>\n` +
+                          `🔄 Attempt <b>${retry + 1}</b> of ${MAX_RETRIES + 1}\n` +
+                          `💰 Original price: <b>$${_initialLimitPrice.toFixed(2)}</b>\n` +
+                          `✅ Fill price: <b>$${currentPrice.toFixed(2)}</b>\n` +
+                          `📉 Slippage: <b>${slippageSign}$${slippage.toFixed(2)}/contract</b> (${slippageSign}$${slippageDollar.toFixed(0)} total)\n` +
+                          `<i>Order filled after ${retry} cancelled attempt${retry === 1 ? '' : 's'}</i>`;
+                        sendTelegramMessage(msg).catch(() => {});
+                      } catch { /* non-critical */ }
+                    }
                     filled = true;
                     break;
                   } else if (status.status === 'Cancelled') {

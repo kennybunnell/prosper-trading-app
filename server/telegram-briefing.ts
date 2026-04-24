@@ -189,8 +189,13 @@ async function buildBriefing(userId: number): Promise<string> {
       })
       .filter((p: ExpiringPos) => p.dte <= 7)
       .sort((a: ExpiringPos, b: ExpiringPos) => a.dte - b.dte);
-
-    // ── Close-for-profit candidates (≥90% captured, any DTE) ─────────────────
+    // ── Close-for-profit candidates (configurable threshold, any DTE) ──────────
+    let closeThreshold = 90;
+    try {
+      const { getAutomationSettings } = await import('./db-automation');
+      const s = await getAutomationSettings(userId);
+      closeThreshold = s.profitThresholdPercent ?? 90;
+    } catch { /* use default */ }
     const closeForProfit = shortPositions
       .map((p: Record<string, any>) => {
         const openPrice = parseFloat(p['average-open-price'] || '0');
@@ -204,9 +209,8 @@ async function buildBriefing(userId: number): Promise<string> {
       })
       .filter(
         (p: { capturedPct: number | null; dte: number }) =>
-          p.capturedPct !== null && p.capturedPct >= 90 && p.dte > 7,
-      )
-      .sort(
+          p.capturedPct !== null && p.capturedPct >= closeThreshold && p.dte > 7,
+      )    .sort(
         (a: { capturedPct: number | null }, b: { capturedPct: number | null }) =>
           (b.capturedPct ?? 0) - (a.capturedPct ?? 0),
       );
@@ -283,7 +287,7 @@ async function buildBriefing(userId: number): Promise<string> {
 
     // Close-for-profit alert
     if (closeForProfit.length > 0) {
-      msg += `💸 <b>Ready to Close (≥90% captured, ${closeForProfit.length}):</b>\n`;
+      msg += `💸 <b>Ready to Close (≥${closeThreshold}% captured, ${closeForProfit.length}):</b>\n`;
       for (const p of closeForProfit.slice(0, 5)) {
         msg += `  🟢 <b>${p.underlying}</b> — ${p.capturedPct?.toFixed(0)}% captured, ${p.dte}d left\n`;
       }

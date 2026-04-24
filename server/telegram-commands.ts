@@ -22,7 +22,7 @@ const OWNER_CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? '';
 
 // ─── Pending confirmation state ───────────────────────────────────────────────
 // Stores pending /closeready confirmations keyed by chatId
-const pendingCloseConfirm = new Map<string, { expiresAt: number; summary: string }>();
+const pendingCloseConfirm = new Map<string, { expiresAt: number; summary: string; symbolFilter?: string; threshold: number }>();
 const CONFIRM_TTL_MS = 60_000; // 60 seconds to confirm
 
 // ─── Security guard ───────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ async function handleHelp(): Promise<string> {
 ` +
    `  /close — Ready to close (≥90% captured)\n`
     +
-    `  /closeready — Submit close orders (with confirmation)\n` +
+    `  /closeready [SYM] — Submit close orders (optional symbol filter)\n` +
     `  /orders — Recent working orders
 ` +
     `  /status — Server status &amp; next briefing time\n` +
@@ -283,9 +283,17 @@ async function handleExpiring(userId: number): Promise<string> {
   return msg;
 }
 
-async function handleCloseReady(userId: number, chatId: string): Promise<void> {
-  await sendTelegramMessage(`⏳ <b>Scanning for positions ready to close...</b>\n📡 Fetching live quotes from Tastytrade (~10–20 sec)`);
+async function handleCloseReady(userId: number, chatId: string, symbolFilter?: string): Promise<void> {
+  const filterLabel = symbolFilter ? ` for <b>${symbolFilter.toUpperCase()}</b>` : '';
+  await sendTelegramMessage(`⏳ <b>Scanning for positions ready to close${filterLabel}...</b>\n📡 Fetching live quotes from Tastytrade (~10–20 sec)`);
   try {
+    // Load configurable threshold from automationSettings (default 90)
+    let threshold = 90;
+    try {
+      const { getAutomationSettings } = await import('./db-automation');
+      const s = await getAutomationSettings(userId);
+      threshold = s.profitThresholdPercent ?? 90;
+    } catch { /* use default */ }
     const { getStrictLivePositions } = await import('./portfolio-sync');
     const positions = await getStrictLivePositions(userId);
     const shortOptions = positions.filter(
@@ -306,10 +314,15 @@ async function handleCloseReady(userId: number, chatId: string): Promise<void> {
         const acct = (p['account-number'] || '').slice(-4);
         return { sym: (p['underlying-symbol'] || p.symbol || '?').trim(), dte, qty, capturedPct, captured, acct };
       })
-      .filter((p: any) => p.capturedPct !== null && p.capturedPct >= 90)
+      .filter((p: any) => {
+        if (p.capturedPct === null || p.capturedPct < threshold) return false;
+        if (symbolFilter && p.sym.toUpperCase() !== symbolFilter.toUpperCase()) return false;
+        return true;
+      })
       .sort((a: any, b: any) => (b.capturedPct ?? 0) - (a.capturedPct ?? 0));
+    const filterSuffix = symbolFilter ? ` for ${symbolFilter.toUpperCase()}` : '';
     if (readyToClose.length === 0) {
-      await sendTelegramMessage(`📭 <b>No positions at ≥90% captured right now.</b>\n\nCheck back later or run /close to see current P&amp;L.\n\n<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`);
+      await sendTelegramMessage(`📭 <b>No positions at ≥${threshold}% captured${filterSuffix} right now.</b>\n\nCheck back later or run /close to see current P&amp;L.\n\n<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`);
       return;
     }
     let summary = '';
@@ -318,11 +331,11 @@ async function handleCloseReady(userId: number, chatId: string): Promise<void> {
       summary += `  🟢 <b>${p.sym}</b> ×${p.qty} — ${p.capturedPct?.toFixed(0)}% · $${p.captured.toFixed(0)} locked · ${p.dte}d [···${p.acct}]\n`;
       totalLocked += p.captured;
     }
-    // Store pending confirmation
-    pendingCloseConfirm.set(chatId, { expiresAt: Date.now() + CONFIRM_TTL_MS, summary });
+    // Store pending confirmation (include symbolFilter and threshold)
+    pendingCloseConfirm.set(chatId, { expiresAt: Date.now() + CONFIRM_TTL_MS, summary, symbolFilter, threshold });
     const msg =
-      `💸 <b>Ready to Close — ${readyToClose.length} position${readyToClose.length === 1 ? '' : 's'}</b>\n` +
-      `<i>Total locked-in profit: $${totalLocked.toFixed(0)}</i>\n\n` +
+      `💸 <b>Ready to Close${filterSuffix} — ${readyToClose.length} position${readyToClose.length === 1 ? '' : 's'}</b>\n` +
+      `<i>Threshold: ≥${threshold}% captured · Total locked-in profit: $${totalLocked.toFixed(0)}</i>\n\n` +
       summary +
       `\n⚠️ <b>Reply <code>CONFIRM</code> within 60 seconds to submit all close orders.</b>\n` +
       `Reply anything else to cancel.`;
@@ -339,8 +352,10 @@ async function handleCloseConfirm(userId: number, chatId: string): Promise<void>
     await sendTelegramMessage(`⏰ Confirmation expired or no pending close. Run /closeready to start again.`);
     return;
   }
+  const { symbolFilter, threshold } = pending;
   pendingCloseConfirm.delete(chatId);
-  await sendTelegramMessage(`✅ <b>Confirmed!</b> Submitting close orders now...\n⏳ This may take 20–30 seconds.`);
+  const filterLabel = symbolFilter ? ` for ${symbolFilter.toUpperCase()}` : '';
+  await sendTelegramMessage(`✅ <b>Confirmed!</b> Submitting close orders${filterLabel} now...\n⏳ This may take 20–30 seconds.`);
   try {
     const { getStrictLivePositions } = await import('./portfolio-sync');
     const { getTastytradeAccounts, getApiCredentials } = await import('./db');
@@ -361,10 +376,15 @@ async function handleCloseConfirm(userId: number, chatId: string): Promise<void>
       const openPrice = parseFloat(p['average-open-price'] || '0');
       const mark = parseFloat(p['close-price'] || p.mark || '0');
       const pct = calcPremiumCaptured(openPrice, mark);
-      return pct !== null && pct >= 90;
+      if (pct === null || pct < threshold) return false;
+      if (symbolFilter) {
+        const sym = (p['underlying-symbol'] || p.symbol || '').toUpperCase();
+        if (sym !== symbolFilter.toUpperCase()) return false;
+      }
+      return true;
     });
     if (readyToClose.length === 0) {
-      await sendTelegramMessage(`📭 No positions at ≥90% captured — nothing to close.`);
+      await sendTelegramMessage(`📭 No positions at ≥${threshold}% captured${filterLabel} — nothing to close.`);
       return;
     }
     const { snapToTick } = await import('../shared/orderUtils');
@@ -411,6 +431,13 @@ async function handleCloseConfirm(userId: number, chatId: string): Promise<void>
 }
 
 async function handleClose(userId: number): Promise<string> {
+  // Load configurable threshold from automationSettings (default 90)
+  let threshold = 90;
+  try {
+    const { getAutomationSettings } = await import('./db-automation');
+    const s = await getAutomationSettings(userId);
+    threshold = s.profitThresholdPercent ?? 90;
+  } catch { /* use default */ }
   const positions = await getPositionsFromCache(userId);
 
   const shortOptions = positions.filter(
@@ -440,15 +467,15 @@ async function handleClose(userId: number): Promise<string> {
         acct: (p['account-number'] || '').slice(-4),
       };
     })
-    .filter((p: any) => p.capturedPct !== null && p.capturedPct >= 90)
+    .filter((p: any) => p.capturedPct !== null && p.capturedPct >= threshold)
     .sort((a: any, b: any) => (b.capturedPct ?? 0) - (a.capturedPct ?? 0));
 
   if (readyToClose.length === 0) {
-    return `📭 <b>No positions at ≥90% captured yet.</b>\n\nCheck back later or run /pnl to see current P&amp;L.\n\n<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`;
+    return `📭 <b>No positions at ≥${threshold}% captured yet.</b>\n\nCheck back later or run /pnl to see current P&amp;L.\n\n<a href="https://prospertrading.biz">🔗 Open Dashboard</a>`;
   }
 
   let msg = `💸 <b>Ready to Close for Profit (${readyToClose.length})</b>\n`;
-  msg += `<i>Positions ≥90% premium captured</i>\n\n`;
+  msg += `<i>Positions ≥${threshold}% premium captured</i>\n\n`;
   for (const p of readyToClose) {
     msg += `  🟢 <b>${p.sym}</b> ×${p.qty} — ${p.capturedPct?.toFixed(0)}% captured · $${p.captured.toFixed(0)} locked in · ${p.dte}d left [···${p.acct}]\n`;
   }
@@ -901,9 +928,13 @@ export async function handleTelegramCommand(update: {
         response = await handleClose(ownerUserId);
         break;
       case '/closeready':
-      case 'closeready':
-        await handleCloseReady(ownerUserId, String(chatId));
+      case 'closeready': {
+        // Parse optional symbol argument: /closeready SPX
+        const crParts = text.trim().split(/\s+/);
+        const crSymbol = crParts.length >= 2 ? crParts[1].toUpperCase() : undefined;
+        await handleCloseReady(ownerUserId, String(chatId), crSymbol);
         return; // sends its own messages
+      }
       case 'confirm':
         // Check if there's a pending close confirmation
         if (pendingCloseConfirm.has(String(chatId))) {
