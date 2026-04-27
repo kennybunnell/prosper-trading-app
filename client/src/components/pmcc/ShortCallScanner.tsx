@@ -152,6 +152,26 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectL
   // Per-order price overrides: key = `${symbol}-${strike}-${expiration}`, value = adjusted limit price
   const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
 
+  // Sort state for results table
+  const [sortBy, setSortBy] = useState<string>('score');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (key: string) => {
+    if (sortBy === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(key);
+      setSortDir('desc');
+    }
+  };
+
+  const sortedOpportunities = [...opportunities].sort((a, b) => {
+    const aVal = a[sortBy] ?? 0;
+    const bVal = b[sortBy] ?? 0;
+    if (typeof aVal === 'string') return sortDir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
+    return sortDir === 'asc' ? Number(aVal) - Number(bVal) : Number(bVal) - Number(aVal);
+  });
+
   // Reset price overrides when preview opens
   const handleOpenPreview = () => {
     const defaults: Record<string, number> = {};
@@ -284,21 +304,37 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectL
                   <thead className="bg-muted/50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium">Select</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium">LEAP</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium">Strike</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium">Expiration</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium">DTE</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium">Premium</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium">Delta</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium">ROC %</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium">Score</th>
+                      {[
+                        { key: 'underlyingSymbol', label: 'Symbol' },
+                        { key: 'strike', label: 'Strike' },
+                        { key: 'expiration', label: 'Expiration' },
+                        { key: 'dte', label: 'DTE' },
+                        { key: 'premium', label: 'Premium' },
+                        { key: 'bid', label: 'Bid' },
+                        { key: 'ask', label: 'Ask' },
+                        { key: 'delta', label: 'Delta (Δ)' },
+                        { key: 'iv', label: 'IV' },
+                        { key: 'theta', label: 'Theta (θ)' },
+                        { key: 'openInterest', label: 'OI' },
+                        { key: 'volume', label: 'Vol' },
+                        { key: 'roc', label: 'ROC %' },
+                        { key: 'score', label: 'Score' },
+                      ].map(col => (
+                        <th
+                          key={col.key}
+                          className="px-4 py-3 text-left text-xs font-medium cursor-pointer select-none hover:text-foreground whitespace-nowrap"
+                          onClick={() => handleSort(col.key)}
+                        >
+                          {col.label}
+                          {sortBy === col.key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {opportunities.map((opp: any) => {
+                    {sortedOpportunities.map((opp: any) => {
                       const oppKey = `${opp.underlyingSymbol}-${opp.strike}-${opp.expiration}`;
                       const isSelected = selectedOpportunities.has(oppKey);
-                      
                       return (
                         <tr
                           key={oppKey}
@@ -308,32 +344,28 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectL
                             isSelected ? "bg-purple-500/10" : "hover:bg-muted/30"
                           )}
                         >
-                          <td className="px-4 py-3">
-                            <Checkbox checked={isSelected} />
-                          </td>
+                          <td className="px-4 py-3"><Checkbox checked={isSelected} /></td>
                           <td className="px-4 py-3">
                             <div className="font-medium">{opp.underlyingSymbol}</div>
-                            <div className="text-xs text-muted-foreground">
-                              LEAP: ${opp.leapStrike}
-                            </div>
+                            <div className="text-xs text-muted-foreground">LEAP: ${opp.leapStrike}</div>
                           </td>
                           <td className="px-4 py-3 font-medium">${opp.strike.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-sm">
-                            {new Date(opp.expiration).toLocaleDateString()}
-                          </td>
+                          <td className="px-4 py-3 text-sm">{new Date(opp.expiration).toLocaleDateString()}</td>
                           <td className="px-4 py-3 text-sm">{opp.dte}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1 text-green-500 font-medium">
-                              <DollarSign className="h-3 w-3" />
-                              {opp.premium.toFixed(2)}
+                              <DollarSign className="h-3 w-3" />{opp.premium.toFixed(2)}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-sm">{opp.delta.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground">{opp.bid != null ? opp.bid.toFixed(2) : '—'}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground">{opp.ask != null ? opp.ask.toFixed(2) : '—'}</td>
+                          <td className="px-4 py-3 text-sm">{opp.delta != null ? opp.delta.toFixed(2) : '—'}</td>
+                          <td className="px-4 py-3 text-sm">{opp.iv != null ? (opp.iv * 100).toFixed(1) + '%' : '—'}</td>
+                          <td className="px-4 py-3 text-sm text-red-400">{opp.theta != null ? opp.theta.toFixed(3) : '—'}</td>
+                          <td className="px-4 py-3 text-sm">{opp.openInterest ?? '—'}</td>
+                          <td className="px-4 py-3 text-sm">{opp.volume ?? '—'}</td>
                           <td className="px-4 py-3">
-                            <span className={cn(
-                              "text-sm font-medium",
-                              opp.roc >= 5 ? "text-green-500" : "text-muted-foreground"
-                            )}>
+                            <span className={cn("text-sm font-medium", opp.roc >= 5 ? "text-green-500" : "text-muted-foreground")}>
                               {opp.roc.toFixed(1)}%
                             </span>
                           </td>
@@ -343,9 +375,7 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectL
                               opp.score >= 80 ? "bg-green-500/20 text-green-500" :
                               opp.score >= 60 ? "bg-amber-500/20 text-amber-500" :
                               "bg-red-500/20 text-red-500"
-                            )}>
-                              {opp.score}
-                            </div>
+                            )}>{opp.score}</div>
                           </td>
                         </tr>
                       );

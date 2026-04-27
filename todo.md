@@ -9456,3 +9456,9 @@ ROC Fix Mar 18 2026
 ## PMCC Dashboard Fixes (Apr 27, 2026)
 - [x] Wire "Sell Calls" button on Active PMCC Position card to scroll to ShortCallScanner and auto-select + auto-scan that LEAP
 - [x] Add midpoint price slider (Bid/Ask range) to ShortCallScanner order preview dialog, matching other submission panels
+
+## PMCC Short Call Scanner Fixes (Apr 27, 2026)
+- [x] Fix: credentials check in submitShortCallOrders used username/password instead of clientSecret/refreshToken — caused false "credentials not configured" error on dry run
+- [x] Fix: scoring formula had base 50 + max 105 additive points = max 155 — rebalanced to 0-base with components summing to 100 max, hard-capped at 100
+- [x] Add: Bid, Ask, IV, Theta (θ), OI, Volume columns to ShortCallScanner results table
+- [x] Add: sortable column headers (click to sort asc/desc) to ShortCallScanner results table

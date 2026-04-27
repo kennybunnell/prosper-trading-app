@@ -913,8 +913,9 @@ ${symbolCtx.contextBlock}`,
               const spreadWidth = strike - leap.strike;
               const roc = spreadWidth > 0 ? (premium * 100 / spreadWidth) : 0;
 
-              // Basic scoring (0-100)
-              let score = 50; // Base score
+              // Scoring (0-100 max)
+              // Components: Premium(25) + Delta(20) + DTE(15) + BidAsk(15) + ROC(15) + OI(10) = 100
+              let score = 0;
 
               // Premium component (0-25 points)
               if (premium >= 5) score += 25;
@@ -944,14 +945,17 @@ ${symbolCtx.contextBlock}`,
               else if (roc >= 5) score += 10;
               else if (roc >= 2) score += 5;
 
-              // Open Interest component (0-15 points, -10 penalty for OI=0)
+              // Open Interest component (0-10 points, -5 penalty for OI=0)
               const oi = parseInt(String(opt.open_interest || '0'));
-              if (oi >= 500) score += 15;
-              else if (oi >= 200) score += 12;
-              else if (oi >= 100) score += 9;
-              else if (oi >= 50) score += 6;
-              else if (oi >= 10) score += 3;
-              else if (oi === 0) score -= 10; // Hard penalty: OI=0 contracts rarely fill
+              if (oi >= 500) score += 10;
+              else if (oi >= 200) score += 8;
+              else if (oi >= 100) score += 6;
+              else if (oi >= 50) score += 4;
+              else if (oi >= 10) score += 2;
+              else if (oi === 0) score -= 5; // Hard penalty: OI=0 contracts rarely fill
+
+              // Hard cap at 100
+              score = Math.min(100, Math.max(0, score));
 
               allOpportunities.push({
                 leapSymbol: leap.optionSymbol,
@@ -1062,7 +1066,7 @@ ${symbolCtx.contextBlock}`,
     .mutation(async ({ ctx, input }) => {
       const { getApiCredentials } = await import('./db');
       const credentials = await getApiCredentials(ctx.user.id);
-      if (!credentials?.tastytradeUsername || !credentials?.tastytradePassword) {
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'Tastytrade credentials not configured. Please add them in Settings.',
