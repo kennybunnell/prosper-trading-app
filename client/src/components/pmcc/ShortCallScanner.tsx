@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, TrendingDown, DollarSign, Target, RefreshCw } from "lucide-react";
+import { Loader2, TrendingDown, DollarSign, Target, RefreshCw, Filter, Minus, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -152,6 +152,13 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectL
   // Per-order price overrides: key = `${symbol}-${strike}-${expiration}`, value = adjusted limit price
   const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
 
+  // Filter state — mirrors CC dashboard
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
+  const [deltaRange, setDeltaRange] = useState<[number, number]>([0, 1]);
+  const [dteRange, setDteRange] = useState<[number, number]>([0, 90]);
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+
   // Sort state for results table
   const [sortBy, setSortBy] = useState<string>('score');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -165,7 +172,17 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectL
     }
   };
 
-  const sortedOpportunities = [...opportunities].sort((a, b) => {
+  // Apply filters
+  const filteredOpportunities = opportunities.filter(opp => {
+    const delta = Math.abs(opp.delta ?? 0);
+    if (delta < deltaRange[0] || delta > deltaRange[1]) return false;
+    if (opp.dte < dteRange[0] || opp.dte > dteRange[1]) return false;
+    if (opp.score < scoreRange[0] || opp.score > scoreRange[1]) return false;
+    if (showSelectedOnly && !selectedOpportunities.has(`${opp.underlyingSymbol}-${opp.strike}-${opp.expiration}`)) return false;
+    return true;
+  });
+
+  const sortedOpportunities = [...filteredOpportunities].sort((a, b) => {
     const aVal = a[sortBy] ?? 0;
     const bVal = b[sortBy] ?? 0;
     if (typeof aVal === 'string') return sortDir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
@@ -292,11 +309,145 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectL
           </div>
         </div>
 
+        {/* Filter Panel — identical to CC Dashboard */}
+        {opportunities.length > 0 && (
+          <div className="border rounded-lg">
+            <button
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-muted/30 transition-colors"
+              onClick={() => setFiltersOpen(o => !o)}
+            >
+              <span className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                Filters
+              </span>
+              {filtersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {filtersOpen && (
+              <div className="px-4 pb-4 space-y-4 border-t">
+                <div className="space-y-6 pt-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Label className="text-base font-semibold">Range Filters</Label>
+                    <span className="text-xs text-muted-foreground">(Adjust sliders to filter opportunities)</span>
+                  </div>
+
+                  {/* Score Range */}
+                  <div className="space-y-2 p-4 bg-orange-500/5 border border-orange-500/20 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-semibold text-orange-400">Score (Primary Filter)</Label>
+                      <span className="text-xs text-muted-foreground">{scoreRange[0]} - {scoreRange[1]}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" onClick={() => setScoreRange([Math.max(0, scoreRange[0] - 1), scoreRange[1]])} className="h-7 w-7 p-0"><Minus className="h-3 w-3" /></Button>
+                        <input type="number" value={scoreRange[0]} onChange={(e) => setScoreRange([parseInt(e.target.value) || 0, scoreRange[1]])} className="w-16 px-2 py-1 text-sm border rounded bg-background" min="0" max="100" />
+                        <Button variant="outline" size="sm" onClick={() => setScoreRange([Math.min(100, scoreRange[0] + 1), scoreRange[1]])} className="h-7 w-7 p-0"><Plus className="h-3 w-3" /></Button>
+                      </div>
+                      <div className="flex-1 flex items-center gap-2">
+                        <input type="range" min="0" max="100" step="1" value={scoreRange[0]} onChange={(e) => setScoreRange([parseInt(e.target.value), scoreRange[1]])} className="flex-1 h-2 accent-orange-500" />
+                        <input type="range" min="0" max="100" step="1" value={scoreRange[1]} onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value)])} className="flex-1 h-2 accent-orange-500" />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" onClick={() => setScoreRange([scoreRange[0], Math.max(0, scoreRange[1] - 1)])} className="h-7 w-7 p-0"><Minus className="h-3 w-3" /></Button>
+                        <input type="number" value={scoreRange[1]} onChange={(e) => setScoreRange([scoreRange[0], parseInt(e.target.value) || 100])} className="w-16 px-2 py-1 text-sm border rounded bg-background" min="0" max="100" />
+                        <Button variant="outline" size="sm" onClick={() => setScoreRange([scoreRange[0], Math.min(100, scoreRange[1] + 1)])} className="h-7 w-7 p-0"><Plus className="h-3 w-3" /></Button>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <Button variant="outline" size="sm" onClick={() => setScoreRange([70, 100])} className="text-xs">Conservative (≥70)</Button>
+                      <Button variant="outline" size="sm" onClick={() => setScoreRange([55, 100])} className="text-xs">Aggressive (≥55)</Button>
+                      <Button variant="outline" size="sm" onClick={() => setScoreRange([0, 100])} className="text-xs">All</Button>
+                    </div>
+                  </div>
+
+                  {/* Delta Range */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Delta (Δ)</Label>
+                      <span className="text-xs text-muted-foreground">{deltaRange[0].toFixed(2)} - {deltaRange[1].toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" onClick={() => setDeltaRange([Math.max(0, deltaRange[0] - 0.01), deltaRange[1]])} className="h-7 w-7 p-0"><Minus className="h-3 w-3" /></Button>
+                        <input type="number" value={deltaRange[0]} onChange={(e) => setDeltaRange([parseFloat(e.target.value) || 0, deltaRange[1]])} className="w-16 px-2 py-1 text-sm border rounded bg-background" step="0.01" min="0" max="1" />
+                        <Button variant="outline" size="sm" onClick={() => setDeltaRange([Math.min(1, deltaRange[0] + 0.01), deltaRange[1]])} className="h-7 w-7 p-0"><Plus className="h-3 w-3" /></Button>
+                      </div>
+                      <div className="flex-1 flex items-center gap-2">
+                        <input type="range" min="0" max="1" step="0.01" value={deltaRange[0]} onChange={(e) => setDeltaRange([parseFloat(e.target.value), deltaRange[1]])} className="flex-1 h-2" />
+                        <input type="range" min="0" max="1" step="0.01" value={deltaRange[1]} onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value)])} className="flex-1 h-2" />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" onClick={() => setDeltaRange([deltaRange[0], Math.max(0, deltaRange[1] - 0.01)])} className="h-7 w-7 p-0"><Minus className="h-3 w-3" /></Button>
+                        <input type="number" value={deltaRange[1]} onChange={(e) => setDeltaRange([deltaRange[0], parseFloat(e.target.value) || 1])} className="w-16 px-2 py-1 text-sm border rounded bg-background" step="0.01" min="0" max="1" />
+                        <Button variant="outline" size="sm" onClick={() => setDeltaRange([deltaRange[0], Math.min(1, deltaRange[1] + 0.01)])} className="h-7 w-7 p-0"><Plus className="h-3 w-3" /></Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DTE Range */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Days to Expiration (DTE)</Label>
+                      <span className="text-xs text-muted-foreground">{dteRange[0]} - {dteRange[1]} days</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" onClick={() => setDteRange([Math.max(0, dteRange[0] - 1), dteRange[1]])} className="h-7 w-7 p-0"><Minus className="h-3 w-3" /></Button>
+                        <input type="number" value={dteRange[0]} onChange={(e) => setDteRange([parseInt(e.target.value) || 0, dteRange[1]])} className="w-16 px-2 py-1 text-sm border rounded bg-background" min="0" max="90" />
+                        <Button variant="outline" size="sm" onClick={() => setDteRange([Math.min(90, dteRange[0] + 1), dteRange[1]])} className="h-7 w-7 p-0"><Plus className="h-3 w-3" /></Button>
+                      </div>
+                      <div className="flex-1 flex items-center gap-2">
+                        <input type="range" min="0" max="90" step="1" value={dteRange[0]} onChange={(e) => setDteRange([parseInt(e.target.value), dteRange[1]])} className="flex-1 h-2" />
+                        <input type="range" min="0" max="90" step="1" value={dteRange[1]} onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value)])} className="flex-1 h-2" />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" onClick={() => setDteRange([dteRange[0], Math.max(0, dteRange[1] - 1)])} className="h-7 w-7 p-0"><Minus className="h-3 w-3" /></Button>
+                        <input type="number" value={dteRange[1]} onChange={(e) => setDteRange([dteRange[0], parseInt(e.target.value) || 90])} className="w-16 px-2 py-1 text-sm border rounded bg-background" min="0" max="90" />
+                        <Button variant="outline" size="sm" onClick={() => setDteRange([dteRange[0], Math.min(90, dteRange[1] + 1)])} className="h-7 w-7 p-0"><Plus className="h-3 w-3" /></Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Selection Controls */}
+                <div className="space-y-3">
+                  <div className="flex gap-3">
+                    <Button
+                      className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg flex-1"
+                      size="default"
+                      onClick={() => {
+                        const newSelection = new Set(selectedOpportunities);
+                        filteredOpportunities.forEach(opp => newSelection.add(`${opp.underlyingSymbol}-${opp.strike}-${opp.expiration}`));
+                        setSelectedOpportunities(newSelection);
+                        toast.success(`Selected ${filteredOpportunities.length} opportunities`);
+                      }}
+                      disabled={filteredOpportunities.length === 0}
+                    >
+                      ✓ Select All Filtered ({filteredOpportunities.length})
+                    </Button>
+                    <Button
+                      className="bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white shadow-lg flex-1"
+                      size="default"
+                      onClick={() => { setSelectedOpportunities(new Set()); toast.success('Selection cleared'); }}
+                      disabled={selectedOpportunities.size === 0}
+                    >
+                      ✕ Clear Selection ({selectedOpportunities.size})
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-accent/20 rounded-lg">
+                    <Checkbox id="pmcc-selected-only" checked={showSelectedOnly} onCheckedChange={(c) => setShowSelectedOnly(c as boolean)} className="w-5 h-5" />
+                    <Label htmlFor="pmcc-selected-only" className="cursor-pointer text-base font-medium">Show Selected Only</Label>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Step 2: Short Call Opportunities */}
         {opportunities.length > 0 && (
           <div>
             <Label className="text-base font-semibold mb-3 block">
-              Step 2: Select Short Calls to Sell ({opportunities.length} opportunities)
+              Step 2: Select Short Calls to Sell ({filteredOpportunities.length} of {opportunities.length} opportunities)
             </Label>
             <div className="border rounded-lg overflow-hidden">
               <div className="overflow-x-auto">
