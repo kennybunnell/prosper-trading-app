@@ -9483,3 +9483,7 @@ ROC Fix Mar 18 2026
 
 ## PMCC Short Call Integrity Fix (Apr 27 2026 - Kenny)
 - [x] Fix: Short call filter now enforces two strict PMCC rules: (1) short call must be in the SAME account as the LEAP, (2) short call strike must be STRICTLY ABOVE the LEAP strike. Previously the filter only matched by underlying symbol, allowing covered calls from other accounts or invalid structures to appear as PMCC short legs.
+
+## PMCC One-Short-Per-LEAP Enforcement (Apr 27 2026 - Kenny)
+- [x] Fix: Added RULE 3 to getLeapPositions — only one short call per LEAP is shown (nearest expiration wins). Diagnostic logging confirmed both NVDA short calls ($225 11DTE and $180 116DTE) are genuinely in the same account (5WI37251) as the LEAP. The $180 August call is a real legacy position in Tastytrade that Kenny needs to review. The dashboard now correctly shows only the $225 (11 DTE) as the active short leg.
+- [x] Diagnostic: Added [PMCC DIAG] server-side logging to expose exact account numbers on all LEAP and short call candidates for future debugging.

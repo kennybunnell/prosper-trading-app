@@ -374,17 +374,43 @@ export const pmccRouter = router({
       //   4. Near-term expiration (<270 DTE)
       type LeapKey = { account: string; underlying: string; leapStrike: number };
       const leapKeyMap = new Map<string, LeapKey>(); // key: `${account}|${underlying}`
+      console.log(`[PMCC DIAG] Found ${leapPositions.length} LEAP position(s):`);
       for (const leap of leapPositions) {
         const leapSym = (leap.symbol || '').replace(/\s+/g, '');
         const leapOcc = leapSym.match(/^[A-Z]+(\d{6})([CP])(\d+)$/);
         const leapStrike = leapOcc ? parseInt(leapOcc[3]) / 1000 : 0;
         const account = leap['account-number'] || '';
         const underlying = leap['underlying-symbol'] || '';
+        console.log(`[PMCC DIAG]   LEAP: sym=${leapSym} underlying=${underlying} account=${account} strike=$${leapStrike}`);
         const mapKey = `${account}|${underlying}`;
         // If multiple LEAPs on same account+underlying, keep the one with lowest strike (most conservative)
         if (!leapKeyMap.has(mapKey) || leapStrike < leapKeyMap.get(mapKey)!.leapStrike) {
           leapKeyMap.set(mapKey, { account, underlying, leapStrike });
         }
+      }
+      console.log(`[PMCC DIAG] LEAP key map:`, Array.from(leapKeyMap.entries()).map(([k,v]) => `${k} -> strike $${v.leapStrike}`));
+
+      // Log ALL short call candidates before filtering
+      const allShortCallCandidates = allLivePos.filter((pos: any) => {
+        if (pos['instrument-type'] !== 'Equity Option') return false;
+        if (pos['quantity-direction'] !== 'Short') return false;
+        const sym = (pos.symbol || '').replace(/\s+/g, '');
+        const occMatch = sym.match(/^[A-Z]+(\d{6})([CP])(\d+)$/);
+        return occMatch && occMatch[2] === 'C';
+      });
+      console.log(`[PMCC DIAG] All short call candidates (before PMCC filter): ${allShortCallCandidates.length}`);
+      for (const sc of allShortCallCandidates) {
+        const sym = (sc.symbol || '').replace(/\s+/g, '');
+        const occM = sym.match(/^[A-Z]+(\d{6})([CP])(\d+)$/);
+        const strike = occM ? parseInt(occM[3]) / 1000 : 0;
+        const expiresAt = sc['expires-at'] || '';
+        const expiration = new Date(expiresAt);
+        const dte = Math.floor((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const account = sc['account-number'] || 'NO_ACCOUNT';
+        const underlying = sc['underlying-symbol'] || '';
+        const mapKey = `${account}|${underlying}`;
+        const leapInfo = leapKeyMap.get(mapKey);
+        console.log(`[PMCC DIAG]   ShortCall: sym=${sym} underlying=${underlying} account=${account} strike=$${strike} DTE=${dte} | leapMapKey=${mapKey} leapFound=${!!leapInfo} leapStrike=${leapInfo?.leapStrike ?? 'N/A'} strikeAboveLeap=${leapInfo ? strike > leapInfo.leapStrike : 'N/A'}`);
       }
 
       const shortCallPositionsRaw = allLivePos.filter((pos: any) => {
@@ -415,12 +441,39 @@ export const pmccRouter = router({
       // Deduplicate by optionSymbol — Tastytrade sometimes returns the same position
       // across multiple accounts or with duplicate rows; keep the first occurrence.
       const seenShortSymbols = new Set<string>();
-      const shortCallPositions = shortCallPositionsRaw.filter((pos: any) => {
+      const shortCallPositionsDeduped = shortCallPositionsRaw.filter((pos: any) => {
         const key = (pos.symbol || '').replace(/\s+/g, '');
         if (seenShortSymbols.has(key)) return false;
         seenShortSymbols.add(key);
         return true;
       });
+
+      // RULE 3: One short call per LEAP (one short leg per long leg is the PMCC rule).
+      // If multiple short calls exist for the same account+underlying, keep only the
+      // nearest-expiration one (the active short leg). The others are legacy/error positions
+      // that the user should close in Tastytrade directly.
+      const shortCallByLeap = new Map<string, any>(); // key: `${account}|${underlying}`
+      for (const pos of shortCallPositionsDeduped) {
+        const account = pos['account-number'] || '';
+        const underlying = pos['underlying-symbol'] || '';
+        const mapKey = `${account}|${underlying}`;
+        const expiresAt = pos['expires-at'] || '';
+        const expiration = new Date(expiresAt);
+        const existing = shortCallByLeap.get(mapKey);
+        if (!existing) {
+          shortCallByLeap.set(mapKey, pos);
+        } else {
+          // Keep the one with the nearest expiration (smallest DTE = active short leg)
+          const existingExp = new Date(existing['expires-at'] || '');
+          if (expiration < existingExp) {
+            console.log(`[PMCC] Multiple short calls for ${underlying} in account ${account}. Keeping nearest expiry ${expiresAt} over ${existing['expires-at']}. The longer-dated one may be a legacy position — please review in Tastytrade.`);
+            shortCallByLeap.set(mapKey, pos);
+          } else {
+            console.log(`[PMCC] Multiple short calls for ${underlying} in account ${account}. Skipping ${expiresAt} (longer-dated) — keeping ${existing['expires-at']} as the active short leg.`);
+          }
+        }
+      }
+      const shortCallPositions = Array.from(shortCallByLeap.values());
 
       if (leapPositions.length === 0) return { positions: [], shortCalls: [] };
 
