@@ -980,7 +980,10 @@ ${symbolCtx.contextBlock}`,
                 volume: parseInt(String(opt.volume || '0')),
                 roc,
                 score,
+                // Store Tradier symbol for display, but also build TT-padded OCC symbol for order submission
+                // Tradier: "NVDA260529C00230000"  →  TT: "NVDA  260529C00230000" (underlying padded to 6 chars)
                 optionSymbol: opt.symbol,
+                ttOptionSymbol: `${leap.symbol.padEnd(6)}${expiration.replace(/-/g, '').slice(2)}C${(strike * 1000).toFixed(0).padStart(8, '0')}`,
                 maxContracts: leap.quantity, // Can sell 1 call per LEAP owned
               });
             }
@@ -1004,11 +1007,11 @@ ${symbolCtx.contextBlock}`,
           const { authenticateTastytrade } = await import('./tastytrade');
           const ttApiSC = credsSC ? await authenticateTastytrade(credsSC, ctx.user.id).catch(() => null) : null;
           if (ttApiSC) {
-            // Use the Tradier optionSymbol (OCC format) for the TT batch quote call
-            const occSymbols = allOpportunities.map(o => o.optionSymbol).filter(Boolean) as string[];
+            // Use the TT-padded OCC symbol for the TT batch quote call
+            const occSymbols = allOpportunities.map(o => o.ttOptionSymbol || o.optionSymbol).filter(Boolean) as string[];
             const ttQuotesSC = await ttApiSC.getOptionQuotesBatch(occSymbols).catch(() => ({}));
             for (let i = 0; i < allOpportunities.length; i++) {
-              const occ = allOpportunities[i].optionSymbol;
+              const occ = allOpportunities[i].ttOptionSymbol || allOpportunities[i].optionSymbol;
               const q = (ttQuotesSC as any)[occ];
               if (q) {
                 const ttBid = typeof q.bid === 'number' ? q.bid : parseFloat(q.bid || '0');
@@ -1053,6 +1056,7 @@ ${symbolCtx.contextBlock}`,
           z.object({
             underlyingSymbol: z.string(),
             optionSymbol: z.string(),
+            ttOptionSymbol: z.string().optional(), // TT-padded OCC symbol (underlying padded to 6 chars)
             strike: z.number(),
             expiration: z.string(),
             premium: z.number(),
@@ -1105,7 +1109,8 @@ ${symbolCtx.contextBlock}`,
             legs: [
               {
                 instrumentType: 'Equity Option' as const,
-                symbol: order.optionSymbol,
+                // Use TT-padded symbol if available, otherwise fall back to optionSymbol
+                symbol: order.ttOptionSymbol || order.optionSymbol,
                 quantity: String(order.quantity),
                 action: 'Sell to Open' as const,
               },
