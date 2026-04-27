@@ -366,7 +366,23 @@ export const pmccRouter = router({
         return dte >= 270;
       });
 
-      if (leapPositions.length === 0) return { positions: [] };
+      // Also find active short calls (short call options with <270 DTE) against the same underlyings
+      const leapUnderlyings = new Set(leapPositions.map((p: any) => p['underlying-symbol']).filter(Boolean));
+      const shortCallPositions = allLivePos.filter((pos: any) => {
+        if (pos['instrument-type'] !== 'Equity Option') return false;
+        if (pos['quantity-direction'] !== 'Short') return false;
+        const sym = (pos.symbol || '').replace(/\s+/g, '');
+        const occMatch = sym.match(/^[A-Z]+(\d{6})([CP])(\d+)$/);
+        if (!occMatch || occMatch[2] !== 'C') return false;
+        if (!leapUnderlyings.has(pos['underlying-symbol'])) return false;
+        const expiresAt = pos['expires-at'];
+        if (!expiresAt) return false;
+        const expiration = new Date(expiresAt);
+        const dte = Math.floor((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        return dte < 270; // Short calls are near-term
+      });
+
+      if (leapPositions.length === 0) return { positions: [], shortCalls: [] };
 
       // Enrich with live market data from Tastytrade (current prices)
       const credentials = await getApiCredentials(ctx.user.id);
@@ -437,8 +453,42 @@ export const pmccRouter = router({
         })
       );
 
+      // Enrich short call positions
+      const enrichedShortCalls = shortCallPositions.map((pos: any) => {
+        try {
+          const underlying = pos['underlying-symbol'];
+          const expiresAt = pos['expires-at'] || '';
+          const expiration = new Date(expiresAt);
+          const dte = Math.floor((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const occSym = (pos.symbol || '').replace(/\s+/g, '');
+          const occM = occSym.match(/^[A-Z]+(\d{6})([CP])(\d+)$/);
+          const strike = occM ? parseInt(occM[3]) / 1000 : 0;
+          const qty = Math.abs(parseFloat(String(pos.quantity ?? '0')));
+          const openPrice = Math.abs(parseFloat(pos['average-open-price'] || '0'));
+          const closePrice = parseFloat(pos['close-price'] || '0');
+          const premiumCollected = openPrice * 100 * qty;
+          const currentCost = closePrice * 100 * qty;
+          const profitLoss = premiumCollected - currentCost;
+          const profitLossPercent = premiumCollected !== 0 ? (profitLoss / premiumCollected) * 100 : 0;
+          return {
+            symbol: underlying,
+            optionSymbol: pos.symbol,
+            strike,
+            expiration: expiresAt,
+            dte,
+            quantity: qty,
+            premiumCollected,
+            currentCost,
+            profitLoss,
+            profitLossPercent,
+            currentPrice: closePrice,
+          };
+        } catch { return null; }
+      }).filter(p => p !== null);
+
       return {
         positions: enrichedPositions.filter(p => p !== null),
+        shortCalls: enrichedShortCalls,
       };
     }),
 

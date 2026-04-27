@@ -58,18 +58,28 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectL
   }, [preSelectLeapKey]);
 
   // Submit short call orders mutation
+  const [dryRunPassed, setDryRunPassed] = useState(false);
+
   const submitShortCallOrdersMutation = trpc.pmcc.submitShortCallOrders.useMutation({
     onSuccess: (data) => {
       setIsSubmitting(false);
-      if (data.summary.failed === 0) {
-        toast.success(
-          `${isDryRun ? 'Dry run' : 'Order submission'} successful! ${data.summary.success} of ${data.summary.total} orders ${isDryRun ? 'validated' : 'submitted'}.`
-        );
+      if (isDryRun) {
+        // Dry run succeeded — keep panel open, unlock live submit button
+        if (data.summary.failed === 0) {
+          setDryRunPassed(true);
+          toast.success(`✅ Dry run passed — ${data.summary.success} order${data.summary.success !== 1 ? 's' : ''} validated. Ready to submit live.`);
+        } else {
+          toast.warning(`Dry run: ${data.summary.success} validated, ${data.summary.failed} failed. Review before submitting live.`);
+        }
       } else {
-        toast.warning(`Partial success: ${data.summary.success} succeeded, ${data.summary.failed} failed.`);
-      }
-      setShowOrderPreview(false);
-      if (!isDryRun) {
+        // Live submit
+        if (data.summary.failed === 0) {
+          toast.success(`🚀 Order submission successful! ${data.summary.success} of ${data.summary.total} orders submitted.`);
+        } else {
+          toast.warning(`Partial success: ${data.summary.success} succeeded, ${data.summary.failed} failed.`);
+        }
+        setShowOrderPreview(false);
+        setDryRunPassed(false);
         setSelectedOpportunities(new Set());
         onRefreshPositions();
       }
@@ -709,16 +719,22 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectL
                 ⓘ Order submission is disabled in Paper Trading mode.
               </p>
             )}
+            {dryRunPassed && (
+              <p className="text-sm text-green-400 font-semibold text-right">
+                ✅ Dry run passed — orders validated and ready to submit live.
+              </p>
+            )}
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowOrderPreview(false)} disabled={isSubmitting}>
+              <Button variant="outline" onClick={() => { setShowOrderPreview(false); setDryRunPassed(false); }} disabled={isSubmitting}>
                 Cancel
               </Button>
               {/* Dry Run */}
               <Button
                 variant="outline"
                 onClick={() => handleSubmitOrders(true)}
-                disabled={isSubmitting}
-                className="border-amber-600 text-amber-400 hover:bg-amber-900/30"
+                disabled={isSubmitting || dryRunPassed}
+                className="border-amber-600 text-amber-400 hover:bg-amber-900/30 disabled:opacity-40"
+                title={dryRunPassed ? 'Already validated — proceed to Submit Live Order' : undefined}
               >
                 {isSubmitting && isDryRun ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Validating...</>
@@ -730,8 +746,8 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectL
               <Button
                 onClick={() => handleSubmitOrders(false)}
                 disabled={isSubmitting || tradingMode === 'paper'}
-                className="bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700"
-                title={tradingMode === 'paper' ? 'Disabled in Paper Trading mode' : undefined}
+                className={`bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 ${dryRunPassed ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}
+                title={tradingMode === 'paper' ? 'Disabled in Paper Trading mode' : dryRunPassed ? 'Dry run passed — click to submit live' : undefined}
               >
                 {isSubmitting && !isDryRun ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Submitting...</>

@@ -9462,3 +9462,8 @@ ROC Fix Mar 18 2026
 - [x] Fix: scoring formula had base 50 + max 105 additive points = max 155 — rebalanced to 0-base with components summing to 100 max, hard-capped at 100
 - [x] Add: Bid, Ask, IV, Theta (θ), OI, Volume columns to ShortCallScanner results table
 - [x] Add: sortable column headers (click to sort asc/desc) to ShortCallScanner results table
+
+## PMCC Dashboard Phase 2 (Apr 27 2026)
+- [ ] Dry-run keeps preview panel open and transitions to live submit (don't close on dry run)
+- [ ] Active PMCC Positions card shows both long LEAP and active short call positions with DTE/strike/premium
+- [ ] Short Call Scanner shows "no eligible short calls" when all LEAPs already have an active short against them

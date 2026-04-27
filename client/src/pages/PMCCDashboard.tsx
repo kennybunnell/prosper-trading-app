@@ -33,6 +33,7 @@ interface ActivePositionsSectionProps {
 
 function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls }: ActivePositionsSectionProps) {
   const positions = positionsData?.positions || [];
+  const shortCalls: any[] = positionsData?.shortCalls || [];
 
   if (isLoading) {
     return (
@@ -103,6 +104,7 @@ function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
+                {/* LEAP metrics */}
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <p className="text-muted-foreground">Cost Basis</p>
@@ -123,13 +125,49 @@ function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls
                     <p className="font-semibold">${pos.stockPrice.toFixed(2)}</p>
                   </div>
                 </div>
-                <Button
-                  className="w-full mt-4"
-                  size="sm"
-                  onClick={() => onSellCalls(`${pos.symbol}-${pos.optionSymbol}`)}
-                >
-                  Sell Calls
-                </Button>
+                {/* Active short calls against this LEAP */}
+                {(() => {
+                  const activeShorts = shortCalls.filter((sc: any) => sc.symbol === pos.symbol);
+                  if (activeShorts.length > 0) {
+                    return (
+                      <div className="mt-3 space-y-2">
+                        <p className="text-xs font-semibold text-purple-400 uppercase tracking-wide">Active Short Calls</p>
+                        {activeShorts.map((sc: any, si: number) => (
+                          <div key={si} className="rounded-md bg-purple-950/40 border border-purple-800/50 px-3 py-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold">${sc.strike.toFixed(2)} Call</span>
+                              <span className={`font-semibold ${sc.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {sc.profitLoss >= 0 ? '+' : ''}{sc.profitLossPercent.toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+                              <span>{new Date(sc.expiration).toLocaleDateString()} ({sc.dte} DTE)</span>
+                              <span>Premium: ${sc.premiumCollected.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        ))}
+                        <Button
+                          className="w-full mt-1"
+                          size="sm"
+                          variant="outline"
+                          disabled
+                          title="Short call already active — close existing position before selling a new one"
+                        >
+                          Short Active — No New Calls
+                        </Button>
+                      </div>
+                    );
+                  }
+                  return (
+                    <Button
+                      className="w-full mt-4"
+                      size="sm"
+                      onClick={() => onSellCalls(`${pos.symbol}-${pos.optionSymbol}`)}
+                    >
+                      Sell Calls
+                    </Button>
+                  );
+                })()}
               </CardContent>
             </Card>
           ))}
