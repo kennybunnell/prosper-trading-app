@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign, Download, RefreshCw, Plus, Minus, Sparkles, BarChart2 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Loader2, TrendingUp, ArrowUp, ArrowDown, DollarSign, Download, RefreshCw, Plus, Minus, Sparkles, BarChart2, X } from "lucide-react";
 import { AIRowIcon } from "@/components/AIRowIcon";
 import { BollingerChartPanel } from "@/components/BollingerChartPanel";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { HelpBadge } from "@/components/HelpBadge";
 import { HELP_CONTENT } from "@/lib/helpContent";
@@ -29,9 +30,10 @@ interface ActivePositionsSectionProps {
   isLoading: boolean;
   refetch: () => void;
   onSellCalls: (leapKey: string) => void;
+  onCloseShort: (sc: any) => void;
 }
 
-function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls }: ActivePositionsSectionProps) {
+function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls, onCloseShort }: ActivePositionsSectionProps) {
   const positions = positionsData?.positions || [];
   const shortCalls: any[] = positionsData?.shortCalls || [];
 
@@ -144,6 +146,15 @@ function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls
                               <span>{new Date(sc.expiration).toLocaleDateString()} ({sc.dte} DTE)</span>
                               <span>Premium: ${sc.premiumCollected.toFixed(2)}</span>
                             </div>
+                            <Button
+                              className="w-full mt-2 border-red-700/50 text-red-400 hover:bg-red-900/30 hover:text-red-300"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => onCloseShort(sc)}
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              Close Short (BTC)
+                            </Button>
                           </div>
                         ))}
                         <Button
@@ -210,6 +221,80 @@ export default function PMCCDashboard() {
       scannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
   }, []);
+
+  // Close Short (BTC) modal state
+  const [closeShortTarget, setCloseShortTarget] = useState<any>(null); // the sc object
+  const [closeShortPrice, setCloseShortPrice] = useState<number>(0);
+  const [closeShortIsDryRun, setCloseShortIsDryRun] = useState(true);
+  const [closeShortDryRunPassed, setCloseShortDryRunPassed] = useState(false);
+
+  const closeShortCallMutation = trpc.pmcc.closeShortCall.useMutation({
+    onSuccess: (data) => {
+      if (closeShortIsDryRun) {
+        setCloseShortDryRunPassed(true);
+        toast.success('✅ Dry run passed — BTC order validated. Ready to submit live.');
+      } else {
+        toast.success(`🚀 BTC order submitted! Order #${data.orderId}`);
+        setCloseShortTarget(null);
+        setCloseShortDryRunPassed(false);
+        refetchPositions();
+      }
+    },
+    onError: (err) => {
+      toast.error(`BTC order failed: ${err.message}`);
+    },
+  });
+
+  const handleOpenCloseShort = useCallback((sc: any) => {
+    // Default limit price = mid of current close price (best estimate)
+    const mid = sc.currentPrice > 0 ? sc.currentPrice : (sc.premiumCollected / (sc.quantity * 100));
+    setCloseShortPrice(parseFloat(mid.toFixed(2)));
+    setCloseShortIsDryRun(true);
+    setCloseShortDryRunPassed(false);
+    setCloseShortTarget(sc);
+  }, []);
+
+  const handleSubmitCloseShort = (dryRun: boolean) => {
+    if (!closeShortTarget) return;
+    setCloseShortIsDryRun(dryRun);
+    closeShortCallMutation.mutate({
+      optionSymbol: closeShortTarget.optionSymbol,
+      symbol: closeShortTarget.symbol,
+      quantity: closeShortTarget.quantity,
+      limitPrice: closeShortPrice,
+      isDryRun: dryRun,
+    });
+  };
+
+  // Compute activeShortsByLeap map for ShortCallScanner eligibility check
+  const activeShortsByLeap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    const shortCalls: any[] = positionsData?.shortCalls || [];
+    const positions: any[] = positionsData?.positions || [];
+    shortCalls.forEach((sc: any) => {
+      positions.forEach((pos: any) => {
+        if (pos.symbol === sc.symbol) {
+          map[`${pos.symbol}-${pos.optionSymbol}`] = true;
+        }
+      });
+    });
+    return map;
+  }, [positionsData]);
+
+  // Compute monthly income tracker: sum premiumCollected for short calls opened this calendar month
+  const monthlyIncome = useMemo(() => {
+    const shortCalls: any[] = positionsData?.shortCalls || [];
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    return shortCalls.reduce((sum: number, sc: any) => {
+      // If openedAt is available, filter by month; otherwise count all (positions are active)
+      if (sc.openedAt) {
+        const opened = new Date(sc.openedAt);
+        if (opened < monthStart) return sum;
+      }
+      return sum + (sc.premiumCollected || 0);
+    }, 0);
+  }, [positionsData]);
 
   // Range filter states (using range arrays like CSP/CC dashboards)
   const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
@@ -456,9 +541,18 @@ export default function PMCCDashboard() {
               <ConnectionStatusIndicator />
             </div>
           </div>
-          <p className="text-muted-foreground">
-            Poor Man's Covered Call - Buy LEAPs and sell short calls for income
-          </p>
+          <div className="flex items-center gap-4 mt-2">
+            <p className="text-muted-foreground">
+              Poor Man's Covered Call - Buy LEAPs and sell short calls for income
+            </p>
+            {(positionsData?.shortCalls?.length ?? 0) > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-950/50 border border-green-700/40 text-sm">
+                <DollarSign className="h-3.5 w-3.5 text-green-400" />
+                <span className="text-muted-foreground text-xs">{new Date().toLocaleString('default', { month: 'long' })} Short Call Income:</span>
+                <span className="font-semibold text-green-400">${monthlyIncome.toFixed(2)}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Active PMCC Positions */}
@@ -467,12 +561,14 @@ export default function PMCCDashboard() {
           isLoading={isLoadingPositions}
           refetch={refetchPositions}
           onSellCalls={handleSellCalls}
+          onCloseShort={handleOpenCloseShort}
         />
 
         {/* Short Call Scanner */}
         <div ref={scannerRef}>
           <ShortCallScanner 
             leapPositions={positionsData?.positions || []}
+            activeShortsByLeap={activeShortsByLeap}
             onRefreshPositions={refetchPositions}
             preSelectLeapKey={preSelectLeapKey}
             onPreSelectConsumed={() => setPreSelectLeapKey(null)}
@@ -1327,6 +1423,114 @@ export default function PMCCDashboard() {
           onClose={() => setChartSymbol(null)}
         />
       )}
+
+      {/* Close Short (BTC) Modal */}
+      <Dialog open={!!closeShortTarget} onOpenChange={(open) => { if (!open) { setCloseShortTarget(null); setCloseShortDryRunPassed(false); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <X className="h-5 w-5 text-red-400" />
+              Close Short Call (Buy to Close)
+            </DialogTitle>
+            <DialogDescription>
+              Submit a Day limit BTC order to close this short call position.
+            </DialogDescription>
+          </DialogHeader>
+
+          {closeShortTarget && (
+            <div className="space-y-4">
+              {/* Position summary */}
+              <div className="rounded-lg bg-muted/30 border border-border px-4 py-3 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Symbol</span>
+                  <span className="font-semibold">{closeShortTarget.symbol}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Strike</span>
+                  <span className="font-semibold">${closeShortTarget.strike.toFixed(2)} Call</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Expiration</span>
+                  <span className="font-semibold">{new Date(closeShortTarget.expiration).toLocaleDateString()} ({closeShortTarget.dte} DTE)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Qty</span>
+                  <span className="font-semibold">{closeShortTarget.quantity} contract{closeShortTarget.quantity !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Premium Collected</span>
+                  <span className="font-semibold text-green-400">${closeShortTarget.premiumCollected.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">P/L</span>
+                  <span className={`font-semibold ${closeShortTarget.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {closeShortTarget.profitLoss >= 0 ? '+' : ''}${closeShortTarget.profitLoss.toFixed(2)} ({closeShortTarget.profitLossPercent.toFixed(1)}%)
+                  </span>
+                </div>
+              </div>
+
+              {/* Limit price slider */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">BTC Limit Price (per share)</Label>
+                  <span className="text-sm font-mono font-semibold text-red-400">${closeShortPrice.toFixed(2)}</span>
+                </div>
+                <Slider
+                  min={0.01}
+                  max={Math.max(closeShortTarget.premiumCollected / (closeShortTarget.quantity * 100) * 1.5, 0.50)}
+                  step={0.01}
+                  value={[closeShortPrice]}
+                  onValueChange={([v]) => setCloseShortPrice(v)}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>$0.01</span>
+                  <span>Total debit: ${(closeShortPrice * closeShortTarget.quantity * 100).toFixed(2)}</span>
+                  <span>${(closeShortTarget.premiumCollected / (closeShortTarget.quantity * 100) * 1.5).toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Dry run passed banner */}
+              {closeShortDryRunPassed && (
+                <div className="rounded-md bg-green-950/40 border border-green-700/50 px-3 py-2 text-sm text-green-400 flex items-center gap-2">
+                  <span>✅</span>
+                  <span>Dry run validated — order is ready to submit live.</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 flex-col sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => { setCloseShortTarget(null); setCloseShortDryRunPassed(false); }}
+              disabled={closeShortCallMutation.isPending}
+            >
+              Cancel
+            </Button>
+            {!closeShortDryRunPassed ? (
+              <Button
+                variant="outline"
+                className="border-amber-600/50 text-amber-400 hover:bg-amber-900/20"
+                onClick={() => handleSubmitCloseShort(true)}
+                disabled={closeShortCallMutation.isPending}
+              >
+                {closeShortCallMutation.isPending && closeShortIsDryRun ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                Execute Dry Run
+              </Button>
+            ) : (
+              <Button
+                className="bg-red-700 hover:bg-red-800 text-white ring-2 ring-red-500 ring-offset-2 ring-offset-background"
+                onClick={() => handleSubmitCloseShort(false)}
+                disabled={closeShortCallMutation.isPending}
+              >
+                {closeShortCallMutation.isPending && !closeShortIsDryRun ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <X className="h-4 w-4 mr-1" />}
+                Submit Live BTC Order
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );

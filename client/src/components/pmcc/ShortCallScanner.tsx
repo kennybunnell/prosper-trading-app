@@ -12,12 +12,13 @@ import { useTradingMode } from "@/contexts/TradingModeContext";
 
 interface ShortCallScannerProps {
   leapPositions: any[];
+  activeShortsByLeap?: Record<string, boolean>; // leapKey -> has active short
   onRefreshPositions: () => void;
   preSelectLeapKey?: string | null;
   onPreSelectConsumed?: () => void;
 }
 
-export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectLeapKey, onPreSelectConsumed }: ShortCallScannerProps) {
+export function ShortCallScanner({ leapPositions, activeShortsByLeap = {}, onRefreshPositions, preSelectLeapKey, onPreSelectConsumed }: ShortCallScannerProps) {
   const { mode: tradingMode } = useTradingMode();
   const [selectedLeaps, setSelectedLeaps] = useState<Set<string>>(new Set());
   const [isScanning, setIsScanning] = useState(false);
@@ -235,6 +236,13 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectL
     });
   };
 
+  // Compute eligible LEAPs (no active short against them)
+  const eligibleLeapPositions = leapPositions.filter((leap: any) => {
+    const leapKey = `${leap.symbol}-${leap.optionSymbol}`;
+    return !activeShortsByLeap[leapKey];
+  });
+  const allIneligible = leapPositions.length > 0 && eligibleLeapPositions.length === 0;
+
   if (leapPositions.length === 0) {
     return (
       <Card className="mb-8">
@@ -282,42 +290,56 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectL
           <Label className="text-base font-semibold mb-3 block">
             Step 1: Select LEAP Positions
           </Label>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {leapPositions.map((leap: any) => {
-              const leapKey = `${leap.symbol}-${leap.optionSymbol}`;
-              const isSelected = selectedLeaps.has(leapKey);
-              
-              return (
-                <div
-                  key={leapKey}
-                  onClick={() => toggleLeapSelection(leapKey)}
-                  className={cn(
-                    "p-4 border-2 rounded-lg cursor-pointer transition-all",
-                    isSelected 
-                      ? "border-purple-500 bg-purple-500/10" 
-                      : "border-border hover:border-purple-500/50"
-                  )}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <div className="font-semibold text-lg">{leap.symbol}</div>
-                      <div className="text-sm text-muted-foreground">
-                        ${leap.strike.toFixed(2)} Call
+          {allIneligible ? (
+            <div className="rounded-lg border border-yellow-600/40 bg-yellow-950/20 px-4 py-5 text-center">
+              <div className="text-yellow-400 font-semibold mb-1">No Eligible LEAPs Available</div>
+              <div className="text-sm text-muted-foreground">All of your LEAP positions already have an active short call against them. Close an existing short call before selling a new one.</div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {leapPositions.map((leap: any) => {
+                const leapKey = `${leap.symbol}-${leap.optionSymbol}`;
+                const isSelected = selectedLeaps.has(leapKey);
+                const hasActiveShort = !!activeShortsByLeap[leapKey];
+
+                return (
+                  <div
+                    key={leapKey}
+                    onClick={() => !hasActiveShort && toggleLeapSelection(leapKey)}
+                    className={cn(
+                      "p-4 border-2 rounded-lg transition-all",
+                      hasActiveShort
+                        ? "border-border/40 bg-muted/20 opacity-50 cursor-not-allowed"
+                        : isSelected
+                          ? "border-purple-500 bg-purple-500/10 cursor-pointer"
+                          : "border-border hover:border-purple-500/50 cursor-pointer"
+                    )}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <div className="font-semibold text-lg">{leap.symbol}</div>
+                        <div className="text-sm text-muted-foreground">
+                          ${leap.strike.toFixed(2)} Call
+                        </div>
+                      </div>
+                      {hasActiveShort ? (
+                        <span className="text-xs bg-yellow-900/60 text-yellow-400 border border-yellow-700/50 rounded px-2 py-0.5 font-semibold">Short Active</span>
+                      ) : (
+                        <Checkbox checked={isSelected} />
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <div>Exp: {new Date(leap.expiration).toLocaleDateString()}</div>
+                      <div>Qty: {leap.quantity}</div>
+                      <div className={leap.profitLoss >= 0 ? 'text-green-500' : 'text-red-500'}>
+                        P/L: {leap.profitLoss >= 0 ? '+' : ''}{leap.profitLossPercent.toFixed(1)}%
                       </div>
                     </div>
-                    <Checkbox checked={isSelected} />
                   </div>
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <div>Exp: {new Date(leap.expiration).toLocaleDateString()}</div>
-                    <div>Qty: {leap.quantity}</div>
-                    <div className={leap.profitLoss >= 0 ? 'text-green-500' : 'text-red-500'}>
-                      P/L: {leap.profitLoss >= 0 ? '+' : ''}{leap.profitLossPercent.toFixed(1)}%
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Scan Button + Progress Indicator */}
@@ -325,7 +347,7 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectL
           <Button
             className="w-full bg-purple-600 hover:bg-purple-700"
             onClick={handleScanShortCalls}
-            disabled={isScanning || selectedLeaps.size === 0}
+            disabled={isScanning || selectedLeaps.size === 0 || allIneligible}
           >
             {isScanning ? (
               <>

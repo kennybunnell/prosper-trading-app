@@ -9467,3 +9467,12 @@ ROC Fix Mar 18 2026
 - [ ] Dry-run keeps preview panel open and transitions to live submit (don't close on dry run)
 - [ ] Active PMCC Positions card shows both long LEAP and active short call positions with DTE/strike/premium
 - [ ] Short Call Scanner shows "no eligible short calls" when all LEAPs already have an active short against them
+
+## PMCC Dashboard Phase 3 (Apr 27 2026)
+- [x] Close Short BTC button: added "Close Short (BTC)" button to each active short call sub-card in Active PMCC Positions — opens a modal with position summary, limit price slider, dry-run validation, and live submit
+- [x] Backend closeShortCall procedure: new pmcc.closeShortCall tRPC mutation that submits a Day BTC limit order via Tastytrade API with dry-run support and trading log write
+- [x] accountNumber + openedAt added to enriched short call positions in getLeapPositions response
+- [x] activeShortsByLeap map: computed in PMCCDashboard and passed to ShortCallScanner so Step 1 grays out LEAPs with active shorts and shows "Short Active" badge
+- [x] LEAP eligibility check in ShortCallScanner Step 1: LEAPs with active shorts are grayed out (opacity-50, cursor-not-allowed) with "Short Active" badge; if ALL LEAPs have active shorts, shows "No Eligible LEAPs Available" collapsed state and scan button is disabled
+- [x] PMCC monthly income tracker: green badge in dashboard header showing "{Month} Short Call Income: $X.XX" computed from active short call premiumCollected (filtered by openedAt if available)
+- [x] TypeScript: 0 errors after all Phase 3 changes

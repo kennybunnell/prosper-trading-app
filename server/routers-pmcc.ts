@@ -470,9 +470,12 @@ export const pmccRouter = router({
           const currentCost = closePrice * 100 * qty;
           const profitLoss = premiumCollected - currentCost;
           const profitLossPercent = premiumCollected !== 0 ? (profitLoss / premiumCollected) * 100 : 0;
+          // openedAt: use created-at if available, else null (for monthly income tracker)
+          const openedAt = pos['created-at'] || pos['opened-at'] || null;
           return {
             symbol: underlying,
             optionSymbol: pos.symbol,
+            accountNumber: pos['account-number'] || null,
             strike,
             expiration: expiresAt,
             dte,
@@ -482,6 +485,7 @@ export const pmccRouter = router({
             profitLoss,
             profitLossPercent,
             currentPrice: closePrice,
+            openedAt,
           };
         } catch { return null; }
       }).filter(p => p !== null);
@@ -1206,6 +1210,78 @@ ${symbolCtx.contextBlock}`,
         results,
         summary: { total: input.orders.length, success: successCount, failed: results.length - successCount, isDryRun: input.isDryRun },
       };
+    }),
+
+  /**
+   * Close (BTC) a short call position against a LEAP.
+   * Submits a Buy-to-Close Day limit order at the provided limit price.
+   */
+  closeShortCall: protectedProcedure
+    .input(
+      z.object({
+        optionSymbol: z.string(),   // TT-padded OCC symbol (e.g. "NVDA  260117C00230000")
+        symbol: z.string(),          // Underlying (e.g. "NVDA")
+        quantity: z.number(),
+        limitPrice: z.number(),      // Per-share limit price (e.g. 0.45)
+        isDryRun: z.boolean().default(false),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { getApiCredentials } = await import('./db');
+      const credentials = await getApiCredentials(ctx.user.id);
+      if (!credentials?.tastytradeClientSecret || !credentials?.tastytradeRefreshToken) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Tastytrade credentials not configured. Please add them in Settings.',
+        });
+      }
+      const { authenticateTastytrade } = await import('./tastytrade');
+      const api = await authenticateTastytrade(credentials, ctx.user.id);
+      const accounts = await api.getAccounts();
+      if (!accounts || accounts.length === 0) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'No Tastytrade accounts found.' });
+      }
+      const accountNumber = accounts[0].account['account-number'];
+
+      const roundedPrice = input.limitPrice >= 3
+        ? (Math.round(input.limitPrice / 0.10) * 0.10).toFixed(2)
+        : (Math.round(input.limitPrice / 0.05) * 0.05).toFixed(2);
+
+      const ttOrder = {
+        accountNumber,
+        timeInForce: 'Day' as const,
+        orderType: 'Limit' as const,
+        price: roundedPrice,
+        priceEffect: 'Debit' as const,
+        legs: [
+          {
+            instrumentType: 'Equity Option' as const,
+            symbol: input.optionSymbol,
+            quantity: String(input.quantity),
+            action: 'Buy to Close' as const,
+          },
+        ],
+      };
+
+      if (input.isDryRun) {
+        await api.dryRunOrder(ttOrder);
+        return { status: 'dry_run_success', message: 'BTC order validated successfully', orderId: null, accountNumber };
+      }
+
+      const submitted = await api.submitOrder(ttOrder);
+      await writeTradingLog({
+        userId: ctx.user.id,
+        action: 'BTC',
+        strategy: 'PMCC',
+        symbol: input.symbol,
+        accountNumber,
+        price: roundedPrice,
+        quantity: input.quantity,
+        outcome: 'success',
+        orderId: String(submitted.id),
+        source: `Short Call BTC: ${input.optionSymbol} @ $${roundedPrice}`,
+      });
+      return { status: 'success', message: 'BTC order submitted successfully', orderId: submitted.id, accountNumber };
     }),
 
   /**
