@@ -146,15 +146,22 @@ function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls
                               <span>{new Date(sc.expiration).toLocaleDateString()} ({sc.dte} DTE)</span>
                               <span>Premium: ${sc.premiumCollected.toFixed(2)}</span>
                             </div>
-                            <Button
-                              className="w-full mt-2 border-red-700/50 text-red-400 hover:bg-red-900/30 hover:text-red-300"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => onCloseShort(sc)}
-                            >
-                              <X className="h-3 w-3 mr-1" />
-                              Close Short (BTC)
-                            </Button>
+                            {sc.profitLossPercent >= 50 ? (
+                              <Button
+                                className="w-full mt-2 border-green-700/50 text-green-400 hover:bg-green-900/30 hover:text-green-300"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onCloseShort(sc)}
+                                title={`Close for profit — ${sc.profitLossPercent.toFixed(1)}% realized`}
+                              >
+                                <X className="h-3 w-3 mr-1" />
+                                Close for Profit ({sc.profitLossPercent.toFixed(0)}%)
+                              </Button>
+                            ) : (
+                              <p className="text-xs text-muted-foreground mt-2 text-center">
+                                BTC available at ≥50% profit ({sc.profitLossPercent.toFixed(0)}% now)
+                              </p>
+                            )}
                           </div>
                         ))}
                         <Button

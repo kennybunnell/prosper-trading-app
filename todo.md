@@ -9476,3 +9476,7 @@ ROC Fix Mar 18 2026
 - [x] LEAP eligibility check in ShortCallScanner Step 1: LEAPs with active shorts are grayed out (opacity-50, cursor-not-allowed) with "Short Active" badge; if ALL LEAPs have active shorts, shows "No Eligible LEAPs Available" collapsed state and scan button is disabled
 - [x] PMCC monthly income tracker: green badge in dashboard header showing "{Month} Short Call Income: $X.XX" computed from active short call premiumCollected (filtered by openedAt if available)
 - [x] TypeScript: 0 errors after all Phase 3 changes
+
+## PMCC Dashboard Bug Fixes (Apr 27 2026 - Dean)
+- [x] Fix: duplicate short call sub-cards — Tastytrade was returning the same position twice (e.g. across accounts); added deduplication by optionSymbol before enrichment in getLeapPositions
+- [x] Fix: "Close Short (BTC)" button now only shows when profitLossPercent >= 50%; below threshold shows a small hint "BTC available at ≥50% profit (X% now)" — button text updated to "Close for Profit (X%)" in green to reinforce intent

@@ -368,7 +368,7 @@ export const pmccRouter = router({
 
       // Also find active short calls (short call options with <270 DTE) against the same underlyings
       const leapUnderlyings = new Set(leapPositions.map((p: any) => p['underlying-symbol']).filter(Boolean));
-      const shortCallPositions = allLivePos.filter((pos: any) => {
+      const shortCallPositionsRaw = allLivePos.filter((pos: any) => {
         if (pos['instrument-type'] !== 'Equity Option') return false;
         if (pos['quantity-direction'] !== 'Short') return false;
         const sym = (pos.symbol || '').replace(/\s+/g, '');
@@ -380,6 +380,15 @@ export const pmccRouter = router({
         const expiration = new Date(expiresAt);
         const dte = Math.floor((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
         return dte < 270; // Short calls are near-term
+      });
+      // Deduplicate by optionSymbol — Tastytrade sometimes returns the same position
+      // across multiple accounts or with duplicate rows; keep the first occurrence.
+      const seenShortSymbols = new Set<string>();
+      const shortCallPositions = shortCallPositionsRaw.filter((pos: any) => {
+        const key = (pos.symbol || '').replace(/\s+/g, '');
+        if (seenShortSymbols.has(key)) return false;
+        seenShortSymbols.add(key);
+        return true;
       });
 
       if (leapPositions.length === 0) return { positions: [], shortCalls: [] };
