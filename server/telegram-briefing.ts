@@ -396,6 +396,66 @@ async function runDailyBriefing(): Promise<void> {
  * Fires at 8:30 AM Mountain Time every weekday (Mon–Fri).
  * node-cron with timezone: 'America/Denver' handles MDT/MST DST automatically.
  */
+// ─── Catch-up Briefing ───────────────────────────────────────────────────────
+/**
+ * Check if we missed today's briefing window (server was hibernated at 8:30 AM MT)
+ * and send a catch-up briefing immediately if so.
+ *
+ * The sandbox hibernates when idle and may miss the scheduled cron tick.
+ * This function fires on startup and sends the briefing if:
+ *   1. Today is a weekday (Mon–Fri)
+ *   2. Current Mountain Time is between 8:30 AM and 11:59 AM (catch-up window)
+ *   3. We haven't already sent a briefing today (tracked in module-level flag)
+ */
+let lastBriefingDate: string | null = null;
+
+async function maybeSendCatchUpBriefing(): Promise<void> {
+  try {
+    // Get current time in Mountain Time
+    const now = new Date();
+    const mtParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Denver',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+      weekday: 'short',
+    }).formatToParts(now);
+
+    const weekday = mtParts.find(p => p.type === 'weekday')?.value || '';
+    const hour = parseInt(mtParts.find(p => p.type === 'hour')?.value || '0', 10);
+    const minute = parseInt(mtParts.find(p => p.type === 'minute')?.value || '0', 10);
+    const year = mtParts.find(p => p.type === 'year')?.value || '';
+    const month = mtParts.find(p => p.type === 'month')?.value || '';
+    const day = mtParts.find(p => p.type === 'day')?.value || '';
+    const todayKey = `${year}-${month}-${day}`;
+
+    const isWeekday = !['Sat', 'Sun'].includes(weekday);
+    const totalMinutes = hour * 60 + minute;
+    const windowStart = 8 * 60 + 30;  // 8:30 AM MT
+    const windowEnd   = 11 * 60 + 59; // 11:59 AM MT (catch-up window)
+
+    console.log(`[Telegram Briefing] Catch-up check: ${weekday} ${hour}:${String(minute).padStart(2,'0')} MT, todayKey=${todayKey}, lastBriefingDate=${lastBriefingDate}`);
+
+    if (
+      isWeekday &&
+      totalMinutes >= windowStart &&
+      totalMinutes <= windowEnd &&
+      lastBriefingDate !== todayKey
+    ) {
+      console.log('[Telegram Briefing] Missed window detected — sending catch-up briefing now...');
+      lastBriefingDate = todayKey; // Mark as sent before async call to prevent double-send
+      await runDailyBriefing();
+    } else {
+      console.log('[Telegram Briefing] No catch-up needed.');
+    }
+  } catch (err: any) {
+    console.error('[Telegram Briefing] Catch-up check error:', err.message);
+  }
+}
+
 export function initializeTelegramBriefingScheduler(): void {
   if (briefingTask) {
     briefingTask.stop();
@@ -405,6 +465,15 @@ export function initializeTelegramBriefingScheduler(): void {
   briefingTask = cron.schedule(
     '30 8 * * 1-5', // 8:30 AM Monday–Friday
     async () => {
+      const now = new Date();
+      const mtParts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Denver',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+      }).formatToParts(now);
+      const year = mtParts.find(p => p.type === 'year')?.value || '';
+      const month = mtParts.find(p => p.type === 'month')?.value || '';
+      const day = mtParts.find(p => p.type === 'day')?.value || '';
+      lastBriefingDate = `${year}-${month}-${day}`;
       await runDailyBriefing();
     },
     {
@@ -415,6 +484,12 @@ export function initializeTelegramBriefingScheduler(): void {
   console.log(
     '[Telegram Briefing] Scheduler initialized. Will send at 8:30 AM MT every weekday.',
   );
+
+  // Catch-up: fire immediately if server woke up after missing today's 8:30 AM window
+  // Small delay to let the server finish startup before attempting API calls
+  setTimeout(() => {
+    maybeSendCatchUpBriefing().catch(console.error);
+  }, 15000); // 15-second startup grace period
 }
 
 /**

@@ -9434,3 +9434,7 @@ ROC Fix Mar 18 2026
 - [x] Configurable close threshold — /close, /closeready, and daily briefing now read profitThresholdPercent from automationSettings DB (default 90%); editable from the Automation Settings panel in the dashboard
 - [x] Adaptive retry Telegram notification — when a close order fills on retry attempt 2+, sends Telegram message with symbol, original price, fill price, attempt number, and slippage per contract and total
 - [x] TypeScript: 0 errors
+## Telegram Briefing Catch-up Fix (Apr 27, 2026)
+- [x] Fix: daily briefing missed when server hibernates during 8:30 AM MT window — added maybeSendCatchUpBriefing() that fires 15s after startup and sends briefing if: (a) weekday, (b) 8:30–11:59 AM MT, (c) not already sent today
+- [x] Fix: cron scheduler now tracks lastBriefingDate so catch-up and scheduled fire never double-send on the same day
+- [x] TypeScript: 0 errors
