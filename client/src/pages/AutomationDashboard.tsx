@@ -3691,7 +3691,19 @@ export default function AutomationDashboard() {
                                     profitPct >= 80 ? 'text-green-400' : profitPct >= 50 ? 'text-emerald-400' :
                                     profitPct >= 20 ? 'text-yellow-400' : profitPct >= 0 ? 'text-orange-400' : 'text-red-500'
                                   }`}>
-                                    {profitPct >= 0 ? `${profitPct.toFixed(0)}%` : `${profitPct.toFixed(0)}%`}
+                                    <div className="flex flex-col items-end gap-1">
+                                      <span>{profitPct >= 0 ? `${profitPct.toFixed(0)}%` : `${profitPct.toFixed(0)}%`}</span>
+                                      {/* Close at X% button — shown for spread positions at ≥50% profit captured */}
+                                      {['BPS','BCS','IC'].includes(pos.strategy) && profitPct >= 50 && (pos as any).actionLabel !== 'CLOSE' && (pos as any).actionLabel !== 'STOP' && (
+                                        <button
+                                          title={`Close ${pos.strategy} at ${profitPct.toFixed(0)}% profit captured — submits a Day limit order`}
+                                          onClick={e => { e.stopPropagation(); handleOpenRollPositionClose(pos); }}
+                                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/35 hover:text-emerald-200 transition-colors whitespace-nowrap"
+                                        >
+                                          💰 Close {profitPct.toFixed(0)}%
+                                        </button>
+                                      )}
+                                    </div>
                                   </td>
                                   {/* Symbol */}
                                   <td className="p-3 font-semibold text-xs">

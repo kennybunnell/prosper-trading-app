@@ -9445,3 +9445,7 @@ ROC Fix Mar 18 2026
 - [x] Removed unnecessary auto-sync-on-mount that was triggering a DB cache sync on every dashboard load
 - [x] Refresh button now calls live Tastytrade API directly (no DB sync side-effect)
 - [x] TypeScript: 0 errors
+## GTC Spread Order Fix (Apr 27, 2026)
+- [x] Remove auto-GTC submit that fires after spread STO fills (Tastytrade rejects GTC on multi-leg orders)
+- [x] Update gtc.submit procedure to use Day instead of GTC time-in-force
+- [x] Add manual "Close at X%" Day-order button in the open positions view for spreads
