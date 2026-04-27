@@ -366,20 +366,51 @@ export const pmccRouter = router({
         return dte >= 270;
       });
 
-      // Also find active short calls (short call options with <270 DTE) against the same underlyings
-      const leapUnderlyings = new Set(leapPositions.map((p: any) => p['underlying-symbol']).filter(Boolean));
+      // Build a lookup: underlying+account -> LEAP strike, so we can validate the short leg
+      // A valid PMCC short call MUST be:
+      //   1. Same account as the LEAP
+      //   2. Same underlying symbol as the LEAP
+      //   3. Short call strike STRICTLY ABOVE the LEAP strike (can't sell below your long)
+      //   4. Near-term expiration (<270 DTE)
+      type LeapKey = { account: string; underlying: string; leapStrike: number };
+      const leapKeyMap = new Map<string, LeapKey>(); // key: `${account}|${underlying}`
+      for (const leap of leapPositions) {
+        const leapSym = (leap.symbol || '').replace(/\s+/g, '');
+        const leapOcc = leapSym.match(/^[A-Z]+(\d{6})([CP])(\d+)$/);
+        const leapStrike = leapOcc ? parseInt(leapOcc[3]) / 1000 : 0;
+        const account = leap['account-number'] || '';
+        const underlying = leap['underlying-symbol'] || '';
+        const mapKey = `${account}|${underlying}`;
+        // If multiple LEAPs on same account+underlying, keep the one with lowest strike (most conservative)
+        if (!leapKeyMap.has(mapKey) || leapStrike < leapKeyMap.get(mapKey)!.leapStrike) {
+          leapKeyMap.set(mapKey, { account, underlying, leapStrike });
+        }
+      }
+
       const shortCallPositionsRaw = allLivePos.filter((pos: any) => {
         if (pos['instrument-type'] !== 'Equity Option') return false;
         if (pos['quantity-direction'] !== 'Short') return false;
         const sym = (pos.symbol || '').replace(/\s+/g, '');
         const occMatch = sym.match(/^[A-Z]+(\d{6})([CP])(\d+)$/);
         if (!occMatch || occMatch[2] !== 'C') return false;
-        if (!leapUnderlyings.has(pos['underlying-symbol'])) return false;
         const expiresAt = pos['expires-at'];
         if (!expiresAt) return false;
         const expiration = new Date(expiresAt);
         const dte = Math.floor((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        return dte < 270; // Short calls are near-term
+        if (dte >= 270) return false; // Short calls are near-term
+        // RULE 1: Must be in the same account as a LEAP
+        const account = pos['account-number'] || '';
+        const underlying = pos['underlying-symbol'] || '';
+        const mapKey = `${account}|${underlying}`;
+        const leapInfo = leapKeyMap.get(mapKey);
+        if (!leapInfo) return false; // No LEAP in this account for this underlying
+        // RULE 2: Short call strike must be ABOVE the LEAP strike (valid PMCC structure)
+        const shortStrike = parseInt(occMatch[3]) / 1000;
+        if (shortStrike <= leapInfo.leapStrike) {
+          console.log(`[PMCC] Excluding short call ${sym} (strike $${shortStrike}) — strike is at or below LEAP strike $${leapInfo.leapStrike} in account ${account}. This is not a valid PMCC short leg.`);
+          return false;
+        }
+        return true;
       });
       // Deduplicate by optionSymbol — Tastytrade sometimes returns the same position
       // across multiple accounts or with duplicate rows; keep the first occurrence.

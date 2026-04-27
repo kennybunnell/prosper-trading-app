@@ -9480,3 +9480,6 @@ ROC Fix Mar 18 2026
 ## PMCC Dashboard Bug Fixes (Apr 27 2026 - Dean)
 - [x] Fix: duplicate short call sub-cards — Tastytrade was returning the same position twice (e.g. across accounts); added deduplication by optionSymbol before enrichment in getLeapPositions
 - [x] Fix: "Close Short (BTC)" button now only shows when profitLossPercent >= 50%; below threshold shows a small hint "BTC available at ≥50% profit (X% now)" — button text updated to "Close for Profit (X%)" in green to reinforce intent
+
+## PMCC Short Call Integrity Fix (Apr 27 2026 - Kenny)
+- [x] Fix: Short call filter now enforces two strict PMCC rules: (1) short call must be in the SAME account as the LEAP, (2) short call strike must be STRICTLY ABOVE the LEAP strike. Previously the filter only matched by underlying symbol, allowing covered calls from other accounts or invalid structures to appear as PMCC short legs.
