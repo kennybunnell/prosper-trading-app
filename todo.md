@@ -9449,3 +9449,10 @@ ROC Fix Mar 18 2026
 - [x] Remove auto-GTC submit that fires after spread STO fills (Tastytrade rejects GTC on multi-leg orders)
 - [x] Update gtc.submit procedure to use Day instead of GTC time-in-force
 - [x] Add manual "Close at X%" Day-order button in the open positions view for spreads
+## PMCC Dashboard Fixes (Apr 27, 2026)
+- [ ] Fix "Sell Calls" button on Active PMCC Position card — wire it to scroll to Short Call Scanner and pre-select that LEAP position
+- [ ] Add midpoint price slider to LEAP order preview modal (match all other submission panels)
+
+## PMCC Dashboard Fixes (Apr 27, 2026)
+- [x] Wire "Sell Calls" button on Active PMCC Position card to scroll to ShortCallScanner and auto-select + auto-scan that LEAP
+- [x] Add midpoint price slider (Bid/Ask range) to ShortCallScanner order preview dialog, matching other submission panels

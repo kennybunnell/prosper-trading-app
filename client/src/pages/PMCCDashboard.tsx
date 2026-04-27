@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from '@/components/ui/checkbox';
@@ -28,9 +28,10 @@ interface ActivePositionsSectionProps {
   positionsData: any;
   isLoading: boolean;
   refetch: () => void;
+  onSellCalls: (leapKey: string) => void;
 }
 
-function ActivePositionsSection({ positionsData, isLoading, refetch }: ActivePositionsSectionProps) {
+function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls }: ActivePositionsSectionProps) {
   const positions = positionsData?.positions || [];
 
   if (isLoading) {
@@ -122,7 +123,11 @@ function ActivePositionsSection({ positionsData, isLoading, refetch }: ActivePos
                     <p className="font-semibold">${pos.stockPrice.toFixed(2)}</p>
                   </div>
                 </div>
-                <Button className="w-full mt-4" size="sm">
+                <Button
+                  className="w-full mt-4"
+                  size="sm"
+                  onClick={() => onSellCalls(`${pos.symbol}-${pos.optionSymbol}`)}
+                >
                   Sell Calls
                 </Button>
               </CardContent>
@@ -156,7 +161,18 @@ export default function PMCCDashboard() {
   const [selectedAiAnalysis, setSelectedAiAnalysis] = useState<any>(null);
   const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(false);
   const [chartSymbol, setChartSymbol] = useState<{ symbol: string; strike?: number; currentPrice?: number } | null>(null);
-  
+
+  // Sell Calls wiring: ref to scroll to ShortCallScanner, preSelectLeapKey to pre-select the LEAP
+  const scannerRef = useRef<HTMLDivElement>(null);
+  const [preSelectLeapKey, setPreSelectLeapKey] = useState<string | null>(null);
+
+  const handleSellCalls = useCallback((leapKey: string) => {
+    setPreSelectLeapKey(leapKey);
+    setTimeout(() => {
+      scannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }, []);
+
   // Range filter states (using range arrays like CSP/CC dashboards)
   const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
   const [deltaRange, setDeltaRange] = useState<[number, number]>([0.70, 0.85]);
@@ -412,13 +428,18 @@ export default function PMCCDashboard() {
           positionsData={positionsData}
           isLoading={isLoadingPositions}
           refetch={refetchPositions}
+          onSellCalls={handleSellCalls}
         />
 
         {/* Short Call Scanner */}
-        <ShortCallScanner 
-          leapPositions={positionsData?.positions || []}
-          onRefreshPositions={refetchPositions}
-        />
+        <div ref={scannerRef}>
+          <ShortCallScanner 
+            leapPositions={positionsData?.positions || []}
+            onRefreshPositions={refetchPositions}
+            preSelectLeapKey={preSelectLeapKey}
+            onPreSelectConsumed={() => setPreSelectLeapKey(null)}
+          />
+        </div>
 
         {/* Watchlist Management */}
         <div className="mb-8">

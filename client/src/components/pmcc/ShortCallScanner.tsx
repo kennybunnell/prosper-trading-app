@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from '@/components/ui/checkbox';
@@ -13,9 +13,11 @@ import { useTradingMode } from "@/contexts/TradingModeContext";
 interface ShortCallScannerProps {
   leapPositions: any[];
   onRefreshPositions: () => void;
+  preSelectLeapKey?: string | null;
+  onPreSelectConsumed?: () => void;
 }
 
-export function ShortCallScanner({ leapPositions, onRefreshPositions }: ShortCallScannerProps) {
+export function ShortCallScanner({ leapPositions, onRefreshPositions, preSelectLeapKey, onPreSelectConsumed }: ShortCallScannerProps) {
   const { mode: tradingMode } = useTradingMode();
   const [selectedLeaps, setSelectedLeaps] = useState<Set<string>>(new Set());
   const [isScanning, setIsScanning] = useState(false);
@@ -24,6 +26,36 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions }: ShortCal
   const [showOrderPreview, setShowOrderPreview] = useState(false);
   const [isDryRun, setIsDryRun] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // When a preSelectLeapKey is passed (from "Sell Calls" button on position card),
+  // auto-select that LEAP and immediately trigger the scan
+  useEffect(() => {
+    if (!preSelectLeapKey || leapPositions.length === 0) return;
+    const leap = leapPositions.find(p => `${p.symbol}-${p.optionSymbol}` === preSelectLeapKey);
+    if (!leap) return;
+    setSelectedLeaps(new Set([preSelectLeapKey]));
+    onPreSelectConsumed?.();
+    // Kick off the scan automatically after state settles
+    setTimeout(() => {
+      setIsScanning(true);
+      setOpportunities([]);
+      setSelectedOpportunities(new Set());
+      scanShortCallsMutation.mutate({
+        leapPositions: [{
+          symbol: leap.symbol,
+          optionSymbol: leap.optionSymbol,
+          strike: leap.strike,
+          expiration: leap.expiration,
+          quantity: leap.quantity,
+        }],
+        minDte: 7,
+        maxDte: 45,
+        minDelta: 0.15,
+        maxDelta: 0.35,
+      });
+    }, 150);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preSelectLeapKey]);
 
   // Submit short call orders mutation
   const submitShortCallOrdersMutation = trpc.pmcc.submitShortCallOrders.useMutation({
@@ -117,20 +149,40 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions }: ShortCal
       selectedOpportunities.has(`${opp.underlyingSymbol}-${opp.strike}-${opp.expiration}`)
     );
 
+  // Per-order price overrides: key = `${symbol}-${strike}-${expiration}`, value = adjusted limit price
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
+
+  // Reset price overrides when preview opens
+  const handleOpenPreview = () => {
+    const defaults: Record<string, number> = {};
+    getSelectedOrdersArray().forEach(opp => {
+      const key = `${opp.underlyingSymbol}-${opp.strike}-${opp.expiration}`;
+      // Default to midpoint between bid and ask (or premium if bid/ask not available)
+      const bid = opp.bid ?? opp.premium * 0.95;
+      const ask = opp.ask ?? opp.premium * 1.05;
+      defaults[key] = parseFloat(((bid + ask) / 2).toFixed(2));
+    });
+    setPriceOverrides(defaults);
+    setShowOrderPreview(true);
+  };
+
   const handleSubmitOrders = (dryRun: boolean) => {
     const selectedOrders = getSelectedOrdersArray();
     setIsDryRun(dryRun);
     setIsSubmitting(true);
     submitShortCallOrdersMutation.mutate({
-      orders: selectedOrders.map(opp => ({
-        underlyingSymbol: opp.underlyingSymbol,
-        optionSymbol: opp.optionSymbol,
-        strike: opp.strike,
-        expiration: opp.expiration,
-        premium: opp.premium,
-        leapStrike: opp.leapStrike,
-        quantity: 1,
-      })),
+      orders: selectedOrders.map(opp => {
+        const key = `${opp.underlyingSymbol}-${opp.strike}-${opp.expiration}`;
+        return {
+          underlyingSymbol: opp.underlyingSymbol,
+          optionSymbol: opp.optionSymbol,
+          strike: opp.strike,
+          expiration: opp.expiration,
+          premium: priceOverrides[key] ?? opp.premium,
+          leapStrike: opp.leapStrike,
+          quantity: 1,
+        };
+      }),
       isDryRun: dryRun,
     });
   };
@@ -320,7 +372,7 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions }: ShortCal
                 <Button
                   size="lg"
                   className="bg-purple-600 hover:bg-purple-700"
-                  onClick={() => setShowOrderPreview(true)}
+                  onClick={handleOpenPreview}
                 >
                   <Target className="mr-2 h-4 w-4" />
                   Preview Orders
@@ -361,22 +413,51 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions }: ShortCal
                   <th className="p-2 text-right">Call Strike</th>
                   <th className="p-2 text-left">Expiration</th>
                   <th className="p-2 text-right">DTE</th>
-                  <th className="p-2 text-right">Premium</th>
+                  <th className="p-2 text-right">Bid / Ask</th>
+                  <th className="p-2 text-center" style={{minWidth:'160px'}}>Limit Price</th>
                   <th className="p-2 text-right">ROC</th>
                 </tr>
               </thead>
               <tbody>
-                {selectedOrdersArray.map((opp: any) => (
-                  <tr key={`${opp.underlyingSymbol}-${opp.strike}-${opp.expiration}`} className="border-t">
+                {selectedOrdersArray.map((opp: any) => {
+                  const key = `${opp.underlyingSymbol}-${opp.strike}-${opp.expiration}`;
+                  const bid = opp.bid ?? opp.premium * 0.95;
+                  const ask = opp.ask ?? opp.premium * 1.05;
+                  const limitPrice = priceOverrides[key] ?? parseFloat(((bid + ask) / 2).toFixed(2));
+                  const pct = ask > bid ? ((limitPrice - bid) / (ask - bid)) * 100 : 50;
+                  return (
+                  <tr key={key} className="border-t">
                     <td className="p-2 font-medium">{opp.underlyingSymbol}</td>
                     <td className="p-2 text-right text-muted-foreground">${opp.leapStrike}</td>
                     <td className="p-2 text-right font-medium">${opp.strike.toFixed(2)}</td>
                     <td className="p-2">{new Date(opp.expiration).toLocaleDateString()}</td>
                     <td className="p-2 text-right">{opp.dte}</td>
-                    <td className="p-2 text-right text-green-400 font-medium">${opp.premium.toFixed(2)}</td>
+                    <td className="p-2 text-right text-muted-foreground text-xs">
+                      ${bid.toFixed(2)} / ${ask.toFixed(2)}
+                    </td>
+                    <td className="p-2">
+                      <div className="flex flex-col gap-1 items-center">
+                        <span className="text-green-400 font-semibold text-sm">${limitPrice.toFixed(2)}</span>
+                        <input
+                          type="range"
+                          min={bid}
+                          max={ask}
+                          step={0.01}
+                          value={limitPrice}
+                          onChange={e => setPriceOverrides(prev => ({ ...prev, [key]: parseFloat(parseFloat(e.target.value).toFixed(2)) }))}
+                          className="w-full h-1.5 accent-purple-500 cursor-pointer"
+                        />
+                        <div className="flex justify-between w-full text-xs text-muted-foreground">
+                          <span>Bid</span>
+                          <span className="text-purple-400">{pct.toFixed(0)}%</span>
+                          <span>Ask</span>
+                        </div>
+                      </div>
+                    </td>
                     <td className="p-2 text-right">{opp.roc.toFixed(1)}%</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -384,7 +465,12 @@ export function ShortCallScanner({ leapPositions, onRefreshPositions }: ShortCal
           <div className="grid grid-cols-3 gap-4">
             <div className="p-4 bg-green-900/20 border border-green-700/50 rounded-lg">
               <p className="text-sm text-muted-foreground">Total Premium</p>
-              <p className="text-2xl font-bold text-green-400">${totalSelectedPremium.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-green-400">
+                ${selectedOrdersArray.reduce((sum, opp) => {
+                  const key = `${opp.underlyingSymbol}-${opp.strike}-${opp.expiration}`;
+                  return sum + (priceOverrides[key] ?? opp.premium);
+                }, 0).toFixed(2)}
+              </p>
             </div>
             <div className="p-4 bg-purple-900/20 border border-purple-700/50 rounded-lg">
               <p className="text-sm text-muted-foreground">Contracts</p>
