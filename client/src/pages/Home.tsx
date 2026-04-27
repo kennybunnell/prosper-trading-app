@@ -32,47 +32,29 @@ import {
 
 function MonthlyPremiumChartSection() {
   const [selectedYear, setSelectedYear] = useState<number | undefined>(new Date().getFullYear());
-  const [isSyncing, setIsSyncing] = useState(false);
+  // Track the exact timestamp when the live API last returned data
+  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
+
   const { data, isLoading, error, refetch, isFetching } = trpc.dashboard.getMonthlyPremiumData.useQuery(
     selectedYear ? { year: selectedYear } : undefined,
     {
       retry: false,
       refetchOnWindowFocus: false,
-      // Auto-refresh every 5 minutes so new fills appear without a manual sync click
-      refetchInterval: 5 * 60 * 1000,
-      // staleTime: 0 ensures manual refresh always hits the live Tastytrade API
+      // Auto-refresh every 2 minutes — live Tastytrade API, no cache
+      refetchInterval: 2 * 60 * 1000,
+      // staleTime: 0 ensures every refetch always hits the live Tastytrade API
       staleTime: 0,
     }
   );
-  const { data: syncState } = trpc.portfolioSync.getSyncState.useQuery(undefined, {
-    refetchInterval: isSyncing ? 3000 : false,
-    refetchOnWindowFocus: false,
-  });
-  const triggerSync = trpc.portfolioSync.triggerSync.useMutation({
-    onSuccess: () => {
-      // Refetch chart immediately (live API) and again after sync completes
-      refetch();
-      setTimeout(() => {
-        setIsSyncing(false);
-        refetch();
-      }, 8000);
-    },
-    onError: () => setIsSyncing(false),
-  });
-  // Auto-sync on mount if last transaction sync was more than 15 minutes ago
+
+  // Update live fetch timestamp whenever data changes (new fetch completed)
   useEffect(() => {
-    if (syncState === undefined) return;
-    const firstState = syncState?.states?.[0];
-    const lastSync = firstState?.lastTransactionsSyncAt ? new Date(firstState.lastTransactionsSyncAt).getTime() : 0;
-    const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
-    if (lastSync < fifteenMinutesAgo && !isSyncing) {
-      setIsSyncing(true);
-      triggerSync.mutate({ forceFullRefresh: false });
-    }
+    if (data) setLastFetchedAt(new Date());
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!syncState]);
-  const lastSyncLabel = syncState?.states?.[0]?.lastTransactionsSyncAt
-    ? new Date(syncState.states[0].lastTransactionsSyncAt).toLocaleString()
+  }, [data]);
+
+  const liveFetchLabel = lastFetchedAt
+    ? lastFetchedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : null;
 
   if (isLoading) {
@@ -110,8 +92,12 @@ function MonthlyPremiumChartSection() {
             <h2 className="text-xl font-bold text-foreground">Monthly Premium Earnings</h2>
             <p className="text-xs text-muted-foreground">
               All Accounts — Income Overview
-              {isSyncing && <span className="ml-2 text-amber-400 animate-pulse">⟳ Syncing latest trades…</span>}
-              {!isSyncing && lastSyncLabel && <span className="ml-2 text-muted-foreground/60">· Synced {lastSyncLabel}</span>}
+              {isFetching
+                ? <span className="ml-2 text-amber-400 animate-pulse">⚡ Fetching live data…</span>
+                : liveFetchLabel
+                  ? <span className="ml-2 text-green-400/70">• Live · fetched {liveFetchLabel}</span>
+                  : null
+              }
             </p>
           </div>
         </div>
@@ -119,17 +105,12 @@ function MonthlyPremiumChartSection() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              // Immediately refetch the live chart data AND trigger a DB cache sync
-              refetch();
-              setIsSyncing(true);
-              triggerSync.mutate({ forceFullRefresh: false });
-            }}
-            disabled={isFetching || isSyncing}
+            onClick={() => refetch()}
+            disabled={isFetching}
             className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-            title="Sync latest trades from Tastytrade and refresh chart"
+            title="Fetch latest transactions live from Tastytrade"
           >
-            <RefreshCw className={`w-4 h-4 ${(isFetching || isSyncing) ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
           </Button>
           <select
             value={selectedYear || 'all'}
