@@ -1725,12 +1725,26 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             // Snap to tick size to satisfy Tastytrade's server-side validation.
             const { snapToTick: snapTick } = await import('../shared/orderUtils');
             limitPrice = snapTick(Math.max(0.01, order.userLimitPrice), order.symbol);
-            // For spread orders, determine net credit/debit direction from the user price.
-            // The user's slider already represents the net price, so we just need to know
-            // whether it's a credit or debit. We use the raw spread cost to determine direction.
+            // For spread orders, determine net credit/debit direction using LIVE QUOTES.
+            // CRITICAL FIX: Do NOT use buyBackCost arithmetic — buyBackCost already represents
+            // the net spread cost (short - long), so subtracting longLegCreditPerShare again
+            // causes a double-subtraction that flips the sign and produces priceEffect='Credit'
+            // on a BPS/BCS close, triggering Tastytrade error [6063] Vertical DebitCredit Check.
             if (isSpreadOrder) {
-              const rawNet = shortLegCostPerShare - longLegCreditPerShare;
-              (order as any)._netCreditSpread = rawNet < 0;
+              const shortLiveQ = liveQuoteMap.get(order.optionSymbol);
+              const longLiveQ = order.spreadLongSymbol ? liveQuoteMap.get(order.spreadLongSymbol) : null;
+              if (shortLiveQ && longLiveQ && shortLiveQ.ask > 0 && longLiveQ.bid > 0) {
+                // Use live quotes: net = short ask (cost to BTC) - long bid (credit from STC)
+                // Positive = net debit (normal close), Negative = net credit (very profitable close)
+                const liveRawNet = shortLiveQ.ask - longLiveQ.bid;
+                (order as any)._netCreditSpread = liveRawNet < 0;
+                console.log(`[submitCloseOrders] Spread direction from live quotes: short.ask=${shortLiveQ.ask} long.bid=${longLiveQ.bid} rawNet=${liveRawNet.toFixed(4)} → ${liveRawNet < 0 ? 'Credit' : 'Debit'}`);
+              } else {
+                // Fallback: use userLimitPrice as net price — positive slider = debit to close
+                // For BPS/BCS closes, the slider always represents a debit (cost to close)
+                (order as any)._netCreditSpread = false; // Default to Debit for safety
+                console.log(`[submitCloseOrders] Spread direction fallback: no live quotes for ${order.optionSymbol} or ${order.spreadLongSymbol} — defaulting to Debit`);
+              }
             }
             console.log(`[submitCloseOrders] Using user-set limit price $${limitPrice.toFixed(2)} for ${order.optionSymbol}`);
           } else if (isSpreadOrder) {
@@ -1749,6 +1763,7 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
             limitPrice = snapTick(Math.max(0.01, Math.abs(rawNet)), order.symbol);
             // Track whether this spread closes at a net credit (long leg > short leg)
             (order as any)._netCreditSpread = rawNet < 0;
+            console.log(`[submitCloseOrders] Spread auto-price: short=${shortLegLivePrice.toFixed(4)} long.bid=${longLegLiveCredit.toFixed(4)} rawNet=${rawNet.toFixed(4)} → ${rawNet < 0 ? 'Credit' : 'Debit'} @ $${limitPrice.toFixed(2)}`);
           } else {
             limitPrice = calcBtcLimitPrice(order.optionSymbol, shortLegCostPerShare);
           }

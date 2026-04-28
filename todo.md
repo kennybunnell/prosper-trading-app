@@ -9487,3 +9487,11 @@ ROC Fix Mar 18 2026
 ## PMCC One-Short-Per-LEAP Enforcement (Apr 27 2026 - Kenny)
 - [x] Fix: Added RULE 3 to getLeapPositions — only one short call per LEAP is shown (nearest expiration wins). Diagnostic logging confirmed both NVDA short calls ($225 11DTE and $180 116DTE) are genuinely in the same account (5WI37251) as the LEAP. The $180 August call is a real legacy position in Tastytrade that Kenny needs to review. The dashboard now correctly shows only the $225 (11 DTE) as the active short leg.
 - [x] Diagnostic: Added [PMCC DIAG] server-side logging to expose exact account numbers on all LEAP and short call candidates for future debugging.
+
+## SPX Spread Close Order Fix (Apr 28 2026 - Kenny)
+- [x] Root cause: double-subtraction bug — buyBackCost already represents net spread cost (short - long), but server was subtracting longLegCreditPerShare again, flipping rawNet sign to negative → priceEffect='Credit' → [6063] rejection
+- [x] Server fix (routers-automation.ts): when userLimitPrice is set, use live Tastytrade quotes (short.ask - long.bid) to determine priceEffect direction; fallback to Debit when quotes unavailable
+- [x] Server fix: added detailed console logging for spread direction determination (live quotes path and fallback path)
+- [x] UI fix (UnifiedOrderPreviewModal.tsx): BTC spread badge now uses live quotes (short.ask - long.bid) instead of option type character (optChar === 'P') to show Net Credit vs Net Debit
+- [x] Corrected wrong comment 'BPS close → net CREDIT' (it is almost always net DEBIT for a profitable close)
+- [x] TypeScript: 0 errors after all changes

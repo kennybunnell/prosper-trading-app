@@ -1886,20 +1886,26 @@ export function UnifiedOrderPreviewModal({
                           )}
                           {/* Net Credit / Net Debit badge for BTC spread close orders */}
                           {strategy === 'btc' && isBTCSpread && (() => {
-                            // Mirror the server-side determinePriceEffect() logic:
-                            //   BPS close: STC the long PUT (higher strike) → net CREDIT received
-                            //   BCS close: BTC the short CALL (lower strike) → net DEBIT paid
-                            //   IC close (4-leg): BCS debit dominates → net DEBIT
-                            // Detection: read option type from OCC symbol at char index 12 (C or P)
+                            // Determine net credit/debit direction for BTC spread close orders.
+                            // CORRECT LOGIC: Use live quotes to determine direction.
+                            //   Net debit = short ask - long bid > 0 (normal: you pay a small amount to close)
+                            //   Net credit = short ask - long bid < 0 (rare: long leg worth more than short)
+                            // For BPS/BCS closes near max profit, this is almost always a NET DEBIT.
+                            // The old logic (optChar === 'P' → credit) was WRONG and caused [6063] rejections.
                             const isIronCondorClose = !!(order.callShortStrike && order.callLongStrike);
                             let isCreditClose = false;
                             if (!isIronCondorClose) {
-                              // Prefer spreadLongSymbol (most reliable — it's the actual long leg OCC symbol)
-                              const longSym = order.spreadLongSymbol || order.optionSymbol || '';
-                              const optChar = longSym.charAt(12);
-                              // If spreadLongSymbol: optChar === 'P' means selling back a long PUT → Credit
-                              // If optionSymbol (short leg): optChar === 'P' means it's a BPS → Credit
-                              isCreditClose = optChar === 'P';
+                              const shortSym = order.optionSymbol || '';
+                              const longSym = order.spreadLongSymbol || '';
+                              const shortQ = liveQuotes[shortSym];
+                              const longQ = longSym ? liveQuotes[longSym] : undefined;
+                              if (shortQ && longQ && shortQ.ask > 0 && longQ.bid > 0) {
+                                // Live quotes available: net = short ask (cost to BTC) - long bid (credit from STC)
+                                isCreditClose = (shortQ.ask - longQ.bid) < 0;
+                              } else {
+                                // No live quotes: default to Debit (safe default for BPS/BCS close)
+                                isCreditClose = false;
+                              }
                             }
                             return isCreditClose ? (
                               <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/15 border border-emerald-400/30 rounded px-1.5 py-0.5 mb-0.5 inline-flex items-center gap-0.5">
