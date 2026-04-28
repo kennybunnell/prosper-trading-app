@@ -310,10 +310,33 @@ export function IndexChart({ symbol, strikePrice }: IndexChartProps) {
   }
 
   if (!data?.candles?.length) {
+    // If the server returned an error field (all retries exhausted), show a user-friendly
+    // "Chart unavailable" state with a manual refresh button instead of a blank chart.
+    const chartError = (data as any)?.error as string | undefined;
+    if (chartError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+          <AlertCircle className="h-10 w-10 text-amber-500/60" />
+          <p className="text-sm font-medium text-foreground">Chart unavailable</p>
+          <p className="text-xs text-muted-foreground/70 text-center max-w-xs">
+            Could not load {displayName} data — network issue with Tradier.
+          </p>
+          <p className="text-xs text-muted-foreground/40 font-mono text-center max-w-xs break-all">
+            {chartError.slice(0, 120)}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="mt-1 gap-2">
+            <RefreshCw className="h-3.5 w-3.5" /> Retry
+          </Button>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
         <TrendingUp className="h-10 w-10 opacity-30" />
         <p className="text-sm">No data available for {displayName}</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()} className="mt-1 gap-2">
+          <RefreshCw className="h-3.5 w-3.5" /> Refresh
+        </Button>
       </div>
     );
   }

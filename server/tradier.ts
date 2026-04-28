@@ -196,21 +196,56 @@ export class TradierAPI {
   }
 
   /**
+   * Shared retry helper for transient network errors (TLS disconnect, socket reset, timeout).
+   * Wraps any async call with exponential backoff retries.
+   */
+  private async withRetry<T>(
+    label: string,
+    fn: () => Promise<T>,
+    maxRetries: number = 3,
+  ): Promise<T> {
+    let lastError: any;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
+        const isTransient =
+          error.code === 'ECONNABORTED' ||
+          error.code === 'ECONNRESET' ||
+          error.code === 'ECONNREFUSED' ||
+          error.code === 'ETIMEDOUT' ||
+          error.code === 'EPIPE' ||
+          error.message?.includes('timeout') ||
+          error.message?.includes('TLS') ||
+          error.message?.includes('socket disconnected') ||
+          error.message?.includes('network socket') ||
+          error.message?.includes('ECONNRESET') ||
+          error.message?.includes('ECONNABORTED');
+        if (attempt < maxRetries && isTransient) {
+          const delay = 1500 * Math.pow(2, attempt); // 1.5s, 3s, 6s
+          console.warn(`[TradierAPI] ${label} attempt ${attempt + 1} failed (${error.code || error.message?.slice(0, 60)}), retrying in ${delay}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        throw error; // Re-throw non-transient or exhausted errors
+      }
+    }
+    throw lastError;
+  }
+
+  /**
    * Get option chains for a symbol with specific expiration
    */
   async getOptionChain(symbol: string, expiration: string, greeks: boolean = true): Promise<OptionContract[]> {
     try {
-      const response = await this.client.get('/markets/options/chains', {
-        params: {
-          symbol,
-          expiration,
-          greeks,
-        },
-      });
-
+      const response = await this.withRetry(`getOptionChain(${symbol})`, () =>
+        this.client.get('/markets/options/chains', {
+          params: { symbol, expiration, greeks },
+        })
+      );
       const options = response.data.options?.option;
       if (!options) return [];
-      
       return Array.isArray(options) ? options : [options];
     } catch (error: any) {
       throw new Error(`Failed to fetch option chain: ${error.response?.data?.fault?.faultstring || error.message}`);
@@ -225,18 +260,17 @@ export class TradierAPI {
       // includeAllRoots=true is critical for index option series:
       // Without it, SPX only returns standard monthly expirations (not SPXW weeklies).
       // NDX only returns standard monthly (not NDXP PM-settled weeklies).
-      const response = await this.client.get('/markets/options/expirations', {
-        params: { symbol, includeAllRoots: true },
-      });
-
+      const response = await this.withRetry(`getExpirations(${symbol})`, () =>
+        this.client.get('/markets/options/expirations', {
+          params: { symbol, includeAllRoots: true },
+        })
+      );
       console.log(`[Tradier getExpirations] ${symbol} raw response:`, JSON.stringify(response.data));
-
       const expirations = response.data.expirations?.date;
       if (!expirations) {
         console.log(`[Tradier getExpirations] ${symbol}: no expirations in response (null/undefined)`);
         return [];
       }
-      
       const result = Array.isArray(expirations) ? expirations : [expirations];
       console.log(`[Tradier getExpirations] ${symbol}: ${result.length} expirations found`);
       return result;
@@ -252,35 +286,17 @@ export class TradierAPI {
   async getQuote(symbol: string): Promise<Quote> {
     try {
       console.log('[Tradier API] Fetching quote for symbol:', symbol);
-      console.log('[Tradier API] API Key (first 10 chars):', this.apiKey.substring(0, 10) + '...');
-      console.log('[Tradier API] Base URL:', this.client.defaults.baseURL);
-      
-      const response = await this.client.get('/markets/quotes', {
-        params: { symbols: symbol },
-      });
-
+      const response = await this.withRetry(`getQuote(${symbol})`, () =>
+        this.client.get('/markets/quotes', { params: { symbols: symbol } })
+      );
       console.log('[Tradier API] Response status:', response.status);
-      console.log('[Tradier API] Response data:', JSON.stringify(response.data));
-
       const quote = response.data.quotes?.quote;
-      if (!quote) {
-        throw new Error('Quote not found');
-      }
-
+      if (!quote) throw new Error('Quote not found');
       return Array.isArray(quote) ? quote[0] : quote;
     } catch (error: any) {
-      console.error('[Tradier API] Error details:');
-      console.error('  - Status:', error.response?.status);
-      console.error('  - Status Text:', error.response?.statusText);
-      console.error('  - Headers:', JSON.stringify(error.response?.headers));
-      console.error('  - Data:', JSON.stringify(error.response?.data));
-      console.error('  - Message:', error.message);
-      
-      // Provide more specific error messages based on status code
       if (error.response?.status === 401) {
         throw new Error(`Authentication failed: Invalid or expired API key. Please verify your Tradier API key at developer.tradier.com`);
       }
-      
       throw new Error(`Failed to fetch quote: ${error.response?.data?.fault?.faultstring || error.message}`);
     }
   }
@@ -290,13 +306,11 @@ export class TradierAPI {
    */
   async getQuotes(symbols: string[]): Promise<Quote[]> {
     try {
-      const response = await this.client.get('/markets/quotes', {
-        params: { symbols: symbols.join(',') },
-      });
-
+      const response = await this.withRetry(`getQuotes(${symbols.length} symbols)`, () =>
+        this.client.get('/markets/quotes', { params: { symbols: symbols.join(',') } })
+      );
       const quotes = response.data.quotes?.quote;
       if (!quotes) return [];
-      
       return Array.isArray(quotes) ? quotes : [quotes];
     } catch (error: any) {
       throw new Error(`Failed to fetch quotes: ${error.response?.data?.fault?.faultstring || error.message}`);
@@ -307,42 +321,20 @@ export class TradierAPI {
    * Get historical data for technical indicators
    */
   async getHistoricalData(symbol: string, interval: string = 'daily', start?: string, end?: string): Promise<HistoricalData[]> {
-    const maxRetries = 3; // Increased from 2 to handle transient TLS/socket errors
-    let lastError: any;
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        const response = await this.client.get('/markets/history', {
+    try {
+      // Use 60s timeout for history (larger payload than option chains)
+      const response = await this.withRetry(`getHistoricalData(${symbol})`, () =>
+        this.client.get('/markets/history', {
           params: { symbol, interval, start, end },
-          timeout: 60000, // 60s timeout for history (larger payload than option chains)
-        });
-        const history = response.data.history?.day;
-        if (!history) return [];
-        return Array.isArray(history) ? history : [history];
-      } catch (error: any) {
-        lastError = error;
-        // Retry on transient network errors: timeout, TLS disconnect, socket reset, connection refused
-        const isTransient =
-          error.code === 'ECONNABORTED' ||
-          error.code === 'ECONNRESET' ||
-          error.code === 'ECONNREFUSED' ||
-          error.code === 'ETIMEDOUT' ||
-          error.code === 'EPIPE' ||
-          error.message?.includes('timeout') ||
-          error.message?.includes('TLS') ||
-          error.message?.includes('socket disconnected') ||
-          error.message?.includes('network socket') ||
-          error.message?.includes('ECONNRESET') ||
-          error.message?.includes('ECONNABORTED');
-        if (attempt < maxRetries && isTransient) {
-          const delay = 1500 * Math.pow(2, attempt); // 1.5s, 3s, 6s exponential backoff
-          console.warn(`[TradierAPI] getHistoricalData attempt ${attempt + 1} failed (${error.code || error.message?.slice(0, 60)}), retrying in ${delay}ms...`);
-          await new Promise(r => setTimeout(r, delay));
-          continue;
-        }
-        throw new Error(`Failed to fetch historical data: ${error.response?.data?.fault?.faultstring || error.message}`);
-      }
+          timeout: 60000,
+        })
+      );
+      const history = response.data.history?.day;
+      if (!history) return [];
+      return Array.isArray(history) ? history : [history];
+    } catch (error: any) {
+      throw new Error(`Failed to fetch historical data: ${error.response?.data?.fault?.faultstring || error.message}`);
     }
-    throw new Error(`Failed to fetch historical data after ${maxRetries + 1} attempts: ${lastError?.message}`);
   }
 
   /**
@@ -545,22 +537,26 @@ export class TradierAPI {
       nextMonth.setDate(today.getDate() + 30);
       
       // Fetch current month
-      const currentMonthResponse = await this.client.get('/markets/calendar', {
-        params: {
-          month: String(today.getMonth() + 1).padStart(2, '0'),
-          year: today.getFullYear(),
-        },
-      });
+      const currentMonthResponse = await this.withRetry('getEarningsCalendar(current)', () =>
+        this.client.get('/markets/calendar', {
+          params: {
+            month: String(today.getMonth() + 1).padStart(2, '0'),
+            year: today.getFullYear(),
+          },
+        })
+      );
       
       // Fetch next month if we're near the end of current month
       let nextMonthResponse = null;
       if (nextMonth.getMonth() !== today.getMonth()) {
-        nextMonthResponse = await this.client.get('/markets/calendar', {
-          params: {
-            month: String(nextMonth.getMonth() + 1).padStart(2, '0'),
-            year: nextMonth.getFullYear(),
-          },
-        });
+        nextMonthResponse = await this.withRetry('getEarningsCalendar(next)', () =>
+          this.client.get('/markets/calendar', {
+            params: {
+              month: String(nextMonth.getMonth() + 1).padStart(2, '0'),
+              year: nextMonth.getFullYear(),
+            },
+          })
+        );
       }
       
       // Parse earnings from both responses
@@ -604,9 +600,10 @@ export class TradierAPI {
    */
   async getMarketStatus(): Promise<{ open: boolean; description: string }> {
     try {
-      const response = await this.client.get('/markets/clock');
+      const response = await this.withRetry('getMarketStatus', () =>
+        this.client.get('/markets/clock')
+      );
       const clock = response.data.clock;
-      
       return {
         open: clock.state === 'open',
         description: clock.description,

@@ -9502,3 +9502,10 @@ ROC Fix Mar 18 2026
 - [x] Fix (tradier.ts): expanded retry condition to cover ECONNRESET, ECONNREFUSED, ETIMEDOUT, EPIPE, and message-based TLS/socket patterns; increased maxRetries from 2 to 3; added exponential backoff (1.5s, 3s, 6s)
 - [x] Fix (routers-charts.ts): wrapped getHistoricalData call in try/catch — on persistent failure returns empty candles with error field instead of throwing 500, so CSP page loads cleanly
 - [x] TypeScript: 0 errors
+
+## Tradier API Resilience & Chart Empty-State (Apr 28 2026)
+- [x] Add shared withRetry() helper to TradierAPI class (private method, exponential backoff 1.5s/3s/6s, 3 retries, covers ECONNRESET/ECONNABORTED/ETIMEDOUT/EPIPE/TLS/socket errors)
+- [x] Apply withRetry() to getOptionChain, getExpirations, getQuote, getQuotes, getHistoricalData, getMarketStatus, getEarningsCalendar (both calendar fetches)
+- [x] Simplified getHistoricalData — removed inline retry loop, now delegates to withRetry()
+- [x] Add chart empty-state UI in IndexChart.tsx: when server returns error field (all retries exhausted), shows amber AlertCircle + error message + Retry button; plain empty state also gets a Refresh button
+- [x] TypeScript: 0 errors
