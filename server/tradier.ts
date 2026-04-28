@@ -307,7 +307,7 @@ export class TradierAPI {
    * Get historical data for technical indicators
    */
   async getHistoricalData(symbol: string, interval: string = 'daily', start?: string, end?: string): Promise<HistoricalData[]> {
-    const maxRetries = 2;
+    const maxRetries = 3; // Increased from 2 to handle transient TLS/socket errors
     let lastError: any;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -320,9 +320,23 @@ export class TradierAPI {
         return Array.isArray(history) ? history : [history];
       } catch (error: any) {
         lastError = error;
-        if (attempt < maxRetries && (error.code === 'ECONNABORTED' || error.message?.includes('timeout'))) {
-          // Brief pause before retry
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        // Retry on transient network errors: timeout, TLS disconnect, socket reset, connection refused
+        const isTransient =
+          error.code === 'ECONNABORTED' ||
+          error.code === 'ECONNRESET' ||
+          error.code === 'ECONNREFUSED' ||
+          error.code === 'ETIMEDOUT' ||
+          error.code === 'EPIPE' ||
+          error.message?.includes('timeout') ||
+          error.message?.includes('TLS') ||
+          error.message?.includes('socket disconnected') ||
+          error.message?.includes('network socket') ||
+          error.message?.includes('ECONNRESET') ||
+          error.message?.includes('ECONNABORTED');
+        if (attempt < maxRetries && isTransient) {
+          const delay = 1500 * Math.pow(2, attempt); // 1.5s, 3s, 6s exponential backoff
+          console.warn(`[TradierAPI] getHistoricalData attempt ${attempt + 1} failed (${error.code || error.message?.slice(0, 60)}), retrying in ${delay}ms...`);
+          await new Promise(r => setTimeout(r, delay));
           continue;
         }
         throw new Error(`Failed to fetch historical data: ${error.response?.data?.fault?.faultstring || error.message}`);

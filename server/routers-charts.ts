@@ -109,12 +109,20 @@ export const chartsRouter = router({
       start.setDate(start.getDate() - input.days);
 
       const fmt = (d: Date) => d.toISOString().split('T')[0];
-      const history = await tradier.getHistoricalData(
-        tradierSymbol,
-        input.interval,
-        fmt(start),
-        fmt(end),
-      );
+      let history: Awaited<ReturnType<typeof tradier.getHistoricalData>>;
+      try {
+        history = await tradier.getHistoricalData(
+          tradierSymbol,
+          input.interval,
+          fmt(start),
+          fmt(end),
+        );
+      } catch (err: any) {
+        // After all retries are exhausted, return empty candles rather than a 500 error
+        // so the CSP page can still load — the chart will show an empty state instead of crashing.
+        console.error(`[charts.getIndexOHLC] All retries failed for ${tradierSymbol}: ${err.message}`);
+        return { symbol: upper, tradierSymbol, candles: [], error: err.message };
+      }
 
       if (!history || history.length === 0) {
         return { symbol: upper, tradierSymbol, candles: [] };

@@ -9495,3 +9495,10 @@ ROC Fix Mar 18 2026
 - [x] UI fix (UnifiedOrderPreviewModal.tsx): BTC spread badge now uses live quotes (short.ask - long.bid) instead of option type character (optChar === 'P') to show Net Credit vs Net Debit
 - [x] Corrected wrong comment 'BPS close → net CREDIT' (it is almost always net DEBIT for a profitable close)
 - [x] TypeScript: 0 errors after all changes
+
+## CSP Page TLS Error Fix (Apr 28 2026)
+- [x] Fix: /csp page showing "Failed to fetch historical data: Client network socket disconnected before secure TLS connection was established"
+- [x] Root cause: getHistoricalData retry logic only caught ECONNABORTED/timeout but not ECONNRESET/TLS disconnect errors
+- [x] Fix (tradier.ts): expanded retry condition to cover ECONNRESET, ECONNREFUSED, ETIMEDOUT, EPIPE, and message-based TLS/socket patterns; increased maxRetries from 2 to 3; added exponential backoff (1.5s, 3s, 6s)
+- [x] Fix (routers-charts.ts): wrapped getHistoricalData call in try/catch — on persistent failure returns empty candles with error field instead of throwing 500, so CSP page loads cleanly
+- [x] TypeScript: 0 errors
