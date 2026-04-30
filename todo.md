@@ -9535,3 +9535,11 @@ ROC Fix Mar 18 2026
 - [x] Fix 2 (AutomationDashboard.tsx handleOpenSingleOrderPreview): Now parses `longStrike` from `spreadLongSymbol` OCC symbol and sets it on the UnifiedOrder for consistency
 - [x] Fix 3 (routers-automation.ts submitCloseOrders): Added Tradier fallback to liveQuoteMap — for any symbols Tastytrade returns no quotes for (SPX/SPXW/NDX index options), Tradier is queried as fallback. Ensures correct net spread pricing is used for SPX BPS close orders
 - [x] TypeScript: 0 errors
+
+## SPX BPS Close Fix - Confirmed Working (Apr 30 2026)
+- [x] Root cause: getOrderPriceRange used order.bid/ask (short leg Tradier quotes $4.50/$4.70) as slider range when longStrike was missing from Automation Dashboard orders
+- [x] Fix 1: handleOpenSingleOrderPreview now parses longStrike from spreadLongSymbol OCC symbol
+- [x] Fix 2: UnifiedOrderPreviewModal live quote effect checks order.longStrike || order.spreadLongSymbol for spread detection
+- [x] Fix 3: submitCloseOrders uses Tradier fallback for index options Tastytrade returns no quotes for (SPX/SPXW/NDX/NDXP)
+- [x] Confirmed via browser console: order submitted as "net debit $0.75" (correct net spread price, not $4.60 short leg price)
+- [x] TypeScript: 0 errors

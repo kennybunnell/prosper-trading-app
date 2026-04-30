@@ -1310,7 +1310,6 @@ export function UnifiedOrderPreviewModal({
       const mid = Math.max(0.01, order.premium);
       return symmetricRange(mid, Math.max(mid * 0.5, 0.25));
     }
-
     if (order.longStrike) {
       // Spread order (BPS/BCS/STO or BTC spread):
       // order.premium is the NET credit/debit mid — use it as the anchor.
