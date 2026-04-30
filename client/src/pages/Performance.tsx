@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -190,11 +190,17 @@ export function ActivePositionsTab() {
     }
   );
 
+  // Track whether the current mutation call is a dry run (to avoid clearing selection on dry run success)
+  const isDryRunRef = useRef(false);
+
   // Close positions mutation
   const closePositionsMutation = trpc.performance.closePositions.useMutation({
     onSuccess: (result) => {
       setCloseResults(result);
-      setSelectedPositions(new Set());
+      // Only clear selection on live submission — preserve selection so Submit Live can re-use selectedPositionsData
+      if (!isDryRunRef.current) {
+        setSelectedPositions(new Set());
+      }
       refetch();
       
       // Show warning if positions were excluded due to existing working orders
@@ -297,6 +303,10 @@ export function ActivePositionsTab() {
           case 'strike':
             aVal = a.strike;
             bVal = b.strike;
+            break;
+          case 'stockPrice':
+            aVal = a.underlyingPrice ?? 0;
+            bVal = b.underlyingPrice ?? 0;
             break;
           case 'exp':
             aVal = new Date(a.expiration).getTime();
@@ -514,6 +524,7 @@ export function ActivePositionsTab() {
   ): Promise<{ results: any[] }> => {
     // Modal stays open for both dry run and live submission
     setCloseResults(null);
+    isDryRunRef.current = isDryRun; // Track dry run state for onSuccess handler
 
     // Map UnifiedOrders back to position data for closePositions mutation
     const positionsToClose = selectedPositionsData.map(pos => ({
@@ -1139,6 +1150,7 @@ interface Position {
   realizedPercent: number;
   action: 'CLOSE' | 'WATCH' | 'HOLD';
   hasWorkingOrder: boolean;
+  underlyingPrice?: number; // Live stock price for the underlying
   // Spread-specific fields
   spreadType?: 'bull_put' | 'bear_call' | 'iron_condor';
   longStrike?: number;
@@ -1229,6 +1241,7 @@ function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosit
               <SortableHeader column="strategy" label="Strategy" align="left" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="qty" label="Qty" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="strike" label="Strike" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="stockPrice" label="Stock Price" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="exp" label="Exp" align="left" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="dte" label="DTE" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="premium" label="Premium" align="right" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
@@ -1278,6 +1291,13 @@ function PositionsTable({ positions, isLoading, selectedPositions, onTogglePosit
                     </span>
                   ) : (
                     <span>${pos.strike.toFixed(2)}</span>
+                  )}
+                </td>
+                <td className="p-3 text-sm text-right">
+                  {pos.underlyingPrice != null ? (
+                    <span className="text-cyan-400 font-medium">${pos.underlyingPrice.toFixed(2)}</span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
                   )}
                 </td>
                 <td className="p-3 text-sm">{pos.expiration}</td>

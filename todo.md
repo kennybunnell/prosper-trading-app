@@ -9509,3 +9509,15 @@ ROC Fix Mar 18 2026
 - [x] Simplified getHistoricalData — removed inline retry loop, now delegates to withRetry()
 - [x] Add chart empty-state UI in IndexChart.tsx: when server returns error field (all retries exhausted), shows amber AlertCircle + error message + Retry button; plain empty state also gets a Refresh button
 - [x] TypeScript: 0 errors
+
+### GOOGL BPS Live Submit Bug (Apr 30 2026)
+- [x] Fix: Submit Live sends empty orders array (0 of 0) after successful dry run — root cause: closePositionsMutation.onSuccess always called setSelectedPositions(new Set()), clearing selectedPositionsData before live submit
+- [x] Fix (Performance.tsx): added isDryRunRef = useRef(false); onSuccess only clears selectedPositions when !isDryRunRef.current; handleConfirmClose sets isDryRunRef.current = isDryRun before mutation call
+- [x] Added useRef to React import in Performance.tsx
+- [x] TypeScript: 0 errors
+## Open Positions Table Columns (Apr 30 2026)
+- [x] Add "Stock Price" column to Open Positions table, positioned right next to Strike — shows live underlyingPrice in cyan, sortable
+- [x] Account column was already present (showing pos.account = Tastytrade account number)
+- [x] Added underlyingPrice?: number to Position interface in Performance.tsx
+- [x] Added stockPrice sort case to the sort switch statement
+- [x] TypeScript: 0 errors
