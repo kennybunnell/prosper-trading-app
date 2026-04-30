@@ -502,6 +502,14 @@ export const performanceRouter = router({
           // Check if this position has a working order
           const hasWorkingOrder = workingOrderSymbols.has(pos.symbol);
 
+          // For the order modal slider: spread positions must use net spread cost per share,
+          // NOT the short leg mark price. Using the short leg price ($4.60) as the limit
+          // on a spread close triggers Tastytrade's price safety check (rejects as unreasonably
+          // far from the actual net market value ~$0.80).
+          const netCurrentPricePerShare = longOptionSymbol
+            ? currentCost / (quantity * pos.multiplier)   // net spread cost per share
+            : (quote ? (quote.mark || quote.mid || quote.last) : parseFloat(pos['close-price'])); // single-leg mark
+
           processedPositions.push({
             account: pos._accountNumber || 'Unknown',
             accountId: pos['account-number'],
@@ -514,9 +522,10 @@ export const performanceRouter = router({
             dte,
             premium: premiumReceived,
             current: currentCost,
-            // Use live Tastytrade quote for currentPrice (feeds into order modal slider initial position)
-            // Fall back to close-price only if Tastytrade quote is unavailable
-            currentPrice: quote ? (quote.mark || quote.mid || quote.last) : parseFloat(pos['close-price']),
+            // currentPrice feeds into the order modal slider initial position.
+            // For spreads: use net spread cost per share (short mark - long mark) so the slider
+            // starts at the correct net debit price, not the short leg price alone.
+            currentPrice: netCurrentPricePerShare,
             underlyingPrice: underlyingPrices[pos['underlying-symbol']],
             realizedPercent: Math.round(realizedPercent * 100) / 100, // Round to 2 decimals
             action,

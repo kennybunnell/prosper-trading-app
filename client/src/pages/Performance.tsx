@@ -410,24 +410,15 @@ export function ActivePositionsTab() {
       const isSpread = !!pos.longStrike;
       
       if (isSpread) {
-        // For spreads: estimate short leg and long leg prices
-        // Spread width determines the relationship between legs
-        const spreadWidth = pos.spreadWidth || Math.abs(pos.strike - pos.longStrike!);
-        
-        // Estimate short leg (the one we sold) - typically worth less when profitable
-        const shortLegMid = pos.currentPrice * 0.4; // Short leg is ~40% of spread cost
-        const shortBid = shortLegMid * 0.95;
-        const shortAsk = shortLegMid * 1.05;
-        
-        // Estimate long leg (the one we bought) - typically worth more
-        const longLegMid = pos.currentPrice * 0.6; // Long leg is ~60% of spread cost
-        const longBid = longLegMid * 0.95;
-        const longAsk = longLegMid * 1.05;
+        // pos.currentPrice is now the net spread cost per share (server-side fix).
+        // Use it directly for bid/ask/premium — no more 40/60 split from the wrong short-leg price.
+        const netPrice = Math.max(0.01, pos.currentPrice);
 
-        // Construct long leg OCC symbol from short leg symbol + longStrike
-        // OCC format: TICKER(6) + YYMMDD + C/P + STRIKE(8, padded, x1000)
-        let spreadLongSymbol: string | undefined;
-        if (pos.optionSymbol && pos.longStrike) {
+        // Use the server-provided long leg OCC symbol (pos.longOptionSymbol) when available.
+        // This avoids manual reconstruction which fails for index options with padded spaces (SPX).
+        // Fall back to reconstruction only if longOptionSymbol is missing.
+        let spreadLongSymbol: string | undefined = pos.longOptionSymbol;
+        if (!spreadLongSymbol && pos.optionSymbol && pos.longStrike) {
           const occMatch = pos.optionSymbol.match(/^([A-Z\s]+)(\d{6})([CP])(\d+)$/);
           if (occMatch) {
             const ticker = occMatch[1]; // Already padded to 6 chars
@@ -442,20 +433,20 @@ export function ActivePositionsTab() {
           symbol: pos.symbol,
           strike: pos.strike,
           expiration: pos.expiration,
-          premium: pos.currentPrice, // Net spread price
+          premium: netPrice, // Net spread debit to close
           action: "BTC" as const,
           optionType: (pos.type === 'CSP' ? 'PUT' : 'CALL') as "CALL" | "PUT",
-          bid: shortBid,
-          ask: shortAsk,
-          currentPrice: pos.currentPrice,
+          bid: netPrice * 0.9,   // Approximate bid = 90% of net
+          ask: netPrice * 1.1,   // Approximate ask = 110% of net
+          currentPrice: netPrice,
           // OCC symbols for live quote fetching
           optionSymbol: pos.optionSymbol,
           spreadLongSymbol,
           // Long leg data for spreads
           longStrike: pos.longStrike,
-          longPremium: longLegMid,
-          longBid: longBid,
-          longAsk: longAsk,
+          longPremium: netPrice * 0.5, // Approximate; server will use live quotes
+          longBid: netPrice * 0.45,
+          longAsk: netPrice * 0.55,
           // Per-order premium collected (net credit received at open)
           perOrderPremiumCollected: pos.premium,
         };
@@ -1154,6 +1145,7 @@ interface Position {
   // Spread-specific fields
   spreadType?: 'bull_put' | 'bear_call' | 'iron_condor';
   longStrike?: number;
+  longOptionSymbol?: string;  // OCC symbol of the long leg (from server, avoids manual reconstruction)
   spreadWidth?: number;
   capitalAtRisk?: number;
 }

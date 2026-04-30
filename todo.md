@@ -9521,3 +9521,10 @@ ROC Fix Mar 18 2026
 - [x] Added underlyingPrice?: number to Position interface in Performance.tsx
 - [x] Added stockPrice sort case to the sort switch statement
 - [x] TypeScript: 0 errors
+
+## SPX BPS Close "Price Safety Triggered" Fix (Apr 30 2026)
+- [x] Root cause: routers-performance.ts was returning short leg mark price ($4.60) as `currentPrice` for spread positions, not the net spread cost per share (~$0.80). The order modal slider started at $4.60 and sent that to Tastytrade, which rejected it as "price safety triggered" because $4.60 is far outside the actual net market value.
+- [x] Fix 1 (routers-performance.ts): Added `netCurrentPricePerShare` — for spread positions (longOptionSymbol set), returns `currentCost / (quantity * multiplier)` (net spread cost per share); single-leg positions unchanged.
+- [x] Fix 2 (Performance.tsx): Spread order construction now uses `pos.currentPrice` (already the net price after server fix) directly for bid/ask/premium instead of the 40%/60% split from the wrong short-leg price.
+- [x] Fix 3 (Performance.tsx): Added `longOptionSymbol?: string` to Position interface; spread order now uses `pos.longOptionSymbol` directly (avoids manual OCC reconstruction that fails for SPX with padded spaces).
+- [x] TypeScript: 0 errors
