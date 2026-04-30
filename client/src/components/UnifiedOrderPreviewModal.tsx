@@ -403,10 +403,12 @@ export function UnifiedOrderPreviewModal({
         const isBTC = order.action === 'BTC';
 
         // Spread: compute net credit/debit from live quotes for BOTH legs
-        // CRITICAL: If this is a spread order (has longStrike), NEVER fall through to
+        // CRITICAL: If this is a spread order (has longStrike OR spreadLongSymbol), NEVER fall through to
         // single-leg pricing — that would use the short leg's individual price (~$16)
         // instead of the net spread credit (~$4.35).
-        if (order.longStrike) {
+        // NOTE: Orders from AutomationDashboard have spreadLongSymbol but NOT longStrike,
+        // so we must check both fields to correctly detect spread orders.
+        if (order.longStrike || order.spreadLongSymbol) {
           if (shortSym && longSym) {
             const shortQ = liveQuotes[shortSym];
             const longQ = liveQuotes[longSym];

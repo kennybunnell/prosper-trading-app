@@ -1652,16 +1652,17 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         });
       }
 
-      // ── Live bid/ask enrichment (Tastytrade) ─────────────────────────────────
-      // Fetch live quotes from Tastytrade for all option symbols so we can use
-      // spread-width tier pricing instead of stale close-price + ceil formula.
-      // CRITICAL: Must use Tastytrade (NOT Tradier) for all close-order pricing.
+      // ── Live bid/ask enrichment (Tastytrade + Tradier fallback) ──────────────
+      // Fetch live quotes from Tastytrade first. For index options (SPX, SPXW, NDX, etc.)
+      // Tastytrade's /market-data/by-type endpoint consistently returns empty items[].
+      // For any symbols missing from Tastytrade's response, fall back to Tradier which
+      // reliably returns real-time bid/ask for ALL option types including index options.
       const liveQuoteMap = new Map<string, { bid: number; ask: number; mid: number }>();
+      const allOccSymbols = Array.from(new Set([
+        ...input.orders.map(o => o.optionSymbol),
+        ...input.orders.filter(o => o.spreadLongSymbol).map(o => o.spreadLongSymbol!),
+      ]));
       try {
-        const allOccSymbols = Array.from(new Set([
-          ...input.orders.map(o => o.optionSymbol),
-          ...input.orders.filter(o => o.spreadLongSymbol).map(o => o.spreadLongSymbol!),
-        ]));
         const ttQuotes = await tt.getOptionQuotesBatch(allOccSymbols);
         for (const [sym, q] of Object.entries(ttQuotes)) {
           if (q.bid > 0 || q.ask > 0) {
@@ -1671,6 +1672,43 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
         console.log(`[submitCloseOrders] Fetched live Tastytrade quotes for ${liveQuoteMap.size}/${allOccSymbols.length} option symbols`);
       } catch (quoteErr: any) {
         console.warn('[submitCloseOrders] Tastytrade live quote fetch failed, falling back to close-price:', quoteErr.message);
+      }
+      // ── Tradier fallback for symbols Tastytrade returned no quotes for ──────────
+      // Critical for SPX/SPXW/NDX index options where Tastytrade REST returns empty data.
+      // Tradier reliably returns bid/ask for all option types including index options.
+      const missingFromTT = allOccSymbols.filter(sym => !liveQuoteMap.has(sym));
+      if (missingFromTT.length > 0) {
+        try {
+          const { TradierAPI } = await import('./tradier');
+          const tradierKey = credentials?.tradierApiKey || process.env.TRADIER_API_KEY || '';
+          if (tradierKey) {
+            const tradierApi = new TradierAPI(tradierKey);
+            // Convert OCC symbols (with spaces) → Tradier compact format (no spaces)
+            const tradierToOcc: Record<string, string> = {};
+            const tradierSymbols: string[] = [];
+            for (const sym of missingFromTT) {
+              const tradierSym = sym.replace(/\s+/g, '');
+              tradierToOcc[tradierSym] = sym;
+              tradierSymbols.push(tradierSym);
+            }
+            const rawQuotes = await tradierApi.getQuotes(tradierSymbols);
+            let tradierFilled = 0;
+            for (const q of rawQuotes) {
+              const qAny = q as any;
+              const tradierSym: string = qAny.symbol || '';
+              const originalOcc = tradierToOcc[tradierSym] || tradierToOcc[tradierSym.replace(/\s+/g, '')] || tradierSym;
+              const bid = typeof qAny.bid === 'number' ? qAny.bid : parseFloat(qAny.bid) || 0;
+              const ask = typeof qAny.ask === 'number' ? qAny.ask : parseFloat(qAny.ask) || 0;
+              if (bid > 0 || ask > 0) {
+                liveQuoteMap.set(originalOcc, { bid, ask, mid: (bid + ask) / 2 });
+                tradierFilled++;
+              }
+            }
+            console.log(`[submitCloseOrders] Tradier fallback filled ${tradierFilled}/${missingFromTT.length} missing quotes: ${missingFromTT.join(', ')}`);
+          }
+        } catch (tradierErr: any) {
+          console.warn('[submitCloseOrders] Tradier fallback quote fetch failed:', tradierErr.message);
+        }
       }
 
       /**

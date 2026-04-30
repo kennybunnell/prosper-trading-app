@@ -9528,3 +9528,10 @@ ROC Fix Mar 18 2026
 - [x] Fix 2 (Performance.tsx): Spread order construction now uses `pos.currentPrice` (already the net price after server fix) directly for bid/ask/premium instead of the 40%/60% split from the wrong short-leg price.
 - [x] Fix 3 (Performance.tsx): Added `longOptionSymbol?: string` to Position interface; spread order now uses `pos.longOptionSymbol` directly (avoids manual OCC reconstruction that fails for SPX with padded spaces).
 - [x] TypeScript: 0 errors
+
+## SPX BPS Close Order Cancellation Fix (Apr 30 2026)
+- [x] Root cause: UnifiedOrderPreviewModal live quote update effect checked `if (order.longStrike)` to detect spreads, but orders from AutomationDashboard have `spreadLongSymbol` set but NOT `longStrike` — causing single-leg pricing (short leg mid $4.50) to override the correct net spread debit ($0.97)
+- [x] Fix 1 (UnifiedOrderPreviewModal.tsx): Changed spread detection from `if (order.longStrike)` to `if (order.longStrike || order.spreadLongSymbol)` so all spread orders are handled correctly regardless of which field is set
+- [x] Fix 2 (AutomationDashboard.tsx handleOpenSingleOrderPreview): Now parses `longStrike` from `spreadLongSymbol` OCC symbol and sets it on the UnifiedOrder for consistency
+- [x] Fix 3 (routers-automation.ts submitCloseOrders): Added Tradier fallback to liveQuoteMap — for any symbols Tastytrade returns no quotes for (SPX/SPXW/NDX index options), Tradier is queried as fallback. Ensures correct net spread pricing is used for SPX BPS close orders
+- [x] TypeScript: 0 errors

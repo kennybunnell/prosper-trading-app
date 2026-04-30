@@ -526,6 +526,9 @@ export default function AutomationDashboard() {
     const isCall = occTypeMatch ? occTypeMatch[1] === 'C' : result.type === 'CC';
     // OCC format: ROOT YYMMDD C/P STRIKE8 — strike is the last 8 digits
     const strike = occTypeMatch ? parseInt(occTypeMatch[2], 10) / 1000 : 0;
+    // Parse long leg strike from spreadLongSymbol OCC if present
+    const longOccMatch = result.spreadLongSymbol?.match(/([CP])(\d{8})$/);
+    const longStrike = longOccMatch ? parseInt(longOccMatch[2], 10) / 1000 : undefined;
     const perShareCost = result.buyBackCost / (result.quantity * 100);
     const estimatedBid = Math.max(0.01, perShareCost * 0.8);
     const estimatedAsk = Math.max(0.02, perShareCost * 1.2);
@@ -544,6 +547,7 @@ export default function AutomationDashboard() {
       accountNumber: result.account,
       spreadLongSymbol: result.spreadLongSymbol,
       spreadLongPrice: result.spreadLongPrice ? parseFloat(result.spreadLongPrice) : undefined,
+      longStrike,  // Parsed from spreadLongSymbol OCC for spread detection in UnifiedOrderPreviewModal
       quantity: result.quantity,
       isEstimated: result.isEstimated,
     };
