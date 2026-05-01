@@ -714,6 +714,11 @@ export default function IronCondorDashboard() {
         callLongAsk: opp.callLongAsk,
         // Underlying stock price shown in Order Preview dialog
         currentPrice: opp.currentPrice,
+        // OCC option symbols for live quote fetching in the preview modal (all 4 legs)
+        optionSymbol: opp.putShortOptionSymbol as string | undefined,       // PUT short leg
+        spreadLongSymbol: opp.putLongOptionSymbol as string | undefined,     // PUT long leg
+        callShortOptionSymbol: opp.callShortOptionSymbol as string | undefined, // CALL short leg
+        callLongOptionSymbol: opp.callLongOptionSymbol as string | undefined,   // CALL long leg
       };
     });
   }, [opportunities, selectedOpportunities]);

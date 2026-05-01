@@ -55,10 +55,13 @@ export interface UnifiedOrder {
   oldOrderId?: string;    // Original order ID (for tracking)
 
   // Optional fields for BTC close orders (carry scan result identity)
-  optionSymbol?: string;      // OCC option symbol (e.g. HIMS  260306C00018000)
+  optionSymbol?: string;      // OCC option symbol — PUT short leg (all strategies) or single-leg
   accountNumber?: string;     // Tastytrade account number
-  spreadLongSymbol?: string;  // Long leg OCC symbol for spread closure
+  spreadLongSymbol?: string;  // Long leg OCC symbol for spread closure (BPS/BCS put long leg)
   spreadLongPrice?: number;   // Long leg close price
+  // Iron Condor call-side OCC symbols (for live quote fetching of all 4 legs)
+  callShortOptionSymbol?: string;  // Call spread short leg OCC symbol
+  callLongOptionSymbol?: string;   // Call spread long leg OCC symbol
   quantity?: number;          // Number of contracts
   isEstimated?: boolean;      // Whether buy-back cost is estimated
   perOrderPremiumCollected?: number; // Premium originally collected for THIS specific position (for per-row net profit)
@@ -210,8 +213,10 @@ export function UnifiedOrderPreviewModal({
     if (!open) return [];
     const syms: string[] = [];
     orders.forEach(o => {
-      if (o.optionSymbol) syms.push(o.optionSymbol);         // Short leg OCC symbol (all strategies)
-      if (o.spreadLongSymbol) syms.push(o.spreadLongSymbol); // Long leg OCC symbol (spreads)
+      if (o.optionSymbol) syms.push(o.optionSymbol);                   // PUT short leg (all strategies) or single-leg
+      if (o.spreadLongSymbol) syms.push(o.spreadLongSymbol);           // PUT long leg (BPS/BCS)
+      if (o.callShortOptionSymbol) syms.push(o.callShortOptionSymbol); // CALL short leg (Iron Condor)
+      if (o.callLongOptionSymbol) syms.push(o.callLongOptionSymbol);   // CALL long leg (Iron Condor)
     });
     return Array.from(new Set(syms.filter(Boolean))); // deduplicate and remove empty
   }, [open, strategy, orders]);
@@ -1601,12 +1606,28 @@ export function UnifiedOrderPreviewModal({
                   const netPrice = isSpreadBTC ? (price - longLegCredit) : price;
                   const rowContractMult = getContractMultiplier(order.symbol);
                   const totalPremium = netPrice * rowContractMult * qty;
+                  // Check if this is an Iron Condor (has all 4 legs) — must be declared first
+                  const isIronCondor = order.callShortStrike && order.callLongStrike;
                   // Check if we have live quotes for this order
                   const liveQ = order.optionSymbol ? liveQuotes[order.optionSymbol] : undefined;
-                  const hasLiveQuote = !!(liveQ && liveQ.bid > 0 && liveQ.ask > 0);
+                  // Iron Condor: compute net credit from all 4 live legs
+                  const icPutShortQ = order.optionSymbol ? liveQuotes[order.optionSymbol] : undefined;
+                  const icPutLongQ  = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
+                  const icCallShortQ = order.callShortOptionSymbol ? liveQuotes[order.callShortOptionSymbol] : undefined;
+                  const icCallLongQ  = order.callLongOptionSymbol ? liveQuotes[order.callLongOptionSymbol] : undefined;
+                  const isIronCondorLive = !!(isIronCondor && icPutShortQ?.bid && icPutLongQ?.ask && icCallShortQ?.bid && icCallLongQ?.ask);
+                  // IC net credit bid = (putShort.bid - putLong.ask) + (callShort.bid - callLong.ask)
+                  const icLiveBid = isIronCondorLive
+                    ? Math.max(0.01, (icPutShortQ!.bid - icPutLongQ!.ask) + (icCallShortQ!.bid - icCallLongQ!.ask))
+                    : undefined;
+                  // IC net credit ask = (putShort.ask - putLong.bid) + (callShort.ask - callLong.bid)
+                  const icLiveAsk = isIronCondorLive
+                    ? Math.max(0.01, (icPutShortQ!.ask - icPutLongQ!.bid) + (icCallShortQ!.ask - icCallLongQ!.bid))
+                    : undefined;
+                  const hasLiveQuote = isIronCondorLive ? true : !!(liveQ && liveQ.bid > 0 && liveQ.ask > 0);
                   // Use live quotes if available, otherwise fall back to estimated bid/ask from order
-                  const effectiveBid = hasLiveQuote ? liveQ!.bid : order.bid;
-                  const effectiveAsk = hasLiveQuote ? liveQ!.ask : order.ask;
+                  const effectiveBid = isIronCondorLive ? icLiveBid : (hasLiveQuote ? liveQ!.bid : order.bid);
+                  const effectiveAsk = isIronCondorLive ? icLiveAsk : (hasLiveQuote ? liveQ!.ask : order.ask);
                   // Merge live quotes into order for slider calculations
                   const orderWithLive: UnifiedOrder = hasLiveQuote
                     ? { ...order, bid: effectiveBid, ask: effectiveAsk }
@@ -1616,9 +1637,6 @@ export function UnifiedOrderPreviewModal({
                   // For BTC spread orders from automation: they have a stored price even without live bid/ask
                   const hasMarketData = (effectiveBid && effectiveAsk && effectiveBid > 0 && effectiveAsk > 0)
                     || (order.premium > 0);  // Always show slider if we have any price to work from
-                  
-                  // Check if this is an Iron Condor (has all 4 legs)
-                  const isIronCondor = order.callShortStrike && order.callLongStrike;
                   
                   // For BTC spread orders, check if we have a long leg to display
                   const isSpread = !!(order.spreadLongSymbol || order.longStrike);
@@ -1982,6 +2000,17 @@ export function UnifiedOrderPreviewModal({
                             </div>
                             {/* Row 2: Live prices */}
                             {hasLiveQuote && (() => {
+                              // Iron Condor: show 4-leg net credit bid/mid/ask
+                              if (isIronCondorLive && icLiveBid != null && icLiveAsk != null) {
+                                const icLiveMid = (icLiveBid + icLiveAsk) / 2;
+                                return (
+                                  <div className="flex items-center justify-between text-xs px-0.5">
+                                    <span className="text-red-400 font-mono">${icLiveBid.toFixed(2)}</span>
+                                    <span className="text-blue-400 font-mono font-bold">${icLiveMid.toFixed(2)}</span>
+                                    <span className="text-green-400 font-mono">${icLiveAsk.toFixed(2)}</span>
+                                  </div>
+                                );
+                              }
                               const liveShortQ = liveQ!;
                               const liveLongQ = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
                               const isSpreadOrder = !!(order.spreadLongSymbol || order.longStrike);

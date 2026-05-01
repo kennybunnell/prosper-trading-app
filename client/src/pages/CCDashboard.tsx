@@ -1076,6 +1076,10 @@ export default function CCDashboard() {
       bid: strategyType === 'spread' ? opp.bid : opp.bid,
       ask: strategyType === 'spread' ? opp.ask : opp.ask,
       currentPrice: opp.currentPrice,
+      // OCC option symbol for live quote fetching in the preview modal
+      optionSymbol: (opp as any).optionSymbol as string | undefined,
+      // For BCS spreads: long leg OCC symbol so modal can fetch live net credit
+      spreadLongSymbol: strategyType === 'spread' ? ((opp as any).longOptionSymbol as string | undefined) : undefined,
       // Pass per-order account for multi-account CC routing and safeguard checks
       accountNumber: opp.accountNumber,
     }));
@@ -2816,6 +2820,10 @@ export default function CCDashboard() {
                       quantity: pick.quantity,
                       isSpread: isSpread,
                       capitalAtRisk: isSpread ? (opp.capitalAtRisk ?? opp.capitalRisk) : undefined,
+                      // OCC option symbol for live quote fetching in the preview modal
+                      optionSymbol: opp.optionSymbol as string | undefined,
+                      // For BCS spreads: long leg OCC symbol for live net credit
+                      spreadLongSymbol: isSpread ? (opp.longOptionSymbol as string | undefined) : undefined,
                     };
                   });
                   setUnifiedOrders(orders);

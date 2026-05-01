@@ -9571,3 +9571,12 @@ ROC Fix Mar 18 2026
 - [x] Fix: show em-dash (—) when no risk badges instead of null
 - [x] Added mid and distanceOtm column rendering to CSP table header and row cells (were in CSP_COLUMNS but never rendered)
 - [x] TypeScript: 0 errors
+
+## Live Quote Fetching — All Preview Panels (2026-05-01)
+- [x] Covered Calls (CC): Add optionSymbol to orders in main scan path and AI picks path
+- [x] Bear Call Spreads (BCS): Add spreadLongSymbol (longOptionSymbol) to orders
+- [x] Iron Condor: Add all 4 OCC leg symbols to ordersForPreview (putShortOptionSymbol, putLongOptionSymbol, callShortOptionSymbol, callLongOptionSymbol)
+- [x] UnifiedOrderPreviewModal: Extend UnifiedOrder interface with callShortOptionSymbol and callLongOptionSymbol
+- [x] UnifiedOrderPreviewModal: Include IC call-side symbols in optionSymbolsForQuotes computation
+- [x] UnifiedOrderPreviewModal: Compute IC net credit bid/mid/ask from all 4 live leg quotes
+- [x] UnifiedOrderPreviewModal: Show IC live net credit in Row 2 of the price slider
