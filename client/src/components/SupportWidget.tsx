@@ -14,8 +14,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MessageCircle, Send, Upload, X, Video, Circle, Square, Bot, User, Mic } from "lucide-react";
+import { MessageCircle, Send, Upload, X, Video, Square, Bot, User, Mic, Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+// Dictation target type
+type DictationTarget = "chat" | "subject" | "description" | null;
 
 export function SupportWidget() {
   const { toast } = useToast();
@@ -25,27 +28,25 @@ export function SupportWidget() {
   useEffect(() => {
     const checkScreenRecording = async () => {
       try {
-        // Check if getDisplayMedia is available and not blocked by permissions policy
         if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
           setIsScreenRecordingAvailable(false);
           return;
         }
-        // Feature is available
         setIsScreenRecordingAvailable(true);
-      } catch (error) {
+      } catch {
         setIsScreenRecordingAvailable(false);
       }
     };
     checkScreenRecording();
   }, []);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  
-  // isOpen and closeSupport come from SupportContext
+
   const [activeTab, setActiveTab] = useState("chat");
-  
+
   // Chat state
   const [chatMessage, setChatMessage] = useState("");
   const [conversationId, setConversationId] = useState<number | null>(null);
@@ -56,7 +57,7 @@ export function SupportWidget() {
     createdAt: Date;
   }>>([]);
   const [isAiThinking, setIsAiThinking] = useState(false);
-  
+
   // Feedback form state
   const [type, setType] = useState<string>("feedback");
   const [priority, setPriority] = useState<string>("medium");
@@ -67,8 +68,11 @@ export function SupportWidget() {
   const [isUploading, setIsUploading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [isListening, setIsListening] = useState(false);
   const [isScreenRecordingAvailable, setIsScreenRecordingAvailable] = useState(true);
+  const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
+
+  // Dictation state — tracks which field is currently listening
+  const [dictationTarget, setDictationTarget] = useState<DictationTarget>(null);
   const recognitionRef = useRef<any>(null);
 
   // Chat mutations
@@ -97,10 +101,8 @@ export function SupportWidget() {
     },
   });
 
-  // File upload mutation
   const uploadFile = trpc.feedback.uploadFile.useMutation();
 
-  // Submit feedback mutation
   const submitFeedback = trpc.feedback.submit.useMutation({
     onSuccess: () => {
       toast({
@@ -118,7 +120,7 @@ export function SupportWidget() {
     },
   });
 
-  // Auto-scroll chat to bottom
+  // Auto-scroll chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory]);
@@ -132,6 +134,7 @@ export function SupportWidget() {
     setFilePreviewUrl(null);
     setIsRecording(false);
     setRecordingTime(0);
+    setDictationTarget(null);
   };
 
   const resetAll = () => {
@@ -141,206 +144,196 @@ export function SupportWidget() {
     setConversationId(null);
     closeSupport();
     setActiveTab("chat");
+    stopDictation();
   };
 
-  // Initialize speech recognition
+  // ─── Speech Recognition ───────────────────────────────────────────────────
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
-        recognition.maxAlternatives = 1;
+    if (typeof window === "undefined") return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
 
-        recognition.onresult = (event: any) => {
-          let finalTranscript = '';
-          for (let i = 0; i < event.results.length; i++) {
-            const transcript = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-              finalTranscript += transcript + ' ';
-            }
-          }
-          if (finalTranscript) {
-            setChatMessage(prev => prev + (prev ? ' ' : '') + finalTranscript.trim());
-          }
-        };
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    recognition.maxAlternatives = 1;
 
-        recognition.onerror = (event: any) => {
-          console.error('Speech recognition error:', event.error);
-          setIsListening(false);
-          if (event.error !== 'no-speech' && event.error !== 'aborted') {
-            toast({
-              title: "Voice input failed",
-              description: "Could not recognize speech. Please try again.",
-              variant: "destructive",
-            });
-          }
-        };
-
-        recognition.onend = () => {
-          setIsListening(false);
-        };
-
-        recognitionRef.current = recognition;
+    recognition.onresult = (event: any) => {
+      let finalTranscript = "";
+      for (let i = 0; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + " ";
+        }
       }
-    }
+      if (!finalTranscript) return;
+      const trimmed = finalTranscript.trim();
+
+      // Route transcript to the correct field based on current target
+      setDictationTarget(prev => {
+        if (prev === "chat") setChatMessage(m => m + (m ? " " : "") + trimmed);
+        if (prev === "subject") setSubject(s => s + (s ? " " : "") + trimmed);
+        if (prev === "description") setDescription(d => d + (d ? " " : "") + trimmed);
+        return prev;
+      });
+    };
+
+    recognition.onerror = (event: any) => {
+      if (event.error !== "no-speech" && event.error !== "aborted") {
+        toast({
+          title: "Voice input failed",
+          description: "Could not recognize speech. Please try again.",
+          variant: "destructive",
+        });
+      }
+      setDictationTarget(null);
+    };
+
+    recognition.onend = () => {
+      setDictationTarget(null);
+    };
+
+    recognitionRef.current = recognition;
   }, [toast]);
 
-  const toggleVoiceInput = () => {
+  const stopDictation = () => {
+    try { recognitionRef.current?.stop(); } catch { /* ignore */ }
+    setDictationTarget(null);
+  };
+
+  const toggleDictation = (target: DictationTarget) => {
     if (!recognitionRef.current) {
       toast({
         title: "Voice input not supported",
-        description: "Your browser doesn't support voice input. Please use Chrome, Edge, or Safari.",
+        description: "Please use Chrome, Edge, or Safari for voice input.",
         variant: "destructive",
       });
       return;
     }
 
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
+    // If already listening to this target, stop
+    if (dictationTarget === target) {
+      stopDictation();
+      return;
+    }
+
+    // Stop any existing session first
+    if (dictationTarget !== null) {
+      try { recognitionRef.current.stop(); } catch { /* ignore */ }
+    }
+
+    // Small delay to allow previous session to close
+    setTimeout(() => {
       try {
         recognitionRef.current.start();
-        setIsListening(true);
-        
-        // Auto-stop after 15 seconds
+        setDictationTarget(target);
+
+        // Auto-stop after 30 seconds
         setTimeout(() => {
-          if (recognitionRef.current && isListening) {
-            recognitionRef.current.stop();
-            setIsListening(false);
-          }
-        }, 15000);
-      } catch (error) {
-        console.error('Failed to start recognition:', error);
+          setDictationTarget(prev => {
+            if (prev === target) {
+              try { recognitionRef.current?.stop(); } catch { /* ignore */ }
+              return null;
+            }
+            return prev;
+          });
+        }, 30000);
+      } catch (err) {
+        console.error("Failed to start recognition:", err);
       }
-    }
+    }, 100);
   };
 
-  const handleSendMessage = () => {
-    if (!chatMessage.trim()) return;
+  // ─── Screenshot Capture ───────────────────────────────────────────────────
+  const captureScreenshot = async () => {
+    if (selectedFile) return; // already have an attachment
+    setIsCapturingScreenshot(true);
+    try {
+      // Use getDisplayMedia to capture the screen as a single frame
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 1 },
+        audio: false,
+      } as any);
 
-    // Add user message to chat history
-    setChatHistory(prev => [
-      ...prev,
-      {
-        id: Date.now(),
-        senderType: "user",
-        message: chatMessage,
-        createdAt: new Date(),
+      const track = stream.getVideoTracks()[0];
+      const imageCapture = new (window as any).ImageCapture(track);
+      const bitmap = await imageCapture.grabFrame();
+
+      // Draw to canvas and export as PNG
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(bitmap, 0, 0);
+
+      track.stop();
+      stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" });
+        setSelectedFile(file);
+        setFilePreviewUrl(URL.createObjectURL(file));
+        toast({
+          title: "Screenshot captured",
+          description: "Screenshot attached to your report.",
+        });
+      }, "image/png");
+    } catch (err: any) {
+      if (err.name !== "NotAllowedError") {
+        toast({
+          title: "Screenshot failed",
+          description: "Could not capture screenshot. Try uploading a file instead.",
+          variant: "destructive",
+        });
       }
-    ]);
-
-    setIsAiThinking(true);
-
-    // Send to AI
-    askQuestion.mutate({
-      message: chatMessage,
-      conversationId: conversationId || undefined,
-    });
-  };
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'];
-    if (!validTypes.includes(file.type)) {
-      toast({
-        title: "Invalid file type",
-        description: "Please upload an image (PNG, JPG, GIF, WebP) or video (MP4, WebM, MOV)",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate file size (16MB limit)
-    const maxSize = 16 * 1024 * 1024; // 16MB
-    if (file.size > maxSize) {
-      toast({
-        title: "File too large",
-        description: "Please upload a file smaller than 16MB",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setSelectedFile(file);
-
-    // Create preview URL
-    const previewUrl = URL.createObjectURL(file);
-    setFilePreviewUrl(previewUrl);
-  };
-
-  const handleRemoveFile = () => {
-    if (filePreviewUrl) {
-      URL.revokeObjectURL(filePreviewUrl);
-    }
-    setSelectedFile(null);
-    setFilePreviewUrl(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    } finally {
+      setIsCapturingScreenshot(false);
     }
   };
 
+  // ─── Screen Recording ─────────────────────────────────────────────────────
   const startScreenRecording = async () => {
     try {
-      // Request screen capture with system audio
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: true,
       } as any);
 
-      // Request microphone audio
       let micStream: MediaStream | null = null;
       try {
         micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (micError) {
-        console.warn('Microphone access denied or unavailable:', micError);
-      }
+      } catch { /* mic optional */ }
 
-      // Combine audio tracks
       const audioTracks = [
         ...displayStream.getAudioTracks(),
-        ...(micStream ? micStream.getAudioTracks() : [])
+        ...(micStream ? micStream.getAudioTracks() : []),
       ];
 
-      // Create combined stream
       const combinedStream = new MediaStream([
         ...displayStream.getVideoTracks(),
-        ...audioTracks
+        ...audioTracks,
       ]);
 
-      const mimeType = MediaRecorder.isTypeSupported('video/webm; codecs=vp9')
-        ? 'video/webm; codecs=vp9'
-        : 'video/webm';
-      
+      const mimeType = MediaRecorder.isTypeSupported("video/webm; codecs=vp9")
+        ? "video/webm; codecs=vp9"
+        : "video/webm";
+
       const mediaRecorder = new MediaRecorder(combinedStream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       recordedChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          recordedChunksRef.current.push(event.data);
-        }
+        if (event.data.size > 0) recordedChunksRef.current.push(event.data);
       };
 
       mediaRecorder.onstop = () => {
         const blob = new Blob(recordedChunksRef.current, { type: mimeType });
         const file = new File([blob], `screen-recording-${Date.now()}.webm`, { type: mimeType });
-        
         setSelectedFile(file);
-        const previewUrl = URL.createObjectURL(file);
-        setFilePreviewUrl(previewUrl);
-
-        combinedStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
-        if (micStream) {
-          micStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
-        }
-        
+        setFilePreviewUrl(URL.createObjectURL(file));
+        combinedStream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+        if (micStream) micStream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
         setIsRecording(false);
         setRecordingTime(0);
       };
@@ -350,20 +343,16 @@ export function SupportWidget() {
 
       const startTime = Date.now();
       const timerInterval = setInterval(() => {
-        if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') {
+        if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== "recording") {
           clearInterval(timerInterval);
           return;
         }
         setRecordingTime(Math.floor((Date.now() - startTime) / 1000));
       }, 1000);
 
-      displayStream.getVideoTracks()[0].onended = () => {
-        stopScreenRecording();
-      };
-
+      displayStream.getVideoTracks()[0].onended = () => stopScreenRecording();
     } catch (error: any) {
-      // Silently handle permission policy errors (e.g., iframe restrictions)
-      if (error.message && error.message.includes('permissions policy')) {
+      if (error.message?.includes("permissions policy")) {
         setIsScreenRecordingAvailable(false);
         toast({
           title: "Screen recording unavailable",
@@ -372,12 +361,10 @@ export function SupportWidget() {
         });
         return;
       }
-      
-      console.error('Screen recording error:', error);
       toast({
         title: "Screen recording failed",
-        description: error.name === 'NotAllowedError' 
-          ? "Screen recording permission was denied" 
+        description: error.name === "NotAllowedError"
+          ? "Screen recording permission was denied"
           : "Failed to start screen recording. Please try again.",
         variant: "destructive",
       });
@@ -385,7 +372,7 @@ export function SupportWidget() {
   };
 
   const stopScreenRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
     }
   };
@@ -393,58 +380,64 @@ export function SupportWidget() {
   const formatRecordingTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // ─── File Handling ────────────────────────────────────────────────────────
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "video/mp4", "video/webm", "video/quicktime"];
+    if (!validTypes.includes(file.type)) {
+      toast({ title: "Invalid file type", description: "Please upload an image or video.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 16 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Please upload a file smaller than 16MB.", variant: "destructive" });
+      return;
+    }
+    setSelectedFile(file);
+    setFilePreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleRemoveFile = () => {
+    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+    setSelectedFile(null);
+    setFilePreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // ─── Submit ───────────────────────────────────────────────────────────────
   const handleSubmitFeedback = async () => {
     if (!subject.trim()) {
-      toast({
-        title: "Subject required",
-        description: "Please enter a subject for your feedback",
-        variant: "destructive",
-      });
+      toast({ title: "Subject required", description: "Please enter a subject.", variant: "destructive" });
       return;
     }
-
     if (!description.trim()) {
-      toast({
-        title: "Description required",
-        description: "Please describe your feedback",
-        variant: "destructive",
-      });
+      toast({ title: "Description required", description: "Please describe the issue.", variant: "destructive" });
       return;
     }
 
-    let screenshotUrl: string | undefined = undefined;
+    let screenshotUrl: string | undefined;
 
     if (selectedFile) {
       try {
         setIsUploading(true);
-        
         const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            const base64Data = result.split(',')[1];
-            resolve(base64Data);
-          };
+          reader.onload = () => resolve((reader.result as string).split(",")[1]);
           reader.onerror = reject;
           reader.readAsDataURL(selectedFile);
         });
-
         const uploadResult = await uploadFile.mutateAsync({
           fileName: selectedFile.name,
           fileType: selectedFile.type,
           fileData: base64,
         });
-
         screenshotUrl = uploadResult.url;
       } catch (error: any) {
-        toast({
-          title: "File upload failed",
-          description: error.message || "Failed to upload file. Please try again.",
-          variant: "destructive",
-        });
+        toast({ title: "File upload failed", description: error.message || "Please try again.", variant: "destructive" });
         setIsUploading(false);
         return;
       } finally {
@@ -463,21 +456,42 @@ export function SupportWidget() {
     });
   };
 
-  const isImage = selectedFile?.type.startsWith('image/');
-  const isVideo = selectedFile?.type.startsWith('video/');
+  const handleSendMessage = () => {
+    if (!chatMessage.trim()) return;
+    setChatHistory(prev => [...prev, {
+      id: Date.now(),
+      senderType: "user",
+      message: chatMessage,
+      createdAt: new Date(),
+    }]);
+    setIsAiThinking(true);
+    askQuestion.mutate({ message: chatMessage, conversationId: conversationId || undefined });
+  };
+
+  const isImage = selectedFile?.type.startsWith("image/");
+  const isVideo = selectedFile?.type.startsWith("video/");
+
+  // Helper: mic button for a given target
+  const MicButton = ({ target, className = "" }: { target: DictationTarget; className?: string }) => (
+    <Button
+      type="button"
+      size="icon"
+      variant={dictationTarget === target ? "default" : "outline"}
+      className={`h-8 w-8 shrink-0 ${dictationTarget === target ? "bg-red-500 hover:bg-red-600 animate-pulse" : ""} ${className}`}
+      title={dictationTarget === target ? "Stop dictation" : "Start voice dictation"}
+      onClick={() => toggleDictation(target)}
+    >
+      <Mic className={`h-4 w-4 ${dictationTarget === target ? "animate-pulse" : ""}`} />
+    </Button>
+  );
 
   return (
     <>
-      {/* Support Dialog — trigger button is in the page header */}
-      <Dialog open={isOpen} onOpenChange={(open) => {
-        if (!open) resetAll();
-      }}>
+      <Dialog open={isOpen} onOpenChange={(open) => { if (!open) resetAll(); }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Support & Feedback</DialogTitle>
-            <DialogDescription>
-              Get instant answers or report issues
-            </DialogDescription>
+            <DialogDescription>Get instant answers or report issues</DialogDescription>
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
@@ -492,7 +506,7 @@ export function SupportWidget() {
               </TabsTrigger>
             </TabsList>
 
-            {/* Chat Tab */}
+            {/* ── Chat Tab ── */}
             <TabsContent value="chat" className="flex-1 flex flex-col overflow-hidden mt-4">
               <div className="flex-1 overflow-y-auto border rounded-lg p-4 mb-4 bg-muted/20 space-y-4">
                 {chatHistory.length === 0 ? (
@@ -503,27 +517,18 @@ export function SupportWidget() {
                   </div>
                 ) : (
                   chatHistory.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex gap-3 ${msg.senderType === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      {msg.senderType !== 'user' && (
+                    <div key={msg.id} className={`flex gap-3 ${msg.senderType === "user" ? "justify-end" : "justify-start"}`}>
+                      {msg.senderType !== "user" && (
                         <div className="flex-shrink-0">
                           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                             <Bot className="h-4 w-4 text-primary" />
                           </div>
                         </div>
                       )}
-                      <div
-                        className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                          msg.senderType === 'user'
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-background border'
-                        }`}
-                      >
+                      <div className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.senderType === "user" ? "bg-primary text-primary-foreground" : "bg-background border"}`}>
                         <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
                       </div>
-                      {msg.senderType === 'user' && (
+                      {msg.senderType === "user" && (
                         <div className="flex-shrink-0">
                           <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
                             <User className="h-4 w-4 text-primary-foreground" />
@@ -555,21 +560,19 @@ export function SupportWidget() {
                   placeholder="Type your question here..."
                   className="flex-1 min-h-[60px] border-2 border-orange-500/30 focus:border-orange-500/70 focus:ring-2 focus:ring-orange-500/30 shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all"
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }
                   }}
                   disabled={isAiThinking}
                 />
                 <Button
-                  onClick={toggleVoiceInput}
+                  onClick={() => toggleDictation("chat")}
                   disabled={isAiThinking}
                   size="icon"
-                  className={`h-[60px] w-[60px] ${isListening ? 'bg-red-500 hover:bg-red-600 animate-pulse' : ''}`}
-                  variant={isListening ? "default" : "outline"}
+                  className={`h-[60px] w-[60px] ${dictationTarget === "chat" ? "bg-red-500 hover:bg-red-600 animate-pulse" : ""}`}
+                  variant={dictationTarget === "chat" ? "default" : "outline"}
+                  title={dictationTarget === "chat" ? "Stop dictation" : "Dictate your question"}
                 >
-                  <Mic className={`h-5 w-5 ${isListening ? 'animate-pulse' : ''}`} />
+                  <Mic className={`h-5 w-5 ${dictationTarget === "chat" ? "animate-pulse" : ""}`} />
                 </Button>
                 <Button
                   onClick={handleSendMessage}
@@ -582,15 +585,13 @@ export function SupportWidget() {
               </div>
             </TabsContent>
 
-            {/* Feedback Tab */}
+            {/* ── Report Issue Tab ── */}
             <TabsContent value="feedback" className="flex-1 flex flex-col overflow-y-auto mt-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Type</label>
                   <Select value={type} onValueChange={setType}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="bug">Bug Report</SelectItem>
                       <SelectItem value="feature">Feature Request</SelectItem>
@@ -603,42 +604,68 @@ export function SupportWidget() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Priority</label>
                   <Select value={priority} onValueChange={setPriority}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="low">Low</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
                       <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
+              {/* Subject with mic */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Subject</label>
-                <Input
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Brief description of the issue"
-                  className="border-2 border-orange-500/30 focus:border-orange-500/70 focus:ring-2 focus:ring-orange-500/30 shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all"
-                />
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Subject</label>
+                  {dictationTarget === "subject" && (
+                    <span className="text-xs text-red-400 animate-pulse flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                      Listening…
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="Brief description of the issue"
+                    className="flex-1 border-2 border-orange-500/30 focus:border-orange-500/70 focus:ring-2 focus:ring-orange-500/30 shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all"
+                  />
+                  <MicButton target="subject" />
+                </div>
               </div>
 
+              {/* Description with mic */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Description</label>
-                <Textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Provide detailed information..."
-                  className="min-h-[120px] border-2 border-orange-500/30 focus:border-orange-500/70 focus:ring-2 focus:ring-orange-500/30 shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all"
-                />
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Description</label>
+                  {dictationTarget === "description" && (
+                    <span className="text-xs text-red-400 animate-pulse flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                      Listening…
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <Textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Provide detailed information about the issue…"
+                    className="min-h-[120px] pr-10 border-2 border-orange-500/30 focus:border-orange-500/70 focus:ring-2 focus:ring-orange-500/30 shadow-[0_0_20px_rgba(249,115,22,0.4)] focus:shadow-[0_0_30px_rgba(249,115,22,0.6)] transition-all"
+                  />
+                  {/* Mic button overlaid in bottom-right corner of textarea */}
+                  <div className="absolute bottom-2 right-2">
+                    <MicButton target="description" />
+                  </div>
+                </div>
               </div>
 
+              {/* Attachment section */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Attachment</label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -649,6 +676,19 @@ export function SupportWidget() {
                     Upload File
                   </Button>
 
+                  {/* Screenshot button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={captureScreenshot}
+                    disabled={!!selectedFile || isCapturingScreenshot || isRecording}
+                    title="Capture a screenshot of your screen"
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    {isCapturingScreenshot ? "Capturing…" : "Screenshot"}
+                  </Button>
+
+                  {/* Screen recording */}
                   {isScreenRecordingAvailable && !isRecording ? (
                     <Button
                       type="button"
@@ -659,16 +699,12 @@ export function SupportWidget() {
                       <Video className="h-4 w-4 mr-2" />
                       Record Screen
                     </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={stopScreenRecording}
-                    >
+                  ) : isRecording ? (
+                    <Button type="button" variant="destructive" onClick={stopScreenRecording}>
                       <Square className="h-4 w-4 mr-2" />
                       Stop ({formatRecordingTime(recordingTime)})
                     </Button>
-                  )}
+                  ) : null}
                 </div>
 
                 <input
@@ -687,23 +723,12 @@ export function SupportWidget() {
                     >
                       <X className="h-4 w-4" />
                     </button>
-
                     {isImage && (
-                      <img
-                        src={filePreviewUrl}
-                        alt="Preview"
-                        className="max-h-48 mx-auto rounded"
-                      />
+                      <img src={filePreviewUrl} alt="Preview" className="max-h-48 mx-auto rounded" />
                     )}
-
                     {isVideo && (
-                      <video
-                        src={filePreviewUrl}
-                        controls
-                        className="max-h-48 mx-auto rounded"
-                      />
+                      <video src={filePreviewUrl} controls className="max-h-48 mx-auto rounded" />
                     )}
-
                     <p className="text-xs text-muted-foreground mt-2 text-center">
                       {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
                     </p>
@@ -716,7 +741,7 @@ export function SupportWidget() {
                   onClick={handleSubmitFeedback}
                   disabled={submitFeedback.isPending || isUploading}
                 >
-                  {isUploading ? "Uploading..." : submitFeedback.isPending ? "Submitting..." : "Submit Feedback"}
+                  {isUploading ? "Uploading…" : submitFeedback.isPending ? "Submitting…" : "Submit Feedback"}
                 </Button>
               </DialogFooter>
             </TabsContent>

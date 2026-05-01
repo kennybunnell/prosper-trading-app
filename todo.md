@@ -9543,3 +9543,13 @@ ROC Fix Mar 18 2026
 - [x] Fix 3: submitCloseOrders uses Tradier fallback for index options Tastytrade returns no quotes for (SPX/SPXW/NDX/NDXP)
 - [x] Confirmed via browser console: order submitted as "net debit $0.75" (correct net spread price, not $4.60 short leg price)
 - [x] TypeScript: 0 errors
+
+## Report Issue Modal Enhancements (Apr 30 2026)
+- [x] Add microphone dictation button to Subject field (inline, right side of input)
+- [x] Add microphone dictation button to Description field (overlaid bottom-right corner of textarea)
+- [x] Shared dictation state (dictationTarget) routes speech to the correct field — only one field listens at a time
+- [x] "Listening..." indicator with pulsing red dot shown next to field label when active
+- [x] Auto-stop dictation after 30 seconds
+- [x] Add "Screenshot" button (Camera icon) next to Upload File and Record Screen
+- [x] Screenshot uses browser getDisplayMedia + ImageCapture API to grab a single frame and attach as PNG
+- [x] TypeScript: 0 errors
