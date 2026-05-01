@@ -91,7 +91,8 @@ export const ccRouter = router({
       // ⛔ Exclude cash-settled European-style indexes
       const stockPositions = positions
         .filter((p: any) => p['instrument-type'] === 'Equity')
-        .filter((p: any) => !CASH_SETTLED_INDEXES.has((p.symbol as string).toUpperCase()));
+        .filter((p: any) => !CASH_SETTLED_INDEXES.has((p.symbol as string).toUpperCase()))
+        .filter((p: any) => (p['quantity-direction'] ?? 'Long') !== 'Short'); // ⛔ Exclude short stock positions (e.g. from early assignment)
       const optionPositions = positions.filter((p: any) =>
         p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
       );
@@ -348,7 +349,8 @@ export const ccRouter = router({
         // ⛔ Exclude cash-settled European-style indexes — no stock assignment, cannot write covered calls
         const stockPositions = positions
           .filter((p: any) => p['instrument-type'] === 'Equity')
-          .filter((p: any) => !CASH_SETTLED_INDEXES.has((p.symbol as string).toUpperCase()));
+          .filter((p: any) => !CASH_SETTLED_INDEXES.has((p.symbol as string).toUpperCase()))
+          .filter((p: any) => (p['quantity-direction'] ?? 'Long') !== 'Short'); // ⛔ Exclude short stock positions (e.g. from early assignment)
         const optionPositions = positions.filter((p: any) =>
           p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
         );
@@ -1291,7 +1293,8 @@ export const ccRouter = router({
         const positions = await api.getPositions(acctNum);
         const stockPositions = positions
           .filter((p: any) => p['instrument-type'] === 'Equity')
-          .filter((p: any) => !CASH_SETTLED_INDEXES.has((p.symbol as string).toUpperCase()));
+          .filter((p: any) => !CASH_SETTLED_INDEXES.has((p.symbol as string).toUpperCase()))
+          .filter((p: any) => (p['quantity-direction'] ?? 'Long') !== 'Short'); // ⛔ Exclude short stock positions (e.g. from early assignment)
         const optionPositions = positions.filter((p: any) =>
           p['instrument-type'] === 'Equity Option' || p['instrument-type'] === 'Index Option'
         );

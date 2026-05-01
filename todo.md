@@ -9553,3 +9553,11 @@ ROC Fix Mar 18 2026
 - [x] Add "Screenshot" button (Camera icon) next to Upload File and Record Screen
 - [x] Screenshot uses browser getDisplayMedia + ImageCapture API to grab a single frame and attach as PNG
 - [x] TypeScript: 0 errors
+
+## NEM Short Stock / CC Eligibility Fix (May 1 2026)
+- [x] NEM showing as eligible CC opportunity despite being short 100 shares (from early assignment)
+- [x] Root cause: stockPositions filter only checked instrument-type === 'Equity', not quantity-direction
+- [x] Tastytrade returns short stock with instrument-type='Equity' and quantity-direction='Short' (positive qty)
+- [x] Fix: added .filter((p) => (p['quantity-direction'] ?? 'Long') !== 'Short') to all 3 stockPositions definitions in routers-cc.ts (getEligiblePositions single-account, getEligiblePositionsAllAccounts, submitOrders)
+- [x] TypeScript: 0 errors
+- [x] Advisory: NEM short 100 shares requires a Buy to Cover order in Tastytrade to resolve the short position
