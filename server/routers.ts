@@ -2086,6 +2086,10 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         // Technical fetch runs in parallel with option chain fetching inside fetchCSPOpportunities
         const INDEX_SYMBOLS = new Set(['SPXW', 'SPXPM', 'NDXP', 'MRUT', 'VIXW', 'SPX', 'NDX', 'RUT', 'VIX']);
         const TECH_ROOT_MAP: Record<string, string> = { SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX' };
+        // Always use the system Tradier API key for technical indicators (historical data)
+        // The user's key may be a sandbox/paper key that doesn't support historical data endpoints
+        const systemTradierKey = process.env.TRADIER_API_KEY;
+        const techApi = systemTradierKey ? createTradierAPI(systemTradierKey, false, ctx.user.id) : api;
         // Start technical indicators fetch in parallel with the main scan
         const techIndicatorsPromise = Promise.allSettled(
           symbols.map(async (sym) => {
@@ -2093,7 +2097,7 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
             if (INDEX_SYMBOLS.has(sym.toUpperCase())) return { sym, rsi: null, bbPctB: null };
             try {
               const techSym = TECH_ROOT_MAP[sym.toUpperCase()] || sym;
-              const indicators = await api.getTechnicalIndicators(techSym);
+              const indicators = await techApi.getTechnicalIndicators(techSym);
               return {
                 sym,
                 rsi: indicators.rsi,
@@ -2140,10 +2144,8 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
         const symbolSet = new Set<string>();
         scored.forEach(opp => symbolSet.add(opp.symbol));
         const uniqueSymbols = Array.from(symbolSet);
-        const riskAssessments = await calculateBulkRiskAssessments(uniqueSymbols, api);
+        const riskAssessments = await calculateBulkRiskAssessments(uniqueSymbols, techApi);
         console.log('[CSP Router] Risk assessments Map size:', riskAssessments.size);
-        console.log('[CSP Router] Risk assessments Map keys:', Array.from(riskAssessments.keys()));
-        console.log('[CSP Router] Sample assessment for GS:', riskAssessments.get('GS'));
         
           // Attach risk badges to opportunities
         const scoredWithBadges = scored.map(opp => {

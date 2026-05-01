@@ -3053,6 +3053,8 @@ export default function CSPDashboard() {
                     { key: 'riskBadges', label: 'Risk', help: null, pinned: true },
                     ...(visibleCols.has('bid') ? [{ key: 'bid', label: 'Bid', help: null, pinned: false }] : []),
                     ...(visibleCols.has('ask') ? [{ key: 'ask', label: 'Ask', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('mid') ? [{ key: 'mid', label: 'Mid', help: null, pinned: false }] : []),
+                    ...(visibleCols.has('distanceOtm') ? [{ key: 'distanceOtm', label: 'Dist OTM', help: null, pinned: false }] : []),
                     ...(visibleCols.has('spreadPct') ? [{ key: 'spreadPct', label: 'Spread %', help: null, pinned: false }] : []),
                     ...(visibleCols.has('expiration') ? [{ key: 'expiration', label: 'Expiration', help: null, pinned: false }] : []),
                   ]).map(({ key, label, help }) => (
@@ -3426,15 +3428,22 @@ export default function CSPDashboard() {
                         <TableCell>
                           {(() => {
                             const badges = (opp as any).riskBadges || [];
+                            if (badges.length === 0) return <span className="text-muted-foreground text-xs">—</span>;
                             return <RiskBadgeList badges={badges} size="sm" maxDisplay={3} />;
                           })()}
                         </TableCell>
-                        {/* Bid, Ask, Spread% — controlled by visibleCols */}
+                        {/* Bid, Ask, Mid, Dist OTM, Spread% — controlled by visibleCols */}
                         {strategyType === 'csp' && visibleCols.has('bid') && (
                           <TableCell>${opp.bid.toFixed(2)}</TableCell>
                         )}
                         {strategyType === 'csp' && visibleCols.has('ask') && (
                           <TableCell>${opp.ask.toFixed(2)}</TableCell>
+                        )}
+                        {strategyType === 'csp' && visibleCols.has('mid') && (
+                          <TableCell>${((opp.bid + opp.ask) / 2).toFixed(2)}</TableCell>
+                        )}
+                        {strategyType === 'csp' && visibleCols.has('distanceOtm') && (
+                          <TableCell>{opp.currentPrice > 0 ? ((opp.currentPrice - opp.strike) / opp.currentPrice * 100).toFixed(1) : '—'}%</TableCell>
                         )}
                         {visibleCols.has('spreadPct') && (
                           <TableCell>{opp.spreadPct.toFixed(1)}%</TableCell>

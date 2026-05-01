@@ -9561,3 +9561,13 @@ ROC Fix Mar 18 2026
 - [x] Fix: added .filter((p) => (p['quantity-direction'] ?? 'Long') !== 'Short') to all 3 stockPositions definitions in routers-cc.ts (getEligiblePositions single-account, getEligiblePositionsAllAccounts, submitOrders)
 - [x] TypeScript: 0 errors
 - [x] Advisory: NEM short 100 shares requires a Buy to Cover order in Tastytrade to resolve the short position
+
+## CSP Dashboard RSI/BB N/A and Empty Column Fix (May 1 2026)
+- [x] RSI and BB %B showing N/A in CSP scan results
+- [x] Root cause: user's Tradier API key (sandbox/paper) doesn't support historical data endpoint needed for RSI/BB calculation
+- [x] Fix: use system TRADIER_API_KEY env var for technical indicators (getTechnicalIndicators) instead of user's key in csp.opportunities procedure
+- [x] Also use system key for calculateBulkRiskAssessments (risk badges) in CSP procedure
+- [x] Empty far-right column in CSP table: Risk column rendered null (RiskBadgeList returns null for empty badges array)
+- [x] Fix: show em-dash (—) when no risk badges instead of null
+- [x] Added mid and distanceOtm column rendering to CSP table header and row cells (were in CSP_COLUMNS but never rendered)
+- [x] TypeScript: 0 errors
