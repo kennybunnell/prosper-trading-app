@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/sonner";
+import { PullToRefresh } from "./components/PullToRefresh";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
@@ -200,6 +201,7 @@ function App() {
         <SupportProvider>
           <AccountProvider>
             <TooltipProvider>
+              <PullToRefresh />
               <Toaster position="bottom-left" />
               <Router />
             </TooltipProvider>

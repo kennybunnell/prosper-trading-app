@@ -9595,3 +9595,10 @@ ROC Fix Mar 18 2026
 - [x] CSPDashboard.tsx: responsive header and container padding
 - [x] PMCCDashboard.tsx: responsive header and container padding
 - [x] UnifiedOrderPreviewModal: full-screen on mobile with proper overflow
+
+## PWA Enhancements (May 2026)
+- [x] Generate compelling PWA icon (gold candlestick chart + P monogram on dark navy)
+- [x] Create all required icon sizes: 48, 72, 96, 144, 192, 512px + Apple touch icon (180px) + favicon.ico
+- [x] Create manifest.webmanifest with correct name, theme color, icons, and display mode
+- [x] Update index.html with manifest link, apple-mobile-web-app-capable, theme-color, favicon, og tags
+- [x] Implement pull-to-refresh gesture (PullToRefresh component) with rubber-band animation and spinner
