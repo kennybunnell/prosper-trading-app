@@ -745,12 +745,12 @@ export default function IronCondorDashboard() {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-4 sm:py-6 space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Iron Condor Dashboard</h1>
-          <p className="text-muted-foreground">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Iron Condor Dashboard</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Scan for 4-leg Iron Condor opportunities combining Bull Put and Bear Call spreads
           </p>
         </div>

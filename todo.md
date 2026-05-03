@@ -9580,3 +9580,18 @@ ROC Fix Mar 18 2026
 - [x] UnifiedOrderPreviewModal: Include IC call-side symbols in optionSymbolsForQuotes computation
 - [x] UnifiedOrderPreviewModal: Compute IC net credit bid/mid/ask from all 4 live leg quotes
 - [x] UnifiedOrderPreviewModal: Show IC live net credit in Row 2 of the price slider
+
+## Mobile Responsiveness (May 2026)
+- [x] DashboardLayout: switch sidebar to offcanvas mode on mobile (Sheet overlay instead of inline icon strip)
+- [x] DashboardLayout: add mobile sticky header with hamburger menu and current page label
+- [x] DashboardLayout: reduce main content padding on mobile (p-2 sm:p-4)
+- [x] MonthlyPremiumChart: remove absolute overlay labels that stack on mobile, add custom tooltip, responsive height/margins
+- [x] Home.tsx: icon-only buttons on mobile header to prevent overflow
+- [x] Performance.tsx: responsive header, scrollable tabs on mobile
+- [x] ActionItems.tsx: responsive header, abbreviated tab labels on mobile
+- [x] AutomationDashboard.tsx: responsive header and container padding
+- [x] IronCondorDashboard.tsx: responsive header and container padding
+- [x] CCDashboard.tsx: responsive header and container padding
+- [x] CSPDashboard.tsx: responsive header and container padding
+- [x] PMCCDashboard.tsx: responsive header and container padding
+- [x] UnifiedOrderPreviewModal: full-screen on mobile with proper overflow

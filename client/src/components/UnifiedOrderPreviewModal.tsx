@@ -1404,7 +1404,7 @@ export function UnifiedOrderPreviewModal({
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-6xl max-h-[90vh] flex flex-col">
+      <DialogContent className="w-full sm:max-w-6xl max-h-[95dvh] sm:max-h-[90vh] flex flex-col p-3 sm:p-6 gap-2 sm:gap-4">
         <DialogHeader>
           <DialogTitle>
             {operationMode === "replace" ? "Replace Orders - Review Changes" : "Order Preview - Review and Adjust"}

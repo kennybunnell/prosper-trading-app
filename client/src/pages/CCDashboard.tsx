@@ -1354,18 +1354,18 @@ export default function CCDashboard() {
   );
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
+    <div className="container mx-auto py-4 sm:py-8 space-y-4 sm:space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 bg-clip-text text-transparent">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 bg-clip-text text-transparent">
             Covered Calls Dashboard
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">
             Generate income with Covered Calls or Bear Call Spreads
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="outline"
             size="sm"
@@ -1373,7 +1373,7 @@ export default function CCDashboard() {
             className="flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
-            Refresh Page
+            <span className="hidden sm:inline">Refresh Page</span>
           </Button>
           <ConnectionStatusIndicator />
         </div>

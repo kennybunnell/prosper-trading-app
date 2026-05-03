@@ -527,15 +527,15 @@ export default function PMCCDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <TrendingUp className="h-8 w-8 text-purple-500" />
-              <h1 className="text-3xl font-bold">PMCC Dashboard</h1>
+        <div className="mb-4 sm:mb-8">
+          <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-purple-500 shrink-0" />
+              <h1 className="text-2xl sm:text-3xl font-bold">PMCC Dashboard</h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <Button
                 variant="outline"
                 size="sm"

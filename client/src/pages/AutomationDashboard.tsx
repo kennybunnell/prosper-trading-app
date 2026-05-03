@@ -1621,16 +1621,16 @@ export default function AutomationDashboard() {
   const threshold = settings?.profitThresholdPercent ?? 75;
 
   return (
-    <div className="container py-8 space-y-6">
+    <div className="container py-4 sm:py-8 space-y-4 sm:space-y-6">
       {/* Page Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Daily Actions</h1>
-          <p className="text-muted-foreground mt-1">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold">Daily Actions</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             One place to automate and evaluate your daily trading activity
           </p>
         </div>
-        <div className="flex items-center gap-3 mt-1">
+        <div className="flex flex-wrap items-center gap-2 mt-1 shrink-0">
           <ConnectionStatusIndicator />
           {/* Kill Switch — always visible as a prominent pill */}
           <div

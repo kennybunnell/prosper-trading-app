@@ -183,25 +183,27 @@ export default function ActionItems() {
   };
 
   return (
-    <div className="container py-6 space-y-6">
+    <div className="container py-4 sm:py-6 space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Action Items</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Action Items</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">
           Automation, safety monitoring, and positions requiring attention
         </p>
       </div>
 
       {/* Tabs — 5 tabs: Automation | Portfolio Safety (badge) | Active Positions | Working Orders | Inbox */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="automation" className="flex items-center gap-1.5">
-            <Zap className="h-3.5 w-3.5" />
-            Automation
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full grid-cols-5 h-auto">
+          <TabsTrigger value="automation" className="flex items-center gap-1 text-xs sm:text-sm sm:gap-1.5 px-1 sm:px-3">
+            <Zap className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+            <span className="hidden xs:inline sm:inline">Automation</span>
+            <span className="xs:hidden sm:hidden">Auto</span>
           </TabsTrigger>
 
-          <TabsTrigger value="ira-safety" className="flex items-center gap-1.5 relative">
-            <ShieldAlert className="h-3.5 w-3.5" />
-            Portfolio Safety
+          <TabsTrigger value="ira-safety" className="flex items-center gap-1 text-xs sm:text-sm sm:gap-1.5 px-1 sm:px-3 relative">
+            <ShieldAlert className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+            <span className="hidden sm:inline">Portfolio Safety</span>
+            <span className="sm:hidden">Safety</span>
             {iraTotalCount > 0 && (
               <Badge
                 className={`ml-1 text-[10px] px-1.5 py-0 h-4 min-w-[1rem] ${
@@ -215,9 +217,15 @@ export default function ActionItems() {
             )}
           </TabsTrigger>
 
-          <TabsTrigger value="active-positions">Active Positions</TabsTrigger>
-          <TabsTrigger value="working-orders">Working Orders</TabsTrigger>
-          <TabsTrigger value="inbox">Inbox</TabsTrigger>
+          <TabsTrigger value="active-positions" className="text-xs sm:text-sm px-1 sm:px-3">
+            <span className="hidden sm:inline">Active Positions</span>
+            <span className="sm:hidden">Positions</span>
+          </TabsTrigger>
+          <TabsTrigger value="working-orders" className="text-xs sm:text-sm px-1 sm:px-3">
+            <span className="hidden sm:inline">Working Orders</span>
+            <span className="sm:hidden">Orders</span>
+          </TabsTrigger>
+          <TabsTrigger value="inbox" className="text-xs sm:text-sm px-1 sm:px-3">Inbox</TabsTrigger>
         </TabsList>
 
         {/* Automation Tab */}

@@ -238,7 +238,7 @@ function DashboardLayoutContent({
     <>
       <div className="relative" ref={sidebarRef}>
         <Sidebar
-          collapsible="icon"
+          collapsible={isMobile ? "offcanvas" : "icon"}
           className="border-r-0"
           disableTransition={isResizing}
         >
@@ -405,21 +405,22 @@ function DashboardLayoutContent({
           />
         )}
         {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
-                  </span>
+          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+            <div className="flex items-center gap-3">
+              <SidebarTrigger className="h-9 w-9 rounded-lg" />
+              <div className="flex items-center gap-2">
+                <div className="h-6 w-6 rounded-md bg-primary/20 flex items-center justify-center">
+                  {activeMenuItem ? <activeMenuItem.icon className="h-3.5 w-3.5 text-primary" /> : null}
                 </div>
+                <span className="text-sm font-medium tracking-tight text-foreground">
+                  {activeMenuItem?.label ?? "Prosper Trading"}
+                </span>
               </div>
             </div>
             <AuthStatusIndicator />
           </div>
         )}
-        <main className="flex-1 p-4 relative z-10">{children}</main>
+        <main className="flex-1 p-2 sm:p-4 relative z-10">{children}</main>
       </SidebarInset>
       {/* Paper Trading Onboarding Walkthrough */}
       <PaperTradingOnboardingModal

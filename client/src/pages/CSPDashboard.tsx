@@ -1483,17 +1483,17 @@ export default function CSPDashboard() {
         />
       )}
       {/* Simple Header */}
-      <div className="container py-8 relative z-10">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
+      <div className="container py-4 sm:py-8 relative z-10">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="space-y-1 sm:space-y-2 min-w-0">
+            <h1 className="text-2xl sm:text-4xl font-bold tracking-tight bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
               Cash-Secured Puts
             </h1>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-sm sm:text-lg text-muted-foreground">
               Analyze and execute CSP strategies with dual scoring system
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -1501,14 +1501,14 @@ export default function CSPDashboard() {
               className="flex items-center gap-2"
             >
               <RefreshCw className="w-4 h-4" />
-              Refresh Page
+              <span className="hidden sm:inline">Refresh Page</span>
             </Button>
             <ConnectionStatusIndicator />
           </div>
         </div>
       </div>
       
-      <div className="container mx-auto py-8 space-y-8 relative z-10">
+      <div className="container mx-auto py-4 sm:py-8 space-y-4 sm:space-y-8 relative z-10">
 
       {/* Strategy Type Selection (Phase 1: UI Only) */}
       {ENABLE_SPREADS && (

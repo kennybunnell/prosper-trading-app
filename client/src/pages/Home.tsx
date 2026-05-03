@@ -8,7 +8,7 @@ import {
   LayoutDashboard, TrendingDown, LineChart, AlertTriangle, ChevronRight,
   Newspaper, ClipboardList, ListOrdered, BellRing, Briefcase, Target,
   ArrowUpRight, RefreshCw, CheckCircle2, Clock, Bot, TrendingDown as ProfitIcon,
-  RotateCcw, RotateCw, PhoneCall, Scan, Play, Sparkles, Send
+  RotateCcw, RotateCw, PhoneCall, Scan, Play, Sparkles, Send, LogOut
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { getLoginUrl } from "@/const";
@@ -82,14 +82,14 @@ function MonthlyPremiumChartSection() {
   }
 
   return (
-    <div className="rounded-2xl border border-border/30 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-green-500/10 text-green-400">
+    <div className="rounded-2xl border border-border/30 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm p-3 sm:p-6 space-y-3 sm:space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 rounded-xl bg-green-500/10 text-green-400 shrink-0">
             <DollarSign className="w-5 h-5" />
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-foreground">Monthly Premium Earnings</h2>
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-xl font-bold text-foreground">Monthly Premium Earnings</h2>
             <p className="text-xs text-muted-foreground">
               All Accounts — Income Overview
               {isFetching
@@ -1373,32 +1373,42 @@ export default function Home() {
 
       {/* Header */}
       <header className="border-b border-border/40 relative z-10 bg-background/80 backdrop-blur-sm sticky top-0">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Prosper Trading</h1>
-            <p className="text-sm text-muted-foreground">Welcome back, {user?.name || user?.email}</p>
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold truncate">Prosper Trading</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">Welcome back, {user?.name || user?.email}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <Button variant="ghost" size="icon" onClick={toggleTheme}>
               {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
-            <Button variant="outline" asChild>
+            {/* Mobile: icon-only */}
+            <Button variant="ghost" size="icon" asChild className="sm:hidden">
+              <Link href="/settings"><SettingsIcon className="h-5 w-5" /></Link>
+            </Button>
+            <Button variant="outline" asChild className="hidden sm:inline-flex">
               <Link href="/settings">
                 <SettingsIcon className="h-4 w-4 mr-2" />
                 Settings
               </Link>
             </Button>
-            <Button variant="outline" size="sm" onClick={openSupport} className="gap-1.5">
+            <Button variant="ghost" size="icon" onClick={openSupport} className="sm:hidden">
+              <MessageCircle className="h-5 w-5" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={openSupport} className="hidden sm:inline-flex gap-1.5">
               <MessageCircle className="h-4 w-4" />
               Support
             </Button>
-            <Button variant="outline" onClick={logout}>Sign Out</Button>
+            <Button variant="ghost" size="icon" onClick={logout} className="sm:hidden">
+              <LogOut className="h-5 w-5" />
+            </Button>
+            <Button variant="outline" onClick={logout} className="hidden sm:inline-flex">Sign Out</Button>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8 relative z-10 space-y-10">
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 relative z-10 space-y-6 sm:space-y-10">
         {/* AI Morning Briefing */}
         <AIMorningBriefing />
 

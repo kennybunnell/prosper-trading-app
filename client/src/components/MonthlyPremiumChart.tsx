@@ -1,6 +1,25 @@
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { Card } from '@/components/ui/card';
 import { CheckCircle2, XCircle } from 'lucide-react';
+import { useIsMobile } from '@/hooks/useMobile';
+
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload || !payload.length) return null;
+  const fmt = (v: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
+  return (
+    <div className="rounded-lg border border-border/40 bg-card/95 backdrop-blur-sm p-3 shadow-xl text-xs space-y-1 max-w-[180px]">
+      <p className="font-semibold text-foreground mb-1">{label}</p>
+      {payload.map((entry: any, i: number) => (
+        <div key={i} className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+          <span className="text-muted-foreground">{entry.name === 'netPremium' ? 'Monthly' : 'Cumulative'}:</span>
+          <span className="font-medium text-foreground ml-auto">{fmt(entry.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 interface MonthlyData {
   month: string;
@@ -13,17 +32,18 @@ interface MonthlyPremiumChartProps {
 }
 
 export function MonthlyPremiumChart({ data }: MonthlyPremiumChartProps) {
-  // Format month for display (e.g., "2025-09" -> "Sep 2025")
+  const isMobile = useIsMobile();
+
   const formatMonth = (month: string | any) => {
-    // Handle case where month might be an object
     const monthStr = typeof month === 'string' ? month : String(month);
     const [year, monthNum] = monthStr.split('-');
     const date = new Date(parseInt(year), parseInt(monthNum) - 1);
+    if (isMobile) return date.toLocaleDateString('en-US', { month: 'short' });
     return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   };
 
-  // Format currency for display
   const formatCurrency = (value: number) => {
+    if (isMobile && Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(0)}k`;
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -32,7 +52,6 @@ export function MonthlyPremiumChart({ data }: MonthlyPremiumChartProps) {
     }).format(value);
   };
 
-  // Transform data for chart
   const chartData = data.map(item => ({
     month: formatMonth(item.month),
     netPremium: item.netPremium,
@@ -40,11 +59,15 @@ export function MonthlyPremiumChart({ data }: MonthlyPremiumChartProps) {
     isProfit: item.netPremium >= 0,
   }));
 
+  const chartHeight = isMobile ? 260 : 420;
+  const chartMargin = isMobile ? { top: 10, right: 8, left: 0, bottom: 30 } : { top: 20, right: 30, left: 20, bottom: 60 };
+  const yAxisWidth = isMobile ? 44 : 80;
+  const tickFontSize = isMobile ? 10 : 12;
+
   return (
-    <Card className="p-6 bg-card/70 backdrop-blur-sm border-border/30">
-      <div className="relative">
-      <ResponsiveContainer width="100%" height={450}>
-        <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+    <Card className="p-3 sm:p-6 bg-card/70 backdrop-blur-sm border-border/30">
+      <ResponsiveContainer width="100%" height={chartHeight}>
+        <ComposedChart data={chartData} margin={chartMargin}>
           {/* Dashed grid lines */}
           <CartesianGrid 
             strokeDasharray="5 5" 
@@ -52,53 +75,14 @@ export function MonthlyPremiumChart({ data }: MonthlyPremiumChartProps) {
             vertical={false}
           />
           
-          {/* X-axis */}
-          <XAxis 
-            dataKey="month" 
-            stroke="#94A3B8"
-            tick={{ fill: '#94A3B8', fontSize: 12 }}
-            axisLine={{ stroke: '#94A3B8' }}
-          />
+          <XAxis dataKey="month" stroke="#94A3B8" tick={{ fill: '#94A3B8', fontSize: tickFontSize }} axisLine={{ stroke: '#94A3B8' }} interval={isMobile ? 'preserveStartEnd' : 0} />
+          <YAxis stroke="#94A3B8" tick={{ fill: '#94A3B8', fontSize: tickFontSize }} axisLine={{ stroke: '#94A3B8' }} tickFormatter={formatCurrency} width={yAxisWidth} />
+          <Tooltip content={<CustomTooltip />} />
+          {!isMobile && (
+            <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="circle" formatter={(value) => { if (value === 'netPremium') return 'Monthly Premium'; if (value === 'cumulative') return 'Cumulative Total'; return value; }} />
+          )}
           
-          {/* Y-axis */}
-          <YAxis 
-            stroke="#94A3B8"
-            tick={{ fill: '#94A3B8', fontSize: 12 }}
-            axisLine={{ stroke: '#94A3B8' }}
-            tickFormatter={formatCurrency}
-          />
-          
-          {/* Tooltip */}
-          <Tooltip
-            contentStyle={{
-              backgroundColor: 'rgba(30, 41, 59, 0.95)',
-              border: '1px rgba(148, 163, 184, 0.2)',
-              borderRadius: '8px',
-              color: '#F1F5F9',
-            }}
-            formatter={(value: number, name: string) => {
-              if (name === 'netPremium') return [formatCurrency(value), 'Monthly Premium'];
-              if (name === 'cumulative') return [formatCurrency(value), 'Cumulative Total'];
-              return [value, name];
-            }}
-          />
-          
-          {/* Legend */}
-          <Legend 
-            wrapperStyle={{ paddingTop: '20px' }}
-            iconType="circle"
-            formatter={(value) => {
-              if (value === 'netPremium') return 'Monthly Premium';
-              if (value === 'cumulative') return 'Cumulative Total';
-              return value;
-            }}
-          />
-          
-           {/* Semi-transparent bars with glowing edges */}
-          <Bar 
-            dataKey="netPremium" 
-            radius={[4, 4, 0, 0]}
-          >
+          <Bar dataKey="netPremium" radius={[4, 4, 0, 0]}>
             {chartData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
@@ -111,52 +95,22 @@ export function MonthlyPremiumChart({ data }: MonthlyPremiumChartProps) {
             ))}
           </Bar>
           
-          {/* Cumulative line with markers */}
-          <Line
-            type="monotone"
-            dataKey="cumulative"
-            stroke="#22D3EE"
-            strokeWidth={3}
-            dot={{
-              fill: '#06B6D4',
-              stroke: '#F1F5F9',
-              strokeWidth: 2,
-              r: 6,
-            }}
-            activeDot={{
-              r: 8,
-              fill: '#06B6D4',
-              stroke: '#F1F5F9',
-              strokeWidth: 2,
-            }}
-          />
+          <Line type="monotone" dataKey="cumulative" stroke="#22D3EE" strokeWidth={isMobile ? 2 : 3} dot={{ fill: '#06B6D4', stroke: '#F1F5F9', strokeWidth: 2, r: isMobile ? 3 : 6 }} activeDot={{ r: isMobile ? 5 : 8, fill: '#06B6D4', stroke: '#F1F5F9', strokeWidth: 2 }} />
         </ComposedChart>
       </ResponsiveContainer>
-      
-      {/* Overlay labels */}
-      <div className="absolute inset-0 pointer-events-none flex items-start justify-around pt-6 px-12">
-        {chartData.map((entry, index) => (
-          <div key={index} className="flex-1 flex flex-col items-center">
-            <div className="text-lg font-bold text-foreground drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-              {formatCurrency(entry.netPremium)}
-            </div>
-          </div>
-        ))}
-      </div>
-      </div>
-      
-      {/* Legend with icons */}
-      <div className="flex items-center justify-center gap-6 mt-4 text-sm">
-        <div className="flex items-center gap-2">
-          <CheckCircle2 className="w-5 h-5 text-green-500" />
+
+      {/* Custom legend */}
+      <div className="flex items-center justify-center gap-4 sm:gap-6 mt-3 text-xs sm:text-sm">
+        <div className="flex items-center gap-1.5">
+          <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
           <span className="text-muted-foreground">Profit</span>
         </div>
-        <div className="flex items-center gap-2">
-          <XCircle className="w-5 h-5 text-red-500" />
+        <div className="flex items-center gap-1.5">
+          <XCircle className="w-4 h-4 text-red-500 shrink-0" />
           <span className="text-muted-foreground">Loss</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-1 bg-cyan-400 rounded-full" />
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-0.5 bg-cyan-400 rounded-full" />
           <span className="text-muted-foreground">Total</span>
         </div>
       </div>

@@ -53,18 +53,18 @@ export default function Performance() {
 
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
+    <div className="container mx-auto py-4 sm:py-8 space-y-4 sm:space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
             Performance Analytics
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Track performance analytics, spread analysis, stock basis, income projections, and tax insights
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {isSyncing && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -95,15 +95,17 @@ export default function Performance() {
       </div>
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="spread-analytics">Spread Analytics</TabsTrigger>
-          <TabsTrigger value="stock-basis">Stock Basis</TabsTrigger>
-          <TabsTrigger value="projections">Projections</TabsTrigger>
-          <TabsTrigger value="tax">Tax</TabsTrigger>
-          <TabsTrigger value="capital-events">Capital Events</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+        <div className="overflow-x-auto -mx-1 px-1">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:grid-cols-6 h-auto">
+            <TabsTrigger value="overview" className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">Overview</TabsTrigger>
+            <TabsTrigger value="spread-analytics" className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">Spread Analytics</TabsTrigger>
+            <TabsTrigger value="stock-basis" className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">Stock Basis</TabsTrigger>
+            <TabsTrigger value="projections" className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">Projections</TabsTrigger>
+            <TabsTrigger value="tax" className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">Tax</TabsTrigger>
+            <TabsTrigger value="capital-events" className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">Capital Events</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
