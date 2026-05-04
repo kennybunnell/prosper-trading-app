@@ -4,6 +4,7 @@ import { trpc } from '@/lib/trpc';
 import { useAccount } from '@/contexts/AccountContext';
 import { useTradingMode } from '@/contexts/TradingModeContext';
 import { useAuth } from '@/_core/hooks/useAuth';
+import { useIsMobile } from '@/hooks/useMobile';
 import { Switch } from '@/components/ui/switch';
 import { WelcomeModal } from '@/components/WelcomeModal';
 import {
@@ -22,9 +23,8 @@ import {
   LayoutDashboard,
   Activity,
   Grid3X3,
-  ListOrdered,
-  Mail,
-  BarChart2,
+  Menu,
+  X,
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -36,14 +36,55 @@ interface SidebarProps {
   className?: string;
 }
 
+// ─── page-name lookup for the mobile header ──────────────────────────────────
+const ALL_NAV_ITEMS = [
+  { path: '/', name: 'Dashboard' },
+  { path: '/automation', name: 'Daily Actions' },
+  { path: '/portfolio', name: 'Portfolio' },
+  { path: '/strategy-advisor', name: 'Spread Advisor' },
+  { path: '/cc', name: 'Covered Calls' },
+  { path: '/csp', name: 'Cash-Secured Puts' },
+  { path: '/iron-condor', name: 'Spreads / Condors' },
+  { path: '/pmcc', name: 'PMCC Dashboard' },
+  { path: '/performance', name: 'Performance' },
+  { path: '/settings', name: 'Settings' },
+  { path: '/admin', name: 'Admin Panel' },
+  { path: '/screener', name: 'Screener' },
+  { path: '/inbox', name: 'Inbox' },
+  { path: '/gtc-orders', name: 'GTC Orders' },
+];
+
+function getPageName(location: string): string {
+  if (location === '/') return 'Dashboard';
+  const match = ALL_NAV_ITEMS.find(i => i.path !== '/' && location.startsWith(i.path));
+  return match?.name ?? 'Prosper Trading';
+}
+
 export function Sidebar({ className }: SidebarProps) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [incomeExpanded, setIncomeExpanded] = useState(true);
   const [dailyActionsExpanded, setDailyActionsExpanded] = useState(true);
   const { selectedAccountId, setSelectedAccountId } = useAccount();
   const { user } = useAuth();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const isMobile = useIsMobile();
+
+  // Close mobile drawer whenever the route changes
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location]);
+
+  // Prevent body scroll when mobile drawer is open
+  useEffect(() => {
+    if (isMobile && mobileOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isMobile, mobileOpen]);
 
   // Fetch Tastytrade accounts (only when authenticated)
   const { data: accounts, isLoading: accountsLoading } = trpc.accounts.list.useQuery(undefined, { enabled: !!user });
@@ -62,7 +103,6 @@ export function Sidebar({ className }: SidebarProps) {
     { enabled: !!user }
   );
   const isVipActive = subscriptionStatus?.isVipActive ?? false;
-  // Trial user who does NOT have VIP — show demo account
   const isTrialUser = user?.subscriptionTier === 'free_trial' && !isVipActive;
 
   const { data: demoAccount } = trpc.demo.getOrCreateDemoAccount.useQuery(
@@ -150,6 +190,9 @@ export function Sidebar({ className }: SidebarProps) {
 
   const isIncomeActive = incomeStrategyItems.some(i => location === i.path);
 
+  // On mobile, always show full labels (collapsed=false inside the drawer)
+  const effectiveCollapsed = isMobile ? false : collapsed;
+
   const renderNavLink = (item: { name: string; path: string; icon: any; badge?: number; badgeCritical?: boolean; description?: string }, indent = false) => {
     const Icon = item.icon;
     const basePath = item.path.split('?')[0];
@@ -187,7 +230,7 @@ export function Sidebar({ className }: SidebarProps) {
             isActive ? 'text-white' : 'text-muted-foreground group-hover:text-foreground'
           )} />
         </div>
-        {!collapsed && (
+        {!effectiveCollapsed && (
           <div className="flex-1 flex items-center justify-between min-w-0">
             <div className="min-w-0">
               <span className={cn(
@@ -215,17 +258,19 @@ export function Sidebar({ className }: SidebarProps) {
     );
   };
 
-  return (
+  // ─── Sidebar panel (shared between desktop inline and mobile drawer) ─────────
+  const sidebarPanel = (
     <div
       className={cn(
-        'flex flex-col h-screen bg-card/50 backdrop-blur-md border-r border-border/50 transition-all duration-300',
-        collapsed ? 'w-16' : 'w-72',
+        'flex flex-col h-full bg-card/95 backdrop-blur-md border-r border-border/50',
+        isMobile ? 'w-80 max-w-[85vw]' : (effectiveCollapsed ? 'w-16' : 'w-72'),
+        !isMobile && 'transition-all duration-300',
         className
       )}
     >
       {/* Header */}
       <div className="p-4 flex items-center justify-between">
-        {!collapsed && (
+        {!effectiveCollapsed && (
           <div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-amber-200 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
               Prosper Trading
@@ -233,20 +278,32 @@ export function Sidebar({ className }: SidebarProps) {
             <p className="text-[10px] text-yellow-500 uppercase tracking-wider font-semibold">Premium Platform</p>
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setCollapsed(!collapsed)}
-          className="ml-auto hover:bg-accent/50"
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
+        {isMobile ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileOpen(false)}
+            className="ml-auto hover:bg-accent/50"
+            aria-label="Close navigation"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setCollapsed(!collapsed)}
+            className="ml-auto hover:bg-accent/50"
+          >
+            {effectiveCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </Button>
+        )}
       </div>
 
       <Separator className="bg-border/50" />
 
       {/* Account Selection */}
-      {!collapsed && (
+      {!effectiveCollapsed && (
         <div className="p-4 space-y-2">
           {accountsLoading ? (
             <div className="text-sm text-muted-foreground">Loading accounts...</div>
@@ -299,15 +356,15 @@ export function Sidebar({ className }: SidebarProps) {
 
       <Separator className="bg-border/50" />
 
-      {/* Navigation */}
-      {!collapsed && (
+      {/* Navigation label */}
+      {!effectiveCollapsed && (
         <div className="px-4 py-2">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Trading</div>
         </div>
       )}
 
       <nav className="flex-1 px-2 space-y-1 overflow-y-auto">
-        {/* Flat primary items: Dashboard, Daily Actions, Portfolio, Spread Advisor */}
+        {/* Flat primary items */}
         {primaryNavItems.map(item => (
           <div key={item.path}>
             {renderNavLink(item)}
@@ -316,7 +373,7 @@ export function Sidebar({ className }: SidebarProps) {
 
         {/* Trading Strategies — collapsible group */}
         <div>
-          {!collapsed ? (
+          {!effectiveCollapsed ? (
             <button
               onClick={() => setIncomeExpanded(!incomeExpanded)}
               className={cn(
@@ -352,8 +409,8 @@ export function Sidebar({ className }: SidebarProps) {
 
           {/* Trading Strategies sub-items */}
           {incomeExpanded && (
-            <div className={cn('space-y-0.5 mt-0.5', !collapsed && 'pl-2')}>
-              {incomeStrategyItems.map(item => renderNavLink(item, !collapsed))}
+            <div className={cn('space-y-0.5 mt-0.5', !effectiveCollapsed && 'pl-2')}>
+              {incomeStrategyItems.map(item => renderNavLink(item, !effectiveCollapsed))}
             </div>
           )}
         </div>
@@ -365,7 +422,7 @@ export function Sidebar({ className }: SidebarProps) {
       <Separator className="bg-border/50" />
 
       {/* Trading Mode Toggle */}
-      {!collapsed && (
+      {!effectiveCollapsed && (
         <div className="p-4 space-y-2">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Trading Mode</div>
           <TradingModeToggle />
@@ -375,7 +432,7 @@ export function Sidebar({ className }: SidebarProps) {
       <Separator className="bg-border/50" />
 
       {/* Management Section */}
-      {!collapsed && (
+      {!effectiveCollapsed && (
         <div className="px-4 py-2">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Management</div>
         </div>
@@ -391,7 +448,7 @@ export function Sidebar({ className }: SidebarProps) {
           )}
         >
           <Settings className="w-5 h-5" />
-          {!collapsed && <span className="text-sm font-medium">Settings</span>}
+          {!effectiveCollapsed && <span className="text-sm font-medium">Settings</span>}
         </Link>
 
         {user?.role === 'admin' && (
@@ -405,7 +462,7 @@ export function Sidebar({ className }: SidebarProps) {
             )}
           >
             <Shield className="w-5 h-5" />
-            {!collapsed && <span className="text-sm font-medium">Admin Panel</span>}
+            {!effectiveCollapsed && <span className="text-sm font-medium">Admin Panel</span>}
           </Link>
         )}
       </div>
@@ -416,6 +473,55 @@ export function Sidebar({ className }: SidebarProps) {
       />
     </div>
   );
+
+  // ─── Mobile: render a sticky top bar + drawer overlay ────────────────────────
+  if (isMobile) {
+    return (
+      <>
+        {/* Sticky mobile top bar */}
+        <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between h-14 px-4 bg-background/95 backdrop-blur border-b border-border/50">
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-accent/50 transition-colors"
+            aria-label="Open navigation"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <span className="text-sm font-semibold tracking-tight text-foreground">
+            {getPageName(location)}
+          </span>
+          {/* Right side spacer to keep title centered */}
+          <div className="w-9" />
+        </div>
+
+        {/* Spacer so content doesn't hide behind the fixed bar */}
+        <div className="h-14 shrink-0" />
+
+        {/* Backdrop */}
+        {mobileOpen && (
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            onClick={() => setMobileOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        {/* Drawer panel — slides in from the left */}
+        <div
+          className={cn(
+            'fixed top-0 left-0 h-full z-50 overflow-y-auto transition-transform duration-300 ease-in-out',
+            mobileOpen ? 'translate-x-0' : '-translate-x-full'
+          )}
+          style={{ width: '80vw', maxWidth: '320px' }}
+        >
+          {sidebarPanel}
+        </div>
+      </>
+    );
+  }
+
+  // ─── Desktop: render inline sidebar ──────────────────────────────────────────
+  return sidebarPanel;
 }
 
 /**
@@ -429,7 +535,6 @@ function TradingModeToggle() {
     { enabled: !!user }
   );
 
-  // VIP users bypass demo mode — they get the live/paper toggle
   const isVipActive = subscriptionStatus?.isVipActive ?? false;
   const isDemo = user?.subscriptionTier === 'free_trial' && !isVipActive;
 

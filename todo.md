@@ -9612,3 +9612,8 @@ ROC Fix Mar 18 2026
 - [x] PMCCDashboard: show MobileOpportunityCard list on mobile instead of overflow-x table
 - [x] IronCondorDashboard: fix filter panel grid-cols-3 → grid-cols-1 sm:grid-cols-3
 - [x] PMCCDashboard: fix order summary grid-cols-4 → grid-cols-2 sm:grid-cols-4 (both instances)
+
+## Mobile Sidebar Drawer Fix (May 2026)
+- [x] Sidebar.tsx: add mobile drawer overlay — hidden by default, slides in from left on hamburger tap, closes on nav tap or backdrop tap
+- [x] App.tsx: add mobile sticky header bar with hamburger button and current page title
+- [x] Sidebar.tsx: on mobile, close drawer automatically when a nav link is tapped
