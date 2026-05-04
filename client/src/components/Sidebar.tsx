@@ -474,28 +474,40 @@ export function Sidebar({ className }: SidebarProps) {
     </div>
   );
 
-  // ─── Mobile: render a sticky top bar + drawer overlay ────────────────────────
+  // ─── Mobile: left-edge pull tab + drawer overlay ────────────────────────────
   if (isMobile) {
     return (
       <>
-        {/* Sticky mobile top bar */}
-        <div className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-between h-14 px-4 bg-background/95 backdrop-blur border-b border-border/50">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-accent/50 transition-colors"
-            aria-label="Open navigation"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+        {/* Slim top bar — page name only, no hamburger */}
+        <div className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-center h-12 px-4 bg-background/95 backdrop-blur border-b border-border/50">
           <span className="text-sm font-semibold tracking-tight text-foreground">
             {getPageName(location)}
           </span>
-          {/* Right side spacer to keep title centered */}
-          <div className="w-9" />
         </div>
 
         {/* Spacer so content doesn't hide behind the fixed bar */}
-        <div className="h-14 shrink-0" />
+        <div className="h-12 shrink-0" />
+
+        {/* ── LEFT-EDGE PULL TAB ─────────────────────────────────────────────────
+             A tall, wide tab anchored to the left edge of the screen.
+             Impossible to miss — tap anywhere on it to open the nav. */}
+        {!mobileOpen && (
+          <button
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open navigation"
+            className="fixed left-0 top-1/2 -translate-y-1/2 z-[60] flex flex-col items-center justify-center gap-1.5
+                       w-8 h-28 rounded-r-2xl
+                       bg-gradient-to-b from-amber-500 to-yellow-600
+                       shadow-[4px_0_20px_rgba(245,158,11,0.5)]
+                       border-r-2 border-t-2 border-b-2 border-amber-400/60
+                       active:scale-95 transition-transform"
+          >
+            {/* Three stacked chevrons pointing right — universal "open" cue */}
+            <ChevronRight className="w-4 h-4 text-white opacity-90" />
+            <ChevronRight className="w-4 h-4 text-white opacity-70" />
+            <ChevronRight className="w-4 h-4 text-white opacity-50" />
+          </button>
+        )}
 
         {/* Backdrop */}
         {mobileOpen && (
@@ -512,7 +524,7 @@ export function Sidebar({ className }: SidebarProps) {
             'fixed top-0 left-0 h-full z-[80] overflow-y-auto transition-transform duration-300 ease-in-out',
             mobileOpen ? 'translate-x-0' : '-translate-x-full'
           )}
-          style={{ width: '80vw', maxWidth: '320px' }}
+          style={{ width: '82vw', maxWidth: '340px' }}
         >
           {sidebarPanel}
         </div>

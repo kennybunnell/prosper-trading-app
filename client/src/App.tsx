@@ -150,7 +150,7 @@ function Router() {
       />
       <div className="flex h-screen">
         <Sidebar />
-        <div className="flex-1 overflow-auto relative pt-14 md:pt-0">
+        <div className="flex-1 overflow-auto relative pt-12 md:pt-0">
           <TrialStatusBanner />
           <PaperTradingBanner />
           <SupportWidget />
