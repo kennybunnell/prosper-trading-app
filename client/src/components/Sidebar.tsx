@@ -509,7 +509,7 @@ export function Sidebar({ className }: SidebarProps) {
           </button>
         )}
 
-        {/* Backdrop */}
+        {/* Backdrop — tap anywhere outside the drawer to close */}
         {mobileOpen && (
           <div
             className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"
@@ -528,6 +528,28 @@ export function Sidebar({ className }: SidebarProps) {
         >
           {sidebarPanel}
         </div>
+
+        {/* ── RIGHT-EDGE CLOSE TAB (visible only when drawer is open) ───────────
+             Anchored just to the right of the open drawer panel.
+             Same size and style as the open tab so the UX is symmetric. */}
+        {mobileOpen && (
+          <button
+            onClick={() => setMobileOpen(false)}
+            aria-label="Close navigation"
+            className="fixed top-1/2 -translate-y-1/2 z-[90] flex flex-col items-center justify-center gap-1.5
+                       w-8 h-28 rounded-r-2xl
+                       bg-gradient-to-b from-red-500 to-rose-600
+                       shadow-[4px_0_20px_rgba(239,68,68,0.5)]
+                       border-r-2 border-t-2 border-b-2 border-red-400/60
+                       active:scale-95 transition-transform"
+            style={{ left: 'min(82vw, 340px)' }}
+          >
+            {/* Three stacked chevrons pointing left — universal "close" cue */}
+            <ChevronLeft className="w-4 h-4 text-white opacity-90" />
+            <ChevronLeft className="w-4 h-4 text-white opacity-70" />
+            <ChevronLeft className="w-4 h-4 text-white opacity-50" />
+          </button>
+        )}
       </>
     );
   }
