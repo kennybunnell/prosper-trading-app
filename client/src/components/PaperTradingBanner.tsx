@@ -29,7 +29,7 @@ export function PaperTradingBanner() {
   // Show Demo Mode banner for trial users (always show, regardless of mode)
   if (isDemo) {
     return (
-      <div className="sticky top-0 z-50 bg-gradient-to-r from-amber-600 via-amber-500 to-orange-500 text-white shadow-lg border-b-2 border-amber-400">
+      <div className="sticky top-0 z-30 bg-gradient-to-r from-amber-600 via-amber-500 to-orange-500 text-white shadow-lg border-b-2 border-amber-400">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-center gap-3">
             <AlertTriangle className="h-5 w-5 animate-pulse" />
@@ -53,7 +53,7 @@ export function PaperTradingBanner() {
   }
   
   return (
-    <div className="sticky top-0 z-50 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white shadow-lg border-b-2 border-blue-400">
+    <div className="sticky top-0 z-30 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white shadow-lg border-b-2 border-blue-400">
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-center gap-3">
           <AlertTriangle className="h-5 w-5 animate-pulse" />

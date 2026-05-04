@@ -479,7 +479,7 @@ export function Sidebar({ className }: SidebarProps) {
     return (
       <>
         {/* Sticky mobile top bar */}
-        <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between h-14 px-4 bg-background/95 backdrop-blur border-b border-border/50">
+        <div className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-between h-14 px-4 bg-background/95 backdrop-blur border-b border-border/50">
           <button
             onClick={() => setMobileOpen(true)}
             className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-accent/50 transition-colors"
@@ -500,7 +500,7 @@ export function Sidebar({ className }: SidebarProps) {
         {/* Backdrop */}
         {mobileOpen && (
           <div
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
@@ -509,7 +509,7 @@ export function Sidebar({ className }: SidebarProps) {
         {/* Drawer panel — slides in from the left */}
         <div
           className={cn(
-            'fixed top-0 left-0 h-full z-50 overflow-y-auto transition-transform duration-300 ease-in-out',
+            'fixed top-0 left-0 h-full z-[80] overflow-y-auto transition-transform duration-300 ease-in-out',
             mobileOpen ? 'translate-x-0' : '-translate-x-full'
           )}
           style={{ width: '80vw', maxWidth: '320px' }}
