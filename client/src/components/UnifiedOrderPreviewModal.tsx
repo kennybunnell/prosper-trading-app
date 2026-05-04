@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useIsMobile } from "@/hooks/useMobile";
 import { snapToTick, isTrueIndexOption, getTickSize, getIndexExchange, getMinSpreadWidth, validateMultiIndexSelection, getContractMultiplier } from "../../../shared/orderUtils";
 import {
   Dialog,
@@ -179,6 +180,7 @@ export function UnifiedOrderPreviewModal({
   onSubmissionStateChange,
 }: UnifiedOrderPreviewModalProps) {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   
   // State
   const [skipDryRun, setSkipDryRun] = useState(initialSkipDryRun);
@@ -1572,24 +1574,11 @@ export function UnifiedOrderPreviewModal({
             </Alert>
           )}
           
-          {/* Orders Table */}
-          <div className="border rounded-lg overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-20">Symbol</TableHead>
-                  <TableHead className="w-24">Strategy</TableHead>
-                  <TableHead className="text-right w-20">Strike</TableHead>
-                  <TableHead className="w-20">Expiration</TableHead>
-                  <TableHead className="text-right w-12">Qty</TableHead>
-                  <TableHead className="text-right w-28">Limit Price</TableHead>
-                  <TableHead className="w-52">Price Adjustment</TableHead>
-                  <TableHead className="text-right w-24">Total</TableHead>
-                  <TableHead className="text-right w-28">Net Profit</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((order, idx) => {
+          {/* Orders Table / Mobile Cards */}
+          {isMobile ? (
+            /* ── MOBILE: stacked cards ── */
+            <div className="space-y-3">
+              {orders.map((order, idx) => {
                   const key = getOrderKey(order);
                   const qty = getQuantity(order);
                   const maxQty = getMaxQuantity(order);
@@ -1645,362 +1634,74 @@ export function UnifiedOrderPreviewModal({
                   const isBPSOrder = strategy === 'bps' && !!order.longStrike;
                   const isBCSOrder = strategy === 'bcs' && !!order.longStrike;
 
-                  return (
-                    <React.Fragment key={idx}>
-                    <TableRow>
-                      {/* Symbol */}
-                      <TableCell className="font-semibold">
-                        <div className="flex flex-col">
-                          <span>{order.symbol}</span>
-                          {(isBTCSpread || isBPSOrder || isBCSOrder) && (
-                            <span className="text-[10px] text-muted-foreground font-normal">
-                              2-leg spread
-                            </span>
-                          )}
-                          {isIronCondor && (
-                            <span className="text-[10px] text-muted-foreground font-normal">
-                              4-leg condor
-                            </span>
-                          )}
-                          {/* Exchange badge for index options */}
-                          {isTrueIndexOption(order.symbol) && (() => {
-                            const exch = getIndexExchange(order.symbol);
-                            return (
-                              <span className={`text-[9px] font-semibold px-1 py-0.5 rounded mt-0.5 w-fit ${
-                                exch === 'Nasdaq'
-                                  ? 'bg-blue-900 text-blue-200'
-                                  : 'bg-amber-900 text-amber-200'
-                              }`}>
-                                {exch === 'Nasdaq' ? 'NASDAQ' : 'CBOE'}
-                              </span>
-                            );
-                          })()}
-                          {/* Underlying stock price */}
-                          {order.currentPrice != null && order.currentPrice > 0 && (
-                            <span className="text-[10px] text-blue-300 font-normal mt-0.5">
-                              @ ${order.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          )}
+                  // ── Mobile card layout ──
+                  if (isMobile) {
+                    const tick = getTickSize(price, order.symbol);
+                    const sliderPos = getSliderPosition(orderWithLive)[0];
+                    const guidance = getFillZoneGuidance(sliderPos, order.action);
+                    const fillPct = order.action === 'STO'
+                      ? Math.min(95, Math.max(10, Math.round(sliderPos * 0.85 + 5)))
+                      : Math.min(95, Math.max(10, Math.round((100 - sliderPos) * 0.85 + 5)));
+                    const fillColor = fillPct >= 65 ? 'text-green-400' : fillPct >= 40 ? 'text-yellow-400' : 'text-red-400';
+                    return (
+                      <div key={idx} className="border rounded-lg p-3 space-y-3 bg-card">
+                        {/* Card header: symbol + strategy + expiry */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-base">{order.symbol}</span>
+                            {order.currentPrice != null && order.currentPrice > 0 && (
+                              <span className="text-[11px] text-blue-300">@ ${order.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            )}
+                            <span className="text-xs text-muted-foreground">{new Date(order.expiration).toLocaleDateString()}</span>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            {isIronCondor ? (
+                              <Badge variant="default" className="bg-purple-600">Iron Condor</Badge>
+                            ) : isBPSOrder ? (
+                              <Badge variant="default" className="bg-green-700 text-white text-[10px]">Bull Put Spread</Badge>
+                            ) : isBCSOrder ? (
+                              <Badge variant="default" className="bg-red-700 text-white text-[10px]">Bear Call Spread</Badge>
+                            ) : (
+                              <Badge variant={order.action.includes('BTC') ? 'destructive' : 'default'}>{order.action}</Badge>
+                            )}
+                            {hasLiveQuote ? (
+                              <span className="text-[10px] text-green-400 font-medium">● Live</span>
+                            ) : (
+                              <span className="text-[10px] text-yellow-500">~ Est.</span>
+                            )}
+                          </div>
                         </div>
-                      </TableCell>
-                      
-                      {/* Strategy */}
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
+                        {/* Strike info */}
+                        <div className="text-xs text-muted-foreground">
                           {isIronCondor ? (
-                            <Badge variant="default" className="bg-purple-600">
-                              Iron Condor
-                            </Badge>
-                          ) : isBPSOrder ? (
-                            <div className="flex flex-col gap-0.5">
-                              <Badge variant="default" className="bg-green-700 text-white text-[10px] px-1.5">
-                                Bull Put Spread
-                              </Badge>
-                              <span className="text-[10px] text-green-400">STO + BTO</span>
-                            </div>
-                          ) : isBCSOrder ? (
-                            <div className="flex flex-col gap-0.5">
-                              <Badge variant="default" className="bg-red-700 text-white text-[10px] px-1.5">
-                                Bear Call Spread
-                              </Badge>
-                              <span className="text-[10px] text-red-400">STO + BTO</span>
-                            </div>
+                            <span>Put: ${order.strike.toFixed(0)} / ${order.longStrike?.toFixed(0)} &nbsp;|&nbsp; Call: ${order.callShortStrike?.toFixed(0)} / ${order.callLongStrike?.toFixed(0)}</span>
+                          ) : isBPSOrder || isBCSOrder ? (
+                            <span>Short: ${order.strike.toFixed(2)} &nbsp;|&nbsp; Long: ${order.longStrike?.toFixed(2)}</span>
                           ) : (
-                            <Badge variant={order.action.includes("BTC") ? "destructive" : "default"}>
-                              {order.action}
-                            </Badge>
-                          )}
-                          {isBTCSpread && (
-                            <span className="text-[10px] text-blue-400">+ STC long leg</span>
+                            <span>Strike: ${order.strike > 0 ? order.strike.toFixed(2) : '—'}</span>
                           )}
                         </div>
-                      </TableCell>
-                      
-                      {/* Strike - parse from optionSymbol if order.strike is 0 (BTC orders from scan) */}
-                      <TableCell className="text-right">
-                        {(() => {
-                          // For BTC orders built from scan results, strike may be 0 if the regex failed.
-                          // Re-derive from optionSymbol (OCC format: ROOT YYMMDD C/P STRIKE8) as fallback.
-                          let displayStrike = order.strike;
-                          if ((!displayStrike || displayStrike === 0) && order.optionSymbol) {
-                            const m = order.optionSymbol.match(/[CP](\d{8})$/);
-                            if (m) displayStrike = parseInt(m[1], 10) / 1000;
-                          }
-                          if (isIronCondor) {
-                            return (
-                              <div className="text-xs space-y-1.5">
-                                {/* PUT spread legs */}
-                                <div className="space-y-0.5">
-                                  <div className="font-semibold text-green-500 text-[10px] uppercase tracking-wide">PUT Spread</div>
-                                  <div className="text-green-400">Short: <span className="font-semibold">${order.strike.toFixed(2)}</span>
-                                    {(order.bid != null || order.ask != null) && (
-                                      <span className="text-[10px] text-muted-foreground ml-1">
-                                        (B: ${order.bid?.toFixed(2)} / A: ${order.ask?.toFixed(2)})
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="text-muted-foreground">Long: <span className="font-semibold">${order.longStrike?.toFixed(2)}</span>
-                                    {(order.longBid != null || order.longAsk != null) && (
-                                      <span className="text-[10px] text-muted-foreground ml-1">
-                                        (B: ${order.longBid?.toFixed(2)} / A: ${order.longAsk?.toFixed(2)})
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                {/* CALL spread legs */}
-                                <div className="space-y-0.5 border-t border-white/10 pt-1">
-                                  <div className="font-semibold text-red-500 text-[10px] uppercase tracking-wide">CALL Spread</div>
-                                  <div className="text-red-400">Short: <span className="font-semibold">${order.callShortStrike?.toFixed(2)}</span>
-                                    {(order.callShortBid != null || order.callShortAsk != null) && (
-                                      <span className="text-[10px] text-muted-foreground ml-1">
-                                        (B: ${order.callShortBid?.toFixed(2)} / A: ${order.callShortAsk?.toFixed(2)})
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="text-muted-foreground">Long: <span className="font-semibold">${order.callLongStrike?.toFixed(2)}</span>
-                                    {(order.callLongBid != null || order.callLongAsk != null) && (
-                                      <span className="text-[10px] text-muted-foreground ml-1">
-                                        (B: ${order.callLongBid?.toFixed(2)} / A: ${order.callLongAsk?.toFixed(2)})
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          }
-                          // BPS: show short put / long put with bid/ask
-                          if (isBPSOrder) {
-                            return (
-                              <div className="text-xs space-y-1">
-                                <div className="space-y-0">
-                                  <div className="text-green-400">Short: <span className="font-semibold">${order.strike.toFixed(2)}</span></div>
-                                  {(order.bid != null || order.ask != null) && (
-                                    <div className="text-[10px] text-muted-foreground pl-2">
-                                      {order.bid != null && <span>B: ${order.bid.toFixed(2)}</span>}
-                                      {order.bid != null && order.ask != null && <span className="mx-0.5">/</span>}
-                                      {order.ask != null && <span>A: ${order.ask.toFixed(2)}</span>}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="space-y-0">
-                                  <div className="text-muted-foreground">Long: <span className="font-semibold">${order.longStrike!.toFixed(2)}</span></div>
-                                  {(order.longBid != null || order.longAsk != null) && (
-                                    <div className="text-[10px] text-muted-foreground pl-2">
-                                      {order.longBid != null && <span>B: ${order.longBid.toFixed(2)}</span>}
-                                      {order.longBid != null && order.longAsk != null && <span className="mx-0.5">/</span>}
-                                      {order.longAsk != null && <span>A: ${order.longAsk.toFixed(2)}</span>}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }
-                          // BCS: show short call / long call with bid/ask
-                          if (isBCSOrder) {
-                            return (
-                              <div className="text-xs space-y-1">
-                                <div className="space-y-0">
-                                  <div className="text-red-400">Short: <span className="font-semibold">${order.strike.toFixed(2)}</span></div>
-                                  {(order.bid != null || order.ask != null) && (
-                                    <div className="text-[10px] text-muted-foreground pl-2">
-                                      {order.bid != null && <span>B: ${order.bid.toFixed(2)}</span>}
-                                      {order.bid != null && order.ask != null && <span className="mx-0.5">/</span>}
-                                      {order.ask != null && <span>A: ${order.ask.toFixed(2)}</span>}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="space-y-0">
-                                  <div className="text-muted-foreground">Long: <span className="font-semibold">${order.longStrike!.toFixed(2)}</span></div>
-                                  {(order.longBid != null || order.longAsk != null) && (
-                                    <div className="text-[10px] text-muted-foreground pl-2">
-                                      {order.longBid != null && <span>B: ${order.longBid.toFixed(2)}</span>}
-                                      {order.longBid != null && order.longAsk != null && <span className="mx-0.5">/</span>}
-                                      {order.longAsk != null && <span>A: ${order.longAsk.toFixed(2)}</span>}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }
-                          // For BTC spread orders, show both short and long strikes with clear labels
-                          if (isBTCSpread && order.optionSymbol) {
-                            const typeMatch = order.optionSymbol.match(/([CP])(\d{8})$/);
-                            const optType = typeMatch ? (typeMatch[1] === 'P' ? 'Put' : 'Call') : null;
-                            // Parse long leg strike from spreadLongSymbol OCC format
-                            let longLegStrike: number | undefined;
-                            if (order.spreadLongSymbol) {
-                              const lm = order.spreadLongSymbol.match(/[CP](\d{8})$/);
-                              if (lm) longLegStrike = parseInt(lm[1], 10) / 1000;
-                            }
-                            return (
-                              <div className="flex flex-col items-end gap-0.5">
-                                <div className="flex flex-col items-end">
-                                  <span className="text-[10px] text-muted-foreground">Short (BTC)</span>
-                                  <span className={`font-semibold ${optType === 'Put' ? 'text-green-400' : 'text-red-400'}`}>
-                                    ${displayStrike > 0 ? displayStrike.toFixed(0) : '—'}
-                                  </span>
-                                </div>
-                                {longLegStrike !== undefined && (
-                                  <div className="flex flex-col items-end border-t border-white/10 pt-0.5">
-                                    <span className="text-[10px] text-muted-foreground">Long (STC)</span>
-                                    <span className="font-semibold text-blue-400">
-                                      ${longLegStrike.toFixed(0)}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          }
-                          return <>${displayStrike > 0 ? displayStrike.toFixed(2) : '—'}</>;
-                        })()}
-                      </TableCell>
-                      
-                      {/* Expiration */}
-                      <TableCell>{new Date(order.expiration).toLocaleDateString()}</TableCell>
-                      
-                      {/* Quantity */}
-                      <TableCell className="text-right overflow-visible">
+                        {/* Qty row */}
                         {allowQuantityEdit ? (
-                          <div className="flex items-center justify-end gap-1 min-w-[5rem]">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 w-6 p-0"
-                              onClick={() => decrementQuantity(order)}
-                              disabled={qty <= 1 || isSubmitting}
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <span className="font-mono font-bold min-w-[2ch] text-center">
-                              {qty}
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 w-6 p-0"
-                              onClick={() => incrementQuantity(order)}
-                              disabled={qty >= maxQty || isSubmitting}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Qty:</span>
+                            <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => decrementQuantity(order)} disabled={qty <= 1 || isSubmitting}><Minus className="h-3 w-3" /></Button>
+                            <span className="font-mono font-bold min-w-[2ch] text-center">{qty}</span>
+                            <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => incrementQuantity(order)} disabled={qty >= maxQty || isSubmitting}><Plus className="h-3 w-3" /></Button>
+                            <span className="text-[10px] text-muted-foreground">max {maxQty}</span>
                           </div>
                         ) : (
-                          <span className="font-mono font-bold">{qty}</span>
+                          <div className="text-xs">Qty: <span className="font-mono font-bold">{qty}</span></div>
                         )}
-                        {allowQuantityEdit && (
-                          <div className="text-[10px] text-muted-foreground text-center mt-0.5">
-                            max: {maxQty}
-                          </div>
-                        )}
-                      </TableCell>
-                      
-                      {/* Limit Price */}
-                      <TableCell className="text-right">
-                        <div className="flex flex-col items-end gap-0.5">
-                          {/* Net Credit badge for STO spread orders */}
-                          {(isBPSOrder || isBCSOrder || (!!order.longStrike && order.action !== 'BTC')) && (
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400/80 bg-emerald-400/10 border border-emerald-400/20 rounded px-1 py-0.5 mb-0.5">
-                              Net Credit
-                            </span>
-                          )}
-                          {/* Net Credit / Net Debit badge for BTC spread close orders */}
-                          {strategy === 'btc' && isBTCSpread && (() => {
-                            // Determine net credit/debit direction for BTC spread close orders.
-                            // CORRECT LOGIC: Use live quotes to determine direction.
-                            //   Net debit = short ask - long bid > 0 (normal: you pay a small amount to close)
-                            //   Net credit = short ask - long bid < 0 (rare: long leg worth more than short)
-                            // For BPS/BCS closes near max profit, this is almost always a NET DEBIT.
-                            // The old logic (optChar === 'P' → credit) was WRONG and caused [6063] rejections.
-                            const isIronCondorClose = !!(order.callShortStrike && order.callLongStrike);
-                            let isCreditClose = false;
-                            if (!isIronCondorClose) {
-                              const shortSym = order.optionSymbol || '';
-                              const longSym = order.spreadLongSymbol || '';
-                              const shortQ = liveQuotes[shortSym];
-                              const longQ = longSym ? liveQuotes[longSym] : undefined;
-                              if (shortQ && longQ && shortQ.ask > 0 && longQ.bid > 0) {
-                                // Live quotes available: net = short ask (cost to BTC) - long bid (credit from STC)
-                                isCreditClose = (shortQ.ask - longQ.bid) < 0;
-                              } else {
-                                // No live quotes: default to Debit (safe default for BPS/BCS close)
-                                isCreditClose = false;
-                              }
-                            }
-                            return isCreditClose ? (
-                              <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/15 border border-emerald-400/30 rounded px-1.5 py-0.5 mb-0.5 inline-flex items-center gap-0.5">
-                                ↑ Net Credit
-                              </span>
-                            ) : (
-                              <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-400/15 border border-amber-400/30 rounded px-1.5 py-0.5 mb-0.5 inline-flex items-center gap-0.5">
-                                ↓ Net Debit
-                              </span>
-                            );
-                          })()}
-                          <span className="font-semibold text-green-600">
-                            ${price.toFixed(2)}
-                          </span>
-                          {hasMarketData && (
-                            <div className="text-xs text-muted-foreground space-y-0.5">
-                              <div>Mid: ${(() => {
-                                // For spreads, show net credit midpoint
-                                if (order.longStrike && order.longBid && order.longAsk) {
-                                  const minCredit = effectiveBid! - order.longAsk;
-                                  const maxCredit = effectiveAsk! - order.longBid;
-                                  return ((minCredit + maxCredit) / 2).toFixed(2);
-                                }
-                                // For single-leg, show bid/ask midpoint
-                                return ((effectiveBid! + effectiveAsk!) / 2).toFixed(2);
-                              })()}</div>
-                              <div className="text-[10px]">
-                                {(() => {
-                                  const isIndex = isTrueIndexOption(order.symbol);
-                                  // IC (4-leg): total net credit = put spread + call spread
-                                  if (order.callShortBid != null && order.callShortAsk != null &&
-                                      order.callLongBid != null && order.callLongAsk != null &&
-                                      order.longBid != null && order.longAsk != null) {
-                                    const putNetLow  = Math.max(0.01, (effectiveBid! - order.longAsk));
-                                    const putNetHigh = Math.max(0.01, (effectiveAsk! - order.longBid));
-                                    const callNetLow  = Math.max(0.01, (order.callShortBid - order.callLongAsk));
-                                    const callNetHigh = Math.max(0.01, (order.callShortAsk - order.callLongBid));
-                                    const totalLow  = snapToTick(putNetLow  + callNetLow,  order.symbol);
-                                    const totalHigh = snapToTick(putNetHigh + callNetHigh, order.symbol);
-                                    return <span>Net: ${totalLow.toFixed(2)} – ${totalHigh.toFixed(2)}{isIndex ? ' ★' : ''}</span>;
-                                  }
-                                  // BPS / BCS (2-leg): net credit range
-                                  if (order.longBid != null && order.longAsk != null &&
-                                      effectiveBid != null && effectiveAsk != null) {
-                                    const netLow  = snapToTick(Math.max(0.01, effectiveBid - order.longAsk), order.symbol);
-                                    const netHigh = snapToTick(Math.max(0.01, effectiveAsk - order.longBid), order.symbol);
-                                    return <span>Net: ${netLow.toFixed(2)} – ${netHigh.toFixed(2)}{isIndex ? ' ★' : ''}</span>;
-                                  }
-                                  // Single-leg: show raw bid/ask
-                                  return <span>Bid: ${effectiveBid?.toFixed(2)} / Ask: ${effectiveAsk?.toFixed(2)}</span>;
-                                })()}
-                              </div>
-                            </div>
-                          )}
-                          {/* Live/Estimated indicator for ALL strategies */}
-                          {hasLiveQuote ? (
-                            <span className="text-[10px] text-green-400 font-medium">● Live</span>
-                          ) : (
-                            <span className="text-[10px] text-yellow-500">~ Est.</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      
-                      {/* Price Adjustment Slider */}
-                      <TableCell className="min-w-[320px] w-[320px]">
+                        {/* Price Slider */}
                         {hasMarketData ? (
-                          <div className="flex flex-col gap-2 py-3 px-1 overflow-hidden">
-                            {/* Row 1: Bid / Mid / Ask labels */}
+                          <div className="space-y-2">
                             <div className="flex items-center justify-between text-[10px] px-0.5">
-                              <span className="text-red-400 font-mono font-medium">Bid</span>
-                              <span className="text-blue-400 font-mono font-medium">Mid</span>
-                              <span className="text-green-400 font-mono font-medium">Ask</span>
+                              <span className="text-red-400 font-mono">Bid</span>
+                              <span className="text-blue-400 font-mono">Mid</span>
+                              <span className="text-green-400 font-mono">Ask</span>
                             </div>
-                            {/* Row 2: Live prices */}
                             {hasLiveQuote && (() => {
-                              // Iron Condor: show 4-leg net credit bid/mid/ask
                               if (isIronCondorLive && icLiveBid != null && icLiveAsk != null) {
                                 const icLiveMid = (icLiveBid + icLiveAsk) / 2;
                                 return (
@@ -2037,245 +1738,335 @@ export function UnifiedOrderPreviewModal({
                               }
                               return null;
                             })()}
-                            {/* Row 3: Slider with mid marker */}
-                            <div className="relative">
-                              <div className="relative px-1">
-                                {/* Mid Marker */}
-                                <div 
-                                  className="absolute h-3 w-0.5 bg-blue-400/50 pointer-events-none" 
-                                  style={{ 
-                                    left: '50%', 
-                                    top: '50%', 
-                                    transform: 'translate(-50%, -50%)',
-                                    zIndex: 0
-                                  }}
-                                />
-                                {/* Slider */}
-                                <Slider
-                                  value={getSliderPosition(orderWithLive)}
-                                  onValueChange={(value) => setPriceFromSlider(orderWithLive, value)}
-                                  min={0}
-                                  max={100}
-                                  step={1}
-                                  disabled={false}
-                                  className="w-full cursor-grab active:cursor-grabbing"
-                                />
-                              </div>
-                              
+                            <div className="relative px-1">
+                              <div className="absolute h-3 w-0.5 bg-blue-400/50 pointer-events-none" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 0 }} />
+                              <Slider value={getSliderPosition(orderWithLive)} onValueChange={(value) => setPriceFromSlider(orderWithLive, value)} min={0} max={100} step={1} className="w-full cursor-grab active:cursor-grabbing" />
                             </div>
-                            {/* Row 4: Price controls — centered with +/- buttons */}
-                            <div className="flex items-center justify-between gap-2 pt-1">
+                            <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2">
-                                {(() => {
-                                  const tick = getTickSize(price, order.symbol);
-                                  return (
-                                    <>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-7 w-7 p-0 rounded-full"
-                                        onClick={() => adjustPrice(orderWithLive, -tick)}
-                                        disabled={isSubmitting}
-                                        title={`Decrease by $${tick.toFixed(2)}`}
-                                      >
-                                        <Minus className="h-3 w-3" />
-                                      </Button>
-                                      <div className="flex flex-col items-center min-w-[52px]">
-                                        {(isBPSOrder || isBCSOrder || (!!order.longStrike && order.action !== 'BTC')) && (
-                                          <span className="text-[8px] font-semibold uppercase tracking-wider text-emerald-400/70 leading-none mb-0.5">
-                                            Net Credit
-                                          </span>
-                                        )}
-                                        <span className="text-sm font-mono font-bold text-blue-400 text-center">
-                                          ${price.toFixed(2)}
-                                        </span>
-                                      </div>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-7 w-7 p-0 rounded-full"
-                                        onClick={() => adjustPrice(orderWithLive, tick)}
-                                        disabled={isSubmitting}
-                                        title={`Increase by $${tick.toFixed(2)}`}
-                                      >
-                                        <Plus className="h-3 w-3" />
-                                      </Button>
-                                    </>
-                                  );
-                                })()}
+                                <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => adjustPrice(orderWithLive, -tick)} disabled={isSubmitting}><Minus className="h-3 w-3" /></Button>
+                                <div className="flex flex-col items-center min-w-[52px]">
+                                  {(isBPSOrder || isBCSOrder || (!!order.longStrike && order.action !== 'BTC')) && (
+                                    <span className="text-[8px] font-semibold uppercase tracking-wider text-emerald-400/70 leading-none mb-0.5">Net Credit</span>
+                                  )}
+                                  <span className="text-sm font-mono font-bold text-blue-400">${price.toFixed(2)}</span>
+                                </div>
+                                <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-full" onClick={() => adjustPrice(orderWithLive, tick)} disabled={isSubmitting}><Plus className="h-3 w-3" /></Button>
                               </div>
-                              {/* AI Optimize Price button */}
                               {hasMarketData && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-[10px] px-2 gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200"
-                                  disabled={isOptimizingPrice || isSubmitting}
-                                  onClick={async () => {
-                                    const liveShortQ = liveQuotes[order.optionSymbol ?? ''];
-                                    const rawShortBid = liveShortQ?.bid ?? effectiveBid ?? 0;
-                                    const rawShortAsk = liveShortQ?.ask ?? effectiveAsk ?? 0;
-                                    const isSpreadOrder = !!(order.longStrike);
-                                    // For spread orders: compute net credit bid/ask from both legs
-                                    let eBid: number;
-                                    let eAsk: number;
-                                    if (isSpreadOrder) {
-                                      const liveLongQ = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
-                                      const longBidVal = (liveLongQ && liveLongQ.bid > 0) ? liveLongQ.bid : (order.longBid ?? 0);
-                                      const longAskVal = (liveLongQ && liveLongQ.ask > 0) ? liveLongQ.ask : (order.longAsk ?? 0);
-                                      // Net credit: short bid - long ask (conservative) to short ask - long bid (aggressive)
-                                      eBid = Math.max(0.01, rawShortBid - longAskVal);
-                                      eAsk = Math.max(0.01, rawShortAsk - longBidVal);
-                                    } else {
-                                      eBid = rawShortBid;
-                                      eAsk = rawShortAsk;
-                                    }
-                                    const eMid = (eBid + eAsk) / 2;
-                                    const currentPrice = adjustedPrices.get(getOrderKey(order)) ?? order.premium;
-                                    if (!eBid || !eAsk) return;
-                                    setIsOptimizingPrice(true);
-                                    try {
-                                      const result = await optimizePriceMutation.mutateAsync({
-                                        symbol: order.symbol,
-                                        action: order.action as 'STO' | 'BTC' | 'BTO' | 'STC',
-                                        strategy,
-                                        bid: eBid,
-                                        ask: eAsk,
-                                        mid: eMid,
-                                        currentLimitPrice: currentPrice,
-                                        expiration: order.expiration,
-                                        strike: order.strike,
-                                        optionType: order.optionType,
-                                        isSpread: isSpreadOrder,
-                                        spreadWidth: order.longStrike ? Math.abs(order.strike - order.longStrike) : undefined,
-                                      });
-                                      const newPrices = new Map(adjustedPrices);
-                                      newPrices.set(getOrderKey(order), result.suggestedPrice);
-                                      setAdjustedPrices(newPrices);
-                                      setPriceAdvice(result);
-                                    } catch (e) {
-                                      // ignore
-                                    } finally {
-                                      setIsOptimizingPrice(false);
-                                    }
-                                  }}
-                                >
+                                <Button size="sm" variant="outline" className="h-7 text-[10px] px-2 gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/10" disabled={isOptimizingPrice || isSubmitting} onClick={async () => {
+                                  const liveShortQ2 = liveQuotes[order.optionSymbol ?? ''];
+                                  const rawShortBid = liveShortQ2?.bid ?? effectiveBid ?? 0;
+                                  const rawShortAsk = liveShortQ2?.ask ?? effectiveAsk ?? 0;
+                                  const isSpreadOrder2 = !!(order.longStrike);
+                                  let eBid: number; let eAsk: number;
+                                  if (isSpreadOrder2) {
+                                    const liveLongQ2 = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
+                                    const longBidVal = (liveLongQ2 && liveLongQ2.bid > 0) ? liveLongQ2.bid : (order.longBid ?? 0);
+                                    const longAskVal = (liveLongQ2 && liveLongQ2.ask > 0) ? liveLongQ2.ask : (order.longAsk ?? 0);
+                                    eBid = Math.max(0.01, rawShortBid - longAskVal);
+                                    eAsk = Math.max(0.01, rawShortAsk - longBidVal);
+                                  } else { eBid = rawShortBid; eAsk = rawShortAsk; }
+                                  const eMid = (eBid + eAsk) / 2;
+                                  const currentPrice2 = adjustedPrices.get(getOrderKey(order)) ?? order.premium;
+                                  if (!eBid || !eAsk) return;
+                                  setIsOptimizingPrice(true);
+                                  try {
+                                    const result = await optimizePriceMutation.mutateAsync({ symbol: order.symbol, action: order.action as 'STO' | 'BTC' | 'BTO' | 'STC', strategy, bid: eBid, ask: eAsk, mid: eMid, currentLimitPrice: currentPrice2, expiration: order.expiration, strike: order.strike, optionType: order.optionType, isSpread: isSpreadOrder2, spreadWidth: order.longStrike ? Math.abs(order.strike - order.longStrike) : undefined });
+                                    const newPrices = new Map(adjustedPrices);
+                                    newPrices.set(getOrderKey(order), result.suggestedPrice);
+                                    setAdjustedPrices(newPrices);
+                                    setPriceAdvice(result);
+                                  } catch (e) { /* ignore */ } finally { setIsOptimizingPrice(false); }
+                                }}>
                                   {isOptimizingPrice ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                                   {isOptimizingPrice ? 'Analyzing...' : 'AI Optimize'}
                                 </Button>
                               )}
                             </div>
-                            {/* Row 5: Fill zone + probability with tooltip */}
-                            {(() => {
-                              const sliderPos = getSliderPosition(orderWithLive)[0];
-                              const guidance = getFillZoneGuidance(sliderPos, order.action);
-                              const fillPct = order.action === 'STO'
-                                ? Math.min(95, Math.max(10, Math.round(sliderPos * 0.85 + 5)))
-                                : Math.min(95, Math.max(10, Math.round((100 - sliderPos) * 0.85 + 5)));
-                              const fillColor = fillPct >= 65 ? 'text-green-400' : fillPct >= 40 ? 'text-yellow-400' : 'text-red-400';
-                              return (
-                                <div className="flex items-center justify-between text-[10px] pt-0.5 border-t border-border/30">
-                                  <span className={guidance.color}>{guidance.text}</span>
-                                  <span
-                                    className={`${fillColor} cursor-help`}
-                                    title="Estimated fill probability: how likely your limit order fills based on where your price sits in the bid-ask range. Near the ask = faster fill, lower premium. Near the bid = slower fill, more premium captured."
-                                  >
-                                    ~{fillPct}% fill
-                                  </span>
-                                </div>
-                              );
-                            })()}
+                            <div className="flex items-center justify-between text-[10px] pt-0.5 border-t border-border/30">
+                              <span className={guidance.color}>{guidance.text}</span>
+                              <span className={`${fillColor} cursor-help`} title="Estimated fill probability">~{fillPct}% fill</span>
+                            </div>
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">No market data</span>
                         )}
-                      </TableCell>
-                      
-                      {/* Total */}
-                      <TableCell className={`text-right font-semibold ${
-                        isSpreadBTC
-                          ? totalPremium <= 0 ? 'text-green-400' : 'text-red-400'  // spread BTC: negative = credit (good), positive = debit (cost)
-                          : strategy === 'btc' ? 'text-red-400' : 'text-green-500'  // single BTC: always a cost
-                      }`}>
-                        {isSpreadBTC && totalPremium <= 0
-                          ? `+$${Math.abs(totalPremium).toFixed(2)}`  // credit: show as positive with + prefix
-                          : `$${Math.abs(totalPremium).toFixed(2)}`
-                        }
-                        {isSpreadBTC && (
-                          <div className="text-[10px] font-normal text-muted-foreground">
-                            {totalPremium <= 0 ? 'net credit' : 'net debit'}
-                          </div>
-                        )}
-                      </TableCell>
-
-                      {/* Net Profit — only shown for BTC strategy */}
-                      {strategy === 'btc' && order.perOrderPremiumCollected !== undefined ? (() => {
-                        const rowNetProfit = order.perOrderPremiumCollected - Math.abs(totalPremium);
-                        const isProfit = rowNetProfit >= 0;
-                        return (
-                          <TableCell className="text-right">
-                            <div className={`font-bold text-base ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
-                              {isProfit ? '+' : '-'}${Math.abs(rowNetProfit).toFixed(2)}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground">
-                              {order.perOrderPremiumCollected > 0
-                                ? `${((rowNetProfit / order.perOrderPremiumCollected) * 100).toFixed(1)}% of $${order.perOrderPremiumCollected.toFixed(0)} rcvd`
-                                : ''}
+                        {/* Total + Net Profit */}
+                        <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                          <span className="text-xs text-muted-foreground">Total ({qty}x):</span>
+                          <span className={`font-semibold ${
+                            isSpreadBTC ? (totalPremium <= 0 ? 'text-green-400' : 'text-red-400') : strategy === 'btc' ? 'text-red-400' : 'text-green-500'
+                          }`}>
+                            {isSpreadBTC && totalPremium <= 0 ? `+$${Math.abs(totalPremium).toFixed(2)}` : `$${Math.abs(totalPremium).toFixed(2)}`}
+                            {isSpreadBTC && <span className="text-[10px] font-normal text-muted-foreground ml-1">{totalPremium <= 0 ? 'net credit' : 'net debit'}</span>}
+                          </span>
+                          {strategy === 'btc' && order.perOrderPremiumCollected !== undefined && (() => {
+                            const rowNetProfit = order.perOrderPremiumCollected - Math.abs(totalPremium);
+                            const isProfit = rowNetProfit >= 0;
+                            return (
+                              <span className={`font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                                {isProfit ? '+' : '-'}${Math.abs(rowNetProfit).toFixed(2)}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    );
+                  }
+                })}
+            </div>
+          ) : (
+            /* ── DESKTOP: scrollable table ── */
+            <div className="border rounded-lg overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-20">Symbol</TableHead>
+                    <TableHead className="w-24">Strategy</TableHead>
+                    <TableHead className="text-right w-20">Strike</TableHead>
+                    <TableHead className="w-20">Expiration</TableHead>
+                    <TableHead className="text-right w-12">Qty</TableHead>
+                    <TableHead className="text-right w-28">Limit Price</TableHead>
+                    <TableHead className="w-52">Price Adjustment</TableHead>
+                    <TableHead className="text-right w-24">Total</TableHead>
+                    <TableHead className="text-right w-28">Net Profit</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orders.map((order, idx) => {
+                    const key = getOrderKey(order);
+                    const qty = getQuantity(order);
+                    const maxQty = getMaxQuantity(order);
+                    const price = adjustedPrices.get(key) || order.premium;
+                    const isSpreadBTC = strategy === 'btc' && !!(order.spreadLongSymbol || order.longStrike);
+                    const longLegLiveQ = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
+                    const longLegLiveBid = longLegLiveQ && longLegLiveQ.bid > 0 ? longLegLiveQ.bid : undefined;
+                    const longLegCredit = isSpreadBTC ? (longLegLiveBid ?? order.spreadLongPrice ?? order.longPremium ?? 0) : 0;
+                    const netPrice = isSpreadBTC ? (price - longLegCredit) : price;
+                    const rowContractMult = getContractMultiplier(order.symbol);
+                    const totalPremium = netPrice * rowContractMult * qty;
+                    const isIronCondor = order.callShortStrike && order.callLongStrike;
+                    const liveQ = order.optionSymbol ? liveQuotes[order.optionSymbol] : undefined;
+                    const icPutShortQ = order.optionSymbol ? liveQuotes[order.optionSymbol] : undefined;
+                    const icPutLongQ  = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
+                    const icCallShortQ = order.callShortOptionSymbol ? liveQuotes[order.callShortOptionSymbol] : undefined;
+                    const icCallLongQ  = order.callLongOptionSymbol ? liveQuotes[order.callLongOptionSymbol] : undefined;
+                    const isIronCondorLive = !!(isIronCondor && icPutShortQ?.bid && icPutLongQ?.ask && icCallShortQ?.bid && icCallLongQ?.ask);
+                    const icLiveBid = isIronCondorLive ? Math.max(0.01, (icPutShortQ!.bid - icPutLongQ!.ask) + (icCallShortQ!.bid - icCallLongQ!.ask)) : undefined;
+                    const icLiveAsk = isIronCondorLive ? Math.max(0.01, (icPutShortQ!.ask - icPutLongQ!.bid) + (icCallShortQ!.ask - icCallLongQ!.bid)) : undefined;
+                    const hasLiveQuote = isIronCondorLive ? true : !!(liveQ && liveQ.bid > 0 && liveQ.ask > 0);
+                    const effectiveBid = isIronCondorLive ? icLiveBid : (hasLiveQuote ? liveQ!.bid : order.bid);
+                    const effectiveAsk = isIronCondorLive ? icLiveAsk : (hasLiveQuote ? liveQ!.ask : order.ask);
+                    const orderWithLive: UnifiedOrder = hasLiveQuote ? { ...order, bid: effectiveBid, ask: effectiveAsk } : order;
+                    const hasMarketData = (effectiveBid && effectiveAsk && effectiveBid > 0 && effectiveAsk > 0) || (order.premium > 0);
+                    const isSpread = !!(order.spreadLongSymbol || order.longStrike);
+                    const isBTCSpread = strategy === 'btc' && isSpread;
+                    const isBPSOrder = strategy === 'bps' && !!order.longStrike;
+                    const isBCSOrder = strategy === 'bcs' && !!order.longStrike;
+                    return (
+                      <React.Fragment key={idx}>
+                        <TableRow>
+                          {/* Symbol */}
+                          <TableCell className="font-semibold">
+                            <div className="flex flex-col">
+                              <span>{order.symbol}</span>
+                              {(isBTCSpread || isBPSOrder || isBCSOrder) && <span className="text-[10px] text-muted-foreground font-normal">2-leg spread</span>}
+                              {isIronCondor && <span className="text-[10px] text-muted-foreground font-normal">4-leg condor</span>}
+                              {isTrueIndexOption(order.symbol) && (() => {
+                                const exch = getIndexExchange(order.symbol);
+                                return <span className={`text-[9px] font-semibold px-1 py-0.5 rounded mt-0.5 w-fit ${exch === 'Nasdaq' ? 'bg-blue-900 text-blue-200' : 'bg-amber-900 text-amber-200'}`}>{exch === 'Nasdaq' ? 'NASDAQ' : 'CBOE'}</span>;
+                              })()}
+                              {order.currentPrice != null && order.currentPrice > 0 && <span className="text-[10px] text-blue-300 font-normal mt-0.5">@ ${order.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
                             </div>
                           </TableCell>
-                        );
-                      })() : (
-                        strategy === 'btc' ? <TableCell className="text-right text-muted-foreground text-xs">—</TableCell> : null
-                      )}
-                    </TableRow>
-                    {/* Long leg sub-row for BTC spread orders */}
-                    {isBTCSpread && order.spreadLongSymbol && (
-                      <TableRow key={`${idx}-long`} className="bg-blue-950/20">
-                        <TableCell className="text-xs text-blue-400 pl-6" colSpan={2}>
-                          <span className="font-medium">↳ Long leg (STC):</span>
-                        </TableCell>
-                        <TableCell className="text-right text-xs text-blue-300" colSpan={2}>
-                          <div className="flex flex-col items-end gap-0.5">
-                            <span className="font-mono text-[10px] break-all">{order.spreadLongSymbol}</span>
-                            {order.spreadLongSymbol && (() => {
-                              const lm = order.spreadLongSymbol.match(/([CP])(\d{8})$/);
-                              const lType = lm ? (lm[1] === 'P' ? 'Put' : 'Call') : null;
-                              return lType ? (
-                                <span className={`text-[9px] font-semibold ${lType === 'Put' ? 'text-green-400' : 'text-red-400'}`}>
-                                  {lType} leg
-                                </span>
-                              ) : null;
+                          {/* Strategy */}
+                          <TableCell>
+                            <div className="flex flex-col gap-0.5">
+                              {isIronCondor ? <Badge variant="default" className="bg-purple-600">Iron Condor</Badge>
+                              : isBPSOrder ? <div className="flex flex-col gap-0.5"><Badge variant="default" className="bg-green-700 text-white text-[10px] px-1.5">Bull Put Spread</Badge><span className="text-[10px] text-green-400">STO + BTO</span></div>
+                              : isBCSOrder ? <div className="flex flex-col gap-0.5"><Badge variant="default" className="bg-red-700 text-white text-[10px] px-1.5">Bear Call Spread</Badge><span className="text-[10px] text-red-400">STO + BTO</span></div>
+                              : <Badge variant={order.action.includes('BTC') ? 'destructive' : 'default'}>{order.action}</Badge>}
+                              {isBTCSpread && <span className="text-[10px] text-blue-400">+ STC long leg</span>}
+                            </div>
+                          </TableCell>
+                          {/* Strike */}
+                          <TableCell className="text-right">
+                            {(() => {
+                              let displayStrike = order.strike;
+                              if ((!displayStrike || displayStrike === 0) && order.optionSymbol) {
+                                const m = order.optionSymbol.match(/[CP](\d{8})$/);
+                                if (m) displayStrike = parseInt(m[1], 10) / 1000;
+                              }
+                              if (isIronCondor) return (
+                                <div className="text-xs space-y-1.5">
+                                  <div className="space-y-0.5"><div className="font-semibold text-green-500 text-[10px] uppercase tracking-wide">PUT Spread</div><div className="text-green-400">Short: <span className="font-semibold">${order.strike.toFixed(2)}</span></div><div className="text-muted-foreground">Long: <span className="font-semibold">${order.longStrike?.toFixed(2)}</span></div></div>
+                                  <div className="space-y-0.5"><div className="font-semibold text-red-500 text-[10px] uppercase tracking-wide">CALL Spread</div><div className="text-red-400">Short: <span className="font-semibold">${order.callShortStrike?.toFixed(2)}</span></div><div className="text-muted-foreground">Long: <span className="font-semibold">${order.callLongStrike?.toFixed(2)}</span></div></div>
+                                </div>
+                              );
+                              if (isBPSOrder) return <div className="text-xs space-y-1"><div className="text-green-400">Short: <span className="font-semibold">${order.strike.toFixed(2)}</span></div><div className="text-muted-foreground">Long: <span className="font-semibold">${order.longStrike!.toFixed(2)}</span></div></div>;
+                              if (isBCSOrder) return <div className="text-xs space-y-1"><div className="text-red-400">Short: <span className="font-semibold">${order.strike.toFixed(2)}</span></div><div className="text-muted-foreground">Long: <span className="font-semibold">${order.longStrike!.toFixed(2)}</span></div></div>;
+                              return <>${displayStrike > 0 ? displayStrike.toFixed(2) : '—'}</>;
                             })()}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right text-xs text-blue-300">
-                          {order.quantity || qty}x
-                        </TableCell>
-                        <TableCell className="text-right text-xs text-blue-300" colSpan={2}>
-                          {longLegLiveBid !== undefined ? (
-                            <div className="flex flex-col items-end">
-                              <span className="text-green-400 font-medium">${longLegLiveBid.toFixed(2)} bid</span>
-                              <span className="text-[9px] text-green-500">● Live</span>
+                          </TableCell>
+                          {/* Expiration */}
+                          <TableCell>{new Date(order.expiration).toLocaleDateString()}</TableCell>
+                          {/* Qty */}
+                          <TableCell className="text-right overflow-visible">
+                            {allowQuantityEdit ? (
+                              <div className="flex items-center justify-end gap-1 min-w-[5rem]">
+                                <Button size="sm" variant="outline" className="h-6 w-6 p-0" onClick={() => decrementQuantity(order)} disabled={qty <= 1 || isSubmitting}><Minus className="h-3 w-3" /></Button>
+                                <span className="font-mono font-bold min-w-[2ch] text-center">{qty}</span>
+                                <Button size="sm" variant="outline" className="h-6 w-6 p-0" onClick={() => incrementQuantity(order)} disabled={qty >= maxQty || isSubmitting}><Plus className="h-3 w-3" /></Button>
+                              </div>
+                            ) : <span className="font-mono font-bold">{qty}</span>}
+                            {allowQuantityEdit && <div className="text-[10px] text-muted-foreground text-center mt-0.5">max: {maxQty}</div>}
+                          </TableCell>
+                          {/* Limit Price */}
+                          <TableCell className="text-right">
+                            <div className="flex flex-col items-end gap-0.5">
+                              {(isBPSOrder || isBCSOrder || (!!order.longStrike && order.action !== 'BTC')) && <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400/80 bg-emerald-400/10 border border-emerald-400/20 rounded px-1 py-0.5 mb-0.5">Net Credit</span>}
+                              <span className="font-semibold text-green-600">${price.toFixed(2)}</span>
+                              {hasMarketData && (
+                                <div className="text-xs text-muted-foreground space-y-0.5">
+                                  <div>Mid: ${(() => {
+                                    if (order.longStrike && order.longBid && order.longAsk) { const minCredit = effectiveBid! - order.longAsk; const maxCredit = effectiveAsk! - order.longBid; return ((minCredit + maxCredit) / 2).toFixed(2); }
+                                    return ((effectiveBid! + effectiveAsk!) / 2).toFixed(2);
+                                  })()}</div>
+                                </div>
+                              )}
+                              {hasLiveQuote ? <span className="text-[10px] text-green-400 font-medium">● Live</span> : <span className="text-[10px] text-yellow-500">~ Est.</span>}
                             </div>
-                          ) : order.spreadLongPrice !== undefined ? (
-                            <div className="flex flex-col items-end">
-                              <span>${order.spreadLongPrice.toFixed(2)} limit</span>
-                              <span className="text-[9px] text-muted-foreground">(est.)</span>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">Market</span>
-                          )}
-                        </TableCell>
-                        <TableCell />
-                        {strategy === 'btc' && <TableCell />}
-                      </TableRow>
-                    )}
-                    </React.Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+                          </TableCell>
+                          {/* Price Adjustment Slider */}
+                          <TableCell className="min-w-[320px] w-[320px]">
+                            {hasMarketData ? (
+                              <div className="flex flex-col gap-2 py-3 px-1 overflow-hidden">
+                                <div className="flex items-center justify-between text-[10px] px-0.5">
+                                  <span className="text-red-400 font-mono font-medium">Bid</span>
+                                  <span className="text-blue-400 font-mono font-medium">Mid</span>
+                                  <span className="text-green-400 font-mono font-medium">Ask</span>
+                                </div>
+                                {hasLiveQuote && (() => {
+                                  if (isIronCondorLive && icLiveBid != null && icLiveAsk != null) {
+                                    const icLiveMid = (icLiveBid + icLiveAsk) / 2;
+                                    return <div className="flex items-center justify-between text-xs px-0.5"><span className="text-red-400 font-mono">${icLiveBid.toFixed(2)}</span><span className="text-blue-400 font-mono font-bold">${icLiveMid.toFixed(2)}</span><span className="text-green-400 font-mono">${icLiveAsk.toFixed(2)}</span></div>;
+                                  }
+                                  const liveShortQ = liveQ!;
+                                  const liveLongQ = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
+                                  const isSpreadOrder = !!(order.spreadLongSymbol || order.longStrike);
+                                  if (isSpreadOrder && liveLongQ && liveLongQ.bid > 0 && liveLongQ.ask > 0) {
+                                    const netBid = Math.max(0.01, liveShortQ.bid - liveLongQ.ask);
+                                    const netAsk = Math.max(0.01, liveShortQ.ask - liveLongQ.bid);
+                                    const netMid = (netBid + netAsk) / 2;
+                                    return <div className="flex items-center justify-between text-xs px-0.5"><span className="text-red-400 font-mono">${netBid.toFixed(2)}</span><span className="text-blue-400 font-mono font-bold">${netMid.toFixed(2)}</span><span className="text-green-400 font-mono">${netAsk.toFixed(2)}</span></div>;
+                                  } else if (!isSpreadOrder) {
+                                    const mid = (liveShortQ.bid + liveShortQ.ask) / 2;
+                                    return <div className="flex items-center justify-between text-xs px-0.5"><span className="text-red-400 font-mono">${liveShortQ.bid.toFixed(2)}</span><span className="text-blue-400 font-mono font-bold">${mid.toFixed(2)}</span><span className="text-green-400 font-mono">${liveShortQ.ask.toFixed(2)}</span></div>;
+                                  }
+                                  return null;
+                                })()}
+                                <div className="relative">
+                                  <div className="relative px-1">
+                                    <div className="absolute h-3 w-0.5 bg-blue-400/50 pointer-events-none" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 0 }} />
+                                    <Slider value={getSliderPosition(orderWithLive)} onValueChange={(value) => setPriceFromSlider(orderWithLive, value)} min={0} max={100} step={1} className="w-full cursor-grab active:cursor-grabbing" />
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between gap-2 pt-1">
+                                  <div className="flex items-center gap-2">
+                                    {(() => {
+                                      const tick = getTickSize(price, order.symbol);
+                                      return (<>
+                                        <Button size="sm" variant="outline" className="h-7 w-7 p-0 rounded-full" onClick={() => adjustPrice(orderWithLive, -tick)} disabled={isSubmitting} title={`Decrease by $${tick.toFixed(2)}`}><Minus className="h-3 w-3" /></Button>
+                                        <div className="flex flex-col items-center min-w-[52px]">
+                                          {(isBPSOrder || isBCSOrder || (!!order.longStrike && order.action !== 'BTC')) && <span className="text-[8px] font-semibold uppercase tracking-wider text-emerald-400/70 leading-none mb-0.5">Net Credit</span>}
+                                          <span className="text-sm font-mono font-bold text-blue-400 text-center">${price.toFixed(2)}</span>
+                                        </div>
+                                        <Button size="sm" variant="outline" className="h-7 w-7 p-0 rounded-full" onClick={() => adjustPrice(orderWithLive, tick)} disabled={isSubmitting} title={`Increase by $${tick.toFixed(2)}`}><Plus className="h-3 w-3" /></Button>
+                                      </>);
+                                    })()}
+                                  </div>
+                                  {hasMarketData && (
+                                    <Button size="sm" variant="outline" className="h-7 text-[10px] px-2 gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200" disabled={isOptimizingPrice || isSubmitting} onClick={async () => {
+                                      const liveShortQ2 = liveQuotes[order.optionSymbol ?? ''];
+                                      const rawShortBid = liveShortQ2?.bid ?? effectiveBid ?? 0;
+                                      const rawShortAsk = liveShortQ2?.ask ?? effectiveAsk ?? 0;
+                                      const isSpreadOrder2 = !!(order.longStrike);
+                                      let eBid: number; let eAsk: number;
+                                      if (isSpreadOrder2) {
+                                        const liveLongQ2 = order.spreadLongSymbol ? liveQuotes[order.spreadLongSymbol] : undefined;
+                                        const longBidVal = (liveLongQ2 && liveLongQ2.bid > 0) ? liveLongQ2.bid : (order.longBid ?? 0);
+                                        const longAskVal = (liveLongQ2 && liveLongQ2.ask > 0) ? liveLongQ2.ask : (order.longAsk ?? 0);
+                                        eBid = Math.max(0.01, rawShortBid - longAskVal);
+                                        eAsk = Math.max(0.01, rawShortAsk - longBidVal);
+                                      } else { eBid = rawShortBid; eAsk = rawShortAsk; }
+                                      const eMid = (eBid + eAsk) / 2;
+                                      const currentPrice2 = adjustedPrices.get(getOrderKey(order)) ?? order.premium;
+                                      if (!eBid || !eAsk) return;
+                                      setIsOptimizingPrice(true);
+                                      try {
+                                        const result = await optimizePriceMutation.mutateAsync({ symbol: order.symbol, action: order.action as 'STO' | 'BTC' | 'BTO' | 'STC', strategy, bid: eBid, ask: eAsk, mid: eMid, currentLimitPrice: currentPrice2, expiration: order.expiration, strike: order.strike, optionType: order.optionType, isSpread: isSpreadOrder2, spreadWidth: order.longStrike ? Math.abs(order.strike - order.longStrike) : undefined });
+                                        const newPrices = new Map(adjustedPrices);
+                                        newPrices.set(getOrderKey(order), result.suggestedPrice);
+                                        setAdjustedPrices(newPrices);
+                                        setPriceAdvice(result);
+                                      } catch (e) { /* ignore */ } finally { setIsOptimizingPrice(false); }
+                                    }}>
+                                      {isOptimizingPrice ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                                      {isOptimizingPrice ? 'Analyzing...' : 'AI Optimize'}
+                                    </Button>
+                                  )}
+                                </div>
+                                {(() => {
+                                  const sliderPos = getSliderPosition(orderWithLive)[0];
+                                  const guidance = getFillZoneGuidance(sliderPos, order.action);
+                                  const fillPct = order.action === 'STO' ? Math.min(95, Math.max(10, Math.round(sliderPos * 0.85 + 5))) : Math.min(95, Math.max(10, Math.round((100 - sliderPos) * 0.85 + 5)));
+                                  const fillColor = fillPct >= 65 ? 'text-green-400' : fillPct >= 40 ? 'text-yellow-400' : 'text-red-400';
+                                  return <div className="flex items-center justify-between text-[10px] pt-0.5 border-t border-border/30"><span className={guidance.color}>{guidance.text}</span><span className={`${fillColor} cursor-help`} title="Estimated fill probability">~{fillPct}% fill</span></div>;
+                                })()}
+                              </div>
+                            ) : <span className="text-xs text-muted-foreground">No market data</span>}
+                          </TableCell>
+                          {/* Total */}
+                          <TableCell className={`text-right font-semibold ${isSpreadBTC ? (totalPremium <= 0 ? 'text-green-400' : 'text-red-400') : strategy === 'btc' ? 'text-red-400' : 'text-green-500'}`}>
+                            {isSpreadBTC && totalPremium <= 0 ? `+$${Math.abs(totalPremium).toFixed(2)}` : `$${Math.abs(totalPremium).toFixed(2)}`}
+                            {isSpreadBTC && <div className="text-[10px] font-normal text-muted-foreground">{totalPremium <= 0 ? 'net credit' : 'net debit'}</div>}
+                          </TableCell>
+                          {/* Net Profit */}
+                          {strategy === 'btc' && order.perOrderPremiumCollected !== undefined ? (() => {
+                            const rowNetProfit = order.perOrderPremiumCollected - Math.abs(totalPremium);
+                            const isProfit = rowNetProfit >= 0;
+                            return <TableCell className="text-right"><div className={`font-bold text-base ${isProfit ? 'text-green-400' : 'text-red-400'}`}>{isProfit ? '+' : '-'}${Math.abs(rowNetProfit).toFixed(2)}</div><div className="text-[10px] text-muted-foreground">{order.perOrderPremiumCollected > 0 ? `${((rowNetProfit / order.perOrderPremiumCollected) * 100).toFixed(1)}% of $${order.perOrderPremiumCollected.toFixed(0)} rcvd` : ''}</div></TableCell>;
+                          })() : (strategy === 'btc' ? <TableCell className="text-right text-muted-foreground text-xs">—</TableCell> : null)}
+                        </TableRow>
+                        {/* Long leg sub-row for BTC spread orders */}
+                        {isBTCSpread && order.spreadLongSymbol && (
+                          <TableRow key={`${idx}-long`} className="bg-blue-950/20">
+                            <TableCell className="text-xs text-blue-400 pl-6" colSpan={2}><span className="font-medium">↳ Long leg (STC):</span></TableCell>
+                            <TableCell className="text-right text-xs text-blue-300" colSpan={2}>
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="font-mono text-[10px] break-all">{order.spreadLongSymbol}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right text-xs text-blue-300">{order.quantity || qty}x</TableCell>
+                            <TableCell className="text-right text-xs text-blue-300" colSpan={2}>
+                              {longLegLiveBid !== undefined ? (
+                                <div className="flex flex-col items-end"><span className="text-green-400 font-medium">${longLegLiveBid.toFixed(2)} bid</span><span className="text-[9px] text-green-500">● Live</span></div>
+                              ) : order.spreadLongPrice !== undefined ? (
+                                <div className="flex flex-col items-end"><span>${order.spreadLongPrice.toFixed(2)} limit</span><span className="text-[9px] text-muted-foreground">(est.)</span></div>
+                              ) : <span className="text-muted-foreground">Market</span>}
+                            </TableCell>
+                            <TableCell />
+                            {strategy === 'btc' && <TableCell />}
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
           
           {/* Live position check loading indicator */}
           {(strategy === 'btc' || strategy === 'roll') && closeValidationInput && !closeValidationData && (

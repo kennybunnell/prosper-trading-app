@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useIsMobile } from "@/hooks/useMobile";
+import { CCMobileCard } from "@/components/MobileOpportunityCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -291,6 +293,7 @@ type CCOpportunity = {
 export default function CCDashboard() {
    const { selectedAccountId } = useAccount();
   const getAccountLabel = useAccountNicknames();
+  const isMobile = useIsMobile();
   const { mode: tradingMode } = useTradingMode();
   const utils = trpc.useUtils();
   const [isLoadingPositions, setIsLoadingPositions] = useState(false);
@@ -3191,7 +3194,45 @@ export default function CCDashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              {isMobile ? (
+                /* ── MOBILE: stacked cards ── */
+                <div className="space-y-2 px-1">
+                  {sortedOpportunities.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8 text-sm">No opportunities found</p>
+                  ) : (
+                    sortedOpportunities.map((opp, rowIdx) => {
+                      const oppKey = getOpportunityKey(opp);
+                      const isSelected = selectedOpportunities.has(oppKey);
+                      return (
+                        <CCMobileCard
+                          key={`${oppKey}-${rowIdx}`}
+                          opp={{
+                            symbol: opp.symbol,
+                            score: opp.score,
+                            strike: opp.strike,
+                            dte: opp.dte,
+                            premium: opp.premium,
+                            expiration: opp.expiration,
+                            returnPct: opp.returnPct,
+                            weeklyReturn: opp.weeklyReturn,
+                            rsi: opp.rsi,
+                            ivRank: opp.ivRank,
+                            riskBadges: (opp as any).riskBadges,
+                            longStrike: opp.longStrike,
+                            netCredit: opp.netCredit,
+                            spreadROC: opp.spreadROC,
+                          }}
+                          isSelected={isSelected}
+                          onToggle={() => toggleOpportunitySelection(opp)}
+                          strategyType={strategyType}
+                        />
+                      );
+                    })
+                  )}
+                </div>
+              ) : (
+                /* ── DESKTOP: scrollable table ── */
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -3656,7 +3697,8 @@ export default function CCDashboard() {
                     })}
                   </TableBody>
                 </Table>
-              </div>
+                </div>
+              )}
             </CardContent>
           </Card>
           </div>

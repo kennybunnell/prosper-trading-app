@@ -72,6 +72,8 @@ import {
   BarChart2,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+import { useIsMobile } from "@/hooks/useMobile";
+import { ICMobileCard } from "@/components/MobileOpportunityCard";
 import { toast } from "sonner";
 import { cn, exportToCSV } from "@/lib/utils";
 import { UnifiedOrderPreviewModal } from "@/components/UnifiedOrderPreviewModal";
@@ -161,6 +163,7 @@ function getIVRankColor(ivRank: number | null): string {
 }
 
 export default function IronCondorDashboard() {
+  const isMobile = useIsMobile();
   const { user, loading: authLoading } = useAuth();
   const { mode: tradingMode } = useTradingMode();
   
@@ -780,7 +783,7 @@ export default function IronCondorDashboard() {
             
             {/* Filters */}
             <div className="mt-6 space-y-4">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium">Min DTE</label>
                   <input
@@ -1371,7 +1374,43 @@ export default function IronCondorDashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              {isMobile ? (
+                /* ── MOBILE: stacked cards ── */
+                <div className="space-y-2 px-1">
+                  {displayedOpportunities.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8 text-sm">No opportunities found</p>
+                  ) : (
+                    displayedOpportunities.map((opp: any, rowIdx: number) => {
+                      const key = `${opp.symbol}-${opp.expiration}-${opp.putShortStrike}-${opp.callShortStrike}`;
+                      const isSelected = selectedOpportunities.has(key);
+                      return (
+                        <ICMobileCard
+                          key={`${key}-${rowIdx}`}
+                          opp={{
+                            symbol: opp.symbol,
+                            score: opp.score,
+                            putShortStrike: opp.putShortStrike,
+                            putLongStrike: opp.putLongStrike,
+                            callShortStrike: opp.callShortStrike,
+                            callLongStrike: opp.callLongStrike,
+                            dte: opp.dte,
+                            totalNetCredit: opp.totalNetCredit,
+                            roc: opp.roc,
+                            expiration: opp.expiration,
+                            rsi: opp.rsi,
+                            ivRank: opp.ivRank,
+                            riskBadges: opp.riskBadges,
+                          }}
+                          isSelected={isSelected}
+                          onToggle={() => toggleOpportunity(key)}
+                        />
+                      );
+                    })
+                  )}
+                </div>
+              ) : (
+                /* ── DESKTOP: scrollable table ── */
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1834,7 +1873,8 @@ export default function IronCondorDashboard() {
                     )}
                   </TableBody>
                 </Table>
-              </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </>

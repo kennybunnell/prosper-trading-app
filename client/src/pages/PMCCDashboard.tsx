@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useIsMobile } from "@/hooks/useMobile";
+import { PMCCMobileCard } from "@/components/MobileOpportunityCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from '@/components/ui/checkbox';
@@ -196,6 +198,7 @@ function ActivePositionsSection({ positionsData, isLoading, refetch, onSellCalls
 }
 
 export default function PMCCDashboard() {
+  const isMobile = useIsMobile();
   const { mode: tradingMode } = useTradingMode();
   
   // Fetch LEAP positions (shared between ActivePositionsSection and ShortCallScanner)
@@ -856,7 +859,7 @@ export default function PMCCDashboard() {
                         <CardDescription>Review your selected LEAPs</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="grid grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                           <div className="bg-green-900/30 rounded-lg p-4 border border-green-700/50">
                             <div className="flex items-center gap-2 mb-2">
                               <DollarSign className="h-5 w-5 text-green-400" />
@@ -941,7 +944,29 @@ export default function PMCCDashboard() {
                   </div>
 
                   {/* LEAP Opportunities Table */}
-                  <div className="rounded-md border overflow-x-auto">
+                  {isMobile ? (
+                    /* ── MOBILE: stacked cards ── */
+                    <div className="space-y-2 px-1">
+                      {sortedLeaps.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-8 text-sm">No LEAP opportunities found</p>
+                      ) : (
+                        sortedLeaps.map((leap) => {
+                          const key = getLeapKey(leap);
+                          const isSelected = selectedLeaps.has(key);
+                          return (
+                            <PMCCMobileCard
+                              key={key}
+                              leap={leap}
+                              isSelected={isSelected}
+                              onToggle={() => toggleLeapSelection(leap)}
+                            />
+                          );
+                        })
+                      )}
+                    </div>
+                  ) : (
+                    /* ── DESKTOP: scrollable table ── */
+                    <div className="rounded-md border overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-muted/50">
                         <tr>
@@ -1104,7 +1129,8 @@ export default function PMCCDashboard() {
                         })}
                       </tbody>
                     </table>
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1237,7 +1263,7 @@ export default function PMCCDashboard() {
 
               {/* Order Summary */}
               {orderSummary && (
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="p-4 bg-green-900/20 border border-green-700/50 rounded-lg">
                     <p className="text-sm text-muted-foreground">Total Cost</p>
                     <p className="text-2xl font-bold text-green-400">${orderSummary.totalCost.toFixed(2)}</p>

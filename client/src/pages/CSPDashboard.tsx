@@ -47,6 +47,8 @@ import {
   BarChart2,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+import { useIsMobile } from "@/hooks/useMobile";
+import { CSPMobileCard } from "@/components/MobileOpportunityCard";
 import { RiskBadgeList } from "@/components/RiskBadge";
 
 // Color-coding helper functions for technical indicators
@@ -311,6 +313,7 @@ const ENABLE_SPREADS = true;
 
 export default function CSPDashboard() {
   const { user, loading: authLoading } = useAuth();
+  const isMobile = useIsMobile();
   const { mode: tradingMode } = useTradingMode();
   
   // Fetch user's background texture preferences
@@ -2990,7 +2993,44 @@ export default function CSPDashboard() {
               </div>
             </div>
           )}
-          <div className="overflow-x-auto">
+          {isMobile ? (
+            /* ── MOBILE: stacked cards ── */
+            <div className="space-y-2 px-1">
+              {filteredOpportunities.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8 text-sm">No opportunities found</p>
+              ) : (
+                filteredOpportunities.map((opp, rowIdx) => {
+                  const key = `${opp.symbol}-${opp.strike}-${(opp as any).longStrike ?? ''}-${opp.expiration}`;
+                  const isSelected = selectedOpportunities.has(key);
+                  return (
+                    <CSPMobileCard
+                      key={(opp as any).optionSymbol || `${key}-${rowIdx}`}
+                      opp={{
+                        symbol: opp.symbol,
+                        score: opp.score,
+                        strike: opp.strike,
+                        dte: opp.dte,
+                        premium: opp.premium,
+                        expiration: opp.expiration,
+                        roc: strategyType === 'spread' ? ((opp as any).spreadROC ?? opp.roc) : opp.roc,
+                        rsi: opp.rsi,
+                        ivRank: opp.ivRank,
+                        riskBadges: (opp as any).riskBadges,
+                        longStrike: (opp as any).longStrike,
+                        netCredit: (opp as any).netCredit,
+                        spreadROC: (opp as any).spreadROC,
+                      }}
+                      isSelected={isSelected}
+                      onToggle={() => toggleOpportunity(opp)}
+                      strategyType={strategyType}
+                    />
+                  );
+                })
+              )}
+            </div>
+          ) : (
+            /* ── DESKTOP: scrollable table ── */
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -3458,7 +3498,8 @@ export default function CSPDashboard() {
                 )}
               </TableBody>
             </Table>
-          </div>
+            </div>
+          )}
 
 
         </CardContent>

@@ -9602,3 +9602,13 @@ ROC Fix Mar 18 2026
 - [x] Create manifest.webmanifest with correct name, theme color, icons, and display mode
 - [x] Update index.html with manifest link, apple-mobile-web-app-capable, theme-color, favicon, og tags
 - [x] Implement pull-to-refresh gesture (PullToRefresh component) with rubber-band animation and spinner
+
+## Mobile Scan Tables & Order Modal (May 2026)
+- [x] UnifiedOrderPreviewModal: replace wide table with per-order stacked cards on mobile (slider, qty, price controls all visible)
+- [x] Create shared MobileOpportunityCard component (CSPMobileCard, CCMobileCard, ICMobileCard, PMCCMobileCard)
+- [x] CSPDashboard: show MobileOpportunityCard list on mobile instead of overflow-x table
+- [x] CCDashboard: show MobileOpportunityCard list on mobile instead of overflow-x table
+- [x] IronCondorDashboard: show MobileOpportunityCard list on mobile instead of overflow-x table
+- [x] PMCCDashboard: show MobileOpportunityCard list on mobile instead of overflow-x table
+- [x] IronCondorDashboard: fix filter panel grid-cols-3 → grid-cols-1 sm:grid-cols-3
+- [x] PMCCDashboard: fix order summary grid-cols-4 → grid-cols-2 sm:grid-cols-4 (both instances)
