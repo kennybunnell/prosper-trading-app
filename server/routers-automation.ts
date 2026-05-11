@@ -1777,6 +1777,18 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                 const liveRawNet = shortLiveQ.ask - longLiveQ.bid;
                 (order as any)._netCreditSpread = liveRawNet < 0;
                 console.log(`[submitCloseOrders] Spread direction from live quotes: short.ask=${shortLiveQ.ask} long.bid=${longLiveQ.bid} rawNet=${liveRawNet.toFixed(4)} → ${liveRawNet < 0 ? 'Credit' : 'Debit'}`);
+                // Safety cap: for debit closes, never submit at or above the natural ask (too aggressive).
+                // Cap the user-set price at (natural ask - 1 tick) to avoid Tastytrade rejection.
+                if (liveRawNet >= 0 && limitPrice >= liveRawNet) {
+                  const { snapToTick: snapTick2 } = await import('../shared/orderUtils');
+                  const naturalAsk = liveRawNet; // short.ask - long.bid = natural ask for the spread
+                  const tickSize = naturalAsk >= 3 ? 0.05 : 0.01;
+                  const cappedPrice = snapTick2(Math.max(0.01, naturalAsk - tickSize), order.symbol);
+                  if (cappedPrice < limitPrice) {
+                    console.log(`[submitCloseOrders] Capping user price $${limitPrice.toFixed(2)} → $${cappedPrice.toFixed(2)} (natural ask=$${naturalAsk.toFixed(2)} - 1 tick) to avoid too-aggressive rejection`);
+                    limitPrice = cappedPrice;
+                  }
+                }
               } else {
                 // Fallback: use userLimitPrice as net price — positive slider = debit to close
                 // For BPS/BCS closes, the slider always represents a debit (cost to close)
@@ -2000,8 +2012,8 @@ Be specific and actionable. Mention the actual numbers (e.g., "1.48%/week", "del
                   let freshPrice = nextPrice;
                   if (creds?.tastytradeRefreshToken) {
                     const ttRetry = await authenticateTastytrade(creds, _userId);
-                    const freshQuotes = await ttRetry.getOptionQuotesBatch([_optionSymbol]).catch(() => new Map());
-                    const freshQ = freshQuotes.get(_optionSymbol) || freshQuotes.get(_optionSymbol.replace(/\s/g, ''));
+                    const freshQuotes: Record<string, any> = await ttRetry.getOptionQuotesBatch([_optionSymbol]).catch(() => ({}));
+                    const freshQ = freshQuotes[_optionSymbol] || freshQuotes[_optionSymbol.replace(/\s/g, '')];
                     if (freshQ) {
                       const freshMid = (freshQ.bid + freshQ.ask) / 2;
                       if (freshMid > 0) {

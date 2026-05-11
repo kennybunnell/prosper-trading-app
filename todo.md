@@ -9621,3 +9621,7 @@ ROC Fix Mar 18 2026
 ## Order Submission Bug Fixes (May 11 2026)
 - [ ] Fix: submitOrders server procedure ignores quantity — hardcoded to 1 on every leg
 - [ ] Fix: Replace Selected price slider override not being passed through to the replace mutation correctly
+
+## Order Close Fixes (May 11 2026)
+- [x] Fix AdaptiveClose retry crash: freshQuotes.get is not a function (was treating Record as Map, changed to bracket notation)
+- [x] Add safety cap for user-set spread BTC prices: cap at natural ask - 1 tick to prevent too-aggressive Tastytrade rejection
