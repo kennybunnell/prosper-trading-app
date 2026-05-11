@@ -1637,6 +1637,9 @@ export function WorkingOrdersTab() {
       currentPrice: order.currentPrice,
       oldPrice: order.currentPrice,
       oldOrderId: String(order.orderId),
+      // Pass the full OCC option symbol (e.g. "GE    250620P00030000") so the modal
+      // can fetch live bid/ask quotes and give the price slider a real range.
+      optionSymbol: order.symbol,
     }));
     
     const orderIds = ordersToReplace.map(order => String(order.orderId));

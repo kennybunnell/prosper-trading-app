@@ -9617,3 +9617,7 @@ ROC Fix Mar 18 2026
 - [x] Sidebar.tsx: add mobile drawer overlay — hidden by default, slides in from left on hamburger tap, closes on nav tap or backdrop tap
 - [x] App.tsx: add mobile sticky header bar with hamburger button and current page title
 - [x] Sidebar.tsx: on mobile, close drawer automatically when a nav link is tapped
+
+## Order Submission Bug Fixes (May 11 2026)
+- [ ] Fix: submitOrders server procedure ignores quantity — hardcoded to 1 on every leg
+- [ ] Fix: Replace Selected price slider override not being passed through to the replace mutation correctly

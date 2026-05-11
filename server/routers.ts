@@ -2449,6 +2449,7 @@ Summary: [One sentence overall assessment]`;
             strike: z.number(),
             expiration: z.string(),
             premium: z.number(),
+            quantity: z.number().int().min(1).optional(), // Number of contracts (defaults to 1)
             isSpread: z.boolean().optional(),
             optionSymbol: z.string().transform(val => val).optional(), // CSP: single leg
             shortLeg: z.object({
@@ -2617,34 +2618,35 @@ Summary: [One sentence overall assessment]`;
               // Build legs based on order type
               // NOTE: Tastytrade order submission API requires 'Equity Option' for ALL option legs.
               const legInstrumentType: 'Equity Option' = 'Equity Option';
+              const orderQty = String(order.quantity ?? 1);
               const legs = order.isIronCondor && order.putShortLeg && order.putLongLeg && order.callShortLeg && order.callLongLeg
               ? [
                     // Iron Condor: Leg 1 - Sell Put (short put)
                     {
                       instrumentType: legInstrumentType,
                       symbol: order.putShortLeg.optionSymbol,
-                      quantity: '1',
+                      quantity: orderQty,
                       action: order.putShortLeg.action,
                     },
                     // Iron Condor: Leg 2 - Buy Put (long put)
                     {
                       instrumentType: legInstrumentType,
                       symbol: order.putLongLeg.optionSymbol,
-                      quantity: '1',
+                      quantity: orderQty,
                       action: order.putLongLeg.action,
                     },
                     // Iron Condor: Leg 3 - Sell Call (short call)
                     {
                       instrumentType: legInstrumentType,
                       symbol: order.callShortLeg.optionSymbol,
-                      quantity: '1',
+                      quantity: orderQty,
                       action: order.callShortLeg.action,
                     },
                     // Iron Condor: Leg 4 - Buy Call (long call)
                     {
                       instrumentType: legInstrumentType,
                       symbol: order.callLongLeg.optionSymbol,
-                      quantity: '1',
+                      quantity: orderQty,
                       action: order.callLongLeg.action,
                     },
                   ]
@@ -2654,14 +2656,14 @@ Summary: [One sentence overall assessment]`;
                     {
                       instrumentType: legInstrumentType,
                       symbol: order.shortLeg.optionSymbol,
-                      quantity: '1',
+                      quantity: orderQty,
                       action: order.shortLeg.action,
                     },
                     // Bull Put Spread / Bear Call Spread: Leg 2 - Buy to Open
                     {
                       instrumentType: legInstrumentType,
                       symbol: order.longLeg.optionSymbol,
-                      quantity: '1',
+                      quantity: orderQty,
                       action: order.longLeg.action,
                     },
                   ]
@@ -2670,7 +2672,7 @@ Summary: [One sentence overall assessment]`;
                     {
                       instrumentType: legInstrumentType,
                       symbol: order.optionSymbol!,
-                      quantity: '1',
+                      quantity: orderQty,
                       action: 'Sell to Open' as const,
                     },
                   ];
