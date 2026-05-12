@@ -1373,7 +1373,12 @@ export function WorkingOrdersTab() {
   const [overridePrices, setOverridePrices] = useState<Record<number, number>>({});
   const [groupBySymbol, setGroupBySymbol] = useState(true);
   const [expandedOrders, setExpandedOrders] = useState<Set<number>>(new Set());
-
+  // Auto-refresh
+  const AUTO_REFRESH_SECS = 30;
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [countdown, setCountdown] = useState(AUTO_REFRESH_SECS);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const toggleExpand = (idx: number) => {
     setExpandedOrders(prev => {
       const next = new Set(prev);
@@ -1488,9 +1493,34 @@ export function WorkingOrdersTab() {
       enabled: true,
       refetchOnWindowFocus: false,
       retry: false,
-      staleTime: 0, // Always treat data as stale so Refresh button forces a real API call
+       staleTime: 0, // Always treat data as stale so Refresh button forces a real API call
     }
   );
+
+  // Record last-refreshed time and reset countdown whenever data arrives
+  useEffect(() => {
+    if (data) {
+      setLastRefreshed(new Date());
+      setCountdown(AUTO_REFRESH_SECS);
+    }
+  }, [data]);
+
+  // Countdown tick — fires auto-refetch when it hits 0
+  useEffect(() => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    if (!autoRefreshEnabled) return;
+    countdownRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          refetch();
+          return AUTO_REFRESH_SECS;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefreshEnabled]);
 
   // Cancel orders mutation
   const cancelOrdersMutation = trpc.workingOrders.cancelOrders.useMutation({
@@ -1854,15 +1884,41 @@ export function WorkingOrdersTab() {
               <Download className="h-4 w-4 mr-2" />
               Export CSV
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Last refreshed + countdown */}
+              <div className="hidden sm:flex flex-col items-end text-xs text-muted-foreground leading-tight">
+                {lastRefreshed && (
+                  <span>Updated {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                )}
+                {autoRefreshEnabled && (
+                  <span className="text-amber-400">Auto in {countdown}s</span>
+                )}
+              </div>
+              {/* Auto-refresh toggle */}
+              <UITooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAutoRefreshEnabled(v => !v)}
+                    className={autoRefreshEnabled ? 'border-amber-500/50 text-amber-400' : 'opacity-50'}
+                  >
+                    {autoRefreshEnabled ? '⏸' : '▶'}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{autoRefreshEnabled ? 'Pause auto-refresh' : 'Resume auto-refresh (30s)'}</TooltipContent>
+              </UITooltip>
+              {/* Manual refresh */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { refetch(); setCountdown(AUTO_REFRESH_SECS); }}
+                disabled={isLoading}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
           </div>
         </div>
       </Card>

@@ -9625,3 +9625,9 @@ ROC Fix Mar 18 2026
 ## Order Close Fixes (May 11 2026)
 - [x] Fix AdaptiveClose retry crash: freshQuotes.get is not a function (was treating Record as Map, changed to bracket notation)
 - [x] Add safety cap for user-set spread BTC prices: cap at natural ask - 1 tick to prevent too-aggressive Tastytrade rejection
+
+## Working Orders Auto-Refresh (May 12 2026)
+- [x] Add 30-second auto-refresh countdown timer to Working Orders tab
+- [x] Add manual Refresh button that resets the countdown
+- [x] Add pause/resume toggle for auto-refresh (amber ⏸/▶ button)
+- [x] Show "Updated HH:MM:SS" last-refreshed timestamp next to Refresh button
