@@ -5091,17 +5091,19 @@ Summary: [One sentence overall assessment]`;
           const col = symOpps[0].opp.capitalRisk || 0;
           return col > 0 ? Math.max(1, Math.floor((effectiveBP * 0.20) / col)) : maxContracts;
         };
+        // Use 0-based index in the summary so the LLM returns 0-based opportunityIndex values
+        // that map directly to the opportunities array without any offset adjustment.
         const oppSummary = opportunities.map((o, i) =>
-          `${i + 1}. ${o.symbol} | Score:${o.score} | ${o.shortStrike ? `Short:${o.shortStrike}/Long:${o.longStrike}` : `Strike:${o.strike}`} | Exp:${o.expiration} | DTE:${o.dte} | Credit:$${o.netCredit.toFixed(2)} | Collateral:$${o.capitalRisk} | ROC:${o.roc.toFixed(2)}% | Delta:${(o.delta ?? 0).toFixed(3)} | OI:${o.openInterest ?? 0} | Vol:${o.volume ?? 0} | IVRank:${(o.ivRank ?? 0).toFixed(1)}`
+          `${i}. ${o.symbol} | Score:${o.score} | ${o.shortStrike ? `Short:${o.shortStrike}/Long:${o.longStrike}` : `Strike:${o.strike}`} | Exp:${o.expiration} | DTE:${o.dte} | Credit:$${o.netCredit.toFixed(2)} | Collateral:$${o.capitalRisk} | ROC:${o.roc.toFixed(2)}% | Delta:${(o.delta ?? 0).toFixed(3)} | OI:${o.openInterest ?? 0} | Vol:${o.volume ?? 0} | IVRank:${(o.ivRank ?? 0).toFixed(1)}`
         ).join('\n');
         // Per-symbol best hints for the AI prompt
         const symbolBestHints = uniqueSymbols.map(sym => {
           const best = [...(symbolGroups[sym] || [])].sort((a, b) => b.opp.score - a.opp.score)[0];
-          return `${sym}: best at index ${best.idx + 1} (Score:${best.opp.score}, ROC:${best.opp.roc.toFixed(2)}%, MaxQty:${perSymbolMaxContracts(sym)})`;
+          return `${sym}: best at index ${best.idx} (Score:${best.opp.score}, ROC:${best.opp.roc.toFixed(2)}%, MaxQty:${perSymbolMaxContracts(sym)})`;  // 0-based index
         }).join('; ');
         const bpDisplay = availableBuyingPower > 0 ? `$${availableBuyingPower.toLocaleString()}` : 'not specified (assume $100,000)';
         const numPicks = Math.max(3, uniqueSymbols.length);
-        const systemPrompt = `You are an expert options income trader specializing in ${strategy} strategies. You MUST return exactly ${numPicks} picks — at least one pick per unique symbol (${uniqueSymbols.join(', ')}). For each symbol choose the best opportunity balancing: ROC, liquidity (OI>100, Vol>10), delta cushion, DTE sweet spot (7-21 days), and score. Calculate suggestedMaxQty per symbol based on 20% max buying power rule. Available BP: ${bpDisplay}. Per-symbol best candidates: ${symbolBestHints}. Return ONLY valid JSON: {"picks":[{"rank":1,"opportunityIndex":0,"suggestedMaxQty":5,"rationale":"...","riskNote":"..."}]}`;
+        const systemPrompt = `You are an expert options income trader specializing in ${strategy} strategies. You MUST return exactly ${numPicks} picks — at least one pick per unique symbol (${uniqueSymbols.join(', ')}). For each symbol choose the best opportunity balancing: ROC, liquidity (OI>100, Vol>10), delta cushion, DTE sweet spot (7-21 days), and score. Calculate suggestedMaxQty per symbol based on 20% max buying power rule. Available BP: ${bpDisplay}. Per-symbol best candidates: ${symbolBestHints}. IMPORTANT: opportunityIndex values are 0-based (first opportunity is index 0, second is index 1, etc.). Return ONLY valid JSON: {"picks":[{"rank":1,"opportunityIndex":0,"suggestedMaxQty":5,"rationale":"...","riskNote":"..."}]}`;
 
         const response = await invokeLLM({
           messages: [

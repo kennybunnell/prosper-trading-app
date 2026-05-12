@@ -9631,3 +9631,10 @@ ROC Fix Mar 18 2026
 - [x] Add manual Refresh button that resets the countdown
 - [x] Add pause/resume toggle for auto-refresh (amber ⏸/▶ button)
 - [x] Show "Updated HH:MM:SS" last-refreshed timestamp next to Refresh button
+
+## AI Advisor Card Misalignment Fix (May 12 2026)
+- [x] Fix AI Advisor analysis text offset by +1 position (CSCO analysis shown under AAPL, AAPL under KO, etc.)
+  - Root cause: opportunity summary sent to LLM used 1-based numbering (i+1) but array lookup used 0-based index
+  - Fix: changed oppSummary and symbolBestHints to use 0-based index (i) so LLM returns values that map directly to opportunities[]
+  - Also added explicit "IMPORTANT: opportunityIndex values are 0-based" instruction to system prompt
+  - Zero TypeScript errors confirmed
