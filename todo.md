@@ -9656,3 +9656,10 @@ ROC Fix Mar 18 2026
 - [x] SQL: reset isIndex=false for all ETF proxy symbols already in the watchlist table (4 rows corrected: SPY, QQQ x2, TQQQ)
 - [x] Add ETF/Cash Index badge next to each symbol in the watchlist table (amber=Cash-Settled, blue=ETF, muted=Equity)
 - [x] Add Settlement column (Cash-Settled / Equity-Settled) to BPS spread scanner results table
+
+## Unified Admin Inbox — Support Tickets Tab (May 13 2026)
+- [x] Add admin-only "Support Tickets" tab to Inbox page showing all users' feedback via trpc.admin.listFeedback
+- [x] Each ticket card shows: user name, subject, type/priority/status badges, description preview, screenshot thumbnail
+- [x] Detail dialog: full description, screenshot/video preview, copy button for text, conversation history, reply form, status update
+- [x] Copy button copies subject + description + page URL as formatted block ready to paste into chat
+- [x] Tab only renders for admin users (role === 'admin')
