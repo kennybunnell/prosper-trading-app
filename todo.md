@@ -9632,6 +9632,11 @@ ROC Fix Mar 18 2026
 - [x] Add pause/resume toggle for auto-refresh (amber ⏸/▶ button)
 - [x] Show "Updated HH:MM:SS" last-refreshed timestamp next to Refresh button
 
+## BPS Index Spread Width Fix (May 13 2026)
+- [x] Fix BPS scanner returning 1-point spreads for index options (SPX, NDX, RUT, etc.)
+  - Root cause: getEffectiveWidth functions had no server-side floor for index symbols; if symbolWidths was missing or the alias lookup failed, the scanner fell through to the auto-scale formula or the raw spreadWidth (default 5), then picked the nearest available put which was often just 1pt below the short strike
+  - Fix: added SERVER_MIN_SPREAD_WIDTH map (SPX→50, NDX→25, RUT/MRUT→5, XSP→5) to all four getEffectiveWidth/getEffectiveSpreadWidth functions in routers.ts (IC startScan, IC blocking, BPS startScan, BPS legacy). Index symbols now always use at least their exchange-standard minimum width regardless of what the frontend sends
+
 ## AI Advisor Card Misalignment Fix (May 12 2026)
 - [x] Fix AI Advisor analysis text offset by +1 position (CSCO analysis shown under AAPL, AAPL under KO, etc.)
   - Root cause: opportunity summary sent to LLM used 1-based numbering (i+1) but array lookup used 0-based index

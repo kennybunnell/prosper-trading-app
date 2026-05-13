@@ -3108,6 +3108,16 @@ Summary: [One sentence overall assessment]`;
           MRUT: 'RUT',
           VIXW: 'VIX',
         };
+        // Server-side minimum spread widths for index symbols (mirrors shared/orderUtils MIN_SPREAD_WIDTH_MAP)
+        // This is a safety net: even if symbolWidths is missing from the request, index symbols
+        // will never get a 1-point spread.
+        const SERVER_MIN_SPREAD_WIDTH: Record<string, number> = {
+          SPX: 50, SPXW: 50, SPXPM: 50,
+          NDX: 25, NDXP: 25, XND: 25,
+          RUT: 5, RUTW: 5, MRUT: 5,
+          XSP: 5, OEX: 5, XEO: 5,
+          DJX: 1, VIX: 1, VIXW: 1,
+        };
         const getEffectiveWidth = (sym: string): number => {
           const symUpper = sym.toUpperCase();
           if (input.symbolWidths) {
@@ -3115,8 +3125,11 @@ Summary: [One sentence overall assessment]`;
             const alias = SYMBOL_WIDTH_ALIAS_IC[symUpper];
             if (alias && input.symbolWidths[alias] !== undefined) return input.symbolWidths[alias];
           }
+          // Apply server-side minimum for known index symbols
+          const serverMin = SERVER_MIN_SPREAD_WIDTH[symUpper];
+          if (serverMin !== undefined) return Math.max(input.spreadWidth, serverMin);
           const price = symbolPriceMap.get(sym) || 0;
-          if (price < 500) return input.spreadWidth; // small-price symbols: use user input
+          if (price < 500) return input.spreadWidth; // small-price equities: use user input
           const autoWidth = Math.max(input.spreadWidth, Math.round((price * 0.004) / 5) * 5);
           return autoWidth;
         };
@@ -3548,6 +3561,13 @@ Summary: [One sentence overall assessment]`;
               if (!symbolPriceMap.has(opp.symbol)) symbolPriceMap.set(opp.symbol, opp.currentPrice);
             }
             const SYMBOL_WIDTH_ALIAS_IC: Record<string, string> = { SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX' };
+            const IC_SERVER_MIN_SPREAD_WIDTH: Record<string, number> = {
+              SPX: 50, SPXW: 50, SPXPM: 50,
+              NDX: 25, NDXP: 25, XND: 25,
+              RUT: 5, RUTW: 5, MRUT: 5,
+              XSP: 5, OEX: 5, XEO: 5,
+              DJX: 1, VIX: 1, VIXW: 1,
+            };
             const getEffectiveWidth = (sym: string): number => {
               const symUpper = sym.toUpperCase();
               if (input.symbolWidths) {
@@ -3555,6 +3575,8 @@ Summary: [One sentence overall assessment]`;
                 const alias = SYMBOL_WIDTH_ALIAS_IC[symUpper];
                 if (alias && input.symbolWidths[alias] !== undefined) return input.symbolWidths[alias];
               }
+              const serverMin = IC_SERVER_MIN_SPREAD_WIDTH[symUpper];
+              if (serverMin !== undefined) return Math.max(input.spreadWidth, serverMin);
               const price = symbolPriceMap.get(sym) || 0;
               if (price < 500) return input.spreadWidth;
               return Math.max(input.spreadWidth, Math.round((price * 0.004) / 5) * 5);
@@ -3791,6 +3813,13 @@ Summary: [One sentence overall assessment]`;
               if (!symbolPriceMap2.has(opp.symbol)) symbolPriceMap2.set(opp.symbol, opp.currentPrice);
             }
             const SPREAD_WIDTH_ALIAS2: Record<string, string> = { SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX' };
+            const BPS_SERVER_MIN_SPREAD_WIDTH2: Record<string, number> = {
+              SPX: 50, SPXW: 50, SPXPM: 50,
+              NDX: 25, NDXP: 25, XND: 25,
+              RUT: 5, RUTW: 5, MRUT: 5,
+              XSP: 5, OEX: 5, XEO: 5,
+              DJX: 1, VIX: 1, VIXW: 1,
+            };
             const getEffectiveSpreadWidth2 = (sym: string): number => {
               const symUpper = sym.toUpperCase();
               if (capturedInput.symbolWidths) {
@@ -3798,6 +3827,8 @@ Summary: [One sentence overall assessment]`;
                 const alias2 = SPREAD_WIDTH_ALIAS2[symUpper];
                 if (alias2 && capturedInput.symbolWidths[alias2] !== undefined) return capturedInput.symbolWidths[alias2];
               }
+              const serverMin2 = BPS_SERVER_MIN_SPREAD_WIDTH2[symUpper];
+              if (serverMin2 !== undefined) return Math.max(capturedInput.spreadWidth, serverMin2);
               const price2 = symbolPriceMap2.get(sym) || 0;
               if (price2 < 500) return capturedInput.spreadWidth;
               return Math.max(capturedInput.spreadWidth, Math.round((price2 * 0.004) / 5) * 5);
@@ -4045,6 +4076,15 @@ Summary: [One sentence overall assessment]`;
         const SPREAD_WIDTH_ALIAS: Record<string, string> = {
           SPXW: 'SPX', SPXPM: 'SPX', NDXP: 'NDX', MRUT: 'RUT', VIXW: 'VIX',
         };
+        // Server-side minimum spread widths for index symbols — safety net so index options
+        // never get a 1-point spread even if symbolWidths is omitted from the request.
+        const BPS_SERVER_MIN_SPREAD_WIDTH: Record<string, number> = {
+          SPX: 50, SPXW: 50, SPXPM: 50,
+          NDX: 25, NDXP: 25, XND: 25,
+          RUT: 5, RUTW: 5, MRUT: 5,
+          XSP: 5, OEX: 5, XEO: 5,
+          DJX: 1, VIX: 1, VIXW: 1,
+        };
         const getEffectiveSpreadWidth = (sym: string): number => {
           const symUpper = sym.toUpperCase();
           if (input.symbolWidths) {
@@ -4052,6 +4092,9 @@ Summary: [One sentence overall assessment]`;
             const alias = SPREAD_WIDTH_ALIAS[symUpper];
             if (alias && input.symbolWidths[alias] !== undefined) return input.symbolWidths[alias];
           }
+          // Apply server-side minimum for known index symbols
+          const serverMin = BPS_SERVER_MIN_SPREAD_WIDTH[symUpper];
+          if (serverMin !== undefined) return Math.max(input.spreadWidth, serverMin);
           const price = symbolPriceMapSpread.get(sym) || 0;
           if (price < 500) return input.spreadWidth; // small-price equities: use user input as-is
           const autoWidth = Math.max(input.spreadWidth, Math.round((price * 0.004) / 5) * 5);
