@@ -306,7 +306,26 @@ type ScoredOpportunity = {
 type PresetFilter = 'conservative' | 'medium' | 'aggressive' | null;
 type StrategyType = 'csp' | 'spread';
 type SpreadWidth = 2 | 5 | 10 | 25 | 50 | 100;
-const INDEX_SYMBOLS = new Set(['SPXW', 'SPX', 'NDXP', 'NDX', 'MRUT', 'RUT', 'XSP']);
+// TRUE cash-settled index symbols — European-style, cash-settled, Section 1256 tax treatment
+const INDEX_SYMBOLS = new Set([
+  'SPX','SPXW','SPXPM','XSP','NANOS',
+  'NDX','NDXP','XND',
+  'RUT','RUTW','MRUT',
+  'DJX',
+  'VIX','VIXW','VVIX',
+  'OEX','XEO',
+]);
+// ETF proxies — equity-settled, treated as equities for spread rules
+const ETF_PROXY_SET_BPS = new Set([
+  'SPY','SPXL','SPXS','SSO','SDS','UPRO','SPXU',
+  'QQQ','TQQQ','SQQQ','QLD','QID','QQQM',
+  'IWM','TNA','TZA','UWM','TWM',
+  'DIA','DDM','DXD',
+  'VXX','VIXY','UVXY','SVXY','VIXM',
+  'EFA','EEM','VEA','VWO',
+  'XLK','XLF','XLE','XLV','XLI','XLP','XLU','XLB','XLRE','XLC','XLY',
+  'TLT','TBT','IEF','SHY','HYG','LQD','TNX',
+]);
 
 // Feature flag for Bull Put Spreads (set to false to disable)
 const ENABLE_SPREADS = true;
@@ -3052,6 +3071,7 @@ export default function CSPDashboard() {
                     { key: 'score', label: 'Score', help: 'dialog-score', pinned: true },
                     ...(visibleCols.has('trend14d') ? [{ key: 'trend14d', label: 'Trend 14d', help: null, pinned: false }] : []),
                     { key: 'symbol', label: 'Symbol', help: null, pinned: true },
+                    { key: 'settlement', label: 'Settlement', help: null, pinned: true },
                     ...(isIndexMode && visibleCols.has('exchange') ? [{ key: 'exchange', label: 'Exchange', help: null, pinned: false }] : []),
                     ...(visibleCols.has('currentPrice') ? [{ key: 'currentPrice', label: 'Current', help: null, pinned: false }] : []),
                     { key: 'strike', label: 'Strikes', help: null, pinned: true },
@@ -3279,6 +3299,37 @@ export default function CSPDashboard() {
                                 </button>
                               </div>
                             </TableCell>
+                            {/* Settlement badge for BPS results: Cash-Settled | ETF | Equity */}
+                            {(() => {
+                              const sym = opp.symbol.toUpperCase();
+                              const isCash = INDEX_SYMBOLS.has(sym);
+                              const isEtf = ETF_PROXY_SET_BPS.has(sym);
+                              if (isCash) {
+                                return (
+                                  <TableCell>
+                                    <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-semibold px-2 py-0.5 whitespace-nowrap">
+                                      Cash-Settled
+                                    </Badge>
+                                  </TableCell>
+                                );
+                              } else if (isEtf) {
+                                return (
+                                  <TableCell>
+                                    <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/40 text-[10px] font-semibold px-2 py-0.5">
+                                      ETF
+                                    </Badge>
+                                  </TableCell>
+                                );
+                              } else {
+                                return (
+                                  <TableCell>
+                                    <Badge className="bg-muted/50 text-muted-foreground border border-border text-[10px] font-semibold px-2 py-0.5">
+                                      Equity
+                                    </Badge>
+                                  </TableCell>
+                                );
+                              }
+                            })()}
                             {isIndexMode && visibleCols.has('exchange') && (() => {
                               const exch = getIndexExchange(opp.symbol);
                               return (

@@ -9651,3 +9651,8 @@ ROC Fix Mar 18 2026
 - [x] Update EnhancedWatchlist auto-detect logic: only auto-flip to Index mode for true cash-settled indexes, not ETFs
 - [x] Show inline warning in EnhancedWatchlist when user tries to add SPY/QQQ/IWM in Index mode
 - [x] Update INDEX_SYMBOLS_SET in EnhancedWatchlist to only contain true cash-settled indexes for isIndex auto-classification
+
+## ETF Classification Cleanup & Badges (May 13 2026)
+- [x] SQL: reset isIndex=false for all ETF proxy symbols already in the watchlist table (4 rows corrected: SPY, QQQ x2, TQQQ)
+- [x] Add ETF/Cash Index badge next to each symbol in the watchlist table (amber=Cash-Settled, blue=ETF, muted=Equity)
+- [x] Add Settlement column (Cash-Settled / Equity-Settled) to BPS spread scanner results table

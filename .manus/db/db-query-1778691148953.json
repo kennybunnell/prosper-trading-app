@@ -1,0 +1,26 @@
+{
+  "query": "\nUPDATE watchlists\nSET isIndex = 0\nWHERE symbol IN (\n  -- S&P 500 ETFs and leveraged variants\n  'SPY','SPXL','SPXS','SSO','SDS','UPRO','SPXU',\n  -- Nasdaq ETFs and leveraged variants\n  'QQQ','TQQQ','SQQQ','QLD','QID','QQQM',\n  -- Russell 2000 ETFs and leveraged variants\n  'IWM','TNA','TZA','UWM','TWM',\n  -- Dow Jones ETFs\n  'DIA','DDM','DXD',\n  -- Volatility ETFs/ETNs\n  'VXX','VIXY','UVXY','SVXY','VIXM',\n  -- International / broad market ETFs\n  'MXEA','MXEF','EFA','EEM','VEA','VWO',\n  -- Sector ETFs\n  'XLK','XLF','XLE','XLV','XLI','XLP','XLU','XLB','XLRE','XLC','XLY',\n  -- Bond / rate ETFs\n  'TNX','TLT','TBT','IEF','SHY','HYG','LQD'\n)\nAND isIndex = 1;\n\nSELECT symbol, isIndex FROM watchlists\nWHERE symbol IN ('SPY','QQQ','IWM','DIA','VXX','TLT','XLK','TQQQ','SQQQ','UPRO')\nORDER BY symbol;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2m8TNWgPuPvRJRa.1b4cee6bb564 --database dA3LRtUEtHSvLVLz3WfwfJ --execute \nUPDATE watchlists\nSET isIndex = 0\nWHERE symbol IN (\n  -- S&P 500 ETFs and leveraged variants\n  'SPY','SPXL','SPXS','SSO','SDS','UPRO','SPXU',\n  -- Nasdaq ETFs and leveraged variants\n  'QQQ','TQQQ','SQQQ','QLD','QID','QQQM',\n  -- Russell 2000 ETFs and leveraged variants\n  'IWM','TNA','TZA','UWM','TWM',\n  -- Dow Jones ETFs\n  'DIA','DDM','DXD',\n  -- Volatility ETFs/ETNs\n  'VXX','VIXY','UVXY','SVXY','VIXM',\n  -- International / broad market ETFs\n  'MXEA','MXEF','EFA','EEM','VEA','VWO',\n  -- Sector ETFs\n  'XLK','XLF','XLE','XLV','XLI','XLP','XLU','XLB','XLRE','XLC','XLY',\n  -- Bond / rate ETFs\n  'TNX','TLT','TBT','IEF','SHY','HYG','LQD'\n)\nAND isIndex = 1;\n\nSELECT symbol, isIndex FROM watchlists\nWHERE symbol IN ('SPY','QQQ','IWM','DIA','VXX','TLT','XLK','TQQQ','SQQQ','UPRO')\nORDER BY symbol;\n",
+  "rows": [
+    {
+      "symbol": "QQQ",
+      "isIndex": "0"
+    },
+    {
+      "symbol": "QQQ",
+      "isIndex": "0"
+    },
+    {
+      "symbol": "SPY",
+      "isIndex": "0"
+    },
+    {
+      "symbol": "TQQQ",
+      "isIndex": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "symbol\tisIndex\nQQQ\t0\nQQQ\t0\nSPY\t0\nTQQQ\t0\n",
+  "stderr": "",
+  "execution_time_ms": 330
+}

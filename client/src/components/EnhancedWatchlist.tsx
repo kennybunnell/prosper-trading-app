@@ -690,6 +690,7 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
                 <TableRow>
                   <TableHead className="w-[80px]">Rank</TableHead>
                   <TableHead className="w-[100px]">Symbol</TableHead>
+                  <TableHead className="w-[130px]">Settlement</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead className="w-[100px]">Type</TableHead>
                   <TableHead className="w-[120px]">Portfolio Size</TableHead>
@@ -717,6 +718,32 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
                     <TableRow key={item.id}>
                       <TableCell>{item.rank || '-'}</TableCell>
                       <TableCell className="font-mono font-semibold">{item.symbol}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const sym = item.symbol.toUpperCase();
+                          const isCashIndex = INDEX_SYMBOLS_SET.has(sym);
+                          const isEtf = ETF_PROXY_SET.has(sym);
+                          if (isCashIndex) {
+                            return (
+                              <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-semibold px-2 py-0.5">
+                                Cash-Settled
+                              </Badge>
+                            );
+                          } else if (isEtf) {
+                            return (
+                              <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/40 text-[10px] font-semibold px-2 py-0.5">
+                                ETF
+                              </Badge>
+                            );
+                          } else {
+                            return (
+                              <Badge className="bg-muted/50 text-muted-foreground border border-border text-[10px] font-semibold px-2 py-0.5">
+                                Equity
+                              </Badge>
+                            );
+                          }
+                        })()}
+                      </TableCell>
                       <TableCell>{item.company || '-'}</TableCell>
                       <TableCell>
                         {item.type && (
