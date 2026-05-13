@@ -39,7 +39,36 @@ type EnhancedWatchlistProps = {
   onContextModeChange?: (mode: 'equity' | 'index') => void;
 };
 
-const INDEX_SYMBOLS_SET = new Set(['SPX','SPXW','SPXPM','XSP','NANOS','NDX','XND','RUT','MRUT','DJX','VIX','VIXW','SPY','QQQ','IWM','DIA','OEX','XEO','QQQM','TQQQ','SQQQ','UPRO','SPXU','SSO','SDS','TNA','TZA','EFA','EEM','VEA','VWO','XLK','XLF','XLE','XLV','XLI','XLP','XLU','XLB','XLRE','XLC','XLY','TLT','TBT','IEF','HYG','LQD','VXX','VIXY','UVXY','SVXY']);
+// TRUE cash-settled index symbols only — these are the ONLY symbols that should trigger
+// isIndex=true in the watchlist. ETFs (SPY, QQQ, IWM, etc.) are equity-settled and must
+// follow equity margin/spread rules. They are intentionally excluded from this set.
+const INDEX_SYMBOLS_SET = new Set([
+  // S&P 500 cash-settled index family
+  'SPX','SPXW','SPXPM','XSP','NANOS',
+  // Nasdaq-100 cash-settled index family
+  'NDX','NDXP','XND',
+  // Russell 2000 cash-settled index family
+  'RUT','RUTW','MRUT',
+  // Dow Jones cash-settled index
+  'DJX',
+  // CBOE Volatility Index family
+  'VIX','VIXW','VVIX',
+  // S&P 100 cash-settled (legacy)
+  'OEX','XEO',
+]);
+
+// ETF proxies — equity-settled, must NOT be marked isIndex=true
+// Kept as a separate set for display grouping in the watchlist UI only
+const ETF_PROXY_SET = new Set([
+  'SPY','SPXL','SPXS','SSO','SDS','UPRO','SPXU',
+  'QQQ','TQQQ','SQQQ','QLD','QID','QQQM',
+  'IWM','TNA','TZA','UWM','TWM',
+  'DIA','DDM','DXD',
+  'VXX','VIXY','UVXY','SVXY','VIXM',
+  'EFA','EEM','VEA','VWO',
+  'XLK','XLF','XLE','XLV','XLI','XLP','XLU','XLB','XLRE','XLC','XLY',
+  'TLT','TBT','IEF','SHY','HYG','LQD','TNX',
+]);
 
 function WatchlistPills({
   watchlist,
@@ -498,10 +527,14 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
                 onChange={(e) => {
                   const val = e.target.value.toUpperCase();
                   setNewSymbol(val);
-                  // Auto-detect index symbols as user types
+                  // Auto-detect TRUE cash-settled index symbols as user types.
+                  // ETFs (SPY, QQQ, IWM) are intentionally excluded — they are equity-settled.
                   const syms = val.split(',').map(s => s.trim()).filter(Boolean);
                   if (syms.length > 0 && syms.every(s => INDEX_SYMBOLS_SET.has(s))) {
                     setAddAsIndex(true);
+                  } else if (syms.length > 0 && syms.every(s => ETF_PROXY_SET.has(s))) {
+                    // ETFs typed in — force equity mode so they don't get misclassified
+                    setAddAsIndex(false);
                   }
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddSymbols()}
@@ -517,6 +550,14 @@ export default function EnhancedWatchlist({ onWatchlistChange, isCollapsed = fal
             Adding as: <span className={addAsIndex ? 'text-amber-400 font-medium' : 'text-blue-400 font-medium'}>{addAsIndex ? 'Index' : 'Equity'}</span>
             {' '}— switch the toggle above to change
           </p>
+          {/* ETF warning: shown when user is in Index mode but has typed an ETF symbol */}
+          {addAsIndex && newSymbol && newSymbol.split(',').map(s => s.trim()).some(s => ETF_PROXY_SET.has(s)) && (
+            <p className="text-xs text-red-400 font-medium">
+              ⚠️ {newSymbol.split(',').map(s => s.trim()).filter(s => ETF_PROXY_SET.has(s)).join(', ')} {newSymbol.split(',').map(s => s.trim()).filter(s => ETF_PROXY_SET.has(s)).length === 1 ? 'is' : 'are'} an equity-settled ETF, not a cash-settled index.
+              {' '}ETFs follow equity margin and spread rules — they will be added as Equity regardless.
+              {' '}For index-style trading, use the true index (e.g., SPXW instead of SPY).
+            </p>
+          )}
         </div>
 
         {/* SPXW Quick-Add Banner */}

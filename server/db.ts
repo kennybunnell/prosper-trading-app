@@ -215,9 +215,15 @@ export async function addToWatchlistWithMetadata(
   const db = await getDb();
   if (!db) return;
   const { watchlists } = await import('../drizzle/schema');
-  const { isIndexSymbol } = await import('../shared/index-symbols');
-  // Auto-detect index symbols if not explicitly provided
-  const resolvedIsIndex = data.isIndex !== undefined ? data.isIndex : isIndexSymbol(data.symbol);
+  const { isTrueCashSettledIndex, isEtfProxy } = await import('../shared/index-symbols');
+  // Guard: ETF proxies (SPY, QQQ, IWM, etc.) must NEVER be marked as isIndex=true.
+  // They are equity-settled and must follow equity margin/spread rules.
+  if (data.isIndex === true && isEtfProxy(data.symbol)) {
+    console.warn(`[watchlist] Rejected isIndex=true for ETF proxy ${data.symbol} — treating as equity`);
+    data = { ...data, isIndex: false };
+  }
+  // Auto-detect: only true cash-settled indexes (SPX, NDX, RUT, VIX family) get isIndex=true
+  const resolvedIsIndex = data.isIndex !== undefined ? data.isIndex : isTrueCashSettledIndex(data.symbol);
   // Use onDuplicateKeyUpdate as a no-op so duplicate inserts are silently ignored
   await db.insert(watchlists).values({
     userId,

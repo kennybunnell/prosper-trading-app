@@ -1853,6 +1853,18 @@ Answer the trader's follow-up question concisely and specifically. Use actual nu
       .mutation(async ({ ctx, input }) => {
         const db = await (await import('./db')).getDb();
         if (!db) return { success: false };
+        // Guard: ETF proxies (SPY, QQQ, IWM, etc.) must never be marked as isIndex=true.
+        // They are equity-settled and must follow equity margin/spread rules.
+        const { isEtfProxy } = await import('../shared/index-symbols');
+        const { TRPCError: TRPCErr } = await import('@trpc/server');
+        if (input.isIndex && isEtfProxy(input.symbol)) {
+          throw new TRPCErr({
+            code: 'BAD_REQUEST',
+            message: `${input.symbol} is an equity-settled ETF and cannot be marked as a cash-settled index. ` +
+              `ETFs like SPY, QQQ, and IWM follow equity margin and spread rules. ` +
+              `Use the true index (e.g., SPXW for SPX exposure) for index-style trading.`,
+          });
+        }
         const { watchlists } = await import('../drizzle/schema');
         const { eq, and } = await import('drizzle-orm');
         await db.update(watchlists)

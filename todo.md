@@ -9643,3 +9643,11 @@ ROC Fix Mar 18 2026
   - Fix: changed oppSummary and symbolBestHints to use 0-based index (i) so LLM returns values that map directly to opportunities[]
   - Also added explicit "IMPORTANT: opportunityIndex values are 0-based" instruction to system prompt
   - Zero TypeScript errors confirmed
+
+## isIndex Watchlist Validation (May 13 2026)
+- [x] Separate TRUE_CASH_SETTLED_INDEXES from ETF_PROXIES in shared/index-symbols.ts
+- [x] Add isTrueCashSettledIndex() helper that returns true ONLY for SPX/NDX/RUT/VIX family
+- [x] Add server-side validation in watchlist.add and watchlist.setIndex: if symbol is a known ETF (SPY, QQQ, IWM, etc.), reject isIndex=true with a clear error message
+- [x] Update EnhancedWatchlist auto-detect logic: only auto-flip to Index mode for true cash-settled indexes, not ETFs
+- [x] Show inline warning in EnhancedWatchlist when user tries to add SPY/QQQ/IWM in Index mode
+- [x] Update INDEX_SYMBOLS_SET in EnhancedWatchlist to only contain true cash-settled indexes for isIndex auto-classification
