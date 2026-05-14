@@ -2,20 +2,18 @@
  * AutoCloseStep — Step 5 of Daily Actions
  *
  * Shows ALL open short option positions across all accounts.
- * Each row has an opt-in Monitor toggle and a profit target % picker.
+ * Each row has an explicit "Monitor" / "Monitoring ✓" button to opt in/out,
+ * plus a profit target % picker that is always visible.
  * Filter tabs: All | Monitored (GTC set) | Not Monitored
- * A "Run Now" button triggers an immediate scan.
- * A results panel shows the last scan's findings.
  */
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Play, RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Play, RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle, Eye, EyeOff, BellRing, BellOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 type ProfitTargetPct = 25 | 50 | 75 | 90;
@@ -41,14 +39,24 @@ export default function AutoCloseStep() {
   const { toast } = useToast();
   const [lastScanResult, setLastScanResult] = useState<ScanResult | null>(null);
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
+  // Track which rows are in a pending mutation so we can show loading state per-row
+  const [pendingRows, setPendingRows] = useState<Set<string>>(new Set());
 
   const { data: positions, isLoading: posLoading, refetch } = trpc.autoClose.listOpenShortPositions.useQuery(undefined, {
     refetchInterval: 30_000,
   });
 
   const setTargetMut = trpc.autoClose.setTarget.useMutation({
-    onSuccess: () => refetch(),
-    onError: (err) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
+    onSuccess: (_, vars) => {
+      const key = `${vars.accountId}::${vars.optionSymbol}`;
+      setPendingRows(prev => { const s = new Set(prev); s.delete(key); return s; });
+      refetch();
+    },
+    onError: (err, vars) => {
+      const key = `${vars.accountId}::${vars.optionSymbol}`;
+      setPendingRows(prev => { const s = new Set(prev); s.delete(key); return s; });
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    },
   });
 
   const removeMut = trpc.autoClose.removeTarget.useMutation({
@@ -72,27 +80,35 @@ export default function AutoCloseStep() {
     onError: (err) => toast({ title: 'Scan failed', description: err.message, variant: 'destructive' }),
   });
 
-  function handleToggle(pos: NonNullable<typeof positions>[number], enabled: boolean) {
-    if (!enabled && pos.targetId) {
+  function handleOptIn(pos: NonNullable<typeof positions>[number], targetPct: ProfitTargetPct) {
+    const key = `${pos.accountId}::${pos.optionSymbol}`;
+    setPendingRows(prev => new Set(prev).add(key));
+    setTargetMut.mutate({
+      accountId: pos.accountId,
+      accountNumber: pos.accountNumber,
+      symbol: pos.symbol,
+      optionSymbol: pos.optionSymbol,
+      optionType: pos.optionType,
+      strike: pos.strike,
+      expiration: pos.expiration,
+      quantity: pos.quantity,
+      premiumCollected: pos.averageOpenPrice,
+      profitTargetPct: targetPct,
+      strategy: pos.optionType === 'P' ? 'csp' : 'cc',
+    });
+    toast({ title: `Monitoring ${pos.symbol}`, description: `Will auto-close when ${targetPct}% profit is reached.` });
+  }
+
+  function handleOptOut(pos: NonNullable<typeof positions>[number]) {
+    if (pos.targetId) {
       removeMut.mutate({ id: pos.targetId });
-    } else if (enabled) {
-      setTargetMut.mutate({
-        accountId: pos.accountId,
-        accountNumber: pos.accountNumber,
-        symbol: pos.symbol,
-        optionSymbol: pos.optionSymbol,
-        optionType: pos.optionType,
-        strike: pos.strike,
-        expiration: pos.expiration,
-        quantity: pos.quantity,
-        premiumCollected: pos.averageOpenPrice,
-        profitTargetPct: (pos.profitTargetPct as ProfitTargetPct | undefined) ?? 50,
-        strategy: pos.optionType === 'P' ? 'csp' : 'cc',
-      });
+      toast({ title: `Stopped monitoring ${pos.symbol}`, description: 'Auto-close disabled for this position.' });
     }
   }
 
   function handleChangePct(pos: NonNullable<typeof positions>[number], pct: ProfitTargetPct) {
+    const key = `${pos.accountId}::${pos.optionSymbol}`;
+    setPendingRows(prev => new Set(prev).add(key));
     setTargetMut.mutate({
       accountId: pos.accountId,
       accountNumber: pos.accountNumber,
@@ -142,7 +158,7 @@ export default function AutoCloseStep() {
         <div>
           <h3 className="text-lg font-semibold text-white">Auto-Close Monitor</h3>
           <p className="text-sm text-gray-400 mt-0.5">
-            Toggle <strong>Monitor</strong> on any position and set a profit target. The system checks every 5 min during market hours and submits a BTC order automatically when the target is hit.
+            Click <strong className="text-orange-400">Monitor at X%</strong> on any position to opt it in. The system will automatically submit a BTC order when that profit target is reached.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -184,6 +200,14 @@ export default function AutoCloseStep() {
         )}
       </div>
 
+      {/* How-to callout */}
+      <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 flex items-start gap-3">
+        <BellRing className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
+        <p className="text-xs text-blue-200/80">
+          <strong className="text-blue-300">How to opt in:</strong> Find the position you want to auto-close, choose your profit target % from the dropdown, then click the <strong className="text-orange-400">Monitor at X%</strong> button. It will turn green to confirm it's active. Click <strong className="text-red-400">Stop Monitoring</strong> to remove it.
+        </p>
+      </div>
+
       {/* Filter tabs */}
       <div className="flex items-center gap-1 border-b border-gray-800 pb-0">
         {filterTabs.map(tab => (
@@ -222,7 +246,7 @@ export default function AutoCloseStep() {
         <div className="text-center py-8 text-gray-500">
           <p className="text-sm">
             {filterTab === 'monitored'
-              ? 'No positions are currently being monitored. Toggle Monitor on any position below.'
+              ? 'No positions are currently being monitored. Click "Monitor at X%" on any position below.'
               : 'All positions are being monitored.'}
           </p>
         </div>
@@ -231,7 +255,6 @@ export default function AutoCloseStep() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-800 bg-gray-900/50">
-                <th className="text-left px-4 py-3 text-gray-400 font-medium">Monitor</th>
                 <th className="text-left px-4 py-3 text-gray-400 font-medium">Symbol</th>
                 <th className="text-left px-4 py-3 text-gray-400 font-medium">Strike / Exp</th>
                 <th className="text-left px-4 py-3 text-gray-400 font-medium">Account</th>
@@ -239,32 +262,25 @@ export default function AutoCloseStep() {
                 <th className="text-right px-4 py-3 text-gray-400 font-medium">Open Price</th>
                 <th className="text-right px-4 py-3 text-gray-400 font-medium">P/L %</th>
                 <th className="text-right px-4 py-3 text-gray-400 font-medium">DTE</th>
-                <th className="text-center px-4 py-3 text-gray-400 font-medium">Target %</th>
-                <th className="text-center px-4 py-3 text-gray-400 font-medium">Status</th>
+                <th className="text-center px-4 py-3 text-gray-400 font-medium">Close at %</th>
+                <th className="text-center px-4 py-3 text-gray-400 font-medium min-w-[160px]">Auto-Close Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredPositions.map((pos) => {
+                const rowKey = `${pos.accountId}::${pos.optionSymbol}`;
                 const isEnabled = pos.targetEnabled ?? false;
                 const targetPct = (pos.profitTargetPct as ProfitTargetPct | undefined) ?? 50;
                 const atTarget = pos.profitPct >= targetPct;
+                const isPending = pendingRows.has(rowKey);
 
                 return (
                   <tr
-                    key={`${pos.accountId}::${pos.optionSymbol}`}
-                    className={`border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors ${
-                      isEnabled ? 'bg-blue-950/10' : ''
+                    key={rowKey}
+                    className={`border-b border-gray-800/50 hover:bg-gray-800/20 transition-colors ${
+                      isEnabled ? 'bg-green-950/10 border-l-2 border-l-green-500/40' : ''
                     }`}
                   >
-                    {/* Monitor toggle */}
-                    <td className="px-4 py-3">
-                      <Switch
-                        checked={isEnabled}
-                        onCheckedChange={(v) => handleToggle(pos, v)}
-                        disabled={setTargetMut.isPending || removeMut.isPending}
-                      />
-                    </td>
-
                     {/* Symbol */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -298,7 +314,7 @@ export default function AutoCloseStep() {
                         {pos.profitPct.toFixed(1)}%
                       </span>
                       {atTarget && isEnabled && (
-                        <div className="text-xs text-green-400 mt-0.5 font-medium">At target!</div>
+                        <div className="text-xs text-green-400 mt-0.5 font-medium animate-pulse">At target!</div>
                       )}
                     </td>
 
@@ -309,12 +325,19 @@ export default function AutoCloseStep() {
                       </span>
                     </td>
 
-                    {/* Target % picker */}
+                    {/* Target % picker — always visible */}
                     <td className="px-4 py-3 text-center">
                       <Select
                         value={String(targetPct)}
-                        onValueChange={(v) => handleChangePct(pos, parseInt(v) as ProfitTargetPct)}
-                        disabled={!isEnabled || setTargetMut.isPending}
+                        onValueChange={(v) => {
+                          const pct = parseInt(v) as ProfitTargetPct;
+                          if (isEnabled) {
+                            // Already opted in — update the target immediately
+                            handleChangePct(pos, pct);
+                          }
+                          // If not opted in, the value is just staged for when they click Monitor
+                        }}
+                        disabled={isPending}
                       >
                         <SelectTrigger className="w-20 h-7 text-xs bg-gray-800 border-gray-700 text-white mx-auto">
                           <SelectValue />
@@ -328,10 +351,41 @@ export default function AutoCloseStep() {
                       </Select>
                     </td>
 
-                    {/* Status */}
+                    {/* Opt-in / Opt-out action button */}
                     <td className="px-4 py-3 text-center">
-                      {isEnabled ? statusBadge(pos.targetStatus ?? 'watching') : (
-                        <span className="text-gray-600 text-xs">—</span>
+                      {isPending ? (
+                        <Button size="sm" disabled className="w-36 text-xs">
+                          <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                          Saving...
+                        </Button>
+                      ) : isEnabled ? (
+                        <div className="flex flex-col items-center gap-1">
+                          {/* Green "active" badge */}
+                          <div className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            Monitoring at {targetPct}%
+                            {statusBadge(pos.targetStatus ?? 'watching') && (
+                              <span className="ml-1">{statusBadge(pos.targetStatus ?? 'watching')}</span>
+                            )}
+                          </div>
+                          {/* Stop button */}
+                          <button
+                            onClick={() => handleOptOut(pos)}
+                            className="flex items-center gap-1 text-xs text-red-400/70 hover:text-red-400 transition-colors mt-0.5"
+                          >
+                            <BellOff className="h-3 w-3" />
+                            Stop Monitoring
+                          </button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => handleOptIn(pos, targetPct)}
+                          className="w-36 text-xs bg-orange-600/80 hover:bg-orange-500 text-white border-0"
+                        >
+                          <BellRing className="h-3.5 w-3.5 mr-1.5" />
+                          Monitor at {targetPct}%
+                        </Button>
                       )}
                     </td>
                   </tr>
@@ -387,12 +441,12 @@ export default function AutoCloseStep() {
           <div className="text-sm">
             <p className="font-medium text-amber-300 mb-1">How it works</p>
             <ul className="space-y-1 text-xs text-amber-200/70">
-              <li>• Toggle <strong>Monitor</strong> to opt a position in. Set your target % (50% is the Tastytrade standard).</li>
+              <li>• Choose your profit target % from the dropdown, then click <strong>Monitor at X%</strong> to opt in.</li>
               <li>• The system checks every 5 minutes Mon–Fri 9:30 AM–4:00 PM ET.</li>
-              <li>• When a position reaches its target, a BTC limit order is submitted automatically (dry-run verified first).</li>
+              <li>• When a position reaches its target, a BTC limit order is submitted automatically.</li>
               <li>• You will receive a Telegram notification when a position is closed.</li>
               <li>• Use <strong>Run Now</strong> to trigger an immediate check outside the schedule.</li>
-              <li>• Use the <strong>Monitored</strong> tab to see only positions with auto-close enabled, or <strong>Not Monitored</strong> to find positions that still need a target set.</li>
+              <li>• Click <strong>Stop Monitoring</strong> on any active row to remove it from auto-close.</li>
             </ul>
           </div>
         </div>
